@@ -59,9 +59,10 @@ function fmtDateTime(d: string): string {
   return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-function AssignmentCard({ a, farmId, autoExpand }: { a: Assignment; farmId: number; autoExpand?: boolean }) {
+function AssignmentCard({ a, farmId, autoExpand, forceOpen }: { a: Assignment; farmId: number; autoExpand?: boolean; forceOpen?: boolean }) {
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(autoExpand ?? false);
+  const isExpanded = expanded || !!forceOpen;
   const [newStatus, setNewStatus] = useState(a.status);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -118,7 +119,7 @@ function AssignmentCard({ a, farmId, autoExpand }: { a: Assignment; farmId: numb
       )}
     >
       <div
-        className="flex items-start gap-3 p-4 cursor-pointer"
+        className="flex items-start gap-3 p-4 cursor-pointer print:cursor-default"
         onClick={() => setExpanded(p => !p)}
       >
         <StatusIcon className={cn("w-4 h-4 mt-0.5 flex-shrink-0", {
@@ -141,7 +142,7 @@ function AssignmentCard({ a, farmId, autoExpand }: { a: Assignment; farmId: numb
               <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border", cfg.colour)}>
                 {cfg.label}
               </span>
-              <ChevronDown className={cn("w-3.5 h-3.5 text-foreground/30 transition-transform", expanded && "rotate-180")} />
+              <ChevronDown className={cn("w-3.5 h-3.5 text-foreground/30 transition-transform print:hidden", isExpanded && "rotate-180")} />
             </div>
           </div>
           <div className="flex items-center gap-3 mt-1 flex-wrap">
@@ -175,7 +176,7 @@ function AssignmentCard({ a, farmId, autoExpand }: { a: Assignment; farmId: numb
         </div>
       </div>
 
-      {expanded && (
+      {isExpanded && (
         <div className="px-4 pb-4 pt-0 border-t border-border space-y-3 mt-0">
           {a.description && (
             <p className="text-xs text-foreground/60 leading-relaxed pt-3">{a.description}</p>
@@ -200,8 +201,8 @@ function AssignmentCard({ a, farmId, autoExpand }: { a: Assignment; farmId: numb
             <p className="text-xs text-foreground/40">Completed {fmtDate(a.completedAt)}</p>
           )}
 
-          {/* Reassignment history */}
-          {historyLoading && (
+          {/* Reassignment history — only shown if already loaded via manual expand */}
+          {!forceOpen && historyLoading && (
             <div className="flex items-center gap-2 py-2 text-foreground/40">
               <Loader2 className="w-3 h-3 animate-spin" />
               <span className="text-xs">Loading history…</span>
@@ -238,7 +239,7 @@ function AssignmentCard({ a, farmId, autoExpand }: { a: Assignment; farmId: numb
             </div>
           )}
 
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex items-center gap-2 pt-1 print:hidden">
             <select
               value={newStatus}
               onChange={e => setNewStatus(e.target.value)}
@@ -612,6 +613,18 @@ export default function TaskBoardPage() {
   const [memberFilter, setMemberFilter] = useState("all");
   const [moduleFilter, setModuleFilter] = useState("all");
   const [completedWindow, setCompletedWindow] = useState("90d");
+  const [boardPrinting, setBoardPrinting] = useState(false);
+
+  useEffect(() => {
+    const before = () => setBoardPrinting(true);
+    const after  = () => setBoardPrinting(false);
+    window.addEventListener("beforeprint", before);
+    window.addEventListener("afterprint",  after);
+    return () => {
+      window.removeEventListener("beforeprint", before);
+      window.removeEventListener("afterprint",  after);
+    };
+  }, []);
 
   const WINDOW_OPTIONS: { value: string; label: string }[] = [
     { value: "30d",  label: "Last 30 days" },
@@ -712,7 +725,7 @@ export default function TaskBoardPage() {
       <div className="max-w-3xl space-y-6">
 
         {/* View toggle + New Task button */}
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 print:hidden">
           <div className="flex items-center gap-1 p-1 bg-muted rounded-lg w-fit">
             <button
               onClick={() => setView("board")}
@@ -751,7 +764,7 @@ export default function TaskBoardPage() {
         {view === "board" && <>
 
         {/* Stats row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:hidden">
           {["pending", "in_progress", "completed", "cancelled"].map(s => {
             const count = memberFiltered.filter(r => r.status === s).length;
             const cfg = STATUS_CONFIG[s];
@@ -779,7 +792,7 @@ export default function TaskBoardPage() {
         </div>
 
         {/* Search */}
-        <div className="relative">
+        <div className="relative print:hidden">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/35 pointer-events-none" />
           <input
             type="text"
@@ -798,7 +811,7 @@ export default function TaskBoardPage() {
           )}
         </div>
 
-        {/* Filters */}
+        {/* Filters + Print button */}
         <div className="flex items-center gap-3 flex-wrap">
           {departments.length > 0 && (
             <select
@@ -841,6 +854,24 @@ export default function TaskBoardPage() {
           <span className="text-xs text-foreground/40 ml-auto">
             {filtered.length} assignment{filtered.length !== 1 ? "s" : ""}
           </span>
+          <button
+            onClick={() => { setBoardPrinting(true); setTimeout(() => { window.print(); }, 50); }}
+            className="flex items-center gap-1.5 text-sm border border-border rounded-lg px-3 py-1.5 bg-white hover:bg-black/[0.03] transition-colors"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            Print / Export
+          </button>
+        </div>
+
+        {/* Board print header */}
+        <div className="hidden print:block mb-6">
+          <h1 className="text-xl font-bold">Task Board</h1>
+          <p className="text-sm text-slate-600 mt-1">
+            {deptFilter !== "all" && <span>Department: {deptFilter} · </span>}
+            {memberFilter !== "all" && <span>Staff: {memberFilter} · </span>}
+            {moduleFilter !== "all" && <span>Module: {moduleFilter} · </span>}
+            {filtered.length} assignment{filtered.length !== 1 ? "s" : ""}
+          </p>
         </div>
 
         {/* Loading */}
@@ -871,7 +902,7 @@ export default function TaskBoardPage() {
             </h2>
             <div className="space-y-2">
               {pending.map(a => (
-                <AssignmentCard key={a.id} a={a} farmId={farmId} autoExpand={targetId === a.id} />
+                <AssignmentCard key={a.id} a={a} farmId={farmId} autoExpand={targetId === a.id} forceOpen={boardPrinting} />
               ))}
             </div>
           </div>
@@ -888,7 +919,7 @@ export default function TaskBoardPage() {
               <select
                 value={completedWindow}
                 onChange={e => setCompletedWindow(e.target.value)}
-                className="text-xs border border-border rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground/70"
+                className="text-xs border border-border rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground/70 print:hidden"
               >
                 <optgroup label="Rolling window">
                   {WINDOW_OPTIONS.map(o => (
@@ -911,7 +942,7 @@ export default function TaskBoardPage() {
             ) : (
               <div className="space-y-2">
                 {completed.map(a => (
-                  <AssignmentCard key={a.id} a={a} farmId={farmId} autoExpand={targetId === a.id} />
+                  <AssignmentCard key={a.id} a={a} farmId={farmId} autoExpand={targetId === a.id} forceOpen={boardPrinting} />
                 ))}
               </div>
             )}
