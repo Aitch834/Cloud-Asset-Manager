@@ -2335,6 +2335,36 @@ export function FeedSection({ farmId }: { farmId: number }) {
         <strong>Traceability requirement:</strong> Link each feeding event to a source bin and delivery batch. This creates a full audit chain from supplier → bin → herd. Retain invoices and delivery notes for 3 years.
       </div>
 
+      {!isLoading && filtered.length > 0 && (() => {
+        const totalKg = filtered.reduce((s: number, r: any) => s + (r.quantityKg ? Number(r.quantityKg) : 0), 0);
+        const byType: Record<string, number> = {};
+        filtered.forEach((r: any) => {
+          const key = FEED_TYPE_LABELS[r.feedType as keyof typeof FEED_TYPE_LABELS] ?? r.feedType;
+          byType[key] = (byType[key] ?? 0) + (r.quantityKg ? Number(r.quantityKg) : 0);
+        });
+        const typeRows = Object.entries(byType).sort((a, b) => b[1] - a[1]);
+        return (
+          <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+            <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 16px", minWidth: 130 }}>
+              <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#15803d", letterSpacing: "0.06em", margin: "0 0 3px" }}>Feed Events</p>
+              <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#14532d", lineHeight: 1, margin: 0 }}>{filtered.length}</p>
+            </div>
+            {totalKg > 0 && (
+              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 16px", minWidth: 150 }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#15803d", letterSpacing: "0.06em", margin: "0 0 3px" }}>Total Fed</p>
+                <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#14532d", lineHeight: 1, margin: 0 }}>{totalKg.toLocaleString("en-GB", { maximumFractionDigits: 0 })} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>kg</span></p>
+              </div>
+            )}
+            {typeRows.length > 1 && typeRows.map(([type, kg]) => (
+              <div key={type} style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 16px", minWidth: 130 }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#374151", letterSpacing: "0.06em", margin: "0 0 3px" }}>{type}</p>
+                <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#111827", lineHeight: 1, margin: 0 }}>{kg.toLocaleString("en-GB", { maximumFractionDigits: 0 })} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>kg</span></p>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
       ) : filtered.length === 0 ? (

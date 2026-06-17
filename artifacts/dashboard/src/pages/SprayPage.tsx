@@ -783,20 +783,57 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
         const totalArea = filtered.reduce((s: number, r: any) => s + parseFloat(String(r.areaSprayedHa || 0)), 0);
         const hasWater = filtered.some((r: any) => r.waterVolumeLitres);
         const totalWater = hasWater ? filtered.reduce((s: number, r: any) => s + parseFloat(String(r.waterVolumeLitres || 0)), 0) : 0;
+        const uniqueProducts = new Set(filtered.map((r: any) => r.productName).filter(Boolean)).size;
+        const uniqueFields = new Set(filtered.map((r: any) => r.fieldName).filter(Boolean)).size;
+        const byProduct: Record<string, { count: number; ha: number }> = {};
+        filtered.forEach((r: any) => {
+          const key = String(r.productName || "Unknown");
+          if (!byProduct[key]) byProduct[key] = { count: 0, ha: 0 };
+          byProduct[key].count++;
+          byProduct[key].ha += parseFloat(String(r.areaSprayedHa || 0));
+        });
+        const productRows = Object.entries(byProduct).sort((a, b) => b[1].ha - a[1].ha);
         return (
-          <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-            <div style={{ background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 8, padding: "10px 16px", minWidth: 120 }}>
-              <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#7c3aed", letterSpacing: "0.06em", margin: "0 0 3px" }}>Applications</p>
-              <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#4c1d95", lineHeight: 1, margin: 0 }}>{filtered.length}</p>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", gap: 10, marginBottom: productRows.length > 1 ? 10 : 0, flexWrap: "wrap" }}>
+              <div style={{ background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 8, padding: "10px 16px", minWidth: 120 }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#7c3aed", letterSpacing: "0.06em", margin: "0 0 3px" }}>Applications</p>
+                <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#4c1d95", lineHeight: 1, margin: 0 }}>{filtered.length}</p>
+              </div>
+              <div style={{ background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 8, padding: "10px 16px", minWidth: 150 }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#7c3aed", letterSpacing: "0.06em", margin: "0 0 3px" }}>Total Area Treated</p>
+                <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#4c1d95", lineHeight: 1, margin: 0 }}>{totalArea.toFixed(2)} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>ha</span></p>
+              </div>
+              {uniqueProducts > 0 && (
+                <div style={{ background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 8, padding: "10px 16px", minWidth: 120 }}>
+                  <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#7c3aed", letterSpacing: "0.06em", margin: "0 0 3px" }}>Products Used</p>
+                  <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#4c1d95", lineHeight: 1, margin: 0 }}>{uniqueProducts}</p>
+                </div>
+              )}
+              {uniqueFields > 0 && (
+                <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 16px", minWidth: 120 }}>
+                  <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#15803d", letterSpacing: "0.06em", margin: "0 0 3px" }}>Fields Treated</p>
+                  <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#14532d", lineHeight: 1, margin: 0 }}>{uniqueFields}</p>
+                </div>
+              )}
+              {hasWater && (
+                <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 16px", minWidth: 160 }}>
+                  <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#1d4ed8", letterSpacing: "0.06em", margin: "0 0 3px" }}>Total Water Volume</p>
+                  <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e3a8a", lineHeight: 1, margin: 0 }}>{totalWater.toFixed(0)} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>L</span></p>
+                </div>
+              )}
             </div>
-            <div style={{ background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 8, padding: "10px 16px", minWidth: 150 }}>
-              <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#7c3aed", letterSpacing: "0.06em", margin: "0 0 3px" }}>Total Area Treated</p>
-              <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#4c1d95", lineHeight: 1, margin: 0 }}>{totalArea.toFixed(2)} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>ha</span></p>
-            </div>
-            {hasWater && (
-              <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 16px", minWidth: 160 }}>
-                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#1d4ed8", letterSpacing: "0.06em", margin: "0 0 3px" }}>Total Water Volume</p>
-                <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e3a8a", lineHeight: 1, margin: 0 }}>{totalWater.toFixed(0)} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>L</span></p>
+            {productRows.length > 1 && (
+              <div style={{ background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 8, padding: "10px 14px" }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#7c3aed", letterSpacing: "0.06em", margin: "0 0 8px" }}>By Product</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 20px" }}>
+                  {productRows.map(([product, vals]) => (
+                    <span key={product} style={{ fontSize: "0.75rem", color: "#4c1d95" }}>
+                      <span style={{ fontWeight: 700 }}>{product}</span>
+                      <span style={{ color: "#7c3aed", marginLeft: 4 }}>{vals.count} app{vals.count !== 1 ? "s" : ""} — {vals.ha.toFixed(2)} ha</span>
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
           </div>
