@@ -342,8 +342,9 @@ function TaskRow({ task }: { task: ReportTask }) {
   );
 }
 
-function StaffGroup({ staffName, tasks }: { staffName: string; tasks: ReportTask[] }) {
+function StaffGroup({ staffName, tasks, forceOpen }: { staffName: string; tasks: ReportTask[]; forceOpen?: boolean }) {
   const [open, setOpen] = useState(false);
+  const isOpen = open || !!forceOpen;
   const completed   = tasks.filter(t => t.status === "completed").length;
   const inProgress  = tasks.filter(t => t.status === "in_progress").length;
   const pending     = tasks.filter(t => t.status === "pending").length;
@@ -351,10 +352,10 @@ function StaffGroup({ staffName, tasks }: { staffName: string; tasks: ReportTask
   return (
     <div className="border border-border/40 rounded-lg overflow-hidden">
       <button
-        className="w-full flex items-center gap-2 px-3 py-2.5 bg-white hover:bg-black/[0.02] transition-colors text-left"
+        className="w-full flex items-center gap-2 px-3 py-2.5 bg-white hover:bg-black/[0.02] transition-colors text-left print:cursor-default"
         onClick={() => setOpen(v => !v)}
       >
-        {open ? <ChevronUp className="w-3.5 h-3.5 text-foreground/40 shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 text-foreground/40 shrink-0" />}
+        {isOpen ? <ChevronUp className="w-3.5 h-3.5 text-foreground/40 shrink-0 print:hidden" /> : <ChevronDown className="w-3.5 h-3.5 text-foreground/40 shrink-0 print:hidden" />}
         <Users className="w-3.5 h-3.5 text-foreground/50 shrink-0" />
         <span className="text-sm font-medium flex-1">{staffName}</span>
         <div className="flex gap-1.5 flex-wrap justify-end">
@@ -364,7 +365,7 @@ function StaffGroup({ staffName, tasks }: { staffName: string; tasks: ReportTask
           <StatusPill status="cancelled" count={cancelled} />
         </div>
       </button>
-      {open && (
+      {isOpen && (
         <div className="bg-slate-50 border-t border-border/30">
           {tasks.map(t => <TaskRow key={t.id} task={t} />)}
         </div>
@@ -373,8 +374,9 @@ function StaffGroup({ staffName, tasks }: { staffName: string; tasks: ReportTask
   );
 }
 
-function DeptGroup({ deptName, deptColour, tasks }: { deptName: string; deptColour: string | null; tasks: ReportTask[] }) {
+function DeptGroup({ deptName, deptColour, tasks, forceOpen }: { deptName: string; deptColour: string | null; tasks: ReportTask[]; forceOpen?: boolean }) {
   const [open, setOpen] = useState(true);
+  const isOpen = open || !!forceOpen;
   const byStaff = tasks.reduce<Record<string, ReportTask[]>>((acc, t) => {
     const key = t.staffName || "Unassigned";
     if (!acc[key]) acc[key] = [];
@@ -389,10 +391,10 @@ function DeptGroup({ deptName, deptColour, tasks }: { deptName: string; deptColo
   return (
     <div className="border border-border/50 rounded-xl overflow-hidden">
       <button
-        className="w-full flex items-center gap-2.5 px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+        className="w-full flex items-center gap-2.5 px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left print:cursor-default"
         onClick={() => setOpen(v => !v)}
       >
-        {open ? <ChevronUp className="w-4 h-4 text-foreground/40 shrink-0" /> : <ChevronDown className="w-4 h-4 text-foreground/40 shrink-0" />}
+        {isOpen ? <ChevronUp className="w-4 h-4 text-foreground/40 shrink-0 print:hidden" /> : <ChevronDown className="w-4 h-4 text-foreground/40 shrink-0 print:hidden" />}
         <span className="w-3 h-3 rounded-full shrink-0" style={{ background: deptColour ?? "#374151" }} />
         <Building2 className="w-4 h-4 text-foreground/50 shrink-0" />
         <span className="font-semibold text-sm flex-1">{deptName}</span>
@@ -404,10 +406,10 @@ function DeptGroup({ deptName, deptColour, tasks }: { deptName: string; deptColo
           <StatusPill status="cancelled" count={cancelled} />
         </div>
       </button>
-      {open && (
+      {isOpen && (
         <div className="divide-y divide-border/20 px-3 py-2 space-y-2">
           {Object.entries(byStaff).sort(([a],[b]) => a.localeCompare(b)).map(([name, staffTasks]) => (
-            <StaffGroup key={name} staffName={name} tasks={staffTasks} />
+            <StaffGroup key={name} staffName={name} tasks={staffTasks} forceOpen={forceOpen} />
           ))}
         </div>
       )}
@@ -415,8 +417,9 @@ function DeptGroup({ deptName, deptColour, tasks }: { deptName: string; deptColo
   );
 }
 
-function ModuleGroup({ moduleName, tasks }: { moduleName: string; tasks: ReportTask[] }) {
+function ModuleGroup({ moduleName, tasks, forceOpen }: { moduleName: string; tasks: ReportTask[]; forceOpen?: boolean }) {
   const [open, setOpen] = useState(true);
+  const isOpen = open || !!forceOpen;
   const byDept = tasks.reduce<Record<string, ReportTask[]>>((acc, t) => {
     const key = t.departmentName ?? "__none__";
     if (!acc[key]) acc[key] = [];
@@ -431,10 +434,10 @@ function ModuleGroup({ moduleName, tasks }: { moduleName: string; tasks: ReportT
   return (
     <div className="border-2 border-border rounded-2xl overflow-hidden">
       <button
-        className="w-full flex items-center gap-3 px-5 py-4 bg-white hover:bg-black/[0.01] transition-colors text-left"
+        className="w-full flex items-center gap-3 px-5 py-4 bg-white hover:bg-black/[0.01] transition-colors text-left print:cursor-default"
         onClick={() => setOpen(v => !v)}
       >
-        {open ? <ChevronUp className="w-4 h-4 text-foreground/40 shrink-0" /> : <ChevronRight className="w-4 h-4 text-foreground/40 shrink-0" />}
+        {isOpen ? <ChevronUp className="w-4 h-4 text-foreground/40 shrink-0 print:hidden" /> : <ChevronRight className="w-4 h-4 text-foreground/40 shrink-0 print:hidden" />}
         <ClipboardList className="w-4 h-4 text-primary shrink-0" />
         <span className="font-bold text-sm flex-1">{moduleName}</span>
         <span className="text-xs text-foreground/50">{total} task{total !== 1 ? "s" : ""}</span>
@@ -445,7 +448,7 @@ function ModuleGroup({ moduleName, tasks }: { moduleName: string; tasks: ReportT
           <StatusPill status="cancelled" count={cancelled} />
         </div>
       </button>
-      {open && (
+      {isOpen && (
         <div className="px-4 pb-4 space-y-3 bg-slate-50/50 border-t border-border">
           {Object.entries(byDept)
             .sort(([a],[b]) => (a === "__none__" ? 1 : b === "__none__" ? -1 : a.localeCompare(b)))
@@ -457,6 +460,7 @@ function ModuleGroup({ moduleName, tasks }: { moduleName: string; tasks: ReportT
                   deptName={deptKey === "__none__" ? "No Department" : deptKey}
                   deptColour={deptKey === "__none__" ? "#94a3b8" : firstTask.departmentColour}
                   tasks={deptTasks}
+                  forceOpen={forceOpen}
                 />
               );
             })}
@@ -468,6 +472,18 @@ function ModuleGroup({ moduleName, tasks }: { moduleName: string; tasks: ReportT
 
 function ReportsView({ farmId }: { farmId: number }) {
   const [period, setPeriod] = useState("this-month");
+  const [printing, setPrinting] = useState(false);
+
+  useEffect(() => {
+    const before = () => setPrinting(true);
+    const after  = () => setPrinting(false);
+    window.addEventListener("beforeprint", before);
+    window.addEventListener("afterprint",  after);
+    return () => {
+      window.removeEventListener("beforeprint", before);
+      window.removeEventListener("afterprint",  after);
+    };
+  }, []);
 
   const { data, isLoading } = useQuery<{ tasks: ReportTask[]; period: string; startDate: string; endDate: string }>({
     queryKey: ["task-report", farmId, period],
@@ -507,7 +523,7 @@ function ReportsView({ farmId }: { farmId: number }) {
           </span>
         )}
         <button
-          onClick={() => window.print()}
+          onClick={() => { setPrinting(true); setTimeout(() => { window.print(); }, 50); }}
           className="ml-auto flex items-center gap-1.5 text-sm border border-border rounded-lg px-3 py-1.5 bg-white hover:bg-black/[0.03] transition-colors"
         >
           <Printer className="w-3.5 h-3.5" />
@@ -571,7 +587,7 @@ function ReportsView({ farmId }: { farmId: number }) {
 
       {/* Module groups */}
       {!isLoading && Object.entries(byModule).sort(([a],[b]) => a.localeCompare(b)).map(([mod, modTasks]) => (
-        <ModuleGroup key={mod} moduleName={mod} tasks={modTasks} />
+        <ModuleGroup key={mod} moduleName={mod} tasks={modTasks} forceOpen={printing} />
       ))}
     </div>
   );
