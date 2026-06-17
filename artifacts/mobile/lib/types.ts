@@ -44,6 +44,8 @@ export interface SprayRecord {
   linkedWeatherDate: string;
   detectedFieldId: string;
   photoIds: string[];
+  waterSourceNearby?: string;
+  bufferZoneMetres?: string;
   createdAt: string;
   synced: boolean;
 }

@@ -16,6 +16,7 @@ import { fonts, fontSize } from "@/constants/typography";
 interface InputProps extends TextInputProps {
   label?: string;
   error?: string;
+  hint?: string;
   icon?: keyof typeof Feather.glyphMap;
   containerStyle?: ViewStyle;
   required?: boolean;
@@ -28,6 +29,7 @@ interface InputProps extends TextInputProps {
 export function Input({
   label,
   error,
+  hint,
   icon,
   containerStyle,
   required,
@@ -87,6 +89,7 @@ export function Input({
         />
       </View>
       {!!displayError && <Text style={styles.error}>{displayError}</Text>}
+      {!displayError && !!hint && <Text style={styles.hint}>{hint}</Text>}
     </View>
   );
 }
@@ -140,6 +143,12 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: fontSize.xs,
     color: colors.error,
+    marginTop: spacing.xs,
+  },
+  hint: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textTertiary,
     marginTop: spacing.xs,
   },
 });

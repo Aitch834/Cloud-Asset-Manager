@@ -69,6 +69,29 @@ export default function SprayRecordScreen() {
   const [manualOperatorName, setManualOperatorName] = useState(user?.name || "");
   const operatorName = selectedOperator ? memberFullName(selectedOperator) : manualOperatorName;
 
+  const [waterSourceNearby, setWaterSourceNearby] = useState("");
+  const [bufferZoneMetres, setBufferZoneMetres] = useState("");
+
+  const WATER_SOURCE_OPTIONS = [
+    { id: "ditch", label: "Ditch" },
+    { id: "stream", label: "Stream" },
+    { id: "pond_lake", label: "Pond / Lake" },
+    { id: "borehole_well", label: "Borehole / Well" },
+    { id: "none", label: "None / Not applicable" },
+    { id: "other", label: "Other" },
+  ];
+
+  const handleWaterSourceChange = (id: string, label: string) => {
+    setWaterSourceNearby(label);
+    if (!bufferZoneMetres) {
+      if (["ditch", "stream", "pond_lake"].includes(id)) {
+        setBufferZoneMetres("5");
+      } else if (id === "borehole_well") {
+        setBufferZoneMetres("50");
+      }
+    }
+  };
+
   const [fieldName, setFieldName] = useState("");
   const [areaSprayedHa, setAreaSprayedHa] = useState("");
   const [areaAutoFilled, setAreaAutoFilled] = useState(false);
@@ -244,6 +267,8 @@ export default function SprayRecordScreen() {
       startTime: new Date().toISOString(),
       endTime: new Date().toISOString(),
       notes: notes.trim(),
+      waterSourceNearby: waterSourceNearby.trim() || undefined,
+      bufferZoneMetres: bufferZoneMetres.trim() || undefined,
       latitude,
       longitude,
       linkedWeatherDate: linkedWeather?.date || "",
@@ -497,13 +522,14 @@ export default function SprayRecordScreen() {
             loading={membersLoading}
             error={membersError}
           />
-          <Input
-            label={members.length === 0 ? "Operator Name *" : "Or enter name manually"}
-            value={manualOperatorName}
-            onChangeText={(t) => { setManualOperatorName(t); if (t) setSelectedOperator(null); }}
-            placeholder="e.g. John Smith"
-            editable={!selectedOperator}
-          />
+          {!selectedOperator && (
+            <Input
+              label={members.length === 0 ? "Operator Name *" : "Or enter name manually"}
+              value={manualOperatorName}
+              onChangeText={(t) => { setManualOperatorName(t); if (t) setSelectedOperator(null); }}
+              placeholder="e.g. John Smith"
+            />
+          )}
           <Input
             label="Equipment Used"
             placeholder="e.g. 24m sprayer"
@@ -518,6 +544,39 @@ export default function SprayRecordScreen() {
             multiline
             numberOfLines={3}
           />
+
+          {/* ── Near Water ── */}
+          <View style={styles.sectionLabel}>
+            <Feather name="droplet" size={14} color={colors.info} />
+            <Text style={styles.sectionTitle}>Near Water / Buffer Zone</Text>
+          </View>
+          <Text style={styles.fieldLabel}>Nearest Water Source</Text>
+          <LookupPicker
+            label="Nearest Water Source"
+            value={waterSourceNearby}
+            onSelect={handleWaterSourceChange}
+            options={WATER_SOURCE_OPTIONS}
+            placeholder="Select water source nearby…"
+            allowFreeText={false}
+            emptyMessage="No options available"
+            icon="droplet"
+          />
+          {waterSourceNearby && waterSourceNearby !== "None / Not applicable" && (
+            <Input
+              label="Buffer Zone Distance (m)"
+              placeholder="e.g. 5"
+              value={bufferZoneMetres}
+              onChangeText={setBufferZoneMetres}
+              keyboardType="decimal-pad"
+              hint={
+                bufferZoneMetres === "5"
+                  ? "CoP minimum 5 m · check product label / LERAP rating"
+                  : bufferZoneMetres === "50"
+                    ? "SPZ minimum 50 m"
+                    : undefined
+              }
+            />
+          )}
 
           <Button
             title="Save Spray Record"
