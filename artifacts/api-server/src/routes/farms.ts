@@ -1074,6 +1074,29 @@ router.put("/farms/:farmId/crops/:recordId", requireAuth, requireTenant, require
   res.json({ record });
 });
 
+router.put("/farms/:farmId/crop-varieties/:varietyId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const varietyId = parseInt(req.params.varietyId as string, 10);
+  if (isNaN(varietyId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { name, category, variety } = req.body as { name?: string; category?: string; variety?: string };
+  const [row] = await db.select({ cropId: cropVarietiesTable.cropId })
+    .from(cropVarietiesTable)
+    .where(and(eq(cropVarietiesTable.id, varietyId), eq(cropVarietiesTable.farmId, farmId)))
+    .limit(1);
+  if (!row) { res.status(404).json({ error: "Crop variety not found" }); return; }
+  if (variety !== undefined) {
+    await db.update(cropVarietiesTable).set({ variety: variety || null }).where(eq(cropVarietiesTable.id, varietyId));
+  }
+  const cropUpdate: Record<string, unknown> = {};
+  if (name) cropUpdate.name = name;
+  if (category !== undefined) cropUpdate.category = category ?? null;
+  if (Object.keys(cropUpdate).length > 0) {
+    await db.update(cropsTable).set(cropUpdate).where(eq(cropsTable.id, row.cropId));
+  }
+  res.json({ success: true });
+});
+
 router.delete("/farms/:farmId/crops/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;

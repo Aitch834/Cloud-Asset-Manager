@@ -15,7 +15,7 @@ import {
 import { useAppStore } from "@/hooks/use-app-store";
 import { useFields, useAddField, useUpdateField, useDeleteField } from "@/hooks/use-fields";
 import { useCrops, useAddCrop, useFieldCropAssignments, useAssignCrop } from "@/hooks/use-crops";
-import { getListFieldCropAssignmentsQueryKey, getListFieldsQueryKey } from "@workspace/api-client-react/src/generated/api";
+import { getListFieldCropAssignmentsQueryKey, getListFieldsQueryKey, getListCropsQueryKey } from "@workspace/api-client-react/src/generated/api";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 import {
@@ -1123,6 +1123,9 @@ export default function FieldsPage() {
   const [printOpen, setPrintOpen] = useState(false);
   const [expandedVarietyId, setExpandedVarietyId] = useState<number | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [editingCrop, setEditingCrop] = useState<CropRecord | null>(null);
+  const [editCropForm, setEditCropForm] = useState({ name: "", variety: "", category: "" });
+  const [editCropSaving, setEditCropSaving] = useState(false);
   const [landUseForField, setLandUseForField] = useState<FieldRecord | null>(null);
   const [editingLandUseRecord, setEditingLandUseRecord] = useState<LandUseRecord | null>(null);
 
@@ -1257,6 +1260,23 @@ export default function FieldsPage() {
   const onSubmitCrop = (values: CropFormData) => {
     createCrop({ farmId, data: values as any }, { onSuccess: () => { setIsAddCropOpen(false); cropForm.reset(); } });
   };
+
+  async function handleEditCropSave() {
+    if (!editingCrop) return;
+    setEditCropSaving(true);
+    try {
+      await fetch(`/api/farms/${safeFarmId}/crop-varieties/${editingCrop.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name: editCropForm.name, variety: editCropForm.variety, category: editCropForm.category }),
+      });
+      queryClient.invalidateQueries({ queryKey: getListCropsQueryKey(safeFarmId) });
+      setEditingCrop(null);
+    } finally {
+      setEditCropSaving(false);
+    }
+  }
 
   const onSubmitAssign = (values: AssignCropFormData) => {
     if (!assignForField) return;
@@ -1702,28 +1722,39 @@ export default function FieldsPage() {
                           return (
                             <div key={crop.id}>
                               {/* Variety row header */}
-                              <button
-                                onClick={() => setExpandedVarietyId(isVarietyExpanded ? null : crop.id)}
-                                className="w-full flex items-center gap-3 px-5 py-3 text-left bg-green-50/20 hover:bg-green-50/50 transition-colors"
-                              >
-                                <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0 ml-3" />
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-foreground">
-                                    {crop.variety || <span className="italic text-foreground/40">No variety specified</span>}
-                                  </p>
-                                  {crop.category && (
-                                    <p className="text-xs text-foreground/40">{crop.category}</p>
+                              <div className="flex items-center bg-green-50/20 hover:bg-green-50/50 transition-colors">
+                                <button
+                                  onClick={() => setExpandedVarietyId(isVarietyExpanded ? null : crop.id)}
+                                  className="flex-1 flex items-center gap-3 px-5 py-3 text-left"
+                                >
+                                  <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0 ml-3" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-foreground">
+                                      {crop.variety || <span className="italic text-foreground/40">No variety specified</span>}
+                                    </p>
+                                    {crop.category && (
+                                      <p className="text-xs text-foreground/40">{crop.category}</p>
+                                    )}
+                                  </div>
+                                  {hasAssignments ? (
+                                    <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full flex-shrink-0">
+                                      {assignedFields.length} field{assignedFields.length !== 1 ? "s" : ""}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-foreground/30 flex-shrink-0">No fields</span>
                                   )}
+                                  <ChevronDown className={`w-3.5 h-3.5 text-foreground/30 flex-shrink-0 transition-transform ${isVarietyExpanded ? "rotate-180" : ""}`} />
+                                </button>
+                                <div className="flex items-center gap-0.5 pr-3 flex-shrink-0">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setEditingCrop(crop); setEditCropForm({ name: crop.name, variety: crop.variety ?? "", category: crop.category ?? "" }); }}
+                                    className="p-1.5 rounded hover:bg-green-100 text-foreground/30 hover:text-green-700 transition-colors"
+                                    title="Edit crop / variety"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
                                 </div>
-                                {hasAssignments ? (
-                                  <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full flex-shrink-0">
-                                    {assignedFields.length} field{assignedFields.length !== 1 ? "s" : ""}
-                                  </span>
-                                ) : (
-                                  <span className="text-xs text-foreground/30 flex-shrink-0">No fields</span>
-                                )}
-                                <ChevronDown className={`w-3.5 h-3.5 text-foreground/30 flex-shrink-0 transition-transform ${isVarietyExpanded ? "rotate-180" : ""}`} />
-                              </button>
+                              </div>
 
                               {/* Expanded field list for this variety */}
                               {isVarietyExpanded && (
@@ -2720,6 +2751,54 @@ export default function FieldsPage() {
               </>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── EDIT CROP / VARIETY DIALOG ── */}
+      <Dialog open={!!editingCrop} onOpenChange={(o) => { if (!o) setEditingCrop(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Crop / Variety</DialogTitle>
+            <DialogDescription>Update the crop name, variety, or category. Changes to the crop name and category will apply to all varieties of this crop.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Crop Name</label>
+              <Input
+                value={editCropForm.name}
+                onChange={e => setEditCropForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. Winter Wheat, Oil Seed Rape"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Variety</label>
+              <Input
+                value={editCropForm.variety}
+                onChange={e => setEditCropForm(f => ({ ...f, variety: e.target.value }))}
+                placeholder="e.g. KWS Zyatt, Extase"
+              />
+              <p className="text-xs text-foreground/50 mt-1">Leave blank if variety is not known or not applicable.</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Category</label>
+              <select
+                value={editCropForm.category}
+                onChange={e => setEditCropForm(f => ({ ...f, category: e.target.value }))}
+                className="w-full border border-input rounded-md px-3 py-2 text-sm bg-white"
+              >
+                <option value="">No category</option>
+                {["Combinable Crops", "Root Crops", "Vegetables", "Oilseeds", "Pulses", "Grass & Forage", "Other"].map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button type="button" variant="outline" onClick={() => setEditingCrop(null)}>Cancel</Button>
+            <Button onClick={handleEditCropSave} disabled={editCropSaving || !editCropForm.name.trim()}>
+              {editCropSaving ? "Saving…" : "Save Changes"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
