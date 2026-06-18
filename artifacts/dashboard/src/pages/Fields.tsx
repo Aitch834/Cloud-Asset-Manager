@@ -1131,8 +1131,8 @@ function SeasonRainfallBadge({ lat, lng, startDate, endDate }: {
   const today = new Date().toISOString().slice(0, 10);
   const start = startDate?.slice(0, 10) ?? null;
   const rawEnd = endDate?.slice(0, 10) ?? null;
-  const end = rawEnd && rawEnd > today ? today : rawEnd;
-  const enabled = !!(lat && lng && start && end && start < end);
+  const end = rawEnd ? (rawEnd > today ? today : rawEnd) : today;
+  const enabled = !!(lat && lng && start && start < end);
 
   const { data: totalMm, isLoading, isError } = useQuery<number | null>({
     queryKey: ["season-rainfall", String(lat), String(lng), start, end],
@@ -2161,7 +2161,7 @@ export default function FieldsPage() {
 
       {/* ── FIELD HISTORY DIALOG ── */}
       <Dialog open={!!selectedFieldForHistory} onOpenChange={(o) => { if (!o) setSelectedFieldForHistory(null); }}>
-        <DialogContent className="max-w-lg p-0 flex flex-col max-h-[85vh] overflow-hidden gap-0" aria-describedby={undefined}>
+        <DialogContent className="max-w-3xl p-0 flex flex-col max-h-[85vh] overflow-hidden gap-0" aria-describedby={undefined}>
           <DialogTitle className="sr-only">
             {selectedFieldForHistory?.name || `Field #${selectedFieldForHistory?.id}`} — Field Details
           </DialogTitle>
@@ -2790,7 +2790,13 @@ export default function FieldsPage() {
                                     const days = harvestVarianceDays(a.expectedHarvestDate, a.actualHarvestDate);
                                     return <div className="flex items-center gap-2 mt-0.5 flex-wrap"><p className="text-xs text-foreground/60 flex items-center gap-1.5"><Wheat className="w-3 h-3 flex-shrink-0 text-green-700" />Actual harvest {formatDate(a.actualHarvestDate)}</p>{days !== null && <VarianceBadge days={days} size="xs" />}</div>;
                                   })()}
-                                  {a.actualHarvestDate && <div className="mt-1.5"><HarvestNoteEditor assignmentId={a.id} farmId={farmId} initialNote={a.notes} /></div>}
+                                  {a.actualHarvestDate && (
+                                    a.year >= CURRENT_YEAR ? (
+                                      <div className="mt-1.5"><HarvestNoteEditor assignmentId={a.id} farmId={farmId} initialNote={a.notes} /></div>
+                                    ) : a.notes ? (
+                                      <p className="text-[11px] text-foreground/50 italic mt-1.5 leading-relaxed">{a.notes}</p>
+                                    ) : null
+                                  )}
                                   {(() => {
                                     const harvests = fieldHarvests.filter(h => h.fieldCropAssignmentId === a.id);
                                     if (!harvests.length) return null;
