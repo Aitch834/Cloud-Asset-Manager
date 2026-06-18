@@ -2345,6 +2345,40 @@ export function BcsTab({ farmId }: { farmId: number }) {
           </DialogContent>
         </Dialog>
       )}
+      {!isLoading && filteredBcsRecords.length > 0 && (() => {
+        const scores = filteredBcsRecords.map(r => r.bcsScore ? parseFloat(r.bcsScore) : null).filter((v): v is number => v !== null);
+        const avgBcs = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+        const inRange = scores.filter(s => s >= 2.5 && s <= 3.5).length;
+        const inRangePct = scores.length > 0 ? Math.round((inRange / scores.length) * 100) : null;
+        const actionsNeeded = filteredBcsRecords.filter(r => r.actionRequired).length;
+        return (
+          <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+            <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 16px", minWidth: 120 }}>
+              <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#1d4ed8", letterSpacing: "0.06em", margin: "0 0 3px" }}>Assessments</p>
+              <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e3a8a", lineHeight: 1, margin: 0 }}>{filteredBcsRecords.length}</p>
+            </div>
+            {avgBcs !== null && (
+              <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 16px", minWidth: 120 }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#1d4ed8", letterSpacing: "0.06em", margin: "0 0 3px" }}>Avg BCS</p>
+                <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e3a8a", lineHeight: 1, margin: 0 }}>{avgBcs.toFixed(2)}</p>
+              </div>
+            )}
+            {inRangePct !== null && (
+              <div style={{ background: inRangePct >= 70 ? "#f0fdf4" : "#fef9c3", border: `1px solid ${inRangePct >= 70 ? "#bbf7d0" : "#fef08a"}`, borderRadius: 8, padding: "10px 16px", minWidth: 150 }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: inRangePct >= 70 ? "#15803d" : "#854d0e", letterSpacing: "0.06em", margin: "0 0 3px" }}>In Target Range (2.5–3.5)</p>
+                <p style={{ fontSize: "1.35rem", fontWeight: 800, color: inRangePct >= 70 ? "#14532d" : "#78350f", lineHeight: 1, margin: 0 }}>{inRangePct}%</p>
+                <p style={{ fontSize: "0.65rem", color: inRangePct >= 70 ? "#15803d" : "#92400e", margin: "2px 0 0" }}>{inRange} of {scores.length} scored</p>
+              </div>
+            )}
+            {actionsNeeded > 0 && (
+              <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 16px", minWidth: 130 }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#b45309", letterSpacing: "0.06em", margin: "0 0 3px" }}>Action Required</p>
+                <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#78350f", lineHeight: 1, margin: 0 }}>{actionsNeeded}</p>
+              </div>
+            )}
+          </div>
+        );
+      })()}
       {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" /> : (
         <div className="space-y-2">
           {(!filteredBcsRecords.length) && <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No BCS records{yearFilterBcs !== "all" ? ` for ${yearFilterBcs}` : ""} yet.</CardContent></Card>}
@@ -2662,6 +2696,41 @@ export function MobilityTab({ farmId }: { farmId: number }) {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* ── Summary strip ── */}
+      {!isLoading && filteredMobilityRecords.length > 0 && (() => {
+        const totalCows = filteredMobilityRecords.reduce((s, r) => s + (r.totalCowsScored ?? 0), 0);
+        const lamValues = filteredMobilityRecords.map(r => r.lamenessPrevalencePercent ? parseFloat(r.lamenessPrevalencePercent) : null).filter((v): v is number => v !== null);
+        const avgLameness = lamValues.length > 0 ? lamValues.reduce((a, b) => a + b, 0) / lamValues.length : null;
+        const aboveTarget = lamValues.filter(v => v >= 10).length;
+        return (
+          <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+            <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 16px", minWidth: 120 }}>
+              <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#1d4ed8", letterSpacing: "0.06em", margin: "0 0 3px" }}>Assessments</p>
+              <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e3a8a", lineHeight: 1, margin: 0 }}>{filteredMobilityRecords.length}</p>
+            </div>
+            {totalCows > 0 && (
+              <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 16px", minWidth: 130 }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#1d4ed8", letterSpacing: "0.06em", margin: "0 0 3px" }}>Total Cows Scored</p>
+                <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e3a8a", lineHeight: 1, margin: 0 }}>{totalCows.toLocaleString("en-GB")}</p>
+              </div>
+            )}
+            {avgLameness !== null && (
+              <div style={{ background: avgLameness >= 10 ? "#fef2f2" : "#f0fdf4", border: `1px solid ${avgLameness >= 10 ? "#fecaca" : "#bbf7d0"}`, borderRadius: 8, padding: "10px 16px", minWidth: 160 }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: avgLameness >= 10 ? "#b91c1c" : "#15803d", letterSpacing: "0.06em", margin: "0 0 3px" }}>Avg Lameness Prevalence</p>
+                <p style={{ fontSize: "1.35rem", fontWeight: 800, color: avgLameness >= 10 ? "#7f1d1d" : "#14532d", lineHeight: 1, margin: 0 }}>{avgLameness.toFixed(1)}<span style={{ fontSize: "0.7rem", fontWeight: 500 }}>%</span></p>
+                <p style={{ fontSize: "0.65rem", color: avgLameness >= 10 ? "#b91c1c" : "#15803d", margin: "2px 0 0" }}>{avgLameness >= 10 ? "Above 10% target" : "Within target"}</p>
+              </div>
+            )}
+            {aboveTarget > 0 && (
+              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "10px 16px", minWidth: 130 }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#b91c1c", letterSpacing: "0.06em", margin: "0 0 3px" }}>Above 10% Target</p>
+                <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#7f1d1d", lineHeight: 1, margin: 0 }}>{aboveTarget} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>session{aboveTarget !== 1 ? "s" : ""}</span></p>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Record list ── */}
       {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" /> : (
