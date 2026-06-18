@@ -392,6 +392,9 @@ export const api = {
   replyToEmail: (uid: number, body: string, secret: string) =>
     post<{ sent: boolean; reason?: string }>(`/admin/inbox/${uid}/reply`, { body }, secret),
 
+  forwardEmail: (uid: number, to: string, body: string, secret: string) =>
+    post<{ sent: boolean; reason?: string }>(`/admin/inbox/${uid}/forward`, { to, body }, secret),
+
   getSentEmails: (secret: string) =>
     get<{ emails: AdminEmailSent[] }>("/admin/emails/sent", secret),
 

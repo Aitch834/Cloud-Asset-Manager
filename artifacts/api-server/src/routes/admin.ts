@@ -647,6 +647,52 @@ router.post("/admin/inbox/:uid/reply", requireAuth, async (req: Request, res: Re
   }
 });
 
+// ─── Email: Forward ──────────────────────────────────────────────────────────
+
+router.post("/admin/inbox/:uid/forward", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const uid = parseInt(req.params.uid as string, 10);
+  if (isNaN(uid)) { res.status(400).json({ error: "Invalid UID" }); return; }
+
+  const { to, body, subject } = req.body;
+  if (!to || typeof to !== "string" || !to.trim()) {
+    res.status(400).json({ error: "Forward recipient (to) is required" });
+    return;
+  }
+  if (!body || typeof body !== "string" || body.trim().length === 0) {
+    res.status(400).json({ error: "Forward body is required" });
+    return;
+  }
+
+  try {
+    const original = await fetchEmail(uid);
+    const fwdSubject = subject?.trim() || (original.subject.startsWith("Fwd:") ? original.subject : `Fwd: ${original.subject}`);
+
+    const result = await sendAdminEmail({
+      to: to.trim(),
+      subject: fwdSubject,
+      body: body.trim(),
+    });
+
+    if (result.sent) {
+      await db.insert(adminEmailsSentTable).values({
+        toAddress: to.trim(),
+        toName: null,
+        subject: fwdSubject,
+        body: body.trim(),
+        status: "sent",
+      });
+      res.json({ sent: true });
+    } else {
+      res.status(500).json({ sent: false, reason: result.reason });
+    }
+  } catch (err) {
+    console.error("[IMAP] forward error:", err);
+    res.status(502).json({ error: "Failed to forward email. Check server logs for details." });
+  }
+});
+
 // ─── Email: SMTP Diagnostic ──────────────────────────────────────────────────
 
 router.get("/admin/emails/config", requireAuth, async (req: Request, res: Response): Promise<void> => {

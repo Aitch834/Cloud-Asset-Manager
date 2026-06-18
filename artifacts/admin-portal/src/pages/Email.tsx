@@ -4,7 +4,7 @@ import { getSecret } from "@/lib/auth";
 import {
   Mail, Send, Clock, FileText, Plus, Trash2, Edit2, Check, X,
   ChevronDown, AlertCircle, Loader2, Eye, RefreshCw, Inbox,
-  Reply, Circle, Paperclip, ArrowLeft, Settings, FlaskConical,
+  Reply, Forward, Circle, Paperclip, ArrowLeft, Settings, FlaskConical,
   ArrowUp, ArrowDown, Bold, Italic, Underline, List, ListOrdered,
   AlignLeft, AlignCenter, Eraser,
 } from "lucide-react";
@@ -250,6 +250,12 @@ function InboxTab() {
   const [replyDisclaimer, setReplyDisclaimer] = useState(true);
   const [replying, setReplying] = useState(false);
   const [replyResult, setReplyResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [forwardOpen, setForwardOpen] = useState(false);
+  const [forwardTo, setForwardTo] = useState("");
+  const [forwardBody, setForwardBody] = useState("");
+  const [forwardDisclaimer, setForwardDisclaimer] = useState(true);
+  const [forwarding, setForwarding] = useState(false);
+  const [forwardResult, setForwardResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
@@ -277,6 +283,10 @@ function InboxTab() {
     setReplyOpen(false);
     setReplyBody("");
     setReplyResult(null);
+    setForwardOpen(false);
+    setForwardTo("");
+    setForwardBody("");
+    setForwardResult(null);
     try {
       const r = await api.getEmail(e.uid, secret);
       setSelected(r.email);
@@ -321,6 +331,45 @@ function InboxTab() {
       setReplyResult({ ok: false, message: String(err) });
     } finally {
       setReplying(false);
+    }
+  }
+
+  function openForward() {
+    if (!selected) return;
+    const dateStr = new Date(selected.date).toLocaleString("en-GB", {
+      day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+    });
+    const quotedBody = selected.bodyHtml
+      ? `<blockquote style="margin:0;padding:0 0 0 14px;border-left:3px solid #e5e7eb;color:#374151">${selected.bodyHtml}</blockquote>`
+      : `<blockquote style="margin:0;padding:0 0 0 14px;border-left:3px solid #e5e7eb;color:#374151"><pre style="white-space:pre-wrap;font-family:inherit;font-size:13px">${selected.body || ""}</pre></blockquote>`;
+    const header = `<br><br><hr style="border:none;border-top:1px solid #e5e7eb;margin:12px 0"><p style="font-size:12px;color:#6b7280;margin:0 0 8px;line-height:1.6">-------- Forwarded Message --------<br>From: ${selected.from} &lt;${selected.fromEmail}&gt;<br>Date: ${dateStr}<br>Subject: ${selected.subject}</p>`;
+    setForwardBody(header + quotedBody);
+    setForwardTo("");
+    setForwardResult(null);
+    setForwardOpen(true);
+    setReplyOpen(false);
+  }
+
+  async function handleForward(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selected || !forwardTo.trim() || !hasEditorContent(forwardBody)) return;
+    setForwarding(true);
+    setForwardResult(null);
+    try {
+      const body = forwardDisclaimer ? forwardBody + EMAIL_DISCLAIMER : forwardBody;
+      const r = await api.forwardEmail(selected.uid, forwardTo.trim(), body, secret);
+      if (r.sent) {
+        setForwardResult({ ok: true, message: `Forwarded successfully to ${forwardTo.trim()}` });
+        setForwardOpen(false);
+        setForwardTo("");
+        setForwardBody("");
+      } else {
+        setForwardResult({ ok: false, message: r.reason ?? "Send failed" });
+      }
+    } catch (err) {
+      setForwardResult({ ok: false, message: String(err) });
+    } finally {
+      setForwarding(false);
     }
   }
 
@@ -462,10 +511,16 @@ function InboxTab() {
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button
-                  onClick={() => { setReplyOpen((o) => !o); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-muted transition-colors"
+                  onClick={() => { setReplyOpen((o) => !o); setForwardOpen(false); }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-md transition-colors ${replyOpen ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}
                 >
                   <Reply className="w-3.5 h-3.5" /> Reply
+                </button>
+                <button
+                  onClick={() => { openForward(); }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-md transition-colors ${forwardOpen ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}
+                >
+                  <Forward className="w-3.5 h-3.5" /> Forward
                 </button>
                 <button
                   onClick={handleDelete}
@@ -483,10 +538,19 @@ function InboxTab() {
           <div className="flex-1 overflow-y-auto">
             <div className="px-6 py-5">
               {selected.bodyHtml ? (
-                <div
-                  className="prose prose-sm max-w-none text-foreground"
-                  dangerouslySetInnerHTML={{ __html: selected.bodyHtml }}
-                  style={{ fontSize: "14px", lineHeight: "1.6" }}
+                <iframe
+                  key={selected.uid}
+                  title="Email content"
+                  srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><style>body{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#111827;}a{color:#1d4ed8;}img{max-width:100%;height:auto;}*{box-sizing:border-box;}</style></head><body>${selected.bodyHtml}</body></html>`}
+                  sandbox="allow-same-origin allow-popups allow-forms"
+                  style={{ width: "100%", border: "none", display: "block", minHeight: "200px" }}
+                  onLoad={(e) => {
+                    const iframe = e.currentTarget;
+                    try {
+                      const h = iframe.contentDocument?.documentElement?.scrollHeight ?? 0;
+                      if (h > 0) iframe.style.height = (h + 32) + "px";
+                    } catch { /* cross-origin guard */ }
+                  }}
                 />
               ) : (
                 <pre className="whitespace-pre-wrap text-sm text-foreground font-sans leading-relaxed">
@@ -541,6 +605,71 @@ function InboxTab() {
                         type="checkbox"
                         checked={replyDisclaimer}
                         onChange={(e) => setReplyDisclaimer(e.target.checked)}
+                        className="rounded"
+                      />
+                      Include email disclaimer
+                    </label>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Forward box */}
+            {forwardOpen && (
+              <div className="mx-6 mb-6 border border-border rounded-lg overflow-hidden">
+                <div className="px-4 py-2 bg-muted/40 border-b border-border flex items-center gap-2">
+                  <Forward className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-sm font-medium">Forward email</span>
+                </div>
+                <form onSubmit={handleForward}>
+                  <div className="px-4 pt-4 pb-2">
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">To *</label>
+                    <input
+                      type="email"
+                      value={forwardTo}
+                      onChange={(e) => setForwardTo(e.target.value)}
+                      placeholder="recipient@example.com"
+                      required
+                      autoFocus
+                      className="w-full px-3 py-2 text-sm border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                    />
+                  </div>
+                  <div className="px-4 pb-4">
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Message (edit as needed)</label>
+                    <RichTextEditor
+                      value={forwardBody}
+                      onChange={setForwardBody}
+                      placeholder="Add a note before the forwarded message…"
+                      minRows={6}
+                    />
+                  </div>
+                  {forwardResult && (
+                    <div className={`px-4 py-2 text-xs flex items-center gap-2 ${forwardResult.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                      {forwardResult.ok ? <Check className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                      {forwardResult.message}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3 px-4 py-3 border-t border-border bg-muted/20 flex-wrap">
+                    <button
+                      type="submit"
+                      disabled={forwarding || !forwardTo.trim() || !hasEditorContent(forwardBody)}
+                      className="flex items-center gap-2 px-4 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-md disabled:opacity-50 hover:bg-primary/90 transition-colors"
+                    >
+                      {forwarding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                      {forwarding ? "Sending…" : "Forward"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setForwardOpen(false); setForwardTo(""); setForwardBody(""); setForwardResult(null); }}
+                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={forwardDisclaimer}
+                        onChange={(e) => setForwardDisclaimer(e.target.checked)}
                         className="rounded"
                       />
                       Include email disclaimer
