@@ -34,6 +34,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { printProReport } from "@/lib/print-report";
 import { cropYearOptions, cropYearLabel, currentCropYear, isInCropYear } from "@/lib/cropYear";
 import { useToast } from "@/hooks/use-toast";
+import { DocAttach } from "@/components/DocAttach";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -1124,8 +1125,12 @@ export default function FieldsPage() {
   const [expandedVarietyId, setExpandedVarietyId] = useState<number | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [editingCrop, setEditingCrop] = useState<CropRecord | null>(null);
-  const [editCropForm, setEditCropForm] = useState({ name: "", variety: "", category: "" });
+  const [editCropForm, setEditCropForm] = useState({ name: "", variety: "", category: "", notes: "" });
   const [editCropSaving, setEditCropSaving] = useState(false);
+  const [addingVarietyCropId, setAddingVarietyCropId] = useState<number | null>(null);
+  const [addVarietyForm, setAddVarietyForm] = useState({ variety: "", notes: "" });
+  const [addVarietySaving, setAddVarietySaving] = useState(false);
+  const [deletingVarietyId, setDeletingVarietyId] = useState<number | null>(null);
   const [landUseForField, setLandUseForField] = useState<FieldRecord | null>(null);
   const [editingLandUseRecord, setEditingLandUseRecord] = useState<LandUseRecord | null>(null);
 
@@ -1269,7 +1274,7 @@ export default function FieldsPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ name: editCropForm.name, variety: editCropForm.variety, category: editCropForm.category }),
+        body: JSON.stringify({ name: editCropForm.name, variety: editCropForm.variety, category: editCropForm.category, notes: editCropForm.notes }),
       });
       if (!res.ok) throw new Error(`Save failed (${res.status})`);
       await queryClient.invalidateQueries({ queryKey: getListCropsQueryKey(safeFarmId) });
@@ -1278,6 +1283,44 @@ export default function FieldsPage() {
       alert(`Could not save changes: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally {
       setEditCropSaving(false);
+    }
+  }
+
+  async function handleAddVarietySave() {
+    if (!addingVarietyCropId) return;
+    setAddVarietySaving(true);
+    try {
+      const res = await fetch(`/api/farms/${safeFarmId}/crops/${addingVarietyCropId}/varieties`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ variety: addVarietyForm.variety, notes: addVarietyForm.notes }),
+      });
+      if (!res.ok) throw new Error(`Save failed (${res.status})`);
+      await queryClient.invalidateQueries({ queryKey: getListCropsQueryKey(safeFarmId) });
+      setAddingVarietyCropId(null);
+      setAddVarietyForm({ variety: "", notes: "" });
+    } catch (err) {
+      alert(`Could not add variety: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setAddVarietySaving(false);
+    }
+  }
+
+  async function handleDeleteVariety(varietyId: number) {
+    if (!confirm("Delete this variety? If it is the only variety for this crop, the entire crop record will be removed.")) return;
+    setDeletingVarietyId(varietyId);
+    try {
+      const res = await fetch(`/api/farms/${safeFarmId}/crop-varieties/${varietyId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+      await queryClient.invalidateQueries({ queryKey: getListCropsQueryKey(safeFarmId) });
+    } catch (err) {
+      alert(`Could not delete: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setDeletingVarietyId(null);
     }
   }
 
@@ -1687,32 +1730,44 @@ export default function FieldsPage() {
                 return (
                   <div key={groupName} className="bg-white border border-border/50 rounded-xl overflow-hidden transition-shadow hover:shadow-sm">
                     {/* ── Group header row ── */}
-                    <button
-                      onClick={() => toggleCropGroup(groupName)}
-                      className="w-full flex items-center gap-4 px-5 py-4 text-left"
-                    >
-                      <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0">
-                        <Wheat className="w-5 h-5 text-green-700" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-foreground">{groupName}</p>
-                        <p className="text-sm text-foreground/50">
-                          {groupCrops.length === 1 && !groupCrops[0].variety
-                            ? groupCategories[0] ?? "No variety set"
-                            : `${groupCrops.length} variet${groupCrops.length === 1 ? "y" : "ies"}${groupCategories.length === 1 ? ` · ${groupCategories[0]}` : ""}`
-                          }
-                        </p>
-                      </div>
-                      {totalGroupFieldCount > 0 ? (
-                        <div className="flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 px-2.5 py-1 rounded-full flex-shrink-0">
-                          <Leaf className="w-3 h-3" />
-                          {totalGroupFieldCount} field{totalGroupFieldCount !== 1 ? "s" : ""} this season
+                    <div className="flex items-center">
+                      <button
+                        onClick={() => toggleCropGroup(groupName)}
+                        className="flex-1 flex items-center gap-4 px-5 py-4 text-left"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0">
+                          <Wheat className="w-5 h-5 text-green-700" />
                         </div>
-                      ) : (
-                        <span className="text-xs text-foreground/30 flex-shrink-0">No fields this season</span>
-                      )}
-                      <ChevronDown className={`w-4 h-4 text-foreground/30 flex-shrink-0 transition-transform ${isGroupExpanded ? "rotate-180" : ""}`} />
-                    </button>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-foreground">{groupName}</p>
+                          <p className="text-sm text-foreground/50">
+                            {groupCrops.length === 1 && !groupCrops[0].variety
+                              ? groupCategories[0] ?? "No variety set"
+                              : `${groupCrops.length} variet${groupCrops.length === 1 ? "y" : "ies"}${groupCategories.length === 1 ? ` · ${groupCategories[0]}` : ""}`
+                            }
+                          </p>
+                        </div>
+                        {totalGroupFieldCount > 0 ? (
+                          <div className="flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 px-2.5 py-1 rounded-full flex-shrink-0">
+                            <Leaf className="w-3 h-3" />
+                            {totalGroupFieldCount} field{totalGroupFieldCount !== 1 ? "s" : ""} this season
+                          </div>
+                        ) : (
+                          <span className="text-xs text-foreground/30 flex-shrink-0">No fields this season</span>
+                        )}
+                        <ChevronDown className={`w-4 h-4 text-foreground/30 flex-shrink-0 transition-transform ${isGroupExpanded ? "rotate-180" : ""}`} />
+                      </button>
+                      <div className="flex items-center pr-4 flex-shrink-0">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setAddingVarietyCropId(groupCrops[0].cropId ?? null); setAddVarietyForm({ variety: "", notes: "" }); }}
+                          className="flex items-center gap-1 text-xs font-medium text-green-700 hover:text-green-800 bg-green-50 hover:bg-green-100 px-2.5 py-1.5 rounded-lg transition-colors"
+                          title="Add a new variety to this crop"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Add variety
+                        </button>
+                      </div>
+                    </div>
 
                     {/* ── Variety sub-rows ── */}
                     {isGroupExpanded && (
@@ -1728,13 +1783,16 @@ export default function FieldsPage() {
                               <div className="flex items-center bg-green-50/20 hover:bg-green-50/50 transition-colors">
                                 <button
                                   onClick={() => setExpandedVarietyId(isVarietyExpanded ? null : crop.id)}
-                                  className="flex-1 flex items-center gap-3 px-5 py-3 text-left"
+                                  className="flex-1 flex items-center gap-3 px-5 py-3 text-left min-w-0"
                                 >
                                   <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0 ml-3" />
                                   <div className="flex-1 min-w-0">
                                     <p className="text-sm font-medium text-foreground">
                                       {crop.variety || <span className="italic text-foreground/40">No variety specified</span>}
                                     </p>
+                                    {(crop as any).notes && (
+                                      <p className="text-xs text-foreground/50 truncate max-w-sm mt-0.5">{(crop as any).notes}</p>
+                                    )}
                                     {crop.category && (
                                       <p className="text-xs text-foreground/40">{crop.category}</p>
                                     )}
@@ -1749,12 +1807,29 @@ export default function FieldsPage() {
                                   <ChevronDown className={`w-3.5 h-3.5 text-foreground/30 flex-shrink-0 transition-transform ${isVarietyExpanded ? "rotate-180" : ""}`} />
                                 </button>
                                 <div className="flex items-center gap-0.5 pr-3 flex-shrink-0">
+                                  <DocAttach
+                                    farmId={safeFarmId}
+                                    endpoint="crop-varieties"
+                                    recordId={crop.id}
+                                    documentPath={(crop as any).documentPath ?? null}
+                                    documentName={(crop as any).documentName ?? null}
+                                    queryKey={[...getListCropsQueryKey(safeFarmId)]}
+                                    compact
+                                  />
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); setEditingCrop(crop); setEditCropForm({ name: crop.name, variety: crop.variety ?? "", category: crop.category ?? "" }); }}
+                                    onClick={(e) => { e.stopPropagation(); setEditingCrop(crop); setEditCropForm({ name: crop.name, variety: crop.variety ?? "", category: crop.category ?? "", notes: (crop as any).notes ?? "" }); }}
                                     className="p-1.5 rounded hover:bg-green-100 text-foreground/30 hover:text-green-700 transition-colors"
-                                    title="Edit crop / variety"
+                                    title="Edit variety"
                                   >
                                     <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteVariety(crop.id); }}
+                                    disabled={deletingVarietyId === crop.id}
+                                    className="p-1.5 rounded hover:bg-red-50 text-foreground/30 hover:text-red-500 transition-colors disabled:opacity-40"
+                                    title="Delete variety"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
                               </div>
@@ -2761,8 +2836,8 @@ export default function FieldsPage() {
       <Dialog open={!!editingCrop} onOpenChange={(o) => { if (!o) setEditingCrop(null); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Crop / Variety</DialogTitle>
-            <DialogDescription>Update the crop name, variety, or category. Changes to the crop name and category will apply to all varieties of this crop.</DialogDescription>
+            <DialogTitle>Edit Variety</DialogTitle>
+            <DialogDescription>Update this variety's details. Crop name and category changes apply to all varieties of this crop.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-4">
             <div>
@@ -2774,7 +2849,7 @@ export default function FieldsPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Variety</label>
+              <label className="text-sm font-medium mb-1.5 block">Variety Name</label>
               <Input
                 value={editCropForm.variety}
                 onChange={e => setEditCropForm(f => ({ ...f, variety: e.target.value }))}
@@ -2795,11 +2870,58 @@ export default function FieldsPage() {
                 ))}
               </select>
             </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Notes</label>
+              <textarea
+                value={editCropForm.notes}
+                onChange={e => setEditCropForm(f => ({ ...f, notes: e.target.value }))}
+                rows={3}
+                placeholder="Seed rate, treatment details, grower's observations, or any other variety-specific notes…"
+                className="w-full border border-input rounded-md px-3 py-2 text-sm bg-white resize-none"
+              />
+            </div>
           </div>
           <DialogFooter className="mt-4">
             <Button type="button" variant="outline" onClick={() => setEditingCrop(null)}>Cancel</Button>
             <Button onClick={handleEditCropSave} disabled={editCropSaving || !editCropForm.name.trim()}>
               {editCropSaving ? "Saving…" : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── ADD VARIETY DIALOG ── */}
+      <Dialog open={!!addingVarietyCropId} onOpenChange={(o) => { if (!o) setAddingVarietyCropId(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Variety</DialogTitle>
+            <DialogDescription>Add a new variety to this crop. You can attach a seed data sheet after saving.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Variety Name</label>
+              <Input
+                value={addVarietyForm.variety}
+                onChange={e => setAddVarietyForm(f => ({ ...f, variety: e.target.value }))}
+                placeholder="e.g. KWS Zyatt, Extase, Crusoe"
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Notes</label>
+              <textarea
+                value={addVarietyForm.notes}
+                onChange={e => setAddVarietyForm(f => ({ ...f, notes: e.target.value }))}
+                rows={3}
+                placeholder="Seed rate, treatment details, grower's observations, or any other variety-specific notes…"
+                className="w-full border border-input rounded-md px-3 py-2 text-sm bg-white resize-none"
+              />
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button type="button" variant="outline" onClick={() => setAddingVarietyCropId(null)}>Cancel</Button>
+            <Button onClick={handleAddVarietySave} disabled={addVarietySaving || !addVarietyForm.variety.trim()}>
+              {addVarietySaving ? "Adding…" : "Add Variety"}
             </Button>
           </DialogFooter>
         </DialogContent>
