@@ -880,6 +880,27 @@ function TransportTab({ transports, harvests, farmId, loading, onRefresh, toast 
           Log a harvest record first before adding transport legs.
         </div>
       )}
+      {!loading && transports.length > 0 && (() => {
+        const totalWeight = transports.reduce((s: number, r: any) => s + (r.weightTonnes ? parseFloat(r.weightTonnes) : 0), 0);
+        const uniqueVehicles = new Set(transports.map((r: any) => r.vehicleRegistration).filter(Boolean)).size;
+        const uniqueDrivers = new Set(transports.map((r: any) => r.driverName).filter(Boolean)).size;
+        const hasWeight = transports.some((r: any) => r.weightTonnes);
+        return (
+          <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+            {[
+              { label: "Transport Legs", value: String(transports.length), color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+              ...(hasWeight ? [{ label: "Total Weight", value: `${totalWeight.toFixed(2)} t`, color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" }] : []),
+              ...(uniqueVehicles > 0 ? [{ label: "Vehicles", value: String(uniqueVehicles), color: "#374151", bg: "#f9fafb", border: "#e5e7eb" }] : []),
+              ...(uniqueDrivers > 0 ? [{ label: "Drivers", value: String(uniqueDrivers), color: "#374151", bg: "#f9fafb", border: "#e5e7eb" }] : []),
+            ].map(({ label, value, color, bg, border }) => (
+              <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 8, padding: "8px 16px", minWidth: 110 }}>
+                <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#6b7280", margin: "0 0 2px" }}>{label}</p>
+                <p style={{ fontSize: "1.25rem", fontWeight: 800, color, margin: 0, lineHeight: 1.1 }}>{value}</p>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
       {loading ? (
         <p className="text-sm text-gray-400 py-8 text-center">Loading...</p>
       ) : transports.length === 0 ? (
@@ -1053,6 +1074,27 @@ function StorageTab({ storages, harvests, farmId, loading, onRefresh, toast }: a
           <Plus size={14} className="mr-1" />Add Storage Record
         </Button>
       </div>
+      {!loading && storages.length > 0 && (() => {
+        const totalIntake = storages.reduce((s: number, r: any) => s + (r.quantityTonnes ? parseFloat(r.quantityTonnes) : 0), 0);
+        const inStore = storages.filter((r: any) => !r.dateOut).reduce((s: number, r: any) => s + (r.quantityTonnes ? parseFloat(r.quantityTonnes) : 0), 0);
+        const facilities = new Set(storages.map((r: any) => r.storageFacility).filter(Boolean)).size;
+        const hasQty = storages.some((r: any) => r.quantityTonnes);
+        return (
+          <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+            {[
+              { label: "Records", value: String(storages.length), color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
+              ...(hasQty ? [{ label: "Total Intake", value: `${totalIntake.toFixed(2)} t`, color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" }] : []),
+              ...(hasQty && inStore > 0 ? [{ label: "Still In Store", value: `${inStore.toFixed(2)} t`, color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" }] : []),
+              ...(facilities > 0 ? [{ label: "Facilities Used", value: String(facilities), color: "#374151", bg: "#f9fafb", border: "#e5e7eb" }] : []),
+            ].map(({ label, value, color, bg, border }) => (
+              <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 8, padding: "8px 16px", minWidth: 110 }}>
+                <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#6b7280", margin: "0 0 2px" }}>{label}</p>
+                <p style={{ fontSize: "1.25rem", fontWeight: 800, color, margin: 0, lineHeight: 1.1 }}>{value}</p>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
       {loading ? (
         <p className="text-sm text-gray-400 py-8 text-center">Loading...</p>
       ) : storages.length === 0 ? (

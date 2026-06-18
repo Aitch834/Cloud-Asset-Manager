@@ -1461,6 +1461,31 @@ function FeedNutritionTab({ farmId, farmName }: { farmId: number; farmName: stri
           <Plus className="h-4 w-4 mr-1" /> Add Feed Record
         </Button>
       </div>
+      {records.length > 0 && (() => {
+        const totalQty = records.reduce((s, r) => s + (r.quantityKg ? parseFloat(String(r.quantityKg)) : 0), 0);
+        const totalDm = records.reduce((s, r) => s + (r.dryMatterKg ? parseFloat(String(r.dryMatterKg)) : 0), 0);
+        const organicPcts = records.filter(r => r.organicPercentage != null).map(r => parseFloat(String(r.organicPercentage)));
+        const avgOrganic = organicPcts.length > 0 ? organicPcts.reduce((s, v) => s + v, 0) / organicPcts.length : null;
+        const approvedCount = records.filter(r => r.isOrganicApproved).length;
+        const hasQty = records.some(r => r.quantityKg);
+        const hasDm = records.some(r => r.dryMatterKg);
+        return (
+          <div className="flex gap-2 flex-wrap mb-3">
+            {[
+              { label: "Feed Records", value: String(records.length), color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" },
+              ...(hasQty ? [{ label: "Total Qty", value: `${totalQty.toLocaleString("en-GB", { maximumFractionDigits: 0 })} kg`, color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" }] : []),
+              ...(hasDm ? [{ label: "Total DM", value: `${totalDm.toLocaleString("en-GB", { maximumFractionDigits: 0 })} kg`, color: "#0369a1", bg: "#f0f9ff", border: "#bae6fd" }] : []),
+              ...(avgOrganic !== null ? [{ label: "Avg Organic", value: `${avgOrganic.toFixed(0)}%`, color: "#065f46", bg: "#ecfdf5", border: "#a7f3d0" }] : []),
+              { label: "Approved", value: `${approvedCount}/${records.length}`, color: approvedCount === records.length ? "#15803d" : "#b45309", bg: approvedCount === records.length ? "#f0fdf4" : "#fffbeb", border: approvedCount === records.length ? "#bbf7d0" : "#fde68a" },
+            ].map(({ label, value, color, bg, border }) => (
+              <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 8, padding: "8px 14px", minWidth: 100 }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#6b7280", margin: "0 0 2px" }}>{label}</p>
+                <p style={{ fontSize: "1.15rem", fontWeight: 800, color, margin: 0, lineHeight: 1.1 }}>{value}</p>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
       <Table>
         <TableHeader>
           <TableRow>

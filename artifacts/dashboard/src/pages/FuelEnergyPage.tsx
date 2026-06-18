@@ -2317,6 +2317,29 @@ export default function FuelEnergyPage() {
                   </Select>
                 </div>
 
+                {filteredReadings.length > 0 && (() => {
+                  const totalConsumption = filteredReadings.reduce((s, r) => s + (r.consumptionKwh ? parseFloat(String(r.consumptionKwh)) : 0), 0);
+                  const totalExport = filteredReadings.reduce((s, r) => s + (r.exportKwh ? parseFloat(String(r.exportKwh)) : 0), 0);
+                  const totalCostP = filteredReadings.reduce((s, r) => s + (r.costPence ? Number(r.costPence) : 0), 0);
+                  const hasConsumption = filteredReadings.some(r => r.consumptionKwh);
+                  const hasExport = filteredReadings.some(r => r.exportKwh);
+                  const hasCostR = filteredReadings.some(r => r.costPence);
+                  return (
+                    <div className="flex gap-2 flex-wrap mb-3">
+                      {[
+                        { label: "Readings", value: String(filteredReadings.length), color: "#374151", bg: "#f9fafb", border: "#e5e7eb" },
+                        ...(hasConsumption ? [{ label: "Total Consumption", value: fmtKwh(String(totalConsumption)), color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" }] : []),
+                        ...(hasExport && totalExport > 0 ? [{ label: "Total Export", value: fmtKwh(String(totalExport)), color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" }] : []),
+                        ...(hasCostR ? [{ label: "Total Cost", value: fmtCost(totalCostP), color: "#374151", bg: "#f9fafb", border: "#e5e7eb" }] : []),
+                      ].map(({ label, value, color, bg, border }) => (
+                        <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 8, padding: "8px 14px", minWidth: 110 }}>
+                          <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#6b7280", margin: "0 0 2px" }}>{label}</p>
+                          <p style={{ fontSize: "1.15rem", fontWeight: 800, color, margin: 0, lineHeight: 1.1 }}>{value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
                 {filteredReadings.length === 0 ? (
                   <div className="text-center py-8 text-gray-400 text-sm">No readings recorded yet</div>
                 ) : (

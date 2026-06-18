@@ -1112,7 +1112,7 @@ interface CropComparisonEntry {
   avgMoisturePercent?: string | null;
   qualityGrades?: string | null;
   harvestCount: number;
-  yieldTha?: number | null;
+  yieldTha: number | null;
   hasHarvest: boolean;
 }
 interface CropComparisonData {
@@ -1142,7 +1142,7 @@ function SeasonRainfallBadge({ lat, lng, startDate, endDate }: {
       if (!r.ok) throw new Error("Weather fetch failed");
       const data = await r.json();
       const dailySums: (number | null)[] = data?.daily?.precipitation_sum ?? [];
-      return Math.round(dailySums.reduce((s, v) => s + (v ?? 0), 0));
+      return Math.round(dailySums.reduce<number>((s, v) => s + (v ?? 0), 0));
     },
     enabled,
     staleTime: 24 * 60 * 60 * 1000,
