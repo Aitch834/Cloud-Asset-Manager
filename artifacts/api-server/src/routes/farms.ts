@@ -1436,6 +1436,92 @@ router.post("/farms/:farmId/harvests", requireAuth, requireTenant, requireModule
   res.status(201).json({ record });
 });
 
+// ─── Crop Performance Comparison ───────────────────────
+router.get("/farms/:farmId/crop-performance-comparison", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const varietyId = parseInt(req.query.varietyId as string, 10);
+  if (isNaN(varietyId)) { res.status(400).json({ error: "varietyId is required" }); return; }
+
+  const [variety] = await db.select({ id: cropVarietiesTable.id })
+    .from(cropVarietiesTable)
+    .where(and(eq(cropVarietiesTable.id, varietyId), eq(cropVarietiesTable.farmId, farmId)))
+    .limit(1);
+  if (!variety) { res.status(404).json({ error: "Variety not found" }); return; }
+
+  const assignments = await db
+    .select({
+      id: fieldCropAssignmentsTable.id,
+      fieldId: fieldCropAssignmentsTable.fieldId,
+      fieldName: fieldsTable.name,
+      fieldReference: fieldsTable.fieldReference,
+      fieldAreaHectares: fieldsTable.areaHectares,
+      year: fieldCropAssignmentsTable.year,
+      season: fieldCropAssignmentsTable.season,
+      plantingDate: fieldCropAssignmentsTable.plantingDate,
+      expectedHarvestDate: fieldCropAssignmentsTable.expectedHarvestDate,
+      actualHarvestDate: sql<string | null>`(
+        SELECT MIN(${harvestRecordsTable.harvestDate})
+        FROM ${harvestRecordsTable}
+        WHERE ${harvestRecordsTable.fieldCropAssignmentId} = ${fieldCropAssignmentsTable.id}
+      )`,
+      totalYieldTonnes: sql<string | null>`(
+        SELECT SUM(${harvestRecordsTable.yieldTonnes}::numeric)
+        FROM ${harvestRecordsTable}
+        WHERE ${harvestRecordsTable.fieldCropAssignmentId} = ${fieldCropAssignmentsTable.id}
+      )`,
+      totalAreaHarvestedHa: sql<string | null>`(
+        SELECT SUM(${harvestRecordsTable.areaHarvestedHa}::numeric)
+        FROM ${harvestRecordsTable}
+        WHERE ${harvestRecordsTable.fieldCropAssignmentId} = ${fieldCropAssignmentsTable.id}
+      )`,
+      avgMoisturePercent: sql<string | null>`(
+        SELECT ROUND(AVG(${harvestRecordsTable.moisturePercent}::numeric), 1)
+        FROM ${harvestRecordsTable}
+        WHERE ${harvestRecordsTable.fieldCropAssignmentId} = ${fieldCropAssignmentsTable.id}
+          AND ${harvestRecordsTable.moisturePercent} IS NOT NULL
+      )`,
+      qualityGrades: sql<string | null>`(
+        SELECT string_agg(DISTINCT ${harvestRecordsTable.qualityGrade}, ', ')
+        FROM ${harvestRecordsTable}
+        WHERE ${harvestRecordsTable.fieldCropAssignmentId} = ${fieldCropAssignmentsTable.id}
+          AND ${harvestRecordsTable.qualityGrade} IS NOT NULL
+      )`,
+      harvestCount: sql<number>`(
+        SELECT COUNT(*)
+        FROM ${harvestRecordsTable}
+        WHERE ${harvestRecordsTable.fieldCropAssignmentId} = ${fieldCropAssignmentsTable.id}
+      )`,
+    })
+    .from(fieldCropAssignmentsTable)
+    .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
+    .where(and(
+      eq(fieldCropAssignmentsTable.varietyId, varietyId),
+      eq(fieldsTable.farmId, farmId),
+    ))
+    .orderBy(desc(fieldCropAssignmentsTable.year), asc(fieldsTable.name));
+
+  const comparisons = assignments.map(a => {
+    const yieldT = a.totalYieldTonnes ? parseFloat(a.totalYieldTonnes) : null;
+    const areaHaHarvested = a.totalAreaHarvestedHa ? parseFloat(a.totalAreaHarvestedHa) : null;
+    const areaHaField = a.fieldAreaHectares ? parseFloat(String(a.fieldAreaHectares)) : null;
+    const effectiveArea = (areaHaHarvested && areaHaHarvested > 0) ? areaHaHarvested : areaHaField;
+    const yieldTha = (yieldT !== null && effectiveArea && effectiveArea > 0)
+      ? Math.round((yieldT / effectiveArea) * 10) / 10
+      : null;
+    return { ...a, yieldTha, hasHarvest: yieldT !== null && yieldT > 0 };
+  });
+
+  const yieldValues = comparisons.filter(c => c.yieldTha !== null).map(c => c.yieldTha!);
+  const farmAvgYieldTha = yieldValues.length > 0
+    ? Math.round((yieldValues.reduce((s, v) => s + v, 0) / yieldValues.length) * 10) / 10
+    : null;
+  const maxYieldTha = yieldValues.length > 0 ? Math.max(...yieldValues) : null;
+  const minYieldTha = yieldValues.length > 0 ? Math.min(...yieldValues) : null;
+
+  res.json({ comparisons, farmAvgYieldTha, maxYieldTha, minYieldTha });
+});
+
 // ─── Harvest Transport Records ───────────────────────
 router.get("/farms/:farmId/harvest-transport", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);

@@ -22,7 +22,7 @@ import {
   Plus, PlusCircle, Search, Map as MapIcon, MoreVertical, Pencil, Trash2, AlertTriangle,
   Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical, Loader2, QrCode, StickyNote,
   Landmark, Phone, MapPin, BadgePoundSterling, RefreshCw, FileText, CheckCircle2, Paperclip, Download, Key,
-  TreePine, Layers3, TrendingUp, TrendingDown, Minus, Scale,
+  TreePine, Layers3, TrendingUp, TrendingDown, Minus, Scale, CloudRain, BarChart2, Trophy, Medal, ChevronUp,
 } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 import { QRCodeSVG } from "qrcode.react";
@@ -1096,6 +1096,84 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
   );
 }
 
+interface CropComparisonEntry {
+  id: number;
+  fieldId: number;
+  fieldName: string;
+  fieldReference?: string | null;
+  fieldAreaHectares?: string | number | null;
+  year: number | null;
+  season?: string | null;
+  plantingDate?: string | null;
+  expectedHarvestDate?: string | null;
+  actualHarvestDate?: string | null;
+  totalYieldTonnes?: string | null;
+  totalAreaHarvestedHa?: string | null;
+  avgMoisturePercent?: string | null;
+  qualityGrades?: string | null;
+  harvestCount: number;
+  yieldTha?: number | null;
+  hasHarvest: boolean;
+}
+interface CropComparisonData {
+  comparisons: CropComparisonEntry[];
+  farmAvgYieldTha: number | null;
+  maxYieldTha: number | null;
+  minYieldTha: number | null;
+}
+
+function SeasonRainfallBadge({ lat, lng, startDate, endDate }: {
+  lat: string | number | null | undefined;
+  lng: string | number | null | undefined;
+  startDate: string | null | undefined;
+  endDate: string | null | undefined;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const start = startDate?.slice(0, 10) ?? null;
+  const rawEnd = endDate?.slice(0, 10) ?? null;
+  const end = rawEnd && rawEnd > today ? today : rawEnd;
+  const enabled = !!(lat && lng && start && end && start < end);
+
+  const { data: totalMm, isLoading, isError } = useQuery<number | null>({
+    queryKey: ["season-rainfall", String(lat), String(lng), start, end],
+    queryFn: async () => {
+      const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&start_date=${start}&end_date=${end}&daily=precipitation_sum&timezone=Europe%2FLondon`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error("Weather fetch failed");
+      const data = await r.json();
+      const dailySums: (number | null)[] = data?.daily?.precipitation_sum ?? [];
+      return Math.round(dailySums.reduce((s, v) => s + (v ?? 0), 0));
+    },
+    enabled,
+    staleTime: 24 * 60 * 60 * 1000,
+    gcTime: 24 * 60 * 60 * 1000,
+    retry: false,
+  });
+
+  if (!enabled) return null;
+  if (isLoading) return (
+    <span className="inline-flex items-center gap-1 text-[11px] text-foreground/30 mt-1">
+      <CloudRain className="w-3 h-3" />
+      <span className="animate-pulse">Loading rainfall…</span>
+    </span>
+  );
+  if (isError || totalMm === null || totalMm === undefined) return null;
+
+  const label = totalMm < 200 ? "Very dry" : totalMm < 300 ? "Dry" : totalMm < 450 ? "Normal" : totalMm < 600 ? "Wet" : "Very wet";
+  const cls = totalMm < 200 ? "text-orange-600 bg-orange-50 border-orange-200"
+    : totalMm < 300 ? "text-amber-600 bg-amber-50 border-amber-200"
+    : totalMm < 450 ? "text-teal-700 bg-teal-50 border-teal-200"
+    : totalMm < 600 ? "text-blue-600 bg-blue-50 border-blue-200"
+    : "text-indigo-700 bg-indigo-50 border-indigo-200";
+
+  return (
+    <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border mt-1 ${cls}`}>
+      <CloudRain className="w-3 h-3" />
+      {totalMm} mm · {label}
+    </span>
+  );
+}
+
 export default function FieldsPage() {
   const { farmId } = useAppStore();
   const queryClient = useQueryClient();
@@ -1133,6 +1211,8 @@ export default function FieldsPage() {
   const [deletingVarietyId, setDeletingVarietyId] = useState<number | null>(null);
   const [landUseForField, setLandUseForField] = useState<FieldRecord | null>(null);
   const [editingLandUseRecord, setEditingLandUseRecord] = useState<LandUseRecord | null>(null);
+  const [comparisonVarietyId, setComparisonVarietyId] = useState<number | null>(null);
+  const [comparisonAssignmentId, setComparisonAssignmentId] = useState<number | null>(null);
 
   // All hooks must be called unconditionally before any early return
   const safeFarmId = farmId ?? 0;
@@ -1198,6 +1278,36 @@ export default function FieldsPage() {
     enabled: !!farmId,
   });
   const landUseRecords: LandUseRecord[] = landUseQ.data ?? [];
+
+  const farmCoordsQ = useQuery({
+    queryKey: ["farm-coords", safeFarmId],
+    queryFn: () => fetch(`/api/farms/${safeFarmId}`).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 10 * 60 * 1000,
+    select: (d: any) => {
+      const src = d?.farm ?? d?.result ?? d ?? {};
+      return {
+        lat: src.latitude ?? null,
+        lng: src.longitude ?? null,
+      } as { lat: string | null; lng: string | null };
+    },
+  });
+  const farmLat = farmCoordsQ.data?.lat ?? null;
+  const farmLng = farmCoordsQ.data?.lng ?? null;
+
+  const comparisonQ = useQuery<CropComparisonData>({
+    queryKey: ["crop-performance-comparison", safeFarmId, comparisonVarietyId],
+    queryFn: () =>
+      fetch(`/api/farms/${safeFarmId}/crop-performance-comparison?varietyId=${comparisonVarietyId}`)
+        .then(r => r.json()),
+    enabled: !!comparisonVarietyId && !!farmId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    setComparisonVarietyId(null);
+    setComparisonAssignmentId(null);
+  }, [selectedFieldForHistory?.id]);
 
   const createLandUseMut = useMutation({
     mutationFn: (data: Partial<LandUseRecord> & { fieldId: number; year: number; landUse: string }) =>
@@ -2706,6 +2816,175 @@ export default function FieldsPage() {
                                         )}
                                         {grades.length > 0 && (
                                           <span className="text-xs text-foreground/45">Grade {grades.join(", ")}</span>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
+                                  {/* ── Rainfall badge ── */}
+                                  <div className="mt-1">
+                                    <SeasonRainfallBadge
+                                      lat={f.latitude ?? farmLat}
+                                      lng={f.longitude ?? farmLng}
+                                      startDate={a.plantingDate}
+                                      endDate={a.actualHarvestDate ?? a.expectedHarvestDate}
+                                    />
+                                  </div>
+                                  {/* ── Compare across farm button ── */}
+                                  <div className="mt-2.5 pt-2 border-t border-border/20">
+                                    <button
+                                      onClick={() => {
+                                        if (comparisonAssignmentId === a.id) {
+                                          setComparisonAssignmentId(null);
+                                          setComparisonVarietyId(null);
+                                        } else {
+                                          setComparisonAssignmentId(a.id);
+                                          setComparisonVarietyId(a.varietyId);
+                                        }
+                                      }}
+                                      className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-md border transition-colors ${
+                                        comparisonAssignmentId === a.id
+                                          ? "bg-violet-600 text-white border-violet-600"
+                                          : "text-violet-700 border-violet-200 bg-violet-50 hover:bg-violet-100"
+                                      }`}
+                                    >
+                                      <BarChart2 className="w-3 h-3" />
+                                      {comparisonAssignmentId === a.id ? "Hide comparison" : "Compare across farm"}
+                                      {comparisonAssignmentId === a.id ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                    </button>
+                                  </div>
+                                  {/* ── Comparison panel ── */}
+                                  {comparisonAssignmentId === a.id && (() => {
+                                    const cq = comparisonQ;
+                                    if (cq.isLoading) return (
+                                      <div className="mt-3 flex items-center gap-2 text-xs text-foreground/40">
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />Fetching farm-wide comparison…
+                                      </div>
+                                    );
+                                    if (cq.isError || !cq.data) return (
+                                      <div className="mt-3 text-xs text-red-500">Could not load comparison data.</div>
+                                    );
+                                    const { comparisons, farmAvgYieldTha, maxYieldTha, minYieldTha } = cq.data;
+                                    if (!comparisons.length) return null;
+                                    const withHarvest = comparisons.filter(c => c.hasHarvest && c.yieldTha !== null);
+                                    const totalEntries = comparisons.length;
+                                    const thisEntry = comparisons.find(c => c.id === a.id);
+                                    const thisYieldTha = thisEntry?.yieldTha ?? null;
+                                    // rank among entries with yield (lower index = better)
+                                    const sorted = [...withHarvest].sort((x, y) => (y.yieldTha ?? 0) - (x.yieldTha ?? 0));
+                                    const rank = thisYieldTha !== null ? sorted.findIndex(c => c.id === a.id) + 1 : null;
+                                    const isTopPerformer = rank === 1 && sorted.length > 1;
+                                    return (
+                                      <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50/40 overflow-hidden">
+                                        {/* Header stats */}
+                                        <div className="px-4 py-3 bg-violet-600 text-white">
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <BarChart2 className="w-4 h-4" />
+                                            <span className="text-sm font-semibold">Farm Performance Comparison</span>
+                                            <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">{a.cropName}{a.variety ? ` · ${a.variety}` : ""}</span>
+                                          </div>
+                                          <div className="flex items-center gap-4 flex-wrap">
+                                            {farmAvgYieldTha !== null && (
+                                              <div className="text-center">
+                                                <p className="text-[10px] text-violet-200 uppercase tracking-wider">Farm avg</p>
+                                                <p className="text-lg font-bold">{farmAvgYieldTha.toFixed(1)} <span className="text-xs font-normal text-violet-200">t/ha</span></p>
+                                              </div>
+                                            )}
+                                            {maxYieldTha !== null && (
+                                              <div className="text-center">
+                                                <p className="text-[10px] text-violet-200 uppercase tracking-wider">Best</p>
+                                                <p className="text-lg font-bold text-green-300">{maxYieldTha.toFixed(1)} <span className="text-xs font-normal text-violet-200">t/ha</span></p>
+                                              </div>
+                                            )}
+                                            {minYieldTha !== null && (
+                                              <div className="text-center">
+                                                <p className="text-[10px] text-violet-200 uppercase tracking-wider">Worst</p>
+                                                <p className="text-lg font-bold text-red-300">{minYieldTha.toFixed(1)} <span className="text-xs font-normal text-violet-200">t/ha</span></p>
+                                              </div>
+                                            )}
+                                            {rank !== null && (
+                                              <div className="text-center ml-auto">
+                                                <p className="text-[10px] text-violet-200 uppercase tracking-wider">This field rank</p>
+                                                <p className="text-lg font-bold flex items-center gap-1">
+                                                  {isTopPerformer && <Trophy className="w-4 h-4 text-yellow-300" />}
+                                                  {rank === 2 && <Medal className="w-4 h-4 text-slate-300" />}
+                                                  {rank}/{sorted.length}
+                                                </p>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                        {/* Comparison table */}
+                                        <div className="overflow-x-auto">
+                                          <table className="w-full text-xs">
+                                            <thead>
+                                              <tr className="border-b border-violet-200 bg-violet-50">
+                                                <th className="text-left px-3 py-2 font-semibold text-foreground/50">Field</th>
+                                                <th className="text-center px-3 py-2 font-semibold text-foreground/50">Year</th>
+                                                <th className="text-right px-3 py-2 font-semibold text-foreground/50">Area</th>
+                                                <th className="text-right px-3 py-2 font-semibold text-foreground/50">Yield t/ha</th>
+                                                <th className="text-right px-3 py-2 font-semibold text-foreground/50">vs avg</th>
+                                                <th className="text-center px-3 py-2 font-semibold text-foreground/50">Moisture</th>
+                                                <th className="text-center px-3 py-2 font-semibold text-foreground/50">Grade</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {comparisons.map(c => {
+                                                const isThis = c.id === a.id;
+                                                const diff = (c.yieldTha !== null && farmAvgYieldTha !== null) ? c.yieldTha - farmAvgYieldTha : null;
+                                                const isAbove = diff !== null && withHarvest.length > 1 && diff > 0.1;
+                                                const isBelow = diff !== null && withHarvest.length > 1 && diff < -0.1;
+                                                const rowCls = isThis
+                                                  ? "bg-violet-100 border-b border-violet-200"
+                                                  : "border-b border-violet-100 hover:bg-violet-50/60 transition-colors";
+                                                const fieldAreaHa = c.fieldAreaHectares ? parseFloat(String(c.fieldAreaHectares)) : null;
+                                                const displayArea = c.totalAreaHarvestedHa ? parseFloat(c.totalAreaHarvestedHa) : fieldAreaHa;
+                                                return (
+                                                  <tr key={c.id} className={rowCls}>
+                                                    <td className="px-3 py-2">
+                                                      <div className="flex items-center gap-1.5">
+                                                        {isThis && <div className="w-1.5 h-1.5 rounded-full bg-violet-600 flex-shrink-0" />}
+                                                        <span className={isThis ? "font-bold text-violet-900" : "text-foreground/70"}>
+                                                          {c.fieldName}
+                                                        </span>
+                                                        {c.fieldReference && <span className="text-foreground/35 font-mono">{c.fieldReference}</span>}
+                                                        {isThis && <span className="text-[10px] bg-violet-600 text-white px-1.5 py-0.5 rounded font-semibold ml-1">this</span>}
+                                                      </div>
+                                                    </td>
+                                                    <td className="px-3 py-2 text-center text-foreground/60">{c.year ?? "—"}{c.season ? ` · ${c.season}` : ""}</td>
+                                                    <td className="px-3 py-2 text-right text-foreground/60">{displayArea ? `${displayArea.toFixed(1)} ha` : "—"}</td>
+                                                    <td className="px-3 py-2 text-right">
+                                                      {c.yieldTha !== null
+                                                        ? <span className={`font-bold ${isThis ? "text-violet-900" : "text-foreground"}`}>{c.yieldTha.toFixed(1)}</span>
+                                                        : <span className="text-foreground/30">—</span>
+                                                      }
+                                                    </td>
+                                                    <td className="px-3 py-2 text-right">
+                                                      {isAbove && <span className="inline-flex items-center gap-0.5 text-green-600 font-semibold"><TrendingUp className="w-3 h-3" />+{diff!.toFixed(1)}</span>}
+                                                      {isBelow && <span className="inline-flex items-center gap-0.5 text-red-500 font-semibold"><TrendingDown className="w-3 h-3" />{diff!.toFixed(1)}</span>}
+                                                      {!isAbove && !isBelow && c.yieldTha !== null && withHarvest.length > 1 && <span className="text-foreground/30"><Minus className="w-3 h-3 inline" /></span>}
+                                                      {c.yieldTha === null && !c.hasHarvest && <span className="text-foreground/25 text-[10px]">No harvest</span>}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-center text-foreground/60">{c.avgMoisturePercent ? `${c.avgMoisturePercent}%` : "—"}</td>
+                                                    <td className="px-3 py-2 text-center text-foreground/60">{c.qualityGrades || "—"}</td>
+                                                  </tr>
+                                                );
+                                              })}
+                                            </tbody>
+                                            {farmAvgYieldTha !== null && withHarvest.length > 1 && (
+                                              <tfoot>
+                                                <tr className="border-t-2 border-violet-300 bg-violet-100/60">
+                                                  <td colSpan={3} className="px-3 py-2 font-semibold text-foreground/60">Farm average</td>
+                                                  <td className="px-3 py-2 text-right font-bold text-violet-900">{farmAvgYieldTha.toFixed(1)}</td>
+                                                  <td colSpan={3} className="px-3 py-2 text-center text-[10px] text-foreground/40">across {withHarvest.length} harvest records</td>
+                                                </tr>
+                                              </tfoot>
+                                            )}
+                                          </table>
+                                        </div>
+                                        {totalEntries > withHarvest.length && (
+                                          <p className="px-4 py-2 text-[10px] text-foreground/40 border-t border-violet-200">
+                                            {totalEntries - withHarvest.length} assignment{totalEntries - withHarvest.length !== 1 ? "s" : ""} with no harvest data not shown in yield average.
+                                          </p>
                                         )}
                                       </div>
                                     );
