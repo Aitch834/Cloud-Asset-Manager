@@ -1265,14 +1265,17 @@ export default function FieldsPage() {
     if (!editingCrop) return;
     setEditCropSaving(true);
     try {
-      await fetch(`/api/farms/${safeFarmId}/crop-varieties/${editingCrop.id}`, {
+      const res = await fetch(`/api/farms/${safeFarmId}/crop-varieties/${editingCrop.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ name: editCropForm.name, variety: editCropForm.variety, category: editCropForm.category }),
       });
-      queryClient.invalidateQueries({ queryKey: getListCropsQueryKey(safeFarmId) });
+      if (!res.ok) throw new Error(`Save failed (${res.status})`);
+      await queryClient.invalidateQueries({ queryKey: getListCropsQueryKey(safeFarmId) });
       setEditingCrop(null);
+    } catch (err) {
+      alert(`Could not save changes: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally {
       setEditCropSaving(false);
     }
