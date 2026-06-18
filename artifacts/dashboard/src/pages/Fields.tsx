@@ -35,6 +35,7 @@ import { printProReport } from "@/lib/print-report";
 import { cropYearOptions, cropYearLabel, currentCropYear, isInCropYear } from "@/lib/cropYear";
 import { useToast } from "@/hooks/use-toast";
 import { DocAttach } from "@/components/DocAttach";
+import CropSeasonReport from "@/components/CropSeasonReport";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -1213,6 +1214,7 @@ export default function FieldsPage() {
   const [editingLandUseRecord, setEditingLandUseRecord] = useState<LandUseRecord | null>(null);
   const [comparisonVarietyId, setComparisonVarietyId] = useState<number | null>(null);
   const [comparisonAssignmentId, setComparisonAssignmentId] = useState<number | null>(null);
+  const [reportAssignmentId, setReportAssignmentId] = useState<number | null>(null);
 
   // All hooks must be called unconditionally before any early return
   const safeFarmId = farmId ?? 0;
@@ -2791,7 +2793,7 @@ export default function FieldsPage() {
                                     return <div className="flex items-center gap-2 mt-0.5 flex-wrap"><p className="text-xs text-foreground/60 flex items-center gap-1.5"><Wheat className="w-3 h-3 flex-shrink-0 text-green-700" />Actual harvest {formatDate(a.actualHarvestDate)}</p>{days !== null && <VarianceBadge days={days} size="xs" />}</div>;
                                   })()}
                                   {a.actualHarvestDate && (
-                                    a.year >= CURRENT_YEAR ? (
+                                    (a.year ?? 0) >= CURRENT_YEAR ? (
                                       <div className="mt-1.5"><HarvestNoteEditor assignmentId={a.id} farmId={farmId} initialNote={a.notes} /></div>
                                     ) : a.notes ? (
                                       <p className="text-[11px] text-foreground/50 italic mt-1.5 leading-relaxed">{a.notes}</p>
@@ -2835,8 +2837,15 @@ export default function FieldsPage() {
                                       endDate={a.actualHarvestDate ?? a.expectedHarvestDate}
                                     />
                                   </div>
-                                  {/* ── Compare across farm button ── */}
-                                  <div className="mt-2.5 pt-2 border-t border-border/20">
+                                  {/* ── Compare across farm button + Season Report button ── */}
+                                  <div className="mt-2.5 pt-2 border-t border-border/20 flex items-center gap-2 flex-wrap">
+                                    <button
+                                      onClick={() => setReportAssignmentId(a.id)}
+                                      className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-md border text-green-700 border-green-200 bg-green-50 hover:bg-green-100 transition-colors"
+                                    >
+                                      <FileText className="w-3 h-3" />
+                                      Season Report
+                                    </button>
                                     <button
                                       onClick={() => {
                                         if (comparisonAssignmentId === a.id) {
@@ -3690,6 +3699,10 @@ export default function FieldsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <CropSeasonReport
+        assignmentId={reportAssignmentId}
+        onClose={() => setReportAssignmentId(null)}
+      />
     </AppLayout>
   );
 }

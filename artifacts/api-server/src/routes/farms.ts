@@ -1522,6 +1522,233 @@ router.get("/farms/:farmId/crop-performance-comparison", requireAuth, requireTen
   res.json({ comparisons, farmAvgYieldTha, maxYieldTha, minYieldTha });
 });
 
+// ─── Crop Season Production Report ─────────────────────────────────────────
+router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+
+  const assignmentId = parseInt(req.query.assignmentId as string, 10);
+  if (isNaN(assignmentId)) { res.status(400).json({ error: "assignmentId required" }); return; }
+
+  // 1. Assignment + field + crop/variety
+  const [asgn] = await db
+    .select({
+      id: fieldCropAssignmentsTable.id,
+      fieldId: fieldCropAssignmentsTable.fieldId,
+      varietyId: fieldCropAssignmentsTable.varietyId,
+      plantingDate: fieldCropAssignmentsTable.plantingDate,
+      expectedHarvestDate: fieldCropAssignmentsTable.expectedHarvestDate,
+      seedRate: fieldCropAssignmentsTable.seedRate,
+      seedUnit: fieldCropAssignmentsTable.seedUnit,
+      season: fieldCropAssignmentsTable.season,
+      year: fieldCropAssignmentsTable.year,
+      notes: fieldCropAssignmentsTable.notes,
+      fieldName: fieldsTable.name,
+      fieldReference: fieldsTable.fieldReference,
+      areaHectares: fieldsTable.areaHectares,
+      soilType: fieldsTable.soilType,
+      isOrganic: fieldsTable.isOrganic,
+      isNvz: fieldsTable.isNvz,
+      cropName: cropsTable.name,
+      varietyName: cropVarietiesTable.variety,
+      cropCategory: cropsTable.category,
+    })
+    .from(fieldCropAssignmentsTable)
+    .innerJoin(fieldsTable, eq(fieldsTable.id, fieldCropAssignmentsTable.fieldId))
+    .innerJoin(cropVarietiesTable, eq(cropVarietiesTable.id, fieldCropAssignmentsTable.varietyId))
+    .innerJoin(cropsTable, eq(cropsTable.id, cropVarietiesTable.cropId))
+    .where(and(eq(fieldCropAssignmentsTable.id, assignmentId), eq(fieldsTable.farmId, farmId)))
+    .limit(1);
+
+  if (!asgn) { res.status(404).json({ error: "Assignment not found" }); return; }
+
+  const fieldId = asgn.fieldId;
+  const year = asgn.year ?? new Date().getFullYear();
+  const seasonStart = asgn.plantingDate ?? new Date(`${year}-01-01`);
+  const seasonEnd = new Date();
+
+  // 2. Fetch all data in parallel
+  const [sprays, operations, fertiliser, seedDrilling, fuelUsage, harvests, soilTests, sisterAssignments] = await Promise.all([
+    db.select({
+      id: sprayApplicationsTable.id,
+      applicationDate: sprayApplicationsTable.applicationDate,
+      productName: sprayProductsTable.productName,
+      activeIngredient: sprayProductsTable.activeIngredient,
+      category: sprayProductsTable.category,
+      applicationRate: sprayApplicationsTable.applicationRate,
+      rateUnit: sprayApplicationsTable.rateUnit,
+      areaSprayedHa: sprayApplicationsTable.areaSprayedHa,
+      waterVolumeLitres: sprayApplicationsTable.waterVolumeLitres,
+      operatorName: sprayApplicationsTable.operatorName,
+      equipmentUsed: sprayApplicationsTable.equipmentUsed,
+      reasonForApplication: sprayApplicationsTable.reasonForApplication,
+      growthStage: sprayApplicationsTable.growthStage,
+      targetCrop: sprayApplicationsTable.targetCrop,
+      bufferZoneMetres: sprayApplicationsTable.bufferZoneMetres,
+      notes: sprayApplicationsTable.notes,
+    })
+    .from(sprayApplicationsTable)
+    .innerJoin(sprayProductsTable, eq(sprayProductsTable.id, sprayApplicationsTable.productId))
+    .where(and(
+      eq(sprayApplicationsTable.farmId, farmId),
+      eq(sprayApplicationsTable.fieldId, fieldId),
+      gte(sprayApplicationsTable.applicationDate, seasonStart),
+      lte(sprayApplicationsTable.applicationDate, seasonEnd),
+    ))
+    .orderBy(asc(sprayApplicationsTable.applicationDate)),
+
+    db.select().from(fieldOperationsTable)
+    .where(and(
+      eq(fieldOperationsTable.farmId, farmId),
+      eq(fieldOperationsTable.fieldId, fieldId),
+      gte(fieldOperationsTable.operationDate, seasonStart),
+      lte(fieldOperationsTable.operationDate, seasonEnd),
+    ))
+    .orderBy(asc(fieldOperationsTable.operationDate)),
+
+    db.select().from(nvzFertiliserApplicationsTable)
+    .where(and(
+      eq(nvzFertiliserApplicationsTable.farmId, farmId),
+      eq(nvzFertiliserApplicationsTable.fieldId, fieldId),
+      gte(nvzFertiliserApplicationsTable.applicationDate, seasonStart),
+      lte(nvzFertiliserApplicationsTable.applicationDate, seasonEnd),
+    ))
+    .orderBy(asc(nvzFertiliserApplicationsTable.applicationDate)),
+
+    db.select().from(seedDrillingRecordsTable)
+    .where(and(
+      eq(seedDrillingRecordsTable.farmId, farmId),
+      eq(seedDrillingRecordsTable.fieldId, fieldId),
+      gte(seedDrillingRecordsTable.drillingDate, seasonStart),
+      lte(seedDrillingRecordsTable.drillingDate, seasonEnd),
+    ))
+    .orderBy(asc(seedDrillingRecordsTable.drillingDate)),
+
+    db.select({
+      id: fuelUsageTable.id,
+      usageDate: fuelUsageTable.usageDate,
+      quantityLitres: fuelUsageTable.quantityLitres,
+      purpose: fuelUsageTable.purpose,
+      vehicleName: fuelUsageTable.vehicleName,
+      tankName: fuelUsageTable.tankName,
+      notes: fuelUsageTable.notes,
+    })
+    .from(fuelUsageTable)
+    .where(and(
+      eq(fuelUsageTable.farmId, farmId),
+      eq(fuelUsageTable.fieldId, fieldId),
+      gte(fuelUsageTable.usageDate, seasonStart),
+      lte(fuelUsageTable.usageDate, seasonEnd),
+    ))
+    .orderBy(asc(fuelUsageTable.usageDate)),
+
+    db.select().from(harvestRecordsTable)
+    .where(eq(harvestRecordsTable.fieldCropAssignmentId, assignmentId))
+    .orderBy(asc(harvestRecordsTable.harvestDate)),
+
+    db.select({
+      id: soilTestRecordsTable.id,
+      sampleDate: soilTestRecordsTable.sampleDate,
+      sampleReference: soilTestRecordsTable.sampleReference,
+      laboratory: soilTestRecordsTable.laboratory,
+      status: soilTestRecordsTable.status,
+      sampleDepthCm: soilTestRecordsTable.sampleDepthCm,
+      sampledBy: soilTestRecordsTable.sampledBy,
+      notes: soilTestRecordsTable.notes,
+    })
+    .from(soilTestRecordsTable)
+    .where(and(eq(soilTestRecordsTable.farmId, farmId), eq(soilTestRecordsTable.fieldId, fieldId)))
+    .orderBy(desc(soilTestRecordsTable.sampleDate))
+    .limit(3),
+
+    asgn.varietyId && asgn.year
+      ? db.select({
+          id: fieldCropAssignmentsTable.id,
+          fieldName: fieldsTable.name,
+          fieldReference: fieldsTable.fieldReference,
+          areaHectares: fieldsTable.areaHectares,
+          plantingDate: fieldCropAssignmentsTable.plantingDate,
+          expectedHarvestDate: fieldCropAssignmentsTable.expectedHarvestDate,
+        })
+        .from(fieldCropAssignmentsTable)
+        .innerJoin(fieldsTable, eq(fieldsTable.id, fieldCropAssignmentsTable.fieldId))
+        .where(and(
+          eq(fieldCropAssignmentsTable.varietyId, asgn.varietyId!),
+          eq(fieldCropAssignmentsTable.year, asgn.year!),
+          eq(fieldsTable.farmId, farmId),
+          ne(fieldCropAssignmentsTable.id, assignmentId),
+        ))
+      : Promise.resolve([] as Array<{ id: number; fieldName: string; fieldReference: string | null; areaHectares: string | null; plantingDate: Date | null; expectedHarvestDate: Date | null; }>),
+  ]);
+
+  // Enrich soil tests with results; enrich sisters with harvests
+  const [soilTestResults, sisterHarvestRows] = await Promise.all([
+    soilTests.length > 0
+      ? db.select().from(soilTestResultsTable).where(inArray(soilTestResultsTable.soilTestId, soilTests.map(t => t.id)))
+      : Promise.resolve([] as (typeof soilTestResultsTable.$inferSelect)[]),
+    sisterAssignments.length > 0
+      ? db.select().from(harvestRecordsTable).where(inArray(harvestRecordsTable.fieldCropAssignmentId, sisterAssignments.map(s => s.id)))
+      : Promise.resolve([] as (typeof harvestRecordsTable.$inferSelect)[]),
+  ]);
+
+  const soilTestsEnriched = soilTests.map(t => ({ ...t, results: soilTestResults.filter(r => r.soilTestId === t.id) }));
+
+  const sisterFields = sisterAssignments.map(s => {
+    const sh = sisterHarvestRows.filter(h => h.fieldCropAssignmentId === s.id);
+    const totalYield = sh.reduce((sum, h) => sum + (h.yieldTonnes ? parseFloat(h.yieldTonnes) : 0), 0);
+    const totalArea = sh.reduce((sum, h) => sum + (h.areaHarvestedHa ? parseFloat(h.areaHarvestedHa) : 0), 0);
+    const areaHa = parseFloat(String(s.areaHectares ?? 0));
+    return {
+      ...s,
+      harvests: sh,
+      totalYieldTonnes: totalYield,
+      yieldTha: totalArea > 0 ? totalYield / totalArea : (areaHa > 0 ? totalYield / areaHa : null),
+    };
+  });
+
+  // Summary totals
+  const totalYieldTonnes = harvests.reduce((s, h) => s + (h.yieldTonnes ? parseFloat(h.yieldTonnes) : 0), 0);
+  const totalAreaHarvestedHa = harvests.reduce((s, h) => s + (h.areaHarvestedHa ? parseFloat(h.areaHarvestedHa) : 0), 0);
+  const fieldAreaHa = asgn.areaHectares ? parseFloat(String(asgn.areaHectares)) : null;
+  const effectiveArea = totalAreaHarvestedHa > 0 ? totalAreaHarvestedHa : fieldAreaHa;
+
+  const totalMachineHours = operations.reduce((s, op) => s + (op.machineHours ? parseFloat(String(op.machineHours)) : 0), 0);
+  const totalLabourHours = operations.reduce((s, op) => s + (op.labourHours ? parseFloat(String(op.labourHours)) : 0), 0);
+  const totalMachineCostPence = operations.reduce((s, op) => {
+    if (op.isContractor && op.contractorCostPence) return s + op.contractorCostPence;
+    return s + (op.machineHours && op.machineRatePence ? parseFloat(String(op.machineHours)) * op.machineRatePence : 0);
+  }, 0);
+  const totalLabourCostPence = operations.reduce((s, op) => s + (op.labourHours && op.labourRatePence ? parseFloat(String(op.labourHours)) * op.labourRatePence : 0), 0);
+  const totalFuelLitres = fuelUsage.reduce((s, f) => s + parseFloat(String(f.quantityLitres)), 0);
+  const totalNitrogenKg = fertiliser.reduce((s, f) => s + (f.totalNitrogenKg ? parseFloat(String(f.totalNitrogenKg)) : 0), 0);
+
+  res.json({
+    assignment: asgn,
+    sprays,
+    operations,
+    fertiliser,
+    seedDrilling,
+    fuelUsage,
+    harvests,
+    soilTests: soilTestsEnriched,
+    sisterFields,
+    generatedAt: new Date().toISOString(),
+    summary: {
+      totalYieldTonnes,
+      yieldTha: effectiveArea && effectiveArea > 0 ? totalYieldTonnes / effectiveArea : null,
+      totalAreaHarvestedHa,
+      totalSprayApplications: sprays.length,
+      totalOperations: operations.length,
+      totalMachineHours,
+      totalLabourHours,
+      totalMachineCostPence,
+      totalLabourCostPence,
+      totalFuelLitres,
+      totalNitrogenKg,
+    },
+  });
+});
+
 // ─── Harvest Transport Records ───────────────────────
 router.get("/farms/:farmId/harvest-transport", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
