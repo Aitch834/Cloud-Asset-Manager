@@ -236,6 +236,7 @@ import {
   boreholeTestsTable,
   irrigationRecordsTable,
   irrigationEquipmentTable,
+  irrigationRecordDocumentsTable,
   farmDepartmentsTable,
   farmMembersTable,
   staffDepartmentMembershipsTable,

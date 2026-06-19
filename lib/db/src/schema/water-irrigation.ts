@@ -1,5 +1,5 @@
 import { pgTable, text, serial, integer, timestamp, numeric, boolean, date } from "drizzle-orm/pg-core";
-import { farmsTable } from "./core";
+import { farmsTable, farmContactsTable } from "./core";
 import { fieldsTable } from "./fields-crops";
 
 export const waterAbstractionLicencesTable = pgTable("water_abstraction_licences", {
@@ -63,12 +63,22 @@ export const irrigationRecordsTable = pgTable("irrigation_records", {
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   licenceId: integer("licence_id").references(() => waterAbstractionLicencesTable.id),
   fieldId: integer("field_id").references(() => fieldsTable.id),          // FK to registered field (preferred)
-  irrigationEquipmentId: integer("irrigation_equipment_id"),               // FK to equipment register
+  irrigationEquipmentId: integer("irrigation_equipment_id"),               // legacy single FK — prefer equipmentIdsJson
+  equipmentIdsJson: text("equipment_ids_json"),                            // JSON array of equipment IDs e.g. "[1,2,3]"
+  // ── Two-phase workflow ──────────────────────────────────────────────────
+  status: text("status").notNull().default("closed"),                      // "open" | "closed"
   irrigationDate: date("irrigation_date").notNull(),
+  startTime: text("start_time"),                                           // "HH:MM" — when run began
+  endDate: date("end_date"),                                               // if closed on a different date
+  endTime: text("end_time"),                                               // "HH:MM" — when run ended
+  startOperatorId: integer("start_operator_id").references(() => farmContactsTable.id), // person who started
+  endOperatorId: integer("end_operator_id").references(() => farmContactsTable.id),     // person who closed
+  // ── Field / Crop ────────────────────────────────────────────────────────
   fieldOrBlockDescription: text("field_or_block_description"),             // fallback free text when no fieldId
   areaIrrigatedHa: numeric("area_irrigated_ha", { precision: 8, scale: 3 }),
   cropType: text("crop_type"),                                             // auto-populated from field assignment
   growthStage: text("growth_stage"),
+  // ── Method / Volume ─────────────────────────────────────────────────────
   irrigationMethod: text("irrigation_method").notNull(),
   meterStartReading: numeric("meter_start_reading", { precision: 12, scale: 2 }),
   meterEndReading: numeric("meter_end_reading", { precision: 12, scale: 2 }),
@@ -77,9 +87,19 @@ export const irrigationRecordsTable = pgTable("irrigation_records", {
   costPerM3Override: numeric("cost_per_m3_override", { precision: 10, scale: 4 }), // overrides licence cost if set
   soilMoistureDeficitMm: numeric("soil_moisture_deficit_mm", { precision: 6, scale: 1 }), // kept for legacy data
   rainfallLast7DaysMm: numeric("rainfall_last_7_days_mm", { precision: 6, scale: 1 }),
-  operatorName: text("operator_name"),
+  operatorName: text("operator_name"),                                     // legacy free-text fallback
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const irrigationRecordDocumentsTable = pgTable("irrigation_record_documents", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  irrigationRecordId: integer("irrigation_record_id").notNull().references(() => irrigationRecordsTable.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  documentUrl: text("document_url").notNull(),
+  documentName: text("document_name"),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
 });
 
 export const irrigationEquipmentTable = pgTable("irrigation_equipment", {
