@@ -866,6 +866,29 @@ export interface IrrigationMeterReading {
   synced: boolean;
 }
 
+export interface IrrigationApplication {
+  id: string;
+  farmId: string;
+  irrigationDate: string;
+  waterSource: string;
+  fieldOrBlockDescription: string;
+  cropType: string;
+  growthStage: string;
+  irrigationMethod: string;
+  meterStartReading: string;
+  meterEndReading: string;
+  volumeAppliedM3: string;
+  applicationDepthMm: string;
+  areaIrrigatedHa: string;
+  operatorName: string;
+  rainfallLast7DaysMm: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface PigFarrowingRecord {
   id: string;
   farmId: string;

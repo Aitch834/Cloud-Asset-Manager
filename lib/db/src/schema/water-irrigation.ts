@@ -1,12 +1,14 @@
 import { pgTable, text, serial, integer, timestamp, numeric, boolean, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
+import { fieldsTable } from "./fields-crops";
 
 export const waterAbstractionLicencesTable = pgTable("water_abstraction_licences", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   licenceNumber: text("licence_number").notNull(),
   issuingAuthority: text("issuing_authority").notNull().default("Environment Agency"),
-  waterSource: text("water_source").notNull(),
+  sourceType: text("source_type"),                   // Borehole | River/Stream | Reservoir/Pond | Mains | Recycled
+  waterSource: text("water_source").notNull(),        // free-text description of source location
   abstractionPointDescription: text("abstraction_point_description"),
   purposeOfUse: text("purpose_of_use").notNull(),
   annualLicencedVolumeM3: numeric("annual_licenced_volume_m3", { precision: 10, scale: 0 }),
@@ -16,6 +18,7 @@ export const waterAbstractionLicencesTable = pgTable("water_abstraction_licences
   licenceExpiryDate: date("licence_expiry_date"),
   meterRequired: boolean("meter_required").default(true),
   meterSerialNumber: text("meter_serial_number"),
+  costPerM3: numeric("cost_per_m3", { precision: 10, scale: 4 }),  // £ per m³ abstracted
   returnRequired: boolean("return_required").default(true),
   returnDeadline: text("return_deadline"),
   notes: text("notes"),
@@ -59,15 +62,20 @@ export const irrigationRecordsTable = pgTable("irrigation_records", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   licenceId: integer("licence_id").references(() => waterAbstractionLicencesTable.id),
+  fieldId: integer("field_id").references(() => fieldsTable.id),          // FK to registered field (preferred)
+  irrigationEquipmentId: integer("irrigation_equipment_id"),               // FK to equipment register
   irrigationDate: date("irrigation_date").notNull(),
-  fieldOrBlockDescription: text("field_or_block_description").notNull(),
+  fieldOrBlockDescription: text("field_or_block_description"),             // fallback free text when no fieldId
   areaIrrigatedHa: numeric("area_irrigated_ha", { precision: 8, scale: 3 }),
-  cropType: text("crop_type"),
+  cropType: text("crop_type"),                                             // auto-populated from field assignment
   growthStage: text("growth_stage"),
   irrigationMethod: text("irrigation_method").notNull(),
+  meterStartReading: numeric("meter_start_reading", { precision: 12, scale: 2 }),
+  meterEndReading: numeric("meter_end_reading", { precision: 12, scale: 2 }),
   applicationDepthMm: numeric("application_depth_mm", { precision: 6, scale: 1 }),
   volumeAppliedM3: numeric("volume_applied_m3", { precision: 10, scale: 2 }),
-  soilMoistureDeficitMm: numeric("soil_moisture_deficit_mm", { precision: 6, scale: 1 }),
+  costPerM3Override: numeric("cost_per_m3_override", { precision: 10, scale: 4 }), // overrides licence cost if set
+  soilMoistureDeficitMm: numeric("soil_moisture_deficit_mm", { precision: 6, scale: 1 }), // kept for legacy data
   rainfallLast7DaysMm: numeric("rainfall_last_7_days_mm", { precision: 6, scale: 1 }),
   operatorName: text("operator_name"),
   notes: text("notes"),

@@ -157,6 +157,7 @@ export const STORAGE_KEYS = {
   PIG_TAIL_BITING_RISKS: "bde_pig_tail_biting_risks",
   RIGHT_TO_WORK_CHECKS: "bde_right_to_work_checks",
   IRRIGATION_METER_READINGS: "bde_irrigation_meter_readings",
+  IRRIGATION_APPLICATIONS: "bde_irrigation_applications",
   FUEL_METER_READINGS: "bde_fuel_meter_readings",
   FUEL_STOCK_CHECKS: "bde_fuel_stock_checks",
   FUEL_DRAWDOWNS: "bde_fuel_drawdowns",
