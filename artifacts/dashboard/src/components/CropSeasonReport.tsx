@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
-  Printer, X, Loader2, Wheat, Sprout, Droplets,
+  Printer, Loader2, Wheat, Sprout, Droplets,
   Tractor, Fuel, FlaskConical, Scale, BarChart2,
   Leaf, CloudRain, AlertCircle, Calendar,
 } from "lucide-react";
@@ -283,9 +283,6 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
             <div className="flex items-center gap-2">
               <Button size="sm" variant="outline" onClick={handlePrint} className="gap-1.5 no-print">
                 <Printer className="w-3.5 h-3.5" />Print
-              </Button>
-              <Button size="sm" variant="ghost" onClick={onClose} className="no-print">
-                <X className="w-4 h-4" />
               </Button>
             </div>
           </div>
