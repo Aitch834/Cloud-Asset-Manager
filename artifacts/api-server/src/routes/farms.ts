@@ -1568,7 +1568,7 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
   const seasonEnd = new Date();
 
   // 2. Fetch all data in parallel
-  const [sprays, operations, fertiliser, seedDrilling, fuelUsage, harvests, soilTests, sisterAssignments] = await Promise.all([
+  const [sprays, operations, fertiliser, seedDrilling, fuelUsage, harvests, soilTests, sisterAssignments, irrigation, monthlyRainfall] = await Promise.all([
     db.select({
       id: sprayApplicationsTable.id,
       applicationDate: sprayApplicationsTable.applicationDate,
@@ -1679,6 +1679,49 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
           ne(fieldCropAssignmentsTable.id, assignmentId),
         ))
       : Promise.resolve([] as Array<{ id: number; fieldName: string; fieldReference: string | null; areaHectares: string | null; plantingDate: Date | null; expectedHarvestDate: Date | null; }>),
+
+    // 9. Irrigation events for this farm during the season (no fieldId column — filtered by date)
+    db.select({
+      id: irrigationRecordsTable.id,
+      irrigationDate: irrigationRecordsTable.irrigationDate,
+      fieldOrBlockDescription: irrigationRecordsTable.fieldOrBlockDescription,
+      areaIrrigatedHa: irrigationRecordsTable.areaIrrigatedHa,
+      cropType: irrigationRecordsTable.cropType,
+      growthStage: irrigationRecordsTable.growthStage,
+      irrigationMethod: irrigationRecordsTable.irrigationMethod,
+      applicationDepthMm: irrigationRecordsTable.applicationDepthMm,
+      volumeAppliedM3: irrigationRecordsTable.volumeAppliedM3,
+      soilMoistureDeficitMm: irrigationRecordsTable.soilMoistureDeficitMm,
+      rainfallLast7DaysMm: irrigationRecordsTable.rainfallLast7DaysMm,
+      operatorName: irrigationRecordsTable.operatorName,
+      notes: irrigationRecordsTable.notes,
+    })
+    .from(irrigationRecordsTable)
+    .where(and(
+      eq(irrigationRecordsTable.farmId, farmId),
+      gte(irrigationRecordsTable.irrigationDate, seasonStart.toISOString().slice(0, 10)),
+      lte(irrigationRecordsTable.irrigationDate, seasonEnd.toISOString().slice(0, 10)),
+    ))
+    .orderBy(asc(irrigationRecordsTable.irrigationDate)),
+
+    // 10. Monthly rainfall aggregates from weather stations (field-linked or farm-wide)
+    db.select({
+      month: sql<string>`date_trunc('month', ${weatherReadingsTable.readingTimestamp})::text`,
+      totalRainfallMm: sql<string>`COALESCE(SUM(${weatherReadingsTable.rainfallMm}), 0)::text`,
+      avgTempC: sql<string>`ROUND(AVG(${weatherReadingsTable.temperatureC})::numeric, 1)::text`,
+      maxTempC: sql<string>`MAX(${weatherReadingsTable.temperatureHighC})::text`,
+      minTempC: sql<string>`MIN(${weatherReadingsTable.temperatureLowC})::text`,
+      readingCount: sql<number>`COUNT(*)::int`,
+    })
+    .from(weatherReadingsTable)
+    .where(and(
+      eq(weatherReadingsTable.farmId, farmId),
+      or(eq(weatherReadingsTable.fieldId, fieldId), isNull(weatherReadingsTable.fieldId)),
+      gte(weatherReadingsTable.readingTimestamp, seasonStart),
+      lte(weatherReadingsTable.readingTimestamp, seasonEnd),
+    ))
+    .groupBy(sql`date_trunc('month', ${weatherReadingsTable.readingTimestamp})`)
+    .orderBy(sql`date_trunc('month', ${weatherReadingsTable.readingTimestamp})`),
   ]);
 
   // Enrich soil tests with results; enrich sisters with harvests
@@ -1721,6 +1764,9 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
   const totalLabourCostPence = operations.reduce((s, op) => s + (op.labourHours && op.labourRatePence ? parseFloat(String(op.labourHours)) * op.labourRatePence : 0), 0);
   const totalFuelLitres = fuelUsage.reduce((s, f) => s + parseFloat(String(f.quantityLitres)), 0);
   const totalNitrogenKg = fertiliser.reduce((s, f) => s + (f.totalNitrogenKg ? parseFloat(String(f.totalNitrogenKg)) : 0), 0);
+  const totalRainfallMm = monthlyRainfall.reduce((s, m) => s + parseFloat(String(m.totalRainfallMm ?? 0)), 0);
+  const totalIrrigationMm = irrigation.reduce((s, i) => s + (i.applicationDepthMm ? parseFloat(String(i.applicationDepthMm)) : 0), 0);
+  const totalIrrigationM3 = irrigation.reduce((s, i) => s + (i.volumeAppliedM3 ? parseFloat(String(i.volumeAppliedM3)) : 0), 0);
 
   res.json({
     assignment: asgn,
@@ -1732,6 +1778,8 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
     harvests,
     soilTests: soilTestsEnriched,
     sisterFields,
+    irrigation,
+    monthlyRainfall,
     generatedAt: new Date().toISOString(),
     summary: {
       totalYieldTonnes,
@@ -1745,6 +1793,11 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
       totalLabourCostPence,
       totalFuelLitres,
       totalNitrogenKg,
+      totalRainfallMm,
+      totalIrrigationMm,
+      totalIrrigationM3,
+      totalIrrigationEvents: irrigation.length,
+      weatherMonthsRecorded: monthlyRainfall.length,
     },
   });
 });

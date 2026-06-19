@@ -146,6 +146,29 @@ interface ReportData {
     totalYieldTonnes: number;
     yieldTha: number | null;
   }>;
+  irrigation: Array<{
+    id: number;
+    irrigationDate: string;
+    fieldOrBlockDescription: string;
+    areaIrrigatedHa: string | null;
+    cropType: string | null;
+    growthStage: string | null;
+    irrigationMethod: string;
+    applicationDepthMm: string | null;
+    volumeAppliedM3: string | null;
+    soilMoistureDeficitMm: string | null;
+    rainfallLast7DaysMm: string | null;
+    operatorName: string | null;
+    notes: string | null;
+  }>;
+  monthlyRainfall: Array<{
+    month: string;
+    totalRainfallMm: string;
+    avgTempC: string | null;
+    maxTempC: string | null;
+    minTempC: string | null;
+    readingCount: number;
+  }>;
   summary: {
     totalYieldTonnes: number;
     yieldTha: number | null;
@@ -158,6 +181,11 @@ interface ReportData {
     totalLabourCostPence: number;
     totalFuelLitres: number;
     totalNitrogenKg: number;
+    totalRainfallMm: number;
+    totalIrrigationMm: number;
+    totalIrrigationM3: number;
+    totalIrrigationEvents: number;
+    weatherMonthsRecorded: number;
   };
   generatedAt: string;
 }
@@ -353,6 +381,8 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
                     { label: "Total N Applied", value: data.summary.totalNitrogenKg > 0 ? `${data.summary.totalNitrogenKg.toFixed(0)} kg` : "—", color: "#0369a1", bg: "#eff6ff", border: "#bfdbfe" },
                     { label: "Fuel Used", value: data.summary.totalFuelLitres > 0 ? `${data.summary.totalFuelLitres.toFixed(0)} L` : "—", color: "#374151", bg: "#f9fafb", border: "#e5e7eb" },
                     { label: "Field Operations", value: String(data.summary.totalOperations), color: "#374151", bg: "#f9fafb", border: "#e5e7eb" },
+                    { label: "Season Rainfall", value: data.summary.weatherMonthsRecorded > 0 ? `${data.summary.totalRainfallMm.toFixed(0)} mm` : "No data", sub: data.summary.weatherMonthsRecorded > 0 ? `${data.summary.weatherMonthsRecorded} month(s) recorded` : undefined, color: "#0369a1", bg: "#eff6ff", border: "#bfdbfe" },
+                    { label: "Irrigation Applied", value: data.summary.totalIrrigationEvents > 0 ? `${data.summary.totalIrrigationMm.toFixed(0)} mm` : "None", sub: data.summary.totalIrrigationM3 > 0 ? `${data.summary.totalIrrigationM3.toFixed(0)} m³ total` : undefined, color: "#0e7490", bg: "#ecfeff", border: "#a5f3fc" },
                     { label: "Machine Cost", value: fmtCost(data.summary.totalMachineCostPence), color: "#374151", bg: "#f9fafb", border: "#e5e7eb" },
                     { label: "Labour Cost", value: fmtCost(data.summary.totalLabourCostPence), color: "#374151", bg: "#f9fafb", border: "#e5e7eb" },
                   ].map(({ label, value, sub, color, bg, border }) => (
@@ -616,6 +646,81 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
                   </div>
                 </div>
               )}
+
+              {/* ── RAINFALL & WEATHER ── */}
+              <div className="report-section">
+                <SectionHeader icon={<CloudRain className="w-4 h-4" />} title="Rainfall & Weather" count={data.monthlyRainfall.length > 0 ? data.monthlyRainfall.length : undefined} />
+                {data.monthlyRainfall.length === 0 ? (
+                  <EmptySection msg="No weather station readings found for this field during this season. When a weather station is linked to this field (or a farm-wide station is configured), monthly rainfall and temperature data will appear here." />
+                ) : (
+                  <div className="rounded-lg border border-gray-200 overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead><tr>
+                        <Th>Month</Th><Th right>Rainfall (mm)</Th><Th right>Avg Temp (°C)</Th><Th right>Max Temp (°C)</Th><Th right>Min Temp (°C)</Th><Th right>Readings</Th>
+                      </tr></thead>
+                      <tbody>
+                        {data.monthlyRainfall.map((m, i) => (
+                          <tr key={i}>
+                            <Td>{new Date(m.month).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</Td>
+                            <Td right mono>{parseFloat(m.totalRainfallMm) > 0 ? parseFloat(m.totalRainfallMm).toFixed(1) : "—"}</Td>
+                            <Td right mono>{m.avgTempC ? parseFloat(m.avgTempC).toFixed(1) : "—"}</Td>
+                            <Td right mono>{m.maxTempC ? parseFloat(m.maxTempC).toFixed(1) : "—"}</Td>
+                            <Td right mono>{m.minTempC ? parseFloat(m.minTempC).toFixed(1) : "—"}</Td>
+                            <Td right mono>{m.readingCount}</Td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-gray-50">
+                          <Td><span className="font-semibold text-gray-700">Season Total</span></Td>
+                          <Td right mono><span className="font-semibold">{data.summary.totalRainfallMm.toFixed(1)} mm</span></Td>
+                          <Td colSpan={4}></Td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* ── IRRIGATION EVENTS ── */}
+              <div className="report-section">
+                <SectionHeader icon={<Droplets className="w-4 h-4" />} title="Irrigation Events" count={data.irrigation.length > 0 ? data.irrigation.length : undefined} />
+                {data.irrigation.length === 0 ? (
+                  <EmptySection msg="No irrigation events recorded for this farm during this season." />
+                ) : (
+                  <div className="rounded-lg border border-gray-200 overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead><tr>
+                        <Th>Date</Th><Th>Field / Block</Th><Th>Method</Th><Th>Crop / Stage</Th><Th right>Depth (mm)</Th><Th right>Volume (m³)</Th><Th right>Area (ha)</Th><Th right>SMD (mm)</Th><Th right>Rain 7d (mm)</Th><Th>Operator</Th>
+                      </tr></thead>
+                      <tbody>
+                        {data.irrigation.map(r => (
+                          <tr key={r.id}>
+                            <Td>{fmt(r.irrigationDate)}</Td>
+                            <Td>{r.fieldOrBlockDescription}</Td>
+                            <Td><Badge color="blue">{r.irrigationMethod}</Badge></Td>
+                            <Td>{[r.cropType, r.growthStage].filter(Boolean).join(" / ") || "—"}</Td>
+                            <Td right mono>{n(r.applicationDepthMm)}</Td>
+                            <Td right mono>{n(r.volumeAppliedM3)}</Td>
+                            <Td right mono>{n(r.areaIrrigatedHa)}</Td>
+                            <Td right mono>{n(r.soilMoistureDeficitMm)}</Td>
+                            <Td right mono>{n(r.rainfallLast7DaysMm)}</Td>
+                            <Td>{r.operatorName ?? "—"}</Td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-gray-50">
+                          <Td colSpan={4}><span className="font-semibold text-gray-700">Season Totals</span></Td>
+                          <Td right mono><span className="font-semibold">{data.summary.totalIrrigationMm.toFixed(1)}</span></Td>
+                          <Td right mono><span className="font-semibold">{data.summary.totalIrrigationM3.toFixed(0)}</span></Td>
+                          <Td colSpan={4}></Td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </div>
 
               {/* ── CROSS-FIELD COMPARISON ── */}
               {data.sisterFields.length > 0 && (
