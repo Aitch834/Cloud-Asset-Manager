@@ -269,7 +269,7 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
         aria-describedby={undefined}
       >
         <DialogHeader className="px-6 py-4 border-b border-gray-100 flex-shrink-0 no-print">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between pr-8">
             <div>
               <DialogTitle className="text-base font-bold text-gray-900">
                 Season Production Report
