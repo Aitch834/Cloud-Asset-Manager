@@ -51,6 +51,7 @@ export const sprayApplicationsTable = pgTable("spray_applications", {
   notes: text("notes"),
   targetCrop: text("target_crop"),
   growthStage: text("growth_stage"),
+  productCostPencePerUnit: integer("product_cost_pence_per_unit"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -93,6 +94,7 @@ export const nvzFertiliserApplicationsTable = pgTable("nvz_fertiliser_applicatio
   totalNitrogenKg: numeric("total_nitrogen_kg", { precision: 10, scale: 2 }).notNull(),
   applicationMethod: text("application_method"),
   notes: text("notes"),
+  totalCostPence: integer("total_cost_pence"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

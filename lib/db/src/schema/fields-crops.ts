@@ -122,6 +122,7 @@ export const harvestRecordsTable = pgTable("harvest_records", {
   notes: text("notes"),
   isOrganicCertified: boolean("is_organic_certified").notNull().default(false),
   organicCertRef: text("organic_cert_ref"),
+  salePricePerTonnePence: integer("sale_price_per_tonne_pence"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -252,6 +253,7 @@ export const seedDrillingRecordsTable = pgTable("seed_drilling_records", {
   treatmentProduct: text("treatment_product"),
   operator: text("operator"),
   areaSeededHa: numeric("area_seeded_ha", { precision: 10, scale: 4 }),
+  seedCostPencePerKg: integer("seed_cost_pence_per_kg"),
   soilConditions: text("soil_conditions"),
   weatherNotes: text("weather_notes"),
   notes: text("notes"),

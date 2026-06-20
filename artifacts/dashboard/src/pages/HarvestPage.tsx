@@ -771,6 +771,27 @@ function HarvestLogTab({ harvests, transports, storages, farmRecord, equipment, 
               <Textarea placeholder="Conditions on day, issues encountered, etc." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} />
             </div>
 
+            {/* ─── Sale Price ────────────────────────────────────────────── */}
+            <div>
+              <Label>Sale Price (£/tonne) <span className="text-muted-foreground text-xs font-normal">— optional, for gross margin reporting</span></Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">£</span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="e.g. 185.00"
+                  className="pl-7"
+                  value={form.salePricePerTonnePence != null && form.salePricePerTonnePence !== "" ? (Number(form.salePricePerTonnePence) / 100).toFixed(2) : ""}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setForm((f: any) => ({ ...f, salePricePerTonnePence: v === "" ? "" : Math.round(parseFloat(v) * 100) }));
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Used to calculate revenue and gross margin in the Season Production Report.</p>
+            </div>
+
             {/* ─── Organic Certification ─────────────────────────────────── */}
             <div className={`rounded-xl border-2 p-3 transition-colors ${form.isOrganicCertified ? "border-green-400 bg-green-50" : "border-dashed border-border"}`}>
               <label className="flex items-center gap-3 cursor-pointer">
