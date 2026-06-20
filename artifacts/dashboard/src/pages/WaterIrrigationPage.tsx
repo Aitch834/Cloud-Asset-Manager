@@ -15,6 +15,7 @@ import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
 import { Redirect } from "wouter";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
 
 const api = (path: string) => `/api/${path}`;
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
@@ -302,9 +303,14 @@ function BoreholeTestsTab({ farmId }: { farmId: number }) {
 
 function IrrigationRecordsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
-  const [form, setForm] = useState<Record<string, string>>({});
+  const [viewTab, setViewTab] = useState<"details" | "documents">("details");
+  const [form, setForm] = useState<Record<string, unknown>>({});
+  const [equipmentIds, setEquipmentIds] = useState<number[]>([]);
+  const [confirmClose, setConfirmClose] = useState<Record<string, unknown> | null>(null);
 
   const { data: licences = [] } = useQuery({ queryKey: ["water-licences", farmId], queryFn: () => fetch(api(`farms/${farmId}/water-abstraction-licences`), { credentials: "include" }).then(r => r.json()) });
   const { data: fieldsData } = useQuery({ queryKey: ["fields", farmId], queryFn: () => fetch(api(`farms/${farmId}/fields`), { credentials: "include" }).then(r => r.json()) });
@@ -317,314 +323,427 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
   const equipment: Record<string, unknown>[] = Array.isArray(equipmentData) ? equipmentData : [];
 
   const save = useMutation({
-    mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/irrigation-records`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["irrig-records", farmId] }); setOpen(false); setForm({}); }
+    mutationFn: (b: Record<string, unknown>) => {
+      const url = editing ? api(`farms/${farmId}/irrigation-records/${editing.id}`) : api(`farms/${farmId}/irrigation-records`);
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["irrig-records", farmId] }); setOpen(false); setEditing(null); setForm({}); setEquipmentIds([]); },
   });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/irrigation-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["irrig-records", farmId] }) });
 
-  const selectedField = form.fieldId ? fields.find(f => String(f.id) === form.fieldId) : null;
-  const selectedLicence = form.licenceId ? (licences as Record<string, unknown>[]).find(l => String(l.id) === form.licenceId) : null;
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/irrigation-records/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["irrig-records", farmId] }),
+  });
 
-  const meterVolume = form.meterStartReading && form.meterEndReading
-    ? Math.max(0, parseFloat(form.meterEndReading) - parseFloat(form.meterStartReading))
-    : null;
-
-  const effectiveVolume = meterVolume ?? (form.volumeAppliedM3 ? parseFloat(form.volumeAppliedM3) : null);
-  const effectiveArea = form.areaIrrigatedHa ? parseFloat(form.areaIrrigatedHa) : null;
-  const autoDepth = effectiveVolume && effectiveArea && effectiveArea > 0
-    ? ((effectiveVolume / (effectiveArea * 10000)) * 1000).toFixed(1)
-    : null;
-
-  const costPerM3 = form.costPerM3Override
-    ? parseFloat(form.costPerM3Override)
-    : (selectedLicence?.costPerM3 ? parseFloat(String(selectedLicence.costPerM3)) : null);
-  const estimatedCost = effectiveVolume && costPerM3 ? (effectiveVolume * costPerM3).toFixed(2) : null;
+  const closeEvent = useMutation({
+    mutationFn: (id: number) =>
+      fetch(api(`farms/${farmId}/irrigation-records/${id}`), {
+        method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ status: "closed", endDate: new Date().toISOString().slice(0, 10) }),
+      }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["irrig-records", farmId] }); setConfirmClose(null); },
+  });
 
   function handleFieldSelect(fieldId: string) {
-    if (!fieldId || fieldId === "__none__") {
-      setForm(f => ({ ...f, fieldId: "", areaIrrigatedHa: "", cropType: "" }));
-      return;
-    }
+    if (!fieldId || fieldId === "__none__") { setForm(f => ({ ...f, fieldId: "", areaIrrigatedHa: "", cropType: "" })); return; }
     const field = fields.find(f => String(f.id) === fieldId);
     if (field) {
-      setForm(f => ({
-        ...f,
-        fieldId,
-        areaIrrigatedHa: field.areaHectares ? String(field.areaHectares) : f.areaIrrigatedHa,
-        cropType: field.currentUse ? String(field.currentUse) : f.cropType,
-      }));
+      setForm(f => ({ ...f, fieldId, areaIrrigatedHa: field.areaHectares ? String(field.areaHectares) : String(f.areaIrrigatedHa ?? ""), cropType: field.currentUse ? String(field.currentUse) : String(f.cropType ?? "") }));
     } else {
       setForm(f => ({ ...f, fieldId }));
     }
   }
 
-  function fieldLabel(r: Record<string, unknown>) {
-    if (r.fieldId) {
-      const f = fields.find(x => String(x.id) === String(r.fieldId));
-      if (f) return String(f.name);
-    }
-    return fmt(r.fieldOrBlockDescription);
+  function openAdd() {
+    setEditing(null);
+    setForm({ irrigationDate: new Date().toISOString().slice(0, 10), status: "open" });
+    setEquipmentIds([]);
+    setOpen(true);
   }
 
+  function openEdit(r: Record<string, unknown>) {
+    setEditing(r);
+    setForm({ ...r });
+    try { const ids = r.equipmentIdsJson ? JSON.parse(String(r.equipmentIdsJson)) : []; setEquipmentIds(Array.isArray(ids) ? ids.map(Number) : []); } catch { setEquipmentIds([]); }
+    setOpen(true);
+  }
+
+  function handleSave() {
+    const payload: Record<string, unknown> = { ...form };
+    if (equipmentIds.length > 0) payload.equipmentIdsJson = JSON.stringify(equipmentIds);
+    else delete payload.equipmentIdsJson;
+    const meterVol = form.meterStartReading && form.meterEndReading
+      ? Math.max(0, parseFloat(String(form.meterEndReading)) - parseFloat(String(form.meterStartReading))) : null;
+    if (meterVol !== null) payload.volumeAppliedM3 = meterVol.toFixed(2);
+    const vol = meterVol ?? (form.volumeAppliedM3 ? parseFloat(String(form.volumeAppliedM3)) : null);
+    const area = form.areaIrrigatedHa ? parseFloat(String(form.areaIrrigatedHa)) : null;
+    if (vol && area && area > 0) payload.applicationDepthMm = ((vol / (area * 10000)) * 1000).toFixed(1);
+    if (form.fieldId && form.fieldId !== "__none__") payload.fieldId = parseInt(String(form.fieldId)); else delete payload.fieldId;
+    if (form.licenceId && form.licenceId !== "__none__") payload.licenceId = parseInt(String(form.licenceId)); else delete payload.licenceId;
+    if (form.startOperatorId && form.startOperatorId !== "__none__") payload.startOperatorId = parseInt(String(form.startOperatorId)); else delete payload.startOperatorId;
+    if (form.endOperatorId && form.endOperatorId !== "__none__") payload.endOperatorId = parseInt(String(form.endOperatorId)); else delete payload.endOperatorId;
+    save.mutate(payload);
+  }
+
+  function fieldLabel(r: Record<string, unknown>) {
+    if (r.fieldId) { const f = fields.find(x => String(x.id) === String(r.fieldId)); if (f) return String(f.name); }
+    return r.fieldOrBlockDescription ? String(r.fieldOrBlockDescription) : "—";
+  }
   function licenceLabel(r: Record<string, unknown>) {
     const l = (licences as Record<string, unknown>[]).find(x => String(x.id) === String(r.licenceId));
     if (!l) return "—";
     return `${String(l.licenceNumber)}${l.sourceType ? ` (${String(l.sourceType)})` : ""}`;
   }
+  function contactName(id: unknown) {
+    if (!id) return "—";
+    const c = contacts.find(x => String(x.id) === String(id));
+    return c ? String(c.name) : "—";
+  }
+  function equipmentNames(r: Record<string, unknown>) {
+    try {
+      const ids: number[] = r.equipmentIdsJson ? JSON.parse(String(r.equipmentIdsJson)) : [];
+      if (ids.length) return ids.map(id => { const e = equipment.find(x => String(x.id) === String(id)); return e ? String(e.equipmentName) : `#${id}`; }).join(", ");
+    } catch { /* ignore */ }
+    if (r.irrigationEquipmentId) { const e = equipment.find(x => String(x.id) === String(r.irrigationEquipmentId)); return e ? String(e.equipmentName) : "—"; }
+    return "—";
+  }
+
+  const selectedLicence = form.licenceId && form.licenceId !== "__none__"
+    ? (licences as Record<string, unknown>[]).find(l => String(l.id) === String(form.licenceId)) : null;
+  const meterVolume = form.meterStartReading && form.meterEndReading
+    ? Math.max(0, parseFloat(String(form.meterEndReading)) - parseFloat(String(form.meterStartReading))) : null;
+  const effectiveVolume = meterVolume ?? (form.volumeAppliedM3 ? parseFloat(String(form.volumeAppliedM3)) : null);
+  const effectiveArea = form.areaIrrigatedHa ? parseFloat(String(form.areaIrrigatedHa)) : null;
+  const autoDepth = effectiveVolume && effectiveArea && effectiveArea > 0
+    ? ((effectiveVolume / (effectiveArea * 10000)) * 1000).toFixed(1) : null;
+  const costPerM3 = form.costPerM3Override
+    ? parseFloat(String(form.costPerM3Override))
+    : (selectedLicence?.costPerM3 ? parseFloat(String(selectedLicence.costPerM3)) : null);
+  const estimatedCost = effectiveVolume && costPerM3 ? (effectiveVolume * costPerM3).toFixed(2) : null;
+
+  const openCount = (records as Record<string, unknown>[]).filter(r => r.status === "open").length;
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <div>
           <h3 className="font-semibold text-sm">Irrigation Application Records</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">Log each irrigation event. Select a registered field to auto-fill area and crop. Meter readings calculate volume automatically. Costs are derived from the water source rate unless overridden.</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Log each irrigation event — track start/end operators, equipment and volume applied.</p>
         </div>
-        <Button size="sm" onClick={() => { setForm({ irrigationDate: new Date().toISOString().slice(0, 10) }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Log Application</Button>
+        <Button size="sm" onClick={openAdd}><Play className="w-4 h-4 mr-1" />Log Application</Button>
       </div>
 
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
-        <DataTable
-          cols={[
-            { key: "irrigationDate", label: "Date", fmt: r => fmtDate(r.irrigationDate) },
-            { key: "fieldId", label: "Field / Block", fmt: fieldLabel },
-            { key: "licenceId", label: "Water Source", fmt: licenceLabel },
-            { key: "cropType", label: "Crop" },
-            { key: "irrigationMethod", label: "Method" },
-            { key: "volumeAppliedM3", label: "Volume (m³)" },
-            { key: "operatorName", label: "Operator" },
-          ]}
-          rows={records as Record<string, unknown>[]}
-          onView={setViewRecord}
-          onDelete={r => del.mutate(r.id as number)}
-        />
+      {openCount > 0 && (
+        <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+          {openCount} open event{openCount !== 1 ? "s" : ""} — mark complete when irrigation finishes.
+        </div>
       )}
 
-      {viewRecord && (() => {
-        const vLicence = (licences as Record<string, unknown>[]).find(l => String(l.id) === String(viewRecord.licenceId));
-        const vField = fields.find(f => String(f.id) === String(viewRecord.fieldId));
-        const vVolume = viewRecord.volumeAppliedM3 ? parseFloat(String(viewRecord.volumeAppliedM3)) : null;
-        const vCostPerM3 = viewRecord.costPerM3Override
-          ? parseFloat(String(viewRecord.costPerM3Override))
-          : (vLicence?.costPerM3 ? parseFloat(String(vLicence.costPerM3)) : null);
-        const vCost = vVolume && vCostPerM3 ? (vVolume * vCostPerM3).toFixed(2) : null;
+      {/* Summary strip */}
+      {!isLoading && (records as Record<string, unknown>[]).length > 0 && (() => {
+        const recs = records as Record<string, unknown>[];
+        const totalVol = recs.reduce((s, r) => s + (r.volumeAppliedM3 ? parseFloat(String(r.volumeAppliedM3)) : 0), 0);
+        const totalArea = recs.reduce((s, r) => s + (r.areaIrrigatedHa ? parseFloat(String(r.areaIrrigatedHa)) : 0), 0);
+        const openN = recs.filter(r => r.status === "open").length;
         return (
-          <Dialog open onOpenChange={() => setViewRecord(null)}>
-            <DialogContent style={{ maxWidth: "48rem" }}>
-              <DialogHeader><DialogTitle>Irrigation Application Record</DialogTitle></DialogHeader>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date</p><p className="font-medium">{fmtDate(viewRecord.irrigationDate)}</p></div>
-                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Operator</p><p className="font-medium">{fmt(viewRecord.operatorName)}</p></div>
-                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Field / Block</p><p className="font-medium">{vField ? String(vField.name) : fmt(viewRecord.fieldOrBlockDescription)}</p></div>
-                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Area Irrigated (ha)</p><p className="font-medium">{fmt(viewRecord.areaIrrigatedHa)}</p></div>
-                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Crop</p><p className="font-medium">{fmt(viewRecord.cropType)}</p></div>
-                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Growth Stage</p><p className="font-medium">{fmt(viewRecord.growthStage)}</p></div>
-                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Water Source / Licence</p><p className="font-medium">{vLicence ? `${String(vLicence.licenceNumber)} — ${String(vLicence.sourceType ?? vLicence.waterSource)}` : "—"}</p></div>
-                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Method</p><p className="font-medium">{fmt(viewRecord.irrigationMethod)}</p></div>
-                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Meter Start Reading</p><p className="font-medium">{fmt(viewRecord.meterStartReading)}</p></div>
-                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Meter End Reading</p><p className="font-medium">{fmt(viewRecord.meterEndReading)}</p></div>
-                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Volume Applied (m³)</p><p className="font-medium">{fmt(viewRecord.volumeAppliedM3)}</p></div>
-                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Application Depth (mm)</p><p className="font-medium">{fmt(viewRecord.applicationDepthMm)}</p></div>
-                {vCost && <div className="col-span-2 rounded-lg bg-blue-50 border border-blue-200 px-4 py-2"><p className="text-xs text-blue-700 font-medium">Estimated Water Cost: £{vCost} ({vCostPerM3?.toFixed(4)} £/m³{viewRecord.costPerM3Override ? " — overridden" : " — from source"})</p></div>}
-                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Rainfall Last 7 Days (mm)</p><p className="font-medium">{fmt(viewRecord.rainfallLast7DaysMm)}</p></div>
-                <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmt(viewRecord.notes)}</p></div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 16px", minWidth: 120 }}>
+              <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#1d4ed8", letterSpacing: "0.06em", margin: "0 0 3px" }}>Applications</p>
+              <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e3a8a", lineHeight: 1, margin: 0 }}>{recs.length}</p>
+            </div>
+            {totalVol > 0 && (
+              <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 16px", minWidth: 150 }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#1d4ed8", letterSpacing: "0.06em", margin: "0 0 3px" }}>Total Volume</p>
+                <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#1e3a8a", lineHeight: 1, margin: 0 }}>{totalVol.toFixed(1)} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>m³</span></p>
               </div>
-              <DialogFooter><Button onClick={() => setViewRecord(null)}>Close</Button></DialogFooter>
-            </DialogContent>
-          </Dialog>
+            )}
+            {totalArea > 0 && (
+              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 16px", minWidth: 130 }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#15803d", letterSpacing: "0.06em", margin: "0 0 3px" }}>Area Covered</p>
+                <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#14532d", lineHeight: 1, margin: 0 }}>{totalArea.toFixed(1)} <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>ha</span></p>
+              </div>
+            )}
+            {openN > 0 && (
+              <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 16px", minWidth: 100 }}>
+                <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#b45309", letterSpacing: "0.06em", margin: "0 0 3px" }}>Open</p>
+                <p style={{ fontSize: "1.35rem", fontWeight: 800, color: "#78350f", lineHeight: 1, margin: 0 }}>{openN}</p>
+              </div>
+            )}
+          </div>
         );
       })()}
 
-      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) setForm({}); }}>
-        <DialogContent style={{ maxWidth: "52rem" }}>
-          <DialogHeader><DialogTitle>Log Irrigation Application</DialogTitle></DialogHeader>
-          <div className="overflow-y-auto max-h-[72vh] pr-1">
-            <div className="space-y-4">
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <div className="overflow-x-auto">
+          {!(records as Record<string, unknown>[]).length ? (
+            <Empty msg="No irrigation records yet." />
+          ) : (
+            <table className="w-full text-sm">
+              <thead><tr className="border-b">
+                <th className="text-left py-2 pr-3 font-medium text-muted-foreground">Date</th>
+                <th className="text-left py-2 pr-3 font-medium text-muted-foreground">Field</th>
+                <th className="text-left py-2 pr-3 font-medium text-muted-foreground">Water Source</th>
+                <th className="text-left py-2 pr-3 font-medium text-muted-foreground">Vol (m³)</th>
+                <th className="text-left py-2 pr-3 font-medium text-muted-foreground">Status</th>
+                <th />
+              </tr></thead>
+              <tbody>
+                {(records as Record<string, unknown>[]).map((r, i) => (
+                  <tr key={i} className="border-b last:border-0">
+                    <td className="py-2 pr-3">{fmtDate(r.irrigationDate)}</td>
+                    <td className="py-2 pr-3">{fieldLabel(r)}</td>
+                    <td className="py-2 pr-3">{licenceLabel(r)}</td>
+                    <td className="py-2 pr-3">{fmt(r.volumeAppliedM3)}</td>
+                    <td className="py-2 pr-3">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${r.status === "open" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                        {r.status === "open" ? "Open" : "Complete"}
+                      </span>
+                    </td>
+                    <td className="py-2 text-right space-x-1 whitespace-nowrap">
+                      <Button size="icon" variant="ghost" onClick={() => { setViewRecord(r); setViewTab("details"); }}><Eye className="w-3.5 h-3.5" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                      {r.status === "open" && (
+                        <Button size="icon" variant="ghost" title="Mark complete" onClick={() => setConfirmClose(r)}><FileCheck className="w-3.5 h-3.5 text-green-600" /></Button>
+                      )}
+                      <Button size="icon" variant="ghost" onClick={() => del.mutate(r.id as number)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
-              {/* ── WHEN / WHO ── */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">When &amp; Who</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Date *</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.irrigationDate ?? ""} onChange={e => setForm(f => ({ ...f, irrigationDate: e.target.value }))} /></div>
-                  <div><Label>Operator</Label>
-                    {contacts.length > 0 ? (
-                      <Select value={form.operatorName ?? "__none__"} onValueChange={v => setForm(f => ({ ...f, operatorName: v === "__none__" ? "" : v }))}>
-                        <SelectTrigger><SelectValue placeholder="Select operator" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">— Select —</SelectItem>
-                          {contacts.map(c => <SelectItem key={String(c.id)} value={String(c.name)}>{String(c.name)}{c.role ? ` (${String(c.role)})` : ""}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input value={form.operatorName ?? ""} onChange={e => setForm(f => ({ ...f, operatorName: e.target.value }))} placeholder="Operator name" />
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* ── FIELD ── */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Field / Block</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Field</Label>
-                    {fields.length > 0 ? (
-                      <Select value={form.fieldId ?? "__none__"} onValueChange={handleFieldSelect}>
-                        <SelectTrigger><SelectValue placeholder="Select registered field" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">— Other / unregistered block —</SelectItem>
-                          {fields.map(f => <SelectItem key={String(f.id)} value={String(f.id)}>{String(f.name)}{f.areaHectares ? ` (${parseFloat(String(f.areaHectares)).toFixed(2)} ha)` : ""}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input value={form.fieldOrBlockDescription ?? ""} onChange={e => setForm(f => ({ ...f, fieldOrBlockDescription: e.target.value }))} placeholder="Field or block name" />
-                    )}
-                  </div>
-                  {(!form.fieldId || form.fieldId === "__none__") && fields.length > 0 && (
-                    <div><Label>Other Block / Area Name</Label><Input value={form.fieldOrBlockDescription ?? ""} onChange={e => setForm(f => ({ ...f, fieldOrBlockDescription: e.target.value }))} placeholder="e.g. North glasshouse block" /></div>
-                  )}
-                  <div>
-                    <Label>Area Irrigated (ha){selectedField ? " — auto-filled from field" : ""}</Label>
-                    <Input type="number" step="0.001" value={form.areaIrrigatedHa ?? ""} onChange={e => setForm(f => ({ ...f, areaIrrigatedHa: e.target.value }))} placeholder="Hectares — edit if only part of field" />
-                  </div>
-                  <div>
-                    <Label>Crop{selectedField ? " — auto-filled from field" : ""}</Label>
-                    <Input value={form.cropType ?? ""} onChange={e => setForm(f => ({ ...f, cropType: e.target.value }))} placeholder="e.g. Potatoes, Lettuce, Strawberries" />
-                  </div>
-                  <div><Label>Growth Stage</Label>
-                    <Select value={form.growthStage ?? "__none__"} onValueChange={v => setForm(f => ({ ...f, growthStage: v === "__none__" ? "" : v }))}>
-                      <SelectTrigger><SelectValue placeholder="Select stage" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">— Not specified —</SelectItem>
-                        {["Germination / Establishment", "Vegetative Growth", "Canopy Development", "Flowering", "Fruit / Tuber Initiation", "Bulking / Fill", "Ripening / Maturation", "Harvest"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-
-              {/* ── WATER SOURCE ── */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Water Source</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2"><Label>Abstraction Licence / Water Source *</Label>
-                    <Select value={form.licenceId ?? "__none__"} onValueChange={v => setForm(f => ({ ...f, licenceId: v === "__none__" ? "" : v }))}>
-                      <SelectTrigger><SelectValue placeholder="Select water source" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">— Select source —</SelectItem>
-                        {(licences as Record<string, unknown>[]).map(l => (
-                          <SelectItem key={String(l.id)} value={String(l.id)}>
-                            {String(l.licenceNumber)}{l.sourceType ? ` — ${String(l.sourceType)}` : ""}{l.waterSource ? ` (${String(l.waterSource)})` : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {!!selectedLicence?.costPerM3 && (
-                      <p className="text-xs text-blue-600 mt-1">Source rate: £{parseFloat(String(selectedLicence.costPerM3)).toFixed(4)}/m³</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* ── METHOD ── */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Method &amp; Equipment</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Irrigation Method *</Label>
-                    <Select value={form.irrigationMethod ?? "__none__"} onValueChange={v => setForm(f => ({ ...f, irrigationMethod: v === "__none__" ? "" : v }))}>
-                      <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">— Select —</SelectItem>
-                        {["Drip / Trickle", "Overhead Sprinkler", "Boom Irrigation", "Flood / Furrow", "Linear Move", "Rain Gun", "Sub-surface Drip", "Micro-jet"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div><Label>Equipment Used</Label>
-                    {equipment.length > 0 ? (
-                      <Select value={form.irrigationEquipmentId ?? "__none__"} onValueChange={v => setForm(f => ({ ...f, irrigationEquipmentId: v === "__none__" ? "" : v }))}>
-                        <SelectTrigger><SelectValue placeholder="Select equipment" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">— Not specified —</SelectItem>
-                          {equipment.map(e => <SelectItem key={String(e.id)} value={String(e.id)}>{String(e.equipmentName)} ({String(e.equipmentType)})</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input disabled placeholder="Add equipment in the Equipment tab first" className="text-muted-foreground" />
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* ── METER READINGS ── */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Meter Readings</p>
-                <p className="text-xs text-muted-foreground mb-2">Enter the meter reading at the start and end of the irrigation run. Volume is calculated automatically. If no meter is fitted, enter volume directly below.</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Meter Start Reading (m³)</Label><Input type="number" step="0.01" value={form.meterStartReading ?? ""} onChange={e => setForm(f => ({ ...f, meterStartReading: e.target.value }))} placeholder="Reading at start of run" /></div>
-                  <div><Label>Meter End Reading (m³)</Label><Input type="number" step="0.01" value={form.meterEndReading ?? ""} onChange={e => setForm(f => ({ ...f, meterEndReading: e.target.value }))} placeholder="Reading at end of run" /></div>
-                  {meterVolume !== null && (
-                    <div className="col-span-2 rounded-lg bg-green-50 border border-green-200 px-4 py-2 flex items-center gap-2">
-                      <Droplets className="w-4 h-4 text-green-600 shrink-0" />
-                      <p className="text-sm text-green-700 font-medium">Volume from meter: <span className="font-bold">{meterVolume.toFixed(2)} m³</span></p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* ── VOLUMES ── */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Volume &amp; Depth</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Volume Applied (m³){meterVolume !== null ? " — from meter readings" : ""}</Label>
-                    <Input type="number" step="0.01" value={meterVolume !== null ? meterVolume.toFixed(2) : (form.volumeAppliedM3 ?? "")} onChange={e => setForm(f => ({ ...f, volumeAppliedM3: e.target.value }))} readOnly={meterVolume !== null} className={meterVolume !== null ? "bg-muted/40 cursor-not-allowed" : ""} placeholder="m³ abstracted" />
-                    {meterVolume !== null && <p className="text-xs text-muted-foreground mt-1">Calculated from meter — edit start/end readings to adjust</p>}
-                  </div>
-                  <div>
-                    <Label>Application Depth (mm){autoDepth ? " — calculated" : ""}</Label>
-                    <Input type="number" step="0.1" value={autoDepth ?? (form.applicationDepthMm ?? "")} onChange={e => setForm(f => ({ ...f, applicationDepthMm: e.target.value }))} readOnly={!!autoDepth} className={autoDepth ? "bg-muted/40 cursor-not-allowed" : ""} placeholder="mm of water applied" />
-                    <p className="text-xs text-muted-foreground mt-1">{autoDepth ? "Volume ÷ (area × 10,000) × 1,000" : "Volume (m³) ÷ area (ha) ÷ 10 = mm"}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* ── COST ── */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Cost</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Cost per m³ Override (£) — optional</Label><Input type="number" step="0.0001" value={form.costPerM3Override ?? ""} onChange={e => setForm(f => ({ ...f, costPerM3Override: e.target.value }))} placeholder={selectedLicence?.costPerM3 ? `${parseFloat(String(selectedLicence.costPerM3)).toFixed(4)} from source` : "Leave blank to use source rate"} /></div>
-                  {estimatedCost && (
-                    <div className="flex flex-col justify-center rounded-lg bg-blue-50 border border-blue-200 px-4 py-2">
-                      <p className="text-xs text-blue-600">Estimated water cost</p>
-                      <p className="text-xl font-bold text-blue-700">£{estimatedCost}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* ── OTHER ── */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Other</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Rainfall Last 7 Days (mm)</Label><Input type="number" step="0.1" value={form.rainfallLast7DaysMm ?? ""} onChange={e => setForm(f => ({ ...f, rainfallLast7DaysMm: e.target.value }))} placeholder="Recent rainfall for justification record" /></div>
-                  <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
-                </div>
-              </div>
-
+      {/* ── View Dialog ──────────────────────────────────────────────────────── */}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "52rem" }}>
+            <DialogHeader><DialogTitle>Irrigation Record — {fmtDate(viewRecord.irrigationDate)}</DialogTitle></DialogHeader>
+            <div className="flex gap-1 mb-3 border-b pb-2">
+              {(["details", "documents"] as const).map(t => (
+                <button key={t} onClick={() => setViewTab(t)}
+                  className={`text-xs px-3 py-1.5 rounded-md font-medium capitalize ${viewTab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>
+                  {t}
+                </button>
+              ))}
             </div>
+            {viewTab === "details" && (
+              <div className="grid grid-cols-2 gap-3 text-sm overflow-y-auto max-h-[60vh] pr-1">
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${viewRecord.status === "open" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                    {viewRecord.status === "open" ? "Open" : "Complete"}
+                  </span>
+                </div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date</p><p className="font-medium">{fmtDate(viewRecord.irrigationDate)}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Start Time</p><p className="font-medium">{fmt(viewRecord.startTime)}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">End Date</p><p className="font-medium">{viewRecord.endDate ? fmtDate(viewRecord.endDate) : "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">End Time</p><p className="font-medium">{fmt(viewRecord.endTime)}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Field</p><p className="font-medium">{fieldLabel(viewRecord)}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Water Source</p><p className="font-medium">{licenceLabel(viewRecord)}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Crop Type</p><p className="font-medium">{fmt(viewRecord.cropType)}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Method</p><p className="font-medium">{fmt(viewRecord.irrigationMethod)}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Equipment</p><p className="font-medium">{equipmentNames(viewRecord)}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Area (ha)</p><p className="font-medium">{fmt(viewRecord.areaIrrigatedHa)}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Volume (m³)</p><p className="font-medium">{fmt(viewRecord.volumeAppliedM3)}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Depth (mm)</p><p className="font-medium">{fmt(viewRecord.applicationDepthMm)}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Meter Start</p><p className="font-medium">{fmt(viewRecord.meterStartReading)}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Meter End</p><p className="font-medium">{fmt(viewRecord.meterEndReading)}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Start Operator</p><p className="font-medium">{contactName(viewRecord.startOperatorId) !== "—" ? contactName(viewRecord.startOperatorId) : fmt(viewRecord.operatorName)}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">End Operator</p><p className="font-medium">{contactName(viewRecord.endOperatorId)}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Rainfall (7d mm)</p><p className="font-medium">{viewRecord.rainfallLast7DaysMm ? `${viewRecord.rainfallLast7DaysMm} mm` : "—"}</p></div>
+                {!!viewRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes)}</p></div>}
+              </div>
+            )}
+            {viewTab === "documents" && (
+              <RecordAttachments farmId={farmId} recordType="irrigation_record" recordId={viewRecord.id as number} />
+            )}
+            <DialogFooter className="mt-4">
+              {viewRecord.status === "open" && (
+                <Button variant="outline" className="mr-auto text-green-700 border-green-300" onClick={() => { setViewRecord(null); setConfirmClose(viewRecord); }}>
+                  <FileCheck className="w-4 h-4 mr-1" />Mark Complete
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── Confirm Close ────────────────────────────────────────────────────── */}
+      <ConfirmDialog
+        open={!!confirmClose}
+        title="Mark irrigation complete?"
+        message={`This will set the record for ${fmtDate(confirmClose?.irrigationDate)} to "Complete" and record today as the end date.`}
+        confirmLabel="Mark Complete"
+        onConfirm={() => closeEvent.mutate(confirmClose!.id as number)}
+        onCancel={() => setConfirmClose(null)}
+      />
+
+      {/* ── Add / Edit Dialog ────────────────────────────────────────────────── */}
+      <Dialog open={open} onOpenChange={v => { if (!v) { setOpen(false); setEditing(null); setForm({}); setEquipmentIds([]); } }}>
+        <DialogContent style={{ maxWidth: "52rem" }}>
+          <DialogHeader><DialogTitle>{editing ? "Edit Irrigation Record" : "Log Irrigation Application"}</DialogTitle></DialogHeader>
+          <div className="overflow-y-auto max-h-[70vh] space-y-4 pr-1">
+
+            {/* ── EVENT TIMING ── */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Event Timing</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Status</Label>
+                  <Select value={String(form.status ?? "open")} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="open">Open (in progress)</SelectItem>
+                      <SelectItem value="closed">Complete</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Start Date *</Label><Input type="date" value={String(form.irrigationDate ?? "")} onChange={e => setForm(f => ({ ...f, irrigationDate: e.target.value }))} /></div>
+                <div><Label>Start Time</Label><Input type="time" value={String(form.startTime ?? "")} onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} /></div>
+                <div>
+                  <Label>Start Operator</Label>
+                  <Select value={String(form.startOperatorId ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, startOperatorId: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select contact…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— not specified —</SelectItem>
+                      {contacts.map(c => <SelectItem key={String(c.id)} value={String(c.id)}>{String(c.name)}{c.role ? ` (${String(c.role)})` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>End Date</Label><Input type="date" value={String(form.endDate ?? "")} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} /></div>
+                <div><Label>End Time</Label><Input type="time" value={String(form.endTime ?? "")} onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))} /></div>
+                <div>
+                  <Label>End Operator</Label>
+                  <Select value={String(form.endOperatorId ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, endOperatorId: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select contact…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— not specified —</SelectItem>
+                      {contacts.map(c => <SelectItem key={String(c.id)} value={String(c.id)}>{String(c.name)}{c.role ? ` (${String(c.role)})` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            {/* ── FIELD + SOURCE ── */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Field &amp; Water Source</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Field / Block</Label>
+                  <Select value={String(form.fieldId ?? "__none__")} onValueChange={handleFieldSelect}>
+                    <SelectTrigger><SelectValue placeholder="Select field…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— manual entry —</SelectItem>
+                      {fields.map(f => <SelectItem key={String(f.id)} value={String(f.id)}>{String(f.name)}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(!form.fieldId || form.fieldId === "__none__") && (
+                  <div><Label>Field / Block Description</Label><Input value={String(form.fieldOrBlockDescription ?? "")} onChange={e => setForm(f => ({ ...f, fieldOrBlockDescription: e.target.value }))} placeholder="e.g. North paddock" /></div>
+                )}
+                <div>
+                  <Label>Water Source / Licence</Label>
+                  <Select value={String(form.licenceId ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, licenceId: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select licence…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— not linked —</SelectItem>
+                      {(licences as Record<string, unknown>[]).map(l => <SelectItem key={String(l.id)} value={String(l.id)}>{String(l.licenceNumber)}{l.sourceType ? ` (${String(l.sourceType)})` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Crop Type</Label><Input value={String(form.cropType ?? "")} onChange={e => setForm(f => ({ ...f, cropType: e.target.value }))} placeholder="Auto-filled from field" /></div>
+                <div><Label>Area Irrigated (ha)</Label><Input type="number" step="0.01" value={String(form.areaIrrigatedHa ?? "")} onChange={e => setForm(f => ({ ...f, areaIrrigatedHa: e.target.value }))} /></div>
+              </div>
+            </div>
+
+            {/* ── METHOD + EQUIPMENT ── */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Method &amp; Equipment</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Irrigation Method</Label>
+                  <Select value={String(form.irrigationMethod ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, irrigationMethod: v === "__none__" ? "" : v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— select —</SelectItem>
+                      {["Overhead sprinkler", "Drip / trickle", "Furrow / flood", "Pivot", "Boom", "Traveller", "Hand-held", "Other"].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(equipment as Record<string, unknown>[]).length > 0 && (
+                  <div className="col-span-2">
+                    <Label className="mb-2 block">Equipment Used</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(equipment as Record<string, unknown>[]).map(e => (
+                        <label key={String(e.id)} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <Checkbox
+                            checked={equipmentIds.includes(Number(e.id))}
+                            onCheckedChange={checked => {
+                              const id = Number(e.id);
+                              setEquipmentIds(ids => checked ? [...ids, id] : ids.filter(x => x !== id));
+                            }}
+                          />
+                          {String(e.equipmentName)}{e.equipmentType ? ` — ${String(e.equipmentType)}` : ""}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── VOLUME + METER ── */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Volume Applied</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Meter Start Reading (m³)</Label><Input type="number" step="0.01" value={String(form.meterStartReading ?? "")} onChange={e => setForm(f => ({ ...f, meterStartReading: e.target.value }))} placeholder="Leave blank if no meter" /></div>
+                <div><Label>Meter End Reading (m³)</Label><Input type="number" step="0.01" value={String(form.meterEndReading ?? "")} onChange={e => setForm(f => ({ ...f, meterEndReading: e.target.value }))} /></div>
+                {meterVolume !== null && (
+                  <div className="col-span-2 flex items-center gap-2 rounded bg-blue-50 border border-blue-200 px-3 py-2 text-sm text-blue-700">
+                    <Droplets className="w-4 h-4 shrink-0" />
+                    Meter volume: <strong>{meterVolume.toFixed(2)} m³</strong> — will be saved as volume applied.
+                  </div>
+                )}
+                <div><Label>Volume Applied (m³){meterVolume !== null ? " — set by meter" : ""}</Label><Input type="number" step="0.01" value={String(form.volumeAppliedM3 ?? "")} onChange={e => setForm(f => ({ ...f, volumeAppliedM3: e.target.value }))} disabled={meterVolume !== null} placeholder={meterVolume !== null ? `${meterVolume.toFixed(2)} (from meter)` : ""} /></div>
+                <div><Label>Application Depth (mm){autoDepth ? " — auto" : ""}</Label><Input type="number" step="0.1" value={autoDepth ?? String(form.applicationDepthMm ?? "")} readOnly={!!autoDepth} onChange={e => !autoDepth && setForm(f => ({ ...f, applicationDepthMm: e.target.value }))} /></div>
+              </div>
+            </div>
+
+            {/* ── COST ── */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Cost</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Cost per m³ Override (£)</Label><Input type="number" step="0.0001" value={String(form.costPerM3Override ?? "")} onChange={e => setForm(f => ({ ...f, costPerM3Override: e.target.value }))} placeholder={selectedLicence?.costPerM3 ? `${parseFloat(String(selectedLicence.costPerM3)).toFixed(4)} from source` : "Leave blank to use source rate"} /></div>
+                {estimatedCost && (
+                  <div className="flex flex-col justify-center rounded-lg bg-blue-50 border border-blue-200 px-4 py-2">
+                    <p className="text-xs text-blue-600">Estimated water cost</p>
+                    <p className="text-xl font-bold text-blue-700">£{estimatedCost}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── OTHER ── */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Other</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Rainfall Last 7 Days (mm)</Label><Input type="number" step="0.1" value={String(form.rainfallLast7DaysMm ?? "")} onChange={e => setForm(f => ({ ...f, rainfallLast7DaysMm: e.target.value }))} /></div>
+                <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+              </div>
+            </div>
+
           </div>
           <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => { setOpen(false); setForm({}); }}>Cancel</Button>
-            <Button onClick={() => {
-              const payload: Record<string, unknown> = { ...form };
-              if (meterVolume !== null) payload.volumeAppliedM3 = meterVolume.toFixed(2);
-              if (autoDepth) payload.applicationDepthMm = autoDepth;
-              if (form.fieldId && form.fieldId !== "__none__") payload.fieldId = parseInt(form.fieldId);
-              else delete payload.fieldId;
-              if (form.licenceId && form.licenceId !== "__none__") payload.licenceId = parseInt(form.licenceId);
-              else delete payload.licenceId;
-              if (form.irrigationEquipmentId && form.irrigationEquipmentId !== "__none__") payload.irrigationEquipmentId = parseInt(form.irrigationEquipmentId);
-              else delete payload.irrigationEquipmentId;
-              save.mutate(payload);
-            }} disabled={save.isPending}>{save.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save Record"}</Button>
+            <Button variant="outline" onClick={() => { setOpen(false); setEditing(null); setForm({}); setEquipmentIds([]); }}>Cancel</Button>
+            <Button onClick={handleSave} disabled={save.isPending}>
+              {save.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+              {editing ? "Save Changes" : "Log Application"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
