@@ -1586,6 +1586,7 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
       targetCrop: sprayApplicationsTable.targetCrop,
       bufferZoneMetres: sprayApplicationsTable.bufferZoneMetres,
       notes: sprayApplicationsTable.notes,
+      productCostPencePerUnit: sprayApplicationsTable.productCostPencePerUnit,
     })
     .from(sprayApplicationsTable)
     .innerJoin(sprayProductsTable, eq(sprayProductsTable.id, sprayApplicationsTable.productId))
@@ -1768,6 +1769,23 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
   const totalIrrigationMm = irrigation.reduce((s, i) => s + (i.applicationDepthMm ? parseFloat(String(i.applicationDepthMm)) : 0), 0);
   const totalIrrigationM3 = irrigation.reduce((s, i) => s + (i.volumeAppliedM3 ? parseFloat(String(i.volumeAppliedM3)) : 0), 0);
 
+  // Financial summary
+  const totalFertiliserCostPence = fertiliser.reduce((s, f) => s + (f.totalCostPence ?? 0), 0);
+  const totalSeedCostPence = seedDrilling.reduce((s, d) => {
+    if (!d.seedCostPencePerKg || !d.seedRate || !d.areaSeededHa) return s;
+    return s + Math.round(Number(d.seedCostPencePerKg) * parseFloat(String(d.seedRate)) * parseFloat(String(d.areaSeededHa)));
+  }, 0);
+  const totalSprayCostPence = sprays.reduce((s, sp) => {
+    if (!sp.productCostPencePerUnit || !sp.applicationRate || !sp.areaSprayedHa) return s;
+    return s + Math.round(Number(sp.productCostPencePerUnit) * parseFloat(String(sp.applicationRate)) * parseFloat(String(sp.areaSprayedHa)));
+  }, 0);
+  const totalRevenuePence = harvests.reduce((s, h) => {
+    if (!h.salePricePerTonnePence || !h.yieldTonnes) return s;
+    return s + Math.round(h.salePricePerTonnePence * parseFloat(String(h.yieldTonnes)));
+  }, 0);
+  const totalInputCostPence = totalMachineCostPence + totalLabourCostPence + totalFertiliserCostPence + totalSeedCostPence + totalSprayCostPence;
+  const grossMarginPence = totalRevenuePence - totalInputCostPence;
+
   res.json({
     assignment: asgn,
     sprays,
@@ -1798,6 +1816,12 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
       totalIrrigationM3,
       totalIrrigationEvents: irrigation.length,
       weatherMonthsRecorded: monthlyRainfall.length,
+      totalFertiliserCostPence,
+      totalSeedCostPence,
+      totalSprayCostPence,
+      totalRevenuePence,
+      totalInputCostPence,
+      grossMarginPence,
     },
   });
 });
@@ -2358,9 +2382,9 @@ router.get("/farms/:farmId/nvz-applications", requireAuth, requireTenant, requir
 router.post("/farms/:farmId/nvz-applications", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { fieldId, applicationDate, productName, productType, nitrogenKgHa, areaAppliedHa, applicationMethod, notes } = req.body as {
+  const { fieldId, applicationDate, productName, productType, nitrogenKgHa, areaAppliedHa, applicationMethod, notes, totalCostPence } = req.body as {
     fieldId: number; applicationDate: string; productName: string; productType: string;
-    nitrogenKgHa: number; areaAppliedHa: number; applicationMethod?: string; notes?: string;
+    nitrogenKgHa: number; areaAppliedHa: number; applicationMethod?: string; notes?: string; totalCostPence?: number;
   };
   if (!fieldId || !applicationDate || !productName || !productType || nitrogenKgHa == null || areaAppliedHa == null) {
     res.status(400).json({ error: "Missing required fields" }); return;
@@ -2371,8 +2395,37 @@ router.post("/farms/:farmId/nvz-applications", requireAuth, requireTenant, requi
     productName, productType,
     nitrogenKgHa: String(nitrogenKgHa), areaAppliedHa: String(areaAppliedHa), totalNitrogenKg,
     applicationMethod: applicationMethod ?? null, notes: notes ?? null,
+    totalCostPence: totalCostPence ?? null,
   }).returning();
   res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/nvz-applications/:recordId", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId as string);
+  const [existing] = await db.select().from(nvzFertiliserApplicationsTable).where(and(eq(nvzFertiliserApplicationsTable.id, recordId), eq(nvzFertiliserApplicationsTable.farmId, farmId))).limit(1);
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  const { fieldId, applicationDate, productName, productType, nitrogenKgHa, areaAppliedHa, applicationMethod, notes, totalCostPence } = req.body as {
+    fieldId?: number; applicationDate?: string; productName?: string; productType?: string;
+    nitrogenKgHa?: number; areaAppliedHa?: number; applicationMethod?: string; notes?: string; totalCostPence?: number;
+  };
+  const updNKgHa = nitrogenKgHa != null ? String(nitrogenKgHa) : existing.nitrogenKgHa;
+  const updAreaHa = areaAppliedHa != null ? String(areaAppliedHa) : existing.areaAppliedHa;
+  const updTotalNKg = String((parseFloat(updNKgHa) * parseFloat(updAreaHa)).toFixed(2));
+  const [record] = await db.update(nvzFertiliserApplicationsTable).set({
+    fieldId: fieldId ?? existing.fieldId,
+    applicationDate: applicationDate ? new Date(applicationDate) : existing.applicationDate,
+    productName: productName ?? existing.productName,
+    productType: productType ?? existing.productType,
+    nitrogenKgHa: updNKgHa,
+    areaAppliedHa: updAreaHa,
+    totalNitrogenKg: updTotalNKg,
+    applicationMethod: applicationMethod !== undefined ? (applicationMethod || null) : existing.applicationMethod,
+    notes: notes !== undefined ? (notes || null) : existing.notes,
+    totalCostPence: totalCostPence !== undefined ? (totalCostPence ?? null) : existing.totalCostPence,
+  }).where(and(eq(nvzFertiliserApplicationsTable.id, recordId), eq(nvzFertiliserApplicationsTable.farmId, farmId))).returning();
+  res.json({ record });
 });
 
 router.delete("/farms/:farmId/nvz-applications/:recordId", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "delete"), async (req: Request, res: Response): Promise<void> => {

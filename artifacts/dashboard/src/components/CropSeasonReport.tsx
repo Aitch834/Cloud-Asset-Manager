@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import {
   Printer, Loader2, Wheat, Sprout, Droplets,
   Tractor, Fuel, FlaskConical, Scale, BarChart2,
-  Leaf, CloudRain, AlertCircle, Calendar,
+  Leaf, CloudRain, AlertCircle, Calendar, TrendingUp,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -52,6 +52,7 @@ interface ReportData {
     targetCrop: string | null;
     bufferZoneMetres: string | null;
     notes: string | null;
+    productCostPencePerUnit: number | null;
   }>;
   operations: Array<{
     id: number;
@@ -82,6 +83,7 @@ interface ReportData {
     totalNitrogenKg: string;
     applicationMethod: string | null;
     notes: string | null;
+    totalCostPence: number | null;
   }>;
   seedDrilling: Array<{
     id: number;
@@ -91,6 +93,7 @@ interface ReportData {
     seedLotNumber: string | null;
     seedRate: string | null;
     seedRateUnit: string | null;
+    seedCostPencePerKg: number | null;
     isTreated: boolean;
     treatmentProduct: string | null;
     operator: string | null;
@@ -118,6 +121,7 @@ interface ReportData {
     notes: string | null;
     isOrganicCertified: boolean;
     organicCertRef: string | null;
+    salePricePerTonnePence: number | null;
   }>;
   soilTests: Array<{
     id: number;
@@ -186,6 +190,12 @@ interface ReportData {
     totalIrrigationM3: number;
     totalIrrigationEvents: number;
     weatherMonthsRecorded: number;
+    totalFertiliserCostPence: number;
+    totalSeedCostPence: number;
+    totalSprayCostPence: number;
+    totalRevenuePence: number;
+    totalInputCostPence: number;
+    grossMarginPence: number;
   };
   generatedAt: string;
 }
@@ -385,6 +395,10 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
                     { label: "Irrigation Applied", value: data.summary.totalIrrigationEvents > 0 ? `${data.summary.totalIrrigationMm.toFixed(0)} mm` : "None", sub: data.summary.totalIrrigationM3 > 0 ? `${data.summary.totalIrrigationM3.toFixed(0)} m³ total` : undefined, color: "#0e7490", bg: "#ecfeff", border: "#a5f3fc" },
                     { label: "Machine Cost", value: fmtCost(data.summary.totalMachineCostPence), color: "#374151", bg: "#f9fafb", border: "#e5e7eb" },
                     { label: "Labour Cost", value: fmtCost(data.summary.totalLabourCostPence), color: "#374151", bg: "#f9fafb", border: "#e5e7eb" },
+                    ...(data.summary.totalRevenuePence > 0 ? [
+                      { label: "Revenue", value: fmtCost(data.summary.totalRevenuePence), sub: data.summary.totalInputCostPence > 0 ? `Input cost: ${fmtCost(data.summary.totalInputCostPence)}` : undefined, color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" },
+                      { label: "Gross Margin", value: fmtCost(data.summary.grossMarginPence), sub: data.summary.totalInputCostPence > 0 ? `${data.summary.grossMarginPence >= 0 ? "Profit" : "Loss"} on inputs` : undefined, color: data.summary.grossMarginPence >= 0 ? "#15803d" : "#dc2626", bg: data.summary.grossMarginPence >= 0 ? "#f0fdf4" : "#fef2f2", border: data.summary.grossMarginPence >= 0 ? "#bbf7d0" : "#fecaca" },
+                    ] : []),
                   ].map(({ label, value, sub, color, bg, border }) => (
                     <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 10, padding: "10px 14px" }}>
                       <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#6b7280", margin: "0 0 3px" }}>{label}</p>
@@ -402,22 +416,37 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
                   <div className="rounded-lg border border-gray-200 overflow-hidden">
                     <table className="w-full text-xs">
                       <thead><tr>
-                        <Th>Date</Th><Th>Crop</Th><Th>Variety</Th><Th right>Seed Rate</Th><Th right>Area (ha)</Th><Th>Treated?</Th><Th>Operator</Th><Th>Lot No.</Th>
+                        <Th>Date</Th><Th>Crop</Th><Th>Variety</Th><Th right>Seed Rate</Th><Th right>Area (ha)</Th><Th right>Seed Cost</Th><Th>Treated?</Th><Th>Operator</Th><Th>Lot No.</Th>
                       </tr></thead>
                       <tbody>
-                        {data.seedDrilling.map(r => (
-                          <tr key={r.id}>
-                            <Td>{fmt(r.drillingDate)}</Td>
-                            <Td>{r.cropName}</Td>
-                            <Td>{r.variety ?? "—"}</Td>
-                            <Td right mono>{r.seedRate ? `${n(r.seedRate)} ${r.seedRateUnit ?? ""}` : "—"}</Td>
-                            <Td right mono>{n(r.areaSeededHa)}</Td>
-                            <Td>{r.isTreated ? <Badge color="amber">Treated{r.treatmentProduct ? ` — ${r.treatmentProduct}` : ""}</Badge> : "No"}</Td>
-                            <Td>{r.operator ?? "—"}</Td>
-                            <Td>{r.seedLotNumber ?? "—"}</Td>
-                          </tr>
-                        ))}
+                        {data.seedDrilling.map(r => {
+                          const seedCost = r.seedCostPencePerKg && r.seedRate && r.areaSeededHa
+                            ? Math.round(r.seedCostPencePerKg * parseFloat(r.seedRate) * parseFloat(r.areaSeededHa))
+                            : null;
+                          return (
+                            <tr key={r.id}>
+                              <Td>{fmt(r.drillingDate)}</Td>
+                              <Td>{r.cropName}</Td>
+                              <Td>{r.variety ?? "—"}</Td>
+                              <Td right mono>{r.seedRate ? `${n(r.seedRate)} ${r.seedRateUnit ?? ""}` : "—"}</Td>
+                              <Td right mono>{n(r.areaSeededHa)}</Td>
+                              <Td right mono>{seedCost !== null ? fmtCost(seedCost) : "—"}</Td>
+                              <Td>{r.isTreated ? <Badge color="amber">Treated{r.treatmentProduct ? ` — ${r.treatmentProduct}` : ""}</Badge> : "No"}</Td>
+                              <Td>{r.operator ?? "—"}</Td>
+                              <Td>{r.seedLotNumber ?? "—"}</Td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
+                      {data.summary.totalSeedCostPence > 0 && (
+                        <tfoot>
+                          <tr className="bg-gray-50">
+                            <Td colSpan={5}><span className="font-semibold text-gray-700">Total Seed Cost</span></Td>
+                            <Td right mono><span className="font-semibold">{fmtCost(data.summary.totalSeedCostPence)}</span></Td>
+                            <Td colSpan={3}></Td>
+                          </tr>
+                        </tfoot>
+                      )}
                     </table>
                   </div>
                 )}
@@ -475,7 +504,7 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
                   <div className="rounded-lg border border-gray-200 overflow-hidden">
                     <table className="w-full text-xs">
                       <thead><tr>
-                        <Th>Date</Th><Th>Product</Th><Th>Type</Th><Th>Method</Th><Th right>N Rate (kg/ha)</Th><Th right>Area (ha)</Th><Th right>Total N (kg)</Th>
+                        <Th>Date</Th><Th>Product</Th><Th>Type</Th><Th>Method</Th><Th right>N Rate (kg/ha)</Th><Th right>Area (ha)</Th><Th right>Total N (kg)</Th><Th right>Cost (£)</Th>
                       </tr></thead>
                       <tbody>
                         {data.fertiliser.map(r => (
@@ -487,13 +516,15 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
                             <Td right mono>{n(r.nitrogenKgHa)}</Td>
                             <Td right mono>{n(r.areaAppliedHa)}</Td>
                             <Td right mono><span className="font-medium">{n(r.totalNitrogenKg)}</span></Td>
+                            <Td right mono>{r.totalCostPence ? fmtCost(r.totalCostPence) : "—"}</Td>
                           </tr>
                         ))}
                       </tbody>
                       <tfoot>
                         <tr className="bg-gray-50">
-                          <Td colSpan={6}><span className="font-semibold text-gray-700">Total Nitrogen</span></Td>
+                          <Td colSpan={6}><span className="font-semibold text-gray-700">Totals</span></Td>
                           <Td right mono><span className="font-semibold">{data.summary.totalNitrogenKg.toFixed(1)} kg</span></Td>
+                          <Td right mono><span className="font-semibold">{data.summary.totalFertiliserCostPence > 0 ? fmtCost(data.summary.totalFertiliserCostPence) : "—"}</span></Td>
                         </tr>
                       </tfoot>
                     </table>
@@ -508,24 +539,38 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
                   <div className="rounded-lg border border-gray-200 overflow-hidden">
                     <table className="w-full text-xs">
                       <thead><tr>
-                        <Th>Date</Th><Th>Product</Th><Th>Category</Th><Th>Active Ingredient</Th><Th right>Rate</Th><Th right>Area (ha)</Th><Th right>Water (L)</Th><Th>Growth Stage</Th><Th>Operator</Th><Th>Equipment</Th>
+                        <Th>Date</Th><Th>Product</Th><Th>Category</Th><Th>Active Ingredient</Th><Th right>Rate</Th><Th right>Area (ha)</Th><Th right>Water (L)</Th><Th right>Spray Cost</Th><Th>Growth Stage</Th><Th>Operator</Th>
                       </tr></thead>
                       <tbody>
-                        {data.sprays.map(s => (
-                          <tr key={s.id}>
-                            <Td>{fmt(s.applicationDate)}</Td>
-                            <Td><span className="font-medium text-gray-900">{s.productName}</span>{s.reasonForApplication ? <div className="text-gray-400 text-[10px] italic">{s.reasonForApplication}</div> : null}</Td>
-                            <Td>{s.category ? <Badge color="violet">{s.category}</Badge> : "—"}</Td>
-                            <Td>{s.activeIngredient ?? "—"}</Td>
-                            <Td right mono>{s.applicationRate ? `${n(s.applicationRate, 3)} ${s.rateUnit ?? ""}` : "—"}</Td>
-                            <Td right mono>{n(s.areaSprayedHa)}</Td>
-                            <Td right mono>{n(s.waterVolumeLitres, 0)}</Td>
-                            <Td>{s.growthStage ?? "—"}</Td>
-                            <Td>{s.operatorName ?? "—"}</Td>
-                            <Td>{s.equipmentUsed ?? "—"}</Td>
-                          </tr>
-                        ))}
+                        {data.sprays.map(s => {
+                          const sprayCost = s.productCostPencePerUnit && s.applicationRate && s.areaSprayedHa
+                            ? Math.round(s.productCostPencePerUnit * parseFloat(s.applicationRate) * parseFloat(s.areaSprayedHa))
+                            : null;
+                          return (
+                            <tr key={s.id}>
+                              <Td>{fmt(s.applicationDate)}</Td>
+                              <Td><span className="font-medium text-gray-900">{s.productName}</span>{s.reasonForApplication ? <div className="text-gray-400 text-[10px] italic">{s.reasonForApplication}</div> : null}</Td>
+                              <Td>{s.category ? <Badge color="violet">{s.category}</Badge> : "—"}</Td>
+                              <Td>{s.activeIngredient ?? "—"}</Td>
+                              <Td right mono>{s.applicationRate ? `${n(s.applicationRate, 3)} ${s.rateUnit ?? ""}` : "—"}</Td>
+                              <Td right mono>{n(s.areaSprayedHa)}</Td>
+                              <Td right mono>{n(s.waterVolumeLitres, 0)}</Td>
+                              <Td right mono>{sprayCost !== null ? fmtCost(sprayCost) : "—"}</Td>
+                              <Td>{s.growthStage ?? "—"}</Td>
+                              <Td>{s.operatorName ?? "—"}</Td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
+                      {data.summary.totalSprayCostPence > 0 && (
+                        <tfoot>
+                          <tr className="bg-gray-50">
+                            <Td colSpan={7}><span className="font-semibold text-gray-700">Total Spray Cost</span></Td>
+                            <Td right mono><span className="font-semibold">{fmtCost(data.summary.totalSprayCostPence)}</span></Td>
+                            <Td colSpan={2}></Td>
+                          </tr>
+                        </tfoot>
+                      )}
                     </table>
                   </div>
                 )}
@@ -569,12 +614,15 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
                   <div className="rounded-lg border border-gray-200 overflow-hidden">
                     <table className="w-full text-xs">
                       <thead><tr>
-                        <Th>Date</Th><Th>Operator</Th><Th right>Yield (t)</Th><Th right>Area (ha)</Th><Th right>Yield t/ha</Th><Th right>Moisture %</Th><Th>Grade</Th><Th>Organic</Th><Th>Notes</Th>
+                        <Th>Date</Th><Th>Operator</Th><Th right>Yield (t)</Th><Th right>Area (ha)</Th><Th right>Yield t/ha</Th><Th right>Moisture %</Th><Th right>Sale Price</Th><Th right>Revenue</Th><Th>Grade</Th><Th>Organic</Th>
                       </tr></thead>
                       <tbody>
                         {data.harvests.map(h => {
                           const yieldTha = h.yieldTonnes && h.areaHarvestedHa
                             ? parseFloat(h.yieldTonnes) / parseFloat(h.areaHarvestedHa)
+                            : null;
+                          const revenue = h.salePricePerTonnePence && h.yieldTonnes
+                            ? Math.round(h.salePricePerTonnePence * parseFloat(h.yieldTonnes))
                             : null;
                           return (
                             <tr key={h.id}>
@@ -584,21 +632,25 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
                               <Td right mono>{n(h.areaHarvestedHa)}</Td>
                               <Td right mono>{yieldTha !== null ? yieldTha.toFixed(2) : "—"}</Td>
                               <Td right mono>{n(h.moisturePercent, 1)}</Td>
+                              <Td right mono>{h.salePricePerTonnePence ? `£${(h.salePricePerTonnePence / 100).toFixed(2)}/t` : "—"}</Td>
+                              <Td right mono>{revenue !== null ? <span className="font-semibold text-green-700">{fmtCost(revenue)}</span> : "—"}</Td>
                               <Td>{h.qualityGrade ? <Badge color="green">{h.qualityGrade}</Badge> : "—"}</Td>
                               <Td>{h.isOrganicCertified ? <Badge color="green">Organic{h.organicCertRef ? ` · ${h.organicCertRef}` : ""}</Badge> : "No"}</Td>
-                              <Td>{h.notes ?? "—"}</Td>
                             </tr>
                           );
                         })}
                       </tbody>
-                      {data.harvests.length > 1 && (
+                      {(data.harvests.length > 1 || data.summary.totalRevenuePence > 0) && (
                         <tfoot>
                           <tr className="bg-gray-50">
                             <Td colSpan={2}><span className="font-semibold text-gray-700">Total</span></Td>
                             <Td right mono><span className="font-semibold text-green-700">{data.summary.totalYieldTonnes.toFixed(2)}</span></Td>
                             <Td right mono><span className="font-semibold">{data.summary.totalAreaHarvestedHa.toFixed(2)}</span></Td>
                             <Td right mono><span className="font-semibold">{data.summary.yieldTha !== null ? data.summary.yieldTha.toFixed(2) : "—"}</span></Td>
-                            <Td></Td><Td></Td><Td></Td><Td></Td>
+                            <Td></Td>
+                            <Td></Td>
+                            <Td right mono><span className="font-semibold text-green-700">{data.summary.totalRevenuePence > 0 ? fmtCost(data.summary.totalRevenuePence) : "—"}</span></Td>
+                            <Td colSpan={2}></Td>
                           </tr>
                         </tfoot>
                       )}
@@ -606,6 +658,84 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
                   </div>
                 )}
               </div>
+
+              {/* ── FINANCIAL SUMMARY ── */}
+              {(data.summary.totalRevenuePence > 0 || data.summary.totalInputCostPence > 0) && (
+                <div className="report-section">
+                  <SectionHeader icon={<TrendingUp className="w-4 h-4" />} title="Financial Summary" />
+                  <div className="rounded-xl border border-gray-200 overflow-hidden">
+                    <table className="w-full text-sm">
+                      <tbody>
+                        {data.summary.totalSeedCostPence > 0 && (
+                          <tr className="border-b border-gray-100">
+                            <td className="px-4 py-2.5 text-gray-600 text-xs">Seed cost</td>
+                            <td className="px-4 py-2.5 text-right font-mono text-xs text-gray-800">{fmtCost(data.summary.totalSeedCostPence)}</td>
+                          </tr>
+                        )}
+                        {data.summary.totalFertiliserCostPence > 0 && (
+                          <tr className="border-b border-gray-100">
+                            <td className="px-4 py-2.5 text-gray-600 text-xs">Fertiliser cost</td>
+                            <td className="px-4 py-2.5 text-right font-mono text-xs text-gray-800">{fmtCost(data.summary.totalFertiliserCostPence)}</td>
+                          </tr>
+                        )}
+                        {data.summary.totalSprayCostPence > 0 && (
+                          <tr className="border-b border-gray-100">
+                            <td className="px-4 py-2.5 text-gray-600 text-xs">Spray input cost</td>
+                            <td className="px-4 py-2.5 text-right font-mono text-xs text-gray-800">{fmtCost(data.summary.totalSprayCostPence)}</td>
+                          </tr>
+                        )}
+                        {data.summary.totalMachineCostPence > 0 && (
+                          <tr className="border-b border-gray-100">
+                            <td className="px-4 py-2.5 text-gray-600 text-xs">Machinery / contractor cost</td>
+                            <td className="px-4 py-2.5 text-right font-mono text-xs text-gray-800">{fmtCost(data.summary.totalMachineCostPence)}</td>
+                          </tr>
+                        )}
+                        {data.summary.totalLabourCostPence > 0 && (
+                          <tr className="border-b border-gray-100">
+                            <td className="px-4 py-2.5 text-gray-600 text-xs">Labour cost</td>
+                            <td className="px-4 py-2.5 text-right font-mono text-xs text-gray-800">{fmtCost(data.summary.totalLabourCostPence)}</td>
+                          </tr>
+                        )}
+                        {data.summary.totalInputCostPence > 0 && (
+                          <tr className="border-b border-gray-200 bg-gray-50">
+                            <td className="px-4 py-2.5 text-xs font-semibold text-gray-700">Total input cost</td>
+                            <td className="px-4 py-2.5 text-right font-mono text-xs font-semibold text-gray-900">{fmtCost(data.summary.totalInputCostPence)}</td>
+                          </tr>
+                        )}
+                        {data.summary.totalRevenuePence > 0 && (
+                          <tr className="border-b border-gray-100">
+                            <td className="px-4 py-2.5 text-gray-600 text-xs">
+                              Revenue from harvest
+                              {data.summary.totalYieldTonnes > 0 && data.summary.totalRevenuePence > 0 && (
+                                <span className="ml-2 text-gray-400">(£{(data.summary.totalRevenuePence / 100 / data.summary.totalYieldTonnes).toFixed(2)}/t average)</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-mono text-xs font-semibold text-green-700">{fmtCost(data.summary.totalRevenuePence)}</td>
+                          </tr>
+                        )}
+                        {data.summary.totalRevenuePence > 0 && data.summary.totalInputCostPence > 0 && (
+                          <tr className={data.summary.grossMarginPence >= 0 ? "bg-green-50" : "bg-red-50"}>
+                            <td className="px-4 py-3 text-sm font-bold text-gray-800">
+                              Gross Margin
+                              {data.summary.totalAreaHarvestedHa > 0 && (
+                                <span className={`ml-2 text-xs font-normal ${data.summary.grossMarginPence >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                  ({fmtCost(Math.round(data.summary.grossMarginPence / data.summary.totalAreaHarvestedHa))}/ha)
+                                </span>
+                              )}
+                            </td>
+                            <td className={`px-4 py-3 text-right font-mono text-base font-extrabold ${data.summary.grossMarginPence >= 0 ? "text-green-700" : "text-red-600"}`}>
+                              {fmtCost(data.summary.grossMarginPence)}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                    <p className="text-[10px] text-gray-400 px-4 py-2 border-t border-gray-100 italic">
+                      Gross margin = Revenue − (seed + fertiliser + spray + machinery + labour costs). Only costs entered against records are included. Overhead costs (rent, insurance, etc.) are excluded.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* ── SOIL TESTS ── */}
               {data.soilTests.length > 0 && (

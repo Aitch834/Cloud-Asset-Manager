@@ -100,7 +100,7 @@ interface NvzApplication {
   id: number; fieldId: number; fieldName: string | null;
   applicationDate: string; productName: string; productType: string;
   nitrogenKgHa: string; areaAppliedHa: string; totalNitrogenKg: string;
-  applicationMethod: string | null; notes: string | null; createdAt: string;
+  applicationMethod: string | null; notes: string | null; totalCostPence: number | null; createdAt: string;
 }
 
 interface Field { id: number; name: string; areaHectares: string | null; isNvz: boolean; nvzLandType: string | null; }
@@ -114,6 +114,7 @@ const emptyForm = {
   areaAppliedHa: "",
   applicationMethod: "",
   notes: "",
+  totalCostPence: "",
 };
 
 function NBar({ value, limit, className = "" }: { value: number; limit: number; className?: string }) {
@@ -414,6 +415,7 @@ export default function NVZPage() {
       areaAppliedHa: String(r.areaAppliedHa),
       applicationMethod: r.applicationMethod ?? "",
       notes: r.notes ?? "",
+      totalCostPence: r.totalCostPence ?? "",
     });
   }
   function closeAppForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }
@@ -554,6 +556,7 @@ export default function NVZPage() {
     areaAppliedHa: parseFloat(f.areaAppliedHa),
     applicationMethod: f.applicationMethod || undefined,
     notes: f.notes || undefined,
+    totalCostPence: f.totalCostPence !== "" && f.totalCostPence != null ? Number(f.totalCostPence) : undefined,
   });
 
   const addMut = useMutation({
@@ -982,6 +985,22 @@ export default function NVZPage() {
                 value={form.notes}
                 onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
               />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Total Application Cost <span className="text-foreground/40 font-normal">(£) — optional</span></label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/40 text-sm font-medium">£</span>
+                <Input
+                  type="number" step="0.01" min="0" placeholder="e.g. 320.00"
+                  className="pl-7"
+                  value={form.totalCostPence !== "" && form.totalCostPence != null ? (Number(form.totalCostPence) / 100).toFixed(2) : ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setForm((f) => ({ ...f, totalCostPence: v === "" ? "" : Math.round(parseFloat(v) * 100) }));
+                  }}
+                />
+              </div>
+              <p className="text-xs text-foreground/40 mt-1">Total cost of this application (product + spreading). Used for gross margin reporting.</p>
             </div>
           </div>
           <DialogFooter className="mt-4">

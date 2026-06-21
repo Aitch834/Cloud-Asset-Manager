@@ -735,6 +735,7 @@ const EMPTY_SEED = {
   treatmentProduct: "",
   operator: "",
   areaSeededHa: "",
+  seedCostPencePerKg: "",
   soilConditions: "",
   weatherNotes: "",
   notes: "",
@@ -827,6 +828,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
       treatmentProduct: r.treatmentProduct ?? "",
       operator: r.operator ?? "",
       areaSeededHa: r.areaSeededHa ?? "",
+      seedCostPencePerKg: r.seedCostPencePerKg ? String(r.seedCostPencePerKg / 100) : "",
       soilConditions: r.soilConditions ?? "",
       weatherNotes: r.weatherNotes ?? "",
       notes: r.notes ?? "",
@@ -842,6 +844,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
       drillingDate: formData.drillingDate ? new Date(formData.drillingDate).toISOString() : null,
       seedRate: formData.seedRate ? formData.seedRate : null,
       areaSeededHa: formData.areaSeededHa ? formData.areaSeededHa : null,
+      seedCostPencePerKg: formData.seedCostPencePerKg ? Math.round(parseFloat(formData.seedCostPencePerKg) * 100) : null,
     };
     if (editingRecord) { updateMutation.mutate({ id: editingRecord.id, body }); }
     else { createMutation.mutate(body); }
@@ -974,7 +977,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
                 </div>
               </div>
 
-              <div className="border-t border-border pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="border-t border-border pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
                     <input type="checkbox" checked={formData.isTreated} onChange={e => setField("isTreated", e.target.checked)} className="rounded" />
@@ -983,6 +986,18 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
                   {formData.isTreated && (
                     <Input placeholder="Treatment product (e.g. Redigo Pro, Latitude)" value={formData.treatmentProduct} onChange={e => setField("treatmentProduct", e.target.value)} />
                   )}
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Seed Cost <span className="text-muted-foreground text-xs font-normal">(£/kg) — optional</span></label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">£</span>
+                    <Input
+                      type="number" step="0.01" min="0" placeholder="e.g. 0.85"
+                      className="pl-7"
+                      value={formData.seedCostPencePerKg}
+                      onChange={e => setField("seedCostPencePerKg", e.target.value)}
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>

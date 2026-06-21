@@ -248,6 +248,7 @@ function HarvestLogTab({ harvests, transports, storages, farmRecord, equipment, 
     notes: "",
     isOrganicCertified: false,
     organicCertRef: "",
+    salePricePerTonnePence: "",
   };
   const [form, setForm] = useState<any>(emptyForm);
   const formOpen = addOpen || !!editRecord;
@@ -268,6 +269,7 @@ function HarvestLogTab({ harvests, transports, storages, farmRecord, equipment, 
       notes: r.notes || "",
       isOrganicCertified: r.isOrganicCertified ?? false,
       organicCertRef: r.organicCertRef ?? "",
+      salePricePerTonnePence: r.salePricePerTonnePence ?? "",
     });
   }
   function closeForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }

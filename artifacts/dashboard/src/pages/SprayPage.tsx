@@ -504,7 +504,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [historyField, setHistoryField] = useState<{ id: number; name: string } | null>(null);
-  const emptyForm = { fieldId: "", productId: "", applicationDate: new Date().toISOString().slice(0, 10), applicationRate: "", rateUnit: "L/ha", areaSprayedHa: "", waterVolumeLitres: "", windSpeedKmh: "", windDirection: "", temperatureC: "", operatorName: "", operatorMemberId: "", certificateNumber: "", equipmentUsed: "", equipmentId: "", supplierId: "", reasonForApplication: "", batchNumber: "", lotNumber: "", stockDeliveryId: "", bufferZoneMetres: "", waterSourceNearby: "", notes: "", targetCrop: "", growthStage: "" };
+  const emptyForm = { fieldId: "", productId: "", applicationDate: new Date().toISOString().slice(0, 10), applicationRate: "", rateUnit: "L/ha", areaSprayedHa: "", waterVolumeLitres: "", windSpeedKmh: "", windDirection: "", temperatureC: "", operatorName: "", operatorMemberId: "", certificateNumber: "", equipmentUsed: "", equipmentId: "", supplierId: "", reasonForApplication: "", batchNumber: "", lotNumber: "", stockDeliveryId: "", bufferZoneMetres: "", waterSourceNearby: "", notes: "", targetCrop: "", growthStage: "", productCostPencePerUnit: "" };
   const [form, setForm] = useState<any>(emptyForm);
   const [weatherAutoFilled, setWeatherAutoFilled] = useState(false);
   const [cropAutoFilled, setCropAutoFilled] = useState(false);
@@ -544,6 +544,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
       notes: r.notes || "",
       targetCrop: r.targetCrop || "",
       growthStage: r.growthStage || "",
+      productCostPencePerUnit: r.productCostPencePerUnit ?? "",
     });
   }
   function closeForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm); setDeliveryStockItemId(null); setWeatherAutoFilled(false); setCropAutoFilled(false); setAreaAutoFilled(false); setVehicleStationFilled(null); setWeatherFetchMsg(null); setWeatherFetching(false); }
@@ -718,6 +719,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
     operatorMemberId: body.operatorMemberId ? Number(body.operatorMemberId) : null,
     batchNumber: body.batchNumber || null,
     lotNumber: body.lotNumber || null,
+    productCostPencePerUnit: body.productCostPencePerUnit !== "" && body.productCostPencePerUnit != null ? Number(body.productCostPencePerUnit) : null,
   });
 
   const createMut = useMutation({
@@ -1351,6 +1353,22 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
             <div>
               <Label>Notes</Label>
               <Textarea placeholder="Conditions, observations, non-standard buffer justification..." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} />
+            </div>
+            <div>
+              <Label>Product Cost <span className="text-muted-foreground text-xs font-normal">(£/unit) — optional, for gross margin</span></Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">£</span>
+                <Input
+                  type="number" step="0.01" min="0" placeholder="e.g. 12.50"
+                  className="pl-7"
+                  value={form.productCostPencePerUnit !== "" && form.productCostPencePerUnit != null ? (Number(form.productCostPencePerUnit) / 100).toFixed(2) : ""}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setForm((f: any) => ({ ...f, productCostPencePerUnit: v === "" ? "" : Math.round(parseFloat(v) * 100) }));
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Cost per litre/kg of this product. Used to calculate spray input costs in the Season Production Report.</p>
             </div>
           </div>
           {editRecord && farmId && (
