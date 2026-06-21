@@ -157,6 +157,11 @@ interface PpeRecord {
   replacedDate: string | null;
   replacedReason: string | null;
   notes: string | null;
+  fitCheckConfirmed: boolean;
+  fitCheckBy: string | null;
+  fitCheckNotes: string | null;
+  trainingProvided: boolean;
+  trainingNotes: string | null;
   isActive: boolean;
 }
 
@@ -195,6 +200,7 @@ interface PpeRiskAssessment {
   fitConfirmedDate: string | null;
   compatibilityChecked: boolean;
   compatibilityNotes: string | null;
+  compatiblePpeTypes: string | null;
   trainingProvided: boolean;
   trainingNotes: string | null;
   assessedBy: string;
@@ -257,7 +263,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
   const [issueSearch, setIssueSearch] = useState("");
 
   // ── Issue form
-  const EMPTY_ISSUE = { staffName: "", ppeType: "safety-boots", description: "", size: "", supplier: "", stockItemId: "" as string, dateIssued: new Date().toISOString().slice(0, 10), conditionCheckDate: "", conditionAtCheck: "", replacedDate: "", replacedReason: "", notes: "", isActive: true };
+  const EMPTY_ISSUE = { staffName: "", ppeType: "safety-boots", description: "", size: "", supplier: "", stockItemId: "" as string, dateIssued: new Date().toISOString().slice(0, 10), conditionCheckDate: "", conditionAtCheck: "", replacedDate: "", replacedReason: "", notes: "", fitCheckConfirmed: false, fitCheckBy: "", fitCheckNotes: "", trainingProvided: false, trainingNotes: "", isActive: true };
   const [showIssueForm, setShowIssueForm] = useState(false);
   const [editIssue, setEditIssue] = useState<PpeRecord | null>(null);
   const [issueForm, setIssueForm] = useState({ ...EMPTY_ISSUE });
@@ -302,7 +308,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
   });
 
   // ── Risk Assessment form
-  const EMPTY_RISK = { assessmentRef: "", ppeType: "safety-boots", hazardIdentified: "", taskOrArea: "", riskLevel: "__none__" as string, ppeSpecification: "", fitConfirmed: false, fitConfirmedBy: "", fitConfirmedDate: "", compatibilityChecked: false, compatibilityNotes: "", trainingProvided: false, trainingNotes: "", assessedBy: "", assessmentDate: new Date().toISOString().slice(0, 10), reviewDate: "", notes: "" };
+  const EMPTY_RISK = { assessmentRef: "", ppeType: "safety-boots", hazardIdentified: "", taskOrArea: "", riskLevel: "__none__" as string, ppeSpecification: "", compatiblePpeTypes: "", assessedBy: "", assessmentDate: new Date().toISOString().slice(0, 10), reviewDate: "", notes: "" };
   const [showRiskForm, setShowRiskForm] = useState(false);
   const [editRisk, setEditRisk] = useState<PpeRiskAssessment | null>(null);
   const [riskForm, setRiskForm] = useState({ ...EMPTY_RISK });
@@ -311,7 +317,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
 
   function openEditRisk(r: PpeRiskAssessment) {
     setEditRisk(r);
-    setRiskForm({ assessmentRef: r.assessmentRef ?? "", ppeType: r.ppeType, hazardIdentified: r.hazardIdentified, taskOrArea: r.taskOrArea ?? "", riskLevel: r.riskLevel ?? "__none__", ppeSpecification: r.ppeSpecification ?? "", fitConfirmed: r.fitConfirmed, fitConfirmedBy: r.fitConfirmedBy ?? "", fitConfirmedDate: r.fitConfirmedDate ?? "", compatibilityChecked: r.compatibilityChecked, compatibilityNotes: r.compatibilityNotes ?? "", trainingProvided: r.trainingProvided, trainingNotes: r.trainingNotes ?? "", assessedBy: r.assessedBy, assessmentDate: r.assessmentDate, reviewDate: r.reviewDate ?? "", notes: r.notes ?? "" });
+    setRiskForm({ assessmentRef: r.assessmentRef ?? "", ppeType: r.ppeType, hazardIdentified: r.hazardIdentified, taskOrArea: r.taskOrArea ?? "", riskLevel: r.riskLevel ?? "__none__", ppeSpecification: r.ppeSpecification ?? "", compatiblePpeTypes: r.compatiblePpeTypes ?? "", assessedBy: r.assessedBy, assessmentDate: r.assessmentDate, reviewDate: r.reviewDate ?? "", notes: r.notes ?? "" });
     setShowRiskForm(true);
   }
 
@@ -334,7 +340,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
 
   function openEditIssue(r: PpeRecord) {
     setEditIssue(r);
-    setIssueForm({ staffName: r.staffName, ppeType: r.ppeType, description: r.description ?? "", size: r.size ?? "", supplier: r.supplier ?? "", stockItemId: r.stockItemId ? String(r.stockItemId) : "", dateIssued: r.dateIssued, conditionCheckDate: r.conditionCheckDate ?? "", conditionAtCheck: r.conditionAtCheck ?? "", replacedDate: r.replacedDate ?? "", replacedReason: r.replacedReason ?? "", notes: r.notes ?? "", isActive: r.isActive });
+    setIssueForm({ staffName: r.staffName, ppeType: r.ppeType, description: r.description ?? "", size: r.size ?? "", supplier: r.supplier ?? "", stockItemId: r.stockItemId ? String(r.stockItemId) : "", dateIssued: r.dateIssued, conditionCheckDate: r.conditionCheckDate ?? "", conditionAtCheck: r.conditionAtCheck ?? "", replacedDate: r.replacedDate ?? "", replacedReason: r.replacedReason ?? "", notes: r.notes ?? "", fitCheckConfirmed: r.fitCheckConfirmed ?? false, fitCheckBy: r.fitCheckBy ?? "", fitCheckNotes: r.fitCheckNotes ?? "", trainingProvided: r.trainingProvided ?? false, trainingNotes: r.trainingNotes ?? "", isActive: r.isActive });
     setShowIssueForm(true);
   }
 
@@ -404,9 +410,8 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
       <td>${esc(r.hazardIdentified)}</td>
       <td>${esc(r.taskOrArea)}</td>
       <td>${riskBadge(r.riskLevel)}</td>
-      <td style="text-align:center">${tick(r.fitConfirmed)}</td>
-      <td style="text-align:center">${tick(r.compatibilityChecked)}</td>
-      <td style="text-align:center">${tick(r.trainingProvided)}</td>
+      <td style="font-size:6.5px;max-width:100px;overflow:hidden">${esc(r.ppeSpecification)}</td>
+      <td style="font-size:6.5px">${r.compatiblePpeTypes ? r.compatiblePpeTypes.split(",").filter(Boolean).map(t => PPE_TYPES[t] ?? t).join(", ") : "—"}</td>
       <td>${esc(r.assessedBy)}</td>
       <td style="white-space:nowrap">${fmt(r.assessmentDate)}</td>
       <td style="white-space:nowrap${r.reviewDate && new Date(r.reviewDate) < today ? ";color:#b91c1c;font-weight:700" : ""}">${fmt(r.reviewDate)}</td>
@@ -444,7 +449,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
       ${allRisk.length === 0 ? `<p style="font-size:7.5px;color:#6b7280;margin:0 0 12px">No risk assessments recorded.</p>` : `
       <table><thead><tr>
         <th>Ref</th><th>PPE Type</th><th>Hazard Identified</th><th>Task / Area</th><th>Risk</th>
-        <th>Fit ✓</th><th>Compat ✓</th><th>Training ✓</th><th>Assessed By</th><th>Date</th><th>Review Due</th>
+        <th>PPE Specification</th><th>Compatible With</th><th>Assessed By</th><th>Date</th><th>Review Due</th>
       </tr></thead><tbody>${raRows}</tbody></table>`}
       <div class="section-head">2. PPE Stock Register (${allStock.length} item${allStock.length !== 1 ? "s" : ""})</div>
       ${allStock.length === 0 ? `<p style="font-size:7.5px;color:#6b7280;margin:0 0 12px">No stock items recorded.</p>` : `
@@ -494,11 +499,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
       <td><strong>${esc(PPE_TYPES[r.ppeType] ?? r.ppeType)}</strong></td>
       <td>${esc(r.hazardIdentified)}</td>
       <td>${riskBadge(r.riskLevel)}</td>
-      <td style="text-align:center">${tick(r.fitConfirmed)}</td>
-      <td>${esc(r.fitConfirmedBy)}</td>
-      <td style="white-space:nowrap">${fmt(r.fitConfirmedDate)}</td>
-      <td style="text-align:center">${tick(r.compatibilityChecked)}</td>
-      <td style="text-align:center">${tick(r.trainingProvided)}</td>
+      <td style="font-size:6.5px">${r.compatiblePpeTypes ? r.compatiblePpeTypes.split(",").filter(Boolean).map(t => PPE_TYPES[t] ?? t).join(", ") : "—"}</td>
       <td>${esc(r.assessedBy)}</td>
       <td style="white-space:nowrap">${fmt(r.assessmentDate)}</td>
     </tr>`).join("");
@@ -513,8 +514,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
       <div class="section-head">Applicable PPE Risk Assessments (${relevantRisk.length} record${relevantRisk.length !== 1 ? "s" : ""})</div>
       ${relevantRisk.length === 0 ? `<p style="font-size:7.5px;color:#b91c1c;font-weight:600">⚠ No risk assessments found for the PPE types issued to this staff member.</p>` : `
       <table><thead><tr>
-        <th>PPE Type</th><th>Hazard</th><th>Risk</th><th>Fit ✓</th><th>Fit By</th><th>Fit Date</th>
-        <th>Compat ✓</th><th>Training ✓</th><th>Assessed By</th><th>Date</th>
+        <th>PPE Type</th><th>Hazard</th><th>Risk</th><th>Compatible With</th><th>Assessed By</th><th>Date</th>
       </tr></thead><tbody>${raRows}</tbody></table>`}`;
 
     printProReport({
@@ -651,7 +651,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
               <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
                 <thead style={{ background: "#f9fafb" }}>
                   <tr>
-                    {["Staff Member","PPE Type","Size","Date Issued","Last Check","Condition","Status",""].map(h => (
+                    {["Staff Member","PPE Type","Size","Date Issued","Fit ✓","Training ✓","Condition","Status",""].map(h => (
                       <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontWeight: 600, color: "#6b7280", fontSize: "0.8rem" }}>{h}</th>
                     ))}
                   </tr>
@@ -663,7 +663,8 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                       <td style={{ padding: "10px 14px" }}>{PPE_TYPES[r.ppeType] ?? r.ppeType}</td>
                       <td style={{ padding: "10px 14px", color: "#6b7280" }}>{r.size ?? "—"}</td>
                       <td style={{ padding: "10px 14px" }}>{fmt(r.dateIssued)}</td>
-                      <td style={{ padding: "10px 14px" }}>{fmt(r.conditionCheckDate)}</td>
+                      <td style={{ padding: "10px 14px", textAlign: "center" }}>{r.fitCheckConfirmed ? <CheckCircle2 className="w-4 h-4 text-green-600 inline" /> : <span style={{ color: "#d1d5db" }}>—</span>}</td>
+                      <td style={{ padding: "10px 14px", textAlign: "center" }}>{r.trainingProvided ? <CheckCircle2 className="w-4 h-4 text-green-600 inline" /> : <span style={{ color: "#d1d5db" }}>—</span>}</td>
                       <td style={{ padding: "10px 14px" }}>{r.conditionAtCheck ?? "—"}</td>
                       <td style={{ padding: "10px 14px" }}>
                         <span style={{ display: "inline-flex", alignItems: "center", fontSize: "0.75rem", fontWeight: 600, padding: "2px 8px", borderRadius: 999, background: r.isActive ? "#dcfce7" : "#f3f4f6", color: r.isActive ? "#166534" : "#6b7280" }}>{r.isActive ? "Active" : "Replaced"}</span>
@@ -728,6 +729,23 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
               <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Condition at Check</p><p>{viewIssue.conditionAtCheck ?? "—"}</p></div>
               {viewIssue.replacedDate && <><div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Replaced Date</p><p>{fmt(viewIssue.replacedDate)}</p></div><div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Replacement Reason</p><p>{viewIssue.replacedReason ?? "—"}</p></div></>}
               {viewIssue.notes && <div style={{ gridColumn: "1 / -1" }}><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Notes</p><p style={{ whiteSpace: "pre-line" }}>{viewIssue.notes}</p></div>}
+              {viewIssue.fitCheckConfirmed && (
+                <div style={{ gridColumn: "1 / -1", borderTop: "1px solid #e5e7eb", paddingTop: 10 }}>
+                  <p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 6 }}>Individual Fit Check</p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <div><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600, marginBottom: 2 }}>Status</p><p style={{ color: "#166534", fontWeight: 600 }}>✓ Fit confirmed</p></div>
+                    {viewIssue.fitCheckBy && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600, marginBottom: 2 }}>Confirmed By</p><p>{viewIssue.fitCheckBy}</p></div>}
+                    {viewIssue.fitCheckNotes && <div style={{ gridColumn: "1 / -1" }}><p style={{ fontSize: "0.7rem", color: "#6b7280", fontWeight: 600, marginBottom: 2 }}>Fit Check Notes</p><p style={{ whiteSpace: "pre-line" }}>{viewIssue.fitCheckNotes}</p></div>}
+                  </div>
+                </div>
+              )}
+              {viewIssue.trainingProvided && (
+                <div style={{ gridColumn: "1 / -1", borderTop: "1px solid #e5e7eb", paddingTop: 10 }}>
+                  <p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 6 }}>PPE Training</p>
+                  <div><p style={{ color: "#166534", fontWeight: 600 }}>✓ Training provided</p></div>
+                  {viewIssue.trainingNotes && <p style={{ marginTop: 4, whiteSpace: "pre-line", color: "#374151" }}>{viewIssue.trainingNotes}</p>}
+                </div>
+              )}
             </div>
             <DialogFooter style={{ marginTop: 16 }}>
               <Button variant="outline" onClick={() => { openEditIssue(viewIssue); setViewIssue(null); }}><Pencil size={13} className="mr-1" />Edit</Button>
@@ -834,6 +852,39 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
               <div><Label>Replaced Date</Label><Input type="date" value={issueForm.replacedDate} onChange={e => setIF("replacedDate", e.target.value)} /></div>
               <div><Label>Replacement Reason</Label><Input value={issueForm.replacedReason} onChange={e => setIF("replacedReason", e.target.value)} /></div>
               <div style={{ gridColumn: "1 / -1" }}><Label>Notes</Label><Textarea value={issueForm.notes} onChange={e => setIF("notes", e.target.value)} rows={2} /></div>
+
+              <div style={{ gridColumn: "1 / -1", borderTop: "1px solid #e5e7eb", paddingTop: 14 }}>
+                <p className="text-sm font-semibold text-gray-700 mb-3">Individual Fit Check</p>
+                <label className="flex items-center gap-2 text-sm cursor-pointer mb-3">
+                  <input type="checkbox" checked={issueForm.fitCheckConfirmed} onChange={e => setIF("fitCheckConfirmed", e.target.checked)} className="w-4 h-4 accent-green-700" />
+                  Individual fit confirmed for this staff member
+                </label>
+                {issueForm.fitCheckConfirmed && (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div><Label>Confirmed By</Label>
+                      <Select value={issueForm.fitCheckBy || "__text__"} onValueChange={v => setIF("fitCheckBy", v === "__text__" ? "" : v)}>
+                        <SelectTrigger><SelectValue placeholder="Select staff member…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__text__">— Type name manually —</SelectItem>
+                          {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      {(!issueForm.fitCheckBy || !staffNames.includes(issueForm.fitCheckBy)) && <Input className="mt-2" value={issueForm.fitCheckBy} onChange={e => setIF("fitCheckBy", e.target.value)} placeholder="Full name" />}
+                    </div>
+                    <div style={{ gridColumn: "1 / -1" }}><Label>Fit Check Notes</Label><Textarea value={issueForm.fitCheckNotes} onChange={e => setIF("fitCheckNotes", e.target.value)} placeholder="e.g. Checked fit and seal — correct size M confirmed" rows={2} /></div>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ gridColumn: "1 / -1", borderTop: "1px solid #e5e7eb", paddingTop: 14 }}>
+                <p className="text-sm font-semibold text-gray-700 mb-3">PPE Training</p>
+                <label className="flex items-center gap-2 text-sm cursor-pointer mb-3">
+                  <input type="checkbox" checked={issueForm.trainingProvided} onChange={e => setIF("trainingProvided", e.target.checked)} className="w-4 h-4 accent-green-700" />
+                  Training on correct use and maintenance provided
+                </label>
+                {issueForm.trainingProvided && <div><Label>Training Notes</Label><Textarea value={issueForm.trainingNotes} onChange={e => setIF("trainingNotes", e.target.value)} placeholder="e.g. Toolbox talk 01/06/2026 — donning/doffing, storage, inspection schedule" rows={2} /></div>}
+              </div>
+
               <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 8 }}>
                 <input type="checkbox" id="issueActive" checked={issueForm.isActive} onChange={e => setIF("isActive", e.target.checked)} style={{ height: 16, width: 16 }} />
                 <Label htmlFor="issueActive">Item currently active / in use</Label>
@@ -904,7 +955,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
               <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
                 <thead style={{ background: "#f9fafb" }}>
                   <tr>
-                    {["Ref","PPE Type","Hazard Identified","Task / Area","Risk","Fit ✓","Compat ✓","Training ✓","Assessed By","Date","Review Due",""].map(h => (
+                    {["Ref","PPE Type","Hazard Identified","Task / Area","Risk","PPE Specification","Compatible With","Assessed By","Date","Review Due",""].map(h => (
                       <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontWeight: 600, color: "#6b7280", fontSize: "0.8rem", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
@@ -926,9 +977,16 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                             <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: "0.75rem", fontWeight: 700, background: r.riskLevel === "High" ? "#fee2e2" : r.riskLevel === "Medium" ? "#fef9c3" : "#dcfce7", color: r.riskLevel === "High" ? "#b91c1c" : r.riskLevel === "Medium" ? "#854d0e" : "#166534" }}>{r.riskLevel}</span>
                           ) : "—"}
                         </td>
-                        <td style={{ padding: "10px 14px", textAlign: "center" }}>{r.fitConfirmed ? <CheckCircle2 className="w-4 h-4 text-green-600 inline" /> : <span style={{ color: "#d1d5db" }}>—</span>}</td>
-                        <td style={{ padding: "10px 14px", textAlign: "center" }}>{r.compatibilityChecked ? <CheckCircle2 className="w-4 h-4 text-green-600 inline" /> : <span style={{ color: "#d1d5db" }}>—</span>}</td>
-                        <td style={{ padding: "10px 14px", textAlign: "center" }}>{r.trainingProvided ? <CheckCircle2 className="w-4 h-4 text-green-600 inline" /> : <span style={{ color: "#d1d5db" }}>—</span>}</td>
+                        <td style={{ padding: "10px 14px", color: "#374151", maxWidth: 150 }}><span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{r.ppeSpecification ?? "—"}</span></td>
+                        <td style={{ padding: "10px 14px" }}>
+                          {r.compatiblePpeTypes ? (
+                            <div className="flex flex-wrap gap-1">
+                              {r.compatiblePpeTypes.split(",").filter(Boolean).map(t => (
+                                <span key={t} style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", borderRadius: 4, padding: "1px 6px", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{PPE_TYPES[t] ?? t}</span>
+                              ))}
+                            </div>
+                          ) : <span style={{ color: "#d1d5db" }}>—</span>}
+                        </td>
                         <td style={{ padding: "10px 14px", color: "#374151" }}>{r.assessedBy}</td>
                         <td style={{ padding: "10px 14px", color: "#374151" }}>{fmt(r.assessmentDate)}</td>
                         <td style={{ padding: "10px 14px" }}>
@@ -958,7 +1016,19 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader><DialogTitle>{editRisk ? "Edit PPE Risk Assessment" : "New PPE Risk Assessment"}</DialogTitle></DialogHeader>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                  <div><Label>Assessment Ref (optional)</Label><Input value={riskForm.assessmentRef} onChange={e => setRF("assessmentRef", e.target.value)} placeholder="e.g. PPE-RA-001" /></div>
+                  <div>
+                    {editRisk ? (
+                      <div>
+                        <Label>Assessment Reference</Label>
+                        <div style={{ fontFamily: "monospace", fontSize: "0.9rem", fontWeight: 700, color: "#166534", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "8px 12px", marginTop: 4 }}>{riskForm.assessmentRef || "—"}</div>
+                      </div>
+                    ) : (
+                      <div>
+                        <Label>Assessment Reference</Label>
+                        <div style={{ fontFamily: "monospace", fontSize: "0.875rem", color: "#6b7280", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 6, padding: "8px 12px", marginTop: 4 }}>Auto-generated on save</div>
+                      </div>
+                    )}
+                  </div>
                   <div><Label>PPE Type *</Label>
                     <Select value={riskForm.ppeType} onValueChange={v => setRF("ppeType", v)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
@@ -981,43 +1051,26 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                   <div style={{ gridColumn: "1 / -1" }}><Label>PPE Specification</Label><Textarea value={riskForm.ppeSpecification} onChange={e => setRF("ppeSpecification", e.target.value)} placeholder="Specific standard, EN number, manufacturer or model required (e.g. EN 149:2001+A1:2009 FFP3 respirator)" rows={2} /></div>
 
                   <div style={{ gridColumn: "1 / -1", borderTop: "1px solid #e5e7eb", paddingTop: 12 }}>
-                    <p className="text-sm font-semibold text-gray-700 mb-3">Individual Fit Check</p>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                      <label className="flex items-center gap-2 text-sm cursor-pointer">
-                        <input type="checkbox" checked={riskForm.fitConfirmed} onChange={e => setRF("fitConfirmed", e.target.checked)} className="w-4 h-4 accent-green-700" />
-                        Fit confirmed for individual
-                      </label>
-                      <div />
-                      <div><Label>Confirmed By</Label>
-                        <Select value={riskForm.fitConfirmedBy || "__text__"} onValueChange={v => setRF("fitConfirmedBy", v === "__text__" ? "" : v)} disabled={!riskForm.fitConfirmed}>
-                          <SelectTrigger><SelectValue placeholder="Select staff member…" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__text__">— Type name manually —</SelectItem>
-                            {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        {riskForm.fitConfirmed && (!riskForm.fitConfirmedBy || !staffNames.includes(riskForm.fitConfirmedBy)) && <Input className="mt-2" value={riskForm.fitConfirmedBy} onChange={e => setRF("fitConfirmedBy", e.target.value)} placeholder="Full name" />}
-                      </div>
-                      <div><Label>Confirmation Date</Label><Input type="date" value={riskForm.fitConfirmedDate} onChange={e => setRF("fitConfirmedDate", e.target.value)} disabled={!riskForm.fitConfirmed} /></div>
-                    </div>
-                  </div>
-
-                  <div style={{ gridColumn: "1 / -1", borderTop: "1px solid #e5e7eb", paddingTop: 12 }}>
-                    <p className="text-sm font-semibold text-gray-700 mb-3">Compatibility with Other PPE</p>
-                    <label className="flex items-center gap-2 text-sm cursor-pointer mb-3">
-                      <input type="checkbox" checked={riskForm.compatibilityChecked} onChange={e => setRF("compatibilityChecked", e.target.checked)} className="w-4 h-4 accent-green-700" />
-                      Compatibility with other PPE checked
-                    </label>
-                    <div><Label>Compatibility Notes</Label><Textarea value={riskForm.compatibilityNotes} onChange={e => setRF("compatibilityNotes", e.target.value)} placeholder="e.g. Confirmed compatible with safety glasses (EN 166) and hard hat" rows={2} disabled={!riskForm.compatibilityChecked} /></div>
-                  </div>
-
-                  <div style={{ gridColumn: "1 / -1", borderTop: "1px solid #e5e7eb", paddingTop: 12 }}>
-                    <p className="text-sm font-semibold text-gray-700 mb-3">Training</p>
-                    <label className="flex items-center gap-2 text-sm cursor-pointer mb-3">
-                      <input type="checkbox" checked={riskForm.trainingProvided} onChange={e => setRF("trainingProvided", e.target.checked)} className="w-4 h-4 accent-green-700" />
-                      PPE use and maintenance training provided
-                    </label>
-                    <div><Label>Training Notes</Label><Textarea value={riskForm.trainingNotes} onChange={e => setRF("trainingNotes", e.target.value)} placeholder="e.g. Toolbox talk held 01/05/2026 — donning/doffing, storage, inspection schedule" rows={2} disabled={!riskForm.trainingProvided} /></div>
+                    <p className="text-sm font-semibold text-gray-700 mb-1">PPE Compatibility</p>
+                    <p className="text-xs text-gray-500 mb-3">Select all other PPE types confirmed compatible with this item when worn simultaneously.</p>
+                    {(() => {
+                      const stockTypes = Array.from(new Set(allStock.filter(s => s.isActive && s.ppeType !== riskForm.ppeType).map(s => s.ppeType)));
+                      const selectedTypes = riskForm.compatiblePpeTypes ? riskForm.compatiblePpeTypes.split(",").filter(Boolean) : [];
+                      return stockTypes.length === 0
+                        ? <p className="text-xs text-gray-400 italic">No other PPE types in the stock register. Add stock items to enable compatibility linking.</p>
+                        : <div className="flex flex-wrap gap-x-6 gap-y-2">{stockTypes.map(t => {
+                            const checked = selectedTypes.includes(t);
+                            return (
+                              <label key={t} className="flex items-center gap-2 text-sm cursor-pointer">
+                                <input type="checkbox" checked={checked} onChange={() => {
+                                  const updated = checked ? selectedTypes.filter(x => x !== t) : [...selectedTypes, t];
+                                  setRF("compatiblePpeTypes", updated.join(","));
+                                }} className="w-4 h-4 accent-green-700" />
+                                {PPE_TYPES[t] ?? t}
+                              </label>
+                            );
+                          })}</div>;
+                    })()}
                   </div>
 
                   <div style={{ gridColumn: "1 / -1", borderTop: "1px solid #e5e7eb", paddingTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>

@@ -218,6 +218,11 @@ export const ppeIssueRecordsTable = pgTable("ppe_issue_records", {
   replacedDate: date("replaced_date"),
   replacedReason: text("replaced_reason"),
   notes: text("notes"),
+  fitCheckConfirmed: boolean("fit_check_confirmed").notNull().default(false),
+  fitCheckBy: text("fit_check_by"),                    // who confirmed the individual fit
+  fitCheckNotes: text("fit_check_notes"),              // notes from the individual fit check
+  trainingProvided: boolean("training_provided").notNull().default(false),
+  trainingNotes: text("training_notes"),               // e.g. "Toolbox talk 01/05/2026 — donning/doffing, storage, inspection"
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -249,6 +254,7 @@ export const ppeRiskAssessmentsTable = pgTable("ppe_risk_assessments", {
 
   compatibilityChecked: boolean("compatibility_checked").notNull().default(false),
   compatibilityNotes: text("compatibility_notes"),
+  compatiblePpeTypes: text("compatible_ppe_types"),    // comma-separated PPE type keys confirmed compatible e.g. "safety-boots,safety-glasses"
 
   trainingProvided: boolean("training_provided").notNull().default(false),
   trainingNotes: text("training_notes"),

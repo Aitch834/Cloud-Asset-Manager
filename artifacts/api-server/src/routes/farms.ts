@@ -26223,6 +26223,11 @@ router.post("/farms/:farmId/ppe-issue-records", requireAuth, requireTenant, requ
     replacedReason: b.replacedReason ? String(b.replacedReason) : null,
     notes: b.notes ? String(b.notes) : null,
     isActive: b.isActive !== false,
+    fitCheckConfirmed: b.fitCheckConfirmed === true || b.fitCheckConfirmed === "true",
+    fitCheckBy: b.fitCheckBy ? String(b.fitCheckBy) : null,
+    fitCheckNotes: b.fitCheckNotes ? String(b.fitCheckNotes) : null,
+    trainingProvided: b.trainingProvided === true || b.trainingProvided === "true",
+    trainingNotes: b.trainingNotes ? String(b.trainingNotes) : null,
   }).returning();
   // Decrement stock quantity if issued from a stock item
   if (stockItemId) {
@@ -26237,7 +26242,7 @@ router.put("/farms/:farmId/ppe-issue-records/:id", requireAuth, requireTenant, r
   const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
-  const fields = ["staffName","staffUserId","ppeType","description","size","supplier","stockItemId","dateIssued","conditionCheckDate","conditionAtCheck","replacedDate","replacedReason","notes","isActive"];
+  const fields = ["staffName","staffUserId","ppeType","description","size","supplier","stockItemId","dateIssued","conditionCheckDate","conditionAtCheck","replacedDate","replacedReason","notes","isActive","fitCheckConfirmed","fitCheckBy","fitCheckNotes","trainingProvided","trainingNotes"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
   const [record] = await db.update(ppeIssueRecordsTable).set(updates).where(and(eq(ppeIssueRecordsTable.id, id), eq(ppeIssueRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
@@ -26344,21 +26349,24 @@ router.post("/farms/:farmId/ppe-risk-assessments", requireAuth, requireTenant, r
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const body = sanitiseBody(req.body);
+  // Auto-generate assessment reference if not provided
+  let assessmentRef = body.assessmentRef || null;
+  if (!assessmentRef) {
+    const existing = await db.select({ id: ppeRiskAssessmentsTable.id }).from(ppeRiskAssessmentsTable).where(eq(ppeRiskAssessmentsTable.farmId, farmId));
+    const next = existing.length + 1;
+    assessmentRef = `PPE-RA-${String(next).padStart(3, "0")}`;
+  }
   const [record] = await (db.insert(ppeRiskAssessmentsTable) as any).values({
     farmId,
-    assessmentRef: body.assessmentRef || null,
+    assessmentRef,
     ppeType: body.ppeType,
     hazardIdentified: body.hazardIdentified,
     taskOrArea: body.taskOrArea || null,
     riskLevel: body.riskLevel || null,
     ppeSpecification: body.ppeSpecification || null,
-    fitConfirmed: body.fitConfirmed === true || body.fitConfirmed === "true",
-    fitConfirmedBy: body.fitConfirmedBy || null,
-    fitConfirmedDate: body.fitConfirmedDate || null,
-    compatibilityChecked: body.compatibilityChecked === true || body.compatibilityChecked === "true",
+    compatibilityChecked: !!(body.compatiblePpeTypes),
     compatibilityNotes: body.compatibilityNotes || null,
-    trainingProvided: body.trainingProvided === true || body.trainingProvided === "true",
-    trainingNotes: body.trainingNotes || null,
+    compatiblePpeTypes: body.compatiblePpeTypes || null,
     assessedBy: body.assessedBy,
     assessmentDate: body.assessmentDate,
     reviewDate: body.reviewDate || null,
@@ -26380,13 +26388,9 @@ router.put("/farms/:farmId/ppe-risk-assessments/:id", requireAuth, requireTenant
     taskOrArea: body.taskOrArea || null,
     riskLevel: body.riskLevel || null,
     ppeSpecification: body.ppeSpecification || null,
-    fitConfirmed: body.fitConfirmed === true || body.fitConfirmed === "true",
-    fitConfirmedBy: body.fitConfirmedBy || null,
-    fitConfirmedDate: body.fitConfirmedDate || null,
-    compatibilityChecked: body.compatibilityChecked === true || body.compatibilityChecked === "true",
+    compatibilityChecked: !!(body.compatiblePpeTypes),
     compatibilityNotes: body.compatibilityNotes || null,
-    trainingProvided: body.trainingProvided === true || body.trainingProvided === "true",
-    trainingNotes: body.trainingNotes || null,
+    compatiblePpeTypes: body.compatiblePpeTypes || null,
     assessedBy: body.assessedBy,
     assessmentDate: body.assessmentDate,
     reviewDate: body.reviewDate || null,
