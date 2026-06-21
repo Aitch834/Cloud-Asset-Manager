@@ -415,7 +415,7 @@ export default function NVZPage() {
       areaAppliedHa: String(r.areaAppliedHa),
       applicationMethod: r.applicationMethod ?? "",
       notes: r.notes ?? "",
-      totalCostPence: r.totalCostPence ?? "",
+      totalCostPence: r.totalCostPence != null ? String(r.totalCostPence) : "",
     });
   }
   function closeAppForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }
@@ -996,7 +996,7 @@ export default function NVZPage() {
                   value={form.totalCostPence !== "" && form.totalCostPence != null ? (Number(form.totalCostPence) / 100).toFixed(2) : ""}
                   onChange={(e) => {
                     const v = e.target.value;
-                    setForm((f) => ({ ...f, totalCostPence: v === "" ? "" : Math.round(parseFloat(v) * 100) }));
+                    setForm((f) => ({ ...f, totalCostPence: v === "" ? "" : String(Math.round(parseFloat(v) * 100)) }));
                   }}
                 />
               </div>

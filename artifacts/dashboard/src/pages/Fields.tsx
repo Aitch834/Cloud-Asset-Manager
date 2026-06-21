@@ -707,6 +707,7 @@ interface SeedRecord {
   treatmentProduct: string | null;
   operator: string | null;
   areaSeededHa: string | null;
+  seedCostPencePerKg: number | null;
   soilConditions: string | null;
   weatherNotes: string | null;
   notes: string | null;
