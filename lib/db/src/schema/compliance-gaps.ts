@@ -184,6 +184,8 @@ export const ppeStockItemsTable = pgTable("ppe_stock_items", {
   unitCostPence: integer("unit_cost_pence"),
   supplierId: integer("supplier_id").references(() => suppliersTable.id),
   supplierName: text("supplier_name"),
+  purchaseOrderId: integer("purchase_order_id"),  // soft FK → ppePurchaseOrdersTable
+  grnNumber: text("grn_number"),                  // PPE-GRN-{year}-{seq}
   invoiceRef: text("invoice_ref"),
   deliveryNoteRef: text("delivery_note_ref"),
   receivedDate: date("received_date"),
@@ -434,6 +436,10 @@ export const ppePurchaseOrdersTable = pgTable("ppe_purchase_orders", {
   submittedByName: text("submitted_by_name"),
   grnNumber: text("grn_number"),                    // set on first/only receipt
   actualDeliveryDate: date("actual_delivery_date"),
+  invoiceRef: text("invoice_ref"),                  // supplier invoice number for reconciliation
+  invoiceStatus: text("invoice_status").default("pending_invoice"), // pending_invoice | invoice_received | queried | approved | paid
+  invoicePaidDate: date("invoice_paid_date"),
+  paymentRef: text("payment_ref"),                  // BACS ref, cheque number, etc.
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

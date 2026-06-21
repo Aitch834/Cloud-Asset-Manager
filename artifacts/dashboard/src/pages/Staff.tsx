@@ -140,6 +140,10 @@ interface PpePurchaseOrder {
   submittedByName: string | null;
   grnNumber: string | null;
   actualDeliveryDate: string | null;
+  invoiceRef: string | null;
+  invoiceStatus: string | null;
+  invoicePaidDate: string | null;
+  paymentRef: string | null;
   createdAt: string;
   lines?: PpoLine[];
 }
@@ -192,6 +196,8 @@ interface PpeStockItem {
   supplierId: number | null;
   supplierName: string | null;
   supplierRecordName: string | null;
+  purchaseOrderId: number | null;
+  grnNumber: string | null;
   invoiceRef: string | null;
   deliveryNoteRef: string | null;
   receivedDate: string | null;
@@ -316,7 +322,9 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
   const [viewIssue, setViewIssue] = useState<PpeRecord | null>(null);
 
   // ── Stock form
-  const EMPTY_STOCK = { ppeType: "safety-boots", description: "", size: "", quantityReceived: "1", unitCostPence: "", supplierId: "", supplierName: "", invoiceRef: "", deliveryNoteRef: "", receivedDate: new Date().toISOString().slice(0, 10), batchNumber: "", notes: "", isActive: true };
+  const EMPTY_STOCK = { ppeType: "safety-boots", description: "", size: "", quantityReceived: "1", unitCostPence: "", supplierId: "", supplierName: "", purchaseOrderId: "", invoiceRef: "", deliveryNoteRef: "", receivedDate: new Date().toISOString().slice(0, 10), batchNumber: "", notes: "", isActive: true };
+  const [stockSpecKey, setStockSpecKey] = useState(0);
+  const [issueSpecKey, setIssueSpecKey] = useState(0);
   const [showStockForm, setShowStockForm] = useState(false);
   const [editStock, setEditStock] = useState<PpeStockItem | null>(null);
   const [stockForm, setStockForm] = useState({ ...EMPTY_STOCK });
@@ -392,7 +400,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
   const allPpos = ppoData?.records ?? [];
 
   const EMPTY_PO_LINE = { ppeType: ppeTypes[0]?.value ?? "safety-boots", description: "", size: "", quantityOrdered: "1", unitPricePence: "" };
-  const EMPTY_PO_FORM = { supplierId: "", supplierName: "", orderDate: new Date().toISOString().slice(0, 10), expectedDeliveryDate: "", notes: "", submittedByName: "" };
+  const EMPTY_PO_FORM = { supplierId: "", supplierName: "", orderDate: new Date().toISOString().slice(0, 10), expectedDeliveryDate: "", notes: "", submittedByName: "", invoiceRef: "", invoiceStatus: "pending_invoice", invoicePaidDate: "", paymentRef: "" };
 
   const [showPoForm, setShowPoForm] = useState(false);
   const [editPo, setEditPo] = useState<PpePurchaseOrder | null>(null);
@@ -436,7 +444,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
   }
   function openPoEdit(po: PpePurchaseOrder) {
     setEditPo(po);
-    setPoForm({ supplierId: po.supplierId ? String(po.supplierId) : "", supplierName: po.supplierName ?? "", orderDate: po.orderDate, expectedDeliveryDate: po.expectedDeliveryDate ?? "", notes: po.notes ?? "", submittedByName: po.submittedByName ?? "" });
+    setPoForm({ supplierId: po.supplierId ? String(po.supplierId) : "", supplierName: po.supplierName ?? "", orderDate: po.orderDate, expectedDeliveryDate: po.expectedDeliveryDate ?? "", notes: po.notes ?? "", submittedByName: po.submittedByName ?? "", invoiceRef: po.invoiceRef ?? "", invoiceStatus: po.invoiceStatus ?? "pending_invoice", invoicePaidDate: po.invoicePaidDate ?? "", paymentRef: po.paymentRef ?? "" });
     setPoLines(po.lines?.map(l => ({ ppeType: l.ppeType, description: l.description ?? "", size: l.size ?? "", quantityOrdered: String(l.quantityOrdered), unitPricePence: l.unitPricePence ? String((l.unitPricePence / 100).toFixed(2)) : "" })) ?? [{ ...EMPTY_PO_LINE }]);
     setShowPoForm(true);
   }
@@ -454,7 +462,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
 
   function openEditStock(s: PpeStockItem) {
     setEditStock(s);
-    setStockForm({ ppeType: s.ppeType, description: s.description ?? "", size: s.size ?? "", quantityReceived: String(s.quantityReceived), unitCostPence: s.unitCostPence ? String((s.unitCostPence / 100).toFixed(2)) : "", supplierId: s.supplierId ? String(s.supplierId) : "", supplierName: s.supplierName ?? "", invoiceRef: s.invoiceRef ?? "", deliveryNoteRef: s.deliveryNoteRef ?? "", receivedDate: s.receivedDate ?? "", batchNumber: s.batchNumber ?? "", notes: s.notes ?? "", isActive: s.isActive });
+    setStockForm({ ppeType: s.ppeType, description: s.description ?? "", size: s.size ?? "", quantityReceived: String(s.quantityReceived), unitCostPence: s.unitCostPence ? String((s.unitCostPence / 100).toFixed(2)) : "", supplierId: s.supplierId ? String(s.supplierId) : "", supplierName: s.supplierName ?? "", purchaseOrderId: s.purchaseOrderId ? String(s.purchaseOrderId) : "", invoiceRef: s.invoiceRef ?? "", deliveryNoteRef: s.deliveryNoteRef ?? "", receivedDate: s.receivedDate ?? "", batchNumber: s.batchNumber ?? "", notes: s.notes ?? "", isActive: s.isActive });
     setShowStockForm(true);
   }
 
@@ -676,7 +684,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
               <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
                 <thead style={{ background: "#f9fafb" }}>
                   <tr>
-                    {["PPE Type","Description","Size","Qty In Stock","Unit Cost","Supplier","Invoice Ref","Delivery Note","Received","Batch",""].map(h => (
+                    {["PPE Type","Description","Size","Qty In Stock","Unit Cost","Supplier","GRN / Delivery","PO Ref","Invoice Ref","Received","Batch",""].map(h => (
                       <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontWeight: 600, color: "#6b7280", fontSize: "0.8rem", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
@@ -693,8 +701,11 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                       </td>
                       <td style={{ padding: "10px 14px", color: "#374151" }}>{s.unitCostPence ? `£${(s.unitCostPence / 100).toFixed(2)}` : "—"}</td>
                       <td style={{ padding: "10px 14px", color: "#374151" }}>{resolveSupplierName(s)}</td>
+                      <td style={{ padding: "10px 14px", color: "#374151", fontFamily: "monospace", fontSize: "0.8rem" }}>{s.grnNumber ?? s.deliveryNoteRef ?? "—"}</td>
+                      <td style={{ padding: "10px 14px", color: "#374151", fontFamily: "monospace", fontSize: "0.8rem" }}>
+                        {s.purchaseOrderId ? (() => { const po = allPpos.find(p => p.id === s.purchaseOrderId); return po ? <span style={{ whiteSpace: "nowrap" }}>{po.poNumber}</span> : `#${s.purchaseOrderId}`; })() : "—"}
+                      </td>
                       <td style={{ padding: "10px 14px", color: "#374151", fontFamily: "monospace", fontSize: "0.8rem" }}>{s.invoiceRef ?? "—"}</td>
-                      <td style={{ padding: "10px 14px", color: "#374151", fontFamily: "monospace", fontSize: "0.8rem" }}>{s.deliveryNoteRef ?? "—"}</td>
                       <td style={{ padding: "10px 14px", color: "#374151" }}>{fmt(s.receivedDate)}</td>
                       <td style={{ padding: "10px 14px", color: "#6b7280" }}>{s.batchNumber ?? "—"}</td>
                       <td style={{ padding: "10px 14px" }}>
@@ -806,6 +817,8 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
               <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>In Stock</p><p className="font-semibold" style={{ color: viewStock.quantityInStock === 0 ? "#ef4444" : "#166534" }}>{viewStock.quantityInStock}</p></div>
               <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Unit Cost</p><p>{viewStock.unitCostPence ? `£${(viewStock.unitCostPence / 100).toFixed(2)}` : "—"}</p></div>
               <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Supplier</p><p>{resolveSupplierName(viewStock)}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>GRN Number</p><p className="font-mono text-sm font-bold text-blue-700">{viewStock.grnNumber ?? "—"}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Purchase Order</p><p className="font-mono text-sm">{viewStock.purchaseOrderId ? (allPpos.find(p => p.id === viewStock.purchaseOrderId)?.poNumber ?? `PO #${viewStock.purchaseOrderId}`) : "—"}</p></div>
               <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Invoice Ref</p><p className="font-mono text-sm">{viewStock.invoiceRef ?? "—"}</p></div>
               <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Delivery Note</p><p className="font-mono text-sm">{viewStock.deliveryNoteRef ?? "—"}</p></div>
               <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Received Date</p><p>{fmt(viewStock.receivedDate)}</p></div>
@@ -878,7 +891,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
               <div style={{ gridColumn: "1 / -1" }}>
                 <Label>Description / Specification</Label>
                 {(EN_ISO[stockForm.ppeType] ?? []).length > 0 && (
-                  <Select value="" onValueChange={v => setSF("description", v)}>
+                  <Select key={stockSpecKey} onValueChange={v => { setSF("description", v); setStockSpecKey(k => k + 1); }}>
                     <SelectTrigger className="mb-1"><SelectValue placeholder={`Quick-fill EN ISO standard for ${ppeTypeMap[stockForm.ppeType] ?? stockForm.ppeType}…`} /></SelectTrigger>
                     <SelectContent>{(EN_ISO[stockForm.ppeType] ?? []).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                   </Select>
@@ -902,6 +915,40 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
               <div><Label>Quantity Received *</Label><Input type="number" min="0" value={stockForm.quantityReceived} onChange={e => setSF("quantityReceived", e.target.value)} /></div>
               <div><Label>Unit Cost (£)</Label><Input type="number" step="0.01" min="0" value={stockForm.unitCostPence} onChange={e => setSF("unitCostPence", e.target.value)} placeholder="e.g. 24.99" /></div>
               <div><Label>Received Date</Label><Input type="date" value={stockForm.receivedDate} onChange={e => setSF("receivedDate", e.target.value)} /></div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <Label>Link to Purchase Order</Label>
+                <Select value={stockForm.purchaseOrderId || "__none__"} onValueChange={v => {
+                  if (v === "__none__") {
+                    setSF("purchaseOrderId", "");
+                  } else {
+                    setSF("purchaseOrderId", v);
+                    const po = allPpos.find(p => String(p.id) === v);
+                    if (po) {
+                      if (po.supplierId) { setSF("supplierId", String(po.supplierId)); setSF("supplierName", po.supplierName ?? ""); }
+                    }
+                  }
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Link to an existing PPE order (optional)…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— No linked PO (manual stock addition) —</SelectItem>
+                    {allPpos.filter(p => !["fully_received","cancelled"].includes(p.status)).map(p => (
+                      <SelectItem key={p.id} value={String(p.id)}>{p.poNumber} — {p.supplierName ?? "Unknown supplier"} ({p.status.replace(/_/g, " ")})</SelectItem>
+                    ))}
+                    {allPpos.filter(p => p.status === "fully_received").map(p => (
+                      <SelectItem key={p.id} value={String(p.id)}>{p.poNumber} — {p.supplierName ?? "Unknown"} [GRN: {p.grnNumber}]</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {stockForm.purchaseOrderId && (() => {
+                  const linkedPo = allPpos.find(p => String(p.id) === stockForm.purchaseOrderId);
+                  return linkedPo ? (
+                    <p className="text-xs text-blue-600 mt-1">
+                      Linked to <strong>{linkedPo.poNumber}</strong>
+                      {linkedPo.grnNumber ? ` · GRN: ${linkedPo.grnNumber}` : " · A GRN reference will be generated automatically on save"}
+                    </p>
+                  ) : null;
+                })()}
+              </div>
               <div style={{ gridColumn: "1 / -1" }}><Label>Supplier</Label>
                 <Select value={stockForm.supplierId || "__text__"} onValueChange={v => { if (v === "__text__") { setSF("supplierId", ""); } else { setSF("supplierId", v); setSF("supplierName", suppliers.find(s => String(s.id) === v)?.name ?? ""); } }}>
                   <SelectTrigger><SelectValue placeholder="Select from supplier register…" /></SelectTrigger>
@@ -966,7 +1013,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
               <div style={{ gridColumn: "1 / -1" }}>
                 <Label>Description / Specification</Label>
                 {(EN_ISO[issueForm.ppeType] ?? []).length > 0 && (
-                  <Select value="" onValueChange={v => setIF("description", v)}>
+                  <Select key={issueSpecKey} onValueChange={v => { setIF("description", v); setIssueSpecKey(k => k + 1); }}>
                     <SelectTrigger className="mb-1"><SelectValue placeholder={`Quick-fill EN ISO standard for ${ppeTypeMap[issueForm.ppeType] ?? issueForm.ppeType}…`} /></SelectTrigger>
                     <SelectContent>{(EN_ISO[issueForm.ppeType] ?? []).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                   </Select>
@@ -1101,7 +1148,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
             <div className="border border-gray-200 rounded-lg overflow-hidden">
               <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
                 <thead style={{ background: "#f9fafb" }}>
-                  <tr>{["PO Number","Supplier","Status","Order Date","Exp. Delivery","GRN",""].map(h => (
+                  <tr>{["PO Number","Supplier","Status","Order Date","Exp. Delivery","GRN","Invoice",""].map(h => (
                     <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontWeight: 600, color: "#6b7280", fontSize: "0.8rem", whiteSpace: "nowrap" }}>{h}</th>
                   ))}</tr>
                 </thead>
@@ -1118,6 +1165,16 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                         <td style={{ padding: "10px 14px", color: "#374151", whiteSpace: "nowrap" }}>{fmt(po.orderDate)}</td>
                         <td style={{ padding: "10px 14px", color: "#374151", whiteSpace: "nowrap" }}>{po.expectedDeliveryDate ? fmt(po.expectedDeliveryDate) : "—"}</td>
                         <td style={{ padding: "10px 14px", color: "#6b7280", fontFamily: "monospace", fontSize: "0.8rem" }}>{po.grnNumber ?? "—"}</td>
+                        <td style={{ padding: "10px 14px" }}>
+                          {(() => {
+                            const invColors: Record<string, [string,string]> = { pending_invoice: ["#f3f4f6","#6b7280"], invoice_received: ["#eff6ff","#1d4ed8"], queried: ["#fef3c7","#92400e"], approved: ["#f0fdf4","#166534"], paid: ["#dcfce7","#166534"] };
+                            const invLabels: Record<string, string> = { pending_invoice: "Awaiting Invoice", invoice_received: "Invoice Received", queried: "Queried", approved: "Approved", paid: "Paid ✓" };
+                            const st = po.invoiceStatus ?? "pending_invoice";
+                            const [bg, col] = invColors[st] ?? ["#f3f4f6","#6b7280"];
+                            return <span style={{ background: bg, color: col, borderRadius: 4, padding: "2px 8px", fontSize: "0.75rem", fontWeight: 600, whiteSpace: "nowrap" }}>{invLabels[st] ?? st}</span>;
+                          })()}
+                          {po.invoiceRef && <p style={{ fontSize: "0.7rem", color: "#6b7280", fontFamily: "monospace", marginTop: 2 }}>{po.invoiceRef}</p>}
+                        </td>
                         <td style={{ padding: "10px 14px" }}>
                           <div className="flex gap-1">
                             {!["fully_received","cancelled"].includes(po.status) && <Button size="sm" variant="outline" onClick={() => openGrn(po)}>Receive</Button>}
@@ -1141,7 +1198,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
           <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
             <div>
               <h3 className="font-bold text-gray-900 text-base">PPE Risk Assessments</h3>
-              <p className="text-sm text-muted-foreground mt-0.5">Documented risk assessments required by the PPE at Work Regulations 2022 — confirming correct PPE selection, individual fit, and compatibility.</p>
+              <p className="text-sm text-muted-foreground mt-0.5">Documented risk assessments required by the PPE at Work Regulations 2022 — confirming correct PPE selection, specification, and compatibility with other PPE in use.</p>
             </div>
             <Button onClick={() => { setEditRisk(null); setRiskForm({ ...EMPTY_RISK }); setShowRiskForm(true); }}>
               <Plus className="w-4 h-4 mr-2" />New Assessment
@@ -1260,22 +1317,24 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                     <p className="text-sm font-semibold text-gray-700 mb-1">PPE Compatibility</p>
                     <p className="text-xs text-gray-500 mb-3">Select all other PPE types confirmed compatible with this item when worn simultaneously.</p>
                     {(() => {
-                      const stockTypes = Array.from(new Set(allStock.filter(s => s.isActive && s.ppeType !== riskForm.ppeType).map(s => s.ppeType)));
+                      const compatTypes = ppeTypes.filter(t => t.value !== riskForm.ppeType);
                       const selectedTypes = riskForm.compatiblePpeTypes ? riskForm.compatiblePpeTypes.split(",").filter(Boolean) : [];
-                      return stockTypes.length === 0
-                        ? <p className="text-xs text-gray-400 italic">No other PPE types in the stock register. Add stock items to enable compatibility linking.</p>
-                        : <div className="flex flex-wrap gap-x-6 gap-y-2">{stockTypes.map(t => {
-                            const checked = selectedTypes.includes(t);
+                      return (
+                        <div className="flex flex-wrap gap-x-6 gap-y-2">
+                          {compatTypes.map(t => {
+                            const checked = selectedTypes.includes(t.value);
                             return (
-                              <label key={t} className="flex items-center gap-2 text-sm cursor-pointer">
+                              <label key={t.value} className="flex items-center gap-2 text-sm cursor-pointer">
                                 <input type="checkbox" checked={checked} onChange={() => {
-                                  const updated = checked ? selectedTypes.filter(x => x !== t) : [...selectedTypes, t];
+                                  const updated = checked ? selectedTypes.filter(x => x !== t.value) : [...selectedTypes, t.value];
                                   setRF("compatiblePpeTypes", updated.join(","));
                                 }} className="w-4 h-4 accent-green-700" />
-                                {ppeTypeMap[t] ?? t}
+                                {t.label}
                               </label>
                             );
-                          })}</div>;
+                          })}
+                        </div>
+                      );
                     })()}
                   </div>
 
@@ -1384,6 +1443,38 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
               </div>
             </div>
             <div style={{ marginTop: 12 }}><Label>Notes</Label><Textarea value={poForm.notes} onChange={e => setSPF("notes", e.target.value)} rows={2} /></div>
+            {editPo && (
+              <div style={{ marginTop: 16, padding: "14px 16px", background: "#f0f9ff", borderRadius: 8, border: "1px solid #bae6fd" }}>
+                <p className="text-sm font-semibold text-blue-800 mb-3">Invoice &amp; Payment Tracking</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <Label style={{ fontSize: "0.8rem" }}>Supplier Invoice Reference</Label>
+                    <Input value={poForm.invoiceRef} onChange={e => setSPF("invoiceRef", e.target.value)} placeholder="e.g. INV-2024-5678" />
+                  </div>
+                  <div>
+                    <Label style={{ fontSize: "0.8rem" }}>Invoice Status</Label>
+                    <Select value={poForm.invoiceStatus} onValueChange={v => setSPF("invoiceStatus", v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending_invoice">Awaiting Invoice</SelectItem>
+                        <SelectItem value="invoice_received">Invoice Received</SelectItem>
+                        <SelectItem value="queried">Queried with Supplier</SelectItem>
+                        <SelectItem value="approved">Approved for Payment</SelectItem>
+                        <SelectItem value="paid">Paid</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label style={{ fontSize: "0.8rem" }}>Date Paid</Label>
+                    <Input type="date" value={poForm.invoicePaidDate} onChange={e => setSPF("invoicePaidDate", e.target.value)} />
+                  </div>
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <Label style={{ fontSize: "0.8rem" }}>Payment Reference</Label>
+                    <Input value={poForm.paymentRef} onChange={e => setSPF("paymentRef", e.target.value)} placeholder="BACS ref, cheque number, etc." />
+                  </div>
+                </div>
+              </div>
+            )}
             <DialogFooter style={{ marginTop: 16 }}>
               <Button variant="outline" onClick={() => { setShowPoForm(false); setEditPo(null); }}>Cancel</Button>
               <Button

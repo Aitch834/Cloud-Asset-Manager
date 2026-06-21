@@ -26276,6 +26276,8 @@ router.get("/farms/:farmId/ppe-stock-items", requireAuth, requireTenant, require
     supplierId: ppeStockItemsTable.supplierId,
     supplierName: ppeStockItemsTable.supplierName,
     supplierRecordName: suppliersTable.name,
+    purchaseOrderId: ppeStockItemsTable.purchaseOrderId,
+    grnNumber: ppeStockItemsTable.grnNumber,
     invoiceRef: ppeStockItemsTable.invoiceRef,
     deliveryNoteRef: ppeStockItemsTable.deliveryNoteRef,
     receivedDate: ppeStockItemsTable.receivedDate,
@@ -26297,6 +26299,21 @@ router.post("/farms/:farmId/ppe-stock-items", requireAuth, requireTenant, requir
   const b = req.body as Record<string, unknown>;
   if (!b.ppeType) { res.status(400).json({ error: "ppeType is required" }); return; }
   const qty = b.quantityReceived ? parseInt(String(b.quantityReceived)) : 0;
+  const purchaseOrderId = b.purchaseOrderId ? parseInt(String(b.purchaseOrderId)) : null;
+  let grnNumber: string | null = null;
+  if (purchaseOrderId) {
+    const [po] = await db.select().from(ppePurchaseOrdersTable).where(and(eq(ppePurchaseOrdersTable.id, purchaseOrderId), eq(ppePurchaseOrdersTable.farmId, farmId)));
+    if (po) {
+      if (po.grnNumber) {
+        grnNumber = po.grnNumber;
+      } else {
+        const year = new Date().getFullYear();
+        const [grnCountRow] = await db.select({ count: sql<number>`cast(count(*) as int)` }).from(ppePurchaseOrdersTable).where(and(eq(ppePurchaseOrdersTable.farmId, farmId), isNotNull(ppePurchaseOrdersTable.grnNumber)));
+        grnNumber = `PPE-GRN-${year}-${String((grnCountRow.count ?? 0) + 1).padStart(4, "0")}`;
+        await db.update(ppePurchaseOrdersTable).set({ grnNumber, status: "fully_received", actualDeliveryDate: b.receivedDate ? String(b.receivedDate) : new Date().toISOString().slice(0, 10), updatedAt: new Date() }).where(eq(ppePurchaseOrdersTable.id, purchaseOrderId));
+      }
+    }
+  }
   const [item] = await db.insert(ppeStockItemsTable).values({
     farmId,
     ppeType: String(b.ppeType),
@@ -26307,6 +26324,8 @@ router.post("/farms/:farmId/ppe-stock-items", requireAuth, requireTenant, requir
     unitCostPence: b.unitCostPence ? parseInt(String(b.unitCostPence)) : null,
     supplierId: b.supplierId ? parseInt(String(b.supplierId)) : null,
     supplierName: b.supplierName ? String(b.supplierName) : null,
+    purchaseOrderId,
+    grnNumber,
     invoiceRef: b.invoiceRef ? String(b.invoiceRef) : null,
     deliveryNoteRef: b.deliveryNoteRef ? String(b.deliveryNoteRef) : null,
     receivedDate: b.receivedDate ? String(b.receivedDate) : null,
@@ -26314,7 +26333,7 @@ router.post("/farms/:farmId/ppe-stock-items", requireAuth, requireTenant, requir
     notes: b.notes ? String(b.notes) : null,
     isActive: b.isActive !== false,
   }).returning();
-  res.json({ item });
+  res.json({ item, grnNumber });
 });
 
 router.put("/farms/:farmId/ppe-stock-items/:id", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -26323,7 +26342,7 @@ router.put("/farms/:farmId/ppe-stock-items/:id", requireAuth, requireTenant, req
   const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
-  const fields = ["ppeType","description","size","quantityReceived","quantityInStock","unitCostPence","supplierId","supplierName","invoiceRef","deliveryNoteRef","receivedDate","batchNumber","notes","isActive"];
+  const fields = ["ppeType","description","size","quantityReceived","quantityInStock","unitCostPence","supplierId","supplierName","purchaseOrderId","grnNumber","invoiceRef","deliveryNoteRef","receivedDate","batchNumber","notes","isActive"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
   const [item] = await db.update(ppeStockItemsTable).set(updates).where(and(eq(ppeStockItemsTable.id, id), eq(ppeStockItemsTable.farmId, farmId))).returning();
   if (!item) { res.status(404).json({ error: "Not found" }); return; }
@@ -26483,7 +26502,7 @@ router.put("/farms/:farmId/ppe-purchase-orders/:poId", requireAuth, requireTenan
   const poId = parseInt(req.params.poId as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
-  for (const f of ["supplierId","supplierName","orderDate","expectedDeliveryDate","status","notes","submittedByName","grnNumber","actualDeliveryDate"]) {
+  for (const f of ["supplierId","supplierName","orderDate","expectedDeliveryDate","status","notes","submittedByName","grnNumber","actualDeliveryDate","invoiceRef","invoiceStatus","invoicePaidDate","paymentRef"]) {
     if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f];
   }
   const [po] = await db.update(ppePurchaseOrdersTable).set(updates).where(and(eq(ppePurchaseOrdersTable.id, poId), eq(ppePurchaseOrdersTable.farmId, farmId))).returning();
@@ -26521,6 +26540,8 @@ router.post("/farms/:farmId/ppe-purchase-orders/:poId/receive", requireAuth, req
       unitCostPence: line.unitPricePence,
       supplierId: existingPo.supplierId ?? null,
       supplierName: existingPo.supplierName ?? null,
+      purchaseOrderId: poId,
+      grnNumber,
       invoiceRef: null,
       deliveryNoteRef: grnNumber,
       receivedDate: actualDeliveryDate,
