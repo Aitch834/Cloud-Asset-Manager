@@ -71,6 +71,7 @@ export default function HarvestRecordScreen() {
   const [startTime, setStartTime] = useState(formatCurrentTime());
   const [endTime, setEndTime] = useState("");
   const [notes, setNotes] = useState("");
+  const [salePricePerTonnePence, setSalePricePerTonnePence] = useState("");
 
   useEffect(() => {
     if (!fieldName || !currentFarm?.id) return;
@@ -192,6 +193,7 @@ export default function HarvestRecordScreen() {
       operatorName: operatorName.trim(),
       equipmentUsed: equipmentUsed.trim(),
       notes: notes.trim(),
+      salePricePerTonnePence: salePricePerTonnePence ? Math.round(parseFloat(salePricePerTonnePence) * 100) : undefined,
       latitude,
       longitude,
       createdAt: new Date().toISOString(),
@@ -383,6 +385,14 @@ export default function HarvestRecordScreen() {
             onChangeText={(t) => { setManualOperatorName(t); if (t) setSelectedOperator(null); }}
             placeholder="e.g. John Smith"
             editable={!selectedOperator}
+          />
+
+          <Input
+            label="Sale Price (£/t)"
+            placeholder="e.g. 195.00"
+            value={salePricePerTonnePence}
+            onChangeText={setSalePricePerTonnePence}
+            keyboardType="decimal-pad"
           />
 
           <Input

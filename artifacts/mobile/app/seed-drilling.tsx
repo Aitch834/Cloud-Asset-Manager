@@ -57,6 +57,7 @@ export default function SeedDrillingScreen() {
   const [weatherNotes, setWeatherNotes] = useState("");
   const [weatherSource, setWeatherSource] = useState<"manual" | "open_meteo" | "davis_station" | "vehicle_station" | "third_party">("manual");
   const [notes, setNotes] = useState("");
+  const [seedCostPencePerKg, setSeedCostPencePerKg] = useState("");
 
   const handleCropSelect = (name: string) => {
     setCropName(name);
@@ -125,6 +126,7 @@ export default function SeedDrillingScreen() {
       weatherNotes: weatherNotes.trim() || undefined,
       weatherSource: weatherNotes.trim() ? weatherSource : undefined,
       notes: notes.trim(),
+      seedCostPencePerKg: seedCostPencePerKg ? Math.round(parseFloat(seedCostPencePerKg) * 100) : undefined,
       latitude,
       longitude,
       createdAt: new Date().toISOString(),
@@ -416,6 +418,16 @@ export default function SeedDrillingScreen() {
                 placeholder="Name of operator"
                 value={operator}
                 onChangeText={setOperator}
+              />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Seed Cost (£/kg)</Text>
+              <Input
+                placeholder="e.g. 0.65"
+                value={seedCostPencePerKg}
+                onChangeText={setSeedCostPencePerKg}
+                keyboardType="decimal-pad"
               />
             </View>
 

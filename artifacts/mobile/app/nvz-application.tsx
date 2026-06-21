@@ -59,6 +59,7 @@ export default function NvzApplicationScreen() {
   const [areaAppliedHa, setAreaAppliedHa] = useState("");
   const [applicationMethod, setApplicationMethod] = useState("");
   const [notes, setNotes] = useState("");
+  const [totalCostPence, setTotalCostPence] = useState("");
 
   const handleSave = async () => {
     if (!fieldName.trim() || !productType) {
@@ -93,6 +94,7 @@ export default function NvzApplicationScreen() {
       areaAppliedHa: areaAppliedHa.trim(),
       applicationMethod,
       notes: notes.trim(),
+      totalCostPence: totalCostPence ? Math.round(parseFloat(totalCostPence) * 100) : undefined,
       latitude,
       longitude,
       createdAt: new Date().toISOString(),
@@ -211,6 +213,14 @@ export default function NvzApplicationScreen() {
               </Pressable>
             ))}
           </View>
+
+          <Input
+            label="Total Fertiliser Cost (£)"
+            placeholder="e.g. 215.00"
+            value={totalCostPence}
+            onChangeText={setTotalCostPence}
+            keyboardType="decimal-pad"
+          />
 
           <Input
             label="Notes"

@@ -108,6 +108,7 @@ export default function SprayRecordScreen() {
   const [pressure, setPressure] = useState("");
   const [equipmentUsed, setEquipmentUsed] = useState("");
   const [notes, setNotes] = useState("");
+  const [productCostPencePerUnit, setProductCostPencePerUnit] = useState("");
   const [targetCrop, setTargetCrop] = useState("");
   const [growthStage, setGrowthStage] = useState("");
   const [cropAutoFilled, setCropAutoFilled] = useState(false);
@@ -267,6 +268,7 @@ export default function SprayRecordScreen() {
       startTime: new Date().toISOString(),
       endTime: new Date().toISOString(),
       notes: notes.trim(),
+      productCostPencePerUnit: productCostPencePerUnit ? Math.round(parseFloat(productCostPencePerUnit) * 100) : undefined,
       waterSourceNearby: waterSourceNearby.trim() || undefined,
       bufferZoneMetres: bufferZoneMetres.trim() || undefined,
       latitude,
@@ -460,6 +462,14 @@ export default function SprayRecordScreen() {
               </Text>
             </View>
           )}
+
+          <Input
+            label="Product Cost (£/unit)"
+            placeholder="e.g. 12.50"
+            value={productCostPencePerUnit}
+            onChangeText={setProductCostPencePerUnit}
+            keyboardType="decimal-pad"
+          />
 
           {/* ── Weather ── */}
           <View style={styles.sectionLabel}>

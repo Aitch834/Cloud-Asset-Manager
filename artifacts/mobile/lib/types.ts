@@ -46,6 +46,7 @@ export interface SprayRecord {
   photoIds: string[];
   waterSourceNearby?: string;
   bufferZoneMetres?: string;
+  productCostPencePerUnit?: number;
   createdAt: string;
   synced: boolean;
 }
@@ -293,6 +294,7 @@ export interface HarvestRecord {
   operatorName: string;
   equipmentUsed: string;
   notes: string;
+  salePricePerTonnePence?: number;
   latitude?: number;
   longitude?: number;
   createdAt: string;
@@ -403,6 +405,7 @@ export interface SeedDrillingRecord {
   weatherNotes?: string;
   weatherSource?: "manual" | "open_meteo" | "davis_station" | "vehicle_station" | "third_party";
   notes: string;
+  seedCostPencePerKg?: number;
   latitude?: number;
   longitude?: number;
   createdAt: string;
@@ -420,6 +423,7 @@ export interface NvzApplication {
   areaAppliedHa: string;
   applicationMethod: string;
   notes: string;
+  totalCostPence?: number;
   latitude?: number;
   longitude?: number;
   createdAt: string;

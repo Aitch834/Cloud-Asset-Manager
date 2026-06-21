@@ -275,6 +275,7 @@ const TITLES: [string, string][] = [
   ["Campylobacter Monitoring — Year Filter, Print Report and Record Attachments", "Poultry Production"],
   ["Organic Livestock Outdoor Access Log — Year Filter and Document Attachment on Rows", "Organic Livestock"],
   ["Organic Dairy Feed & Nutrition Tab — Year Filter and Document Attachment on Rows", "Organic Dairy"],
+  ["Season Production Report — Gross Margin and Financial Summary", "Fields & Crops"],
 ];
 
 const CONTENT: [string, string][] = [
@@ -301,9 +302,9 @@ const CONTENT: [string, string][] = [
 
   // 1 — Recording Spray Applications
   [
-    "How to record a spray application in BDE Farm Trac, including operator certificates, product details, batch numbers, and weather conditions.",
+    "How to record a spray application in BDE Farm Trac, including operator certificates, product details, product cost, batch numbers, and weather conditions.",
     `<h2>Recording Spray Applications</h2>
-<p>Spray application records are one of the most scrutinised elements of a Red Tractor Combinable Crops or Fresh Produce audit. BDE Farm Trac captures everything an assessor will look for in a single structured record.</p>
+<p>Spray application records are one of the most scrutinised elements of a Red Tractor Combinable Crops or Fresh Produce audit. BDE Farm Trac captures everything an assessor will look for in a single structured record, including product cost for gross margin reporting.</p>
 <h3>How to add a spray record</h3>
 <p>Navigate to <strong>Sprays &amp; Inputs</strong> and click <strong>New Application</strong>. Complete the following sections:</p>
 <ul>
@@ -311,6 +312,7 @@ const CONTENT: [string, string][] = [
 <li><strong>Operator:</strong> select from your staff list. If the operator's PA1/PA2/PA6 certificate is expired, a warning badge appears — the record can still be saved but the non-compliance is flagged.</li>
 <li><strong>Product:</strong> search your product catalogue. The product's active ingredient, MAPP number, and label rates are carried forward automatically.</li>
 <li><strong>Dose and water volume:</strong> enter the dose in the product's registered unit. The system checks the dose against the label maximum and warns if exceeded.</li>
+<li><strong>Product Cost (£/unit):</strong> enter the cost per litre, kg, or other applicable unit from the product invoice. This is stored in pence for precision, and the Season Production Report multiplies it by the application rate and area sprayed to calculate the total spray cost for the season and its contribution to gross margin.</li>
 <li><strong>Batch and lot number:</strong> enter the batch number from the container. This is linked to Goods Received Notes if the product was procured through the Trade Contacts &amp; Stock module, giving full batch traceability from supplier to field.</li>
 <li><strong>Weather conditions:</strong> temperature, wind speed, wind direction, and rainfall. The Fetch Live button auto-fills current conditions from Open-Meteo.</li>
 <li><strong>Growth stage (BBCH):</strong> required for some label approvals and for LEAF audits.</li>
@@ -570,11 +572,13 @@ const CONTENT: [string, string][] = [
 
   // 15 — NVZ Rules, Applications and Risk Assessments
   [
-    "How to record nitrogen fertiliser applications, risk assessments, and closed period compliance in the NVZ module.",
+    "How to record nitrogen fertiliser applications, costs, risk assessments, and closed period compliance in the NVZ module.",
     `<h2>NVZ Rules, Applications and Risk Assessments</h2>
 <p>If any of your fields fall within a Nitrate Vulnerable Zone (NVZ), you must follow the Nitrates Action Programme regulations — keeping records of all nitrogen applications, observing closed periods, and staying within field-level nitrogen limits. BDE Farm Trac's NVZ module manages all of this in one place.</p>
 <h3>Nitrogen application records</h3>
-<p>Navigate to <strong>Nutrient Management → NVZ Applications</strong> and log every application of manufactured nitrogen fertiliser or organic manure to NVZ fields. Each record captures: field, date, material type (manufactured fertiliser, slurry, farmyard manure, sewage sludge), nitrogen content (kg N/tonne or kg N/m³), quantity applied, and calculated nitrogen applied (kg N/ha).</p>
+<p>Navigate to <strong>Nutrient Management → NVZ Applications</strong> and log every application of manufactured nitrogen fertiliser or organic manure to NVZ fields. Each record captures: field, date, material type (manufactured fertiliser, slurry, farmyard manure, sewage sludge), nitrogen content (kg N/tonne or kg N/m³), quantity applied, calculated nitrogen applied (kg N/ha), and total fertiliser cost (£).</p>
+<h3>Recording fertiliser cost</h3>
+<p>Each NVZ application record includes a <strong>Total Cost (£)</strong> field — enter the total invoice cost of the fertiliser applied in this application. This is stored in pence for precision and used by the Season Production Report to calculate total fertiliser input costs and gross margin per crop season. It can also be edited after saving if the invoice arrives later.</p>
 <h3>Field nitrogen limits</h3>
 <p>DEFRA sets a maximum total nitrogen limit per field based on soil type and the crop grown. The NVZ Budget Calculator shows the remaining budget for each field — the limit minus all applications logged to date. Fields approaching or exceeding their limit are highlighted in amber or red.</p>
 <h3>Closed period records</h3>
@@ -628,9 +632,9 @@ const CONTENT: [string, string][] = [
 
   // 18 — Harvest Records and Yield Tracking
   [
-    "How to record grain and combinable crop harvest records in BDE Farm Trac, including yield per field, moisture, and grain position tracking.",
+    "How to record grain and combinable crop harvest records in BDE Farm Trac, including yield per field, moisture, sale price, and grain position tracking.",
     `<h2>Harvest Records and Yield Tracking</h2>
-<p>Harvest records provide the link between the field operations that produced the crop and the grain position and sales records that account for its disposal. BDE Farm Trac captures yield, quality, and storage data at harvest and connects it directly to your grain trading records.</p>
+<p>Harvest records provide the link between the field operations that produced the crop and the grain position and sales records that account for its disposal. BDE Farm Trac captures yield, quality, sale price, and storage data at harvest and connects it directly to your grain trading records and Season Production Report.</p>
 <h3>Recording a harvest</h3>
 <p>Navigate to <strong>Field &amp; Crop Management → Harvest Records</strong> and click <strong>Add Harvest</strong>. For each field (or field section) harvested, record:</p>
 <ul>
@@ -640,13 +644,16 @@ const CONTENT: [string, string][] = [
 <li><strong>Gross yield (tonnes).</strong></li>
 <li><strong>Moisture at harvest (%).</strong></li>
 <li><strong>Estimated dry yield (tonnes):</strong> calculated automatically from gross yield and moisture.</li>
+<li><strong>Sale Price (£/t):</strong> the agreed or achieved price per tonne for this crop. This is stored precisely in pence and used by the Season Production Report to calculate total revenue and gross margin for the season. You can record it at harvest time or fill it in once the contract is finalised.</li>
 <li><strong>Destination store:</strong> linked to a storage location in the Grain &amp; Crop Storage module.</li>
 <li><strong>Machine used.</strong></li>
 </ul>
 <h3>Grain position</h3>
 <p>Once a harvest record is saved, the grain enters the Grain Position tracker. This shows total harvested, total moved out (sales and transfers), and current balance in store for each commodity. The balance updates in real time as stock movements are logged.</p>
 <h3>Pre-harvest interval check</h3>
-<p>The harvest record links to spray application records for the same field. If any application was made within the product's PHI, the record shows a warning that the pre-harvest interval may not have been met — this is a critical food safety check for fresh produce and malting barley crops.</p>`,
+<p>The harvest record links to spray application records for the same field. If any application was made within the product's PHI, the record shows a warning that the pre-harvest interval may not have been met — this is a critical food safety check for fresh produce and malting barley crops.</p>
+<h3>Gross margin contribution</h3>
+<p>The Sale Price per tonne recorded here is picked up automatically by the <strong>Season Production Report</strong> (Field &amp; Crop Management → Season Reports). The report multiplies the sale price by total yield to produce a Revenue figure, then subtracts all recorded input costs (seed, fertiliser, and spray) to arrive at a Gross Margin in £ and £/ha. No re-entry is needed — completing the sale price field here is all that is required.</p>`,
   ],
 
   // 19 — Livestock Medicine Records and Withdrawal Periods
@@ -5050,6 +5057,38 @@ const CONTENT: [string, string][] = [
 </ul>
 <h3>Relationship to Organic Livestock Feed Derogations</h3>
 <p>Where a feed delivery is not fully organic-approved, the Feed &amp; Nutrition tab shows a <strong>Link to Approved Derogation Case</strong> picker. Selecting an approved derogation case from the Organic Livestock module auto-fills the certifier approval reference — the document attached to the derogation case and the document attached to the feed record together form a complete, inspector-ready evidence chain without any re-keying.</p>`,
+  ],
+
+  // Season Production Report — Gross Margin and Financial Summary
+  [
+    "How to use the Season Production Report in BDE Farm Trac to view total crop input costs, revenue, and gross margin per crop season.",
+    `<h2>Season Production Report — Gross Margin and Financial Summary</h2>
+<p>The Season Production Report brings every record for a crop season together in one place — drilling, fertiliser, spray applications, and harvest — and adds a Financial Summary section that calculates total input costs, revenue, and gross margin automatically from the figures you have already entered across those records.</p>
+<h3>Opening the report</h3>
+<p>Navigate to <strong>Field &amp; Crop Management → Season Reports</strong> and select a crop season from the dropdown. The report loads all linked records for that season and field combination.</p>
+<h3>Financial Summary section</h3>
+<p>At the top of the report, a KPI summary strip shows key financial metrics for the season at a glance. Below it, the Financial Summary section breaks down costs and revenue into five lines:</p>
+<ul>
+<li><strong>Total Seed Cost (£):</strong> the sum of seed cost per kg multiplied by seed rate and area across all seed drilling records for the season. Requires the Seed Cost (£/kg) field to be completed on each drilling record.</li>
+<li><strong>Total Fertiliser Cost (£):</strong> the sum of Total Cost (£) recorded against all NVZ fertiliser application records linked to this season's fields. Requires the Total Cost (£) field to be completed on each application record.</li>
+<li><strong>Total Spray Cost (£):</strong> the sum of product cost per unit multiplied by dose rate and area across all spray application records for the season. Requires the Product Cost (£/unit) field to be completed on each spray record.</li>
+<li><strong>Total Input Costs (£):</strong> the combined total of seed, fertiliser, and spray costs.</li>
+<li><strong>Revenue (£):</strong> total yield (tonnes) multiplied by the Sale Price (£/t) recorded on the harvest record. Requires the Sale Price (£/t) field to be completed on the harvest record.</li>
+<li><strong>Gross Margin (£ and £/ha):</strong> Revenue minus Total Input Costs. Also expressed per hectare using the total area harvested. The Gross Margin tile turns red when the margin is negative.</li>
+</ul>
+<h3>Where cost data comes from</h3>
+<p>The Financial Summary draws entirely from data you have already entered elsewhere in BDE Farm Trac — no additional re-entry is required. The four cost fields that feed the report are:</p>
+<ul>
+<li><strong>Sale Price (£/t)</strong> — on each Harvest Record (Field &amp; Crop Management → Harvest Records)</li>
+<li><strong>Seed Cost (£/kg)</strong> — on each Seed Drilling Record (Field &amp; Crop Management → Seed Drilling)</li>
+<li><strong>Total Cost (£)</strong> — on each NVZ Fertiliser Application (Nutrient Management → NVZ Applications)</li>
+<li><strong>Product Cost (£/unit)</strong> — on each Spray Application (Sprays &amp; Inputs → Applications)</li>
+</ul>
+<p>If any cost field is left blank for a record, that record contributes £0 to the relevant cost line. The report clearly shows which records have costs recorded and which do not, so you can identify and fill any gaps.</p>
+<h3>Cost columns in the detail tables</h3>
+<p>Each of the four data tables within the report — Seed Drilling, Fertiliser Applications, Spray Applications, and Harvest — includes a cost column showing the cost figure recorded against each individual record. This lets you review and cross-check costs line by line before relying on the Financial Summary totals.</p>
+<h3>Partial data and incomplete seasons</h3>
+<p>The report can be opened at any point during the season — it will show costs and revenue for whichever records have been completed so far. If harvest has not yet been recorded, Revenue and Gross Margin will show as £0 or be omitted from the summary. This lets you use the report part-way through the season to track input costs as they accumulate.</p>`,
   ],
 ];
 
