@@ -417,5 +417,44 @@ export const sheepDippingRecordsTable = pgTable("sheep_dipping_records", {
 export type SheepDippingRecord = typeof sheepDippingRecordsTable.$inferSelect;
 export type NewSheepDippingRecord = typeof sheepDippingRecordsTable.$inferInsert;
 
+// ─── PPE Purchase Orders ──────────────────────────────────────────────────────
+// Full PO → GRN purchasing workflow for PPE stock, housed in the staff-training
+// module. Mirrors the purchaseOrdersTable pattern from stock-suppliers.
+
+export const ppePurchaseOrdersTable = pgTable("ppe_purchase_orders", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  supplierId: integer("supplier_id"),               // soft FK — may be manual supplier
+  supplierName: text("supplier_name"),              // denormalised for display
+  poNumber: text("po_number").notNull(),            // PPE-PO-{year}-{seq}
+  orderDate: date("order_date").notNull(),
+  expectedDeliveryDate: date("expected_delivery_date"),
+  status: text("status").notNull().default("draft"), // draft | sent | partially_received | fully_received | cancelled
+  notes: text("notes"),
+  submittedByName: text("submitted_by_name"),
+  grnNumber: text("grn_number"),                    // set on first/only receipt
+  actualDeliveryDate: date("actual_delivery_date"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type PpePurchaseOrder = typeof ppePurchaseOrdersTable.$inferSelect;
+export type NewPpePurchaseOrder = typeof ppePurchaseOrdersTable.$inferInsert;
+
+export const ppePurchaseOrderLinesTable = pgTable("ppe_purchase_order_lines", {
+  id: serial("id").primaryKey(),
+  poId: integer("po_id").notNull().references(() => ppePurchaseOrdersTable.id, { onDelete: "cascade" }),
+  ppeType: text("ppe_type").notNull(),
+  description: text("description"),
+  size: text("size"),
+  quantityOrdered: integer("quantity_ordered").notNull(),
+  unitPricePence: integer("unit_price_pence"),
+  quantityReceived: integer("quantity_received").notNull().default(0),
+  notes: text("notes"),
+});
+
+export type PpePurchaseOrderLine = typeof ppePurchaseOrderLinesTable.$inferSelect;
+export type NewPpePurchaseOrderLine = typeof ppePurchaseOrderLinesTable.$inferInsert;
+
 // ─── ATA on livestock_movements is handled by adding columns there ───────────
 // See livestock.ts — will add ataNumber + ataExpiry via schema push

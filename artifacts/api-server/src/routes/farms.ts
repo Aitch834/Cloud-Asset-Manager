@@ -317,6 +317,8 @@ import {
   ppeIssueRecordsTable,
   ppeStockItemsTable,
   ppeRiskAssessmentsTable,
+  ppePurchaseOrdersTable,
+  ppePurchaseOrderLinesTable,
   contractorsTable,
   contractorContactsTable,
   contractorRamsTable,
@@ -26407,6 +26409,138 @@ router.delete("/farms/:farmId/ppe-risk-assessments/:id", requireAuth, requireTen
   if (!farmId) return;
   const id = parseInt(req.params.id as string);
   await db.delete(ppeRiskAssessmentsTable).where(and(eq(ppeRiskAssessmentsTable.id, id), eq(ppeRiskAssessmentsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── PPE Suppliers (staff-training module, no stock-suppliers required) ────────
+
+router.get("/farms/:farmId/ppe-suppliers", requireAuth, requireTenant, requireModuleByKey("staff-training", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select({ id: suppliersTable.id, name: suppliersTable.name })
+    .from(suppliersTable)
+    .where(and(eq(suppliersTable.farmId, farmId), eq(suppliersTable.isActive, true)))
+    .orderBy(suppliersTable.name);
+  res.json({ records });
+});
+
+// ─── PPE Purchase Orders ──────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/ppe-purchase-orders", requireAuth, requireTenant, requireModuleByKey("staff-training", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const pos = await db.select().from(ppePurchaseOrdersTable)
+    .where(eq(ppePurchaseOrdersTable.farmId, farmId))
+    .orderBy(desc(ppePurchaseOrdersTable.createdAt));
+  const poIds = pos.map(p => p.id);
+  const allLines = poIds.length > 0
+    ? await db.select().from(ppePurchaseOrderLinesTable).where(inArray(ppePurchaseOrderLinesTable.poId, poIds))
+    : [];
+  const records = pos.map(p => ({ ...p, lines: allLines.filter(l => l.poId === p.id) }));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/ppe-purchase-orders", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = req.body as Record<string, unknown>;
+  if (!b.orderDate) { res.status(400).json({ error: "orderDate is required" }); return; }
+  const year = new Date().getFullYear();
+  const [countRow] = await db.select({ count: sql<number>`cast(count(*) as int)` }).from(ppePurchaseOrdersTable).where(eq(ppePurchaseOrdersTable.farmId, farmId));
+  const seq = String((countRow.count ?? 0) + 1).padStart(4, "0");
+  const poNumber = `PPE-PO-${year}-${seq}`;
+  const [po] = await db.insert(ppePurchaseOrdersTable).values({
+    farmId,
+    supplierId: b.supplierId ? parseInt(String(b.supplierId)) : null,
+    supplierName: b.supplierName ? String(b.supplierName) : null,
+    poNumber,
+    orderDate: String(b.orderDate),
+    expectedDeliveryDate: b.expectedDeliveryDate ? String(b.expectedDeliveryDate) : null,
+    status: b.status ? String(b.status) : "sent",
+    notes: b.notes ? String(b.notes) : null,
+    submittedByName: b.submittedByName ? String(b.submittedByName) : null,
+  }).returning();
+  const lines = Array.isArray(b.lines) ? b.lines as Record<string, unknown>[] : [];
+  if (lines.length > 0) {
+    await db.insert(ppePurchaseOrderLinesTable).values(lines.map(l => ({
+      poId: po.id,
+      ppeType: String(l.ppeType ?? ""),
+      description: l.description ? String(l.description) : null,
+      size: l.size ? String(l.size) : null,
+      quantityOrdered: parseInt(String(l.quantityOrdered ?? 1)),
+      unitPricePence: l.unitPricePence ? parseInt(String(l.unitPricePence)) : null,
+      quantityReceived: 0,
+      notes: l.notes ? String(l.notes) : null,
+    })));
+  }
+  const createdLines = await db.select().from(ppePurchaseOrderLinesTable).where(eq(ppePurchaseOrderLinesTable.poId, po.id));
+  res.status(201).json({ record: { ...po, lines: createdLines } });
+});
+
+router.put("/farms/:farmId/ppe-purchase-orders/:poId", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const poId = parseInt(req.params.poId as string);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  for (const f of ["supplierId","supplierName","orderDate","expectedDeliveryDate","status","notes","submittedByName","grnNumber","actualDeliveryDate"]) {
+    if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f];
+  }
+  const [po] = await db.update(ppePurchaseOrdersTable).set(updates).where(and(eq(ppePurchaseOrdersTable.id, poId), eq(ppePurchaseOrdersTable.farmId, farmId))).returning();
+  if (!po) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: po });
+});
+
+router.post("/farms/:farmId/ppe-purchase-orders/:poId/receive", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const poId = parseInt(req.params.poId as string);
+  const b = req.body as Record<string, unknown>;
+  const actualDeliveryDate = b.actualDeliveryDate ? String(b.actualDeliveryDate) : new Date().toISOString().slice(0, 10);
+  const receivedLines = Array.isArray(b.lines) ? b.lines as Record<string, unknown>[] : [];
+  const year = new Date().getFullYear();
+  const [grnCountRow] = await db.select({ count: sql<number>`cast(count(*) as int)` }).from(ppePurchaseOrdersTable).where(and(eq(ppePurchaseOrdersTable.farmId, farmId), isNotNull(ppePurchaseOrdersTable.grnNumber)));
+  const grnSeq = String((grnCountRow.count ?? 0) + 1).padStart(4, "0");
+  const grnNumber = `PPE-GRN-${year}-${grnSeq}`;
+  const [existingPo] = await db.select().from(ppePurchaseOrdersTable).where(and(eq(ppePurchaseOrdersTable.id, poId), eq(ppePurchaseOrdersTable.farmId, farmId)));
+  if (!existingPo) { res.status(404).json({ error: "Not found" }); return; }
+  for (const rl of receivedLines) {
+    const lineId = parseInt(String(rl.lineId));
+    const qtyReceived = parseInt(String(rl.quantityReceived ?? 0));
+    if (qtyReceived <= 0) continue;
+    const [line] = await db.select().from(ppePurchaseOrderLinesTable).where(eq(ppePurchaseOrderLinesTable.id, lineId));
+    if (!line) continue;
+    await db.update(ppePurchaseOrderLinesTable).set({ quantityReceived: line.quantityReceived + qtyReceived }).where(eq(ppePurchaseOrderLinesTable.id, lineId));
+    await db.insert(ppeStockItemsTable).values({
+      farmId,
+      ppeType: line.ppeType,
+      description: line.description,
+      size: line.size,
+      quantityReceived: qtyReceived,
+      quantityInStock: qtyReceived,
+      unitCostPence: line.unitPricePence,
+      supplierId: existingPo.supplierId ?? null,
+      supplierName: existingPo.supplierName ?? null,
+      invoiceRef: null,
+      deliveryNoteRef: grnNumber,
+      receivedDate: actualDeliveryDate,
+      notes: `Received via ${grnNumber}`,
+      isActive: true,
+    });
+  }
+  const allLines = await db.select().from(ppePurchaseOrderLinesTable).where(eq(ppePurchaseOrderLinesTable.poId, poId));
+  const allFullyReceived = allLines.every(l => l.quantityReceived >= l.quantityOrdered);
+  const anyReceived = allLines.some(l => l.quantityReceived > 0);
+  const newStatus = allFullyReceived ? "fully_received" : anyReceived ? "partially_received" : "sent";
+  const [updatedPo] = await db.update(ppePurchaseOrdersTable).set({ status: newStatus, grnNumber, actualDeliveryDate, updatedAt: new Date() }).where(and(eq(ppePurchaseOrdersTable.id, poId), eq(ppePurchaseOrdersTable.farmId, farmId))).returning();
+  res.json({ record: updatedPo, grnNumber });
+});
+
+router.delete("/farms/:farmId/ppe-purchase-orders/:poId", requireAuth, requireTenant, requireModuleByKey("staff-training", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const poId = parseInt(req.params.poId as string);
+  await db.delete(ppePurchaseOrdersTable).where(and(eq(ppePurchaseOrdersTable.id, poId), eq(ppePurchaseOrdersTable.farmId, farmId)));
   res.json({ success: true });
 });
 

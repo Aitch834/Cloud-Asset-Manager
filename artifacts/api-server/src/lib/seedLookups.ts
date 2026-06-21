@@ -7,7 +7,7 @@ export interface LookupDefinition {
   authority: string;
   authorityUrl: string | null;
   reviewFrequency: string;
-  items: string[] | { label: string; group?: string }[];
+  items: string[] | { label: string; group?: string; value?: string }[];
 }
 
 export const LOOKUP_DEFINITIONS: Record<string, LookupDefinition> = {
@@ -667,6 +667,26 @@ export const LOOKUP_DEFINITIONS: Record<string, LookupDefinition> = {
       { label: "BBCH 99 — Harvested product", group: "Ripening" },
     ],
   },
+  ppe_types: {
+    label: "PPE Types",
+    description: "Types of Personal Protective Equipment used on farm — compliant with the PPE at Work Regulations 2022",
+    authority: "HSE / PPE at Work Regulations 2022",
+    authorityUrl: "https://www.hse.gov.uk/ppe/",
+    reviewFrequency: "As required by regulatory updates",
+    items: [
+      { value: "safety-boots", label: "Safety Boots" },
+      { value: "safety-helmet", label: "Safety Helmet" },
+      { value: "hi-vis-vest", label: "Hi-Vis Vest" },
+      { value: "gloves", label: "Gloves (Chemical / General)" },
+      { value: "safety-glasses", label: "Safety Glasses / Goggles" },
+      { value: "ear-protection", label: "Ear Protection" },
+      { value: "dust-mask", label: "Dust Mask / Respirator" },
+      { value: "face-shield", label: "Face Shield" },
+      { value: "waterproof-suit", label: "Waterproof / Chemical Suit" },
+      { value: "chainsaw-ppe", label: "Chainsaw PPE (chaps, gloves, helmet)" },
+      { value: "apron", label: "Apron" },
+    ],
+  },
 };
 
 export async function seedLookupDefaults(): Promise<void> {
@@ -694,7 +714,7 @@ export async function seedLookupDefaults(): Promise<void> {
       }
       return {
         lookupKey: key,
-        value: item.label,
+        value: "value" in item && item.value ? item.value : item.label,
         label: item.label,
         groupLabel: item.group ?? null,
         displayOrder: idx,

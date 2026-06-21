@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Users, Plus, Search, Mail, UserCheck, UserX, RefreshCw, Award, AlertTriangle,
@@ -20,6 +20,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { printProReport } from "@/lib/print-report";
+import { useLookup } from "@/hooks/use-lookup";
 
 const DEV_BYPASS = import.meta.env.VITE_DEV_BYPASS_AUTH === "true";
 const DEV_TOKEN = import.meta.env.VITE_DEV_BYPASS_TOKEN;
@@ -124,22 +125,36 @@ const ACCESS_ICONS: Record<string, React.ElementType> = {
   limited: Smartphone,
 };
 
-// ─── PPE Types & Interfaces ────────────────────────────────────────────────────
+// ─── PPE Interfaces ────────────────────────────────────────────────────────────
 
-const PPE_TYPES: Record<string, string> = {
-  "safety-boots": "Safety Boots",
-  "safety-helmet": "Safety Helmet",
-  "hi-vis-vest": "Hi-Vis Vest",
-  "gloves": "Gloves (Chemical / General)",
-  "safety-glasses": "Safety Glasses / Goggles",
-  "ear-protection": "Ear Protection",
-  "dust-mask": "Dust Mask / Respirator",
-  "face-shield": "Face Shield",
-  "waterproof-suit": "Waterproof / Chemical Suit",
-  "chainsaw-ppe": "Chainsaw PPE (chaps, gloves, helmet)",
-  "apron": "Apron",
-  "other": "Other",
-};
+interface PpePurchaseOrder {
+  id: number;
+  farmId: number;
+  supplierId: number | null;
+  supplierName: string | null;
+  poNumber: string;
+  orderDate: string;
+  expectedDeliveryDate: string | null;
+  status: string;
+  notes: string | null;
+  submittedByName: string | null;
+  grnNumber: string | null;
+  actualDeliveryDate: string | null;
+  createdAt: string;
+  lines?: PpoLine[];
+}
+
+interface PpoLine {
+  id: number;
+  poId: number;
+  ppeType: string;
+  description: string | null;
+  size: string | null;
+  quantityOrdered: number;
+  unitPricePence: number | null;
+  quantityReceived: number;
+  notes: string | null;
+}
 
 interface PpeRecord {
   id: number;
@@ -195,14 +210,7 @@ interface PpeRiskAssessment {
   taskOrArea: string | null;
   riskLevel: string | null;
   ppeSpecification: string | null;
-  fitConfirmed: boolean;
-  fitConfirmedBy: string | null;
-  fitConfirmedDate: string | null;
-  compatibilityChecked: boolean;
-  compatibilityNotes: string | null;
   compatiblePpeTypes: string | null;
-  trainingProvided: boolean;
-  trainingNotes: string | null;
   assessedBy: string;
   assessmentDate: string;
   reviewDate: string | null;
@@ -222,9 +230,46 @@ function fmt(d: string | null | undefined): string {
 
 function PpeRegisterSection({ farmId, members }: { farmId: number; members: FarmMember[] }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const issueBase = `/api/farms/${farmId}/ppe-issue-records`;
   const stockBase = `/api/farms/${farmId}/ppe-stock-items`;
   const riskBase = `/api/farms/${farmId}/ppe-risk-assessments`;
+  const ppoBase = `/api/farms/${farmId}/ppe-purchase-orders`;
+
+  // PPE Types — from Lookup Lists (user-maintainable; fallback to key if not loaded)
+  const { data: ppeTypeLookup } = useLookup("ppe_types");
+  const ppeTypes = useMemo(() => ppeTypeLookup ?? [], [ppeTypeLookup]);
+  const ppeTypeMap = useMemo(() => Object.fromEntries(ppeTypes.map(t => [t.value, t.label])), [ppeTypes]);
+
+  // EN ISO standard suggestions per PPE type key
+  const EN_ISO: Record<string, string[]> = {
+    "safety-boots": ["EN ISO 20345:2011 S1","EN ISO 20345:2011 S1P","EN ISO 20345:2011 S3","EN ISO 20345:2011 S3 SRC","EN ISO 20345:2011 S5 SRC"],
+    "safety-helmet": ["EN 397:2012+A1 (Industrial safety helmet)","EN 14052:2012+A1 (High-performance industrial helmet)"],
+    "hi-vis-vest": ["EN ISO 20471:2013 Class 1","EN ISO 20471:2013 Class 2","EN ISO 20471:2013 Class 3"],
+    "gloves": ["EN ISO 374-1:2016 (Chemical protection)","EN 388:2016+A1 (Mechanical risks)","EN 511:2006 (Cold protection)","EN 12477:2001 (Welding gloves)"],
+    "safety-glasses": ["EN ISO 16321-1:2021 (Eye and face protection)","EN 166:2002 (Personal eye protection)","EN 170:2002 (UV filter lenses)"],
+    "ear-protection": ["EN 352-1:2020 (Ear muffs)","EN 352-2:2020 (Ear plugs)","EN 352-3:2020 (Ear muffs attached to helmet)"],
+    "dust-mask": ["EN 149:2001+A1:2009 FFP1","EN 149:2001+A1:2009 FFP2 NR","EN 149:2001+A1:2009 FFP2 R (reusable)","EN 149:2001+A1:2009 FFP3 NR","EN 149:2001+A1:2009 FFP3 R (reusable)","EN 140:1998 (Half mask)","EN 136:1998 (Full face mask)"],
+    "face-shield": ["EN 166:2002 (Personal eye/face protection)","EN 168:2001 (Non-optical test methods)"],
+    "waterproof-suit": ["EN ISO 13688:2013 (General protective clothing)","EN 13982-1:2004+A1 (Type 5 — dry particles)","EN 14605:2005+A1 (Type 4 — spray-tight)","EN 14126:2003+A1 (Biohazard protection)"],
+    "chainsaw-ppe": ["EN ISO 11393-2:2019 (Leg protectors performance)","EN ISO 11393-4:2019 (Gloves)","EN ISO 11393-5:2022 (Gaiters)","EN ISO 11393-6:2019 (Upper body protection)"],
+    "apron": ["EN ISO 13688:2013 (General protective clothing)","EN 13034:2005+A1 (Limited chemical splash)"],
+  };
+
+  // Size options per PPE type key
+  const PPE_SIZES: Record<string, string[]> = {
+    "safety-boots": ["UK 3","UK 4","UK 5","UK 6","UK 7","UK 8","UK 9","UK 10","UK 11","UK 12","UK 13","UK 14"],
+    "safety-helmet": ["One size (adjustable)","52–58cm","54–61cm","57–62cm","58–64cm"],
+    "hi-vis-vest": ["XS","S","M","L","XL","2XL","3XL","4XL"],
+    "gloves": ["XS","S","M","L","XL","2XL","Size 6","Size 7","Size 8","Size 9","Size 10","Size 11"],
+    "safety-glasses": ["One size","Standard","Large / wide"],
+    "ear-protection": ["One size","N/A (disposable)"],
+    "dust-mask": ["S","M","L","S/M","M/L","One size"],
+    "face-shield": ["One size (adjustable)","Standard"],
+    "waterproof-suit": ["XS","S","M","L","XL","2XL","3XL","4XL"],
+    "chainsaw-ppe": ["S","M","L","XL","2XL","3XL"],
+    "apron": ["One size","S/M","L/XL","XL/2XL"],
+  };
 
   const { data: issueData, isLoading: issueLoading } = useQuery<{ records: PpeRecord[] }>({
     queryKey: ["ppe-records", farmId],
@@ -236,9 +281,9 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
     queryFn: () => fetch(stockBase, { headers: authHeaders() }).then(r => r.json()),
     enabled: !!farmId,
   });
-  const { data: suppData } = useQuery<{ suppliers: FarmSupplier[] }>({
-    queryKey: ["suppliers-list", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/suppliers`, { headers: authHeaders() }).then(r => r.json()),
+  const { data: suppData } = useQuery<{ records: FarmSupplier[] }>({
+    queryKey: ["ppe-suppliers-list", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/ppe-suppliers`, { headers: authHeaders() }).then(r => r.json()),
     enabled: !!farmId,
   });
 
@@ -255,10 +300,10 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
 
   const allRecords = issueData?.records ?? [];
   const allStock = stockData?.items ?? [];
-  const suppliers = suppData?.suppliers ?? [];
+  const suppliers = suppData?.records ?? [];
   const allRisk = riskData?.records ?? [];
 
-  const [subTab, setSubTab] = useState<"stock" | "issues" | "risk">("stock");
+  const [subTab, setSubTab] = useState<"stock" | "issues" | "risk" | "purchasing">("stock");
   const [staffFilter, setStaffFilter] = useState("");
   const [issueSearch, setIssueSearch] = useState("");
 
@@ -338,6 +383,69 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-risk", farmId] }); setDeleteRiskId(null); },
   });
 
+  // ── PPE Purchase Orders ───────────────────────────────────────────────────
+  const { data: ppoData } = useQuery<{ records: PpePurchaseOrder[] }>({
+    queryKey: ["ppe-purchase-orders", farmId],
+    queryFn: () => fetch(ppoBase, { headers: authHeaders() }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const allPpos = ppoData?.records ?? [];
+
+  const EMPTY_PO_LINE = { ppeType: ppeTypes[0]?.value ?? "safety-boots", description: "", size: "", quantityOrdered: "1", unitPricePence: "" };
+  const EMPTY_PO_FORM = { supplierId: "", supplierName: "", orderDate: new Date().toISOString().slice(0, 10), expectedDeliveryDate: "", notes: "", submittedByName: "" };
+
+  const [showPoForm, setShowPoForm] = useState(false);
+  const [editPo, setEditPo] = useState<PpePurchaseOrder | null>(null);
+  const [poForm, setPoForm] = useState<typeof EMPTY_PO_FORM>({ ...EMPTY_PO_FORM });
+  const [poLines, setPoLines] = useState<Array<{ ppeType: string; description: string; size: string; quantityOrdered: string; unitPricePence: string }>>([{ ...EMPTY_PO_LINE }]);
+  const [showGrnDialog, setShowGrnDialog] = useState<PpePurchaseOrder | null>(null);
+  const [grnDate, setGrnDate] = useState(new Date().toISOString().slice(0, 10));
+  const [grnQtys, setGrnQtys] = useState<Record<number, string>>({});
+  const setSPF = (k: string, v: unknown) => setPoForm(f => ({ ...f, [k]: v as string }));
+
+  const createPoMut = useMutation({
+    mutationFn: (data: Record<string, unknown>) => fetch(ppoBase, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(data) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-purchase-orders", farmId] }); setShowPoForm(false); toast({ title: "PPE order raised" }); },
+    onError: () => toast({ title: "Error raising order", variant: "destructive" }),
+  });
+  const updatePoMut = useMutation({
+    mutationFn: (data: Record<string, unknown>) => fetch(`${ppoBase}/${editPo?.id}`, { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(data) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-purchase-orders", farmId] }); setShowPoForm(false); setEditPo(null); toast({ title: "Order updated" }); },
+    onError: () => toast({ title: "Error updating order", variant: "destructive" }),
+  });
+  const deletePoMut = useMutation({
+    mutationFn: (id: number) => fetch(`${ppoBase}/${id}`, { method: "DELETE", headers: authHeaders() }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-purchase-orders", farmId] }); },
+  });
+  const receivePoMut = useMutation({
+    mutationFn: (data: Record<string, unknown>) => fetch(`${ppoBase}/${showGrnDialog?.id}/receive`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(data) }).then(r => r.json()),
+    onSuccess: (d: { grnNumber: string }) => {
+      qc.invalidateQueries({ queryKey: ["ppe-purchase-orders", farmId] });
+      qc.invalidateQueries({ queryKey: ["ppe-stock", farmId] });
+      setShowGrnDialog(null);
+      toast({ title: `Goods received — ${d.grnNumber}` });
+    },
+    onError: () => toast({ title: "Error recording receipt", variant: "destructive" }),
+  });
+
+  function openPoAdd() {
+    setEditPo(null);
+    setPoForm({ ...EMPTY_PO_FORM });
+    setPoLines([{ ...EMPTY_PO_LINE }]);
+    setShowPoForm(true);
+  }
+  function openPoEdit(po: PpePurchaseOrder) {
+    setEditPo(po);
+    setPoForm({ supplierId: po.supplierId ? String(po.supplierId) : "", supplierName: po.supplierName ?? "", orderDate: po.orderDate, expectedDeliveryDate: po.expectedDeliveryDate ?? "", notes: po.notes ?? "", submittedByName: po.submittedByName ?? "" });
+    setPoLines(po.lines?.map(l => ({ ppeType: l.ppeType, description: l.description ?? "", size: l.size ?? "", quantityOrdered: String(l.quantityOrdered), unitPricePence: l.unitPricePence ? String((l.unitPricePence / 100).toFixed(2)) : "" })) ?? [{ ...EMPTY_PO_LINE }]);
+    setShowPoForm(true);
+  }
+  function openGrn(po: PpePurchaseOrder) {
+    setShowGrnDialog(po);
+    setGrnDate(new Date().toISOString().slice(0, 10));
+    setGrnQtys({});
+  }
+
   function openEditIssue(r: PpeRecord) {
     setEditIssue(r);
     setIssueForm({ staffName: r.staffName, ppeType: r.ppeType, description: r.description ?? "", size: r.size ?? "", supplier: r.supplier ?? "", stockItemId: r.stockItemId ? String(r.stockItemId) : "", dateIssued: r.dateIssued, conditionCheckDate: r.conditionCheckDate ?? "", conditionAtCheck: r.conditionAtCheck ?? "", replacedDate: r.replacedDate ?? "", replacedReason: r.replacedReason ?? "", notes: r.notes ?? "", fitCheckConfirmed: r.fitCheckConfirmed ?? false, fitCheckBy: r.fitCheckBy ?? "", fitCheckNotes: r.fitCheckNotes ?? "", trainingProvided: r.trainingProvided ?? false, trainingNotes: r.trainingNotes ?? "", isActive: r.isActive });
@@ -360,7 +468,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
 
   const filteredIssues = allRecords.filter(r => {
     const matchStaff = !staffFilter || r.staffName.toLowerCase().includes(staffFilter.toLowerCase());
-    const matchSearch = !issueSearch || r.staffName.toLowerCase().includes(issueSearch.toLowerCase()) || (PPE_TYPES[r.ppeType] ?? r.ppeType).toLowerCase().includes(issueSearch.toLowerCase());
+    const matchSearch = !issueSearch || r.staffName.toLowerCase().includes(issueSearch.toLowerCase()) || (ppeTypeMap[r.ppeType] ?? r.ppeType).toLowerCase().includes(issueSearch.toLowerCase());
     return matchStaff && matchSearch;
   });
 
@@ -394,7 +502,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
           ["Risk Assessments", allRisk.length, reviewOverdue > 0 ? `${reviewOverdue} overdue for review` : "All current", reviewOverdue > 0 ? "#fef3c7" : "#dcfce7"],
           ["Stock Items", allStock.length, "", "#f0fdf4"],
           ["Active PPE Issues", allRecords.filter(r => r.isActive).length, needsReplacement > 0 ? `${needsReplacement} need attention` : "All good", needsReplacement > 0 ? "#fef3c7" : "#dcfce7"],
-          ["Unassessed Types", unassessedTypes.length, unassessedTypes.length > 0 ? unassessedTypes.map(t => PPE_TYPES[t] ?? t).join(", ") : "None — full coverage", unassessedTypes.length > 0 ? "#fee2e2" : "#dcfce7"],
+          ["Unassessed Types", unassessedTypes.length, unassessedTypes.length > 0 ? unassessedTypes.map(t => ppeTypeMap[t] ?? t).join(", ") : "None — full coverage", unassessedTypes.length > 0 ? "#fee2e2" : "#dcfce7"],
         ].map(([label, val, note, bg]) => `
           <div style="background:${bg};border-radius:5px;padding:8px 10px">
             <div style="font-size:7px;color:#374151;font-weight:600;text-transform:uppercase;letter-spacing:.05em">${label}</div>
@@ -406,12 +514,12 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
     // ── Section 1: Risk Assessments
     const raRows = allRisk.map(r => `<tr>
       <td style="font-family:monospace;font-size:6.5px">${esc(r.assessmentRef)}</td>
-      <td><strong>${esc(PPE_TYPES[r.ppeType] ?? r.ppeType)}</strong></td>
+      <td><strong>${esc(ppeTypeMap[r.ppeType] ?? r.ppeType)}</strong></td>
       <td>${esc(r.hazardIdentified)}</td>
       <td>${esc(r.taskOrArea)}</td>
       <td>${riskBadge(r.riskLevel)}</td>
       <td style="font-size:6.5px;max-width:100px;overflow:hidden">${esc(r.ppeSpecification)}</td>
-      <td style="font-size:6.5px">${r.compatiblePpeTypes ? r.compatiblePpeTypes.split(",").filter(Boolean).map(t => PPE_TYPES[t] ?? t).join(", ") : "—"}</td>
+      <td style="font-size:6.5px">${r.compatiblePpeTypes ? r.compatiblePpeTypes.split(",").filter(Boolean).map(t => ppeTypeMap[t] ?? t).join(", ") : "—"}</td>
       <td>${esc(r.assessedBy)}</td>
       <td style="white-space:nowrap">${fmt(r.assessmentDate)}</td>
       <td style="white-space:nowrap${r.reviewDate && new Date(r.reviewDate) < today ? ";color:#b91c1c;font-weight:700" : ""}">${fmt(r.reviewDate)}</td>
@@ -419,7 +527,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
 
     // ── Section 2: Stock
     const stockRows = allStock.map(s => `<tr>
-      <td><strong>${esc(PPE_TYPES[s.ppeType] ?? s.ppeType)}</strong></td>
+      <td><strong>${esc(ppeTypeMap[s.ppeType] ?? s.ppeType)}</strong></td>
       <td>${esc(s.description)}</td>
       <td>${esc(s.size)}</td>
       <td style="font-weight:700;color:${s.quantityInStock === 0 ? "#b91c1c" : s.quantityInStock <= 2 ? "#92400e" : "#166534"}">${s.quantityInStock} / ${s.quantityReceived}</td>
@@ -433,7 +541,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
     // ── Section 3: Issue Register
     const issueRows = allRecords.map(r => `<tr>
       <td><strong>${esc(r.staffName)}</strong></td>
-      <td>${esc(PPE_TYPES[r.ppeType] ?? r.ppeType)}</td>
+      <td>${esc(ppeTypeMap[r.ppeType] ?? r.ppeType)}</td>
       <td>${esc(r.description)}</td>
       <td>${esc(r.size)}</td>
       <td>${esc(r.supplier)}</td>
@@ -484,7 +592,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
     const relevantRisk = allRisk.filter(r => staffPpeTypes.has(r.ppeType));
 
     const issueRows = staffIssues.map(r => `<tr>
-      <td><strong>${esc(PPE_TYPES[r.ppeType] ?? r.ppeType)}</strong></td>
+      <td><strong>${esc(ppeTypeMap[r.ppeType] ?? r.ppeType)}</strong></td>
       <td>${esc(r.description)}</td>
       <td>${esc(r.size)}</td>
       <td>${esc(r.supplier)}</td>
@@ -496,10 +604,10 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
     </tr>`).join("");
 
     const raRows = relevantRisk.map(r => `<tr>
-      <td><strong>${esc(PPE_TYPES[r.ppeType] ?? r.ppeType)}</strong></td>
+      <td><strong>${esc(ppeTypeMap[r.ppeType] ?? r.ppeType)}</strong></td>
       <td>${esc(r.hazardIdentified)}</td>
       <td>${riskBadge(r.riskLevel)}</td>
-      <td style="font-size:6.5px">${r.compatiblePpeTypes ? r.compatiblePpeTypes.split(",").filter(Boolean).map(t => PPE_TYPES[t] ?? t).join(", ") : "—"}</td>
+      <td style="font-size:6.5px">${r.compatiblePpeTypes ? r.compatiblePpeTypes.split(",").filter(Boolean).map(t => ppeTypeMap[t] ?? t).join(", ") : "—"}</td>
       <td>${esc(r.assessedBy)}</td>
       <td style="white-space:nowrap">${fmt(r.assessmentDate)}</td>
     </tr>`).join("");
@@ -532,9 +640,9 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
     <div className="space-y-4">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 0 }}>
         <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #e5e7eb", flex: 1 }}>
-          {(["stock", "issues", "risk"] as const).map(t => (
+          {(["stock", "issues", "risk", "purchasing"] as const).map(t => (
           <button key={t} onClick={() => setSubTab(t)} style={{ padding: "10px 20px", fontWeight: subTab === t ? 700 : 500, fontSize: "0.9rem", color: subTab === t ? "#166534" : "#6b7280", marginBottom: -2, background: "none", borderTop: "none", borderLeft: "none", borderRight: "none", borderBottomWidth: 2, borderBottomStyle: "solid", borderBottomColor: subTab === t ? "#166534" : "transparent", cursor: "pointer" }}>
-            {t === "stock" ? "PPE Stock Register" : t === "issues" ? "PPE Issue Register" : "PPE Risk Assessments"}
+            {t === "stock" ? "PPE Stock Register" : t === "issues" ? "PPE Issue Register" : t === "risk" ? "PPE Risk Assessments" : "PPE Purchasing"}
           </button>
           ))}
         </div>
@@ -576,7 +684,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                 <tbody>
                   {allStock.map((s, i) => (
                     <tr key={s.id} style={{ borderTop: i > 0 ? "1px solid #f3f4f6" : undefined }}>
-                      <td style={{ padding: "10px 14px", fontWeight: 600 }}>{PPE_TYPES[s.ppeType] ?? s.ppeType}</td>
+                      <td style={{ padding: "10px 14px", fontWeight: 600 }}>{ppeTypeMap[s.ppeType] ?? s.ppeType}</td>
                       <td style={{ padding: "10px 14px", color: "#374151" }}>{s.description ?? "—"}</td>
                       <td style={{ padding: "10px 14px", color: "#6b7280" }}>{s.size ?? "—"}</td>
                       <td style={{ padding: "10px 14px" }}>
@@ -660,7 +768,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                   {filteredIssues.map((r, i) => (
                     <tr key={r.id} style={{ borderTop: i > 0 ? "1px solid #f3f4f6" : undefined }}>
                       <td style={{ padding: "10px 14px", fontWeight: 600 }}>{r.staffName}</td>
-                      <td style={{ padding: "10px 14px" }}>{PPE_TYPES[r.ppeType] ?? r.ppeType}</td>
+                      <td style={{ padding: "10px 14px" }}>{ppeTypeMap[r.ppeType] ?? r.ppeType}</td>
                       <td style={{ padding: "10px 14px", color: "#6b7280" }}>{r.size ?? "—"}</td>
                       <td style={{ padding: "10px 14px" }}>{fmt(r.dateIssued)}</td>
                       <td style={{ padding: "10px 14px", textAlign: "center" }}>{r.fitCheckConfirmed ? <CheckCircle2 className="w-4 h-4 text-green-600 inline" /> : <span style={{ color: "#d1d5db" }}>—</span>}</td>
@@ -689,9 +797,9 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
       {viewStock && (
         <Dialog open onOpenChange={() => setViewStock(null)}>
           <DialogContent className="max-w-lg">
-            <DialogHeader><DialogTitle>PPE Stock Item — {PPE_TYPES[viewStock.ppeType] ?? viewStock.ppeType}</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>PPE Stock Item — {ppeTypeMap[viewStock.ppeType] ?? viewStock.ppeType}</DialogTitle></DialogHeader>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 8, fontSize: "0.875rem" }}>
-              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>PPE Type</p><p className="font-semibold">{PPE_TYPES[viewStock.ppeType] ?? viewStock.ppeType}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>PPE Type</p><p className="font-semibold">{ppeTypeMap[viewStock.ppeType] ?? viewStock.ppeType}</p></div>
               <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Description</p><p>{viewStock.description ?? "—"}</p></div>
               <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Size</p><p>{viewStock.size ?? "—"}</p></div>
               <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Received</p><p className="font-semibold">{viewStock.quantityReceived}</p></div>
@@ -719,12 +827,12 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
             <DialogHeader><DialogTitle>PPE Record — {viewIssue.staffName}</DialogTitle></DialogHeader>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 8, fontSize: "0.875rem" }}>
               <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Staff Member</p><p className="font-semibold">{viewIssue.staffName}</p></div>
-              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>PPE Type</p><p>{PPE_TYPES[viewIssue.ppeType] ?? viewIssue.ppeType}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>PPE Type</p><p>{ppeTypeMap[viewIssue.ppeType] ?? viewIssue.ppeType}</p></div>
               <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Description</p><p>{viewIssue.description ?? "—"}</p></div>
               <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Size</p><p>{viewIssue.size ?? "—"}</p></div>
               <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Supplier</p><p>{viewIssue.supplier ?? "—"}</p></div>
               <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Date Issued</p><p>{fmt(viewIssue.dateIssued)}</p></div>
-              {viewIssue.stockItemId && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>From Stock Batch</p><p>#{viewIssue.stockItemId} — {PPE_TYPES[allStock.find(s => s.id === viewIssue.stockItemId)?.ppeType ?? ""] ?? "—"}</p></div>}
+              {viewIssue.stockItemId && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>From Stock Batch</p><p>#{viewIssue.stockItemId} — {ppeTypeMap[allStock.find(s => s.id === viewIssue.stockItemId)?.ppeType ?? ""] ?? "—"}</p></div>}
               <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Condition Check Date</p><p>{fmt(viewIssue.conditionCheckDate)}</p></div>
               <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Condition at Check</p><p>{viewIssue.conditionAtCheck ?? "—"}</p></div>
               {viewIssue.replacedDate && <><div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Replaced Date</p><p>{fmt(viewIssue.replacedDate)}</p></div><div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Replacement Reason</p><p>{viewIssue.replacedReason ?? "—"}</p></div></>}
@@ -764,11 +872,33 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
               <div style={{ gridColumn: "1 / -1" }}><Label>PPE Type *</Label>
                 <Select value={stockForm.ppeType} onValueChange={v => setSF("ppeType", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{Object.entries(PPE_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
+                  <SelectContent>{ppeTypes.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div style={{ gridColumn: "1 / -1" }}><Label>Description / Specification</Label><Input value={stockForm.description} onChange={e => setSF("description", e.target.value)} placeholder="e.g. EN ISO 20345 S3 safety boot" /></div>
-              <div><Label>Size</Label><Input value={stockForm.size} onChange={e => setSF("size", e.target.value)} placeholder="e.g. UK 8–12, L, M" /></div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <Label>Description / Specification</Label>
+                {(EN_ISO[stockForm.ppeType] ?? []).length > 0 && (
+                  <Select value="" onValueChange={v => setSF("description", v)}>
+                    <SelectTrigger className="mb-1"><SelectValue placeholder={`Quick-fill EN ISO standard for ${ppeTypeMap[stockForm.ppeType] ?? stockForm.ppeType}…`} /></SelectTrigger>
+                    <SelectContent>{(EN_ISO[stockForm.ppeType] ?? []).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                  </Select>
+                )}
+                <Input value={stockForm.description} onChange={e => setSF("description", e.target.value)} placeholder="e.g. EN ISO 20345:2011 S3 safety boot" />
+              </div>
+              <div>
+                <Label>Size</Label>
+                {(PPE_SIZES[stockForm.ppeType] ?? []).length > 0 ? (
+                  <>
+                    <Select value={(PPE_SIZES[stockForm.ppeType] ?? []).includes(stockForm.size) ? stockForm.size : "__other__"} onValueChange={v => { if (v !== "__other__") setSF("size", v); else setSF("size", ""); }}>
+                      <SelectTrigger><SelectValue placeholder="Select size…" /></SelectTrigger>
+                      <SelectContent>{(PPE_SIZES[stockForm.ppeType] ?? []).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}<SelectItem value="__other__">Other / specify…</SelectItem></SelectContent>
+                    </Select>
+                    {!(PPE_SIZES[stockForm.ppeType] ?? []).includes(stockForm.size) && <Input className="mt-1" value={stockForm.size} onChange={e => setSF("size", e.target.value)} placeholder="Specify size" />}
+                  </>
+                ) : (
+                  <Input value={stockForm.size} onChange={e => setSF("size", e.target.value)} placeholder="Size" />
+                )}
+              </div>
               <div><Label>Quantity Received *</Label><Input type="number" min="0" value={stockForm.quantityReceived} onChange={e => setSF("quantityReceived", e.target.value)} /></div>
               <div><Label>Unit Cost (£)</Label><Input type="number" step="0.01" min="0" value={stockForm.unitCostPence} onChange={e => setSF("unitCostPence", e.target.value)} placeholder="e.g. 24.99" /></div>
               <div><Label>Received Date</Label><Input type="date" value={stockForm.receivedDate} onChange={e => setSF("receivedDate", e.target.value)} /></div>
@@ -821,7 +951,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                     <SelectContent>
                       <SelectItem value="__none__">— Not from stock —</SelectItem>
                       {allStock.filter(s => s.quantityInStock > 0).map(s => (
-                        <SelectItem key={s.id} value={String(s.id)}>{PPE_TYPES[s.ppeType] ?? s.ppeType}{s.description ? ` — ${s.description}` : ""}{s.size ? ` (${s.size})` : ""} · {s.quantityInStock} in stock</SelectItem>
+                        <SelectItem key={s.id} value={String(s.id)}>{ppeTypeMap[s.ppeType] ?? s.ppeType}{s.description ? ` — ${s.description}` : ""}{s.size ? ` (${s.size})` : ""} · {s.quantityInStock} in stock</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -830,11 +960,33 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
               <div style={{ gridColumn: "1 / -1" }}><Label>PPE Type *</Label>
                 <Select value={issueForm.ppeType} onValueChange={v => setIF("ppeType", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{Object.entries(PPE_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
+                  <SelectContent>{ppeTypes.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div style={{ gridColumn: "1 / -1" }}><Label>Description / Specification</Label><Input value={issueForm.description} onChange={e => setIF("description", e.target.value)} placeholder="e.g. EN ISO 20345 S3 steel toe" /></div>
-              <div><Label>Size</Label><Input value={issueForm.size} onChange={e => setIF("size", e.target.value)} placeholder="e.g. UK 10, L" /></div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <Label>Description / Specification</Label>
+                {(EN_ISO[issueForm.ppeType] ?? []).length > 0 && (
+                  <Select value="" onValueChange={v => setIF("description", v)}>
+                    <SelectTrigger className="mb-1"><SelectValue placeholder={`Quick-fill EN ISO standard for ${ppeTypeMap[issueForm.ppeType] ?? issueForm.ppeType}…`} /></SelectTrigger>
+                    <SelectContent>{(EN_ISO[issueForm.ppeType] ?? []).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                  </Select>
+                )}
+                <Input value={issueForm.description} onChange={e => setIF("description", e.target.value)} placeholder="e.g. EN ISO 20345:2011 S3 steel toe" />
+              </div>
+              <div>
+                <Label>Size</Label>
+                {(PPE_SIZES[issueForm.ppeType] ?? []).length > 0 ? (
+                  <>
+                    <Select value={(PPE_SIZES[issueForm.ppeType] ?? []).includes(issueForm.size) ? issueForm.size : "__other__"} onValueChange={v => { if (v !== "__other__") setIF("size", v); else setIF("size", ""); }}>
+                      <SelectTrigger><SelectValue placeholder="Select size…" /></SelectTrigger>
+                      <SelectContent>{(PPE_SIZES[issueForm.ppeType] ?? []).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}<SelectItem value="__other__">Other / specify…</SelectItem></SelectContent>
+                    </Select>
+                    {!(PPE_SIZES[issueForm.ppeType] ?? []).includes(issueForm.size) && <Input className="mt-1" value={issueForm.size} onChange={e => setIF("size", e.target.value)} placeholder="Specify size" />}
+                  </>
+                ) : (
+                  <Input value={issueForm.size} onChange={e => setIF("size", e.target.value)} placeholder="Size" />
+                )}
+              </div>
               <div><Label>Supplier</Label><Input value={issueForm.supplier} onChange={e => setIF("supplier", e.target.value)} /></div>
               <div><Label>Date Issued *</Label><Input type="date" value={issueForm.dateIssued} onChange={e => setIF("dateIssued", e.target.value)} /></div>
               <div><Label>Condition Check Date</Label><Input type="date" value={issueForm.conditionCheckDate} onChange={e => setIF("conditionCheckDate", e.target.value)} /></div>
@@ -929,6 +1081,60 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
         </Dialog>
       )}
 
+      {/* ── PPE Purchasing ── */}
+      {subTab === "purchasing" && (
+        <div>
+          <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+            <div>
+              <h3 className="font-bold text-gray-900 text-base">PPE Purchase Orders</h3>
+              <p className="text-sm text-muted-foreground mt-0.5">Raise PPE orders, track delivery, and receive goods directly into the PPE Stock Register.</p>
+            </div>
+            <Button onClick={openPoAdd}><Plus className="w-4 h-4 mr-2" />Raise PPE Order</Button>
+          </div>
+          {allPpos.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "48px 24px", background: "#f9fafb", borderRadius: 8 }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>📦</div>
+              <p style={{ fontWeight: 600, color: "#374151", marginBottom: 4 }}>No PPE purchase orders yet</p>
+              <p style={{ fontSize: "0.875rem", color: "#9ca3af" }}>Raise a PPE order to track purchasing from supplier through to stock receipt.</p>
+            </div>
+          ) : (
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
+                <thead style={{ background: "#f9fafb" }}>
+                  <tr>{["PO Number","Supplier","Status","Order Date","Exp. Delivery","GRN",""].map(h => (
+                    <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontWeight: 600, color: "#6b7280", fontSize: "0.8rem", whiteSpace: "nowrap" }}>{h}</th>
+                  ))}</tr>
+                </thead>
+                <tbody>
+                  {allPpos.map((po, i) => {
+                    const statusColors: Record<string, [string, string]> = { draft: ["#f3f4f6","#6b7280"], sent: ["#eff6ff","#1d4ed8"], partially_received: ["#fef3c7","#92400e"], fully_received: ["#dcfce7","#166534"], cancelled: ["#fef2f2","#b91c1c"] };
+                    const [sbg, scol] = statusColors[po.status] ?? ["#f3f4f6","#6b7280"];
+                    const statusLabel: Record<string, string> = { draft: "Draft", sent: "Sent", partially_received: "Part Received", fully_received: "Fully Received", cancelled: "Cancelled" };
+                    return (
+                      <tr key={po.id} style={{ borderTop: i > 0 ? "1px solid #f3f4f6" : undefined }}>
+                        <td style={{ padding: "10px 14px", fontFamily: "monospace", fontWeight: 700 }}>{po.poNumber}</td>
+                        <td style={{ padding: "10px 14px" }}>{po.supplierName ?? "—"}</td>
+                        <td style={{ padding: "10px 14px" }}><span style={{ background: sbg, color: scol, borderRadius: 4, padding: "2px 8px", fontSize: "0.75rem", fontWeight: 600 }}>{statusLabel[po.status] ?? po.status}</span></td>
+                        <td style={{ padding: "10px 14px", color: "#374151", whiteSpace: "nowrap" }}>{fmt(po.orderDate)}</td>
+                        <td style={{ padding: "10px 14px", color: "#374151", whiteSpace: "nowrap" }}>{po.expectedDeliveryDate ? fmt(po.expectedDeliveryDate) : "—"}</td>
+                        <td style={{ padding: "10px 14px", color: "#6b7280", fontFamily: "monospace", fontSize: "0.8rem" }}>{po.grnNumber ?? "—"}</td>
+                        <td style={{ padding: "10px 14px" }}>
+                          <div className="flex gap-1">
+                            {!["fully_received","cancelled"].includes(po.status) && <Button size="sm" variant="outline" onClick={() => openGrn(po)}>Receive</Button>}
+                            <Button size="sm" variant="ghost" onClick={() => openPoEdit(po)}><Pencil className="w-3.5 h-3.5" /></Button>
+                            <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => deletePoMut.mutate(po.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── PPE Risk Assessments ── */}
       {subTab === "risk" && (
         <div>
@@ -969,7 +1175,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                     return (
                       <tr key={r.id} style={{ borderTop: i > 0 ? "1px solid #f3f4f6" : undefined }}>
                         <td style={{ padding: "10px 14px", color: "#6b7280", fontFamily: "monospace", fontSize: "0.8rem" }}>{r.assessmentRef ?? "—"}</td>
-                        <td style={{ padding: "10px 14px", fontWeight: 600 }}>{PPE_TYPES[r.ppeType] ?? r.ppeType}</td>
+                        <td style={{ padding: "10px 14px", fontWeight: 600 }}>{ppeTypeMap[r.ppeType] ?? r.ppeType}</td>
                         <td style={{ padding: "10px 14px", color: "#374151", maxWidth: 200 }}><span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{r.hazardIdentified}</span></td>
                         <td style={{ padding: "10px 14px", color: "#6b7280" }}>{r.taskOrArea ?? "—"}</td>
                         <td style={{ padding: "10px 14px" }}>
@@ -982,7 +1188,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                           {r.compatiblePpeTypes ? (
                             <div className="flex flex-wrap gap-1">
                               {r.compatiblePpeTypes.split(",").filter(Boolean).map(t => (
-                                <span key={t} style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", borderRadius: 4, padding: "1px 6px", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{PPE_TYPES[t] ?? t}</span>
+                                <span key={t} style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", borderRadius: 4, padding: "1px 6px", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{ppeTypeMap[t] ?? t}</span>
                               ))}
                             </div>
                           ) : <span style={{ color: "#d1d5db" }}>—</span>}
@@ -1020,7 +1226,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                     {editRisk ? (
                       <div>
                         <Label>Assessment Reference</Label>
-                        <div style={{ fontFamily: "monospace", fontSize: "0.9rem", fontWeight: 700, color: "#166534", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "8px 12px", marginTop: 4 }}>{riskForm.assessmentRef || "—"}</div>
+                        <Input style={{ fontFamily: "monospace", fontWeight: 700 }} value={riskForm.assessmentRef} onChange={e => setRF("assessmentRef", e.target.value)} placeholder="e.g. PPE-RA-001" />
                       </div>
                     ) : (
                       <div>
@@ -1032,7 +1238,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                   <div><Label>PPE Type *</Label>
                     <Select value={riskForm.ppeType} onValueChange={v => setRF("ppeType", v)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>{Object.entries(PPE_TYPES).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
+                      <SelectContent>{ppeTypes.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <div style={{ gridColumn: "1 / -1" }}><Label>Hazard Identified *</Label><Textarea value={riskForm.hazardIdentified} onChange={e => setRF("hazardIdentified", e.target.value)} placeholder="Describe the hazard this PPE protects against (e.g. grain dust — risk of respiratory disease)" rows={2} /></div>
@@ -1066,7 +1272,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                                   const updated = checked ? selectedTypes.filter(x => x !== t) : [...selectedTypes, t];
                                   setRF("compatiblePpeTypes", updated.join(","));
                                 }} className="w-4 h-4 accent-green-700" />
-                                {PPE_TYPES[t] ?? t}
+                                {ppeTypeMap[t] ?? t}
                               </label>
                             );
                           })}</div>;
@@ -1121,6 +1327,118 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
             </Dialog>
           )}
         </div>
+      )}
+
+      {/* ── PPE PO Form Dialog ── */}
+      {showPoForm && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowPoForm(false); setEditPo(null); } }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>{editPo ? "Edit PPE Order" : "Raise PPE Purchase Order"}</DialogTitle></DialogHeader>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 8 }}>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <Label>Supplier</Label>
+                <Select value={poForm.supplierId || "__text__"} onValueChange={v => { if (v === "__text__") { setSPF("supplierId", ""); } else { setSPF("supplierId", v); setSPF("supplierName", suppliers.find(s => String(s.id) === v)?.name ?? ""); } }}>
+                  <SelectTrigger><SelectValue placeholder="Select from supplier register…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__text__">— Type supplier name manually —</SelectItem>
+                    {suppliers.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {!poForm.supplierId && <Input className="mt-2" value={poForm.supplierName} onChange={e => setSPF("supplierName", e.target.value)} placeholder="Supplier name (if not in register)" />}
+              </div>
+              <div><Label>Order Date *</Label><Input type="date" value={poForm.orderDate} onChange={e => setSPF("orderDate", e.target.value)} /></div>
+              <div><Label>Expected Delivery</Label><Input type="date" value={poForm.expectedDeliveryDate} onChange={e => setSPF("expectedDeliveryDate", e.target.value)} /></div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <Label>Submitted By</Label>
+                <Select value={poForm.submittedByName || "__text__"} onValueChange={v => setSPF("submittedByName", v === "__text__" ? "" : v)}>
+                  <SelectTrigger><SelectValue placeholder="Select staff member…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__text__">— Type name manually —</SelectItem>
+                    {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {(!poForm.submittedByName || !staffNames.includes(poForm.submittedByName)) && <Input className="mt-2" value={poForm.submittedByName} onChange={e => setSPF("submittedByName", e.target.value)} placeholder="Name of person raising order" />}
+              </div>
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-sm font-semibold">Order Lines</Label>
+                <Button size="sm" variant="outline" onClick={() => setPoLines(ls => [...ls, { ...EMPTY_PO_LINE }])}><Plus className="w-3.5 h-3.5 mr-1" />Add Line</Button>
+              </div>
+              <div className="space-y-2">
+                {poLines.map((line, idx) => (
+                  <div key={idx} style={{ display: "grid", gridTemplateColumns: "1.5fr 1.5fr 1fr 80px 90px 36px", gap: 8, alignItems: "end", background: "#f9fafb", borderRadius: 6, padding: "8px 10px" }}>
+                    <div><Label style={{ fontSize: "0.7rem" }}>PPE Type</Label>
+                      <Select value={line.ppeType} onValueChange={v => setPoLines(ls => ls.map((l, i) => i === idx ? { ...l, ppeType: v } : l))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>{ppeTypes.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div><Label style={{ fontSize: "0.7rem" }}>Description</Label><Input value={line.description} onChange={e => setPoLines(ls => ls.map((l, i) => i === idx ? { ...l, description: e.target.value } : l))} placeholder="Specification" /></div>
+                    <div><Label style={{ fontSize: "0.7rem" }}>Size</Label><Input value={line.size} onChange={e => setPoLines(ls => ls.map((l, i) => i === idx ? { ...l, size: e.target.value } : l))} placeholder="Size" /></div>
+                    <div><Label style={{ fontSize: "0.7rem" }}>Qty *</Label><Input type="number" min="1" value={line.quantityOrdered} onChange={e => setPoLines(ls => ls.map((l, i) => i === idx ? { ...l, quantityOrdered: e.target.value } : l))} /></div>
+                    <div><Label style={{ fontSize: "0.7rem" }}>Unit £</Label><Input type="number" step="0.01" min="0" value={line.unitPricePence} onChange={e => setPoLines(ls => ls.map((l, i) => i === idx ? { ...l, unitPricePence: e.target.value } : l))} placeholder="0.00" /></div>
+                    <div style={{ paddingBottom: 2 }}><Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => setPoLines(ls => ls.filter((_, i) => i !== idx))} disabled={poLines.length === 1}><Trash2 className="w-3.5 h-3.5" /></Button></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}><Label>Notes</Label><Textarea value={poForm.notes} onChange={e => setSPF("notes", e.target.value)} rows={2} /></div>
+            <DialogFooter style={{ marginTop: 16 }}>
+              <Button variant="outline" onClick={() => { setShowPoForm(false); setEditPo(null); }}>Cancel</Button>
+              <Button
+                disabled={!poForm.orderDate || poLines.length === 0 || createPoMut.isPending || updatePoMut.isPending}
+                onClick={() => {
+                  const payload = { ...poForm, supplierId: poForm.supplierId ? parseInt(poForm.supplierId) : null, lines: poLines.map(l => ({ ...l, quantityOrdered: parseInt(l.quantityOrdered) || 1, unitPricePence: l.unitPricePence ? Math.round(parseFloat(l.unitPricePence) * 100) : null })) };
+                  if (editPo) updatePoMut.mutate(payload as Record<string, unknown>);
+                  else createPoMut.mutate(payload as Record<string, unknown>);
+                }}
+              >
+                {(createPoMut.isPending || updatePoMut.isPending) && <Loader2 className="animate-spin h-4 w-4 mr-1" />}
+                {editPo ? "Update Order" : "Raise Order"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── GRN — Record Goods Receipt ── */}
+      {showGrnDialog && (
+        <Dialog open onOpenChange={o => { if (!o) setShowGrnDialog(null); }}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Receive Goods — {showGrnDialog.poNumber}</DialogTitle></DialogHeader>
+            <p className="text-sm text-muted-foreground mb-3">A PPE-GRN reference is auto-generated. Items received are added to the PPE Stock Register automatically.</p>
+            <div><Label>Actual Delivery Date</Label><Input type="date" value={grnDate} onChange={e => setGrnDate(e.target.value)} /></div>
+            <div style={{ marginTop: 12 }}>
+              <Label className="text-sm font-semibold mb-2 block">Quantities Received</Label>
+              {(showGrnDialog.lines ?? []).map(line => (
+                <div key={line.id} style={{ display: "grid", gridTemplateColumns: "1fr auto 90px", gap: 8, alignItems: "center", marginBottom: 8, background: "#f9fafb", borderRadius: 6, padding: "8px 10px" }}>
+                  <div>
+                    <div className="font-medium text-sm">{ppeTypeMap[line.ppeType] ?? line.ppeType}</div>
+                    {line.description && <div className="text-xs text-gray-500">{line.description}{line.size ? ` — ${line.size}` : ""}</div>}
+                    <div className="text-xs text-gray-400">Ordered: {line.quantityOrdered} | Already received: {line.quantityReceived}</div>
+                  </div>
+                  <Label style={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}>Qty now received:</Label>
+                  <Input type="number" min="0" max={line.quantityOrdered - line.quantityReceived} value={grnQtys[line.id] ?? ""} onChange={e => setGrnQtys(q => ({ ...q, [line.id]: e.target.value }))} placeholder="0" />
+                </div>
+              ))}
+            </div>
+            <DialogFooter style={{ marginTop: 16 }}>
+              <Button variant="outline" onClick={() => setShowGrnDialog(null)}>Cancel</Button>
+              <Button
+                disabled={receivePoMut.isPending}
+                onClick={() => {
+                  const lines = (showGrnDialog.lines ?? []).map(l => ({ lineId: l.id, quantityReceived: parseInt(grnQtys[l.id] ?? "0") || 0 })).filter(l => l.quantityReceived > 0);
+                  if (!lines.length) { toast({ title: "Enter at least one quantity received", variant: "destructive" }); return; }
+                  receivePoMut.mutate({ actualDeliveryDate: grnDate, lines });
+                }}
+              >
+                {receivePoMut.isPending && <Loader2 className="animate-spin h-4 w-4 mr-1" />}
+                Record Receipt
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
@@ -1568,6 +1886,8 @@ function EditMemberDialog({
   const [nokEmail, setNokEmail] = useState(member?.nokEmail ?? "");
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { data: editDlgPpeTypeLookup } = useLookup("ppe_types");
+  const ppeTypeMap = useMemo(() => Object.fromEntries((editDlgPpeTypeLookup ?? []).map(t => [t.value, t.label])), [editDlgPpeTypeLookup]);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -1734,6 +2054,8 @@ function MemberRow({
 }) {
   const fullName = `${member.firstName} ${member.lastName}`;
   const AccessIcon = ACCESS_ICONS[member.accessType];
+  const { data: memberPpeTypeLookup } = useLookup("ppe_types");
+  const ppeTypeMap = useMemo(() => Object.fromEntries((memberPpeTypeLookup ?? []).map(t => [t.value, t.label])), [memberPpeTypeLookup]);
 
   return (
     <tr className="border-b border-border/30 last:border-0 hover:bg-black/[0.02] transition-colors">
@@ -1864,6 +2186,8 @@ export default function StaffPage() {
   });
   const departments = deptData?.departments ?? [];
   const allPpeRecords = ppeData?.records ?? [];
+  const { data: staffPagePpeTypeLookup } = useLookup("ppe_types");
+  const ppeTypeMap = useMemo(() => Object.fromEntries((staffPagePpeTypeLookup ?? []).map(t => [t.value, t.label])), [staffPagePpeTypeLookup]);
 
   const allCerts = certData?.records ?? [];
   const allRtw = rtwData?.records ?? [];
@@ -2119,7 +2443,7 @@ export default function StaffPage() {
                         <tbody>
                           {staffPpe.map((r, i) => (
                             <tr key={r.id} style={{ borderTop: i > 0 ? "1px solid #f3f4f6" : undefined }}>
-                              <td style={{ padding: "8px 12px", fontWeight: 600 }}>{PPE_TYPES[r.ppeType] ?? r.ppeType}</td>
+                              <td style={{ padding: "8px 12px", fontWeight: 600 }}>{ppeTypeMap[r.ppeType] ?? r.ppeType}</td>
                               <td style={{ padding: "8px 12px", color: "#374151" }}>{r.description ?? "—"}</td>
                               <td style={{ padding: "8px 12px", color: "#6b7280" }}>{r.size ?? "—"}</td>
                               <td style={{ padding: "8px 12px" }}>{fmt(r.dateIssued)}</td>
