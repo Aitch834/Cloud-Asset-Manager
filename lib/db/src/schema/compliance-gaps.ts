@@ -462,5 +462,44 @@ export const ppePurchaseOrderLinesTable = pgTable("ppe_purchase_order_lines", {
 export type PpePurchaseOrderLine = typeof ppePurchaseOrderLinesTable.$inferSelect;
 export type NewPpePurchaseOrderLine = typeof ppePurchaseOrderLinesTable.$inferInsert;
 
+// ─── PPE Stocktake Sessions ───────────────────────────────────────────────────
+// Periodic physical count of PPE stock to reconcile system quantities.
+
+export const ppeStocktakeSessionsTable = pgTable("ppe_stocktake_sessions", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  stocktakeDate: date("stocktake_date").notNull(),
+  status: text("status").notNull().default("draft"),       // draft | complete
+  conductedBy: text("conducted_by"),
+  notes: text("notes"),
+  itemCount: integer("item_count").default(0),
+  countedCount: integer("counted_count").default(0),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type PpeStocktakeSession = typeof ppeStocktakeSessionsTable.$inferSelect;
+export type NewPpeStocktakeSession = typeof ppeStocktakeSessionsTable.$inferInsert;
+
+export const ppeStocktakeItemsTable = pgTable("ppe_stocktake_items", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").notNull().references(() => ppeStocktakeSessionsTable.id, { onDelete: "cascade" }),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  stockItemId: integer("stock_item_id").references(() => ppeStockItemsTable.id),
+  ppeType: text("ppe_type").notNull(),
+  description: text("description"),
+  size: text("size"),
+  expectedQty: integer("expected_qty").notNull().default(0),
+  countedQty: integer("counted_qty"),
+  variance: integer("variance"),                            // countedQty - expectedQty
+  unitCostPence: integer("unit_cost_pence"),
+  varianceValuePence: integer("variance_value_pence"),      // variance * unitCostPence
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type PpeStocktakeItem = typeof ppeStocktakeItemsTable.$inferSelect;
+export type NewPpeStocktakeItem = typeof ppeStocktakeItemsTable.$inferInsert;
+
 // ─── ATA on livestock_movements is handled by adding columns there ───────────
 // See livestock.ts — will add ataNumber + ataExpiry via schema push

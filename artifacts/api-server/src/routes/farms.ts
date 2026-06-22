@@ -319,6 +319,8 @@ import {
   ppeRiskAssessmentsTable,
   ppePurchaseOrdersTable,
   ppePurchaseOrderLinesTable,
+  ppeStocktakeSessionsTable,
+  ppeStocktakeItemsTable,
   contractorsTable,
   contractorContactsTable,
   contractorRamsTable,
@@ -26573,6 +26575,78 @@ router.delete("/farms/:farmId/ppe-purchase-orders/:poId", requireAuth, requireTe
   if (!farmId) return;
   const poId = parseInt(req.params.poId as string);
   await db.delete(ppePurchaseOrdersTable).where(and(eq(ppePurchaseOrdersTable.id, poId), eq(ppePurchaseOrdersTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── PPE Stocktake ───────────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/ppe-stocktakes", requireAuth, requireTenant, requireModuleByKey("staff-training", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const sessions = await db.select().from(ppeStocktakeSessionsTable).where(eq(ppeStocktakeSessionsTable.farmId, farmId)).orderBy(desc(ppeStocktakeSessionsTable.stocktakeDate));
+  res.json(sessions);
+});
+
+router.post("/farms/:farmId/ppe-stocktakes", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { stocktakeDate, conductedBy, notes } = req.body as { stocktakeDate: string; conductedBy?: string; notes?: string };
+  if (!stocktakeDate) { res.status(400).json({ error: "stocktakeDate is required" }); return; }
+  const stockItems = await db.select({ id: ppeStockItemsTable.id, ppeType: ppeStockItemsTable.ppeType, description: ppeStockItemsTable.description, size: ppeStockItemsTable.size, quantityInStock: ppeStockItemsTable.quantityInStock, unitCostPence: ppeStockItemsTable.unitCostPence }).from(ppeStockItemsTable).where(and(eq(ppeStockItemsTable.farmId, farmId), eq(ppeStockItemsTable.isActive, true))).orderBy(asc(ppeStockItemsTable.ppeType), asc(ppeStockItemsTable.description));
+  const [session] = await db.insert(ppeStocktakeSessionsTable).values({ farmId, stocktakeDate, conductedBy: conductedBy ?? null, notes: notes ?? null, status: "draft", itemCount: stockItems.length }).returning();
+  if (stockItems.length > 0) {
+    await db.insert(ppeStocktakeItemsTable).values(stockItems.map(s => ({ sessionId: session.id, farmId, stockItemId: s.id, ppeType: s.ppeType, description: s.description ?? null, size: s.size ?? null, expectedQty: s.quantityInStock ?? 0, unitCostPence: s.unitCostPence ?? null })));
+  }
+  const items = await db.select().from(ppeStocktakeItemsTable).where(eq(ppeStocktakeItemsTable.sessionId, session.id)).orderBy(asc(ppeStocktakeItemsTable.ppeType), asc(ppeStocktakeItemsTable.description));
+  res.json({ ...session, items });
+});
+
+router.get("/farms/:farmId/ppe-stocktakes/:id", requireAuth, requireTenant, requireModuleByKey("staff-training", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [session] = await db.select().from(ppeStocktakeSessionsTable).where(and(eq(ppeStocktakeSessionsTable.id, id), eq(ppeStocktakeSessionsTable.farmId, farmId)));
+  if (!session) { res.status(404).json({ error: "Not found" }); return; }
+  const items = await db.select().from(ppeStocktakeItemsTable).where(eq(ppeStocktakeItemsTable.sessionId, id)).orderBy(asc(ppeStocktakeItemsTable.ppeType), asc(ppeStocktakeItemsTable.description));
+  res.json({ ...session, items });
+});
+
+router.patch("/farms/:farmId/ppe-stocktakes/:id/items/:itemId", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const sessionId = parseInt(req.params.id as string); const itemId = parseInt(req.params.itemId as string);
+  if (isNaN(sessionId) || isNaN(itemId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { countedQty, notes } = req.body as { countedQty: number | null; notes?: string };
+  const [existing] = await db.select().from(ppeStocktakeItemsTable).where(and(eq(ppeStocktakeItemsTable.id, itemId), eq(ppeStocktakeItemsTable.sessionId, sessionId)));
+  if (!existing) { res.status(404).json({ error: "Item not found" }); return; }
+  const variance = countedQty !== null && countedQty !== undefined ? countedQty - existing.expectedQty : null;
+  const varianceValuePence = variance !== null && existing.unitCostPence ? variance * existing.unitCostPence : null;
+  const [item] = await db.update(ppeStocktakeItemsTable).set({ countedQty: countedQty ?? null, variance: variance ?? null, varianceValuePence: varianceValuePence ?? null, notes: notes ?? existing.notes }).where(eq(ppeStocktakeItemsTable.id, itemId)).returning();
+  // Update countedCount on session
+  const allItems = await db.select({ countedQty: ppeStocktakeItemsTable.countedQty }).from(ppeStocktakeItemsTable).where(eq(ppeStocktakeItemsTable.sessionId, sessionId));
+  const countedCount = allItems.filter(i => i.countedQty !== null).length;
+  await db.update(ppeStocktakeSessionsTable).set({ countedCount }).where(eq(ppeStocktakeSessionsTable.id, sessionId));
+  res.json(item);
+});
+
+router.post("/farms/:farmId/ppe-stocktakes/:id/complete", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const items = await db.select().from(ppeStocktakeItemsTable).where(eq(ppeStocktakeItemsTable.sessionId, id));
+  // Reconcile: update each stock item's quantity_in_stock to counted value
+  for (const item of items) {
+    if (item.countedQty !== null && item.stockItemId) {
+      await db.update(ppeStockItemsTable).set({ quantityInStock: item.countedQty, updatedAt: new Date() }).where(and(eq(ppeStockItemsTable.id, item.stockItemId), eq(ppeStockItemsTable.farmId, farmId)));
+    }
+  }
+  const [session] = await db.update(ppeStocktakeSessionsTable).set({ status: "complete", completedAt: new Date(), countedCount: items.filter(i => i.countedQty !== null).length }).where(and(eq(ppeStocktakeSessionsTable.id, id), eq(ppeStocktakeSessionsTable.farmId, farmId))).returning();
+  res.json(session);
+});
+
+router.delete("/farms/:farmId/ppe-stocktakes/:id", requireAuth, requireTenant, requireModuleByKey("staff-training", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [session] = await db.select({ status: ppeStocktakeSessionsTable.status }).from(ppeStocktakeSessionsTable).where(and(eq(ppeStocktakeSessionsTable.id, id), eq(ppeStocktakeSessionsTable.farmId, farmId)));
+  if (!session) { res.status(404).json({ error: "Not found" }); return; }
+  if (session.status !== "draft") { res.status(400).json({ error: "Completed stocktakes cannot be deleted" }); return; }
+  await db.delete(ppeStocktakeItemsTable).where(eq(ppeStocktakeItemsTable.sessionId, id));
+  await db.delete(ppeStocktakeSessionsTable).where(and(eq(ppeStocktakeSessionsTable.id, id), eq(ppeStocktakeSessionsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

@@ -309,7 +309,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
   const suppliers = suppData?.records ?? [];
   const allRisk = riskData?.records ?? [];
 
-  const [subTab, setSubTab] = useState<"stock" | "issues" | "risk" | "purchasing">("stock");
+  const [subTab, setSubTab] = useState<"stock" | "issues" | "risk" | "purchasing" | "stocktakes">("stock");
   const [staffFilter, setStaffFilter] = useState("");
   const [issueSearch, setIssueSearch] = useState("");
 
@@ -389,6 +389,62 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
   const deleteRiskMut = useMutation({
     mutationFn: (id: number) => fetch(`${riskBase}/${id}`, { method: "DELETE", headers: authHeaders() }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-risk", farmId] }); setDeleteRiskId(null); },
+  });
+
+  // ── PPE Stocktakes ────────────────────────────────────────────────────────
+  type StocktakeItem = { id: number; stockItemId: number | null; ppeType: string; description: string | null; size: string | null; expectedQty: number; countedQty: number | null; variance: number | null; unitCostPence: number | null; varianceValuePence: number | null; notes: string | null };
+  type StocktakeSession = { id: number; stocktakeDate: string; status: string; conductedBy: string | null; notes: string | null; itemCount: number; countedCount: number; completedAt: string | null; items?: StocktakeItem[] };
+  const stocktakeBase = `/api/farms/${farmId}/ppe-stocktakes`;
+  const { data: stocktakeList = [], isLoading: stocktakesLoading, refetch: refetchStocktakes } = useQuery<StocktakeSession[]>({
+    queryKey: ["ppe-stocktakes", farmId],
+    queryFn: () => fetch(stocktakeBase, { headers: authHeaders() }).then(r => r.json()),
+    enabled: !!farmId && subTab === "stocktakes",
+  });
+  const [activeStocktakeId, setActiveStocktakeId] = useState<number | null>(null);
+  const { data: activeStocktake, refetch: refetchActiveStocktake } = useQuery<StocktakeSession>({
+    queryKey: ["ppe-stocktake-detail", farmId, activeStocktakeId],
+    queryFn: () => fetch(`${stocktakeBase}/${activeStocktakeId}`, { headers: authHeaders() }).then(r => r.json()),
+    enabled: activeStocktakeId !== null,
+  });
+  const [stocktakeNewOpen, setStocktakeNewOpen] = useState(false);
+  const [stocktakeNewForm, setStocktakeNewForm] = useState({ stocktakeDate: new Date().toISOString().slice(0, 10), conductedBy: "", notes: "" });
+  const [stocktakeItemEdits, setStocktakeItemEdits] = useState<Record<number, { countedQty: string; notes: string }>>({});
+  const [stocktakeDeleteId, setStocktakeDeleteId] = useState<number | null>(null);
+
+  const createStocktakeMut = useMutation({
+    mutationFn: (body: { stocktakeDate: string; conductedBy?: string; notes?: string }) =>
+      fetch(stocktakeBase, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: (data: StocktakeSession) => {
+      qc.invalidateQueries({ queryKey: ["ppe-stocktakes", farmId] });
+      setStocktakeNewOpen(false);
+      setActiveStocktakeId(data.id);
+    },
+  });
+
+  const patchStocktakeItemMut = useMutation({
+    mutationFn: ({ sessionId, itemId, countedQty, notes }: { sessionId: number; itemId: number; countedQty: number | null; notes: string }) =>
+      fetch(`${stocktakeBase}/${sessionId}/items/${itemId}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ countedQty, notes }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-stocktake-detail", farmId, activeStocktakeId] }); },
+  });
+
+  const completeStocktakeMut = useMutation({
+    mutationFn: (sessionId: number) =>
+      fetch(`${stocktakeBase}/${sessionId}/complete`, { method: "POST", headers: authHeaders() }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ppe-stocktakes", farmId] });
+      qc.invalidateQueries({ queryKey: ["ppe-stocktake-detail", farmId, activeStocktakeId] });
+      qc.invalidateQueries({ queryKey: ["ppe-stock", farmId] });
+      toast({ title: "Stocktake completed", description: "Stock quantities have been reconciled." });
+    },
+  });
+
+  const deleteStocktakeMut = useMutation({
+    mutationFn: (id: number) => fetch(`${stocktakeBase}/${id}`, { method: "DELETE", headers: authHeaders() }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ppe-stocktakes", farmId] });
+      if (stocktakeDeleteId === activeStocktakeId) setActiveStocktakeId(null);
+      setStocktakeDeleteId(null);
+    },
   });
 
   // ── PPE Purchase Orders ───────────────────────────────────────────────────
@@ -644,19 +700,70 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
     });
   }
 
+  function handlePrintPurchasing() {
+    const farm = farmMeta?.record;
+    const today = new Date();
+    const outstanding = allPpos.filter(po => !["fully_received","cancelled"].includes(po.status));
+    const overdue = outstanding.filter(po => po.expectedDeliveryDate && new Date(po.expectedDeliveryDate) < today);
+    const invoicesPending = allPpos.filter(po => po.invoiceStatus && !["paid"].includes(po.invoiceStatus) && po.status !== "cancelled");
+    const statusLabel: Record<string, string> = { draft: "Draft", sent: "Sent", partially_received: "Part Received", fully_received: "Fully Received", cancelled: "Cancelled" };
+    const invLabels: Record<string, string> = { pending_invoice: "Awaiting Invoice", invoice_received: "Invoice Received", queried: "Queried", approved: "Approved", paid: "Paid" };
+    const summaryHtml = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
+      ${[
+        ["Total Orders", allPpos.length, "", "#f0fdf4"],
+        ["Outstanding Deliveries", outstanding.length, overdue.length > 0 ? `${overdue.length} overdue` : "All on schedule", overdue.length > 0 ? "#fef3c7" : "#dcfce7"],
+        ["Invoices Pending", invoicesPending.length, "", invoicesPending.length > 0 ? "#fef3c7" : "#dcfce7"],
+        ["Fully Received", allPpos.filter(p => p.status === "fully_received").length, "", "#f0fdf4"],
+      ].map(([label, val, note, bg]) => `<div style="background:${bg};border-radius:5px;padding:8px 10px"><div style="font-size:7px;color:#374151;font-weight:600;text-transform:uppercase;letter-spacing:.05em">${label}</div><div style="font-size:14px;font-weight:700;color:#111;margin:2px 0">${val}</div>${note ? `<div style="font-size:6.5px;color:#555">${note}</div>` : ""}</div>`).join("")}
+    </div>`;
+    const poRows = allPpos.map(po => {
+      const deliveryOverdue = po.expectedDeliveryDate && !["fully_received","cancelled"].includes(po.status) && new Date(po.expectedDeliveryDate) < today;
+      return `<tr>
+        <td style="font-family:monospace;font-weight:700">${esc(po.poNumber)}</td>
+        <td>${esc(po.supplierName)}</td>
+        <td><span style="padding:1px 5px;border-radius:3px;font-size:6.5px;font-weight:700;background:${po.status==="fully_received"?"#dcfce7":po.status==="cancelled"?"#fee2e2":po.status==="partially_received"?"#fef3c7":"#eff6ff"};color:${po.status==="fully_received"?"#166534":po.status==="cancelled"?"#b91c1c":po.status==="partially_received"?"#92400e":"#1d4ed8"}">${statusLabel[po.status]??po.status}</span></td>
+        <td style="white-space:nowrap">${fmt(po.orderDate)}</td>
+        <td style="white-space:nowrap${deliveryOverdue?";color:#b91c1c;font-weight:700":""}">${po.expectedDeliveryDate?fmt(po.expectedDeliveryDate):"—"}${deliveryOverdue?" ⚠":""}</td>
+        <td style="white-space:nowrap">${po.actualDeliveryDate?fmt(po.actualDeliveryDate):"—"}</td>
+        <td style="font-family:monospace;font-size:6.5px">${esc(po.grnNumber)}</td>
+        <td style="font-family:monospace;font-size:6.5px">${esc(po.invoiceRef)}</td>
+        <td><span style="padding:1px 5px;border-radius:3px;font-size:6.5px;font-weight:700;background:${po.invoiceStatus==="paid"?"#dcfce7":po.invoiceStatus==="queried"?"#fef3c7":"#f3f4f6"};color:${po.invoiceStatus==="paid"?"#166534":po.invoiceStatus==="queried"?"#92400e":"#6b7280"}">${invLabels[po.invoiceStatus??"pending_invoice"]??po.invoiceStatus}</span></td>
+        <td>${esc(po.submittedByName)}</td>
+      </tr>`;
+    }).join("");
+    const tableHtml = `${summaryHtml}
+      <div class="section-head">PPE Purchase Order Register (${allPpos.length} order${allPpos.length!==1?"s":""})</div>
+      ${allPpos.length===0?`<p style="font-size:7.5px;color:#6b7280">No purchase orders recorded.</p>`:`
+      <table><thead><tr>
+        <th>PO Number</th><th>Supplier</th><th>Status</th><th>Order Date</th><th>Exp. Delivery</th><th>Actual Delivery</th><th>GRN</th><th>Invoice Ref</th><th>Invoice Status</th><th>Raised By</th>
+      </tr></thead><tbody>${poRows}</tbody></table>`}`;
+    printProReport({
+      title: "PPE Purchase Order Report",
+      subtitle: `All PPE purchase orders — ${allPpos.length} total, ${outstanding.length} outstanding`,
+      farmName: farm?.name,
+      cphNumber: farm?.cphNumber ?? undefined,
+      tableHtml,
+      footerNote: "PPE purchasing register — for audit trail of PPE procurement, invoice reconciliation and delivery tracking.",
+      landscape: true,
+    });
+  }
+
   return (
     <div className="space-y-4">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 0 }}>
         <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #e5e7eb", flex: 1 }}>
-          {(["stock", "issues", "risk", "purchasing"] as const).map(t => (
+          {(["stock", "issues", "risk", "purchasing", "stocktakes"] as const).map(t => (
           <button key={t} onClick={() => setSubTab(t)} style={{ padding: "10px 20px", fontWeight: subTab === t ? 700 : 500, fontSize: "0.9rem", color: subTab === t ? "#166534" : "#6b7280", marginBottom: -2, background: "none", borderTop: "none", borderLeft: "none", borderRight: "none", borderBottomWidth: 2, borderBottomStyle: "solid", borderBottomColor: subTab === t ? "#166534" : "transparent", cursor: "pointer" }}>
-            {t === "stock" ? "PPE Stock Register" : t === "issues" ? "PPE Issue Register" : t === "risk" ? "PPE Risk Assessments" : "PPE Purchasing"}
+            {t === "stock" ? "Stock Register" : t === "issues" ? "Issue Register" : t === "risk" ? "Risk Assessments" : t === "purchasing" ? "Purchasing" : "Stocktakes"}
           </button>
           ))}
         </div>
-        <Button variant="outline" size="sm" onClick={handlePrintCompliancePack} style={{ marginLeft: 12, whiteSpace: "nowrap" }}>
-          <Printer size={14} className="mr-2" />Print Compliance Pack
-        </Button>
+        <div style={{ display: "flex", gap: 6, marginLeft: 12 }}>
+          {subTab === "purchasing" && <Button variant="outline" size="sm" onClick={handlePrintPurchasing} style={{ whiteSpace: "nowrap" }}><Printer size={14} className="mr-2" />Print PO Report</Button>}
+          <Button variant="outline" size="sm" onClick={handlePrintCompliancePack} style={{ whiteSpace: "nowrap" }}>
+            <Printer size={14} className="mr-2" />Print Compliance Pack
+          </Button>
+        </div>
       </div>
 
       {/* ── PPE Stock ── */}
@@ -1219,6 +1326,230 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ── PPE Stocktakes ── */}
+      {subTab === "stocktakes" && (
+        <div>
+          <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+            <div>
+              <h3 className="font-bold text-gray-900 text-base">PPE Stocktakes</h3>
+              <p className="text-sm text-muted-foreground mt-0.5">Periodic physical count of PPE stock to verify system quantities and identify losses or discrepancies.</p>
+            </div>
+            <Button onClick={() => { setStocktakeNewForm({ stocktakeDate: new Date().toISOString().slice(0,10), conductedBy: "", notes: "" }); setStocktakeNewOpen(true); }}>
+              <Plus className="w-4 h-4 mr-2" />Start Stocktake
+            </Button>
+          </div>
+
+          {activeStocktakeId && activeStocktake ? (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <Button variant="outline" size="sm" onClick={() => setActiveStocktakeId(null)}>← Back to list</Button>
+                <div>
+                  <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>Stocktake — {fmt(activeStocktake.stocktakeDate)}</span>
+                  {activeStocktake.conductedBy && <span style={{ color: "#6b7280", marginLeft: 8, fontSize: "0.85rem" }}>by {activeStocktake.conductedBy}</span>}
+                  <span style={{ marginLeft: 10, padding: "2px 8px", borderRadius: 4, fontSize: "0.75rem", fontWeight: 700, background: activeStocktake.status === "complete" ? "#dcfce7" : "#fef3c7", color: activeStocktake.status === "complete" ? "#166534" : "#92400e" }}>
+                    {activeStocktake.status === "complete" ? "Complete" : `In Progress — ${activeStocktake.countedCount} / ${activeStocktake.itemCount} counted`}
+                  </span>
+                </div>
+              </div>
+
+              {activeStocktake.items?.length === 0 ? (
+                <Card><CardContent className="py-8 text-center text-gray-500">No stock items found. Add PPE stock items first.</CardContent></Card>
+              ) : (
+                <div>
+                  <div className="border border-gray-200 rounded-lg overflow-hidden mb-4">
+                    <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
+                      <thead style={{ background: "#f9fafb" }}>
+                        <tr>{["PPE Type","Description","Size","System Qty","Physical Count","Variance","Value Impact","Notes",""].map(h => (
+                          <th key={h} style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, color: "#6b7280", fontSize: "0.78rem", whiteSpace: "nowrap" }}>{h}</th>
+                        ))}</tr>
+                      </thead>
+                      <tbody>
+                        {activeStocktake.items?.map((item, i) => {
+                          const edit = stocktakeItemEdits[item.id] ?? { countedQty: item.countedQty !== null ? String(item.countedQty) : "", notes: item.notes ?? "" };
+                          const variance = item.countedQty !== null ? item.variance : null;
+                          const isSaved = item.countedQty !== null;
+                          return (
+                            <tr key={item.id} style={{ borderTop: i > 0 ? "1px solid #f3f4f6" : undefined, background: variance !== null && variance < 0 ? "#fff7f7" : variance !== null && variance > 0 ? "#f0fdf4" : undefined }}>
+                              <td style={{ padding: "8px 12px", fontWeight: 600 }}>{ppeTypeMap[item.ppeType] ?? item.ppeType}</td>
+                              <td style={{ padding: "8px 12px", color: "#374151" }}>{item.description ?? "—"}</td>
+                              <td style={{ padding: "8px 12px", color: "#6b7280" }}>{item.size ?? "—"}</td>
+                              <td style={{ padding: "8px 12px", fontWeight: 600, textAlign: "center" }}>{item.expectedQty}</td>
+                              <td style={{ padding: "8px 12px", minWidth: 80 }}>
+                                {activeStocktake.status === "complete" ? (
+                                  <span style={{ fontWeight: 700, color: variance !== null && variance < 0 ? "#b91c1c" : variance !== null && variance > 0 ? "#166534" : "#374151" }}>{item.countedQty ?? "—"}</span>
+                                ) : (
+                                  <Input
+                                    type="number" min="0"
+                                    value={edit.countedQty}
+                                    onChange={e => setStocktakeItemEdits(prev => ({ ...prev, [item.id]: { ...edit, countedQty: e.target.value } }))}
+                                    style={{ width: 72, height: 30, textAlign: "center", fontWeight: 700, borderColor: isSaved ? "#86efac" : undefined }}
+                                    placeholder="Count"
+                                  />
+                                )}
+                              </td>
+                              <td style={{ padding: "8px 12px", textAlign: "center", fontWeight: 700, color: variance === null ? "#9ca3af" : variance < 0 ? "#b91c1c" : variance > 0 ? "#166534" : "#374151" }}>
+                                {variance === null ? "—" : variance > 0 ? `+${variance}` : String(variance)}
+                              </td>
+                              <td style={{ padding: "8px 12px", color: variance !== null && variance !== 0 && item.unitCostPence ? (variance < 0 ? "#b91c1c" : "#166534") : "#9ca3af", fontWeight: variance !== null && variance !== 0 ? 600 : 400 }}>
+                                {item.varianceValuePence != null && item.varianceValuePence !== 0 ? `${item.varianceValuePence < 0 ? "-" : "+"}£${Math.abs(item.varianceValuePence / 100).toFixed(2)}` : "—"}
+                              </td>
+                              <td style={{ padding: "8px 12px", minWidth: 140 }}>
+                                {activeStocktake.status === "complete" ? (
+                                  <span style={{ color: "#6b7280", fontSize: "0.8rem" }}>{item.notes ?? "—"}</span>
+                                ) : (
+                                  <Input
+                                    value={edit.notes}
+                                    onChange={e => setStocktakeItemEdits(prev => ({ ...prev, [item.id]: { ...edit, notes: e.target.value } }))}
+                                    style={{ height: 30, fontSize: "0.8rem" }}
+                                    placeholder="Notes…"
+                                  />
+                                )}
+                              </td>
+                              <td style={{ padding: "8px 12px" }}>
+                                {activeStocktake.status !== "complete" && (
+                                  <Button size="sm" variant={isSaved ? "outline" : "default"} style={{ height: 28, padding: "0 10px", fontSize: "0.75rem" }}
+                                    disabled={edit.countedQty === ""}
+                                    onClick={() => {
+                                      const qty = parseInt(edit.countedQty);
+                                      if (isNaN(qty)) return;
+                                      patchStocktakeItemMut.mutate({ sessionId: activeStocktakeId!, itemId: item.id, countedQty: qty, notes: edit.notes });
+                                      setStocktakeItemEdits(prev => { const n = { ...prev }; delete n[item.id]; return n; });
+                                    }}>
+                                    {isSaved ? "Update" : "Save"}
+                                  </Button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {activeStocktake.status !== "complete" && (
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                      <Button variant="outline" onClick={() => setStocktakeDeleteId(activeStocktakeId)} className="text-red-500 hover:text-red-700">Discard Draft</Button>
+                      <Button
+                        disabled={activeStocktake.countedCount < activeStocktake.itemCount}
+                        onClick={() => { if (window.confirm(`Complete this stocktake? This will reconcile all counted quantities back into the stock register. This action cannot be undone.`)) completeStocktakeMut.mutate(activeStocktakeId!); }}
+                      >
+                        Complete &amp; Reconcile ({activeStocktake.countedCount}/{activeStocktake.itemCount})
+                      </Button>
+                    </div>
+                  )}
+
+                  {activeStocktake.status === "complete" && (() => {
+                    const items = activeStocktake.items ?? [];
+                    const variances = items.filter(i => i.variance !== null && i.variance !== 0);
+                    const totalLoss = items.filter(i => (i.varianceValuePence ?? 0) < 0).reduce((s, i) => s + Math.abs(i.varianceValuePence ?? 0), 0);
+                    return variances.length > 0 ? (
+                      <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 8, padding: "12px 16px", marginTop: 4 }}>
+                        <p style={{ fontWeight: 700, color: "#92400e", marginBottom: 4 }}>⚠ Variances Found — {variances.length} item{variances.length !== 1 ? "s" : ""} with discrepancy{totalLoss > 0 ? ` (−£${(totalLoss/100).toFixed(2)} total loss)` : ""}</p>
+                        <p style={{ fontSize: "0.8rem", color: "#78350f" }}>Stock quantities have been updated. Review the variances above and investigate any losses.</p>
+                      </div>
+                    ) : (
+                      <div style={{ background: "#dcfce7", border: "1px solid #86efac", borderRadius: 8, padding: "12px 16px", marginTop: 4 }}>
+                        <p style={{ fontWeight: 700, color: "#166534" }}>✓ All quantities matched — no discrepancies found</p>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              {stocktakesLoading ? (
+                <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
+              ) : stocktakeList.length === 0 ? (
+                <Card><CardContent className="py-12 text-center">
+                  <Package className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+                  <p className="font-semibold text-gray-600 mb-1">No stocktakes recorded yet</p>
+                  <p className="text-sm text-gray-400">Start a guided stocktake to physically count PPE items and reconcile with system quantities.</p>
+                </CardContent></Card>
+              ) : (
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
+                    <thead style={{ background: "#f9fafb" }}>
+                      <tr>{["Date","Conducted By","Status","Items","Completed","Notes",""].map(h => (
+                        <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontWeight: 600, color: "#6b7280", fontSize: "0.8rem" }}>{h}</th>
+                      ))}</tr>
+                    </thead>
+                    <tbody>
+                      {stocktakeList.map((s, i) => (
+                        <tr key={s.id} style={{ borderTop: i > 0 ? "1px solid #f3f4f6" : undefined }}>
+                          <td style={{ padding: "10px 14px", fontWeight: 600 }}>{fmt(s.stocktakeDate)}</td>
+                          <td style={{ padding: "10px 14px", color: "#374151" }}>{s.conductedBy ?? "—"}</td>
+                          <td style={{ padding: "10px 14px" }}>
+                            <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: "0.75rem", fontWeight: 700, background: s.status === "complete" ? "#dcfce7" : "#fef3c7", color: s.status === "complete" ? "#166534" : "#92400e" }}>
+                              {s.status === "complete" ? "Complete" : `Draft (${s.countedCount}/${s.itemCount})`}
+                            </span>
+                          </td>
+                          <td style={{ padding: "10px 14px", color: "#374151", textAlign: "center" }}>{s.itemCount}</td>
+                          <td style={{ padding: "10px 14px", color: "#374151" }}>{s.completedAt ? fmt(s.completedAt) : "—"}</td>
+                          <td style={{ padding: "10px 14px", color: "#6b7280", fontSize: "0.8rem" }}>{s.notes ?? "—"}</td>
+                          <td style={{ padding: "10px 14px" }}>
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="outline" onClick={() => setActiveStocktakeId(s.id)}>
+                                {s.status === "complete" ? <><Eye size={13} className="mr-1" />View</> : <><Pencil size={13} className="mr-1" />Continue</>}
+                              </Button>
+                              {s.status === "draft" && <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => setStocktakeDeleteId(s.id)}><Trash2 size={13} /></Button>}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* New Stocktake Dialog */}
+          {stocktakeNewOpen && (
+            <Dialog open onOpenChange={o => { if (!o) setStocktakeNewOpen(false); }}>
+              <DialogContent className="max-w-md">
+                <DialogHeader><DialogTitle>Start New PPE Stocktake</DialogTitle></DialogHeader>
+                <p className="text-sm text-muted-foreground">A snapshot of current system quantities will be taken. Enter actual physical counts for each item.</p>
+                <div className="space-y-4 pt-2">
+                  <div><Label>Stocktake Date *</Label><Input type="date" value={stocktakeNewForm.stocktakeDate} onChange={e => setStocktakeNewForm(f => ({ ...f, stocktakeDate: e.target.value }))} /></div>
+                  <div><Label>Conducted By</Label>
+                    <Select value={stocktakeNewForm.conductedBy || "__text__"} onValueChange={v => setStocktakeNewForm(f => ({ ...f, conductedBy: v === "__text__" ? "" : v }))}>
+                      <SelectTrigger><SelectValue placeholder="Select staff member…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__text__">— Type name manually —</SelectItem>
+                        {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    {(!stocktakeNewForm.conductedBy || !staffNames.includes(stocktakeNewForm.conductedBy)) && <Input className="mt-2" value={stocktakeNewForm.conductedBy} onChange={e => setStocktakeNewForm(f => ({ ...f, conductedBy: e.target.value }))} placeholder="Name" />}
+                  </div>
+                  <div><Label>Notes</Label><Textarea value={stocktakeNewForm.notes} onChange={e => setStocktakeNewForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="e.g. Routine quarterly stocktake" /></div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setStocktakeNewOpen(false)}>Cancel</Button>
+                  <Button disabled={!stocktakeNewForm.stocktakeDate || createStocktakeMut.isPending} onClick={() => createStocktakeMut.mutate({ stocktakeDate: stocktakeNewForm.stocktakeDate, conductedBy: stocktakeNewForm.conductedBy || undefined, notes: stocktakeNewForm.notes || undefined })}>
+                    {createStocktakeMut.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Start Stocktake
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+
+          {/* Delete Confirm */}
+          {stocktakeDeleteId !== null && (
+            <Dialog open onOpenChange={o => { if (!o) setStocktakeDeleteId(null); }}>
+              <DialogContent className="max-w-sm">
+                <DialogHeader><DialogTitle>Discard Stocktake?</DialogTitle></DialogHeader>
+                <p className="text-sm text-gray-600">This will permanently delete this draft stocktake. Stock quantities will not be affected.</p>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setStocktakeDeleteId(null)}>Cancel</Button>
+                  <Button variant="destructive" onClick={() => deleteStocktakeMut.mutate(stocktakeDeleteId!)}>Delete</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           )}
         </div>
       )}
