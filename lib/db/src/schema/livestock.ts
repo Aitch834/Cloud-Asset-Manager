@@ -49,6 +49,8 @@ export const livestockAnimalsTable = pgTable("livestock_animals", {
   animalCode: text("animal_code"),
   status: text("status").notNull().default("active"),
   notes: text("notes"),
+  lastMobilityScore: integer("last_mobility_score"),
+  lastMobilityScoredDate: timestamp("last_mobility_scored_date", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -443,6 +445,18 @@ export const dairyMobilityScoringsTable = pgTable("dairy_mobility_scorings", {
   notes: text("notes"),
   score3AnimalTags: text("score3_animal_tags"),
   score2AnimalTags: text("score2_animal_tags"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const dairyMobilityScoringAnimalsTable = pgTable("dairy_mobility_scoring_animals", {
+  id: serial("id").primaryKey(),
+  scoringId: integer("scoring_id").notNull().references(() => dairyMobilityScoringsTable.id),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  animalId: integer("animal_id").references(() => livestockAnimalsTable.id),
+  animalTag: text("animal_tag").notNull(),
+  earTagNumber: text("ear_tag_number"),
+  scoreGrade: integer("score_grade").notNull(),
+  notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

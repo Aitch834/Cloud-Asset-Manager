@@ -21,7 +21,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { STORAGE_KEYS, appendToList } from "@/lib/storage";
-import type { DairyMobilityScoring } from "@/lib/types";
+import type { DairyMobilityScoring, MobilityScoringAnimal } from "@/lib/types";
 
 const MOBILITY_ACTIONS = [
   "No action required",
@@ -92,6 +92,28 @@ export default function MobilityScoringScreen() {
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const [animals, setAnimals] = useState<MobilityScoringAnimal[]>([]);
+  const [pendingTag, setPendingTag] = useState("");
+  const [pendingScore, setPendingScore] = useState<2 | 3>(3);
+  const [pendingNotes, setPendingNotes] = useState("");
+
+  const score2Count = parseInt(score2, 10) || 0;
+  const score3Count = parseInt(score3, 10) || 0;
+  const showAnimalSection = score2Count > 0 || score3Count > 0;
+
+  function addAnimal() {
+    const tag = pendingTag.trim();
+    if (!tag) return;
+    setAnimals(prev => [...prev, { animalTag: tag, scoreGrade: pendingScore, notes: pendingNotes.trim() || null }]);
+    setPendingTag("");
+    setPendingNotes("");
+    Haptics.selectionAsync();
+  }
+  function removeAnimal(idx: number) {
+    setAnimals(prev => prev.filter((_, i) => i !== idx));
+    Haptics.selectionAsync();
+  }
+
   const totalScored =
     (parseInt(score0, 10) || 0) +
     (parseInt(score1, 10) || 0) +
@@ -123,6 +145,7 @@ export default function MobilityScoringScreen() {
       actionTaken: actionTaken.trim(),
       nextAssessmentDue: nextAssessmentDue.trim(),
       notes: notes.trim(),
+      animals,
       createdAt: new Date().toISOString(),
       synced: false,
     };
@@ -273,6 +296,69 @@ export default function MobilityScoringScreen() {
             keyboardType="numbers-and-punctuation"
           />
         </Section>
+
+        {showAnimalSection && (
+          <View style={styles.animalSection}>
+            <Text style={styles.animalSectionTitle}>Individual Animal Records</Text>
+            <Text style={styles.animalSectionSub}>Record each Score 2 or 3 animal individually. Matched animals update their livestock record on sync.</Text>
+
+            {animals.map((a, idx) => (
+              <View key={idx} style={[styles.animalRow, a.scoreGrade === 3 ? styles.animalRowScore3 : styles.animalRowScore2]}>
+                <View style={[styles.scoreBadge, a.scoreGrade === 3 ? styles.scoreBadge3 : styles.scoreBadge2]}>
+                  <Text style={styles.scoreBadgeText}>{a.scoreGrade}</Text>
+                </View>
+                <Text style={styles.animalTag}>{a.animalTag}</Text>
+                {a.notes ? <Text style={styles.animalNotes}>{a.notes}</Text> : null}
+                <Pressable onPress={() => removeAnimal(idx)} style={styles.removeBtn}>
+                  <Feather name="x" size={14} color="#9ca3af" />
+                </Pressable>
+              </View>
+            ))}
+
+            <View style={styles.addAnimalForm}>
+              <View style={styles.addAnimalRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.addAnimalLabel}>Ear tag number</Text>
+                  <Input
+                    value={pendingTag}
+                    onChangeText={setPendingTag}
+                    placeholder="e.g. UK123456 001234"
+                  />
+                </View>
+                <View style={{ marginLeft: spacing.sm }}>
+                  <Text style={styles.addAnimalLabel}>Score</Text>
+                  <View style={styles.scorePicker}>
+                    <Pressable
+                      style={[styles.scorePickerBtn, pendingScore === 2 && styles.scorePickerBtn2Active]}
+                      onPress={() => { setPendingScore(2); Haptics.selectionAsync(); }}
+                    >
+                      <Text style={[styles.scorePickerBtnText, pendingScore === 2 && { color: "#fff" }]}>2</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.scorePickerBtn, pendingScore === 3 && styles.scorePickerBtn3Active]}
+                      onPress={() => { setPendingScore(3); Haptics.selectionAsync(); }}
+                    >
+                      <Text style={[styles.scorePickerBtnText, pendingScore === 3 && { color: "#fff" }]}>3</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+              <Input
+                value={pendingNotes}
+                onChangeText={setPendingNotes}
+                placeholder="Notes, e.g. left rear (optional)"
+              />
+              <Pressable
+                style={[styles.addAnimalBtn, !pendingTag.trim() && styles.addAnimalBtnDisabled]}
+                onPress={addAnimal}
+                disabled={!pendingTag.trim()}
+              >
+                <Feather name="plus" size={14} color="#fff" />
+                <Text style={styles.addAnimalBtnText}>Add Animal</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
 
         <Section title="Notes">
           <Input
@@ -511,4 +597,78 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     color: "#fff",
   },
+  animalSection: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  animalSectionTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.text,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  animalSectionSub: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  animalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+  },
+  animalRowScore3: { borderColor: "#fca5a5", backgroundColor: "#fef2f2" },
+  animalRowScore2: { borderColor: "#fcd34d", backgroundColor: "#fffbeb" },
+  scoreBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  scoreBadge3: { backgroundColor: "#ef4444" },
+  scoreBadge2: { backgroundColor: "#f59e0b" },
+  scoreBadgeText: { fontFamily: fonts.bold, fontSize: fontSize.xs, color: "#fff" },
+  animalTag: { fontFamily: fonts.semiBold, fontSize: fontSize.sm, color: colors.text, flex: 1 },
+  animalNotes: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, fontStyle: "italic" },
+  removeBtn: { padding: spacing.xs },
+  addAnimalForm: { gap: spacing.xs, marginTop: spacing.xs },
+  addAnimalRow: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm },
+  addAnimalLabel: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.textSecondary, marginBottom: spacing.xs },
+  scorePicker: { flexDirection: "row", gap: spacing.xs },
+  scorePickerBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.background,
+  },
+  scorePickerBtn2Active: { backgroundColor: "#f59e0b", borderColor: "#f59e0b" },
+  scorePickerBtn3Active: { backgroundColor: "#ef4444", borderColor: "#ef4444" },
+  scorePickerBtnText: { fontFamily: fonts.bold, fontSize: fontSize.sm, color: colors.text },
+  addAnimalBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    backgroundColor: "#2563eb",
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  addAnimalBtnDisabled: { opacity: 0.4 },
+  addAnimalBtnText: { fontFamily: fonts.semiBold, fontSize: fontSize.sm, color: "#fff" },
 });

@@ -2461,12 +2461,22 @@ export function BcsTab({ farmId }: { farmId: number }) {
 
 // ─── Mobility Scoring ──────────────────────────────────────────────────────────
 
+interface ScoringAnimal {
+  id?: number;
+  animalTag: string;
+  earTagNumber?: string | null;
+  animalId?: number | null;
+  scoreGrade: 2 | 3;
+  notes?: string | null;
+}
+
 interface MobilityScoring {
   id: number; herdId?: number | null; assessmentDate: string; assessedBy?: string | null;
   totalCowsScored: number; score0Count: number; score1Count: number; score2Count: number; score3Count: number;
   lamenessPrevalencePercent?: string | null; actionTaken?: string | null;
   nextAssessmentDue?: string | null; notes?: string | null;
   score3AnimalTags?: string | null; score2AnimalTags?: string | null;
+  animals?: ScoringAnimal[];
 }
 
 export function MobilityTab({ farmId }: { farmId: number }) {
@@ -2477,6 +2487,10 @@ export function MobilityTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<MobilityScoring | null>(null);
   const [viewRecord, setViewRecord] = useState<MobilityScoring | null>(null);
   const [form, setForm] = useState<Partial<MobilityScoring>>({});
+  const [animals, setAnimals] = useState<ScoringAnimal[]>([]);
+  const [pendingTag, setPendingTag] = useState("");
+  const [pendingScore, setPendingScore] = useState<2 | 3>(3);
+  const [pendingNotes, setPendingNotes] = useState("");
 
   const { data, isLoading } = useQuery<{ records: MobilityScoring[] }>({
     queryKey: ["dairy-mobility", farmId],
@@ -2494,7 +2508,7 @@ export function MobilityTab({ farmId }: { farmId: number }) {
       const url = editing ? api(`farms/${farmId}/dairy/mobility-scorings/${editing.id}`) : api(`farms/${farmId}/dairy/mobility-scorings`);
       return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json());
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-mobility", farmId] }); setOpen(false); setEditing(null); setForm({}); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-mobility", farmId] }); setOpen(false); setEditing(null); setForm({}); setAnimals([]); setPendingTag(""); setPendingNotes(""); setPendingScore(3); },
   });
 
   const del = useMutation({
@@ -2502,9 +2516,44 @@ export function MobilityTab({ farmId }: { farmId: number }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["dairy-mobility", farmId] }),
   });
 
-  function openAdd() { setEditing(null); setForm({ assessmentDate: today(), score0Count: 0, score1Count: 0, score2Count: 0, score3Count: 0, assessedBy: myName }); setOpen(true); }
-  function openEdit(r: MobilityScoring) { setEditing(r); setForm({ ...r, assessmentDate: r.assessmentDate.slice(0, 10), nextAssessmentDue: r.nextAssessmentDue?.slice(0, 10) }); setOpen(true); }
+  const { data: cattleData } = useQuery<{ records: Array<{ id: number; tagNumber: string | null; earTagNumber: string | null; animalCode: string | null; breed: string | null; status: string }> }>({
+    queryKey: ["farm-cattle", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/animals`), { credentials: "include" }).then(r => r.json()).catch(() => ({ records: [] })),
+    enabled: open,
+  });
+  const cattleList = (cattleData?.records ?? []).filter(a => a.status === "active");
+  const cattleTagListId = `cattle-tags-${farmId}`;
+
+  function openAdd() {
+    setEditing(null);
+    setForm({ assessmentDate: today(), score0Count: 0, score1Count: 0, score2Count: 0, score3Count: 0, assessedBy: myName });
+    setAnimals([]);
+    setPendingTag(""); setPendingScore(3); setPendingNotes("");
+    setOpen(true);
+  }
+  function openEdit(r: MobilityScoring) {
+    setEditing(r);
+    setForm({ ...r, assessmentDate: r.assessmentDate.slice(0, 10), nextAssessmentDue: r.nextAssessmentDue?.slice(0, 10) });
+    setAnimals((r.animals ?? []).map(a => ({ ...a, scoreGrade: (a.scoreGrade === 2 ? 2 : 3) as 2 | 3 })));
+    setPendingTag(""); setPendingScore(3); setPendingNotes("");
+    setOpen(true);
+  }
   function set(k: keyof MobilityScoring, v: unknown) { setForm(f => ({ ...f, [k]: v })); }
+
+  function addAnimal() {
+    const tag = pendingTag.trim();
+    if (!tag) return;
+    const matched = cattleList.find(c => (c.tagNumber || "").toLowerCase() === tag.toLowerCase() || (c.earTagNumber || "").toLowerCase() === tag.toLowerCase());
+    setAnimals(prev => [...prev, {
+      animalTag: tag,
+      earTagNumber: matched?.earTagNumber ?? null,
+      animalId: matched?.id ?? null,
+      scoreGrade: pendingScore,
+      notes: pendingNotes.trim() || null,
+    }]);
+    setPendingTag(""); setPendingNotes("");
+  }
+  function removeAnimal(idx: number) { setAnimals(prev => prev.filter((_, i) => i !== idx)); }
 
   function handleAssessmentDateChange(dateStr: string) {
     const updates: Partial<MobilityScoring> = { assessmentDate: dateStr };
@@ -2564,7 +2613,7 @@ export function MobilityTab({ farmId }: { farmId: number }) {
         <td>${r.score2Count}</td>
         <td>${r.score3Count}</td>
         <td>${lamCell}</td>
-        <td style="font-size:9px">${r.score3AnimalTags || "—"}</td>
+        <td style="font-size:9px">${(r.animals && r.animals.length > 0) ? r.animals.map((a: ScoringAnimal) => `[${a.scoreGrade}] ${a.animalTag}`).join(", ") : (r.score3AnimalTags || r.score2AnimalTags || "—")}</td>
         <td style="font-size:9px">${r.actionTaken || "—"}</td>
         <td>${r.nextAssessmentDue ? new Date(r.nextAssessmentDue).toLocaleDateString("en-GB") : "—"}</td>
       </tr>`;
@@ -2768,12 +2817,20 @@ export function MobilityTab({ farmId }: { farmId: number }) {
                     </div>
                   </div>
                   {r.actionTaken && <p className="text-xs text-gray-400 mt-1">Action: {r.actionTaken}</p>}
-                  {(r.score3AnimalTags || r.score2AnimalTags) && (
-                    <div className="flex flex-wrap gap-2 mt-1.5">
-                      {r.score3AnimalTags && <span className="text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded">Score 3 tags: {r.score3AnimalTags}</span>}
-                      {r.score2AnimalTags && <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded">Score 2 tags: {r.score2AnimalTags}</span>}
+                  {(r.animals && r.animals.length > 0) ? (
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {r.animals.map((a, i) => (
+                        <span key={i} className={`text-xs px-2 py-0.5 rounded font-medium ${a.scoreGrade === 3 ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>
+                          [{a.scoreGrade}] {a.animalTag}{a.notes ? ` — ${a.notes}` : ""}
+                        </span>
+                      ))}
                     </div>
-                  )}
+                  ) : (r.score3AnimalTags || r.score2AnimalTags) ? (
+                    <div className="flex flex-wrap gap-2 mt-1.5">
+                      {r.score3AnimalTags && <span className="text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded">Score 3: {r.score3AnimalTags}</span>}
+                      {r.score2AnimalTags && <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded">Score 2: {r.score2AnimalTags}</span>}
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
             );
@@ -2844,31 +2901,68 @@ export function MobilityTab({ farmId }: { farmId: number }) {
                 </div>
               )}
 
-              {/* Score 3 animal tags — appears when any lame cows recorded */}
-              {(form.score3Count || 0) > 0 && (
-                <div className="border border-red-200 bg-red-50 rounded-lg p-3">
-                  <Label className="text-red-800 text-xs font-semibold uppercase tracking-wide">Score 3 — Lame Animal Ear Tags</Label>
-                  <p className="text-xs text-red-600 mb-1.5">Record ear tag numbers of lame animals for vet identification. Separate multiple tags with commas.</p>
-                  <Input
-                    value={form.score3AnimalTags || ""}
-                    onChange={e => set("score3AnimalTags", e.target.value)}
-                    placeholder="e.g. UK123456 7893, UK123456 7901, UK123456 7915"
-                    className="bg-white border-red-300"
-                  />
-                </div>
-              )}
-
-              {/* Score 2 animal tags — optional monitoring list */}
-              {(form.score2Count || 0) > 0 && (
-                <div className="border border-amber-200 bg-amber-50 rounded-lg p-3">
-                  <Label className="text-amber-800 text-xs font-semibold uppercase tracking-wide">Score 2 — Impaired Animal Ear Tags (optional)</Label>
-                  <p className="text-xs text-amber-600 mb-1.5">Record ear tag numbers to monitor between assessments. Separate multiple tags with commas.</p>
-                  <Input
-                    value={form.score2AnimalTags || ""}
-                    onChange={e => set("score2AnimalTags", e.target.value)}
-                    placeholder="e.g. UK123456 7844, UK123456 7862"
-                    className="bg-white border-amber-300"
-                  />
+              {/* Individual animal records — appears when any score 2 or 3 cows recorded */}
+              {((form.score3Count || 0) > 0 || (form.score2Count || 0) > 0) && (
+                <div className="border border-gray-200 bg-gray-50 rounded-lg p-3 space-y-2">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Individual Animal Records</p>
+                    <p className="text-xs text-gray-500">Record each Score 2 or 3 animal individually by ear tag. Matched animals update their record in the livestock register.</p>
+                  </div>
+                  {/* Existing animals list */}
+                  {animals.length > 0 && (
+                    <div className="space-y-1">
+                      {animals.map((a, idx) => (
+                        <div key={idx} className={`flex items-center gap-2 p-2 rounded border text-xs ${a.scoreGrade === 3 ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}>
+                          <span className={`font-bold px-1.5 py-0.5 rounded text-white text-xs ${a.scoreGrade === 3 ? "bg-red-500" : "bg-amber-500"}`}>{a.scoreGrade}</span>
+                          <span className="font-medium text-gray-800 flex-1">{a.animalTag}</span>
+                          {a.animalId && <span className="text-green-600 text-xs">✓ matched</span>}
+                          {a.notes && <span className="text-gray-400 italic truncate max-w-[120px]">{a.notes}</span>}
+                          <button type="button" onClick={() => removeAnimal(idx)} className="text-gray-400 hover:text-red-500 ml-auto">✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Add animal form */}
+                  <div className="flex gap-2 items-end">
+                    <div className="flex-1">
+                      <p className="text-xs text-gray-500 mb-1">Ear tag number</p>
+                      <input
+                        list={cattleTagListId}
+                        value={pendingTag}
+                        onChange={e => setPendingTag(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addAnimal(); } }}
+                        placeholder="e.g. UK123456 001234"
+                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      />
+                      <datalist id={cattleTagListId}>
+                        {cattleList.map(c => (
+                          <option key={c.id} value={c.tagNumber || c.earTagNumber || ""}>
+                            {c.earTagNumber ? `${c.tagNumber || ""} / ${c.earTagNumber}` : c.tagNumber || ""}
+                          </option>
+                        ))}
+                      </datalist>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Score</p>
+                      <div className="flex gap-1">
+                        <button type="button" onClick={() => setPendingScore(2)} className={`px-3 py-1.5 text-xs rounded border font-medium ${pendingScore === 2 ? "bg-amber-500 text-white border-amber-500" : "bg-white text-amber-700 border-amber-300"}`}>2</button>
+                        <button type="button" onClick={() => setPendingScore(3)} className={`px-3 py-1.5 text-xs rounded border font-medium ${pendingScore === 3 ? "bg-red-500 text-white border-red-500" : "bg-white text-red-700 border-red-300"}`}>3</button>
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs text-gray-500 mb-1">Notes (optional)</p>
+                      <input
+                        value={pendingNotes}
+                        onChange={e => setPendingNotes(e.target.value)}
+                        placeholder="e.g. left rear"
+                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      />
+                    </div>
+                    <button type="button" onClick={addAnimal} disabled={!pendingTag.trim()} className="px-3 py-1.5 text-xs rounded bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap">
+                      + Add
+                    </button>
+                  </div>
+                  {animals.length === 0 && <p className="text-xs text-gray-400 italic">No animals added yet — use the form above to add each Score 2 or 3 animal individually.</p>}
                 </div>
               )}
             </div>
@@ -2901,7 +2995,7 @@ export function MobilityTab({ farmId }: { farmId: number }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={() => save.mutate({ ...form, totalCowsScored: total })} disabled={save.isPending || !form.assessmentDate}>
+            <Button onClick={() => save.mutate({ ...form, totalCowsScored: total, animals })} disabled={save.isPending || !form.assessmentDate}>
               {save.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
               {editing ? "Save Changes" : "Add Assessment"}
             </Button>

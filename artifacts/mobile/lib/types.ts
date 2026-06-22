@@ -760,6 +760,14 @@ export interface DairyBcsRecord {
   synced: boolean;
 }
 
+export interface MobilityScoringAnimal {
+  animalTag: string;
+  earTagNumber?: string | null;
+  animalId?: number | null;
+  scoreGrade: 2 | 3;
+  notes?: string | null;
+}
+
 export interface DairyMobilityScoring {
   id: string;
   farmId: string;
@@ -773,6 +781,7 @@ export interface DairyMobilityScoring {
   actionTaken: string;
   nextAssessmentDue: string;
   notes: string;
+  animals: MobilityScoringAnimal[];
   createdAt: string;
   synced: boolean;
 }
