@@ -3,6 +3,7 @@ import { usersTable, userTenantsTable } from "@workspace/db/schema";
 import { livestockMovementsTable, staffCertificatesTable, sprayApplicationsTable, sprayProductsTable, riskAssessmentsTable, pestControlRecordsTable, cleaningDisinfectionRecordsTable } from "@workspace/db/schema";
 import { feedContingencyPlansTable, feedStockLevelsTable, feedStockTargetsTable, feedPurchaseOrdersTable } from "@workspace/db/schema";
 import { vetHealthPlanActionsTable, vetHealthPlansTable } from "@workspace/db/schema";
+import { ppeRiskAssessmentsTable } from "@workspace/db/schema";
 import { eq, and, lt, isNull, sql, gte, lte, or, ne, isNotNull } from "drizzle-orm";
 import { sendSms } from "./sms";
 import { sendWeeklyDigestEmail, type WeeklyDigestItem } from "./mailer";
@@ -737,6 +738,54 @@ async function checkOverdueRiskReviews() {
       relatedModule: "risk-waste",
       relatedId: assessment.id,
       dedupeKey: `risk-review-overdue-${assessment.id}-week${Math.floor(daysSince / 7)}`,
+    });
+  }
+}
+
+async function checkOverduePpeRiskReviews() {
+  const now = new Date();
+
+  const overdueAssessments = await db
+    .select({
+      id: ppeRiskAssessmentsTable.id,
+      farmId: ppeRiskAssessmentsTable.farmId,
+      ppeType: ppeRiskAssessmentsTable.ppeType,
+      hazardIdentified: ppeRiskAssessmentsTable.hazardIdentified,
+      reviewDate: ppeRiskAssessmentsTable.reviewDate,
+    })
+    .from(ppeRiskAssessmentsTable)
+    .where(
+      and(
+        isNotNull(ppeRiskAssessmentsTable.reviewDate),
+        lt(ppeRiskAssessmentsTable.reviewDate, now.toISOString().split("T")[0]),
+      ),
+    );
+
+  for (const assessment of overdueAssessments) {
+    if (!assessment.reviewDate) continue;
+
+    const [farm] = await db
+      .select({ tenantId: farmsTable.tenantId })
+      .from(farmsTable)
+      .where(eq(farmsTable.id, assessment.farmId))
+      .limit(1);
+
+    if (!farm) continue;
+
+    const dueDateStr = new Date(assessment.reviewDate).toLocaleDateString("en-GB");
+    const daysSince = Math.floor((now.getTime() - new Date(assessment.reviewDate).getTime()) / 86400000);
+    const ppeLabel = assessment.ppeType.replace(/-/g, " ");
+
+    await upsertNotification({
+      tenantId: farm.tenantId,
+      farmId: assessment.farmId,
+      type: "ppe_risk_review_overdue",
+      severity: "warning",
+      title: `PPE Risk Assessment Review Overdue — ${ppeLabel}`,
+      message: `The PPE risk assessment for ${ppeLabel} (hazard: ${assessment.hazardIdentified}) was due for review on ${dueDateStr} (${daysSince} day${daysSince !== 1 ? "s" : ""} ago). Review and update in Staff → PPE Register → Risk Assessments to maintain PPE at Work Regulations 2022 compliance.`,
+      relatedModule: "staff-training",
+      relatedId: assessment.id,
+      dedupeKey: `ppe-risk-review-overdue-${assessment.id}-week${Math.floor(daysSince / 7)}`,
     });
   }
 }
@@ -1656,6 +1705,7 @@ export async function runAlertingJob() {
     await checkCertificateExpiry();
     await checkWithholdingPeriods();
     await checkOverdueRiskReviews();
+    await checkOverduePpeRiskReviews();
     await checkOverduePestControl();
     await checkOverdueCleaningSchedules();
     await checkFeedStockLevels();

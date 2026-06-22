@@ -15229,6 +15229,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     ipmReviewRows, lerapExpiryRows,
     nvzRiskReviewRows, nvzActiveRestrictionsRows,
     vhpActionDueRows,
+    ppePpoDeliveryRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -15742,6 +15743,11 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       .from(vetHealthPlanActionsTable)
       .where(and(eq(vetHealthPlanActionsTable.farmId, farmId), eq(vetHealthPlanActionsTable.isActive, true), isNotNull(vetHealthPlanActionsTable.nextDueDate), gte(vetHealthPlanActionsTable.nextDueDate, overdueStart as any), lt(vetHealthPlanActionsTable.nextDueDate, rangeEnd as any))),
 
+    // ── PPE Purchase Orders: expected delivery date ───────────────────────────
+    db.select({ id: ppePurchaseOrdersTable.id, poNumber: ppePurchaseOrdersTable.poNumber, supplierName: ppePurchaseOrdersTable.supplierName, expectedDeliveryDate: ppePurchaseOrdersTable.expectedDeliveryDate, status: ppePurchaseOrdersTable.status })
+      .from(ppePurchaseOrdersTable)
+      .where(and(eq(ppePurchaseOrdersTable.farmId, farmId), isNotNull(ppePurchaseOrdersTable.expectedDeliveryDate), gte(ppePurchaseOrdersTable.expectedDeliveryDate, overdueStart as any), lt(ppePurchaseOrdersTable.expectedDeliveryDate, rangeEnd as any))),
+
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
   for (const r of pestRows) {
@@ -15825,6 +15831,11 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   for (const r of vhpActionDueRows) {
     if (!r.nextDueDate) continue;
     tasks.push({ id: `vhpact-${r.id}`, type: "vhp_action_due", title: `VHP Action Due — ${r.description.slice(0, 60)}${r.description.length > 60 ? "…" : ""}`, description: `Vet Health Plan action point is due${r.assignedTo ? ` (assigned to ${r.assignedTo})` : ""}. Review in Livestock → Vet Health Plans.`, dueDate: toISO(r.nextDueDate)!, module: "Livestock", href: `/livestock?tab=vet-plans&open=${r.planId}`, colour: "green" });
+  }
+  for (const r of ppePpoDeliveryRows) {
+    if (!r.expectedDeliveryDate || r.status === "fully_received" || r.status === "cancelled") continue;
+    const daysLabel = (() => { const d = new Date(String(r.expectedDeliveryDate) + "T00:00:00Z"); const diff = Math.round((d.getTime() - Date.now()) / 86400000); return diff < 0 ? `${Math.abs(diff)} day${Math.abs(diff) !== 1 ? "s" : ""} overdue` : diff === 0 ? "due today" : `due in ${diff} day${diff !== 1 ? "s" : ""}`; })();
+    tasks.push({ id: `ppe-po-${r.id}`, type: "ppe_po_delivery_due", title: `PPE Delivery Expected — ${r.poNumber || "PPE Order"}`, description: `${r.supplierName ? `Delivery from ${r.supplierName}` : "PPE delivery"} is expected (${daysLabel})${r.poNumber ? ` on order ${r.poNumber}` : ""}. Confirm receipt and record a GRN in Staff → PPE Register → Purchasing.`, dueDate: toISO(r.expectedDeliveryDate)!, module: "Staff & Training", href: `/staff?tab=ppe&subtab=purchasing`, colour: "amber" });
   }
   for (const r of insuranceRows) {
     if (!r.expiryDate) continue;
