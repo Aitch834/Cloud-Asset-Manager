@@ -2718,17 +2718,51 @@ export function MobilityTab({ farmId }: { farmId: number }) {
                   <span className="bg-red-100 text-red-800 px-2 py-1 rounded font-medium">Score 3 (Lame): {viewRecord.score3Count}</span>
                 </div>
               </div>
-              {viewRecord.score3AnimalTags && (
+              {(viewRecord.animals && viewRecord.animals.length > 0) ? (
                 <div className="col-span-2">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Score 3 — Ear Tag Numbers</p>
-                  <p className="font-medium text-red-700 bg-red-50 rounded px-2 py-1 text-xs mt-1">{viewRecord.score3AnimalTags}</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Individual Animal Records</p>
+                  <div className="flex flex-col gap-1">
+                    {viewRecord.animals.filter(a => a.scoreGrade === 3).length > 0 && (
+                      <>
+                        <p className="text-xs font-semibold text-red-700 uppercase tracking-wide">Score 3 — Lame</p>
+                        {viewRecord.animals.filter(a => a.scoreGrade === 3).map((a, i) => (
+                          <div key={i} className="flex items-center gap-2 bg-red-50 border border-red-200 rounded px-2 py-1 text-xs">
+                            <span className="bg-red-500 text-white rounded px-1.5 py-0.5 font-bold text-xs">3</span>
+                            <span className="font-mono font-medium text-red-900">{a.animalTag}</span>
+                            {a.notes && <span className="text-red-600 italic">{a.notes}</span>}
+                          </div>
+                        ))}
+                      </>
+                    )}
+                    {viewRecord.animals.filter(a => a.scoreGrade === 2).length > 0 && (
+                      <>
+                        <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mt-1">Score 2 — Impaired (Monitor)</p>
+                        {viewRecord.animals.filter(a => a.scoreGrade === 2).map((a, i) => (
+                          <div key={i} className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded px-2 py-1 text-xs">
+                            <span className="bg-amber-500 text-white rounded px-1.5 py-0.5 font-bold text-xs">2</span>
+                            <span className="font-mono font-medium text-amber-900">{a.animalTag}</span>
+                            {a.notes && <span className="text-amber-600 italic">{a.notes}</span>}
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
                 </div>
-              )}
-              {viewRecord.score2AnimalTags && (
-                <div className="col-span-2">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Score 2 — Ear Tag Numbers (Monitor)</p>
-                  <p className="font-medium text-amber-700 bg-amber-50 rounded px-2 py-1 text-xs mt-1">{viewRecord.score2AnimalTags}</p>
-                </div>
+              ) : (
+                <>
+                  {viewRecord.score3AnimalTags && (
+                    <div className="col-span-2">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Score 3 — Ear Tag Numbers</p>
+                      <p className="font-medium text-red-700 bg-red-50 rounded px-2 py-1 text-xs mt-1">{viewRecord.score3AnimalTags}</p>
+                    </div>
+                  )}
+                  {viewRecord.score2AnimalTags && (
+                    <div className="col-span-2">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Score 2 — Ear Tag Numbers (Monitor)</p>
+                      <p className="font-medium text-amber-700 bg-amber-50 rounded px-2 py-1 text-xs mt-1">{viewRecord.score2AnimalTags}</p>
+                    </div>
+                  )}
+                </>
               )}
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Action Taken</p><p className="font-medium">{viewRecord.actionTaken || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Next Assessment Due</p>
