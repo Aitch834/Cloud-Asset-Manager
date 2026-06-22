@@ -22,7 +22,7 @@ import {
   Plus, PlusCircle, Search, Map as MapIcon, MoreVertical, Pencil, Trash2, AlertTriangle,
   Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical, Loader2, QrCode, StickyNote,
   Landmark, Phone, MapPin, BadgePoundSterling, RefreshCw, FileText, CheckCircle2, Paperclip, Download, Key,
-  TreePine, Layers3, TrendingUp, TrendingDown, Minus, Scale, CloudRain, BarChart2, Trophy, Medal, ChevronUp,
+  TreePine, Layers3, TrendingUp, TrendingDown, Minus, Scale, CloudRain, BarChart2, Trophy, Medal, ChevronUp, Eye,
 } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 import { QRCodeSVG } from "qrcode.react";
@@ -749,6 +749,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
   const { data: membersData } = useFarmMembers(farmId);
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState<SeedRecord | null>(null);
+  const [viewSeed, setViewSeed] = useState<SeedRecord | null>(null);
   const [formData, setFormData] = useState<typeof EMPTY_SEED>(EMPTY_SEED);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
@@ -1075,6 +1076,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => setViewSeed(r)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/50 hover:text-primary"><Eye className="w-4 h-4" /></button>
                         <button onClick={() => openEdit(r)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/50 hover:text-primary"><Pencil className="w-4 h-4" /></button>
                         <button onClick={() => setDeleteId(r.id)} className="p-1.5 rounded-md hover:bg-red-50 text-foreground/50 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
                       </div>
@@ -1096,6 +1098,37 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
           </div>
         )}
       </Card>
+
+      {/* ── View dialog ── */}
+      {viewSeed && (
+        <Dialog open onOpenChange={() => setViewSeed(null)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>Seed Drilling Record — {viewSeed.cropName}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Drilling Date</p><p className="font-medium">{viewSeed.drillingDate}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Crop</p><p className="font-medium">{viewSeed.cropName}</p></div>
+              {viewSeed.variety && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Variety</p><p className="font-medium">{viewSeed.variety}</p></div>}
+              {viewSeed.seedLotNumber && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Seed Lot No.</p><p className="font-medium font-mono">{viewSeed.seedLotNumber}</p></div>}
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Seed Rate</p><p className="font-medium">{viewSeed.seedRate ? `${viewSeed.seedRate} ${viewSeed.seedRateUnit ?? ""}` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Area Seeded</p><p className="font-medium">{viewSeed.areaSeededHa ? `${parseFloat(viewSeed.areaSeededHa).toFixed(2)} ha` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Treated Seed</p>
+                {viewSeed.isTreated
+                  ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200"><FlaskConical className="w-3 h-3" /> Treated{viewSeed.treatmentProduct ? ` — ${viewSeed.treatmentProduct}` : ""}</span>
+                  : <span className="text-xs text-foreground/40">Untreated</span>}
+              </div>
+              {viewSeed.operator && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Operator</p><p className="font-medium">{viewSeed.operator}</p></div>}
+              {viewSeed.seedCostPencePerKg != null && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Seed Cost</p><p className="font-medium">{(viewSeed.seedCostPencePerKg / 100).toFixed(2)} £/kg</p></div>}
+              {viewSeed.soilConditions && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Soil Conditions</p><p className="font-medium">{SOIL_CONDITIONS.find(s => s.value === viewSeed!.soilConditions)?.label ?? viewSeed.soilConditions}</p></div>}
+              {viewSeed.weatherNotes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Weather Notes</p><p className="font-medium">{viewSeed.weatherNotes}</p></div>}
+              {viewSeed.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewSeed.notes}</p></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewSeed); setViewSeed(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
+              <Button onClick={() => setViewSeed(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
         <DialogContent>

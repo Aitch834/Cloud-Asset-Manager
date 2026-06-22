@@ -16,7 +16,7 @@ import {
   Plus, Pencil, Trash2, Printer, ChevronLeft, ChevronRight,
   Clock, CalendarDays, UmbrellaOff, PoundSterling, ShieldCheck,
   CheckCircle2, AlertTriangle, XCircle, Download, Bell, UserCheck, Zap, BarChart2,
-  ArrowLeftRight, Info, MessageSquare, CheckCircle, Trash2 as Trash2Icon,
+  ArrowLeftRight, Info, MessageSquare, CheckCircle, Trash2 as Trash2Icon, Eye,
 } from "lucide-react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -336,6 +336,7 @@ function TimesheetsTab({ farmId, staffNames, staffMembers }: { farmId: number; s
   const [filterWeekStart, setFilterWeekStart] = useState(() => isoDate(getMondayOfWeek(new Date())));
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<TimesheetEntry | null>(null);
+  const [viewEntry, setViewEntry] = useState<TimesheetEntry | null>(null);
 
   const emptyForm = () => ({
     staffName: filterStaff !== "all" ? filterStaff : "",
@@ -700,7 +701,7 @@ function TimesheetsTab({ farmId, staffNames, staffMembers }: { farmId: number; s
                     <table className="w-full text-sm">
                       <tbody className="divide-y divide-gray-100">
                         {entries.map(e => (
-                          <tr key={e.id} onClick={() => openEdit(e)} className={`cursor-pointer hover:bg-blue-50/40 transition-colors ${!e.approvedBy ? "bg-amber-50/30" : ""}`}>
+                          <tr key={e.id} onClick={() => setViewEntry(e)} className={`cursor-pointer hover:bg-blue-50/40 transition-colors ${!e.approvedBy ? "bg-amber-50/30" : ""}`}>
                             <td className="px-4 py-2 pl-6 text-gray-700">{e.taskType}</td>
                             <td className="px-4 py-2 font-mono text-gray-900 whitespace-nowrap">{parseFloat(e.hoursRegular || "0").toFixed(1)}h</td>
                             <td className="px-4 py-2 font-mono whitespace-nowrap">
@@ -712,6 +713,7 @@ function TimesheetsTab({ farmId, staffNames, staffMembers }: { farmId: number; s
                             <td className="px-4 py-2 text-gray-400 text-xs max-w-[200px] truncate">{e.notes || ""}</td>
                             <td className="px-4 py-2" onClick={ev => ev.stopPropagation()}>
                               <div className="flex gap-1">
+                                <button onClick={() => setViewEntry(e)} className="text-gray-400 hover:text-blue-600 p-1"><Eye size={13} /></button>
                                 <button onClick={() => openEdit(e)} className="text-gray-400 hover:text-blue-600 p-1"><Pencil size={13} /></button>
                                 <button onClick={() => delMut.mutate(e.id)} className="text-gray-400 hover:text-red-600 p-1"><Trash2 size={13} /></button>
                               </div>
@@ -750,7 +752,7 @@ function TimesheetsTab({ farmId, staffNames, staffMembers }: { farmId: number; s
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filtered.map(e => (
-                    <tr key={e.id} onClick={() => openEdit(e)} className={`cursor-pointer hover:bg-blue-50/40 transition-colors ${!e.approvedBy ? "bg-amber-50/30" : ""}`}>
+                    <tr key={e.id} onClick={() => setViewEntry(e)} className={`cursor-pointer hover:bg-blue-50/40 transition-colors ${!e.approvedBy ? "bg-amber-50/30" : ""}`}>
                       <td className="px-4 py-2.5 whitespace-nowrap text-gray-700">{fmtDate(e.date)}</td>
                       <td className="px-4 py-2.5 font-medium" onClick={ev => ev.stopPropagation()}>
                         <button onClick={() => setFilterStaff(e.staffName)} className="text-gray-900 hover:text-green-700 hover:underline">{e.staffName}</button>
@@ -764,6 +766,7 @@ function TimesheetsTab({ farmId, staffNames, staffMembers }: { farmId: number; s
                       <td className="px-4 py-2.5 text-gray-400 text-xs max-w-[180px] truncate">{e.notes || "—"}</td>
                       <td className="px-4 py-2.5" onClick={ev => ev.stopPropagation()}>
                         <div className="flex gap-1">
+                          <button onClick={() => setViewEntry(e)} className="text-gray-400 hover:text-blue-600 p-1"><Eye size={13} /></button>
                           <button onClick={() => openEdit(e)} className="text-gray-400 hover:text-blue-600 p-1"><Pencil size={13} /></button>
                           <button onClick={() => delMut.mutate(e.id)} className="text-gray-400 hover:text-red-600 p-1"><Trash2 size={13} /></button>
                         </div>
@@ -844,6 +847,32 @@ function TimesheetsTab({ farmId, staffNames, staffMembers }: { farmId: number; s
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── View dialog ── */}
+      {viewEntry && (
+        <Dialog open onOpenChange={() => setViewEntry(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader><DialogTitle>Timesheet Entry — {fmtDate(viewEntry.date)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Staff Member</p><p className="font-medium">{viewEntry.staffName}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date</p><p className="font-medium">{fmtDate(viewEntry.date)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Task Type</p><p className="font-medium">{viewEntry.taskType}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Regular Hours</p><p className="font-medium font-mono">{parseFloat(viewEntry.hoursRegular || "0").toFixed(2)} h</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Overtime Hours</p><p className="font-medium font-mono">{parseFloat(viewEntry.hoursOvertime || "0") > 0 ? `${parseFloat(viewEntry.hoursOvertime).toFixed(2)} h` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Approved By</p>
+                {viewEntry.approvedBy
+                  ? <Badge className="text-xs bg-green-50 text-green-700 border-green-200">{viewEntry.approvedBy}</Badge>
+                  : <span className="text-xs text-amber-600 font-medium">Needs approval</span>}
+              </div>
+              {viewEntry.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewEntry.notes}</p></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewEntry); setViewEntry(null); }}><Pencil size={13} className="mr-1" />Edit</Button>
+              <Button onClick={() => setViewEntry(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
@@ -1186,6 +1215,7 @@ function AbsenceTab({ farmId, staffNames, onPendingCount, staffMembers }: { farm
   const [typeFilter, setTypeFilter] = useState("all");
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<Absence | null>(null);
+  const [viewAbsence, setViewAbsence] = useState<Absence | null>(null);
   const [entEditOpen, setEntEditOpen] = useState(false);
   const [entEditTarget, setEntEditTarget] = useState<{ name: string; year: number; ent: Entitlement | undefined } | null>(null);
   const [entEditDays, setEntEditDays] = useState("");
@@ -1684,7 +1714,7 @@ function AbsenceTab({ farmId, staffNames, onPendingCount, staffMembers }: { farm
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filtered.map(a => (
-                <tr key={a.id} className="hover:bg-gray-50/50">
+                <tr key={a.id} onClick={() => setViewAbsence(a)} className="cursor-pointer hover:bg-gray-50/50">
                   <td className="px-4 py-2.5 font-medium">{a.staffName}</td>
                   <td className="px-4 py-2.5">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${a.absenceType === "Annual Leave" ? "bg-blue-50 text-blue-700" : a.absenceType === "Sickness" ? "bg-red-50 text-red-700" : "bg-gray-100 text-gray-600"}`}>
@@ -1697,8 +1727,9 @@ function AbsenceTab({ farmId, staffNames, onPendingCount, staffMembers }: { farm
                   <td className="px-4 py-2.5 text-gray-500 text-xs">{a.approvedBy || "—"}</td>
                   <td className="px-4 py-2.5">{statusBadge(a.status)}</td>
                   <td className="px-4 py-2.5 text-gray-400 text-xs max-w-[160px] truncate">{a.notes || "—"}</td>
-                  <td className="px-4 py-2.5">
+                  <td className="px-4 py-2.5" onClick={ev => ev.stopPropagation()}>
                     <div className="flex gap-1">
+                      <button onClick={() => setViewAbsence(a)} className="text-gray-400 hover:text-blue-600 p-1"><Eye size={13} /></button>
                       <button onClick={() => openEdit(a)} className="text-gray-400 hover:text-blue-600 p-1"><Pencil size={13} /></button>
                       <button onClick={() => delMut.mutate(a.id)} className="text-gray-400 hover:text-red-600 p-1"><Trash2 size={13} /></button>
                     </div>
@@ -1958,6 +1989,33 @@ function AbsenceTab({ farmId, staffNames, onPendingCount, staffMembers }: { farm
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── Absence view dialog ── */}
+      {viewAbsence && (
+        <Dialog open onOpenChange={() => setViewAbsence(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader><DialogTitle>Absence — {viewAbsence.staffName}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Staff Member</p><p className="font-medium">{viewAbsence.staffName}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Type</p>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${viewAbsence.absenceType === "Annual Leave" ? "bg-blue-50 text-blue-700" : viewAbsence.absenceType === "Sickness" ? "bg-red-50 text-red-700" : "bg-gray-100 text-gray-600"}`}>
+                  {viewAbsence.absenceType}
+                </span>
+              </div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Start Date</p><p className="font-medium">{fmtDate(viewAbsence.startDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">End Date</p><p className="font-medium">{fmtDate(viewAbsence.endDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Days</p><p className="font-medium font-mono">{viewAbsence.daysCount ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p>{statusBadge(viewAbsence.status)}</div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Approved By</p><p className="font-medium">{viewAbsence.approvedBy || "—"}</p></div>
+              {viewAbsence.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewAbsence.notes}</p></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewAbsence); setViewAbsence(null); }}><Pencil size={13} className="mr-1" />Edit</Button>
+              <Button onClick={() => setViewAbsence(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* ── Decline leave request dialog ── */}
       <Dialog open={!!declineTarget} onOpenChange={o => { if (!o) setDeclineTarget(null); }}>

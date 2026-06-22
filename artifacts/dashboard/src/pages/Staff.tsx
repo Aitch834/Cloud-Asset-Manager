@@ -364,6 +364,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
   const EMPTY_RISK = { assessmentRef: "", ppeType: "safety-boots", hazardIdentified: "", taskOrArea: "", riskLevel: "__none__" as string, ppeSpecification: "", compatiblePpeTypes: "", assessedBy: "", assessmentDate: new Date().toISOString().slice(0, 10), reviewDate: "", notes: "" };
   const [showRiskForm, setShowRiskForm] = useState(false);
   const [editRisk, setEditRisk] = useState<PpeRiskAssessment | null>(null);
+  const [viewRisk, setViewRisk] = useState<PpeRiskAssessment | null>(null);
   const [riskForm, setRiskForm] = useState({ ...EMPTY_RISK });
   const [deleteRiskId, setDeleteRiskId] = useState<number | null>(null);
   const setRF = (k: string, v: unknown) => setRiskForm(f => ({ ...f, [k]: v }));
@@ -1623,6 +1624,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                         </td>
                         <td style={{ padding: "10px 14px" }}>
                           <div className="flex gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => setViewRisk(r)}><Eye className="w-3.5 h-3.5" /></Button>
                             <Button size="sm" variant="ghost" onClick={() => openEditRisk(r)}><Pencil className="w-3.5 h-3.5" /></Button>
                             <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => setDeleteRiskId(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                           </div>
@@ -1729,6 +1731,35 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                     {createRiskMut.isPending || updateRiskMut.isPending ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
                     {editRisk ? "Save Changes" : "Save Assessment"}
                   </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+
+          {/* ── View Risk Assessment dialog ── */}
+          {viewRisk && (
+            <Dialog open onOpenChange={() => setViewRisk(null)}>
+              <DialogContent className="max-w-lg">
+                <DialogHeader><DialogTitle>PPE Risk Assessment — {viewRisk.assessmentRef ?? "Draft"}</DialogTitle></DialogHeader>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Reference</p><p className="font-medium font-mono">{viewRisk.assessmentRef ?? "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">PPE Type</p><p className="font-medium">{ppeTypeMap[viewRisk.ppeType] ?? viewRisk.ppeType}</p></div>
+                  <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Hazard Identified</p><p className="font-medium">{viewRisk.hazardIdentified}</p></div>
+                  {viewRisk.taskOrArea && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Task / Area</p><p className="font-medium">{viewRisk.taskOrArea}</p></div>}
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Risk Level</p><p className="font-medium capitalize">{viewRisk.riskLevel ?? "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${viewRisk.isActive ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>{viewRisk.isActive ? "Active" : "Inactive"}</span>
+                  </div>
+                  {viewRisk.ppeSpecification && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">PPE Specification</p><p className="font-medium">{viewRisk.ppeSpecification}</p></div>}
+                  {viewRisk.compatiblePpeTypes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Compatible PPE Types</p><p className="font-medium">{viewRisk.compatiblePpeTypes}</p></div>}
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessed By</p><p className="font-medium">{viewRisk.assessedBy}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessment Date</p><p className="font-medium">{fmt(viewRisk.assessmentDate)}</p></div>
+                  {viewRisk.reviewDate && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Review Date</p><p className="font-medium">{fmt(viewRisk.reviewDate)}</p></div>}
+                  {viewRisk.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRisk.notes}</p></div>}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => { openEditRisk(viewRisk); setViewRisk(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
+                  <Button onClick={() => setViewRisk(null)}>Close</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
