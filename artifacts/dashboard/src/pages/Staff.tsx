@@ -891,10 +891,15 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
               <div style={{ gridColumn: "1 / -1" }}>
                 <Label>Description / Specification</Label>
                 {(EN_ISO[stockForm.ppeType] ?? []).length > 0 && (
-                  <Select key={stockSpecKey} onValueChange={v => { setSF("description", v); setStockSpecKey(k => k + 1); }}>
-                    <SelectTrigger className="mb-1"><SelectValue placeholder={`Quick-fill EN ISO standard for ${ppeTypeMap[stockForm.ppeType] ?? stockForm.ppeType}…`} /></SelectTrigger>
-                    <SelectContent>{(EN_ISO[stockForm.ppeType] ?? []).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <div className="flex flex-wrap gap-1 mb-2 mt-1">
+                    <span className="text-xs text-gray-500 self-center mr-1">Quick-fill:</span>
+                    {(EN_ISO[stockForm.ppeType] ?? []).map(s => (
+                      <button key={s} type="button" onClick={() => setSF("description", s)}
+                        style={{ fontSize: "0.7rem", padding: "2px 8px", borderRadius: 999, border: "1px solid", cursor: "pointer", background: stockForm.description === s ? "#166534" : "#f9fafb", color: stockForm.description === s ? "#fff" : "#374151", borderColor: stockForm.description === s ? "#166534" : "#d1d5db", fontFamily: "monospace" }}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
                 )}
                 <Input value={stockForm.description} onChange={e => setSF("description", e.target.value)} placeholder="e.g. EN ISO 20345:2011 S3 safety boot" />
               </div>
@@ -1013,10 +1018,15 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
               <div style={{ gridColumn: "1 / -1" }}>
                 <Label>Description / Specification</Label>
                 {(EN_ISO[issueForm.ppeType] ?? []).length > 0 && (
-                  <Select key={issueSpecKey} onValueChange={v => { setIF("description", v); setIssueSpecKey(k => k + 1); }}>
-                    <SelectTrigger className="mb-1"><SelectValue placeholder={`Quick-fill EN ISO standard for ${ppeTypeMap[issueForm.ppeType] ?? issueForm.ppeType}…`} /></SelectTrigger>
-                    <SelectContent>{(EN_ISO[issueForm.ppeType] ?? []).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <div className="flex flex-wrap gap-1 mb-2 mt-1">
+                    <span className="text-xs text-gray-500 self-center mr-1">Quick-fill:</span>
+                    {(EN_ISO[issueForm.ppeType] ?? []).map(s => (
+                      <button key={s} type="button" onClick={() => setIF("description", s)}
+                        style={{ fontSize: "0.7rem", padding: "2px 8px", borderRadius: 999, border: "1px solid", cursor: "pointer", background: issueForm.description === s ? "#166534" : "#f9fafb", color: issueForm.description === s ? "#fff" : "#374151", borderColor: issueForm.description === s ? "#166534" : "#d1d5db", fontFamily: "monospace" }}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
                 )}
                 <Input value={issueForm.description} onChange={e => setIF("description", e.target.value)} placeholder="e.g. EN ISO 20345:2011 S3 steel toe" />
               </div>
@@ -1034,7 +1044,28 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                   <Input value={issueForm.size} onChange={e => setIF("size", e.target.value)} placeholder="Size" />
                 )}
               </div>
-              <div><Label>Supplier</Label><Input value={issueForm.supplier} onChange={e => setIF("supplier", e.target.value)} /></div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <Label>Supplier</Label>
+                {issueForm.stockItemId ? (
+                  <div style={{ fontSize: "0.875rem", color: "#374151", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 6, padding: "8px 12px", marginTop: 4 }}>
+                    {issueForm.supplier || "—"}
+                    <span className="text-xs text-gray-400 ml-2">(from stock item)</span>
+                  </div>
+                ) : (
+                  <>
+                    <Select value={issueForm.supplier && suppliers.find(s => s.name === issueForm.supplier) ? issueForm.supplier : "__text__"} onValueChange={v => setIF("supplier", v === "__text__" ? "" : v)}>
+                      <SelectTrigger><SelectValue placeholder="Select from supplier register…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__text__">— Type supplier name manually —</SelectItem>
+                        {suppliers.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    {(!issueForm.supplier || !suppliers.find(s => s.name === issueForm.supplier)) && (
+                      <Input className="mt-2" value={issueForm.supplier} onChange={e => setIF("supplier", e.target.value)} placeholder="Supplier name (if not in register)" />
+                    )}
+                  </>
+                )}
+              </div>
               <div><Label>Date Issued *</Label><Input type="date" value={issueForm.dateIssued} onChange={e => setIF("dateIssued", e.target.value)} /></div>
               <div><Label>Condition Check Date</Label><Input type="date" value={issueForm.conditionCheckDate} onChange={e => setIF("conditionCheckDate", e.target.value)} /></div>
               <div style={{ gridColumn: "1 / -1" }}><Label>Condition at Last Check</Label>
