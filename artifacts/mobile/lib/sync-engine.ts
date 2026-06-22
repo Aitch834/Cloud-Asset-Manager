@@ -267,6 +267,11 @@ function remapForApi(recordType: string, data: Record<string, unknown>): Record<
       replacedDate: data.replacedDate ?? data.returnDate ?? null,
       replacedReason: data.replacedReason ?? (data.returned ? "Returned" : null),
       notes: data.notes ?? null,
+      fitCheckConfirmed: data.fitCheckConfirmed ?? false,
+      fitCheckBy: data.fitCheckBy ?? null,
+      fitCheckNotes: data.fitCheckNotes ?? null,
+      trainingProvided: data.trainingProvided ?? false,
+      trainingNotes: data.trainingNotes ?? null,
       isActive: data.isActive !== undefined ? data.isActive : !data.returned,
     };
   }

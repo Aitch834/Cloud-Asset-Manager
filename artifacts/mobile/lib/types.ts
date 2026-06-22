@@ -2279,6 +2279,11 @@ export interface PpeIssueRecord {
   dateIssued: string;
   conditionAtCheck: string;
   notes: string;
+  fitCheckConfirmed: boolean;
+  fitCheckBy: string;
+  fitCheckNotes: string;
+  trainingProvided: boolean;
+  trainingNotes: string;
   isActive: boolean;
   createdAt: string;
   synced: boolean;

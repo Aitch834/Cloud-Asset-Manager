@@ -66,6 +66,11 @@ export default function PpeIssueScreen() {
   const [supplier, setSupplier] = useState("");
   const [conditionAtCheck, setConditionAtCheck] = useState("");
   const [notes, setNotes] = useState("");
+  const [fitCheckConfirmed, setFitCheckConfirmed] = useState(false);
+  const [fitCheckBy, setFitCheckBy] = useState("");
+  const [fitCheckNotes, setFitCheckNotes] = useState("");
+  const [trainingProvided, setTrainingProvided] = useState(false);
+  const [trainingNotes, setTrainingNotes] = useState("");
 
   const noMembersLoaded = !membersLoading && members.length === 0;
   const resolvedStaffName = selectedMember ? memberFullName(selectedMember) : manualName.trim();
@@ -89,6 +94,11 @@ export default function PpeIssueScreen() {
       dateIssued,
       conditionAtCheck: conditionAtCheck.trim(),
       notes: notes.trim(),
+      fitCheckConfirmed,
+      fitCheckBy: fitCheckBy.trim(),
+      fitCheckNotes: fitCheckNotes.trim(),
+      trainingProvided,
+      trainingNotes: trainingNotes.trim(),
       isActive: true,
       createdAt: new Date().toISOString(),
       synced: false,
@@ -207,6 +217,60 @@ export default function PpeIssueScreen() {
             ))}
           </View>
 
+          <Text style={styles.sectionTitle}>Individual Fit Check</Text>
+          <Pressable
+            style={[styles.checkRow, fitCheckConfirmed && styles.checkRowActive]}
+            onPress={() => setFitCheckConfirmed((v) => !v)}
+          >
+            <View style={[styles.checkbox, fitCheckConfirmed && styles.checkboxActive]}>
+              {fitCheckConfirmed && <Feather name="check" size={12} color="#fff" />}
+            </View>
+            <Text style={[styles.checkLabel, fitCheckConfirmed && { color: colors.primary }]}>
+              Individual fit check carried out and confirmed
+            </Text>
+          </Pressable>
+          {fitCheckConfirmed && (
+            <>
+              <Input
+                label="Fit Check Carried Out By"
+                value={fitCheckBy}
+                onChangeText={setFitCheckBy}
+                placeholder="Name of person who carried out the fit check"
+              />
+              <Input
+                label="Fit Check Notes"
+                value={fitCheckNotes}
+                onChangeText={setFitCheckNotes}
+                placeholder="Any notes about the fit check"
+                multiline
+                numberOfLines={2}
+              />
+            </>
+          )}
+
+          <Text style={styles.sectionTitle}>PPE Training</Text>
+          <Pressable
+            style={[styles.checkRow, trainingProvided && styles.checkRowActive]}
+            onPress={() => setTrainingProvided((v) => !v)}
+          >
+            <View style={[styles.checkbox, trainingProvided && styles.checkboxActive]}>
+              {trainingProvided && <Feather name="check" size={12} color="#fff" />}
+            </View>
+            <Text style={[styles.checkLabel, trainingProvided && { color: colors.primary }]}>
+              PPE training provided to staff member
+            </Text>
+          </Pressable>
+          {trainingProvided && (
+            <Input
+              label="Training Notes"
+              value={trainingNotes}
+              onChangeText={setTrainingNotes}
+              placeholder="Topics covered, trainer name, etc."
+              multiline
+              numberOfLines={2}
+            />
+          )}
+
           <Text style={styles.sectionTitle}>Notes</Text>
           <Input
             label="Additional Notes"
@@ -288,4 +352,29 @@ const styles = StyleSheet.create({
   radioInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
   clearMember: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingVertical: spacing.xs },
   clearMemberText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },
+  checkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  checkRowActive: { borderColor: colors.primary, backgroundColor: colors.primary + "10" },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  checkboxActive: { borderColor: colors.primary, backgroundColor: colors.primary },
+  checkLabel: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.text, flex: 1 },
 });
