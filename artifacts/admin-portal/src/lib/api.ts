@@ -395,6 +395,21 @@ export const api = {
   forwardEmail: (uid: number, to: string, body: string, secret: string) =>
     post<{ sent: boolean; reason?: string }>(`/admin/inbox/${uid}/forward`, { to, body }, secret),
 
+  listMailboxes: (secret: string) =>
+    get<{ mailboxes: string[] }>("/admin/mailboxes", secret),
+
+  getFolderEmails: (folder: string, secret: string, limit = 50) =>
+    get<{ emails: InboxEmail[] }>(`/admin/folder/${encodeURIComponent(folder)}?limit=${limit}`, secret),
+
+  getFolderEmail: (folder: string, uid: number, secret: string) =>
+    get<{ email: FullEmail }>(`/admin/folder/${encodeURIComponent(folder)}/${uid}`, secret),
+
+  deleteFolderEmail: (folder: string, uid: number, secret: string) =>
+    del<{ deleted: boolean }>(`/admin/folder/${encodeURIComponent(folder)}/${uid}`, secret),
+
+  restoreFolderEmail: (folder: string, uid: number, secret: string) =>
+    post<{ restored: boolean }>(`/admin/folder/${encodeURIComponent(folder)}/${uid}/restore`, {}, secret),
+
   getSentEmails: (secret: string) =>
     get<{ emails: AdminEmailSent[] }>("/admin/emails/sent", secret),
 

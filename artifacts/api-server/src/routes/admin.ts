@@ -4,7 +4,7 @@ import { eq, and, count, desc, sql, asc, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
 import { sendSetupGuideEmail, sendAdminEmail, sendTicketReplyEmail } from "../lib/mailer";
-import { fetchInbox, fetchEmail, markAsRead, markAsUnread, deleteEmail, isImapConfigured } from "../lib/imap";
+import { fetchInbox, fetchEmail, markAsRead, markAsUnread, deleteEmail, isImapConfigured, listMailboxes, fetchFolder, fetchEmailFromFolder, markFolderEmailRead, permanentlyDeleteFromFolder, moveToInbox } from "../lib/imap";
 
 const router: IRouter = Router();
 
@@ -690,6 +690,99 @@ router.post("/admin/inbox/:uid/forward", requireAuth, async (req: Request, res: 
   } catch (err) {
     console.error("[IMAP] forward error:", err);
     res.status(502).json({ error: "Failed to forward email. Check server logs for details." });
+  }
+});
+
+// ─── Email: Folder Access (Spam / Trash) ─────────────────────────────────────
+
+router.get("/admin/mailboxes", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  if (!(await isImapConfigured())) {
+    res.status(503).json({ error: "IMAP not configured" });
+    return;
+  }
+  try {
+    const mailboxes = await listMailboxes();
+    res.json({ mailboxes });
+  } catch (err) {
+    console.error("[IMAP] listMailboxes error:", err);
+    res.status(502).json({ error: "Unable to list mailboxes." });
+  }
+});
+
+router.get("/admin/folder/:folder", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  if (!(await isImapConfigured())) {
+    res.status(503).json({ error: "IMAP not configured (TITAN_IMAP_PASSWORD missing)" });
+    return;
+  }
+  const folder = decodeURIComponent(req.params.folder as string);
+  try {
+    const limit = Math.min(parseInt(String(req.query.limit ?? "50"), 10) || 50, 200);
+    const emails = await fetchFolder(folder, limit);
+    res.json({ emails });
+  } catch (err) {
+    console.error(`[IMAP] fetchFolder(${folder}) error:`, err);
+    res.status(502).json({ error: `Unable to open folder "${folder}". It may not exist on this mail server.` });
+  }
+});
+
+router.get("/admin/folder/:folder/:uid", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const folder = decodeURIComponent(req.params.folder as string);
+  const uid = parseInt(req.params.uid as string, 10);
+  if (isNaN(uid)) { res.status(400).json({ error: "Invalid UID" }); return; }
+  try {
+    const email = await fetchEmailFromFolder(folder, uid);
+    await markFolderEmailRead(folder, uid);
+    res.json({ email });
+  } catch (err) {
+    console.error(`[IMAP] fetchEmailFromFolder(${folder}, ${uid}) error:`, err);
+    res.status(502).json({ error: "Failed to fetch email." });
+  }
+});
+
+router.patch("/admin/folder/:folder/:uid/read", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const folder = decodeURIComponent(req.params.folder as string);
+  const uid = parseInt(req.params.uid as string, 10);
+  if (isNaN(uid)) { res.status(400).json({ error: "Invalid UID" }); return; }
+  try {
+    await markFolderEmailRead(folder, uid);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(`[IMAP] markFolderEmailRead(${folder}, ${uid}) error:`, err);
+    res.status(502).json({ error: "Failed to update email status." });
+  }
+});
+
+router.delete("/admin/folder/:folder/:uid", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const folder = decodeURIComponent(req.params.folder as string);
+  const uid = parseInt(req.params.uid as string, 10);
+  if (isNaN(uid)) { res.status(400).json({ error: "Invalid UID" }); return; }
+  try {
+    await permanentlyDeleteFromFolder(folder, uid);
+    void writeAuditLog(req.userId!, "email_delete_folder", { folder, uid });
+    res.json({ deleted: true });
+  } catch (err) {
+    console.error(`[IMAP] permanentlyDeleteFromFolder(${folder}, ${uid}) error:`, err);
+    res.status(502).json({ error: "Failed to delete email." });
+  }
+});
+
+router.post("/admin/folder/:folder/:uid/restore", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const folder = decodeURIComponent(req.params.folder as string);
+  const uid = parseInt(req.params.uid as string, 10);
+  if (isNaN(uid)) { res.status(400).json({ error: "Invalid UID" }); return; }
+  try {
+    await moveToInbox(folder, uid);
+    void writeAuditLog(req.userId!, "email_restore_to_inbox", { folder, uid });
+    res.json({ restored: true });
+  } catch (err) {
+    console.error(`[IMAP] moveToInbox(${folder}, ${uid}) error:`, err);
+    res.status(502).json({ error: "Failed to restore email to inbox." });
   }
 });
 

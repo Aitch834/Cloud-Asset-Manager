@@ -6,7 +6,7 @@ import {
   ChevronDown, AlertCircle, Loader2, Eye, RefreshCw, Inbox,
   Reply, Forward, Circle, Paperclip, ArrowLeft, Settings, FlaskConical,
   ArrowUp, ArrowDown, Bold, Italic, Underline, List, ListOrdered,
-  AlignLeft, AlignCenter, Eraser,
+  AlignLeft, AlignCenter, Eraser, ShieldAlert, RotateCcw,
 } from "lucide-react";
 
 const CATEGORIES = ["general", "onboarding", "billing", "support", "compliance"];
@@ -1282,6 +1282,283 @@ function TemplatesTab() {
   );
 }
 
+function FolderTab({ folder, label }: { folder: string; label: string }) {
+  const secret = getSecret()!;
+  const [emails, setEmails] = useState<InboxEmail[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<FullEmail | null>(null);
+  const [loadingEmail, setLoadingEmail] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
+  const [actioning, setActioning] = useState(false);
+  const [actionResult, setActionResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  async function load(quiet = false) {
+    if (!quiet) setLoading(true);
+    else setRefreshing(true);
+    setError(null);
+    try {
+      const r = await api.getFolderEmails(folder, secret, 50);
+      setEmails(r.emails);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }
+
+  useEffect(() => { load(); }, [folder]);
+
+  async function openEmail(e: InboxEmail) {
+    setLoadingEmail(true);
+    setSelected(null);
+    setActionResult(null);
+    try {
+      const r = await api.getFolderEmail(folder, e.uid, secret);
+      setSelected(r.email);
+      setEmails((prev) => prev.map((m) => m.uid === e.uid ? { ...m, seen: true } : m));
+    } catch (err) {
+      setError(`Failed to load email: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setLoadingEmail(false);
+    }
+  }
+
+  async function handleRestore() {
+    if (!selected) return;
+    setActioning(true);
+    setActionResult(null);
+    try {
+      await api.restoreFolderEmail(folder, selected.uid, secret);
+      setEmails((prev) => prev.filter((e) => e.uid !== selected.uid));
+      setSelected(null);
+      setActionResult({ ok: true, message: "Email moved to Inbox" });
+    } catch (err) {
+      setActionResult({ ok: false, message: `Failed to restore: ${err instanceof Error ? err.message : String(err)}` });
+    } finally {
+      setActioning(false);
+    }
+  }
+
+  async function handlePermanentDelete() {
+    if (!selected) return;
+    setActioning(true);
+    setActionResult(null);
+    try {
+      await api.deleteFolderEmail(folder, selected.uid, secret);
+      setEmails((prev) => prev.filter((e) => e.uid !== selected.uid));
+      setSelected(null);
+    } catch (err) {
+      setActionResult({ ok: false, message: `Failed to delete: ${err instanceof Error ? err.message : String(err)}` });
+    } finally {
+      setActioning(false);
+    }
+  }
+
+  const sortedEmails = useMemo(() =>
+    [...emails].sort((a, b) => {
+      const da = new Date(a.date).getTime();
+      const db = new Date(b.date).getTime();
+      return sortOrder === "desc" ? db - da : da - db;
+    }),
+    [emails, sortOrder]
+  );
+
+  const unreadCount = emails.filter((e) => !e.seen).length;
+
+  const isSpam = folder.toLowerCase().includes("spam") || folder.toLowerCase().includes("junk");
+  const isTrash = folder.toLowerCase().includes("trash") || folder.toLowerCase().includes("deleted");
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">Opening {label} folder…</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 max-w-lg">
+        <div className="flex items-start gap-3 px-4 py-4 bg-red-50 border border-red-200 rounded-lg">
+          <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium text-red-800 text-sm">Could not open {label}</p>
+            <p className="text-xs text-red-700 mt-1">{error}</p>
+            <p className="text-xs text-red-600 mt-1">The folder name on Titan may differ — try refreshing or check server logs.</p>
+            <button onClick={() => load()} className="mt-2 text-xs text-red-700 underline">Try again</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full" style={{ minHeight: 0 }}>
+      {/* Email list */}
+      <div className={`flex flex-col border-r border-border ${selected || loadingEmail ? "w-80 shrink-0" : "flex-1"}`}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold">{label}</span>
+            {unreadCount > 0 && (
+              <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-amber-500 text-white rounded-full">
+                {unreadCount}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setSortOrder((o) => o === "desc" ? "asc" : "desc")}
+              className="flex items-center gap-1 px-2 py-1 rounded text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              title={sortOrder === "desc" ? "Newest first" : "Oldest first"}
+            >
+              {sortOrder === "desc" ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />}
+              {sortOrder === "desc" ? "Newest" : "Oldest"}
+            </button>
+            <button
+              onClick={() => load(true)}
+              disabled={refreshing}
+              className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground disabled:opacity-50"
+              title="Refresh"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
+            </button>
+          </div>
+        </div>
+
+        {actionResult && (
+          <div className={`mx-3 mt-2 px-3 py-2 rounded text-xs flex items-center gap-2 ${actionResult.ok ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>
+            {actionResult.ok ? <Check className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
+            {actionResult.message}
+          </div>
+        )}
+
+        {emails.length === 0 ? (
+          <div className="flex flex-col items-center justify-center flex-1 text-center text-muted-foreground px-6">
+            {isSpam ? <ShieldAlert className="w-8 h-8 mb-2 opacity-30" /> : <Trash2 className="w-8 h-8 mb-2 opacity-30" />}
+            <p className="text-sm">{label} is empty</p>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto divide-y divide-border">
+            {sortedEmails.map((e) => (
+              <button
+                key={e.uid}
+                onClick={() => openEmail(e)}
+                className={`w-full text-left px-4 py-3 hover:bg-muted/60 transition-colors ${
+                  selected?.uid === e.uid ? "bg-primary/5 border-l-2 border-primary" : ""
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {!e.seen && <Circle className="w-2 h-2 text-amber-500 fill-amber-500 shrink-0" />}
+                    <span className={`text-sm truncate ${!e.seen ? "font-semibold" : "font-medium text-muted-foreground"}`}>
+                      {e.from}
+                    </span>
+                  </div>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">{formatDate(e.date)}</span>
+                </div>
+                <p className={`text-xs mt-0.5 truncate ${!e.seen ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                  {e.subject}
+                </p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <p className="text-xs text-muted-foreground truncate flex-1">{e.preview}</p>
+                  {e.hasAttachments && <Paperclip className="w-3 h-3 text-muted-foreground shrink-0" />}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Email detail */}
+      {loadingEmail && (
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        </div>
+      )}
+
+      {!loadingEmail && selected && (
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-border shrink-0">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSelected(null)}
+                    className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground md:hidden"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                  <h2 className="font-semibold text-base truncate">{selected.subject}</h2>
+                </div>
+                <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground flex-wrap">
+                  <span>From: <span className="text-foreground">{selected.from}</span></span>
+                  {selected.fromEmail !== selected.from && (
+                    <span className="font-mono text-xs">{"<"}{selected.fromEmail}{">"}</span>
+                  )}
+                  <span>·</span>
+                  <span>{new Date(selected.date).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={handleRestore}
+                  disabled={actioning}
+                  title={isSpam ? "Not spam — move to Inbox" : "Restore to Inbox"}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition-colors disabled:opacity-50"
+                >
+                  {actioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                  {isSpam ? "Not Spam" : isTrash ? "Restore" : "Move to Inbox"}
+                </button>
+                <button
+                  onClick={handlePermanentDelete}
+                  disabled={actioning}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-red-200 text-red-600 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50"
+                  title="Permanently delete"
+                >
+                  {actioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  Delete permanently
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Body */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="px-6 py-5">
+              {selected.bodyHtml ? (
+                <iframe
+                  key={selected.uid}
+                  title="Email content"
+                  srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><style>body{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#111827;}a{color:#1d4ed8;}img{max-width:100%;height:auto;}*{box-sizing:border-box;}</style></head><body>${selected.bodyHtml}</body></html>`}
+                  sandbox="allow-same-origin allow-popups allow-forms"
+                  style={{ width: "100%", border: "none", display: "block", minHeight: "200px" }}
+                  onLoad={(e) => {
+                    const iframe = e.currentTarget;
+                    try {
+                      const h = iframe.contentDocument?.documentElement?.scrollHeight ?? 0;
+                      if (h > 0) iframe.style.height = (h + 32) + "px";
+                    } catch {}
+                  }}
+                />
+              ) : (
+                <pre className="whitespace-pre-wrap text-sm text-foreground font-sans leading-relaxed">
+                  {selected.body || "(no content)"}
+                </pre>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SmtpSettingsTab() {
   const secret = getSecret()!;
   const [config, setConfig] = useState<{ smtpHost: string; smtpPort: string; smtpUser: string; smtpPassSet: boolean; smtpFrom: string } | null>(null);
@@ -1413,6 +1690,8 @@ export default function Email() {
     { key: "inbox", label: "Inbox", icon: <Inbox className="w-4 h-4" /> },
     { key: "compose", label: "Compose", icon: <Send className="w-4 h-4" /> },
     { key: "sent", label: "Sent", icon: <Clock className="w-4 h-4" /> },
+    { key: "spam", label: "Spam", icon: <ShieldAlert className="w-4 h-4" /> },
+    { key: "trash", label: "Trash", icon: <Trash2 className="w-4 h-4" /> },
     { key: "templates", label: "Templates", icon: <FileText className="w-4 h-4" /> },
     { key: "settings", label: "Settings", icon: <Settings className="w-4 h-4" /> },
   ];
@@ -1432,10 +1711,12 @@ export default function Email() {
         <TabBar tabs={tabs} active={tab} onChange={setTab} />
       </div>
 
-      <div className={`${tab === "inbox" ? "flex-1 flex flex-col overflow-hidden" : "flex-1 overflow-y-auto"}`}>
+      <div className={`${tab === "inbox" || tab === "spam" || tab === "trash" ? "flex-1 flex flex-col overflow-hidden" : "flex-1 overflow-y-auto"}`}>
         {tab === "inbox" && <InboxTab />}
         {tab === "compose" && <ComposeTab tenants={tenants} initialTo={initialTo} initialToName={initialToName} />}
         {tab === "sent" && <SentTab />}
+        {tab === "spam" && <FolderTab folder="Spam" label="Spam" />}
+        {tab === "trash" && <FolderTab folder="Trash" label="Trash" />}
         {tab === "templates" && <TemplatesTab />}
         {tab === "settings" && <SmtpSettingsTab />}
       </div>
