@@ -276,6 +276,10 @@ const TITLES: [string, string][] = [
   ["Organic Livestock Outdoor Access Log — Year Filter and Document Attachment on Rows", "Organic Livestock"],
   ["Organic Dairy Feed & Nutrition Tab — Year Filter and Document Attachment on Rows", "Organic Dairy"],
   ["Season Production Report — Gross Margin and Financial Summary", "Fields & Crops"],
+  ["Dairy Mobility Scoring — Per-Animal Records, Prevalence and Mobile Recording", "Livestock"],
+  ["Seed Drilling Records — Crop Variety, Seed Rate, Treated Seed and Season Cost Tracking", "Fields & Crops"],
+  ["Invoice Branding — Farm Logo, Company Details, VAT Number and Bank Information on Invoices", "Getting Started"],
+  ["LIS One-Click Submission — Connecting Your Livestock Information Service Account", "Livestock"],
 ];
 
 const CONTENT: [string, string][] = [
@@ -5059,6 +5063,8 @@ const CONTENT: [string, string][] = [
 <p>Where a feed delivery is not fully organic-approved, the Feed &amp; Nutrition tab shows a <strong>Link to Approved Derogation Case</strong> picker. Selecting an approved derogation case from the Organic Livestock module auto-fills the certifier approval reference — the document attached to the derogation case and the document attached to the feed record together form a complete, inspector-ready evidence chain without any re-keying.</p>`,
   ],
 
+  // Dairy Mobility Scoring — Per-Animal Records, Prevalence and Mobile Recording (inserted before Season Production Report to maintain index order)
+
   // Season Production Report — Gross Margin and Financial Summary
   [
     "How to use the Season Production Report in BDE Farm Trac to view total crop input costs, revenue, and gross margin per crop season.",
@@ -5089,6 +5095,105 @@ const CONTENT: [string, string][] = [
 <p>Each of the four data tables within the report — Seed Drilling, Fertiliser Applications, Spray Applications, and Harvest — includes a cost column showing the cost figure recorded against each individual record. This lets you review and cross-check costs line by line before relying on the Financial Summary totals.</p>
 <h3>Partial data and incomplete seasons</h3>
 <p>The report can be opened at any point during the season — it will show costs and revenue for whichever records have been completed so far. If harvest has not yet been recorded, Revenue and Gross Margin will show as £0 or be omitted from the summary. This lets you use the report part-way through the season to track input costs as they accumulate.</p>`,
+  ],
+
+  // Dairy Mobility Scoring — Per-Animal Records, Prevalence and Mobile Recording
+  [
+    "How to record individual per-animal dairy mobility scoring sessions in BDE Farm Trac, including AHDB 0–3 scoring, prevalence calculation, and mobile recording.",
+    `<h2>Dairy Mobility Scoring — Per-Animal Records, Prevalence and Mobile Recording</h2>
+<p>BDE Farm Trac's Dairy Mobility Scoring module records individual animal lameness assessments using the AHDB 0–3 scale. Each session stores one scored record per named animal, enabling a per-cow lameness history, herd prevalence trending across sessions, and the individual-level audit evidence required by Red Tractor Dairy standards.</p>
+<h3>Recording a mobility scoring session</h3>
+<p>Navigate to <strong>Livestock → Dairy → Mobility Scoring</strong> and click <strong>New Scoring Session</strong>. Enter the session date, assessor name, and any pen or group notes. In the Animals section, score each animal individually:</p>
+<ul>
+<li><strong>Ear tag:</strong> enter or scan the animal's BCMS ear tag number to identify the individual.</li>
+<li><strong>Score (0–3):</strong> select from the AHDB locomotion scale — 0 (sound), 1 (imperfect locomotion — minor gait change), 2 (lame — clear gait abnormality), 3 (severely lame — obvious lameness with weight-bearing difficulty).</li>
+<li><strong>Notes:</strong> optional free-text observation for that animal (e.g. "left hind — suspected white line disease; foot bathed").</li>
+</ul>
+<p>Add as many animals as were assessed in the session. Each animal's entry is saved as a separate child record linked to the session header. This builds a complete per-animal scoring timeline across all future sessions without requiring a new session record for each individual animal.</p>
+<h3>Prevalence calculation</h3>
+<p>The session calculates lameness prevalence automatically — the percentage of assessed animals scoring 2 or 3 out of the total assessed. This is the AHDB industry-standard metric and the figure Red Tractor Dairy assessors reference during inspections. A colour-coded badge flags sessions where prevalence exceeds the Red Tractor Dairy threshold, prompting investigation and corrective action.</p>
+<h3>Viewing a session</h3>
+<p>Clicking a session row (or the eye icon) opens a read-only view dialog showing the session date, assessor, pen context, the full per-animal table (ear tag, score, notes), and the calculated prevalence. An Edit button in the dialog footer opens the edit form if any corrections are needed — this view-before-edit approach prevents accidental changes to previously submitted assessments.</p>
+<h3>Mobile recording</h3>
+<p>Mobility scoring sessions can be captured on the BDE Farm Trac mobile app while walking the herd. Tap <strong>Record → Dairy → Mobility Scoring</strong>, enter the session header, and score animals one at a time as you walk the row. Records save offline if there is no connectivity and sync to the dashboard automatically when restored. The prevalence figure is recalculated server-side after each sync so it always reflects the complete per-animal list.</p>
+<h3>Printable report</h3>
+<p>Every session has a <strong>Print Report</strong> button generating a formatted A4 document that shows the session date, assessor, pen, all individual animal scores and notes, and the calculated prevalence percentage. This is designed for presentation at herd health reviews and Red Tractor Dairy assessor visits.</p>`,
+  ],
+
+  // Seed Drilling Records — Crop Variety, Seed Rate, Treated Seed and Season Cost Tracking
+  [
+    "How to record seed drilling events in BDE Farm Trac, covering variety, seed lot number, treated seed, seed rate, and seed cost for Season Production Report gross margin.",
+    `<h2>Seed Drilling Records — Crop Variety, Seed Rate, Treated Seed and Season Cost Tracking</h2>
+<p>Seed Drilling Records in BDE Farm Trac capture every aspect of a drilling operation — from crop variety and seed lot number through to treated seed details and seed cost per kilogram — providing both an agronomic audit trail and the input cost data that feeds the Season Production Report gross margin calculation.</p>
+<h3>Adding a seed drilling record</h3>
+<p>Navigate to <strong>Field &amp; Crop Management → Seed Drilling</strong> and click <strong>Add Seed Drilling Record</strong>. The form captures:</p>
+<ul>
+<li><strong>Drilling date:</strong> the date the seed was drilled into the ground.</li>
+<li><strong>Field:</strong> selected from your registered field list. The field's crop assignment for the current season is updated automatically.</li>
+<li><strong>Crop and variety:</strong> the crop type and, where relevant, the variety name for variety-level traceability (e.g. winter wheat — KWS Extase).</li>
+<li><strong>Seed lot number:</strong> the lot or batch reference from the seed bag or invoice — enables traceability to the specific commercial seed batch if a recall or quality concern arises.</li>
+<li><strong>Seed rate (kg/ha):</strong> the sowing rate used.</li>
+<li><strong>Area seeded (ha):</strong> total hectares drilled in this operation.</li>
+<li><strong>Treated seed:</strong> toggle on if the seed was dressed with a pesticide or biological treatment. When toggled, a <strong>Treatment Product</strong> field appears — record the dressing product name (e.g. Vibrance Duo, Redigo Deter). This is required under BBSRC seed stewardship guidelines and may be requested by your agronomist or assurance scheme assessor.</li>
+<li><strong>Operator:</strong> selected from your staff register — the person who carried out or oversaw the drilling operation.</li>
+<li><strong>Seed cost (£/kg):</strong> the price per kilogram from the seed invoice. Combined with seed rate and area drilled, this is used by the Season Production Report to calculate total seed input cost and gross margin contribution for the season.</li>
+<li><strong>Soil conditions:</strong> a qualitative assessment of seedbed conditions — Very Good, Good, Moderate, Poor, or Very Poor — for agronomic review and establishment risk assessment.</li>
+<li><strong>Weather notes:</strong> free-text observations on conditions at the time of drilling (e.g. "light frost overnight, dry surface conditions").</li>
+<li><strong>Notes:</strong> any additional agronomic context or observations.</li>
+</ul>
+<h3>Viewing and editing records</h3>
+<p>Each seed drilling record can be opened in a read-only view dialog by clicking the row or the eye icon in the table. The view dialog displays all fields — including treated seed indicator and product, soil conditions, and weather notes — alongside an <strong>Edit</strong> button in the footer for any post-submission corrections. This view-before-edit approach prevents accidental changes to submitted drilling records.</p>
+<h3>Season Production Report integration</h3>
+<p>The seed cost (£/kg) recorded here is picked up automatically by the <strong>Season Production Report</strong> (Field &amp; Crop Management → Season Reports). The report multiplies cost by seed rate and area drilled across all records for the season to produce a <strong>Total Seed Cost</strong> line in the Financial Summary. No re-entry is required — completing the Seed Cost (£/kg) field on each drilling record is sufficient.</p>`,
+  ],
+
+  // Invoice Branding — Farm Logo, Company Details, VAT Number and Bank Information on Invoices
+  [
+    "How to configure invoice branding in BDE Farm Trac — uploading your farm logo, company details, VAT number, and bank information to appear on all invoices.",
+    `<h2>Invoice Branding — Farm Logo, Company Details, VAT Number and Bank Information on Invoices</h2>
+<p>BDE Farm Trac prints your farm's logo, registered company details, VAT number, and bank payment information on every invoice generated through the platform — whether raised from the Farm Services &amp; Contracting module, the Workshop module, or livestock trading records. These details are configured once in Farm Settings and apply automatically to all future invoices.</p>
+<h3>Where to configure invoice branding</h3>
+<p>Navigate to <strong>Settings → Farm Settings</strong>. The Invoice &amp; Branding section contains the following fields:</p>
+<ul>
+<li><strong>Farm logo:</strong> upload a PNG or JPEG logo file. The logo appears in the top-left corner of every printed invoice. Recommended size is at least 200 × 80 px. If no logo is uploaded, the farm name is displayed as a text heading instead.</li>
+<li><strong>Company name:</strong> your registered trading or company name as it should appear on invoices. This may differ from your farm name if you trade through a separate legal entity.</li>
+<li><strong>VAT registration number:</strong> your HMRC-issued VAT number (e.g. GB 123 4567 89). Appears on every invoice beneath the company name. Required if you are VAT-registered and issuing VAT invoices.</li>
+<li><strong>Company registration number:</strong> your Companies House registration number if applicable (for limited companies or LLPs).</li>
+<li><strong>Invoicing address:</strong> the address printed at the top of invoices — typically your registered office or main farm address.</li>
+<li><strong>Bank name, sort code, and account number:</strong> payment details printed in the footer of every invoice so recipients can make BACS payments without needing to contact you separately.</li>
+<li><strong>Payment terms:</strong> your standard payment terms text (e.g. "Payment due within 30 days of invoice date") printed below the invoice totals.</li>
+</ul>
+<h3>When changes take effect</h3>
+<p>Changes saved to Farm Settings apply immediately to all invoices generated after the save. Previously issued invoices retain the branding that was current at the time of generation and are not retroactively updated.</p>
+<h3>Multi-farm accounts</h3>
+<p>Each farm holding in a multi-farm account has its own independent invoice branding settings. Switch between farms using the farm selector in the sidebar, then navigate to Settings → Farm Settings to configure the branding for that specific holding. This allows group farming businesses to trade under different legal entities from a single BDE Farm Trac account.</p>`,
+  ],
+
+  // LIS One-Click Submission — Connecting Your Livestock Information Service Account
+  [
+    "How to connect your Livestock Information Service (LIS) account to BDE Farm Trac and submit sheep, goat, and deer movement records to the England CLA API with a single click.",
+    `<h2>LIS One-Click Submission — Connecting Your Livestock Information Service Account</h2>
+<p>BDE Farm Trac integrates with the England Livestock Information Service (LIS) to submit sheep, goat, and deer movement records directly to the government CLA (Cattle &amp; Livestock API) with a single click — without leaving the dashboard. This removes the need to log into the APHIS Online portal separately for each movement notification.</p>
+<h3>Connecting your LIS account</h3>
+<p>Navigate to <strong>Settings → Farm Settings → Livestock Integration</strong>. In the LIS section:</p>
+<ol>
+<li>Enter your <strong>LIS Client ID</strong> and <strong>Client Secret</strong> — issued by the Livestock Information Service when you register as a CLA API user. Contact LIS support at livestock.information@defra.gov.uk to request API credentials if you do not have them.</li>
+<li>Select the <strong>Environment</strong> — Beta Sandbox for testing without affecting live government records, or Production for live submissions.</li>
+<li>Click <strong>Save &amp; Test Connection</strong>. BDE Farm Trac sends an authentication request to the LIS API and shows a green Connected badge on success, or an error message with the response from LIS if the credentials are invalid.</li>
+</ol>
+<h3>Submitting a movement</h3>
+<p>Once connected, each sheep, goat, or deer movement record in <strong>Livestock → Movements</strong> shows a <strong>Submit to LIS</strong> button in the row actions. Clicking it:</p>
+<ol>
+<li>Sends the movement data to the LIS CLA API — CPH numbers, ear tag list, movement date, haulier details, and AML licence number.</li>
+<li>On success, stores the LIS reference number returned by the API against the movement record and shows a green <strong>LIS Submitted</strong> badge on the row.</li>
+<li>On failure, displays the error response from LIS (e.g. unknown ear tag, CPH mismatch) so you can correct the record and resubmit.</li>
+</ol>
+<h3>Submission history</h3>
+<p>Expanding any submitted movement row reveals the full submission log — timestamp, status, LIS reference number, and the JSON payload that was sent. This provides a complete audit trail of what was submitted, when, and what response was received from LIS, which may be requested during a cross-compliance inspection.</p>
+<h3>Sandbox mode</h3>
+<p>While connected to the LIS Beta Sandbox, submissions are test-only and do not appear on the live government system. All test submissions are clearly labelled in the submission history. Switch to the Production environment in Farm Settings once you are satisfied with the integration and ready to submit live records.</p>
+<h3>Scotland, Wales and Northern Ireland</h3>
+<p>The LIS one-click integration covers England movements only (England CLA API). For Scotland, movements are reported to ScotEID via ScotMoves+. BDE Farm Trac captures all fields required for a ScotMoves+ manual submission — CPH numbers, ear tag lists, movement dates, haulier details, and AML reference numbers — which can be exported to assist with portal data entry.</p>`,
   ],
 ];
 
