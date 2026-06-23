@@ -43,16 +43,25 @@ description: LIS CLA API secrets, confirmed working auth endpoint, and current b
 - App ID: `77f8ff53-0866-4598-98b3-2ec6ca15ae9b`
 - This is the Azure AD app that protects the CLA API
 
-## Current blocker — AADSTS50105 (June 2026)
+## Root cause of AADSTS50105 — RESOLVED (June 2026)
 
-Auth works and reaches Azure AD successfully. Token is rejected because the sandbox test user
-is not assigned/granted access to the APIM CLA Ext application.
+LIS support confirmed: client secrets were never generated for the app registration
+`91afad18-e537-48bb-840b-06f4fa943ac6` on their end. Without secrets, the app was treated
+as a public client — Azure AD then requires direct user assignment to the app, which wasn't done.
 
-Error: `AADSTS50105 — user not a direct member of a group with access, nor directly assigned`
+LIS support is sending primary and secondary client secrets by separate email.
 
-**Resolution required from LIS support:**
-- Ask LIS to assign the sandbox test user to the APIM CLA Ext app, OR
-- Ask which sandbox users already have access
+**Once secrets arrive:**
+1. Save as `LIS_B2C_PRIMARY_SECRET` and `LIS_B2C_SECONDARY_SECRET` in Replit Secrets
+2. Update the ROPC token request in the API to include `client_secret` in the POST body
+   (use primary secret; secondary is a fallback/rotation key)
+3. The token request body becomes:
+   - grant_type=password
+   - client_id=91afad18-e537-48bb-840b-06f4fa943ac6
+   - client_secret=<LIS_B2C_PRIMARY_SECRET>
+   - username=<farm user's LIS username>
+   - password=<farm user's LIS password (decrypted)>
+   - scope=<sandbox or prod scope above>
 
 ## UK Proxy
 - Deployed on DigitalOcean London (LON1) VPS at port 3001, pm2 process `lis-proxy`
