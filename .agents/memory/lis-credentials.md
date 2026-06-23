@@ -51,17 +51,19 @@ as a public client — Azure AD then requires direct user assignment to the app,
 
 LIS support is sending primary and secondary client secrets by separate email.
 
-**Once secrets arrive:**
-1. Save as `LIS_B2C_PRIMARY_SECRET` and `LIS_B2C_SECONDARY_SECRET` in Replit Secrets
-2. Update the ROPC token request in the API to include `client_secret` in the POST body
-   (use primary secret; secondary is a fallback/rotation key)
-3. The token request body becomes:
-   - grant_type=password
-   - client_id=91afad18-e537-48bb-840b-06f4fa943ac6
-   - client_secret=<LIS_B2C_PRIMARY_SECRET>
-   - username=<farm user's LIS username>
-   - password=<farm user's LIS password (decrypted)>
-   - scope=<sandbox or prod scope above>
+**Status (June 2026): RESOLVED in code**
+- Replit Secrets: `LIS_B2C_PRIMARY_SECRET` and `LIS_B2C_SECONDARY_SECRET` added by user
+- `artifacts/api-server/src/lib/lis.ts` reads `LIS_B2C_PRIMARY_SECRET` as `LIS_B2C_CLIENT_SECRET`
+  and appends `client_secret` to the URLSearchParams in both ROPC and refresh token requests
+- `lis-proxy/index.js` reads `LIS_B2C_CLIENT_SECRET` from its own `.env` and appends to both token requests
+
+**One remaining manual step — VPS proxy:**
+SSH into the VPS and add the primary secret to the proxy `.env`, then restart:
+```
+echo "LIS_B2C_CLIENT_SECRET=<primary_secret>" >> /opt/lis-proxy/lis-proxy/.env
+pm2 restart lis-proxy
+```
+After that, test via Dashboard → Farm Settings → LIS → Test Connection.
 
 ## UK Proxy
 - Deployed on DigitalOcean London (LON1) VPS at port 3001, pm2 process `lis-proxy`

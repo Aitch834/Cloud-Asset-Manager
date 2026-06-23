@@ -42,9 +42,12 @@ function isSandboxApi(): boolean {
   return process.env.LIS_USE_SANDBOX_API === "true";
 }
 
-const LIS_B2C_TOKEN_URL = isSandboxApi() ? LIS_B2C_TOKEN_URL_SANDBOX : LIS_B2C_TOKEN_URL_PROD;
-const LIS_B2C_SCOPE      = isSandboxApi() ? LIS_B2C_SCOPE_SANDBOX      : LIS_B2C_SCOPE_PROD;
-const LIS_B2C_CLIENT_ID  = process.env.LIS_B2C_CLIENT_ID ?? "lis-cla-public";
+const LIS_B2C_TOKEN_URL      = isSandboxApi() ? LIS_B2C_TOKEN_URL_SANDBOX : LIS_B2C_TOKEN_URL_PROD;
+const LIS_B2C_SCOPE          = isSandboxApi() ? LIS_B2C_SCOPE_SANDBOX      : LIS_B2C_SCOPE_PROD;
+const LIS_B2C_CLIENT_ID      = process.env.LIS_B2C_CLIENT_ID ?? "lis-cla-public";
+// Primary client secret (confidential client). Without this Azure AD rejects ROPC for
+// app registrations that have secrets configured (AADSTS50105).
+const LIS_B2C_CLIENT_SECRET  = process.env.LIS_B2C_PRIMARY_SECRET ?? "";
 
 // Correct CLA API gateway from LIS Developer Hub (api-url field, June 2026).
 // The /v1.0 version prefix is part of the base — do NOT add /v1/ to individual paths.
@@ -174,6 +177,7 @@ export async function fetchLisToken(username: string, password: string): Promise
       username,
       password,
     });
+    if (LIS_B2C_CLIENT_SECRET) body.append("client_secret", LIS_B2C_CLIENT_SECRET);
 
     const res = await fetch(LIS_B2C_TOKEN_URL, {
       method: "POST",
@@ -274,6 +278,7 @@ export async function refreshLisToken(refreshToken: string): Promise<LisTokenRes
       client_id: LIS_B2C_CLIENT_ID,
       refresh_token: refreshToken,
     });
+    if (LIS_B2C_CLIENT_SECRET) body.append("client_secret", LIS_B2C_CLIENT_SECRET);
 
     const res = await fetch(LIS_B2C_TOKEN_URL, {
       method: "POST",

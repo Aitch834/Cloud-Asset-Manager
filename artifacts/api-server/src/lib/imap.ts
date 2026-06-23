@@ -276,8 +276,9 @@ export async function listMailboxes(): Promise<string[]> {
   try {
     await client.connect();
     const boxes: string[] = [];
-    for await (const mb of client.listMailboxes()) {
-      if (mb.name) boxes.push(mb.path ?? mb.name);
+    const tree = await client.list();
+    for (const mb of tree) {
+      if (mb.path) boxes.push(mb.path);
     }
     await client.logout();
     return boxes;

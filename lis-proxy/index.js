@@ -26,6 +26,9 @@ const PROXY_SECRET = process.env.PROXY_SECRET;
 const LIS_SUBSCRIPTION_KEY = process.env.LIS_SUBSCRIPTION_KEY;
 const USE_SANDBOX = process.env.LIS_USE_SANDBOX_API === "true";
 const LIS_B2C_CLIENT_ID = process.env.LIS_B2C_CLIENT_ID ?? "lis-cla-public";
+// Client secret for the confidential app registration. Required once LIS generates
+// secrets for the app — without it Azure AD returns AADSTS50105.
+const LIS_B2C_CLIENT_SECRET = process.env.LIS_B2C_CLIENT_SECRET ?? "";
 
 // B2C_1A_SIGNIN is an interactive policy only — it rejects ROPC (grant_type=password)
 // with AADB2C90057. For ROPC we use the standard AAD v2 endpoint on the B2C tenant,
@@ -99,6 +102,7 @@ app.post("/lis/token", requireSecret, async (req, res) => {
     username,
     password,
   });
+  if (LIS_B2C_CLIENT_SECRET) body.append("client_secret", LIS_B2C_CLIENT_SECRET);
 
   try {
     const upstream = await fetch(B2C_TOKEN_URL, {
@@ -144,6 +148,7 @@ app.post("/lis/token/refresh", requireSecret, async (req, res) => {
     client_id: LIS_B2C_CLIENT_ID,
     refresh_token: refreshToken,
   });
+  if (LIS_B2C_CLIENT_SECRET) body.append("client_secret", LIS_B2C_CLIENT_SECRET);
 
   try {
     const upstream = await fetch(B2C_TOKEN_URL, {

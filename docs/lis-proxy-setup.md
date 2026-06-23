@@ -86,6 +86,10 @@ LIS_SUBSCRIPTION_KEY=your-subscription-key-here
 # Copy from Replit Secrets panel
 LIS_B2C_CLIENT_ID=your-client-id-here
 
+# Primary client secret from LIS Developer Hub → My Apps → Client Secrets.
+# Required for confidential app registrations — without it Azure AD returns AADSTS50105.
+LIS_B2C_CLIENT_SECRET=your-primary-client-secret-here
+
 # Set to true while testing with sandbox credentials
 LIS_USE_SANDBOX_API=true
 ```
