@@ -122,6 +122,13 @@ function reconnectReloadPlugin(sessionBase: string) {
       if (chunk != null) {
         chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
       }
+      // If headers are already committed (e.g. Vite's proxy middleware wrote
+      // directly to the socket), skip the transformation — mutating headers
+      // or body at this point would throw ERR_HTTP_HEADERS_SENT.
+      if (res.headersSent) {
+        const done = typeof enc === "function" ? enc : typeof cb === "function" ? cb : undefined;
+        return _end(Buffer.concat(chunks), done);
+      }
       const body = transform(Buffer.concat(chunks).toString("utf-8"));
       res.removeHeader("content-length");
       // Pass the callback correctly regardless of enc/cb ordering.
