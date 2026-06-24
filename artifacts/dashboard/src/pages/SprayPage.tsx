@@ -1110,6 +1110,14 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                     <span style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "#dcfce7", color: "#16a34a", fontSize: "0.68rem", fontWeight: 600, borderRadius: 4, padding: "1px 6px", pointerEvents: "none" }}>Auto-filled</span>
                   )}
                 </div>
+                {(() => {
+                  const fr = fields.find((f: any) => String(f.id) === String(form.fieldId));
+                  const area = form.areaSprayedHa ? parseFloat(String(form.areaSprayedHa)) : null;
+                  if ((fr as any)?.areaHectares && area && area > Number((fr as any).areaHectares)) {
+                    return <p className="text-[11px] text-red-600 mt-1">Exceeds {(fr as any).name}&apos;s total area ({Number((fr as any).areaHectares).toFixed(2)} ha) — please correct before saving.</p>;
+                  }
+                  return null;
+                })()}
               </div>
             </div>
             {(() => {

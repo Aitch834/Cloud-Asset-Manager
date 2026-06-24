@@ -950,6 +950,14 @@ export default function NVZPage() {
                   value={form.areaAppliedHa}
                   onChange={(e) => setForm((f) => ({ ...f, areaAppliedHa: e.target.value }))}
                 />
+                {(() => {
+                  const fr = fields.find((f) => String(f.id) === String(form.fieldId));
+                  const area = form.areaAppliedHa ? parseFloat(form.areaAppliedHa) : null;
+                  if ((fr as any)?.areaHectares && area && area > Number((fr as any).areaHectares)) {
+                    return <p className="text-[11px] text-red-600 mt-1">Exceeds {(fr as any).name}&apos;s total area ({Number((fr as any).areaHectares).toFixed(2)} ha) — please correct before saving.</p>;
+                  }
+                  return null;
+                })()}
               </div>
             </div>
             {form.nitrogenKgHa && form.areaAppliedHa && (

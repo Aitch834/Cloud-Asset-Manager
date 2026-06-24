@@ -926,6 +926,15 @@ export default function FieldOperationsPage() {
                     <span>↑ Auto-filled from {areaAutoSource}. Edit if the worked area differs.</span>
                   </p>
                 )}
+                {(() => {
+                  const fieldsArr = (fieldsQ?.data as any[]) ?? [];
+                  const fr = fieldsArr.find((f: any) => String(f.id) === String(form.fieldId));
+                  const area = form.areaHa ? parseFloat(String(form.areaHa)) : null;
+                  if ((fr as any)?.areaHectares && area && area > Number((fr as any).areaHectares)) {
+                    return <p className="text-[11px] text-red-600 mt-0">Exceeds {(fr as any).name}&apos;s total area ({Number((fr as any).areaHectares).toFixed(2)} ha) — please correct before saving.</p>;
+                  }
+                  return null;
+                })()}
               </div>
             </div>
 

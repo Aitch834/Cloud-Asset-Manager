@@ -1430,6 +1430,7 @@ router.post("/farms/:farmId/harvests", requireAuth, requireTenant, requireModule
     if (!fca) { res.status(400).json({ error: "Field crop assignment not found on this farm" }); return; }
   }
   const { equipmentId, operatorName, areaHarvestedHa, startTime, endTime, ...rest } = req.body;
+  if (!(await checkFieldAreaLimit(farmId, rest.fieldId ? Number(rest.fieldId) : null, areaHarvestedHa ? Number(areaHarvestedHa) : null, res, "Area harvested"))) return;
   const [record] = await db.insert(harvestRecordsTable).values({
     ...rest,
     equipmentId: equipmentId ? Number(equipmentId) : null,
@@ -1925,6 +1926,7 @@ router.post("/farms/:farmId/field-operations", requireAuth, requireTenant, requi
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const { operationDate, operationType, fieldName, fieldId, vehicleId, vehicleDescription, implement, implementId, workingDepthCm, passes, areaHa, quantity, quantityUnit, operator, machineHours, labourHours, machineRatePence, labourRatePence, isContractor, contractorName, contractorCostPence, notes } = req.body;
+  if (!(await checkFieldAreaLimit(farmId, fieldId ? parseInt(fieldId) : null, areaHa ? Number(areaHa) : null, res, "Area"))) return;
   const [record] = await db.insert(fieldOperationsTable).values({
     farmId,
     fieldId: fieldId ? parseInt(fieldId) : null,
@@ -1958,6 +1960,7 @@ router.put("/farms/:farmId/field-operations/:recordId", requireAuth, requireTena
   if (!farmId) return;
   const recordId = parseInt(req.params.recordId as string);
   const { operationDate, operationType, fieldName, fieldId, vehicleId, vehicleDescription, implement, implementId, workingDepthCm, passes, areaHa, quantity, quantityUnit, operator, machineHours, labourHours, machineRatePence, labourRatePence, isContractor, contractorName, contractorCostPence, notes } = req.body;
+  if (!(await checkFieldAreaLimit(farmId, fieldId ? parseInt(fieldId) : null, areaHa ? Number(areaHa) : null, res, "Area"))) return;
   const [record] = await db.update(fieldOperationsTable).set({
     fieldId: fieldId ? parseInt(fieldId) : null,
     fieldName,
@@ -2127,6 +2130,7 @@ router.get("/farms/:farmId/spray-applications", requireAuth, requireTenant, requ
 router.post("/farms/:farmId/spray-applications", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
+  if (!(await checkFieldAreaLimit(farmId, req.body.fieldId ? Number(req.body.fieldId) : null, req.body.areaSprayedHa ? Number(req.body.areaSprayedHa) : null, res, "Area sprayed"))) return;
   const [record] = await db.insert(sprayApplicationsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
 
   const rate = parseFloat(req.body.applicationRate);
@@ -2168,6 +2172,10 @@ router.put("/farms/:farmId/spray-applications/:recordId", requireAuth, requireTe
   // Fetch existing record to calculate old deduction
   const [existing] = await db.select().from(sprayApplicationsTable).where(and(eq(sprayApplicationsTable.id, recordId), eq(sprayApplicationsTable.farmId, farmId))).limit(1);
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+
+  const putSprayFieldId = req.body.fieldId ? Number(req.body.fieldId) : (existing.fieldId ?? null);
+  const putSprayAreaHa = req.body.areaSprayedHa ? Number(req.body.areaSprayedHa) : (existing.areaSprayedHa ? Number(existing.areaSprayedHa) : null);
+  if (!(await checkFieldAreaLimit(farmId, putSprayFieldId, putSprayAreaHa, res, "Area sprayed"))) return;
 
   const [record] = await db.update(sprayApplicationsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(sprayApplicationsTable.id, recordId), eq(sprayApplicationsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
@@ -2394,6 +2402,7 @@ router.post("/farms/:farmId/nvz-applications", requireAuth, requireTenant, requi
   if (!fieldId || !applicationDate || !productName || !productType || nitrogenKgHa == null || areaAppliedHa == null) {
     res.status(400).json({ error: "Missing required fields" }); return;
   }
+  if (!(await checkFieldAreaLimit(farmId, Number(fieldId), Number(areaAppliedHa), res, "Area applied"))) return;
   const totalNitrogenKg = String((parseFloat(String(nitrogenKgHa)) * parseFloat(String(areaAppliedHa))).toFixed(2));
   const [record] = await db.insert(nvzFertiliserApplicationsTable).values({
     farmId, fieldId, applicationDate: new Date(applicationDate),
@@ -2415,6 +2424,9 @@ router.put("/farms/:farmId/nvz-applications/:recordId", requireAuth, requireTena
     fieldId?: number; applicationDate?: string; productName?: string; productType?: string;
     nitrogenKgHa?: number; areaAppliedHa?: number; applicationMethod?: string; notes?: string; totalCostPence?: number;
   };
+  const updNvzFieldId = fieldId != null ? Number(fieldId) : (existing.fieldId ?? null);
+  const updAreaHaNum = areaAppliedHa != null ? Number(areaAppliedHa) : Number(existing.areaAppliedHa);
+  if (!(await checkFieldAreaLimit(farmId, updNvzFieldId, updAreaHaNum, res, "Area applied"))) return;
   const updNKgHa = nitrogenKgHa != null ? String(nitrogenKgHa) : existing.nitrogenKgHa;
   const updAreaHa = areaAppliedHa != null ? String(areaAppliedHa) : existing.areaAppliedHa;
   const updTotalNKg = String((parseFloat(updNKgHa) * parseFloat(updAreaHa)).toFixed(2));
@@ -7487,6 +7499,7 @@ router.put("/farms/:farmId/harvests/:recordId", requireAuth, requireTenant, requ
     if (!fca) { res.status(400).json({ error: "Field crop assignment not found on this farm" }); return; }
   }
   const { id, createdAt, ...updateData } = req.body;
+  if (!(await checkFieldAreaLimit(farmId, updateData.fieldId ? Number(updateData.fieldId) : null, updateData.areaHarvestedHa ? Number(updateData.areaHarvestedHa) : null, res, "Area harvested"))) return;
   const [record] = await db.update(harvestRecordsTable).set(updateData).where(eq(harvestRecordsTable.id, recordId)).returning();
   res.json({ record });
 });
@@ -13397,20 +13410,21 @@ router.get("/farms/:farmId/vet-health-plans/:planId/evidence-report", requireAut
   res.json({ plan, actions: actionsWithCompletions });
 });
 
-async function checkDrillingAreaHardBlock(
+async function checkFieldAreaLimit(
   farmId: number,
   fieldId: number | null,
-  areaSeededHa: number | null,
+  areaHa: number | null,
   res: Response,
+  label = "Area",
 ): Promise<boolean> {
-  if (!fieldId || areaSeededHa === null || areaSeededHa <= 0) return true;
+  if (!fieldId || areaHa === null || areaHa <= 0) return true;
   const [field] = await db
-    .select({ areaHectares: fieldsTable.areaHectares })
+    .select({ areaHectares: fieldsTable.areaHectares, name: fieldsTable.name })
     .from(fieldsTable)
     .where(and(eq(fieldsTable.id, fieldId), eq(fieldsTable.farmId, farmId)));
-  if (field?.areaHectares && areaSeededHa > Number(field.areaHectares)) {
+  if (field?.areaHectares && areaHa > Number(field.areaHectares)) {
     res.status(422).json({
-      error: `Area drilled (${areaSeededHa.toFixed(2)} ha) exceeds the total field area (${Number(field.areaHectares).toFixed(2)} ha). Please check and correct the area.`,
+      error: `${label} (${areaHa.toFixed(2)} ha) exceeds ${field.name ?? "the field"}'s total area (${Number(field.areaHectares).toFixed(2)} ha). Please check and correct the area.`,
       code: "AREA_EXCEEDS_FIELD",
     });
     return false;
@@ -13431,7 +13445,7 @@ router.post("/farms/:farmId/seed-drilling", requireAuth, requireTenant, requireM
   const body = sanitiseBody(req.body as Record<string, unknown>);
   const fieldId = body.fieldId ? Number(body.fieldId) : null;
   const areaSeededHa = body.areaSeededHa ? Number(body.areaSeededHa) : null;
-  if (!(await checkDrillingAreaHardBlock(farmId, fieldId, areaSeededHa, res))) return;
+  if (!(await checkFieldAreaLimit(farmId, fieldId, areaSeededHa, res, "Area drilled"))) return;
   const [record] = await db.insert(seedDrillingRecordsTable).values({ ...body, farmId }).returning();
   res.json({ record });
 });
@@ -13443,7 +13457,7 @@ router.put("/farms/:farmId/seed-drilling/:recordId", requireAuth, requireTenant,
   const body = sanitiseBody(req.body as Record<string, unknown>);
   const fieldId = body.fieldId ? Number(body.fieldId) : null;
   const areaSeededHa = body.areaSeededHa ? Number(body.areaSeededHa) : null;
-  if (!(await checkDrillingAreaHardBlock(farmId, fieldId, areaSeededHa, res))) return;
+  if (!(await checkFieldAreaLimit(farmId, fieldId, areaSeededHa, res, "Area drilled"))) return;
   const [record] = await db.update(seedDrillingRecordsTable).set(body).where(and(eq(seedDrillingRecordsTable.id, recordId), eq(seedDrillingRecordsTable.farmId, farmId))).returning();
   res.json({ record });
 });
@@ -20854,12 +20868,14 @@ router.get("/farms/:farmId/irrigation-records", requireAuth, requireTenant, requ
 });
 router.post("/farms/:farmId/irrigation-records", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  if (!(await checkFieldAreaLimit(farmId, req.body.fieldId ? Number(req.body.fieldId) : null, req.body.areaIrrigatedHa ? Number(req.body.areaIrrigatedHa) : null, res, "Area irrigated"))) return;
   const [row] = await db.insert(irrigationRecordsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
   res.json(row);
 });
 router.put("/farms/:farmId/irrigation-records/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  if (!(await checkFieldAreaLimit(farmId, req.body.fieldId ? Number(req.body.fieldId) : null, req.body.areaIrrigatedHa ? Number(req.body.areaIrrigatedHa) : null, res, "Area irrigated"))) return;
   const [row] = await db.update(irrigationRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(irrigationRecordsTable.id, id), eq(irrigationRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });

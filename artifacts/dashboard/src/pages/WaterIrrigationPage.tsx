@@ -657,7 +657,18 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
                   </Select>
                 </div>
                 <div><Label>Crop Type</Label><Input value={String(form.cropType ?? "")} onChange={e => setForm(f => ({ ...f, cropType: e.target.value }))} placeholder="Auto-filled from field" /></div>
-                <div><Label>Area Irrigated (ha)</Label><Input type="number" step="0.01" value={String(form.areaIrrigatedHa ?? "")} onChange={e => setForm(f => ({ ...f, areaIrrigatedHa: e.target.value }))} /></div>
+                <div>
+                  <Label>Area Irrigated (ha)</Label>
+                  <Input type="number" step="0.01" value={String(form.areaIrrigatedHa ?? "")} onChange={e => setForm(f => ({ ...f, areaIrrigatedHa: e.target.value }))} />
+                  {(() => {
+                    const fr = fields.find(f => String(f.id) === String(form.fieldId));
+                    const area = form.areaIrrigatedHa ? parseFloat(String(form.areaIrrigatedHa)) : null;
+                    if ((fr as any)?.areaHectares && area && area > Number((fr as any).areaHectares)) {
+                      return <p className="text-[11px] text-red-600 mt-1">Exceeds {(fr as any).name}&apos;s total area ({Number((fr as any).areaHectares).toFixed(2)} ha) — please correct before saving.</p>;
+                    }
+                    return null;
+                  })()}
+                </div>
               </div>
             </div>
 
