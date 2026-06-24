@@ -752,6 +752,8 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
   const [viewSeed, setViewSeed] = useState<SeedRecord | null>(null);
   const [formData, setFormData] = useState<typeof EMPTY_SEED>(EMPTY_SEED);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [areaWarning, setAreaWarning] = useState<string | null>(null);
+  const [pendingBody, setPendingBody] = useState<Record<string, unknown> | null>(null);
 
   const { data: cropsRegData } = useCrops(farmId);
   const cropsRegister = (cropsRegData?.records ?? []) as unknown as CropRecord[];
@@ -770,19 +772,19 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
   const createMutation = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
       const res = await fetch(baseUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      if (!res.ok) throw new Error("Failed to create");
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error((d as { error?: string }).error ?? "Failed to create record"); }
       return res.json();
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["seed-drilling", farmId] }); setShowForm(false); setFormData(EMPTY_SEED); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["seed-drilling", farmId] }); setShowForm(false); setFormData(EMPTY_SEED); setAreaWarning(null); setPendingBody(null); },
   });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, body }: { id: number; body: Record<string, unknown> }) => {
       const res = await fetch(`${baseUrl}/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      if (!res.ok) throw new Error("Failed to update");
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error((d as { error?: string }).error ?? "Failed to update record"); }
       return res.json();
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["seed-drilling", farmId] }); setEditingRecord(null); setShowForm(false); setFormData(EMPTY_SEED); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["seed-drilling", farmId] }); setEditingRecord(null); setShowForm(false); setFormData(EMPTY_SEED); setAreaWarning(null); setPendingBody(null); },
   });
 
   const deleteMutation = useMutation({
@@ -838,9 +840,16 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
     setShowForm(true);
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const body = {
+  function harvestYearBounds(iso: string): { start: Date; end: Date } {
+    const d = new Date(iso);
+    const m = d.getMonth();
+    const y = d.getFullYear();
+    const sy = m >= 7 ? y : y - 1;
+    return { start: new Date(Date.UTC(sy, 7, 1)), end: new Date(Date.UTC(sy + 1, 6, 31, 23, 59, 59)) };
+  }
+
+  function buildBody() {
+    return {
       ...formData,
       fieldId: formData.fieldId ? Number(formData.fieldId) : null,
       drillingDate: formData.drillingDate ? new Date(formData.drillingDate).toISOString() : null,
@@ -848,8 +857,55 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
       areaSeededHa: formData.areaSeededHa ? formData.areaSeededHa : null,
       seedCostPencePerKg: formData.seedCostPencePerKg ? Math.round(parseFloat(formData.seedCostPencePerKg) * 100) : null,
     };
+  }
+
+  function doSubmit(body: Record<string, unknown>) {
     if (editingRecord) { updateMutation.mutate({ id: editingRecord.id, body }); }
     else { createMutation.mutate(body); }
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setAreaWarning(null);
+    const body = buildBody();
+
+    if (formData.fieldId && formData.areaSeededHa && formData.drillingDate) {
+      const newArea = parseFloat(formData.areaSeededHa);
+      const fieldRecord = fields.find(f => String(f.id) === formData.fieldId);
+      const fieldAreaHa = fieldRecord?.areaHectares ? Number(fieldRecord.areaHectares) : null;
+
+      if (fieldAreaHa && newArea > fieldAreaHa) {
+        return;
+      }
+
+      if (fieldAreaHa) {
+        const { start, end } = harvestYearBounds(formData.drillingDate);
+        const existingTotal = records
+          .filter(r => {
+            if (String(r.fieldId) !== formData.fieldId) return false;
+            if (editingRecord && r.id === editingRecord.id) return false;
+            const rd = r.drillingDate ? new Date(r.drillingDate) : null;
+            return rd && rd >= start && rd <= end;
+          })
+          .reduce((sum, r) => sum + (r.areaSeededHa ? parseFloat(r.areaSeededHa) : 0), 0);
+
+        if (existingTotal + newArea > fieldAreaHa) {
+          setAreaWarning(
+            `The combined drilled area for ${fieldRecord?.name ?? "this field"} in this harvest year would be ${(existingTotal + newArea).toFixed(2)} ha — exceeding the field's total area of ${fieldAreaHa.toFixed(2)} ha. This may be valid (e.g. a catch crop after harvest), but please double-check.`
+          );
+          setPendingBody(body);
+          return;
+        }
+      }
+    }
+
+    doSubmit(body);
+  }
+
+  function handleProceedAnyway() {
+    if (pendingBody) { doSubmit(pendingBody); }
+    setAreaWarning(null);
+    setPendingBody(null);
   }
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
@@ -918,9 +974,17 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Area Seeded (ha)</label>
                   <Input type="number" step="0.01" placeholder="e.g. 12.50" value={formData.areaSeededHa} onChange={e => setField("areaSeededHa", e.target.value)} />
-                  {formData.fieldId && formData.areaSeededHa && (
-                    <p className="text-[11px] text-muted-foreground mt-1">Auto-filled from field register — edit if drilling only part of the field</p>
-                  )}
+                  {(() => {
+                    const fr = fields.find(f => String(f.id) === formData.fieldId);
+                    const area = formData.areaSeededHa ? parseFloat(formData.areaSeededHa) : null;
+                    if (fr?.areaHectares && area && area > Number(fr.areaHectares)) {
+                      return <p className="text-[11px] text-red-600 mt-1">Exceeds {fr.name}&apos;s total area ({Number(fr.areaHectares).toFixed(2)} ha) — please correct before saving.</p>;
+                    }
+                    if (formData.fieldId && formData.areaSeededHa) {
+                      return <p className="text-[11px] text-muted-foreground mt-1">Auto-filled from field register — edit if drilling only part of the field</p>;
+                    }
+                    return null;
+                  })()}
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Crop <span className="text-red-500">*</span></label>
@@ -1007,9 +1071,31 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
                 </div>
               </div>
 
+              {(createMutation.error || updateMutation.error) && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  {(createMutation.error as Error | null)?.message ?? (updateMutation.error as Error | null)?.message}
+                </p>
+              )}
+
+              {areaWarning && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 text-sm text-amber-800">
+                  <p className="font-medium mb-1">Area warning</p>
+                  <p className="mb-3">{areaWarning}</p>
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" onClick={handleProceedAnyway} disabled={isSubmitting}>
+                      {isSubmitting && <Loader2 className="w-3 h-3 animate-spin mr-1" />}
+                      Proceed anyway
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => { setAreaWarning(null); setPendingBody(null); }}>
+                      Go back &amp; correct
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-3 justify-end pt-2 border-t border-border">
-                <Button variant="outline" type="button" onClick={() => { setShowForm(false); setEditingRecord(null); setFormData(EMPTY_SEED); }}>Cancel</Button>
-                <Button type="submit" disabled={isSubmitting}>
+                <Button variant="outline" type="button" onClick={() => { setShowForm(false); setEditingRecord(null); setFormData(EMPTY_SEED); setAreaWarning(null); setPendingBody(null); }}>Cancel</Button>
+                <Button type="submit" disabled={isSubmitting || !!areaWarning}>
                   {isSubmitting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                   {editingRecord ? "Update Record" : "Save Record"}
                 </Button>

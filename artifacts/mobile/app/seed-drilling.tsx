@@ -87,6 +87,21 @@ export default function SeedDrillingScreen() {
       return;
     }
 
+    if (fieldName && areaSeededHa.trim()) {
+      const selectedField = fields.find(f => f.name === fieldName);
+      if (selectedField?.areaSqMetres) {
+        const fieldAreaHa = selectedField.areaSqMetres / 10000;
+        const newAreaHa = parseFloat(areaSeededHa);
+        if (!isNaN(newAreaHa) && newAreaHa > fieldAreaHa) {
+          Alert.alert(
+            "Area Too Large",
+            `The area drilled (${newAreaHa.toFixed(2)} ha) exceeds ${fieldName}'s total area (${fieldAreaHa.toFixed(2)} ha). Please check and correct the area before saving.`
+          );
+          return;
+        }
+      }
+    }
+
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 

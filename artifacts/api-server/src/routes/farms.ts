@@ -13397,6 +13397,27 @@ router.get("/farms/:farmId/vet-health-plans/:planId/evidence-report", requireAut
   res.json({ plan, actions: actionsWithCompletions });
 });
 
+async function checkDrillingAreaHardBlock(
+  farmId: number,
+  fieldId: number | null,
+  areaSeededHa: number | null,
+  res: Response,
+): Promise<boolean> {
+  if (!fieldId || areaSeededHa === null || areaSeededHa <= 0) return true;
+  const [field] = await db
+    .select({ areaHectares: fieldsTable.areaHectares })
+    .from(fieldsTable)
+    .where(and(eq(fieldsTable.id, fieldId), eq(fieldsTable.farmId, farmId)));
+  if (field?.areaHectares && areaSeededHa > Number(field.areaHectares)) {
+    res.status(422).json({
+      error: `Area drilled (${areaSeededHa.toFixed(2)} ha) exceeds the total field area (${Number(field.areaHectares).toFixed(2)} ha). Please check and correct the area.`,
+      code: "AREA_EXCEEDS_FIELD",
+    });
+    return false;
+  }
+  return true;
+}
+
 router.get("/farms/:farmId/seed-drilling", requireAuth, requireTenant, requireModuleByKey("crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
@@ -13407,7 +13428,11 @@ router.get("/farms/:farmId/seed-drilling", requireAuth, requireTenant, requireMo
 router.post("/farms/:farmId/seed-drilling", requireAuth, requireTenant, requireModuleByKey("crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.insert(seedDrillingRecordsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const fieldId = body.fieldId ? Number(body.fieldId) : null;
+  const areaSeededHa = body.areaSeededHa ? Number(body.areaSeededHa) : null;
+  if (!(await checkDrillingAreaHardBlock(farmId, fieldId, areaSeededHa, res))) return;
+  const [record] = await db.insert(seedDrillingRecordsTable).values({ ...body, farmId }).returning();
   res.json({ record });
 });
 
@@ -13415,7 +13440,11 @@ router.put("/farms/:farmId/seed-drilling/:recordId", requireAuth, requireTenant,
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
-  const [record] = await db.update(seedDrillingRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(seedDrillingRecordsTable.id, recordId), eq(seedDrillingRecordsTable.farmId, farmId))).returning();
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const fieldId = body.fieldId ? Number(body.fieldId) : null;
+  const areaSeededHa = body.areaSeededHa ? Number(body.areaSeededHa) : null;
+  if (!(await checkDrillingAreaHardBlock(farmId, fieldId, areaSeededHa, res))) return;
+  const [record] = await db.update(seedDrillingRecordsTable).set(body).where(and(eq(seedDrillingRecordsTable.id, recordId), eq(seedDrillingRecordsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
