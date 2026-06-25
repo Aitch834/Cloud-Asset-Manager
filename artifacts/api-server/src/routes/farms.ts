@@ -25082,8 +25082,6 @@ router.post("/farms/:farmId/lis/sync-herds", requireAuth, requireTenant, async (
     content: { holdings: [cphNumber] },
   });
 
-  console.log("[LIS ValidHoldings] status:", cphValidation.status, "raw:", cphValidation.raw?.slice(0, 800));
-
   let cphValid: boolean | null = null;
   let cphState: string | null = null;
   if (cphValidation.data && typeof cphValidation.data === "object") {

@@ -55,6 +55,17 @@ Migration already applied: `ALTER TABLE lis_farm_tokens ADD COLUMN IF NOT EXISTS
 - **Production:** `https://cla.api.livestockinformation.org.uk/v1.0`
 - `/v1.0` is part of the base URL — do NOT add `/v1/` to resource paths
 
+## CLA API request/response conventions (confirmed working June 2026)
+- POST bodies must be wrapped: `{ "content": { "holdings": [...] } }` — bare `{ "holdings": [...] }` returns 400 with "not a valid parameter" error
+- ValidHoldings response shape: `{ content: { validateResults: [{ holding, state, propertyName }] } }` — state value is `"Valid"` for recognised holdings
+- Response parsing must try `d.validateResults ?? d.content?.validateResults ?? d.value ?? d.items` to handle shape variations
+
+## Token refresh (confirmed working June 2026)
+- `refreshLisToken` tries proxy first, then falls through (does NOT return) to direct B2C if proxy fails
+- Direct refresh tries 4 endpoints in order: sandbox B2C policy → prod B2C policy → sandbox AAD → prod AAD
+- Sandbox policy endpoint is first because beta test users are in `livestockinformationb2cprod` tenant
+- ROPC fallback in test-connection and sync routes is skipped if `creds.refreshToken` exists
+
 ## UK Proxy
 - Deployed on DigitalOcean London (LON1) VPS at port 3001, pm2 process `lis-proxy`
 - Token/refresh calls route through proxy when `LIS_PROXY_URL` is set
