@@ -38,6 +38,21 @@ const LIS_B2C_TOKEN_URL_SANDBOX =
 const LIS_B2C_SCOPE_SANDBOX =
   "https://livestockinformationb2cprod.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access";
 
+// ── Authorization Code Flow endpoints (B2C interactive sign-in policy) ────────
+// These are the b2clogin.com policy-specific URLs — used for authorization code
+// exchange, NOT for ROPC (ROPC goes via login.microsoftonline.com above).
+// B2C_1A_SIGNIN is the interactive sign-in policy; confirmed as returning
+// AADB2C90057 for ROPC which proves it IS the correct interactive policy name.
+const LIS_B2C_AUTHORIZE_URL_PROD =
+  "https://livestockinformation.b2clogin.com/livestockinformation.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/authorize";
+const LIS_B2C_TOKEN_URL_POLICY_PROD =
+  "https://livestockinformation.b2clogin.com/livestockinformation.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/token";
+
+const LIS_B2C_AUTHORIZE_URL_SANDBOX =
+  "https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/authorize";
+const LIS_B2C_TOKEN_URL_POLICY_SANDBOX =
+  "https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/token";
+
 function isSandboxApi(): boolean {
   return process.env.LIS_USE_SANDBOX_API === "true";
 }
@@ -124,8 +139,89 @@ function simulatedReference(): string {
 }
 
 /**
+ * Build the LIS B2C authorization URL for the OAuth authorization code flow.
+ * The `state` parameter is an opaque nonce generated and stored server-side
+ * to prevent CSRF. The `redirectUri` must match a URI registered with LIS
+ * in the app registration for client_id LIS_B2C_CLIENT_ID.
+ */
+export function buildLisAuthUrl(state: string, redirectUri: string): string {
+  const sandbox = isSandboxApi();
+  const authorizeUrl = sandbox ? LIS_B2C_AUTHORIZE_URL_SANDBOX : LIS_B2C_AUTHORIZE_URL_PROD;
+  const scope = sandbox ? LIS_B2C_SCOPE_SANDBOX : LIS_B2C_SCOPE_PROD;
+  const params = new URLSearchParams({
+    client_id: LIS_B2C_CLIENT_ID,
+    response_type: "code",
+    redirect_uri: redirectUri,
+    scope,
+    state,
+    response_mode: "query",
+  });
+  return `${authorizeUrl}?${params.toString()}`;
+}
+
+/**
+ * Exchange an OAuth authorization code for access + refresh tokens.
+ * Uses the B2C policy-specific token endpoint (b2clogin.com) with
+ * grant_type=authorization_code and the app's client_secret.
+ */
+export async function exchangeLisCode(code: string, redirectUri: string): Promise<LisTokenResult> {
+  const sandbox = isSandboxApi();
+  const tokenUrl = sandbox ? LIS_B2C_TOKEN_URL_POLICY_SANDBOX : LIS_B2C_TOKEN_URL_POLICY_PROD;
+  const scope = sandbox ? LIS_B2C_SCOPE_SANDBOX : LIS_B2C_SCOPE_PROD;
+
+  try {
+    const body = new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: LIS_B2C_CLIENT_ID,
+      code,
+      redirect_uri: redirectUri,
+      scope,
+    });
+    if (LIS_B2C_CLIENT_SECRET) body.append("client_secret", LIS_B2C_CLIENT_SECRET);
+
+    const res = await fetch(tokenUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+
+    const text = await res.text();
+    const contentType = res.headers.get("content-type") ?? "";
+    if (!contentType.includes("application/json")) {
+      return {
+        sandbox,
+        success: false,
+        errorMessage: `B2C returned non-JSON (HTTP ${res.status}). The redirect_uri may not be registered in the LIS app registration, or the B2C policy name is wrong. Response: ${text.slice(0, 300)}`,
+      };
+    }
+
+    const data = JSON.parse(text) as Record<string, unknown>;
+    if (!res.ok || data["error"]) {
+      return {
+        sandbox,
+        success: false,
+        errorMessage: (data["error_description"] as string) ?? (data["error"] as string) ?? `HTTP ${res.status}`,
+      };
+    }
+
+    return {
+      sandbox,
+      success: true,
+      accessToken: data["access_token"] as string,
+      refreshToken: (data["refresh_token"] as string | undefined),
+      expiresIn: data["expires_in"] as number | undefined,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Token exchange failed";
+    return { sandbox, success: false, errorMessage: msg };
+  }
+}
+
+/**
  * Obtain an Azure B2C access token using ROPC flow.
  * In sandbox mode returns a simulated token.
+ * @deprecated Prefer OAuth authorization code flow (buildLisAuthUrl / exchangeLisCode).
+ *   ROPC is kept as a fallback for farms that stored credentials before the OAuth migration.
  */
 export async function fetchLisToken(username: string, password: string): Promise<LisTokenResult> {
   if (isLisSandboxMode()) {

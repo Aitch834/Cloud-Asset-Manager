@@ -1,6 +1,6 @@
 ---
 name: LIS credentials & integration status
-description: LIS CLA API secrets, confirmed working auth endpoint, and current blocker
+description: LIS CLA API secrets, confirmed working auth endpoint, OAuth flow status
 ---
 
 ## Configured secrets (Replit)
@@ -9,64 +9,53 @@ description: LIS CLA API secrets, confirmed working auth endpoint, and current b
 - `CREDENTIAL_ENCRYPTION_KEY` — AES-256-GCM key for encrypting stored LIS/BCMS passwords
 - `LIS_PROXY_URL` — URL of the UK VPS proxy (e.g. http://<IP>:3001)
 - `LIS_PROXY_SECRET` — shared secret sent in X-Proxy-Secret header to the proxy
+- `LIS_B2C_PRIMARY_SECRET` / `LIS_B2C_SECONDARY_SECRET` — client secrets for CLA app registration
+- `LIS_CLA_REDIRECT_URI` — (optional) OAuth callback URI; if not set, constructed from request host
 
-## Confirmed working auth (June 2026)
+## OAuth Authorization Code Flow — IMPLEMENTED (June 2026)
 
-**Token URL (sandbox):**
-`https://login.microsoftonline.com/livestockinformationb2cprod.onmicrosoft.com/oauth2/v2.0/token`
+LIS support confirmed ROPC (username/password) is NOT supported. Delegated access via
+interactive sign-in (authorization code flow) is required.
 
-**Token URL (production):**
-`https://login.microsoftonline.com/livestockinformation.onmicrosoft.com/oauth2/v2.0/token`
+**Flow:**
+1. `GET /api/lis/authorize?farmId=X&returnUrl=...` (requireAuth) — generates CSRF nonce,
+   stores in `lis_farm_tokens.oauth_state`, redirects to LIS B2C authorize URL
+2. LIS B2C redirects to `GET /api/lis/callback?code=X&state=Y` (no auth middleware)
+3. Callback validates nonce, calls `exchangeLisCode(code, redirectUri)`, stores tokens,
+   redirects back to dashboard with `?lis_connected=true`
+
+**Authorize URL (sandbox):**
+`https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/authorize`
+
+**Token exchange URL for code grant (sandbox — B2C policy endpoint):**
+`https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/token`
 
 **Scope (sandbox):**
 `https://livestockinformationb2cprod.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access`
 
-**Scope (production):**
-`https://livestockinformation.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access`
+**Redirect URI:**
+Must be registered with LIS in their app registration for `91afad18-…`. Configure via
+`LIS_CLA_REDIRECT_URI` secret. For production: `https://api.bdefarmtrac.co.uk/api/lis/callback`.
 
-**Why NOT b2clogin.com / B2C_1A_SIGNIN:**
-`B2C_1A_SIGNIN` is an interactive-only policy. ROPC (grant_type=password) against it returns
-`AADB2C90057` ("application not configured for implicit flow"). Standard AAD v2 endpoint works.
+**Why b2clogin.com for code grant but login.microsoftonline.com for ROPC/refresh:**
+Auth code exchange uses B2C policy-specific endpoint. ROPC and refresh token calls use
+standard AAD v2 (login.microsoftonline.com). Both work for their respective grant types.
 
-**Do NOT include `openid` in scope** — triggers implicit flow error on B2C policies.
+## ROPC / Legacy fallback
+`B2C_1A_SIGNIN` returns AADB2C90057 for ROPC — interactive-only confirmed.
+ROPC kept as deprecated fallback for farms that stored credentials before OAuth migration.
+Token/refresh calls still use `login.microsoftonline.com` (standard AAD v2).
 
-## CLA API gateway (confirmed from LIS Developer Hub, June 2026)
+## State nonce schema
+`lis_farm_tokens.oauth_state` (text, nullable) — column added June 2026.
+Migration already applied: `ALTER TABLE lis_farm_tokens ADD COLUMN IF NOT EXISTS oauth_state text;`
 
+## CLA API gateway
 - **Sandbox:** `https://ext-cla.api.livestockinformation.org.uk/v1.0`
 - **Production:** `https://cla.api.livestockinformation.org.uk/v1.0`
 - `/v1.0` is part of the base URL — do NOT add `/v1/` to resource paths
-- Domain resolves from UK VPS ✓, returns HTTP 404 on root path ✓ (APIM gateway live)
-
-## APIM CLA Ext application
-
-- App name: **APIM CLA Ext**
-- App ID: `77f8ff53-0866-4598-98b3-2ec6ca15ae9b`
-- This is the Azure AD app that protects the CLA API
-
-## Root cause of AADSTS50105 — RESOLVED (June 2026)
-
-LIS support confirmed: client secrets were never generated for the app registration
-`91afad18-e537-48bb-840b-06f4fa943ac6` on their end. Without secrets, the app was treated
-as a public client — Azure AD then requires direct user assignment to the app, which wasn't done.
-
-LIS support is sending primary and secondary client secrets by separate email.
-
-**Status (June 2026): RESOLVED in code**
-- Replit Secrets: `LIS_B2C_PRIMARY_SECRET` and `LIS_B2C_SECONDARY_SECRET` added by user
-- `artifacts/api-server/src/lib/lis.ts` reads `LIS_B2C_PRIMARY_SECRET` as `LIS_B2C_CLIENT_SECRET`
-  and appends `client_secret` to the URLSearchParams in both ROPC and refresh token requests
-- `lis-proxy/index.js` reads `LIS_B2C_CLIENT_SECRET` from its own `.env` and appends to both token requests
-
-**One remaining manual step — VPS proxy:**
-SSH into the VPS and add the primary secret to the proxy `.env`, then restart:
-```
-echo "LIS_B2C_CLIENT_SECRET=<primary_secret>" >> /opt/lis-proxy/lis-proxy/.env
-pm2 restart lis-proxy
-```
-After that, test via Dashboard → Farm Settings → LIS → Test Connection.
 
 ## UK Proxy
 - Deployed on DigitalOcean London (LON1) VPS at port 3001, pm2 process `lis-proxy`
-- No git repo on VPS — update by pasting full `index.js` content via heredoc then `pm2 restart lis-proxy`
-- When `LIS_PROXY_URL` is set in Replit Secrets, all LIS calls route through it
-- Proxy setup guide: `docs/lis-proxy-setup.md`
+- Token/refresh calls route through proxy when `LIS_PROXY_URL` is set
+- Auth code exchange (`exchangeLisCode`) calls b2clogin.com directly — no proxy needed for that leg

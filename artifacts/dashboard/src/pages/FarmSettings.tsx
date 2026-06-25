@@ -384,10 +384,6 @@ type LisSyncResult = {
 
 function LisConnectionCard({ farmId }: { farmId: number }) {
   const { toast } = useToast();
-  const [showPass, setShowPass] = useState(false);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [dirty, setDirty] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<{ msg: string; fn: () => void } | null>(null);
   const [syncResult, setSyncResult] = useState<LisSyncResult | null>(null);
   const [showDebug, setShowDebug] = useState(false);
@@ -399,20 +395,26 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
   });
   const creds = credsQ.data;
 
+  // Handle OAuth return params (?lis_connected=true or ?lis_error=...)
   useEffect(() => {
-    if (creds?.lisUsername) setUsername(creds.lisUsername);
-  }, [creds]);
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("lis_connected");
+    const error = params.get("lis_error");
+    if (connected === "true") {
+      toast({ title: "LIS account connected", description: "Your LIS sign-in was successful." });
+      credsQ.refetch();
+      const u = new URL(window.location.href);
+      u.searchParams.delete("lis_connected");
+      window.history.replaceState({}, "", u.toString());
+    }
+    if (error) {
+      toast({ title: "LIS connection failed", description: decodeURIComponent(error), variant: "destructive" });
+      const u = new URL(window.location.href);
+      u.searchParams.delete("lis_error");
+      window.history.replaceState({}, "", u.toString());
+    }
+  }, []);
 
-  const saveMut = useMutation({
-    mutationFn: async (body: any) => {
-      const r = await fetch(`/api/farms/${farmId}/lis-credentials`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data?.error ?? "Save failed");
-      return data;
-    },
-    onSuccess: () => { toast({ title: "LIS credentials saved" }); credsQ.refetch(); setDirty(false); setPassword(""); },
-    onError: (e: any) => toast({ title: "Failed to save credentials", description: e?.message, variant: "destructive" }),
-  });
   const testMut = useMutation({
     mutationFn: async () => {
       const r = await fetch(`/api/farms/${farmId}/lis-credentials/test`, { method: "POST" });
@@ -429,8 +431,8 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
       if (!r.ok) throw new Error("Delete failed");
       return r.json();
     },
-    onSuccess: () => { toast({ title: "LIS credentials removed" }); credsQ.refetch(); setUsername(""); setPassword(""); },
-    onError: () => toast({ title: "Failed to remove credentials", variant: "destructive" }),
+    onSuccess: () => { toast({ title: "LIS account disconnected" }); credsQ.refetch(); },
+    onError: () => toast({ title: "Failed to disconnect", variant: "destructive" }),
   });
   const syncMut = useMutation({
     mutationFn: async () => {
@@ -441,30 +443,31 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
     },
     onSuccess: (d) => {
       setSyncResult(d);
-      toast({
-        title: d.success ? `Sync complete — ${d.herds.length} herd/flock record(s) found` : "Sync returned no data",
-        description: d.message,
-        variant: d.success ? "default" : "destructive",
-      });
+      toast({ title: d.success ? `Sync complete — ${d.herds.length} herd/flock record(s) found` : "Sync returned no data", description: d.message, variant: d.success ? "default" : "destructive" });
     },
     onError: (e: any) => toast({ title: "Sync failed", description: e?.message, variant: "destructive" }),
   });
+
+  const handleSignIn = () => {
+    const returnUrl = window.location.pathname + window.location.search;
+    window.location.href = `/api/lis/authorize?farmId=${farmId}&returnUrl=${encodeURIComponent(returnUrl)}`;
+  };
 
   const statusBadge = () => {
     if (!creds) return null;
     if (!creds.configured) return (
       <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#f3f4f6", color: "#6b7280", borderRadius: 6, padding: "3px 10px", fontSize: "0.75rem", fontWeight: 600 }}>
-        <WifiOff size={12} />Not configured
+        <WifiOff size={12} />Not connected
       </span>
     );
     if (creds.sandboxMode) return (
       <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#eff6ff", color: "#1d4ed8", borderRadius: 6, padding: "3px 10px", fontSize: "0.75rem", fontWeight: 600 }}>
-        <Shield size={12} />Sandbox mode — credentials saved
+        <Shield size={12} />Sandbox mode — signed in
       </span>
     );
     return (
       <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#dcfce7", color: "#166534", borderRadius: 6, padding: "3px 10px", fontSize: "0.75rem", fontWeight: 600 }}>
-        <ShieldCheck size={12} />Live — connected to LIS
+        <ShieldCheck size={12} />Connected to LIS
       </span>
     );
   };
@@ -487,82 +490,56 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
             <p style={{ fontSize: "0.78rem", color: "#6b7280", lineHeight: 1.5 }}>
               {creds?.subscriptionKeyConfigured
                 ? "BDE Farm Trac has a registered LIS Developer Hub subscription key. Submissions go directly to the Livestock Information Service."
-                : "A LIS Developer Hub subscription key has not yet been configured by BDE. Submissions will simulate the full CLA API flow and log the JSON payload — no data will be sent to LIS. This lets you set up and test your credentials now so the system is ready the moment BDE completes developer hub registration."}
+                : "A LIS Developer Hub subscription key has not yet been configured by BDE. Submissions will simulate the full CLA API flow and log the JSON payload — no data will be sent to LIS."}
             </p>
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-          <p style={{ fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}>Connection status:</p>
-          {credsQ.isLoading ? <Loader2 size={14} className="animate-spin" /> : statusBadge()}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div>
-            <Label>LIS Username</Label>
-            <Input
-              placeholder="e.g. john.smith@example.com"
-              value={username}
-              onChange={e => { setUsername(e.target.value); setDirty(true); }}
-              className="mt-1"
-            />
-            <p className="text-xs text-muted-foreground mt-1">Your Livestock Information Service login email. Register or log in at <a href="https://cla.livestockinformation.org.uk" target="_blank" rel="noopener noreferrer" className="underline text-blue-600">cla.livestockinformation.org.uk</a>.</p>
+        {/* Connection status + sign-in */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <p style={{ fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}>Connection:</p>
+            {credsQ.isLoading ? <Loader2 size={14} className="animate-spin" /> : statusBadge()}
           </div>
-          <div>
-            <Label>LIS Password</Label>
-            <div className="relative mt-1">
-              <Input
-                type={showPass ? "text" : "password"}
-                placeholder={creds?.configured && !dirty ? "••••••••••• (saved)" : "Enter password"}
-                value={password}
-                onChange={e => { setPassword(e.target.value); setDirty(true); }}
-                className="pr-10"
-              />
-              <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Your LIS portal password. Stored with base64 encoding. Credentials are used to authenticate with the LIS Azure B2C service on your behalf.</p>
+          <div className="flex items-center gap-3">
+            <Button size="sm" onClick={handleSignIn}>
+              <ExternalLink size={14} className="mr-1.5" />
+              {creds?.configured ? "Re-sign in with LIS" : "Sign in with LIS"}
+            </Button>
+            {creds?.configured && (
+              <>
+                <Button variant="outline" size="sm" disabled={testMut.isPending} onClick={() => testMut.mutate()}>
+                  {testMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <Wifi size={14} className="mr-1" />}
+                  Test Connection
+                </Button>
+                {creds?.testStatus === "ok" && (
+                  <Button variant="outline" size="sm" disabled={syncMut.isPending} onClick={() => syncMut.mutate()}>
+                    {syncMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <RefreshCw size={14} className="mr-1" />}
+                    Sync from LIS
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => setPendingConfirm({ msg: "Disconnect LIS account for this farm? You can reconnect at any time.", fn: () => deleteMut.mutate() })}>
+                  <Trash2 size={14} />
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <Button
-            size="sm"
-            disabled={saveMut.isPending || (!dirty && !username)}
-            onClick={() => saveMut.mutate({ lisUsername: username, ...(password && { lisPassword: password }) })}
-          >
-            {saveMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <Save size={14} className="mr-1" />}
-            Save Credentials
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={testMut.isPending || !creds?.configured}
-            onClick={() => testMut.mutate()}
-            title={!creds?.configured ? "Save credentials first" : "Test LIS authentication"}
-          >
-            {testMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <Wifi size={14} className="mr-1" />}
-            Test Connection
-          </Button>
-          {creds?.configured && creds?.testStatus === "ok" && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={syncMut.isPending}
-              onClick={() => syncMut.mutate()}
-              title="Fetch your registered herds and flocks from the LIS CLA API"
-            >
-              {syncMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <RefreshCw size={14} className="mr-1" />}
-              Sync from LIS
-            </Button>
-          )}
-          {creds?.configured && (
-            <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => setPendingConfirm({ msg: "Remove LIS credentials for this farm?", fn: () => deleteMut.mutate() })}>
-              <Trash2 size={14} />
-            </Button>
-          )}
-        </div>
+        {/* How sign-in works */}
+        {!creds?.configured && (
+          <div style={{ background: "#fafafa", border: "1px solid #e5e7eb", borderRadius: 10, padding: "0.875rem 1rem" }}>
+            <p style={{ fontSize: "0.82rem", fontWeight: 600, color: "#374151", marginBottom: 6 }}>How sign-in works</p>
+            <ol style={{ fontSize: "0.78rem", color: "#4b5563", paddingLeft: "1.25rem", lineHeight: 1.8, margin: 0 }}>
+              <li>Click <strong>Sign in with LIS</strong> — you will be taken to the official Livestock Information Service login page.</li>
+              <li>Sign in with your LIS account email and password (the same credentials you use at <a href="https://cla.livestockinformation.org.uk" target="_blank" rel="noopener noreferrer" className="underline text-blue-600">cla.livestockinformation.org.uk</a>).</li>
+              <li>After sign-in, LIS redirects you back here and your account is connected. No password is stored in BDE Farm Trac.</li>
+            </ol>
+            <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: 8 }}>
+              Don't have a LIS account? Register free at <a href="https://cla.livestockinformation.org.uk" target="_blank" rel="noopener noreferrer" className="underline">cla.livestockinformation.org.uk</a>.
+            </p>
+          </div>
+        )}
 
         {creds?.lastTestedAt && (
           <div style={{ fontSize: "0.78rem", color: creds.testStatus === "ok" ? "#166534" : "#dc2626", display: "flex", alignItems: "center", gap: 6 }}>

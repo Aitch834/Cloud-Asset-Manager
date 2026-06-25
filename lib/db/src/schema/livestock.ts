@@ -813,6 +813,7 @@ export const lisFarmTokensTable = pgTable("lis_farm_tokens", {
   lastTestedAt: timestamp("last_tested_at", { withTimezone: true }),
   testStatus: text("test_status"),
   testMessage: text("test_message"),
+  oauthState: text("oauth_state"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

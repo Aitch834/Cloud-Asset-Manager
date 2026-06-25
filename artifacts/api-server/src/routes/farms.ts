@@ -419,7 +419,7 @@ import { farmRlsMiddleware } from "../middlewares/farmRlsMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
 import { generateDispatchNoteHtml } from "../lib/dispatch-note-html";
 import { submitMovement, testConnection, isSandboxMode } from "../lib/ctws";
-import { submitLisMovement, testLisConnection, fetchLisToken, isLisSandboxMode, callLisApi } from "../lib/lis";
+import { submitLisMovement, testLisConnection, fetchLisToken, refreshLisToken, isLisSandboxMode, callLisApi, buildLisAuthUrl, exchangeLisCode } from "../lib/lis";
 
 const router: IRouter = Router();
 
@@ -24808,27 +24808,65 @@ router.post("/farms/:farmId/lis-credentials/test", requireAuth, requireTenant, a
   if (!farmId) return;
   const [creds] = await db.select().from(lisFarmTokensTable).where(eq(lisFarmTokensTable.farmId, farmId));
   if (!creds?.isConfigured) {
-    res.status(400).json({ success: false, message: "LIS credentials not configured. Please enter your username and password first." });
+    res.status(400).json({ success: false, message: "LIS not connected. Click 'Sign in with LIS' to authenticate." });
     return;
   }
-  const password = decryptCredential(creds.lisPasswordEncrypted ?? "");
-  const result = await testLisConnection(creds.lisUsername!, password);
 
-  await db.update(lisFarmTokensTable).set({
-    testStatus: result.success ? "ok" : "failed",
-    testMessage: result.success
-      ? (result.sandbox ? "Sandbox test passed — no data sent to LIS" : "Connected to LIS — credentials verified")
-      : (result.errorMessage ?? "Connection failed"),
-    lastTestedAt: new Date(),
-    ...(result.accessToken && {
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken ?? undefined,
-      tokenExpiresAt: result.tokenExpiresAt ?? undefined,
-    }),
-    updatedAt: new Date(),
-  }).where(eq(lisFarmTokensTable.farmId, farmId));
+  // ── Try OAuth token (primary path) ──────────────────────────────────────────
+  let token = creds.accessToken ?? undefined;
+  const tokenExpired = !token || (creds.tokenExpiresAt && new Date(creds.tokenExpiresAt) < new Date(Date.now() + 60_000));
 
-  res.json({ success: result.success, sandbox: result.sandbox, message: result.errorMessage ?? (result.success ? "OK" : "Failed") });
+  if (tokenExpired && creds.refreshToken) {
+    const refreshResult = await refreshLisToken(creds.refreshToken);
+    if (refreshResult.success && refreshResult.accessToken) {
+      token = refreshResult.accessToken;
+      await db.update(lisFarmTokensTable).set({
+        accessToken: refreshResult.accessToken,
+        refreshToken: refreshResult.refreshToken ?? undefined,
+        tokenExpiresAt: refreshResult.expiresIn ? new Date(Date.now() + refreshResult.expiresIn * 1000) : undefined,
+        updatedAt: new Date(),
+      }).where(eq(lisFarmTokensTable.farmId, farmId));
+    } else {
+      token = undefined;
+    }
+  }
+
+  // ── Legacy ROPC fallback (for farms migrated from the old credential form) ──
+  if (!token && creds.lisPasswordEncrypted) {
+    const password = decryptCredential(creds.lisPasswordEncrypted);
+    const result = await testLisConnection(creds.lisUsername!, password);
+    await db.update(lisFarmTokensTable).set({
+      testStatus: result.success ? "ok" : "failed",
+      testMessage: result.success
+        ? (result.sandbox ? "Sandbox test passed (ROPC legacy)" : "Connected via ROPC — consider re-connecting via LIS sign-in")
+        : (result.errorMessage ?? "Connection failed"),
+      lastTestedAt: new Date(),
+      ...(result.accessToken && { accessToken: result.accessToken, refreshToken: result.refreshToken ?? undefined, tokenExpiresAt: result.tokenExpiresAt ?? undefined }),
+      updatedAt: new Date(),
+    }).where(eq(lisFarmTokensTable.farmId, farmId));
+    res.json({ success: result.success, sandbox: result.sandbox, message: result.errorMessage ?? (result.success ? "OK" : "Failed") });
+    return;
+  }
+
+  if (!token) {
+    // No usable token at all — tell them to re-connect
+    await db.update(lisFarmTokensTable).set({ testStatus: "failed", testMessage: "Token expired — please sign in again", lastTestedAt: new Date(), updatedAt: new Date() }).where(eq(lisFarmTokensTable.farmId, farmId));
+    res.status(401).json({ success: false, message: "LIS token has expired. Please click 'Sign in with LIS' to reconnect." });
+    return;
+  }
+
+  // Token is valid — call Hello World / basic API check
+  if (isLisSandboxMode()) {
+    await db.update(lisFarmTokensTable).set({ testStatus: "ok", testMessage: "Sandbox test passed — token valid", lastTestedAt: new Date(), updatedAt: new Date() }).where(eq(lisFarmTokensTable.farmId, farmId));
+    res.json({ success: true, sandbox: true, message: "Sandbox test passed — token valid" });
+    return;
+  }
+
+  const testResult = await callLisApi(token, "/hello");
+  const ok = testResult.ok || testResult.status === 404; // 404 on /hello still means auth worked
+  const msg = ok ? "Connected to LIS — token verified" : `LIS API returned HTTP ${testResult.status}`;
+  await db.update(lisFarmTokensTable).set({ testStatus: ok ? "ok" : "failed", testMessage: msg, lastTestedAt: new Date(), updatedAt: new Date() }).where(eq(lisFarmTokensTable.farmId, farmId));
+  res.json({ success: ok, sandbox: false, message: msg });
 });
 
 // GET submission history
@@ -24990,18 +25028,41 @@ router.post("/farms/:farmId/lis/sync-herds", requireAuth, requireTenant, async (
   let accessToken = creds.accessToken ?? undefined;
   const tokenExpired = !accessToken || (creds.tokenExpiresAt && new Date(creds.tokenExpiresAt) < new Date(Date.now() + 60_000));
   if (tokenExpired) {
-    const tokenResult = await fetchLisToken(creds.lisUsername!, password);
-    if (!tokenResult.success || !tokenResult.accessToken) {
-      res.status(401).json({ success: false, message: `Re-authentication failed: ${tokenResult.errorMessage ?? "unknown error"}` });
+    // ── Try OAuth refresh token first ────────────────────────────────────────
+    if (creds.refreshToken) {
+      const refreshResult = await refreshLisToken(creds.refreshToken);
+      if (refreshResult.success && refreshResult.accessToken) {
+        accessToken = refreshResult.accessToken;
+        await db.update(lisFarmTokensTable).set({
+          accessToken,
+          refreshToken: refreshResult.refreshToken ?? undefined,
+          tokenExpiresAt: refreshResult.expiresIn ? new Date(Date.now() + refreshResult.expiresIn * 1000) : undefined,
+          updatedAt: new Date(),
+        }).where(eq(lisFarmTokensTable.farmId, farmId));
+      } else {
+        accessToken = undefined;
+      }
+    }
+    // ── Legacy ROPC fallback ─────────────────────────────────────────────────
+    if (!accessToken && creds.lisPasswordEncrypted) {
+      const password = decryptCredential(creds.lisPasswordEncrypted ?? "");
+      const tokenResult = await fetchLisToken(creds.lisUsername!, password);
+      if (!tokenResult.success || !tokenResult.accessToken) {
+        res.status(401).json({ success: false, message: `Re-authentication failed: ${tokenResult.errorMessage ?? "unknown error"}. Try signing in again via 'Sign in with LIS'.` });
+        return;
+      }
+      accessToken = tokenResult.accessToken;
+      await db.update(lisFarmTokensTable).set({
+        accessToken,
+        refreshToken: tokenResult.refreshToken ?? undefined,
+        tokenExpiresAt: tokenResult.expiresIn ? new Date(Date.now() + tokenResult.expiresIn * 1000) : undefined,
+        updatedAt: new Date(),
+      }).where(eq(lisFarmTokensTable.farmId, farmId));
+    }
+    if (!accessToken) {
+      res.status(401).json({ success: false, message: "LIS token has expired. Please click 'Sign in with LIS' in Farm Settings to reconnect." });
       return;
     }
-    accessToken = tokenResult.accessToken;
-    await db.update(lisFarmTokensTable).set({
-      accessToken,
-      refreshToken: tokenResult.refreshToken ?? undefined,
-      tokenExpiresAt: tokenResult.expiresIn ? new Date(Date.now() + tokenResult.expiresIn * 1000) : undefined,
-      updatedAt: new Date(),
-    }).where(eq(lisFarmTokensTable.farmId, farmId));
   }
 
   // Fetch the farm's CPH number
@@ -25067,6 +25128,113 @@ router.post("/farms/:farmId/lis/sync-herds", requireAuth, requireTenant, async (
     herds,
     attempts,
   });
+});
+
+// ─── LIS OAuth Authorization Code Flow ────────────────────────────────────
+
+/**
+ * Resolve the redirect URI for the LIS CLA OAuth callback.
+ * Uses LIS_CLA_REDIRECT_URI env var if set, otherwise constructs from request.
+ */
+function getLisClaCbUrl(req: Request): string {
+  const configured = process.env.LIS_CLA_REDIRECT_URI;
+  if (configured) return configured;
+  const proto = (req.headers["x-forwarded-proto"] as string | undefined) ?? "https";
+  const host = (req.headers["x-forwarded-host"] as string | undefined) ?? (req.headers["host"] as string | undefined) ?? "localhost";
+  return `${proto}://${host}/api/lis/callback`;
+}
+
+/**
+ * GET /api/lis/authorize?farmId=X&returnUrl=/dashboard/farm-settings
+ * Starts the LIS CLA OAuth authorization code flow.
+ * Generates a CSRF nonce, stores it, then redirects the farmer to the LIS B2C login page.
+ * The redirect_uri (LIS_CLA_REDIRECT_URI) must be registered with LIS in their app registration.
+ */
+router.get("/lis/authorize", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.query["farmId"] as string);
+  if (!farmId || isNaN(farmId)) {
+    res.status(400).send("Missing or invalid farmId");
+    return;
+  }
+  const returnUrl = (req.query["returnUrl"] as string | undefined) ?? "/dashboard/farm-settings";
+
+  const { randomBytes } = require("crypto") as typeof import("crypto");
+  const nonce = randomBytes(16).toString("hex");
+  // State encodes: nonce|farmId|base64url(returnUrl)
+  const state = `${nonce}|${farmId}|${Buffer.from(returnUrl).toString("base64url")}`;
+
+  const [existing] = await db.select().from(lisFarmTokensTable).where(eq(lisFarmTokensTable.farmId, farmId));
+  if (existing) {
+    await db.update(lisFarmTokensTable).set({ oauthState: nonce, updatedAt: new Date() }).where(eq(lisFarmTokensTable.farmId, farmId));
+  } else {
+    await db.insert(lisFarmTokensTable).values({ farmId, oauthState: nonce, isConfigured: false, sandboxMode: isLisSandboxMode() });
+  }
+
+  const redirectUri = getLisClaCbUrl(req);
+  const authUrl = buildLisAuthUrl(state, redirectUri);
+  res.redirect(authUrl);
+});
+
+/**
+ * GET /api/lis/callback?code=X&state=Y
+ * OAuth callback — LIS B2C redirects here after the farmer signs in.
+ * Validates state nonce, exchanges code for tokens, stores them, then
+ * redirects back to the dashboard with ?lis_connected=true (or ?lis_error=...).
+ * Does NOT require authentication middleware — the user is returning from LIS.
+ */
+router.get("/lis/callback", async (req: Request, res: Response): Promise<void> => {
+  const { code, state, error, error_description } = req.query as Record<string, string>;
+
+  const bail = (msg: string) => {
+    res.redirect(`/dashboard/farm-settings?lis_error=${encodeURIComponent(msg)}`);
+  };
+
+  if (error || !code || !state) {
+    bail(error_description ?? error ?? "LIS authentication was cancelled or failed. Please try again.");
+    return;
+  }
+
+  // Parse state: nonce|farmId|base64url(returnUrl)
+  const parts = state.split("|");
+  if (parts.length < 2) { bail("Invalid OAuth state — please try again."); return; }
+  const [nonce, farmIdStr, returnUrlB64] = parts;
+  const farmId = parseInt(farmIdStr);
+  if (!farmId || isNaN(farmId)) { bail("Invalid farm ID in OAuth state."); return; }
+  const returnUrl = returnUrlB64
+    ? Buffer.from(returnUrlB64, "base64url").toString()
+    : "/dashboard/farm-settings";
+
+  // Validate nonce against DB
+  const [tokenRecord] = await db.select().from(lisFarmTokensTable).where(eq(lisFarmTokensTable.farmId, farmId));
+  if (!tokenRecord || tokenRecord.oauthState !== nonce) {
+    bail("OAuth state validation failed — the sign-in link may have expired. Please try again.");
+    return;
+  }
+
+  // Exchange code for tokens
+  const redirectUri = getLisClaCbUrl(req);
+  const tokenResult = await exchangeLisCode(code, redirectUri);
+
+  if (!tokenResult.success || !tokenResult.accessToken) {
+    bail(tokenResult.errorMessage ?? "Token exchange with LIS B2C failed. Please try again.");
+    return;
+  }
+
+  // Store tokens and mark as connected
+  await db.update(lisFarmTokensTable).set({
+    accessToken: tokenResult.accessToken,
+    refreshToken: tokenResult.refreshToken ?? undefined,
+    tokenExpiresAt: tokenResult.expiresIn ? new Date(Date.now() + tokenResult.expiresIn * 1000) : undefined,
+    isConfigured: true,
+    sandboxMode: isLisSandboxMode(),
+    oauthState: null,           // consume nonce
+    testStatus: "ok",
+    testMessage: tokenResult.sandbox ? "Connected via LIS sign-in (sandbox)" : "Connected via LIS sign-in",
+    lastTestedAt: new Date(),
+    updatedAt: new Date(),
+  }).where(eq(lisFarmTokensTable.farmId, farmId));
+
+  res.redirect(`${returnUrl}?lis_connected=true`);
 });
 
 // ─── Farm Customers ─────────────────────────────────────────────────────────
