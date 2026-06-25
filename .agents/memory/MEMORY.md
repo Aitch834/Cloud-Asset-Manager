@@ -11,3 +11,5 @@
 - [LIS credentials & integration status](lis-credentials.md) — both secrets set; Beta Sandbox client ID documented; pending: client_secret confirmation from LIS support
 - [LIS LIP Cattle credentials & integration status](lis-lip-cattle.md) — LIP secrets saved; 3 sandbox API subscriptions pending approval (up to 5 working days); schema additions and build sequencing documented
 - [LIS Beta Sandbox test data](lis-test-data.md) — 2 users, 14 CPHs, herds/tags for sheep/goat/deer; passwords in attached_assets/testData_1781087138915.json
+- [LIS OAuth HMAC state — no DB nonce](lis-oauth-hmac.md) — OAuth state is HMAC-SHA256 signed (not DB-stored); use createHmac/timingSafeEqual from "crypto" import, NOT global crypto
+- [Dashboard local build — PORT+BASE_PATH required](dashboard-local-build.md) — dashboard vite build needs both PORT and BASE_PATH: PORT=3000 BASE_PATH=/dashboard/ pnpm --filter @workspace/dashboard run build

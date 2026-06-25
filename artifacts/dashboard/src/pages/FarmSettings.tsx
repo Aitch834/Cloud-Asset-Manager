@@ -406,6 +406,10 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
       const u = new URL(window.location.href);
       u.searchParams.delete("lis_connected");
       window.history.replaceState({}, "", u.toString());
+      // If this tab was opened as a popup by the sign-in flow, close it so the
+      // user lands back on their original tab. window.close() is a no-op on
+      // tabs the user opened directly, so this is safe to call unconditionally.
+      setTimeout(() => window.close(), 1500);
     }
     if (error) {
       toast({ title: "LIS connection failed", description: decodeURIComponent(error), variant: "destructive" });
