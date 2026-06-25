@@ -449,16 +449,18 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
   });
 
   const handleSignIn = async () => {
-    const returnUrl = window.location.pathname + window.location.search;
+    // Use the full absolute URL so the callback on api.bdefarmtrac.co.uk
+    // can redirect back to the correct domain after sign-in.
+    const returnUrl = window.location.href.split("?")[0];
     try {
       const r = await fetch(`/api/lis/authorize?farmId=${farmId}&returnUrl=${encodeURIComponent(returnUrl)}`, {
         headers: { Accept: "application/json" },
       });
       const data = await r.json();
       if (!r.ok || !data.url) throw new Error(data?.error ?? "Failed to start LIS sign-in");
-      // Navigate the top-level window — B2C login pages block iframe embedding
-      // (X-Frame-Options). In production window.top === window so no difference.
-      (window.top ?? window).location.href = data.url;
+      // Open in a new tab — B2C login pages block iframe embedding (X-Frame-Options),
+      // and window.top is cross-origin in dev environments like Replit's preview.
+      window.open(data.url, "_blank", "noopener");
     } catch (e: any) {
       toast({ title: "LIS sign-in failed", description: e?.message, variant: "destructive" });
     }
