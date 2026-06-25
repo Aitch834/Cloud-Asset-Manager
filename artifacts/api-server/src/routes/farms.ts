@@ -25069,65 +25069,97 @@ router.post("/farms/:farmId/lis/sync-herds", requireAuth, requireTenant, async (
   // Fetch the farm's CPH number
   const [farm] = await db.select({ cphNumber: farmsTable.cphNumber }).from(farmsTable).where(eq(farmsTable.id, farmId));
   const cphNumber = farm?.cphNumber ?? "";
-  const encodedCph = encodeURIComponent(cphNumber.replace(/\//g, "-")); // LIS CPH in URL typically uses dashes
 
-  // ── Try multiple CLA API paths to discover the correct endpoints ───────────
-  const attempts: Record<string, { status: number; ok: boolean; data: unknown } | { error: string }> = {};
-
-  const endpoints = [
-    // /v1.0 is now baked into CLA_API_BASE on the proxy — paths here must not re-add it
-    "/flocks",
-    "/herds",
-    cphNumber ? `/holdings/${encodedCph}/flocks` : null,
-    cphNumber ? `/holdings/${encodedCph}/herds` : null,
-    cphNumber ? `/holdings/${encodeURIComponent(cphNumber)}/flocks` : null,
-  ].filter(Boolean) as string[];
-
-  for (const path of endpoints) {
-    try {
-      const r = await callLisApi(accessToken!, path);
-      attempts[`GET ${path}`] = { status: r.status, ok: r.ok, data: r.data };
-    } catch (e: any) {
-      attempts[`GET ${path}`] = { error: e?.message ?? "error" };
-    }
+  if (!cphNumber) {
+    res.status(400).json({ success: false, message: "No CPH number set for this farm. Please add your CPH number in Farm Settings before syncing." });
+    return;
   }
 
-  // Find the first successful response that looks like a list
-  const successEntry = Object.entries(attempts).find(([, v]) => "ok" in v && v.ok);
-  const successData = successEntry ? (successEntry[1] as any).data : null;
+  // ── 1. Validate CPH with LIS ─────────────────────────────────────────────
+  // CLA API: POST /Holdings/ValidHoldings
+  const cphValidation = await callLisApi(accessToken!, "/Holdings/ValidHoldings", "POST", {
+    content: { holdings: [cphNumber] },
+  });
 
-  // Parse herds from successful response — handle common LIS response shapes
-  type HerdSummary = { ref: string; species: string; count?: number; name?: string };
-  let herds: HerdSummary[] = [];
-  if (Array.isArray(successData)) {
-    herds = successData.map((h: any) => ({
-      ref: h.flockRef ?? h.herdRef ?? h.flockMark ?? h.herdMark ?? h.id ?? "unknown",
-      species: h.speciesIdentifier ?? h.species ?? "unknown",
-      count: h.animalCount ?? h.numberOfAnimals ?? undefined,
-      name: h.name ?? h.flockName ?? h.herdName ?? undefined,
-    }));
-  } else if (successData && typeof successData === "object") {
-    // Some APIs wrap the list: { flocks: [...] } or { herds: [...] }
-    const inner = (successData as any).flocks ?? (successData as any).herds ?? (successData as any).items ?? (successData as any).value;
-    if (Array.isArray(inner)) {
-      herds = inner.map((h: any) => ({
-        ref: h.flockRef ?? h.herdRef ?? h.flockMark ?? h.herdMark ?? h.id ?? "unknown",
-        species: h.speciesIdentifier ?? h.species ?? "unknown",
-        count: h.animalCount ?? h.numberOfAnimals ?? undefined,
-        name: h.name ?? h.flockName ?? h.herdName ?? undefined,
-      }));
-    }
+  let cphValid: boolean | null = null;
+  let cphState: string | null = null;
+  if (cphValidation.data && typeof cphValidation.data === "object") {
+    const content = (cphValidation.data as any).content;
+    const results: Array<{ holding: string; state: string; propertyName?: string }> = content?.validateResults ?? [];
+    const match = results.find((r) => r.holding === cphNumber);
+    cphState = match?.state ?? null;
+    cphValid = cphState === "Valid";
   }
+
+  // ── 2. Fetch pending movement reviews for sheep ───────────────────────────
+  // CLA API: GET /HoldingMovementForReviews/ReviewBySpecies(species='Sheep',holding='{cph}')
+  const encodedCph = encodeURIComponent(cphNumber);
+  const reviewResult = await callLisApi(
+    accessToken!,
+    `/HoldingMovementForReviews/ReviewBySpecies(species='Sheep',holding='${encodedCph}')`,
+  );
+
+  let pendingReviews: unknown[] = [];
+  if (reviewResult.ok && reviewResult.data) {
+    const d = reviewResult.data as any;
+    const inner = d.value ?? d.content?.movements ?? d.items;
+    if (Array.isArray(inner)) pendingReviews = inner;
+    else if (Array.isArray(d)) pendingReviews = d;
+  }
+
+  // ── 3. Fetch recent transfer requests (outbound movements) ────────────────
+  // CLA API: GET /TransferRequests
+  const transferResult = await callLisApi(accessToken!, "/TransferRequests?$top=10&$orderby=requestDate desc");
+
+  let recentTransfers: unknown[] = [];
+  if (transferResult.ok && transferResult.data) {
+    const d = transferResult.data as any;
+    const inner = d.value ?? d.content?.items ?? d.items;
+    if (Array.isArray(inner)) recentTransfers = inner;
+    else if (Array.isArray(d)) recentTransfers = d;
+  }
+
+  // ── 4. Fetch recent approved movements ───────────────────────────────────
+  // CLA API: GET /ApprovedMovements
+  const approvedResult = await callLisApi(accessToken!, "/ApprovedMovements?$top=10");
+
+  let approvedMovements: unknown[] = [];
+  if (approvedResult.ok && approvedResult.data) {
+    const d = approvedResult.data as any;
+    const inner = d.value ?? d.content?.items ?? d.items;
+    if (Array.isArray(inner)) approvedMovements = inner;
+    else if (Array.isArray(d)) approvedMovements = d;
+  }
+
+  // ── Build summary message ─────────────────────────────────────────────────
+  const messages: string[] = [];
+  if (cphValid === true) messages.push(`CPH ${cphNumber} is registered in LIS`);
+  else if (cphValid === false) messages.push(`CPH ${cphNumber} is not recognised in LIS (state: ${cphState ?? "unknown"})`);
+  else if (!cphValidation.ok) messages.push(`CPH validation failed (HTTP ${cphValidation.status})`);
+
+  if (pendingReviews.length > 0) messages.push(`${pendingReviews.length} sheep movement(s) awaiting review`);
+  if (recentTransfers.length > 0) messages.push(`${recentTransfers.length} recent transfer request(s) found`);
+  if (approvedMovements.length > 0) messages.push(`${approvedMovements.length} approved movement(s) found`);
+
+  const anySuccess = cphValidation.ok || reviewResult.ok || transferResult.ok || approvedResult.ok;
 
   res.json({
-    success: !!successEntry,
+    success: anySuccess,
     sandbox: false,
     cphNumber,
-    message: successEntry
-      ? `Fetched from ${successEntry[0]} — ${herds.length} herd/flock record(s) found`
-      : "No CLA API endpoint returned a successful response. See 'attempts' for details.",
-    herds,
-    attempts,
+    cphValid,
+    message: messages.length > 0
+      ? messages.join(". ")
+      : "LIS connection verified — no movement data found for this holding.",
+    pendingReviews,
+    recentTransfers,
+    approvedMovements,
+    attempts: {
+      "POST /Holdings/ValidHoldings": { status: cphValidation.status, ok: cphValidation.ok, data: cphValidation.data },
+      "GET /HoldingMovementForReviews/ReviewBySpecies": { status: reviewResult.status, ok: reviewResult.ok, data: reviewResult.data },
+      "GET /TransferRequests": { status: transferResult.status, ok: transferResult.ok, data: transferResult.data },
+      "GET /ApprovedMovements": { status: approvedResult.status, ok: approvedResult.ok, data: approvedResult.data },
+    },
   });
 });
 

@@ -377,8 +377,11 @@ type LisSyncResult = {
   success: boolean;
   sandbox?: boolean;
   cphNumber?: string;
+  cphValid?: boolean | null;
   message: string;
-  herds: { ref: string; species: string; count?: number; name?: string }[];
+  pendingReviews: unknown[];
+  recentTransfers: unknown[];
+  approvedMovements: unknown[];
   attempts: Record<string, { status: number; ok: boolean; data: unknown } | { error: string }>;
 };
 
@@ -447,7 +450,7 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
     },
     onSuccess: (d) => {
       setSyncResult(d);
-      toast({ title: d.success ? `Sync complete — ${d.herds.length} herd/flock record(s) found` : "Sync returned no data", description: d.message, variant: d.success ? "default" : "destructive" });
+      toast({ title: d.success ? "LIS sync complete" : "LIS sync returned no data", description: d.message, variant: d.success ? "default" : "destructive" });
     },
     onError: (e: any) => toast({ title: "Sync failed", description: e?.message, variant: "destructive" }),
   });
@@ -567,45 +570,41 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
 
         {syncResult && (
           <div style={{ border: `1px solid ${syncResult.success ? "#bbf7d0" : "#fecaca"}`, borderRadius: 10, padding: "0.875rem 1rem", background: syncResult.success ? "#f0fdf4" : "#fef2f2" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: syncResult.herds.length > 0 ? 10 : 0 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <p style={{ fontSize: "0.82rem", fontWeight: 600, color: syncResult.success ? "#166534" : "#dc2626" }}>
                 {syncResult.success ? "✓ " : "✗ "}{syncResult.message}
               </p>
               <button
                 onClick={() => setShowDebug(!showDebug)}
-                style={{ fontSize: "0.72rem", color: "#6b7280", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+                style={{ fontSize: "0.72rem", color: "#6b7280", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", flexShrink: 0 }}
               >
                 {showDebug ? "Hide" : "Show"} API debug
               </button>
             </div>
 
-            {syncResult.herds.length > 0 && (
-              <table style={{ width: "100%", fontSize: "0.78rem", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid #d1fae5" }}>
-                    <th style={{ textAlign: "left", padding: "4px 8px", color: "#374151", fontWeight: 600 }}>Herd/Flock Ref</th>
-                    <th style={{ textAlign: "left", padding: "4px 8px", color: "#374151", fontWeight: 600 }}>Species</th>
-                    <th style={{ textAlign: "left", padding: "4px 8px", color: "#374151", fontWeight: 600 }}>Name</th>
-                    <th style={{ textAlign: "right", padding: "4px 8px", color: "#374151", fontWeight: 600 }}>Animals</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {syncResult.herds.map((h, i) => (
-                    <tr key={i} style={{ borderBottom: "1px solid #d1fae5" }}>
-                      <td style={{ padding: "4px 8px", fontFamily: "monospace", color: "#166534" }}>{h.ref}</td>
-                      <td style={{ padding: "4px 8px", color: "#374151" }}>{h.species}</td>
-                      <td style={{ padding: "4px 8px", color: "#6b7280" }}>{h.name ?? "—"}</td>
-                      <td style={{ padding: "4px 8px", textAlign: "right", color: "#374151" }}>{h.count ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-
-            {syncResult.herds.length === 0 && syncResult.success && (
-              <p style={{ fontSize: "0.78rem", color: "#6b7280", marginTop: 6 }}>
-                The API responded successfully but returned no herds or flocks. The endpoint may not be the correct one — check the API debug below.
-              </p>
+            {syncResult.success && (
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                {syncResult.cphValid != null && (
+                  <div style={{ background: syncResult.cphValid ? "#dcfce7" : "#fee2e2", borderRadius: 6, padding: "4px 10px", fontSize: "0.76rem", color: syncResult.cphValid ? "#166534" : "#dc2626", fontWeight: 600 }}>
+                    {syncResult.cphValid ? "✓" : "✗"} CPH {syncResult.cphNumber} — {syncResult.cphValid ? "Registered in LIS" : "Not recognised by LIS"}
+                  </div>
+                )}
+                {syncResult.pendingReviews.length > 0 && (
+                  <div style={{ background: "#fef3c7", borderRadius: 6, padding: "4px 10px", fontSize: "0.76rem", color: "#92400e", fontWeight: 600 }}>
+                    ⚠ {syncResult.pendingReviews.length} movement(s) awaiting review
+                  </div>
+                )}
+                {syncResult.recentTransfers.length > 0 && (
+                  <div style={{ background: "#eff6ff", borderRadius: 6, padding: "4px 10px", fontSize: "0.76rem", color: "#1e40af" }}>
+                    {syncResult.recentTransfers.length} recent transfer request(s)
+                  </div>
+                )}
+                {syncResult.approvedMovements.length > 0 && (
+                  <div style={{ background: "#f0f9ff", borderRadius: 6, padding: "4px 10px", fontSize: "0.76rem", color: "#0369a1" }}>
+                    {syncResult.approvedMovements.length} approved movement(s)
+                  </div>
+                )}
+              </div>
             )}
 
             {showDebug && (
@@ -617,7 +616,7 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
                       {result.ok ? "✓" : result.error ? "✗" : "○"} {path} {result.status ? `HTTP ${result.status}` : ""}
                     </p>
                     <pre style={{ fontSize: "0.68rem", color: "#cbd5e1", margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-                      {JSON.stringify(result.data ?? result.error, null, 2).slice(0, 500)}
+                      {JSON.stringify(result.data ?? result.error, null, 2).slice(0, 800)}
                     </pre>
                   </div>
                 ))}
