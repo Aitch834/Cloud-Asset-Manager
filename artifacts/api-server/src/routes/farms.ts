@@ -25079,10 +25079,10 @@ router.post("/farms/:farmId/lis/sync-herds", requireAuth, requireTenant, async (
   // ── 1. Validate CPH with LIS ─────────────────────────────────────────────
   // CLA API: POST /Holdings/ValidHoldings
   const cphValidation = await callLisApi(accessToken!, "/Holdings/ValidHoldings", "POST", {
-    holdings: [cphNumber],
+    content: { holdings: [cphNumber] },
   });
 
-  console.log("[LIS ValidHoldings] status:", cphValidation.status, "raw:", cphValidation.raw?.slice(0, 500));
+  console.log("[LIS ValidHoldings] status:", cphValidation.status, "raw:", cphValidation.raw?.slice(0, 800));
 
   let cphValid: boolean | null = null;
   let cphState: string | null = null;
