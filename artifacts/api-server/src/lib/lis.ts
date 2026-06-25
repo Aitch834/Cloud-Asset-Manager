@@ -346,6 +346,7 @@ export async function refreshLisToken(refreshToken: string): Promise<LisTokenRes
 
   const proxy = proxyUrl();
 
+  // ── Try proxy refresh first, fall through to direct B2C if it fails ─────────
   if (proxy) {
     try {
       const res = await fetch(`${proxy}/lis/token/refresh`, {
@@ -354,51 +355,69 @@ export async function refreshLisToken(refreshToken: string): Promise<LisTokenRes
         body: JSON.stringify({ refreshToken }),
       });
       const data = await res.json() as any;
-      if (!res.ok || data.error) {
-        return { sandbox: false, success: false, errorMessage: data.error_description ?? data.error ?? data.message ?? `HTTP ${res.status}` };
+      if (res.ok && !data.error && data.access_token) {
+        return {
+          sandbox: false,
+          success: true,
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token,
+          expiresIn: data.expires_in,
+        };
       }
-      return {
-        sandbox: false,
-        success: true,
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-        expiresIn: data.expires_in,
-      };
+      // Proxy returned an error — fall through to direct B2C refresh below
+    } catch {
+      // Proxy unreachable — fall through to direct B2C refresh below
+    }
+  }
+
+  // ── Direct B2C token refresh (fallback or no proxy configured) ───────────────
+  // Try multiple B2C endpoints — we try sandbox policy first (most likely for beta
+  // users whose accounts are in livestockinformationb2cprod), then production
+  // standard AAD endpoint, then sandbox standard AAD endpoint.
+  const refreshEndpoints = [
+    { url: LIS_B2C_TOKEN_URL_POLICY_SANDBOX, scope: LIS_B2C_SCOPE_SANDBOX, sandbox: true },
+    { url: LIS_B2C_TOKEN_URL_POLICY_PROD,    scope: LIS_B2C_SCOPE_PROD,    sandbox: false },
+    { url: LIS_B2C_TOKEN_URL_SANDBOX,        scope: LIS_B2C_SCOPE_SANDBOX, sandbox: true },
+    { url: LIS_B2C_TOKEN_URL_PROD,           scope: LIS_B2C_SCOPE_PROD,    sandbox: false },
+  ];
+
+  let lastError = "Token refresh failed — no B2C endpoint accepted the refresh token";
+
+  for (const endpoint of refreshEndpoints) {
+    try {
+      const body = new URLSearchParams({
+        grant_type: "refresh_token",
+        client_id: LIS_B2C_CLIENT_ID,
+        refresh_token: refreshToken,
+        scope: endpoint.scope,
+      });
+      if (LIS_B2C_CLIENT_SECRET) body.append("client_secret", LIS_B2C_CLIENT_SECRET);
+
+      const res = await fetch(endpoint.url, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString(),
+      });
+
+      const data = await res.json() as any;
+
+      if (res.ok && !data.error && data.access_token) {
+        return {
+          sandbox: endpoint.sandbox,
+          success: true,
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token,
+          expiresIn: data.expires_in,
+        };
+      }
+      // Record error and try next endpoint
+      lastError = data.error_description ?? data.error ?? `HTTP ${res.status}`;
     } catch (err: any) {
-      return { sandbox: false, success: false, errorMessage: `UK proxy unreachable: ${err?.message}` };
+      lastError = err?.message ?? "Network error";
     }
   }
 
-  try {
-    const body = new URLSearchParams({
-      grant_type: "refresh_token",
-      client_id: LIS_B2C_CLIENT_ID,
-      refresh_token: refreshToken,
-    });
-    if (LIS_B2C_CLIENT_SECRET) body.append("client_secret", LIS_B2C_CLIENT_SECRET);
-
-    const res = await fetch(LIS_B2C_TOKEN_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body.toString(),
-    });
-
-    const data = await res.json() as any;
-
-    if (!res.ok || data.error) {
-      return { sandbox: false, success: false, errorMessage: data.error_description ?? data.error ?? `HTTP ${res.status}` };
-    }
-
-    return {
-      sandbox: false,
-      success: true,
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token,
-      expiresIn: data.expires_in,
-    };
-  } catch (err: any) {
-    return { sandbox: false, success: false, errorMessage: err?.message ?? "Network error refreshing token" };
-  }
+  return { sandbox: false, success: false, errorMessage: lastError };
 }
 
 /**

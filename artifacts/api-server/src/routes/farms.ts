@@ -24833,7 +24833,8 @@ router.post("/farms/:farmId/lis-credentials/test", requireAuth, requireTenant, a
   }
 
   // ── Legacy ROPC fallback (for farms migrated from the old credential form) ──
-  if (!token && creds.lisPasswordEncrypted) {
+  // Skip ROPC if this farm has a refresh token — it's an OAuth farm and ROPC is blocked
+  if (!token && creds.lisPasswordEncrypted && !creds.refreshToken) {
     const password = decryptCredential(creds.lisPasswordEncrypted);
     const result = await testLisConnection(creds.lisUsername!, password);
     await db.update(lisFarmTokensTable).set({
