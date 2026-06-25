@@ -456,7 +456,9 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
       });
       const data = await r.json();
       if (!r.ok || !data.url) throw new Error(data?.error ?? "Failed to start LIS sign-in");
-      window.location.href = data.url;
+      // Navigate the top-level window — B2C login pages block iframe embedding
+      // (X-Frame-Options). In production window.top === window so no difference.
+      (window.top ?? window).location.href = data.url;
     } catch (e: any) {
       toast({ title: "LIS sign-in failed", description: e?.message, variant: "destructive" });
     }
