@@ -1402,6 +1402,14 @@ export default function FieldsPage() {
     enabled: !!farmId && !!selectedFieldForHistory && drawerTab === "tenure",
   });
 
+  const biofuelDeclQ = useQuery({
+    queryKey: ["biofuel-field-declarations", safeFarmId],
+    queryFn: () => fetch(`/api/farms/${safeFarmId}/biofuel/field-declarations`).then(r => r.ok ? r.json() : { records: [] }).then(d => (d.records ?? []) as { fieldName: string; eligibilityStatus: string; highCarbonStockRisk: boolean; highBiodiversityRisk: boolean }[]),
+    enabled: !!farmId,
+    staleTime: 60_000,
+  });
+  const biofuelDeclarations: { fieldName: string; eligibilityStatus: string; highCarbonStockRisk: boolean; highBiodiversityRisk: boolean }[] = biofuelDeclQ.data ?? [];
+
   const landlordSuppliersQ = useQuery({
     queryKey: ["farm-landlords", safeFarmId],
     queryFn: () => fetch(`/api/farms/${safeFarmId}/landlords`).then(r => r.json()).then(d => d.records ?? []),
@@ -2348,6 +2356,32 @@ export default function FieldsPage() {
                         <p className="text-base font-bold text-foreground">{f.soilType || "—"}</p>
                       </div>
                     </div>
+                    {/* biofuel eligibility indicator */}
+                    {(() => {
+                      const decl = biofuelDeclarations.find(d => d.fieldName === f.name);
+                      if (!decl && biofuelDeclarations.length === 0) return null;
+                      const statusColor = decl?.eligibilityStatus === "eligible" ? { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d", dot: "#16a34a" } : decl?.eligibilityStatus === "not-eligible" ? { bg: "#fef2f2", border: "#fecaca", text: "#dc2626", dot: "#dc2626" } : { bg: "#fefce8", border: "#fef08a", text: "#a16207", dot: "#ca8a04" };
+                      return (
+                        <div className="rounded-xl p-4" style={{ background: decl ? statusColor.bg : "#f9fafb", border: `1px solid ${decl ? statusColor.border : "#e5e7eb"}` }}>
+                          <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: decl ? statusColor.text : "#9ca3af" }}>Biofuel / RTFO</p>
+                          {decl ? (
+                            <div className="flex items-center gap-2">
+                              <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ background: statusColor.dot }} />
+                              <span className="text-sm font-semibold" style={{ color: statusColor.text }}>
+                                {decl.eligibilityStatus === "eligible" ? "Eligible" : decl.eligibilityStatus === "not-eligible" ? "Not Eligible" : "Requires Verification"}
+                              </span>
+                              {(decl.highCarbonStockRisk || decl.highBiodiversityRisk) && (
+                                <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "#fef2f2", color: "#dc2626" }}>
+                                  {[decl.highCarbonStockRisk && "Carbon risk", decl.highBiodiversityRisk && "Biodiversity risk"].filter(Boolean).join(" · ")}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-foreground/50">No declaration on file</p>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* current season crop */}
                     <div>

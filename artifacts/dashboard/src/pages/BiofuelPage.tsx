@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { OtherSelect } from "@/components/ui/other-select";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -108,6 +108,7 @@ interface Delivery {
   haulierContact?: string;
   vehicleRegistration?: string;
   deliveryNoteRef?: string;
+  sourceFieldName?: string;
 }
 
 interface Buyer {
@@ -370,6 +371,7 @@ export default function BiofuelPage() {
   const storageLocations: StorageLocation[] = (storageLocationsQ.data?.records ?? []).filter(l => l.isActive);
 
   const farmFieldNames: string[] = (farmFieldNamesQ.data?.records ?? []).map(f => f.name).filter(Boolean);
+  const eligibleFieldNames: string[] = fields.filter(f => f.eligibilityStatus === "eligible").map(f => f.fieldName).filter(Boolean);
   const existingDeclarants = [...new Set(fields.map(f => f.declaredBy ?? "").filter(Boolean))];
   const tenantUserNames = (tenantUsersQ.data?.users ?? [])
     .map(u => [u.firstName, u.lastName].filter(Boolean).join(" ").trim())
@@ -733,6 +735,15 @@ export default function BiofuelPage() {
                 <Plus size={15} className="mr-1" /> Add Delivery
               </Button>
             </div>
+            {fields.length > 0 && eligibleFieldNames.length === 0 && (
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px", background: "#fef3c7", border: "1px solid #fcd34d", borderRadius: 10, marginBottom: 16 }}>
+                <AlertTriangle size={16} style={{ color: "#d97706", flexShrink: 0, marginTop: 1 }} />
+                <div>
+                  <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: "#92400e" }}>No eligible fields declared</p>
+                  <p style={{ margin: "2px 0 0", fontSize: 13, color: "#78350f" }}>All field declarations are either ineligible or pending verification. Delivery records logged now will have an incomplete RTFO audit trail. Go to the <strong>Field Declarations</strong> tab to review.</p>
+                </div>
+              </div>
+            )}
             {deliveries.length === 0 ? (
               <div style={{ background: "#fff", borderRadius: 12, padding: 48, textAlign: "center", border: "1px solid #e5e7eb" }}>
                 <Truck size={40} style={{ color: "#d1d5db", margin: "0 auto 12px" }} />
@@ -971,6 +982,7 @@ export default function BiofuelPage() {
         initial={editingDelivery}
         buyers={buyers}
         storageLocations={storageLocations}
+        eligibleFieldNames={eligibleFieldNames}
         onSave={(data) => deliveryMut.mutate(data)}
         saving={deliveryMut.isPending}
       />
@@ -1056,6 +1068,18 @@ function FieldDeclarationDialog({ open, onClose, initial, onSave, saving, farmFi
     return v === true;
   };
 
+  const INELIGIBLE_LAND_USES = ["forest", "peatland", "wetland"];
+  const currentLandUse = val("landUseIn2008") as string;
+  const highCarbonRisk = bval("highCarbonStockRisk");
+  const highBioRisk = bval("highBiodiversityRisk");
+  const derivedIneligible = INELIGIBLE_LAND_USES.includes(currentLandUse) || highCarbonRisk || highBioRisk;
+
+  useEffect(() => {
+    if (derivedIneligible) {
+      setForm(f => ({ ...f, eligibilityStatus: "not-eligible" }));
+    }
+  }, [derivedIneligible]);
+
   const currentFieldName = val("fieldName") as string;
   const fieldNameInList = farmFieldNames.includes(currentFieldName);
   const fieldSelectValue = farmFieldNames.length === 0
@@ -1130,14 +1154,31 @@ function FieldDeclarationDialog({ open, onClose, initial, onSave, saving, farmFi
           </div>
           <div>
             <Label>Eligibility Status</Label>
-            <Select value={val("eligibilityStatus") as string || "eligible"} onValueChange={v => set("eligibilityStatus", v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="eligible">Eligible</SelectItem>
-                <SelectItem value="not-eligible">Not Eligible</SelectItem>
-                <SelectItem value="requires-verification">Requires Verification</SelectItem>
-              </SelectContent>
-            </Select>
+            {derivedIneligible ? (
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 6, padding: "10px 12px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8 }}>
+                <XCircle size={15} style={{ color: "#dc2626", flexShrink: 0, marginTop: 1 }} />
+                <div>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#991b1b" }}>Not Eligible — auto-set</p>
+                  <p style={{ margin: "2px 0 0", fontSize: 12, color: "#b91c1c" }}>
+                    Reason:{" "}
+                    {[
+                      highCarbonRisk && "high carbon stock risk",
+                      highBioRisk && "high biodiversity risk",
+                      INELIGIBLE_LAND_USES.includes(currentLandUse) && "disqualifying 2008 land use",
+                    ].filter(Boolean).join("; ")}
+                  </p>
+                  <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9ca3af" }}>Remove the risk flags or change the 2008 land use to restore eligibility.</p>
+                </div>
+              </div>
+            ) : (
+              <Select value={val("eligibilityStatus") as string || "eligible"} onValueChange={v => set("eligibilityStatus", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="eligible">Eligible</SelectItem>
+                  <SelectItem value="requires-verification">Requires Verification</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           </div>
           {/* Declared By — lookup from farm users */}
           <div>
@@ -1175,10 +1216,11 @@ function FieldDeclarationDialog({ open, onClose, initial, onSave, saving, farmFi
   );
 }
 
-function DeliveryDialog({ open, onClose, initial, buyers, storageLocations, onSave, saving }: {
+function DeliveryDialog({ open, onClose, initial, buyers, storageLocations, eligibleFieldNames, onSave, saving }: {
   open: boolean; onClose: () => void; initial: Delivery | null;
   buyers: Buyer[];
   storageLocations: StorageLocation[];
+  eligibleFieldNames: string[];
   onSave: (data: Partial<Delivery>) => void; saving: boolean;
 }) {
   const [form, setForm] = useState<Partial<Delivery>>({});
@@ -1213,6 +1255,15 @@ function DeliveryDialog({ open, onClose, initial, buyers, storageLocations, onSa
       <DialogContent style={{ maxWidth: 600, maxHeight: "90vh", overflowY: "auto" }}>
         <DialogHeader><DialogTitle>{initial ? "Edit Delivery Record" : "Add Delivery Record"}</DialogTitle></DialogHeader>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+          {eligibleFieldNames.length === 0 && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 14px", background: "#fef3c7", border: "1px solid #fcd34d", borderRadius: 8 }}>
+              <AlertTriangle size={15} style={{ color: "#d97706", flexShrink: 0, marginTop: 1 }} />
+              <p style={{ margin: 0, fontSize: 13, color: "#92400e" }}>
+                No eligible field declarations on file. Add field declarations (Field Declarations tab) before logging deliveries, or your RTFO audit trail will be incomplete.
+              </p>
+            </div>
+          )}
 
           {/* ── Core delivery details ── */}
           <div style={sectionStyle}>
@@ -1277,6 +1328,20 @@ function DeliveryDialog({ open, onClose, initial, buyers, storageLocations, onSa
                   </SelectContent>
                 </Select>
               </div>
+
+              {sourceType === "ex_field" && eligibleFieldNames.length > 0 && (
+                <div>
+                  <Label>Source Field</Label>
+                  <Select value={String(val("sourceFieldName") || "__none__")} onValueChange={v => set("sourceFieldName", v === "__none__" ? undefined : v)}>
+                    <SelectTrigger><SelectValue placeholder="Select eligible field…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— not specified —</SelectItem>
+                      {eligibleFieldNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>Only fields with an eligible biofuel declaration are shown.</p>
+                </div>
+              )}
 
               {sourceType === "store" ? (
                 <div>
