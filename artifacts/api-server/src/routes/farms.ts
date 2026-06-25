@@ -25145,6 +25145,45 @@ function getLisClaCbUrl(req: Request): string {
 }
 
 /**
+ * Sign an OAuth state parameter using HMAC-SHA256 so the callback can verify it
+ * without a DB round-trip.  This means both dev and production API servers can
+ * verify a state that was issued by either one, as long as they share the same
+ * CREDENTIAL_ENCRYPTION_KEY secret.
+ *
+ * Format:  <hmacHex>.<timestamp>|<farmId>|<base64url(returnUrl)>
+ * Expires: 1 hour
+ */
+function signLisOAuthState(farmId: number, returnUrl: string): string {
+  const timestamp = Date.now().toString();
+  const payload = `${timestamp}|${farmId}|${Buffer.from(returnUrl).toString("base64url")}`;
+  const secret = process.env.CREDENTIAL_ENCRYPTION_KEY ?? "lis-oauth-hmac-fallback";
+  const sig = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+  return `${sig}.${payload}`;
+}
+
+function verifyLisOAuthState(state: string): { valid: false } | { valid: true; farmId: number; returnUrl: string } {
+  const dotIdx = state.indexOf(".");
+  if (dotIdx === -1) return { valid: false };
+  const sig = state.slice(0, dotIdx);
+  const payload = state.slice(dotIdx + 1);
+  const secret = process.env.CREDENTIAL_ENCRYPTION_KEY ?? "lis-oauth-hmac-fallback";
+  const expected = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+  // Use constant-time comparison to prevent timing attacks
+  const sigBuf = Buffer.from(sig, "hex");
+  const expBuf = Buffer.from(expected, "hex");
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) return { valid: false };
+  const parts = payload.split("|");
+  if (parts.length < 3) return { valid: false };
+  const [timestamp, farmIdStr, returnUrlB64] = parts;
+  if (Date.now() - parseInt(timestamp) > 60 * 60 * 1000) return { valid: false }; // 1-hour expiry
+  const farmId = parseInt(farmIdStr);
+  if (!farmId || isNaN(farmId)) return { valid: false };
+  let returnUrl = "https://bdefarmtrac.co.uk/dashboard/farm-settings";
+  try { returnUrl = Buffer.from(returnUrlB64, "base64url").toString(); } catch { /* keep default */ }
+  return { valid: true, farmId, returnUrl };
+}
+
+/**
  * GET /api/lis/authorize?farmId=X&returnUrl=/dashboard/farm-settings
  * Starts the LIS CLA OAuth authorization code flow.
  * Generates a CSRF nonce, stores it, then redirects the farmer to the LIS B2C login page.
@@ -25158,15 +25197,13 @@ router.get("/lis/authorize", requireAuth, async (req: Request, res: Response): P
   }
   const returnUrl = (req.query["returnUrl"] as string | undefined) ?? "/dashboard/farm-settings";
 
-  const nonce = crypto.randomUUID().replace(/-/g, "");
-  // State encodes: nonce|farmId|base64url(returnUrl)
-  const state = `${nonce}|${farmId}|${Buffer.from(returnUrl).toString("base64url")}`;
+  // Build an HMAC-signed state — no DB write needed, works across dev & prod.
+  const state = signLisOAuthState(farmId, returnUrl);
 
-  const [existing] = await db.select().from(lisFarmTokensTable).where(eq(lisFarmTokensTable.farmId, farmId));
-  if (existing) {
-    await db.update(lisFarmTokensTable).set({ oauthState: nonce, updatedAt: new Date() }).where(eq(lisFarmTokensTable.farmId, farmId));
-  } else {
-    await db.insert(lisFarmTokensTable).values({ farmId, oauthState: nonce, isConfigured: false, sandboxMode: isLisSandboxMode() });
+  // Ensure a token row exists for this farm (needed later to store access_token etc.)
+  const [existing] = await db.select({ id: lisFarmTokensTable.id }).from(lisFarmTokensTable).where(eq(lisFarmTokensTable.farmId, farmId));
+  if (!existing) {
+    await db.insert(lisFarmTokensTable).values({ farmId, isConfigured: false, sandboxMode: isLisSandboxMode() });
   }
 
   const redirectUri = getLisClaCbUrl(req);
@@ -25191,16 +25228,9 @@ router.get("/lis/authorize", requireAuth, async (req: Request, res: Response): P
 router.get("/lis/callback", async (req: Request, res: Response): Promise<void> => {
   const { code, state, error, error_description } = req.query as Record<string, string>;
 
-  // Try to extract the returnUrl from the state FIRST so bail() can redirect
-  // back to the correct dashboard domain (not the API domain).
-  // State format: nonce|farmId|base64url(returnUrl)
-  let returnUrl = process.env.DASHBOARD_RETURN_URL ?? "https://bdefarmtrac.co.uk/dashboard/farm-settings";
-  if (state) {
-    const _parts = state.split("|");
-    if (_parts.length >= 3 && _parts[2]) {
-      try { returnUrl = Buffer.from(_parts[2], "base64url").toString(); } catch { /* keep default */ }
-    }
-  }
+  // Verify HMAC-signed state — works across dev & prod without a DB lookup.
+  const verified = state ? verifyLisOAuthState(state) : { valid: false as const };
+  const returnUrl = verified.valid ? verified.returnUrl : "https://bdefarmtrac.co.uk/dashboard/farm-settings";
 
   const bail = (msg: string) => {
     res.redirect(`${returnUrl}?lis_error=${encodeURIComponent(msg)}`);
@@ -25211,19 +25241,12 @@ router.get("/lis/callback", async (req: Request, res: Response): Promise<void> =
     return;
   }
 
-  // Parse state: nonce|farmId|base64url(returnUrl)
-  const parts = state.split("|");
-  if (parts.length < 2) { bail("Invalid OAuth state — please try again."); return; }
-  const [nonce, farmIdStr] = parts;
-  const farmId = parseInt(farmIdStr);
-  if (!farmId || isNaN(farmId)) { bail("Invalid farm ID in OAuth state."); return; }
-
-  // Validate nonce against DB
-  const [tokenRecord] = await db.select().from(lisFarmTokensTable).where(eq(lisFarmTokensTable.farmId, farmId));
-  if (!tokenRecord || tokenRecord.oauthState !== nonce) {
-    bail("OAuth state validation failed — the sign-in link may have expired. Please try again.");
+  if (!verified.valid) {
+    bail("Sign-in link has expired or is invalid. Please try again.");
     return;
   }
+
+  const { farmId } = verified;
 
   // Exchange code for tokens
   const redirectUri = getLisClaCbUrl(req);
@@ -25234,19 +25257,25 @@ router.get("/lis/callback", async (req: Request, res: Response): Promise<void> =
     return;
   }
 
-  // Store tokens and mark as connected
-  await db.update(lisFarmTokensTable).set({
+  // Store tokens and mark as connected (upsert — row may or may not exist if
+  // the authorize was issued by the dev server but callback hits production)
+  const [existing] = await db.select({ id: lisFarmTokensTable.id }).from(lisFarmTokensTable).where(eq(lisFarmTokensTable.farmId, farmId));
+  const tokenFields = {
     accessToken: tokenResult.accessToken,
     refreshToken: tokenResult.refreshToken ?? undefined,
     tokenExpiresAt: tokenResult.expiresIn ? new Date(Date.now() + tokenResult.expiresIn * 1000) : undefined,
     isConfigured: true,
     sandboxMode: isLisSandboxMode(),
-    oauthState: null,           // consume nonce
-    testStatus: "ok",
+    testStatus: "ok" as const,
     testMessage: tokenResult.sandbox ? "Connected via LIS sign-in (sandbox)" : "Connected via LIS sign-in",
     lastTestedAt: new Date(),
     updatedAt: new Date(),
-  }).where(eq(lisFarmTokensTable.farmId, farmId));
+  };
+  if (existing) {
+    await db.update(lisFarmTokensTable).set(tokenFields).where(eq(lisFarmTokensTable.farmId, farmId));
+  } else {
+    await db.insert(lisFarmTokensTable).values({ farmId, ...tokenFields });
+  }
 
   res.redirect(`${returnUrl}?lis_connected=true`);
 });
