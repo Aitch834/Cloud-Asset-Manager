@@ -1,4 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
+import { createHmac, timingSafeEqual } from "crypto";
 import { db, helpArticlesTable } from "@workspace/db";
 import { sendSms } from "../lib/sms";
 import { sendAdminEmail } from "../lib/mailer";
@@ -25157,7 +25158,7 @@ function signLisOAuthState(farmId: number, returnUrl: string): string {
   const timestamp = Date.now().toString();
   const payload = `${timestamp}|${farmId}|${Buffer.from(returnUrl).toString("base64url")}`;
   const secret = process.env.CREDENTIAL_ENCRYPTION_KEY ?? "lis-oauth-hmac-fallback";
-  const sig = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+  const sig = createHmac("sha256", secret).update(payload).digest("hex");
   return `${sig}.${payload}`;
 }
 
@@ -25167,11 +25168,11 @@ function verifyLisOAuthState(state: string): { valid: false } | { valid: true; f
   const sig = state.slice(0, dotIdx);
   const payload = state.slice(dotIdx + 1);
   const secret = process.env.CREDENTIAL_ENCRYPTION_KEY ?? "lis-oauth-hmac-fallback";
-  const expected = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+  const expected = createHmac("sha256", secret).update(payload).digest("hex");
   // Use constant-time comparison to prevent timing attacks
   const sigBuf = Buffer.from(sig, "hex");
   const expBuf = Buffer.from(expected, "hex");
-  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) return { valid: false };
+  if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) return { valid: false };
   const parts = payload.split("|");
   if (parts.length < 3) return { valid: false };
   const [timestamp, farmIdStr, returnUrlB64] = parts;
