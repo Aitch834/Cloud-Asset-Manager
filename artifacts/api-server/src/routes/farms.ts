@@ -25191,8 +25191,19 @@ router.get("/lis/authorize", requireAuth, async (req: Request, res: Response): P
 router.get("/lis/callback", async (req: Request, res: Response): Promise<void> => {
   const { code, state, error, error_description } = req.query as Record<string, string>;
 
+  // Try to extract the returnUrl from the state FIRST so bail() can redirect
+  // back to the correct dashboard domain (not the API domain).
+  // State format: nonce|farmId|base64url(returnUrl)
+  let returnUrl = process.env.DASHBOARD_RETURN_URL ?? "https://bdefarmtrac.co.uk/dashboard/farm-settings";
+  if (state) {
+    const _parts = state.split("|");
+    if (_parts.length >= 3 && _parts[2]) {
+      try { returnUrl = Buffer.from(_parts[2], "base64url").toString(); } catch { /* keep default */ }
+    }
+  }
+
   const bail = (msg: string) => {
-    res.redirect(`/dashboard/farm-settings?lis_error=${encodeURIComponent(msg)}`);
+    res.redirect(`${returnUrl}?lis_error=${encodeURIComponent(msg)}`);
   };
 
   if (error || !code || !state) {
@@ -25203,12 +25214,9 @@ router.get("/lis/callback", async (req: Request, res: Response): Promise<void> =
   // Parse state: nonce|farmId|base64url(returnUrl)
   const parts = state.split("|");
   if (parts.length < 2) { bail("Invalid OAuth state — please try again."); return; }
-  const [nonce, farmIdStr, returnUrlB64] = parts;
+  const [nonce, farmIdStr] = parts;
   const farmId = parseInt(farmIdStr);
   if (!farmId || isNaN(farmId)) { bail("Invalid farm ID in OAuth state."); return; }
-  const returnUrl = returnUrlB64
-    ? Buffer.from(returnUrlB64, "base64url").toString()
-    : "/dashboard/farm-settings";
 
   // Validate nonce against DB
   const [tokenRecord] = await db.select().from(lisFarmTokensTable).where(eq(lisFarmTokensTable.farmId, farmId));

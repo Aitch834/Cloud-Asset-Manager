@@ -155,6 +155,7 @@ export function buildLisAuthUrl(state: string, redirectUri: string): string {
     scope,
     state,
     response_mode: "query",
+    prompt: "login",
   });
   return `${authorizeUrl}?${params.toString()}`;
 }
