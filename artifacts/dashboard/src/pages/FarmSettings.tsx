@@ -448,9 +448,18 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
     onError: (e: any) => toast({ title: "Sync failed", description: e?.message, variant: "destructive" }),
   });
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
     const returnUrl = window.location.pathname + window.location.search;
-    window.location.href = `/api/lis/authorize?farmId=${farmId}&returnUrl=${encodeURIComponent(returnUrl)}`;
+    try {
+      const r = await fetch(`/api/lis/authorize?farmId=${farmId}&returnUrl=${encodeURIComponent(returnUrl)}`, {
+        headers: { Accept: "application/json" },
+      });
+      const data = await r.json();
+      if (!r.ok || !data.url) throw new Error(data?.error ?? "Failed to start LIS sign-in");
+      window.location.href = data.url;
+    } catch (e: any) {
+      toast({ title: "LIS sign-in failed", description: e?.message, variant: "destructive" });
+    }
   };
 
   const statusBadge = () => {

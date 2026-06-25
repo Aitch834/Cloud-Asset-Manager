@@ -25172,7 +25172,14 @@ router.get("/lis/authorize", requireAuth, async (req: Request, res: Response): P
 
   const redirectUri = getLisClaCbUrl(req);
   const authUrl = buildLisAuthUrl(state, redirectUri);
-  res.redirect(authUrl);
+
+  // SPA clients send Accept: application/json — return the URL so they can
+  // navigate to it client-side (preserving the Clerk auth header for this fetch).
+  if (req.headers["accept"]?.includes("application/json")) {
+    res.json({ url: authUrl });
+  } else {
+    res.redirect(authUrl);
+  }
 });
 
 /**
