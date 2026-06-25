@@ -25079,17 +25079,28 @@ router.post("/farms/:farmId/lis/sync-herds", requireAuth, requireTenant, async (
   // ── 1. Validate CPH with LIS ─────────────────────────────────────────────
   // CLA API: POST /Holdings/ValidHoldings
   const cphValidation = await callLisApi(accessToken!, "/Holdings/ValidHoldings", "POST", {
-    content: { holdings: [cphNumber] },
+    holdings: [cphNumber],
   });
+
+  console.log("[LIS ValidHoldings] status:", cphValidation.status, "raw:", cphValidation.raw?.slice(0, 500));
 
   let cphValid: boolean | null = null;
   let cphState: string | null = null;
   if (cphValidation.data && typeof cphValidation.data === "object") {
-    const content = (cphValidation.data as any).content;
-    const results: Array<{ holding: string; state: string; propertyName?: string }> = content?.validateResults ?? [];
-    const match = results.find((r) => r.holding === cphNumber);
+    const d = cphValidation.data as any;
+    // Try all known response shapes for validateResults
+    const results: Array<{ holding: string; state: string; propertyName?: string }> =
+      d.validateResults ??
+      d.content?.validateResults ??
+      d.value ??
+      d.items ??
+      [];
+    const match = results.find(
+      (r) => r.holding === cphNumber || r.holding?.replace(/[/-]/g, "") === cphNumber.replace(/[/-]/g, ""),
+    );
     cphState = match?.state ?? null;
-    cphValid = cphState === "Valid";
+    // Accept various "valid" state values the API might return
+    cphValid = cphState != null && /^valid$/i.test(cphState);
   }
 
   // ── 2. Fetch pending movement reviews for sheep ───────────────────────────
