@@ -25158,8 +25158,7 @@ router.get("/lis/authorize", requireAuth, async (req: Request, res: Response): P
   }
   const returnUrl = (req.query["returnUrl"] as string | undefined) ?? "/dashboard/farm-settings";
 
-  const { randomBytes } = require("crypto") as typeof import("crypto");
-  const nonce = randomBytes(16).toString("hex");
+  const nonce = crypto.randomUUID().replace(/-/g, "");
   // State encodes: nonce|farmId|base64url(returnUrl)
   const state = `${nonce}|${farmId}|${Buffer.from(returnUrl).toString("base64url")}`;
 
