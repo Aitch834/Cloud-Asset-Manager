@@ -15,4 +15,20 @@ export async function runLisMigrations(): Promise<void> {
   await db.execute(sql`ALTER TABLE lis_farm_tokens      ADD COLUMN IF NOT EXISTS lis_last_synced_at timestamptz`);
   await db.execute(sql`ALTER TABLE lis_farm_tokens      ADD COLUMN IF NOT EXISTS lis_last_sync_summary text`);
   await db.execute(sql`ALTER TABLE lis_farm_tokens      ADD COLUMN IF NOT EXISTS lis_sync_history jsonb`);
+
+  // LIS LIP (Livestock Information Platform) — Cattle Auth Foundation
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS lip_farm_tokens (
+      id serial primary key,
+      farm_id integer not null unique references farms(id),
+      is_configured boolean not null default false,
+      test_status text,
+      test_message text,
+      last_tested_at timestamptz,
+      platform_access_token text,
+      token_expires_at timestamptz,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `);
 }

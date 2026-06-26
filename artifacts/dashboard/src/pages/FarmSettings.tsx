@@ -19,7 +19,7 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Redirect } from "wouter";
-import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw, Phone, UserRound, Eye, EyeOff, ShieldCheck, Shield, Wifi, WifiOff, Trash2, Building2, CreditCard, Upload, ImageIcon, X } from "lucide-react";
+import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw, Phone, UserRound, Eye, EyeOff, ShieldCheck, Shield, Wifi, WifiOff, Trash2, Building2, CreditCard, Upload, ImageIcon, X, Cpu } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const SECTORS = [
@@ -266,12 +266,12 @@ function BcmsCredentialsCard({ farmId, bcmsHoldingNumber }: { farmId: number; bc
           <div style={{ marginTop: 2 }}>{creds?.ddtsConfigured ? <ShieldCheck size={15} color="#166534" /> : <Shield size={15} color="#92400e" />}</div>
           <div>
             <p style={{ fontSize: "0.82rem", fontWeight: 600, color: creds?.ddtsConfigured ? "#166534" : "#92400e", marginBottom: 2 }}>
-              {creds?.ddtsConfigured ? "Platform live credentials active" : "Sandbox mode active"}
+              {creds?.ddtsConfigured ? "Platform live credentials active" : "Awaiting DEFRA vendor registration"}
             </p>
             <p style={{ fontSize: "0.78rem", color: "#6b7280", lineHeight: 1.5 }}>
               {creds?.ddtsConfigured
                 ? "BDE Farm Trac is registered with DEFRA as an approved CTWS software vendor. Submissions go directly to BCMS."
-                : "DEFRA/DDTS vendor credentials have not yet been configured by BDE. Submissions will simulate the full CTWS flow and log the XML payload — no data will be sent to BCMS. This lets you set up and test your credentials now so the system is ready to go live the moment BDE completes DEFRA registration."}
+                : "BDE has submitted a vendor registration application to DEFRA/RPA and is awaiting approval (typically 1–2 weeks). Until vendor credentials are issued, submissions simulate the full CTWS flow and log the XML payload — no cattle data is sent to BCMS. Enter your CTS credentials now so the system is ready the moment registration completes. In the meantime, continue notifying BCMS directly via BCMS Online or your existing software."}
             </p>
           </div>
         </div>
@@ -384,6 +384,103 @@ type LisSyncResult = {
   approvedMovements: unknown[];
   attempts: Record<string, { status: number; ok: boolean; data: unknown } | { error: string }>;
 };
+
+function LipConnectionCard({ farmId }: { farmId: number }) {
+  const { toast } = useToast();
+
+  const credsQ = useQuery({
+    queryKey: ["lip-credentials", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/lip-credentials`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const creds = credsQ.data;
+
+  const testMut = useMutation({
+    mutationFn: () => fetch(`/api/farms/${farmId}/lip-credentials/test`, { method: "POST" }).then(r => r.json()),
+    onSuccess: (d) => {
+      toast({ title: d.success ? "LIP API Connected" : "LIP Connection Test Result", description: d.message, variant: d.success ? "default" : "destructive" });
+      credsQ.refetch();
+    },
+    onError: () => toast({ title: "Test failed", variant: "destructive" }),
+  });
+
+  const statusColor = creds?.testStatus === "connected" ? "#166534" : creds?.testStatus === "partial" ? "#92400e" : "#6b7280";
+  const statusBg = creds?.testStatus === "connected" ? "#dcfce7" : creds?.testStatus === "partial" ? "#fef3c7" : "#f3f4f6";
+
+  return (
+    <Card>
+      <CardContent className="p-6 md:p-8 space-y-5">
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+          <SectionHeader
+            title="LIS Cattle (LIP) Integration"
+            description="Livestock Information Platform (LIP) is the new cattle tracing API from LIS, currently in Alpha. It will enable one-click cattle birth, death, and movement notifications directly from BDE Farm Trac."
+          />
+          <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4, background: "#f5f3ff", color: "#7c3aed", border: "1px solid #ddd6fe", borderRadius: 6, padding: "3px 10px", fontSize: "0.72rem", fontWeight: 700 }}>
+            <Cpu size={10} /> Alpha
+          </span>
+        </div>
+
+        <div style={{ background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 10, padding: "0.875rem 1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <Cpu size={15} color="#7c3aed" style={{ marginTop: 2, flexShrink: 0 }} />
+          <div>
+            <p style={{ fontSize: "0.82rem", fontWeight: 600, color: "#7c3aed", marginBottom: 2 }}>Platform-level credentials — no farm login needed</p>
+            <p style={{ fontSize: "0.78rem", color: "#6b7280", lineHeight: 1.5 }}>
+              LIP uses BDE's registered application credentials to access the LIS cattle API — farms do not need to authenticate separately. BDE has submitted API subscription requests to LIS (up to 5 working days for approval). This test button checks whether the platform connection is live.
+            </p>
+          </div>
+        </div>
+
+        {creds?.testStatus && (
+          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+            <p style={{ fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}>Last test result:</p>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: statusBg, color: statusColor, borderRadius: 6, padding: "3px 10px", fontSize: "0.75rem", fontWeight: 600 }}>
+              {creds.testStatus === "connected" ? <ShieldCheck size={12} /> : <Shield size={12} />}
+              {creds.testStatus === "connected" ? "Connected to LIP API" : creds.testStatus === "partial" ? "API reachable — auth pending" : "Not connected"}
+            </span>
+            {creds?.lastTestedAt && (
+              <span style={{ fontSize: "0.72rem", color: "#9ca3af" }}>
+                {new Date(creds.lastTestedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+              </span>
+            )}
+          </div>
+        )}
+
+        {creds?.testMessage && (
+          <p style={{ fontSize: "0.78rem", color: "#6b7280", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: "0.5rem 0.875rem" }}>
+            {creds.testMessage}
+          </p>
+        )}
+
+        <div>
+          <button
+            onClick={() => testMut.mutate()}
+            disabled={testMut.isPending || credsQ.isLoading}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#7c3aed", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: "0.82rem", fontWeight: 600, cursor: testMut.isPending ? "not-allowed" : "pointer", opacity: testMut.isPending ? 0.7 : 1 }}
+          >
+            {testMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            Test LIP Connection
+          </button>
+        </div>
+
+        <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: "1rem" }}>
+          <p style={{ fontSize: "0.78rem", fontWeight: 600, color: "#374151", marginBottom: 6 }}>What LIP will enable once fully live:</p>
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 5 }}>
+            {[
+              "One-click cattle movement notifications (replacing manual BCMS Online entry)",
+              "Direct cattle birth and death registration with LIS acknowledgement",
+              "Real-time herd sync — animals verified against the national cattle database",
+              "Automatic movement reference numbers stored alongside your register",
+            ].map(item => (
+              <li key={item} style={{ display: "flex", gap: 8, fontSize: "0.78rem", color: "#6b7280" }}>
+                <span style={{ color: "#7c3aed", fontWeight: 700, flexShrink: 0 }}>›</span>{item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function LisConnectionCard({ farmId }: { farmId: number }) {
   const { toast } = useToast();
@@ -1664,6 +1761,7 @@ export default function FarmSettings() {
 
         {/* ── LIS / Livestock Information Service ── */}
         {farmId && <LisConnectionCard farmId={farmId} />}
+        {farmId && <LipConnectionCard farmId={farmId} />}
 
         {/* ── Viticulture Registrations — only shown when Viticulture sector is active ── */}
         {formData.sectors.sectorViticulture && (

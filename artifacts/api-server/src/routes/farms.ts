@@ -59,6 +59,7 @@ import {
   livestockMovementsTable,
   livestockMovementAnimalsTable,
   lisFarmTokensTable,
+  lipFarmTokensTable,
   expoPushTokensTable,
   lisSubmissionsTable,
   bcmsFarmCredentialsTable,
@@ -31124,3 +31125,112 @@ router.delete("/farms/:farmId/organic-venison/derogation-documents/:id", require
   res.json({ success: true });
 });
 
+
+// ─── LIS LIP (Livestock Information Platform) — Cattle Auth Foundation ────────
+
+router.get("/farms/:farmId/lip-credentials", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  try {
+    const [row] = await db.select().from(lipFarmTokensTable).where(eq(lipFarmTokensTable.farmId, farmId));
+    const platformReady = !!(process.env.LIS_LIP_CLIENT_ID && process.env.LIS_LIP_PRIMARY_SECRET);
+    res.json({
+      configured: row?.isConfigured ?? false,
+      platformReady,
+      testStatus: row?.testStatus ?? null,
+      testMessage: row?.testMessage ?? null,
+      lastTestedAt: row?.lastTestedAt ?? null,
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post("/farms/:farmId/lip-credentials/test", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  try {
+    const clientId = process.env.LIS_LIP_CLIENT_ID;
+    const clientSecret = process.env.LIS_LIP_PRIMARY_SECRET;
+    const subscriptionKey = process.env.LIS_LIP_SUBSCRIPTION_KEY;
+
+    if (!clientId || !clientSecret) {
+      await db.insert(lipFarmTokensTable).values({ farmId, isConfigured: false, testStatus: "failed", testMessage: "Platform LIP credentials not yet configured by BDE (admin action required).", lastTestedAt: new Date() })
+        .onConflictDoUpdate({ target: lipFarmTokensTable.farmId, set: { isConfigured: false, testStatus: "failed", testMessage: "Platform LIP credentials not yet configured by BDE (admin action required).", lastTestedAt: new Date() } });
+      res.json({ success: false, message: "Platform LIP credentials not yet configured by BDE." });
+      return;
+    }
+
+    // Attempt client-credentials OAuth from the LIS B2C tenant
+    let accessToken: string | null = null;
+    let authError: string | null = null;
+    try {
+      const tokenRes = await fetch(
+        "https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/oauth2/v2.0/token",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            grant_type: "client_credentials",
+            client_id: clientId,
+            client_secret: clientSecret,
+            scope: "https://livestockinformationb2cprod.onmicrosoft.com/apim-lip-ext/.default",
+          }),
+        }
+      );
+      const tokenData: any = await tokenRes.json();
+      if (tokenData.access_token) {
+        accessToken = tokenData.access_token as string;
+      } else {
+        authError = (tokenData.error_description ?? tokenData.error ?? "Unknown OAuth error") as string;
+      }
+    } catch (e: any) {
+      authError = `OAuth request failed: ${e.message}`;
+    }
+
+    // Probe the LIP API endpoint
+    const headers: Record<string, string> = {};
+    if (subscriptionKey) headers["Ocp-Apim-Subscription-Key"] = subscriptionKey;
+    if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+
+    let apiStatus = 0;
+    let apiReachable = false;
+    let apiMessage = "";
+    try {
+      const apiRes = await fetch("https://api.service.livestockinformation.org.uk/v1.0/breeds?species=bovine", { headers });
+      apiStatus = apiRes.status;
+      apiReachable = true;
+      if (apiRes.status === 200) {
+        apiMessage = "Connected — LIP API responded successfully.";
+      } else if (apiRes.status === 401) {
+        apiMessage = `API reachable but authentication not accepted (401). OAuth scope may need confirmation with LIS support.`;
+      } else if (apiRes.status === 403) {
+        apiMessage = `API reachable but subscription not yet approved (403). Awaiting LIS LIP sandbox approval (up to 5 working days).`;
+      } else if (apiRes.status === 404) {
+        apiMessage = `API reachable — breeds endpoint not found (404). LIP is in Alpha; endpoint paths may differ from documentation.`;
+      } else {
+        apiMessage = `API responded with HTTP ${apiRes.status}.`;
+      }
+    } catch (e: any) {
+      apiMessage = `API unreachable: ${e.message}`;
+    }
+
+    const success = apiStatus === 200;
+    const status = success ? "connected" : apiReachable ? "partial" : "unreachable";
+    const message = authError
+      ? `OAuth: ${authError} | API: ${apiMessage}`
+      : apiMessage;
+
+    await db.insert(lipFarmTokensTable).values({
+      farmId, isConfigured: success, testStatus: status, testMessage: message,
+      lastTestedAt: new Date(), platformAccessToken: accessToken,
+    }).onConflictDoUpdate({
+      target: lipFarmTokensTable.farmId,
+      set: { isConfigured: success, testStatus: status, testMessage: message, lastTestedAt: new Date(), platformAccessToken: accessToken, updatedAt: new Date() },
+    });
+
+    res.json({ success, status, message, apiStatus, authError });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});

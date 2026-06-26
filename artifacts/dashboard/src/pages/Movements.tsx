@@ -2330,7 +2330,7 @@ export default function Movements() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
                 <thead>
                   <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                    {["Date & Time", "Movement", "Type", "Status", "Mode", "Reference", "Error"].map(h => (
+                    {["Date & Time", "Movement", "Type", "Status", "Mode", "Reference", "Error", ""].map(h => (
                       <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
@@ -2371,6 +2371,18 @@ export default function Movements() {
                         <td style={{ padding: "0.625rem 0.875rem", fontFamily: "monospace", fontSize: "0.75rem", color: "#374151" }}>{s.bcmsReference || "—"}</td>
                         <td style={{ padding: "0.625rem 0.875rem", color: "#dc2626", fontSize: "0.75rem", maxWidth: 200 }}>
                           <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.errorMessage || "—"}</div>
+                        </td>
+                        <td style={{ padding: "0.5rem 0.875rem" }}>
+                          {s.status === "failed" && (
+                            <button
+                              onClick={() => submitBcmsMut.mutate(s.movementId)}
+                              disabled={submitBcmsMut.isPending}
+                              title="Retry this submission"
+                              style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", borderRadius: 6, padding: "3px 10px", fontSize: "0.72rem", fontWeight: 600, cursor: submitBcmsMut.isPending ? "not-allowed" : "pointer", opacity: submitBcmsMut.isPending ? 0.6 : 1, whiteSpace: "nowrap" }}
+                            >
+                              <RefreshCw size={10} />Retry
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );

@@ -850,6 +850,23 @@ export const lisSubmissionsTable = pgTable("lis_submissions", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+// ─── LIS LIP (Livestock Information Platform) — Cattle Auth Foundation ────────
+export const lipFarmTokensTable = pgTable("lip_farm_tokens", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id).unique(),
+  isConfigured: boolean("is_configured").notNull().default(false),
+  testStatus: text("test_status"),          // "connected" | "partial" | "unreachable" | "failed"
+  testMessage: text("test_message"),
+  lastTestedAt: timestamp("last_tested_at", { withTimezone: true }),
+  platformAccessToken: text("platform_access_token"),
+  tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export type LipFarmToken = typeof lipFarmTokensTable.$inferSelect;
+export type NewLipFarmToken = typeof lipFarmTokensTable.$inferInsert;
+
 export const bcmsFarmCredentialsTable = pgTable("bcms_farm_credentials", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id).unique(),

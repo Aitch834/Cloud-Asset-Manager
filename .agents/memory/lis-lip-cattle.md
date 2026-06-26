@@ -1,129 +1,38 @@
 ---
 name: LIS LIP Cattle credentials & integration status
-description: LIS Livestock Information Platform (LIP) cattle API credentials, endpoint details, and current status
+description: LIP (Livestock Information Platform) auth foundation — schema, migration, API routes, UI card built
 ---
 
-## What LIP is
+## Status
+- LIP auth foundation is BUILT (schema + migration + API test endpoint + FarmSettings card)
+- LIP subscription approvals still pending from LIS (up to 5 working days from first request)
 
-LIP (Livestock Information Platform) is the NEW platform for cattle/bison/buffalo.
-It is entirely separate from CLA (the sheep/goat/deer platform):
-- Different developer portal: `developer.service.livestockinformation.org.uk` (vs `developers.livestockinformation.org.uk`)
-- Different authentication tenant and flow
-- Different base URL, different headers (`LI-Request-Mode`, `LI-Correlation-Id`)
-- Different data model (batches, breed codes, productionType, movement confirmation step)
+## What exists
+- `lib/db/src/schema/livestock.ts`: `lipFarmTokensTable` — platform-level (no per-farm creds)
+- `artifacts/api-server/src/lib/lisMigrations.ts`: `CREATE TABLE IF NOT EXISTS lip_farm_tokens`
+- `artifacts/api-server/src/routes/farms.ts`: 
+  - `GET /farms/:farmId/lip-credentials` — returns { configured, platformReady, testStatus, testMessage, lastTestedAt }
+  - `POST /farms/:farmId/lip-credentials/test` — tries client_credentials OAuth then probes API
+- `artifacts/dashboard/src/pages/FarmSettings.tsx`: `LipConnectionCard` component (purple Alpha badge, test button, status display)
 
-## Configured secrets (Replit)
+## LIP OAuth approach
+- Grant type: client_credentials (machine-to-machine — no per-farm OAuth needed)
+- Token endpoint: `https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/oauth2/v2.0/token`
+- Scope attempt: `https://livestockinformationb2cprod.onmicrosoft.com/apim-lip-ext/.default`
+- API base: `https://api.service.livestockinformation.org.uk`
+- Subscription key header: `Ocp-Apim-Subscription-Key` using `LIS_LIP_SUBSCRIPTION_KEY`
+- Probe endpoint: `/v1.0/breeds?species=bovine`
+- Status values: "connected" | "partial" (API reachable but auth not accepted) | "unreachable" | "failed"
 
-- `LIS_LIP_CLIENT_ID` — BDE Farm Trac application client ID on LIP portal
-- `LIS_LIP_PRIMARY_SECRET` — primary client secret
-- `LIS_LIP_SECONDARY_SECRET` — secondary client secret (rotation fallback)
+## Known uncertainties (Alpha)
+- Exact OAuth scope string unconfirmed — may need updating once LIS confirms
+- /v1.0/breeds endpoint path unconfirmed for LIP (differs from CLA)
+- Subscription approval still pending (3 subscriptions: LIS API Sandbox, My LIS API Sandbox, possibly LUIS)
 
-## Configured env vars (Replit, shared)
+## Secrets in use
+- LIS_LIP_CLIENT_ID, LIS_LIP_PRIMARY_SECRET, LIS_LIP_SECONDARY_SECRET (rotation fallback)
+- LIS_LIP_SUBSCRIPTION_KEY, LIS_LIP_SUBSCRIPTION_KEY_2
+- LIS_LIP_MYLIS_SUBSCRIPTION_KEY, LIS_LIP_MYLIS_SUBSCRIPTION_KEY_2
 
-- `LIS_LIP_REDIRECT_URL` = `https://api.bdefarmtrac.co.uk/api/lis/callback`
-- `LIS_LIP_API_BASE` = `https://api.service.livestockinformation.org.uk`
-
-## Subscription keys (June 2026)
-
-- `LIS_LIP_SUBSCRIPTION_KEY` — **saved** — LIS API - Sandbox - v1.0 (primary)
-- `LIS_LIP_SUBSCRIPTION_KEY_2` — **saved** — LIS API - Sandbox - v1.0 (secondary/rotation)
-- `LIS_LIP_MYLIS_SUBSCRIPTION_KEY` — **saved** — My LivestockInformation API - Sandbox - v1.0 (primary)
-- `LIS_LIP_MYLIS_SUBSCRIPTION_KEY_2` — **saved** — My LivestockInformation API - Sandbox - v1.0 (secondary/rotation)
-- `LIS_LIP_LUIS_SUBSCRIPTION_KEY` — **pending** — LUIS API Sandbox - v2.0 primary (ear tag ID issuance/validation)
-- `LIS_LIP_LUIS_SUBSCRIPTION_KEY_2` — **pending** — LUIS API Sandbox - v2.0 secondary
-
-## LIP API endpoints (Alpha — subject to change)
-
-Base: `https://api.service.livestockinformation.org.uk` (to confirm from portal once keys arrive)
-
-| Endpoint | Purpose |
-|---|---|
-| `POST /animals` | Register animal (birth or import) — sync or async |
-| `PUT /animals` | Update animal record |
-| `GET /animals` | List animals on holding |
-| `GET /animals/{identifier}` | Get single animal |
-| `POST /animals/lost` | Report lost/stolen |
-| `GET /breeds` | Breed codes reference data |
-| `GET /deathreasons` | Death reasons reference data |
-| `POST /movements` | Submit movement — sync or async |
-| `PUT /movements` | Update movement |
-| `DELETE /movements` | Delete movement |
-| `GET /movements/{id}` | Retrieve movement |
-| `POST /movements/confirm` | Confirm received movement (required step) |
-| `GET /movements/rejectionreasons` | Rejection reasons reference data |
-| `GET /requeststatus/{requestId}` | Poll async operation result |
-
-## Key data model differences vs CLA sheep
-
-- **Breed**: code (e.g. `DEX`) not free text — needs `GET /breeds` lookup table
-- **Movement batches**: animals grouped in `batches` array by species
-- **Movement time**: `time` field required (HH:MMZ) in addition to date
-- **Haulier type**: `departure | arrival | haulier`
-- **Vehicle reg**: explicit `vehicleRegistrationNumber` field
-- **productionType**: `meat | dairy | beef` on animal registration
-- **identificationDate**: when animal was tagged (separate from DOB)
-- **Birth flags**: `assistedBirthFlag`, `multipleBirthsFlag`
-- **Parent IDs**: `sire`, `birthDam`, `geneticDam` identifiers
-- **TSE flag**: `tseTestRequiredFlag` on death records
-- **Movement confirmation**: `POST /movements/confirm` explicit step required
-- **Sex field**: case-sensitive — must be `"male"` or `"female"` exactly
-
-## Schema additions needed (plan for LIS Cattle integration build)
-
-On `livestockAnimalsTable`: `productionType`, `breedCode`, `identificationDate`,
-`assistedBirth`, `multipleBirth`, `sireEarTag`, `birthDamEarTag`, `geneticDamEarTag`,
-`hasEid`, `tseTestRequired`, `carcassCollectionCph`, `lipAnimalId`,
-`lipSyncStatus`, `lipLastSyncAt`, `lipRequestId`
-
-On `livestockMovementsTable`: `departureTime`, `arrivalTime`, `haulierVehicleReg`,
-`haulierType`, `lipMovementId`, `lipMovementStatus`, `lipMovementRequestId`
-
-New: `breedCodesTable` (seeded from `GET /breeds`) — code, name, species
-
-## Animal status gap — applies to ALL species (cattle + sheep)
-
-Current app model has only 3 statuses: `active`, `sold`, `dead`.
-LIS Cattle portal explicitly supports: lost, stolen, found, imported, exported.
-The CLA sheep API has equivalent exceptional notifications. This gap affects both
-integrations simultaneously and should be fixed in a single schema change.
-
-### Status values to add to `livestockAnimalsTable.status`
-
-| Value | Meaning | Regulatory note |
-|---|---|---|
-| `lost` | Missing, whereabouts unknown | Must notify LIS within 7 days |
-| `stolen` | Confirmed theft | Must notify police + LIS |
-| `found` | Recovered after lost/stolen | Reinstates animal record; returns to `active` |
-| `exported` | Sent abroad | Distinct from standard sale — requires export health cert |
-| `imported` | Arrived from abroad | Distinct from standard purchase — requires import checks, CPH notification |
-
-### Additional table needed: `animalExceptionalEventsTable`
-Lost/stolen/found events need a dedicated event log (not just a status flip):
-- `animalId`, `eventType` (lost | stolen | found), `eventDate`
-- `lastSeenLocation`, `policeRef` (for stolen), `recoveryDetails` (for found)
-- Links back to the originating lost/stolen record when found
-
-### Movement type additions for `livestockMovementsTable`
-- `export_abroad` — off-farm movement to another country
-- `import_abroad` — on-farm movement arriving from another country
-(Currently both are conflated with standard sale/purchase movement types)
-
-### UI changes required
-- Animal register status filter tabs: add Lost, Stolen, Exported, Imported alongside active/sold/dead
-- New "Report Lost / Stolen" action on animal record
-- "Mark as Found" action that closes the exceptional event and reactivates the animal
-- Movement form: expose export/import abroad as distinct movement types with relevant extra fields
-
-## Build sequencing
-
-Do NOT start LIP cattle integration code until:
-1. CLA sheep sync blocker (AADSTS50105) resolved with LIS support
-2. LIP subscription keys received and confirmed working in sandbox
-3. Full retest required before cattle go-live (summer 2026)
-
-## Known LIP issues (from their portal, June 2026)
-
-- Delayed sync: records may not be immediately retrievable after POST — occasional 500s; need retry logic
-- Sex field case-sensitive: `"male"` / `"female"` only
-- Incomplete error messaging: some errors return generic codes without field detail
-- Movement review not yet available in alpha (fixed Apr 2026 per their release notes)
+**Why client credentials:** LIP uses platform-level BDE app registration, not per-farm user auth.
+This is different from CLA (sheep) which requires each farmer to authenticate through LIS B2C.
