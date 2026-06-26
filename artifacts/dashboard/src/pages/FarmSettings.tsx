@@ -581,6 +581,38 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
           </div>
         )}
 
+        {Array.isArray((creds as any)?.lisSyncHistory) && (creds as any).lisSyncHistory.length > 0 && (
+          <details style={{ fontSize: "0.78rem" }}>
+            <summary style={{ cursor: "pointer", color: "#6b7280", userSelect: "none", listStyle: "none", display: "flex", alignItems: "center", gap: 4 }}>
+              <span style={{ fontSize: "0.7rem" }}>▸</span>
+              Sync history ({(creds as any).lisSyncHistory.length} {(creds as any).lisSyncHistory.length === 1 ? "entry" : "entries"})
+            </summary>
+            <div style={{ marginTop: 6, border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+              {((creds as any).lisSyncHistory as Array<{ syncedAt: string; summary: string; cphValid: boolean | null; imported: { approved: number; transfers: number; reviews: number } }>).slice(0, 10).map((entry, i, arr) => (
+                <div key={i} style={{ padding: "6px 10px", borderBottom: i < arr.length - 1 ? "1px solid #f3f4f6" : "none", display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <span style={{ flexShrink: 0, fontWeight: 700, color: entry.cphValid === true ? "#16a34a" : entry.cphValid === false ? "#dc2626" : "#6b7280" }}>
+                    {entry.cphValid === true ? "✓" : entry.cphValid === false ? "✗" : "○"}
+                  </span>
+                  <span>
+                    <span style={{ color: "#374151", fontWeight: 500 }}>{new Date(entry.syncedAt).toLocaleString("en-GB")}</span>
+                    {" — "}
+                    <span style={{ color: "#6b7280" }}>{entry.summary}</span>
+                    {entry.imported && (entry.imported.approved + entry.imported.transfers + entry.imported.reviews) > 0 && (
+                      <span style={{ marginLeft: 6, color: "#0369a1", fontSize: "0.72rem" }}>
+                        ({[
+                          entry.imported.approved > 0 ? `${entry.imported.approved} approved` : null,
+                          entry.imported.transfers > 0 ? `${entry.imported.transfers} transfer${entry.imported.transfers !== 1 ? "s" : ""}` : null,
+                          entry.imported.reviews > 0 ? `${entry.imported.reviews} review${entry.imported.reviews !== 1 ? "s" : ""}` : null,
+                        ].filter(Boolean).join(", ")})
+                      </span>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+
         {syncResult && (
           <div style={{ border: `1px solid ${syncResult.success ? "#bbf7d0" : "#fecaca"}`, borderRadius: 10, padding: "0.875rem 1rem", background: syncResult.success ? "#f0fdf4" : "#fef2f2" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>

@@ -24771,6 +24771,7 @@ router.get("/farms/:farmId/lis-credentials", requireAuth, requireTenant, async (
     tokenExpiresAt: token.tokenExpiresAt,
     lisLastSyncedAt: token.lisLastSyncedAt,
     lisLastSyncSummary: token.lisLastSyncSummary,
+    lisSyncHistory: token.lisSyncHistory,
   });
 });
 
@@ -25222,9 +25223,20 @@ router.post("/farms/:farmId/lis/sync-herds", requireAuth, requireTenant, async (
     totalImported === 0 ? "No movement records found in LIS for this holding" : null,
   ].filter(Boolean).join(". ");
 
+  const historyEntry = {
+    syncedAt: new Date().toISOString(),
+    summary: syncSummary,
+    imported: importCounts,
+    cphValid,
+    cphNumber,
+  };
+  const existingHistory = Array.isArray(creds?.lisSyncHistory) ? (creds.lisSyncHistory as unknown[]) : [];
+  const updatedHistory = [historyEntry, ...existingHistory].slice(0, 20);
+
   await db.update(lisFarmTokensTable).set({
     lisLastSyncedAt: new Date(),
     lisLastSyncSummary: syncSummary,
+    lisSyncHistory: updatedHistory,
     updatedAt: new Date(),
   }).where(eq(lisFarmTokensTable.farmId, farmId));
 

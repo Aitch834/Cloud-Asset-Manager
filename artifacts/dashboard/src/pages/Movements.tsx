@@ -254,6 +254,93 @@ function printMovementsRegister(movements: Movement[], farm: { name: string; cph
   });
 }
 
+function printLisComplianceReport(
+  movements: Movement[],
+  farm: { name: string; cphNumber?: string | null; address?: string | null; postcode?: string | null } | null,
+  periodLabel: string,
+  lastSyncedAt?: string | null,
+): void {
+  const LIS_SPECIES = ["sheep", "goat", "deer"];
+  const lisMovements = movements.filter(m => LIS_SPECIES.includes((m.species ?? "").toLowerCase()));
+  const notified = lisMovements.filter(m => m.legalNotificationSubmitted || !!m.lisMovementRef);
+  const unnotified = lisMovements.filter(m => !m.legalNotificationSubmitted && !m.lisMovementRef);
+
+  const formatDate = (d: string | null | undefined) =>
+    d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+
+  const summaryHtml = `
+    <table style="width:100%;margin-bottom:1.5rem;border-collapse:collapse;font-size:0.85rem;">
+      <tbody>
+        <tr>
+          <td style="padding:6px 12px;background:#f9fafb;border:1px solid #e5e7eb;font-weight:600;width:40%">Total LIS-reportable movements</td>
+          <td style="padding:6px 12px;border:1px solid #e5e7eb;">${lisMovements.length}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 12px;background:#f9fafb;border:1px solid #e5e7eb;font-weight:600">Notified to LIS / bearing LIS reference</td>
+          <td style="padding:6px 12px;border:1px solid #e5e7eb;color:#166534;font-weight:600">✓ ${notified.length}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 12px;background:#f9fafb;border:1px solid #e5e7eb;font-weight:600">Unnotified (compliance gap)</td>
+          <td style="padding:6px 12px;border:1px solid #e5e7eb;color:${unnotified.length > 0 ? "#dc2626" : "#166534"};font-weight:600">${unnotified.length > 0 ? "✗ " : "✓ "}${unnotified.length}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 12px;background:#f9fafb;border:1px solid #e5e7eb;font-weight:600">Compliance rate</td>
+          <td style="padding:6px 12px;border:1px solid #e5e7eb;font-weight:600">${lisMovements.length === 0 ? "N/A" : Math.round((notified.length / lisMovements.length) * 100) + "%"}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 12px;background:#f9fafb;border:1px solid #e5e7eb;font-weight:600">LIS last data sync</td>
+          <td style="padding:6px 12px;border:1px solid #e5e7eb;">${lastSyncedAt ? new Date(lastSyncedAt).toLocaleString("en-GB") : "Not yet synced"}</td>
+        </tr>
+      </tbody>
+    </table>
+  `;
+
+  const rows = lisMovements.map(m => {
+    const isNotified = m.legalNotificationSubmitted || !!m.lisMovementRef;
+    const rowBg = isNotified ? "" : "background:#fff5f5";
+    return `<tr style="${rowBg}">
+      <td style="padding:6px 8px;border:1px solid #e5e7eb;">${formatDate(m.movementDate)}</td>
+      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-transform:capitalize;">${m.movementType ?? "—"}</td>
+      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-transform:capitalize;">${m.species ?? "—"}</td>
+      <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:right;">${m.numberOfAnimals ?? "—"}</td>
+      <td style="padding:6px 8px;border:1px solid #e5e7eb;">${m.fromLocation ?? "—"}</td>
+      <td style="padding:6px 8px;border:1px solid #e5e7eb;">${m.toLocation ?? "—"}</td>
+      <td style="padding:6px 8px;border:1px solid #e5e7eb;font-family:monospace;font-size:0.78rem;">${m.lisMovementRef ?? m.licenceNumber ?? "—"}</td>
+      <td style="padding:6px 8px;border:1px solid #e5e7eb;font-weight:700;color:${isNotified ? "#166534" : "#dc2626"};">${isNotified ? "✓ Notified" : "✗ Not notified"}</td>
+    </tr>`;
+  }).join("");
+
+  const tableHtml = `
+    <h3 style="font-size:0.9rem;font-weight:700;margin:0 0 0.5rem;color:#111827">Compliance Summary</h3>
+    ${summaryHtml}
+    <h3 style="font-size:0.9rem;font-weight:700;margin:1rem 0 0.5rem;color:#111827">Movement Detail — LIS-Reportable Species (Sheep / Goat / Deer)</h3>
+    <table style="width:100%;border-collapse:collapse;font-size:0.8rem;">
+      <thead><tr style="background:#f3f4f6;">
+        <th style="padding:6px 8px;border:1px solid #e5e7eb;text-align:left;">Date</th>
+        <th style="padding:6px 8px;border:1px solid #e5e7eb;text-align:left;">Type</th>
+        <th style="padding:6px 8px;border:1px solid #e5e7eb;text-align:left;">Species</th>
+        <th style="padding:6px 8px;border:1px solid #e5e7eb;text-align:right;">Animals</th>
+        <th style="padding:6px 8px;border:1px solid #e5e7eb;text-align:left;">From</th>
+        <th style="padding:6px 8px;border:1px solid #e5e7eb;text-align:left;">To</th>
+        <th style="padding:6px 8px;border:1px solid #e5e7eb;text-align:left;">LIS / Licence Ref</th>
+        <th style="padding:6px 8px;border:1px solid #e5e7eb;text-align:left;">Notification Status</th>
+      </tr></thead>
+      <tbody>${rows || '<tr><td colspan="8" style="padding:12px;text-align:center;color:#6b7280;border:1px solid #e5e7eb;">No LIS-reportable movements in this period</td></tr>'}</tbody>
+    </table>
+  `;
+
+  printProReport({
+    title: "LIS Movement Notification Compliance Report",
+    subtitle: "Livestock Information Service — Red Tractor Audit Evidence",
+    farmName: farm?.name,
+    cphNumber: farm?.cphNumber ?? undefined,
+    recordCount: lisMovements.length,
+    extraMeta: `Period: ${periodLabel} · Generated: ${new Date().toLocaleString("en-GB")}`,
+    tableHtml,
+    footerNote: "This report is generated from BDE Farm Trac records and constitutes evidence of LIS movement notification compliance. LIS notification of sheep, goat and deer movements is required under the Livestock (England) Order 2015 (as amended). Records must be retained for a minimum of 3 years for Red Tractor audit purposes.",
+  });
+}
+
 function movementTypeBadge(type: string) {
   const map: Record<string, { label: string; className: string }> = {
     on:      { label: "On",     className: "bg-emerald-100 text-emerald-800 border-emerald-200" },
@@ -1397,6 +1484,27 @@ export default function Movements() {
         </div>
       )}
 
+      {(() => {
+        const lisUnnotified = yearRecords.filter(r => {
+          const sp = (r.species ?? "").toLowerCase();
+          return (sp === "sheep" || sp === "goat" || sp === "deer")
+            && (r.movementType === "on" || r.movementType === "off")
+            && !r.legalNotificationSubmitted
+            && !r.lisMovementRef;
+        });
+        if (lisUnnotified.length === 0) return null;
+        return (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-900 flex gap-3 items-start">
+            <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+            <div>
+              <strong>LIS notification gap</strong> — {lisUnnotified.length} sheep/goat/deer movement{lisUnnotified.length > 1 ? "s" : ""} in this period {lisUnnotified.length > 1 ? "have" : "has"} not been notified to LIS. Report {lisUnnotified.length > 1 ? "these" : "this"} at{" "}
+              <a href="https://cla.livestockinformation.org.uk" target="_blank" rel="noopener noreferrer" className="underline font-medium">cla.livestockinformation.org.uk</a>{" "}
+              and record the reference number against each movement. Use <strong>Print LIS Report</strong> below to produce audit evidence.
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Country-aware portal quick-action banner */}
       {(() => {
         const country = farmData?.country ?? "england";
@@ -1492,6 +1600,18 @@ export default function Movements() {
             disabled={filtered.length === 0}
           >
             <Printer className="w-4 h-4 mr-1" /> Print Register
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const periodLabel = `Crop year ${cropYear}`;
+              printLisComplianceReport(records, farmData ?? null, periodLabel, (lisCredsData as any)?.lisLastSyncedAt ?? null);
+            }}
+            disabled={records.length === 0}
+            title="Print LIS Movement Notification Compliance Report for Red Tractor audit"
+          >
+            <Printer className="w-4 h-4 mr-1" /> LIS Report
           </Button>
           <Button
             variant="outline"

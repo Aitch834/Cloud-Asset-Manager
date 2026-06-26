@@ -825,6 +825,7 @@ export const lisFarmTokensTable = pgTable("lis_farm_tokens", {
   oauthState: text("oauth_state"),
   lisLastSyncedAt: timestamp("lis_last_synced_at", { withTimezone: true }), // last successful sync timestamp
   lisLastSyncSummary: text("lis_last_sync_summary"),                        // human-readable last sync result
+  lisSyncHistory: jsonb("lis_sync_history"),  // array of last 20 sync entries [{syncedAt,summary,imported,cphValid,cphNumber}]
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
