@@ -31486,7 +31486,12 @@ router.get("/lip/callback", async (req: Request, res: Response): Promise<void> =
   const verified = state ? verifyLipOAuthState(state) : { valid: false as const };
   const returnUrl = verified.valid ? verified.returnUrl : "https://bdefarmtrac.co.uk/dashboard/farm-settings";
 
-  const bail = (msg: string) => { res.redirect(`${returnUrl}?lip_error=${encodeURIComponent(msg)}`); };
+  const bail = (msg: string) => {
+    console.error("[LIP-CALLBACK] bail:", msg);
+    res.redirect(`${returnUrl}?lip_error=${encodeURIComponent(msg)}`);
+  };
+
+  console.log("[LIP-CALLBACK] received — code present:", !!code, "state present:", !!state, "error:", error ?? "none");
 
   if (error || !code || !state) {
     bail(error_description ?? error ?? "LIS LIP authentication was cancelled or failed. Please try again.");
@@ -31496,7 +31501,9 @@ router.get("/lip/callback", async (req: Request, res: Response): Promise<void> =
 
   const { farmId } = verified;
   const redirectUri = getLipRedirectUri(req);
+  console.log("[LIP-CALLBACK] farmId:", farmId, "redirectUri:", redirectUri);
   const tokenResult = await exchangeLipCode(code, redirectUri);
+  console.log("[LIP-CALLBACK] tokenResult:", JSON.stringify({ success: tokenResult.success, sandbox: tokenResult.sandbox, errorMessage: tokenResult.errorMessage }));
 
   if (!tokenResult.success || !tokenResult.accessToken) {
     bail(tokenResult.errorMessage ?? "Token exchange with LIS B2C failed. Please try again.");
