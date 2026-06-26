@@ -855,11 +855,14 @@ export const lipFarmTokensTable = pgTable("lip_farm_tokens", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id).unique(),
   isConfigured: boolean("is_configured").notNull().default(false),
-  testStatus: text("test_status"),          // "connected" | "partial" | "unreachable" | "failed"
+  sandboxMode: boolean("sandbox_mode").notNull().default(true),
+  testStatus: text("test_status"),          // "connected" | "partial" | "unreachable" | "failed" | "ok"
   testMessage: text("test_message"),
   lastTestedAt: timestamp("last_tested_at", { withTimezone: true }),
-  platformAccessToken: text("platform_access_token"),
+  platformAccessToken: text("platform_access_token"),   // access token from B2C
+  lipRefreshToken: text("lip_refresh_token"),
   tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+  oauthState: text("oauth_state"),                      // HMAC-signed state for in-flight OAuth
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

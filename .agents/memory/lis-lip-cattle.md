@@ -1,38 +1,54 @@
 ---
 name: LIS LIP Cattle credentials & integration status
-description: LIP (Livestock Information Platform) auth foundation — schema, migration, API routes, UI card built
+description: LIP (Livestock Information Platform) confirmed as per-farm delegated OAuth — full OAuth routes built
 ---
 
-## Status
-- LIP auth foundation is BUILT (schema + migration + API test endpoint + FarmSettings card)
+## Status (June 2026)
+- LIP OAuth architecture corrected to per-farm delegated flow (user_impersonation)
+- Full authorize + callback routes built, LipConnectionCard rewritten to match
 - LIP subscription approvals still pending from LIS (up to 5 working days from first request)
+- Redirect URI `https://api.bdefarmtrac.co.uk/api/lip/callback` must be registered in LIP developer portal
+
+## Confirmed portal values (LIP Developer Portal "Additional Credentials", June 2026)
+- **api-scopes**: `https://livestockinformationb2cprod.onmicrosoft.com/ms-apimlisapisdbx/user_impersonation`
+- **api-url**: `https://sandbox.movement.api.livestockinformation.org.uk/lis-public-sdbx/v1.0`
+- **b2c-authority**: `https://livestockinformationb2cprod.b2clogin.com/tfp/livestockinformationb2cprod.onmicrosoft.com/B2C_1A_THIRDPARTY_SIGNIN/v2.0`
+- **b2c-tenant**: `Livestockinformationb2cprod`
+- **b2c-policy**: `B2C_1A_THIRDPARTY_SIGNIN` (NOT B2C_1A_SIGNIN — different from CLA)
+
+**Critical:** Authority uses `/tfp/` path (older Azure B2C Trust Framework Policy URL format).
+Authorize: `{authority}/authorize`, Token: `{authority}/token`.
+Scope gets `offline_access` appended for refresh tokens.
+
+## Architecture (corrected)
+- Grant type: **authorization_code** (per-farm delegated OAuth — same pattern as CLA sheep)
+- Each farm's user signs in with LIS credentials via B2C_1A_THIRDPARTY_SIGNIN policy
+- Access + refresh tokens stored per farm in `lip_farm_tokens`
+- lib: `artifacts/api-server/src/lib/lip.ts` (mirrors lis.ts pattern)
 
 ## What exists
-- `lib/db/src/schema/livestock.ts`: `lipFarmTokensTable` — platform-level (no per-farm creds)
-- `artifacts/api-server/src/lib/lisMigrations.ts`: `CREATE TABLE IF NOT EXISTS lip_farm_tokens`
-- `artifacts/api-server/src/routes/farms.ts`: 
-  - `GET /farms/:farmId/lip-credentials` — returns { configured, platformReady, testStatus, testMessage, lastTestedAt }
-  - `POST /farms/:farmId/lip-credentials/test` — tries client_credentials OAuth then probes API
-- `artifacts/dashboard/src/pages/FarmSettings.tsx`: `LipConnectionCard` component (purple Alpha badge, test button, status display)
+- `lib/db/src/schema/livestock.ts`: `lipFarmTokensTable` — with sandboxMode, lipRefreshToken, oauthState
+- `artifacts/api-server/src/lib/lisMigrations.ts`: CREATE TABLE + ALTER TABLE for new columns
+- `artifacts/api-server/src/lib/lip.ts`: buildLipAuthUrl, exchangeLipCode, probeLipApi, signLipOAuthState, verifyLipOAuthState, getLipRedirectUri
+- `artifacts/api-server/src/routes/farms.ts`:
+  - `GET /farms/:farmId/lip-credentials` — returns { configured, sandboxMode, platformReady, testStatus, testMessage, lastTestedAt }
+  - `POST /farms/:farmId/lip-credentials/test` — probes API with subscription key only (no user auth)
+  - `DELETE /farms/:farmId/lip-credentials` — clears tokens
+  - `GET /api/lip/authorize` — starts B2C auth code flow
+  - `GET /api/lip/callback` — exchanges code for tokens, stores, redirects
+- `artifacts/dashboard/src/pages/FarmSettings.tsx`: LipConnectionCard with sign-in popup, disconnect, connected state
 
-## LIP OAuth approach
-- Grant type: client_credentials (machine-to-machine — no per-farm OAuth needed)
-- Token endpoint: `https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/oauth2/v2.0/token`
-- Scope attempt: `https://livestockinformationb2cprod.onmicrosoft.com/apim-lip-ext/.default`
-- API base: `https://api.service.livestockinformation.org.uk`
-- Subscription key header: `Ocp-Apim-Subscription-Key` using `LIS_LIP_SUBSCRIPTION_KEY`
-- Probe endpoint: `/v1.0/breeds?species=bovine`
-- Status values: "connected" | "partial" (API reachable but auth not accepted) | "unreachable" | "failed"
-
-## Known uncertainties (Alpha)
-- Exact OAuth scope string unconfirmed — may need updating once LIS confirms
-- /v1.0/breeds endpoint path unconfirmed for LIP (differs from CLA)
-- Subscription approval still pending (3 subscriptions: LIS API Sandbox, My LIS API Sandbox, possibly LUIS)
+## Env vars stored (shared)
+- LIS_LIP_API_URL_SANDBOX, LIS_LIP_B2C_AUTHORITY_SANDBOX, LIS_LIP_SCOPE_SANDBOX
+- Production equivalents: LIS_LIP_API_URL_PROD, LIS_LIP_B2C_AUTHORITY_PROD, LIS_LIP_SCOPE_PROD (not yet set)
+- Set LIS_LIP_USE_PRODUCTION=true to switch to prod endpoints
 
 ## Secrets in use
-- LIS_LIP_CLIENT_ID, LIS_LIP_PRIMARY_SECRET, LIS_LIP_SECONDARY_SECRET (rotation fallback)
+- LIS_LIP_CLIENT_ID, LIS_LIP_PRIMARY_SECRET, LIS_LIP_SECONDARY_SECRET
 - LIS_LIP_SUBSCRIPTION_KEY, LIS_LIP_SUBSCRIPTION_KEY_2
 - LIS_LIP_MYLIS_SUBSCRIPTION_KEY, LIS_LIP_MYLIS_SUBSCRIPTION_KEY_2
+- LIS_LIP_REDIRECT_URI (optional — constructed from request if absent)
 
-**Why client credentials:** LIP uses platform-level BDE app registration, not per-farm user auth.
-This is different from CLA (sheep) which requires each farmer to authenticate through LIS B2C.
+## Key difference from CLA (sheep)
+- CLA: policy = B2C_1A_SIGNIN, authority path without /tfp/
+- LIP: policy = B2C_1A_THIRDPARTY_SIGNIN, authority path WITH /tfp/ (/tfp/ is required)

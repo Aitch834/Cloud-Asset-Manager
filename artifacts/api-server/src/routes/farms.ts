@@ -422,6 +422,7 @@ import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/bio
 import { generateDispatchNoteHtml } from "../lib/dispatch-note-html";
 import { submitMovement, testConnection, isSandboxMode } from "../lib/ctws";
 import { submitLisMovement, testLisConnection, fetchLisToken, refreshLisToken, isLisSandboxMode, callLisApi, buildLisAuthUrl, exchangeLisCode } from "../lib/lis";
+import { buildLipAuthUrl, exchangeLipCode, getLipRedirectUri, signLipOAuthState, verifyLipOAuthState, probeLipApi, isLipSandboxMode } from "../lib/lip";
 
 const router: IRouter = Router();
 
@@ -31126,8 +31127,12 @@ router.delete("/farms/:farmId/organic-venison/derogation-documents/:id", require
 });
 
 
-// ─── LIS LIP (Livestock Information Platform) — Cattle Auth Foundation ────────
+// ─── LIS LIP (Livestock Information Platform) — Cattle OAuth ─────────────────
 
+/**
+ * GET /farms/:farmId/lip-credentials
+ * Return the LIP connection status for this farm.
+ */
 router.get("/farms/:farmId/lip-credentials", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
@@ -31136,6 +31141,7 @@ router.get("/farms/:farmId/lip-credentials", requireAuth, requireTenant, async (
     const platformReady = !!(process.env.LIS_LIP_CLIENT_ID && process.env.LIS_LIP_PRIMARY_SECRET);
     res.json({
       configured: row?.isConfigured ?? false,
+      sandboxMode: row?.sandboxMode ?? true,
       platformReady,
       testStatus: row?.testStatus ?? null,
       testMessage: row?.testMessage ?? null,
@@ -31146,91 +31152,131 @@ router.get("/farms/:farmId/lip-credentials", requireAuth, requireTenant, async (
   }
 });
 
+/**
+ * POST /farms/:farmId/lip-credentials/test
+ * Probe the LIP API endpoint (subscription key only — no user token).
+ * LIP uses per-farm delegated OAuth (user_impersonation), NOT client_credentials.
+ * This endpoint tests API reachability and subscription key validity only.
+ */
 router.post("/farms/:farmId/lip-credentials/test", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   try {
-    const clientId = process.env.LIS_LIP_CLIENT_ID;
-    const clientSecret = process.env.LIS_LIP_PRIMARY_SECRET;
-    const subscriptionKey = process.env.LIS_LIP_SUBSCRIPTION_KEY;
-
-    if (!clientId || !clientSecret) {
-      await db.insert(lipFarmTokensTable).values({ farmId, isConfigured: false, testStatus: "failed", testMessage: "Platform LIP credentials not yet configured by BDE (admin action required).", lastTestedAt: new Date() })
-        .onConflictDoUpdate({ target: lipFarmTokensTable.farmId, set: { isConfigured: false, testStatus: "failed", testMessage: "Platform LIP credentials not yet configured by BDE (admin action required).", lastTestedAt: new Date() } });
-      res.json({ success: false, message: "Platform LIP credentials not yet configured by BDE." });
+    const platformReady = !!(process.env.LIS_LIP_CLIENT_ID && process.env.LIS_LIP_PRIMARY_SECRET);
+    if (!platformReady) {
+      await db.insert(lipFarmTokensTable).values({ farmId, isConfigured: false, sandboxMode: isLipSandboxMode(), testStatus: "failed", testMessage: "LIP platform credentials not configured by BDE (admin action required).", lastTestedAt: new Date() })
+        .onConflictDoUpdate({ target: lipFarmTokensTable.farmId, set: { isConfigured: false, testStatus: "failed", testMessage: "LIP platform credentials not configured by BDE (admin action required).", lastTestedAt: new Date(), updatedAt: new Date() } });
+      res.json({ success: false, message: "LIP platform credentials not configured by BDE." });
       return;
     }
 
-    // Attempt client-credentials OAuth from the LIS B2C tenant
-    let accessToken: string | null = null;
-    let authError: string | null = null;
-    try {
-      const tokenRes = await fetch(
-        "https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/oauth2/v2.0/token",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            grant_type: "client_credentials",
-            client_id: clientId,
-            client_secret: clientSecret,
-            scope: "https://livestockinformationb2cprod.onmicrosoft.com/apim-lip-ext/.default",
-          }),
-        }
-      );
-      const tokenData: any = await tokenRes.json();
-      if (tokenData.access_token) {
-        accessToken = tokenData.access_token as string;
-      } else {
-        authError = (tokenData.error_description ?? tokenData.error ?? "Unknown OAuth error") as string;
-      }
-    } catch (e: any) {
-      authError = `OAuth request failed: ${e.message}`;
-    }
-
-    // Probe the LIP API endpoint
-    const headers: Record<string, string> = {};
-    if (subscriptionKey) headers["Ocp-Apim-Subscription-Key"] = subscriptionKey;
-    if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
-
-    let apiStatus = 0;
-    let apiReachable = false;
-    let apiMessage = "";
-    try {
-      const apiRes = await fetch("https://api.service.livestockinformation.org.uk/v1.0/breeds?species=bovine", { headers });
-      apiStatus = apiRes.status;
-      apiReachable = true;
-      if (apiRes.status === 200) {
-        apiMessage = "Connected — LIP API responded successfully.";
-      } else if (apiRes.status === 401) {
-        apiMessage = `API reachable but authentication not accepted (401). OAuth scope may need confirmation with LIS support.`;
-      } else if (apiRes.status === 403) {
-        apiMessage = `API reachable but subscription not yet approved (403). Awaiting LIS LIP sandbox approval (up to 5 working days).`;
-      } else if (apiRes.status === 404) {
-        apiMessage = `API reachable — breeds endpoint not found (404). LIP is in Alpha; endpoint paths may differ from documentation.`;
-      } else {
-        apiMessage = `API responded with HTTP ${apiRes.status}.`;
-      }
-    } catch (e: any) {
-      apiMessage = `API unreachable: ${e.message}`;
-    }
-
-    const success = apiStatus === 200;
-    const status = success ? "connected" : apiReachable ? "partial" : "unreachable";
-    const message = authError
-      ? `OAuth: ${authError} | API: ${apiMessage}`
-      : apiMessage;
+    const probe = await probeLipApi();
+    const status = probe.status === 200 ? "connected" : probe.reachable ? "partial" : "unreachable";
 
     await db.insert(lipFarmTokensTable).values({
-      farmId, isConfigured: success, testStatus: status, testMessage: message,
-      lastTestedAt: new Date(), platformAccessToken: accessToken,
+      farmId, isConfigured: false, sandboxMode: isLipSandboxMode(),
+      testStatus: status, testMessage: probe.message, lastTestedAt: new Date(),
     }).onConflictDoUpdate({
       target: lipFarmTokensTable.farmId,
-      set: { isConfigured: success, testStatus: status, testMessage: message, lastTestedAt: new Date(), platformAccessToken: accessToken, updatedAt: new Date() },
+      set: { testStatus: status, testMessage: probe.message, lastTestedAt: new Date(), sandboxMode: isLipSandboxMode(), updatedAt: new Date() },
     });
 
-    res.json({ success, status, message, apiStatus, authError });
+    res.json({ success: probe.status === 200, status, message: probe.message, apiStatus: probe.status, apiReachable: probe.reachable });
   } catch (e: any) {
     res.status(500).json({ success: false, error: e.message });
   }
+});
+
+/**
+ * DELETE /farms/:farmId/lip-credentials
+ * Disconnect LIS LIP for this farm (clears tokens).
+ */
+router.delete("/farms/:farmId/lip-credentials", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  try {
+    await db.update(lipFarmTokensTable)
+      .set({ isConfigured: false, platformAccessToken: null, lipRefreshToken: null, tokenExpiresAt: null, testStatus: null, testMessage: null, updatedAt: new Date() })
+      .where(eq(lipFarmTokensTable.farmId, farmId));
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * GET /api/lip/authorize?farmId=X&returnUrl=Y
+ * Starts the LIS LIP OAuth authorization code flow.
+ * Redirects the farmer to the LIS B2C login page (B2C_1A_THIRDPARTY_SIGNIN policy).
+ */
+router.get("/lip/authorize", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.query["farmId"] as string);
+  if (!farmId || isNaN(farmId)) { res.status(400).send("Missing or invalid farmId"); return; }
+  const returnUrl = (req.query["returnUrl"] as string | undefined) ?? "/dashboard/farm-settings";
+
+  const state = signLipOAuthState(farmId, returnUrl);
+
+  const [existing] = await db.select({ id: lipFarmTokensTable.id }).from(lipFarmTokensTable).where(eq(lipFarmTokensTable.farmId, farmId));
+  if (!existing) {
+    await db.insert(lipFarmTokensTable).values({ farmId, isConfigured: false, sandboxMode: isLipSandboxMode() });
+  }
+
+  const redirectUri = getLipRedirectUri(req);
+  const authUrl = buildLipAuthUrl(state, redirectUri);
+
+  if (req.headers["accept"]?.includes("application/json")) {
+    res.json({ url: authUrl });
+  } else {
+    res.redirect(authUrl);
+  }
+});
+
+/**
+ * GET /api/lip/callback?code=X&state=Y
+ * OAuth callback — LIS B2C redirects here after the farmer signs in.
+ * Validates HMAC state, exchanges code for tokens, stores them, redirects to dashboard.
+ */
+router.get("/lip/callback", async (req: Request, res: Response): Promise<void> => {
+  const { code, state, error, error_description } = req.query as Record<string, string>;
+
+  const verified = state ? verifyLipOAuthState(state) : { valid: false as const };
+  const returnUrl = verified.valid ? verified.returnUrl : "https://bdefarmtrac.co.uk/dashboard/farm-settings";
+
+  const bail = (msg: string) => { res.redirect(`${returnUrl}?lip_error=${encodeURIComponent(msg)}`); };
+
+  if (error || !code || !state) {
+    bail(error_description ?? error ?? "LIS LIP authentication was cancelled or failed. Please try again.");
+    return;
+  }
+  if (!verified.valid) { bail("Sign-in link has expired or is invalid. Please try again."); return; }
+
+  const { farmId } = verified;
+  const redirectUri = getLipRedirectUri(req);
+  const tokenResult = await exchangeLipCode(code, redirectUri);
+
+  if (!tokenResult.success || !tokenResult.accessToken) {
+    bail(tokenResult.errorMessage ?? "Token exchange with LIS B2C failed. Please try again.");
+    return;
+  }
+
+  const tokenFields = {
+    platformAccessToken: tokenResult.accessToken,
+    lipRefreshToken: tokenResult.refreshToken ?? null,
+    tokenExpiresAt: tokenResult.expiresIn ? new Date(Date.now() + tokenResult.expiresIn * 1000) : null,
+    isConfigured: true,
+    sandboxMode: tokenResult.sandbox,
+    testStatus: "ok",
+    testMessage: tokenResult.sandbox ? "Connected via LIS sign-in (sandbox)" : "Connected via LIS sign-in",
+    lastTestedAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  const [existing] = await db.select({ id: lipFarmTokensTable.id }).from(lipFarmTokensTable).where(eq(lipFarmTokensTable.farmId, farmId));
+  if (existing) {
+    await db.update(lipFarmTokensTable).set(tokenFields).where(eq(lipFarmTokensTable.farmId, farmId));
+  } else {
+    await db.insert(lipFarmTokensTable).values({ farmId, ...tokenFields });
+  }
+
+  res.redirect(`${returnUrl}?lip_connected=true`);
 });

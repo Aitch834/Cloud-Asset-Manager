@@ -19,7 +19,7 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Redirect } from "wouter";
-import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw, Phone, UserRound, Eye, EyeOff, ShieldCheck, Shield, Wifi, WifiOff, Trash2, Building2, CreditCard, Upload, ImageIcon, X, Cpu } from "lucide-react";
+import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw, Phone, UserRound, Eye, EyeOff, ShieldCheck, Shield, Wifi, WifiOff, Trash2, Building2, CreditCard, Upload, ImageIcon, X, Cpu, LogIn, LogOut } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const SECTORS = [
@@ -395,17 +395,61 @@ function LipConnectionCard({ farmId }: { farmId: number }) {
   });
   const creds = credsQ.data;
 
+  // Handle OAuth return params (?lip_connected=true or ?lip_error=...)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("lip_connected");
+    const error = params.get("lip_error");
+    if (connected === "true") {
+      toast({ title: "LIS Cattle account connected", description: "Your LIS sign-in was successful." });
+      credsQ.refetch();
+      const u = new URL(window.location.href);
+      u.searchParams.delete("lip_connected");
+      window.history.replaceState({}, "", u.toString());
+      setTimeout(() => window.close(), 1500);
+    }
+    if (error) {
+      toast({ title: "LIS Cattle connection failed", description: decodeURIComponent(error), variant: "destructive" });
+      const u = new URL(window.location.href);
+      u.searchParams.delete("lip_error");
+      window.history.replaceState({}, "", u.toString());
+    }
+  }, []);
+
   const testMut = useMutation({
     mutationFn: () => fetch(`/api/farms/${farmId}/lip-credentials/test`, { method: "POST" }).then(r => r.json()),
     onSuccess: (d) => {
-      toast({ title: d.success ? "LIP API Connected" : "LIP Connection Test Result", description: d.message, variant: d.success ? "default" : "destructive" });
+      toast({ title: d.success ? "LIP API reachable" : "LIP API test result", description: d.message, variant: d.success ? "default" : "destructive" });
       credsQ.refetch();
     },
     onError: () => toast({ title: "Test failed", variant: "destructive" }),
   });
 
-  const statusColor = creds?.testStatus === "connected" ? "#166534" : creds?.testStatus === "partial" ? "#92400e" : "#6b7280";
-  const statusBg = creds?.testStatus === "connected" ? "#dcfce7" : creds?.testStatus === "partial" ? "#fef3c7" : "#f3f4f6";
+  const deleteMut = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`/api/farms/${farmId}/lip-credentials`, { method: "DELETE" });
+      if (!r.ok) throw new Error("Delete failed");
+      return r.json();
+    },
+    onSuccess: () => { toast({ title: "LIS Cattle account disconnected" }); credsQ.refetch(); },
+    onError: () => toast({ title: "Failed to disconnect", variant: "destructive" }),
+  });
+
+  const handleSignIn = async () => {
+    const returnUrl = window.location.href.split("?")[0];
+    try {
+      const r = await fetch(`/api/lip/authorize?farmId=${farmId}&returnUrl=${encodeURIComponent(returnUrl)}`, {
+        headers: { Accept: "application/json" },
+      });
+      const data = await r.json();
+      if (!r.ok || !data.url) throw new Error(data?.error ?? "Failed to start LIS sign-in");
+      window.open(data.url, "_blank", "noopener");
+    } catch (e: any) {
+      toast({ title: "Sign-in failed", description: e?.message, variant: "destructive" });
+    }
+  };
+
+  const isConnected = creds?.configured && creds?.testStatus === "ok";
 
   return (
     <Card>
@@ -420,47 +464,90 @@ function LipConnectionCard({ farmId }: { farmId: number }) {
           </span>
         </div>
 
-        <div style={{ background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 10, padding: "0.875rem 1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
-          <Cpu size={15} color="#7c3aed" style={{ marginTop: 2, flexShrink: 0 }} />
-          <div>
-            <p style={{ fontSize: "0.82rem", fontWeight: 600, color: "#7c3aed", marginBottom: 2 }}>Platform-level credentials — no farm login needed</p>
-            <p style={{ fontSize: "0.78rem", color: "#6b7280", lineHeight: 1.5 }}>
-              LIP uses BDE's registered application credentials to access the LIS cattle API — farms do not need to authenticate separately. BDE has submitted API subscription requests to LIS (up to 5 working days for approval). This test button checks whether the platform connection is live.
-            </p>
+        {isConnected ? (
+          <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "0.875rem 1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <ShieldCheck size={15} color="#16a34a" style={{ marginTop: 2, flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: "0.82rem", fontWeight: 600, color: "#166534", marginBottom: 2 }}>
+                LIS Cattle account connected{creds?.sandboxMode ? " (sandbox)" : ""}
+              </p>
+              <p style={{ fontSize: "0.78rem", color: "#4b7c59", lineHeight: 1.5 }}>
+                {creds?.testMessage ?? "Your farm is linked to LIS LIP. Cattle movement notifications will be submitted via this account."}
+              </p>
+            </div>
+            <button
+              onClick={() => deleteMut.mutate()}
+              disabled={deleteMut.isPending}
+              style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 5, background: "transparent", color: "#dc2626", border: "1px solid #fca5a5", borderRadius: 6, padding: "4px 10px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer" }}
+            >
+              {deleteMut.isPending ? <Loader2 size={11} className="animate-spin" /> : <LogOut size={11} />}
+              Disconnect
+            </button>
           </div>
-        </div>
-
-        {creds?.testStatus && (
-          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-            <p style={{ fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}>Last test result:</p>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: statusBg, color: statusColor, borderRadius: 6, padding: "3px 10px", fontSize: "0.75rem", fontWeight: 600 }}>
-              {creds.testStatus === "connected" ? <ShieldCheck size={12} /> : <Shield size={12} />}
-              {creds.testStatus === "connected" ? "Connected to LIP API" : creds.testStatus === "partial" ? "API reachable — auth pending" : "Not connected"}
-            </span>
-            {creds?.lastTestedAt && (
-              <span style={{ fontSize: "0.72rem", color: "#9ca3af" }}>
-                {new Date(creds.lastTestedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-              </span>
-            )}
+        ) : (
+          <div style={{ background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 10, padding: "0.875rem 1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <Cpu size={15} color="#7c3aed" style={{ marginTop: 2, flexShrink: 0 }} />
+            <div>
+              <p style={{ fontSize: "0.82rem", fontWeight: 600, color: "#7c3aed", marginBottom: 2 }}>Connect your LIS account</p>
+              <p style={{ fontSize: "0.78rem", color: "#6b7280", lineHeight: 1.5 }}>
+                LIP uses the same LIS sign-in flow as the sheep/goat/deer integration — you sign in once with your LIS credentials and BDE Farm Trac is authorised to submit cattle movements on your behalf. No password is stored.
+              </p>
+            </div>
           </div>
         )}
 
-        {creds?.testMessage && (
-          <p style={{ fontSize: "0.78rem", color: "#6b7280", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: "0.5rem 0.875rem" }}>
+        {creds?.testStatus && creds.testStatus !== "ok" && (
+          <div style={{ fontSize: "0.78rem", color: creds.testStatus === "partial" ? "#92400e" : "#6b7280", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: "0.5rem 0.875rem" }}>
             {creds.testMessage}
-          </p>
+          </div>
         )}
 
-        <div>
+        {creds?.lastTestedAt && creds.testStatus !== "ok" && (
+          <div style={{ fontSize: "0.72rem", color: "#9ca3af", display: "flex", alignItems: "center", gap: 5 }}>
+            <Shield size={11} />
+            Last tested: {new Date(creds.lastTestedAt).toLocaleString("en-GB")}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {!isConnected && creds?.platformReady && (
+            <button
+              onClick={handleSignIn}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#7c3aed", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: "0.82rem", fontWeight: 600, cursor: "pointer" }}
+            >
+              <LogIn size={13} />
+              Sign in with LIS
+            </button>
+          )}
+          {!isConnected && !creds?.platformReady && (
+            <p style={{ fontSize: "0.78rem", color: "#9ca3af", fontStyle: "italic" }}>
+              Awaiting LIS LIP sandbox approval from DEFRA — sign-in will be enabled once active.
+            </p>
+          )}
           <button
             onClick={() => testMut.mutate()}
             disabled={testMut.isPending || credsQ.isLoading}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#7c3aed", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: "0.82rem", fontWeight: 600, cursor: testMut.isPending ? "not-allowed" : "pointer", opacity: testMut.isPending ? 0.7 : 1 }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", color: "#7c3aed", border: "1px solid #ddd6fe", borderRadius: 8, padding: "7px 14px", fontSize: "0.78rem", fontWeight: 600, cursor: testMut.isPending ? "not-allowed" : "pointer", opacity: testMut.isPending ? 0.7 : 1 }}
           >
-            {testMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-            Test LIP Connection
+            {testMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+            Test API
           </button>
         </div>
+
+        {!isConnected && (
+          <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: "1rem" }}>
+            <p style={{ fontSize: "0.78rem", fontWeight: 600, color: "#374151", marginBottom: 6 }}>How to connect:</p>
+            <ol style={{ margin: 0, paddingLeft: "1.2rem", display: "flex", flexDirection: "column", gap: 4 }}>
+              {[
+                "Click Sign in with LIS — you will be taken to the official Livestock Information Service login page.",
+                "Sign in with your LIS account email and password (the same credentials you use at livestockinformation.org.uk).",
+                "After sign-in, LIS redirects you back here and your account is connected. No password is stored in BDE Farm Trac.",
+              ].map((item, i) => (
+                <li key={i} style={{ fontSize: "0.78rem", color: "#6b7280", lineHeight: 1.5 }}>{item}</li>
+              ))}
+            </ol>
+          </div>
+        )}
 
         <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: "1rem" }}>
           <p style={{ fontSize: "0.78rem", fontWeight: 600, color: "#374151", marginBottom: 6 }}>What LIP will enable once fully live:</p>

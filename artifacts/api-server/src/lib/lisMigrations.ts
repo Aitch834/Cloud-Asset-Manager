@@ -31,4 +31,8 @@ export async function runLisMigrations(): Promise<void> {
       updated_at timestamptz not null default now()
     )
   `);
+  // Additional columns added to lip_farm_tokens after initial creation
+  await db.execute(sql`ALTER TABLE lip_farm_tokens ADD COLUMN IF NOT EXISTS sandbox_mode boolean NOT NULL DEFAULT true`);
+  await db.execute(sql`ALTER TABLE lip_farm_tokens ADD COLUMN IF NOT EXISTS lip_refresh_token text`);
+  await db.execute(sql`ALTER TABLE lip_farm_tokens ADD COLUMN IF NOT EXISTS oauth_state text`);
 }
