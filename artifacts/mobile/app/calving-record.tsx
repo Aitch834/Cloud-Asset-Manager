@@ -222,8 +222,8 @@ export default function CalvingRecordScreen() {
         <View style={styles.complianceNote}>
           <Feather name="info" size={14} color="#1e40af" style={{ marginTop: 2 }} />
           <Text style={styles.complianceNoteText}>
-            Colostrum must be given within 6 hours of birth. BCMS passport application required within 27 days
-            for cattle. Record is part of your Red Tractor dairy compliance audit trail.
+            Colostrum must be given within 6 hours of birth. Cattle births must be registered within 27 days
+            via BCMS or LIP (Livestock Information Programme). Record is part of your Red Tractor dairy compliance audit trail.
           </Text>
         </View>
 
@@ -308,8 +308,8 @@ export default function CalvingRecordScreen() {
           <ChipRow options={COLOSTRUM_SOURCES} value={colostrumSource} onSelect={setColostrumSource} color="#d97706" />
         </Section>
 
-        <Section title="BCMS Compliance">
-          <ToggleRow label="BCMS passport application submitted" value={bcmsPassportApplied} onChange={setBcmsPassportApplied} />
+        <Section title="BCMS / LIP Registration">
+          <ToggleRow label="Birth registration submitted (BCMS or LIP)" value={bcmsPassportApplied} onChange={setBcmsPassportApplied} />
         </Section>
 
         {hasDeadCalf && (

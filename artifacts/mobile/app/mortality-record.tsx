@@ -378,18 +378,18 @@ export default function MortalityRecordScreen() {
           )}
         </Section>
 
-        <Section title="BCMS Notification">
+        <Section title="Cattle Notification (BCMS / LIP)">
           <ToggleRow
-            label="BCMS notified"
-            sublabel="Cattle: must notify within 7 days"
+            label="BCMS or LIP notified"
+            sublabel="Cattle: notify within 7 days via BCMS or LIP"
             value={bcmsNotified}
             onChange={setBcmsNotified}
           />
           {bcmsNotified && (
             <>
-              <Text style={[styles.label, { marginTop: spacing.sm }]}>BCMS Notification Reference</Text>
+              <Text style={[styles.label, { marginTop: spacing.sm }]}>Notification Reference</Text>
               <Input
-                placeholder="BCMS submission / online notification ref."
+                placeholder="BCMS or LIP submission reference"
                 value={bcmsNotificationRef}
                 onChangeText={setBcmsNotificationRef}
                 autoCapitalize="characters"
