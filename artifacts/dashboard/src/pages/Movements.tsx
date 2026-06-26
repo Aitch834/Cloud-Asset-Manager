@@ -16,7 +16,7 @@ import { LivestockDispatchChecklist } from "@/components/livestock/LivestockDisp
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import { useUpload } from "@workspace/object-storage-web";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
@@ -1091,13 +1091,15 @@ export default function Movements() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [printRecord, setPrintRecord] = useState<Movement | null>(null);
   const [expandedAttachments, setExpandedAttachments] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<"movements" | "mortality" | "bcms-submissions" | "lis-submissions">("movements");
+  const [activeTab, setActiveTab] = useState<"movements" | "mortality" | "bcms-submissions" | "lis-submissions" | "lip-submissions">("movements");
   const [bcmsFilter, setBcmsFilter] = useState<"all" | "pending" | "submitted">("all");
   const { toast } = useToast();
   const [submitConfirmId, setSubmitConfirmId] = useState<number | null>(null);
   const [submittingId, setSubmittingId] = useState<number | null>(null);
   const [lisSubmitConfirmId, setLisSubmitConfirmId] = useState<number | null>(null);
   const [lisSubmittingId, setLisSubmittingId] = useState<number | null>(null);
+  const [lipSubmitConfirmId, setLipSubmitConfirmId] = useState<number | null>(null);
+  const [lipSubmittingId, setLipSubmittingId] = useState<number | null>(null);
   const [linkedAnimalIds, setLinkedAnimalIds] = useState<number[]>([]);
   const [incomingAnimalTags, setIncomingAnimalTags] = useState("");
   const [incomingAnimalBreed, setIncomingAnimalBreed] = useState("");
@@ -1235,6 +1237,39 @@ export default function Movements() {
     enabled: !!farmId,
   });
   const lisConfigured = !!lisCredsData?.configured;
+
+  const { data: lipSubmissionsData, refetch: refetchLipSubmissions } = useQuery({
+    queryKey: ["lip-submissions", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/lip-submissions`).then(r => r.json()),
+    enabled: !!farmId,
+    select: (d: any) => d.submissions ?? [],
+  });
+  const lipSubmissions: any[] = lipSubmissionsData ?? [];
+
+  const { data: lipCredsData } = useQuery({
+    queryKey: ["lip-credentials", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/lip-credentials`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const lipConfigured = !!lipCredsData?.configured;
+
+  const submitLipMut = useMutation({
+    mutationFn: (movementId: number) =>
+      fetch(`/api/farms/${farmId}/lip-submit-movement/${movementId}`, { method: "POST" }).then(r => r.json()),
+    onMutate: (id) => setLipSubmittingId(id),
+    onSuccess: (d) => {
+      setLipSubmittingId(null);
+      setLipSubmitConfirmId(null);
+      queryClient.invalidateQueries({ queryKey: ["movements", farmId] });
+      refetchLipSubmissions();
+      if (d.success) {
+        toast({ title: d.sandbox ? "Submitted to LIP (sandbox)" : "Submitted to LIP", description: d.sandbox ? `Sandbox ref: ${d.reference}` : `LIP ref: ${d.reference}` });
+      } else {
+        toast({ title: "LIP submission failed", description: d.error, variant: "destructive" });
+      }
+    },
+    onError: () => { setLipSubmittingId(null); toast({ title: "LIP submission error", variant: "destructive" }); },
+  });
 
   const submitLisMut = useMutation({
     mutationFn: (movementId: number) =>
@@ -1458,6 +1493,12 @@ export default function Movements() {
           <span className="flex items-center gap-1.5">
             <Send className="w-3.5 h-3.5" />LIS Submissions
             {lisSubmissions.length > 0 && <span className="text-xs opacity-60">({lisSubmissions.length})</span>}
+          </span>
+        </TabButton>
+        <TabButton active={activeTab === "lip-submissions"} onClick={() => setActiveTab("lip-submissions")}>
+          <span className="flex items-center gap-1.5">
+            <Send className="w-3.5 h-3.5" />LIP Submissions
+            {lipSubmissions.length > 0 && <span className="text-xs opacity-60">({lipSubmissions.length})</span>}
           </span>
         </TabButton>
       </TabBar>
@@ -2131,7 +2172,18 @@ export default function Movements() {
                               </button>
                             ) : null;
 
-                            return <>{bcmsBtn}{lisBtn}</>;
+                            const lipBtn = isCattle && isSubmittableType && lipConfigured ? (
+                              <button
+                                onClick={() => setLipSubmitConfirmId(r.id)}
+                                disabled={lipSubmittingId === r.id}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.7rem", padding: "2px 8px", borderRadius: 6, border: "1px solid #e9d5ff", background: "#f5f3ff", color: "#6d28d9", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
+                              >
+                                {lipSubmittingId === r.id ? <Loader2 size={10} className="animate-spin" /> : <Send size={10} />}
+                                {lipCredsData?.sandboxMode !== false ? "Test Submit (LIP)" : "Submit to LIP"}
+                              </button>
+                            ) : null;
+
+                            return <>{bcmsBtn}{lisBtn}{lipBtn}</>;
                           })()}
                         </div>
                       </td>
@@ -2483,6 +2535,131 @@ export default function Movements() {
           )}
         </div>
       )}
+
+      {activeTab === "lip-submissions" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
+            <div>
+              <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "#1f2937", marginBottom: 2 }}>LIP Submission History</h3>
+              <p style={{ fontSize: "0.82rem", color: "#6b7280" }}>All cattle movement, birth and death notifications submitted (or logged in sandbox) via the LIS LIP API from this farm.</p>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {lipCredsData && (
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: lipConfigured ? "#f5f3ff" : "#f9fafb", border: `1px solid ${lipConfigured ? "#e9d5ff" : "#e5e7eb"}`, borderRadius: 8, padding: "6px 12px", fontSize: "0.75rem", fontWeight: 600, color: lipConfigured ? "#6d28d9" : "#6b7280" }}>
+                  {lipConfigured ? <ShieldCheck size={13} /> : <WifiOff size={13} />}
+                  {lipConfigured ? (lipCredsData.sandboxMode ? "Sandbox mode" : "Live mode") : "Not connected"}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {!lipConfigured && (
+            <div style={{ background: "#f5f3ff", border: "1px solid #e9d5ff", borderRadius: 10, padding: "1rem 1.25rem", marginBottom: "1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <Shield size={16} style={{ color: "#6d28d9", flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <p style={{ fontSize: "0.85rem", fontWeight: 600, color: "#6d28d9", marginBottom: 4 }}>LIP account not connected</p>
+                <p style={{ fontSize: "0.8rem", color: "#5b21b6" }}>To enable one-click submissions for cattle movements, births and deaths, go to <strong>Farm Settings → LIS LIP Integration</strong> and sign in with your LIS account. The "Test Submit (LIP)" button will then appear on each cattle movement row.</p>
+              </div>
+            </div>
+          )}
+
+          {lipSubmissions.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "3rem", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10 }}>
+              <Send size={32} style={{ margin: "0 auto 12px", opacity: 0.3, color: "#6b7280" }} />
+              <p style={{ fontWeight: 600, color: "#374151", marginBottom: 4 }}>No LIP submissions yet</p>
+              <p style={{ fontSize: "0.875rem", color: "#9ca3af" }}>Connect your LIS account in Farm Settings, then use the "Test Submit (LIP)" button on any cattle movement row.</p>
+            </div>
+          ) : (
+            <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                <thead>
+                  <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                    {["Date & Time", "Record", "Type", "Status", "Mode", "LIP Reference", "Error"].map(h => (
+                      <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {lipSubmissions.map((s: any, i: number) => {
+                    const mov = records.find(m => m.id === s.movementId);
+                    const statusCfg: Record<string, { bg: string; color: string }> = {
+                      submitted:    { bg: "#dcfce7", color: "#166534" },
+                      acknowledged: { bg: "#dcfce7", color: "#166534" },
+                      pending:      { bg: "#fef3c7", color: "#92400e" },
+                      failed:       { bg: "#fee2e2", color: "#991b1b" },
+                    };
+                    const sc = statusCfg[s.status] ?? { bg: "#f3f4f6", color: "#6b7280" };
+                    return (
+                      <tr key={s.id} style={{ borderBottom: i < lipSubmissions.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                        <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap", color: "#6b7280" }}>
+                          <div>{new Date(s.createdAt).toLocaleDateString("en-GB")}</div>
+                          <div style={{ fontSize: "0.7rem" }}>{new Date(s.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</div>
+                        </td>
+                        <td style={{ padding: "0.625rem 0.875rem" }}>
+                          {s.submissionType === "movement" && mov ? (
+                            <div>
+                              <div style={{ fontWeight: 500 }}>{formatDate(mov.movementDate)}</div>
+                              <div style={{ fontSize: "0.7rem", color: "#9ca3af" }}>{mov.numberOfAnimals ?? "?"} head · {mov.movementType?.toUpperCase()}</div>
+                            </div>
+                          ) : s.submissionType === "death" ? (
+                            <span style={{ color: "#6b7280" }}>Mortality #{s.mortalityId}</span>
+                          ) : s.submissionType === "birth" ? (
+                            <span style={{ color: "#6b7280" }}>Calving #{s.calvingId}</span>
+                          ) : (
+                            <span style={{ color: "#9ca3af" }}>#{s.movementId ?? s.mortalityId ?? s.calvingId}</span>
+                          )}
+                        </td>
+                        <td style={{ padding: "0.625rem 0.875rem", color: "#374151", textTransform: "uppercase", fontSize: "0.75rem", fontWeight: 600 }}>{s.submissionType}</td>
+                        <td style={{ padding: "0.625rem 0.875rem" }}>
+                          <span style={{ background: sc.bg, color: sc.color, borderRadius: 6, padding: "2px 8px", fontSize: "0.72rem", fontWeight: 600 }}>{s.status}</span>
+                        </td>
+                        <td style={{ padding: "0.625rem 0.875rem" }}>
+                          {s.sandboxMode
+                            ? <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#f5f3ff", color: "#6d28d9", borderRadius: 6, padding: "2px 8px", fontSize: "0.72rem", fontWeight: 600 }}><Shield size={10} />Sandbox</span>
+                            : <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#dcfce7", color: "#166534", borderRadius: 6, padding: "2px 8px", fontSize: "0.72rem", fontWeight: 600 }}><ShieldCheck size={10} />Live</span>
+                          }
+                        </td>
+                        <td style={{ padding: "0.625rem 0.875rem", fontFamily: "monospace", fontSize: "0.75rem", color: "#374151" }}>{s.lipReference || "—"}</td>
+                        <td style={{ padding: "0.625rem 0.875rem", color: "#dc2626", fontSize: "0.75rem", maxWidth: 200 }}>
+                          <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.errorMessage || "—"}</div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      <Dialog open={lipSubmitConfirmId !== null} onOpenChange={o => { if (!o) setLipSubmitConfirmId(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Submit to LIS LIP</DialogTitle>
+            <DialogDescription>
+              {(() => {
+                const r = records.find(m => m.id === lipSubmitConfirmId);
+                if (!r) return "Submit this cattle movement notification to the LIS Livestock Information Platform.";
+                return `Submit the ${r.movementType?.toUpperCase()} movement of ${r.numberOfAnimals ?? "?"} cattle on ${formatDate(r.movementDate)} to LIS LIP for regulatory notification.`;
+              })()}
+              {lipCredsData?.sandboxMode !== false && (
+                <span className="block mt-2 text-amber-700 text-xs font-medium">Running in sandbox mode — payload will be logged but not sent to LIP until subscription is approved.</span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLipSubmitConfirmId(null)}>Cancel</Button>
+            <Button
+              disabled={submitLipMut.isPending}
+              onClick={() => lipSubmitConfirmId !== null && submitLipMut.mutate(lipSubmitConfirmId)}
+              style={{ background: "#6d28d9", color: "#fff" }}
+            >
+              {submitLipMut.isPending ? <><Loader2 size={14} className="animate-spin mr-1" />Submitting…</> : "Submit to LIP"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

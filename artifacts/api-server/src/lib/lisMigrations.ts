@@ -35,4 +35,28 @@ export async function runLisMigrations(): Promise<void> {
   await db.execute(sql`ALTER TABLE lip_farm_tokens ADD COLUMN IF NOT EXISTS sandbox_mode boolean NOT NULL DEFAULT true`);
   await db.execute(sql`ALTER TABLE lip_farm_tokens ADD COLUMN IF NOT EXISTS lip_refresh_token text`);
   await db.execute(sql`ALTER TABLE lip_farm_tokens ADD COLUMN IF NOT EXISTS oauth_state text`);
+
+  // LIS LIP Submission Log — tracks every cattle movement/birth/death submission via LIP API
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS lip_submissions (
+      id serial primary key,
+      farm_id integer not null references farms(id),
+      movement_id integer references livestock_movements(id),
+      mortality_id integer references livestock_mortality(id),
+      calving_id integer references dairy_calving_records(id),
+      submission_type text not null,
+      status text not null default 'pending',
+      sandbox_mode boolean not null default true,
+      submitted_at timestamptz,
+      acknowledged_at timestamptz,
+      lip_reference text,
+      error_message text,
+      request_payload jsonb,
+      response_payload jsonb,
+      retry_count integer not null default 0,
+      submitted_by_user_id integer,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `);
 }

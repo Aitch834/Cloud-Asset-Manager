@@ -870,6 +870,36 @@ export const lipFarmTokensTable = pgTable("lip_farm_tokens", {
 export type LipFarmToken = typeof lipFarmTokensTable.$inferSelect;
 export type NewLipFarmToken = typeof lipFarmTokensTable.$inferInsert;
 
+// ─── LIS LIP Submission Log ────────────────────────────────────────────────────
+// Tracks every cattle movement notification, birth registration, and death
+// registration submitted (or queued) via the LIS LIP API. Mirrors bcmsSubmissionsTable
+// in purpose. In sandbox mode (subscription pending), payloads are logged here
+// without being sent to LIP — the submission is marked sandboxMode: true and
+// given a provisional reference so the full workflow can be tested immediately.
+export const lipSubmissionsTable = pgTable("lip_submissions", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  movementId: integer("movement_id").references(() => livestockMovementsTable.id),
+  mortalityId: integer("mortality_id").references(() => livestockMortalityTable.id),
+  calvingId: integer("calving_id").references(() => dairyCalvingRecordsTable.id),
+  submissionType: text("submission_type").notNull(),       // "movement" | "birth" | "death"
+  status: text("status").notNull().default("pending"),    // "pending" | "submitted" | "acknowledged" | "failed"
+  sandboxMode: boolean("sandbox_mode").notNull().default(true),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+  lipReference: text("lip_reference"),                    // acknowledgement reference from LIP API
+  errorMessage: text("error_message"),
+  requestPayload: jsonb("request_payload"),
+  responsePayload: jsonb("response_payload"),
+  retryCount: integer("retry_count").notNull().default(0),
+  submittedByUserId: integer("submitted_by_user_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export type LipSubmission = typeof lipSubmissionsTable.$inferSelect;
+export type NewLipSubmission = typeof lipSubmissionsTable.$inferInsert;
+
 export const bcmsFarmCredentialsTable = pgTable("bcms_farm_credentials", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id).unique(),

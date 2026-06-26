@@ -218,3 +218,280 @@ export async function probeLipApi(): Promise<{ reachable: boolean; status: numbe
     return { reachable: false, status: 0, message: `LIP API unreachable: ${e.message}` };
   }
 }
+
+// ── Token refresh ─────────────────────────────────────────────────────────────
+
+export interface LipRefreshResult {
+  success: boolean;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresIn?: number;
+  errorMessage?: string;
+}
+
+/**
+ * Use a stored refresh token to obtain a new access token from the B2C token endpoint.
+ * Called by routes when the stored access token is expired or missing.
+ */
+export async function refreshLipToken(refreshToken: string): Promise<LipRefreshResult> {
+  const body = new URLSearchParams({
+    grant_type: "refresh_token",
+    client_id: LIP_CLIENT_ID,
+    refresh_token: refreshToken,
+    scope: LIP_SCOPE,
+  });
+  if (LIP_CLIENT_SECRET) body.append("client_secret", LIP_CLIENT_SECRET);
+
+  try {
+    const res = await fetch(LIP_B2C_TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+    const text = await res.text();
+    let data: Record<string, unknown> = {};
+    try { data = JSON.parse(text); } catch { /* ignore */ }
+    if (!res.ok || data["error"]) {
+      return {
+        success: false,
+        errorMessage:
+          (data["error_description"] as string) ??
+          (data["error"] as string) ??
+          `HTTP ${res.status}`,
+      };
+    }
+    return {
+      success: true,
+      accessToken: data["access_token"] as string,
+      refreshToken: data["refresh_token"] as string | undefined,
+      expiresIn: data["expires_in"] as number | undefined,
+    };
+  } catch (e: any) {
+    return { success: false, errorMessage: `Token refresh failed: ${e.message}` };
+  }
+}
+
+// ── Core API caller ───────────────────────────────────────────────────────────
+
+export interface LipApiResponse {
+  ok: boolean;
+  status: number;
+  data: unknown;
+}
+
+/**
+ * Make an authenticated call to the LIS LIP REST API.
+ * Attaches Bearer token and APIM subscription key. The caller is responsible
+ * for ensuring the accessToken is fresh (use refreshLipToken if needed).
+ */
+export async function callLipApi(
+  accessToken: string,
+  method: "GET" | "POST" | "PUT" | "DELETE",
+  path: string,
+  body?: unknown,
+): Promise<LipApiResponse> {
+  const url = `${LIP_API_BASE}${path}`;
+  const headers: Record<string, string> = {
+    "Authorization": `Bearer ${accessToken}`,
+    "Ocp-Apim-Subscription-Key": LIP_SUBSCRIPTION_KEY,
+    "Accept": "application/json",
+  };
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
+  const res = await fetch(url, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  let data: unknown;
+  const text = await res.text();
+  try { data = JSON.parse(text); } catch { data = text; }
+  return { ok: res.ok, status: res.status, data };
+}
+
+// ── Submission types ──────────────────────────────────────────────────────────
+
+export interface LipSubmissionResult {
+  sandbox: boolean;
+  success: boolean;
+  lipReference?: string;
+  requestPayload: unknown;
+  responsePayload?: unknown;
+  errorMessage?: string;
+  subscriptionPending?: boolean;
+}
+
+// ── Movement submission ───────────────────────────────────────────────────────
+
+export interface LipMovementParams {
+  accessToken: string;
+  holdingCph: string;
+  movementDate: string;         // YYYY-MM-DD
+  movementType: "ON" | "OFF";   // relative to holdingCph
+  fromCph: string;
+  toCph: string;
+  earTagNumbers?: string;       // newline/comma-separated UK ear tags
+  numberOfAnimals: number;
+  licenceNumber?: string;
+}
+
+/**
+ * Submit a cattle movement notification to the LIS LIP movement API.
+ *
+ * IMPORTANT — provisional: endpoint path (/movements) and payload format are
+ * based on the LIS LIP developer portal and standard UK cattle movement reporting
+ * conventions. Verify and update against the LIP Alpha API swagger/OpenAPI spec
+ * when subscription access is granted.
+ *
+ * In sandbox mode OR when the subscription returns 403 (pending approval), the
+ * payload is built and logged but not sent to the API. A provisional LIP-SANDBOX
+ * reference is returned so the full farm workflow can be tested immediately.
+ */
+export async function submitLipMovement(params: LipMovementParams): Promise<LipSubmissionResult> {
+  const sandbox = isLipSandboxMode();
+
+  const tagList = params.earTagNumbers
+    ? params.earTagNumbers.split(/[\s,\n]+/).filter(Boolean).map(t => ({ earTag: t.trim(), species: "bovine" }))
+    : [];
+
+  const payload: Record<string, unknown> = {
+    movementDate: params.movementDate,
+    movementType: params.movementType,
+    fromCph: params.fromCph,
+    toCph: params.toCph,
+    numberOfAnimals: params.numberOfAnimals,
+    ...(tagList.length > 0 ? { animals: tagList } : {}),
+    ...(params.licenceNumber ? { licenceNumber: params.licenceNumber } : {}),
+  };
+
+  if (sandbox) {
+    const ref = `LIP-SANDBOX-${Date.now()}`;
+    console.log("[LIP] Sandbox movement submission:", JSON.stringify(payload, null, 2));
+    return { sandbox: true, success: true, lipReference: ref, requestPayload: payload, responsePayload: { sandboxRef: ref, note: "Sandbox mode — LIP subscription pending approval" } };
+  }
+
+  const res = await callLipApi(params.accessToken, "POST", "/movements", payload);
+
+  if (!res.ok) {
+    if (res.status === 403) {
+      const ref = `LIP-SANDBOX-${Date.now()}`;
+      console.log("[LIP] 403 — subscription pending; sandbox movement:", JSON.stringify(payload, null, 2));
+      return { sandbox: true, success: true, lipReference: ref, requestPayload: payload, responsePayload: res.data, subscriptionPending: true };
+    }
+    return {
+      sandbox: false, success: false, requestPayload: payload, responsePayload: res.data,
+      errorMessage: `HTTP ${res.status}: ${typeof res.data === "string" ? res.data : JSON.stringify(res.data)}`,
+    };
+  }
+
+  const d = res.data as Record<string, unknown>;
+  const ref = String(d["reference"] ?? d["notificationRef"] ?? d["id"] ?? `LIP-${Date.now()}`);
+  return { sandbox: false, success: true, lipReference: ref, requestPayload: payload, responsePayload: d };
+}
+
+// ── Birth registration ────────────────────────────────────────────────────────
+
+export interface LipBirthParams {
+  accessToken: string;
+  holdingCph: string;
+  birthDate: string;            // YYYY-MM-DD
+  calfEarTag?: string;
+  calfSex?: string;             // "male" | "female"
+  calfBreed?: string;
+  damEarTag?: string;
+}
+
+/**
+ * Register a cattle birth with the LIS LIP API.
+ * NOTE — provisional: endpoint path (/births) and payload format need verification
+ * against the LIP Alpha API spec.
+ */
+export async function submitLipBirth(params: LipBirthParams): Promise<LipSubmissionResult> {
+  const sandbox = isLipSandboxMode();
+
+  const payload: Record<string, unknown> = {
+    birthDate: params.birthDate,
+    holdingCph: params.holdingCph,
+    animal: {
+      earTag: params.calfEarTag ?? null,
+      sex: params.calfSex ?? null,
+      breed: params.calfBreed ?? null,
+      ...(params.damEarTag ? { damEarTag: params.damEarTag } : {}),
+    },
+  };
+
+  if (sandbox) {
+    const ref = `LIP-BIRTH-SANDBOX-${Date.now()}`;
+    console.log("[LIP] Sandbox birth registration:", JSON.stringify(payload, null, 2));
+    return { sandbox: true, success: true, lipReference: ref, requestPayload: payload, responsePayload: { sandboxRef: ref } };
+  }
+
+  const res = await callLipApi(params.accessToken, "POST", "/births", payload);
+
+  if (!res.ok) {
+    if (res.status === 403) {
+      const ref = `LIP-BIRTH-SANDBOX-${Date.now()}`;
+      return { sandbox: true, success: true, lipReference: ref, requestPayload: payload, responsePayload: res.data, subscriptionPending: true };
+    }
+    return {
+      sandbox: false, success: false, requestPayload: payload, responsePayload: res.data,
+      errorMessage: `HTTP ${res.status}: ${typeof res.data === "string" ? res.data : JSON.stringify(res.data)}`,
+    };
+  }
+
+  const d = res.data as Record<string, unknown>;
+  const ref = String(d["reference"] ?? d["birthRef"] ?? d["id"] ?? `LIP-BIRTH-${Date.now()}`);
+  return { sandbox: false, success: true, lipReference: ref, requestPayload: payload, responsePayload: d };
+}
+
+// ── Death registration ────────────────────────────────────────────────────────
+
+export interface LipDeathParams {
+  accessToken: string;
+  holdingCph: string;
+  deathDate: string;            // YYYY-MM-DD
+  earTag?: string;
+  causeOfDeath?: string;
+  disposalMethod?: string;
+}
+
+/**
+ * Register a cattle death with the LIS LIP API.
+ * NOTE — provisional: endpoint path (/deaths) and payload format need verification
+ * against the LIP Alpha API spec.
+ */
+export async function submitLipDeath(params: LipDeathParams): Promise<LipSubmissionResult> {
+  const sandbox = isLipSandboxMode();
+
+  const payload: Record<string, unknown> = {
+    deathDate: params.deathDate,
+    holdingCph: params.holdingCph,
+    animal: { earTag: params.earTag ?? null },
+    ...(params.causeOfDeath ? { causeOfDeath: params.causeOfDeath } : {}),
+    ...(params.disposalMethod ? { disposalMethod: params.disposalMethod } : {}),
+  };
+
+  if (sandbox) {
+    const ref = `LIP-DEATH-SANDBOX-${Date.now()}`;
+    console.log("[LIP] Sandbox death registration:", JSON.stringify(payload, null, 2));
+    return { sandbox: true, success: true, lipReference: ref, requestPayload: payload, responsePayload: { sandboxRef: ref } };
+  }
+
+  const res = await callLipApi(params.accessToken, "POST", "/deaths", payload);
+
+  if (!res.ok) {
+    if (res.status === 403) {
+      const ref = `LIP-DEATH-SANDBOX-${Date.now()}`;
+      return { sandbox: true, success: true, lipReference: ref, requestPayload: payload, responsePayload: res.data, subscriptionPending: true };
+    }
+    return {
+      sandbox: false, success: false, requestPayload: payload, responsePayload: res.data,
+      errorMessage: `HTTP ${res.status}: ${typeof res.data === "string" ? res.data : JSON.stringify(res.data)}`,
+    };
+  }
+
+  const d = res.data as Record<string, unknown>;
+  const ref = String(d["reference"] ?? d["deathRef"] ?? d["id"] ?? `LIP-DEATH-${Date.now()}`);
+  return { sandbox: false, success: true, lipReference: ref, requestPayload: payload, responsePayload: d };
+}
