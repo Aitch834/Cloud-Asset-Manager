@@ -1,6 +1,7 @@
 import { db, rolesTable, modulesTable, tenantsTable, farmsTable, subscriptionsTable } from "@workspace/db";
 import { cropsTable, cropVarietiesTable, fieldCropAssignmentsTable, fieldsTable, livestockMovementsTable, fieldOperationsTable, fuelTanksTable, fuelDeliveriesTable, fuelUsageTable, fuelStorageInspectionsTable, feedDeliveriesTable, feedStockLevelsTable, suppliersTable, gridEnergyMetersTable, gridEnergyReadingsTable, grainStorageBinsTable, sprayProductsTable, sprayApplicationsTable, grainSalesTable, livestockDeadweightSalesTable, livestockMartSalesTable, financialTransactionsTable, cropContractsTable, farmGrantsTable, cropStockLevelsTable, cropStockMovementsTable } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
+import { runLisMigrations } from "./lisMigrations";
 
 const SYSTEM_ROLES = [
   { name: "BDE Super Admin", description: "Full platform access — BDE staff only", isSystemRole: true },
@@ -59,6 +60,8 @@ const MODULES = [
 ];
 
 export async function seedDefaults() {
+  await runLisMigrations().catch((err) => console.error("[LIS-MIGRATE] Schema migration error:", err));
+
   for (const role of SYSTEM_ROLES) {
     const existing = await db.select().from(rolesTable).where(eq(rolesTable.name, role.name)).limit(1);
     if (existing.length === 0) {

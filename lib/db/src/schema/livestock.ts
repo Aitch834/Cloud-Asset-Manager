@@ -27,6 +27,8 @@ export const herdFlockRegisterTable = pgTable("herd_flock_register", {
   organicCertBody: text("organic_cert_body"),               // e.g. "Soil Association", "OF&G"
   organicCertNumber: text("organic_cert_number"),
   organicConversionStartDate: timestamp("organic_conversion_start_date", { withTimezone: true }),
+  // ─── LIS (Livestock Information Service) ─────────────────────────────────
+  lisHerdRef: text("lis_herd_ref"),   // LIS herd/flock reference (e.g. "130181") — used for sync dedup
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -51,6 +53,8 @@ export const livestockAnimalsTable = pgTable("livestock_animals", {
   notes: text("notes"),
   lastMobilityScore: integer("last_mobility_score"),
   lastMobilityScoredDate: timestamp("last_mobility_scored_date", { withTimezone: true }),
+  // ─── LIS ─────────────────────────────────────────────────────────────────
+  lisTagRef: text("lis_tag_ref"),     // LIS-assigned tag/EID reference — used for sync dedup
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -118,6 +122,11 @@ export const livestockMovementsTable = pgTable("livestock_movements", {
   // APHA-issued ATA number for the transporter company (different from ATC/driver cert)
   ataNumber: text("ata_number"),                          // ATA reference e.g. "UK/ATA/1234567"
   ataExpiryDate: text("ata_expiry_date"),                 // stored as text date YYYY-MM-DD
+  // ─── LIS import tracking ─────────────────────────────────────────────────
+  lisMovementRef: text("lis_movement_ref"),   // prefixed LIS reference e.g. "approved:12345" — unique per farm for dedup
+  lisSource: text("lis_source"),              // 'approved' | 'transfer_request' | 'movement_review'
+  lisRawData: jsonb("lis_raw_data"),          // raw LIS API response for this movement
+  lisImportedAt: timestamp("lis_imported_at", { withTimezone: true }), // when this record was last synced from LIS
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -814,6 +823,8 @@ export const lisFarmTokensTable = pgTable("lis_farm_tokens", {
   testStatus: text("test_status"),
   testMessage: text("test_message"),
   oauthState: text("oauth_state"),
+  lisLastSyncedAt: timestamp("lis_last_synced_at", { withTimezone: true }), // last successful sync timestamp
+  lisLastSyncSummary: text("lis_last_sync_summary"),                        // human-readable last sync result
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

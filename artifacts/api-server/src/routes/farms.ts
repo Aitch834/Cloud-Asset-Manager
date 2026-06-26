@@ -25086,81 +25086,167 @@ router.post("/farms/:farmId/lis/sync-herds", requireAuth, requireTenant, async (
   let cphState: string | null = null;
   if (cphValidation.data && typeof cphValidation.data === "object") {
     const d = cphValidation.data as any;
-    // Try all known response shapes for validateResults
     const results: Array<{ holding: string; state: string; propertyName?: string }> =
-      d.validateResults ??
-      d.content?.validateResults ??
-      d.value ??
-      d.items ??
-      [];
+      d.validateResults ?? d.content?.validateResults ?? d.value ?? d.items ?? [];
     const match = results.find(
       (r) => r.holding === cphNumber || r.holding?.replace(/[/-]/g, "") === cphNumber.replace(/[/-]/g, ""),
     );
     cphState = match?.state ?? null;
-    // Accept various "valid" state values the API might return
     cphValid = cphState != null && /^valid$/i.test(cphState);
   }
 
   // ── 2. Fetch pending movement reviews for sheep ───────────────────────────
-  // CLA API: GET /HoldingMovementForReviews/ReviewBySpecies(species='Sheep',holding='{cph}')
   const encodedCph = encodeURIComponent(cphNumber);
   const reviewResult = await callLisApi(
     accessToken!,
     `/HoldingMovementForReviews/ReviewBySpecies(species='Sheep',holding='${encodedCph}')`,
   );
-
-  let pendingReviews: unknown[] = [];
-  if (reviewResult.ok && reviewResult.data) {
+  let pendingReviews: any[] = [];
+  if (reviewResult.data) {
     const d = reviewResult.data as any;
-    const inner = d.value ?? d.content?.movements ?? d.items;
+    const inner = d.value ?? d.content?.movements ?? d.content?.items ?? d.items;
     if (Array.isArray(inner)) pendingReviews = inner;
     else if (Array.isArray(d)) pendingReviews = d;
   }
 
-  // ── 3. Fetch recent transfer requests (outbound movements) ────────────────
-  // CLA API: GET /TransferRequests
-  const transferResult = await callLisApi(accessToken!, "/TransferRequests?$top=10&$orderby=requestDate desc");
-
-  let recentTransfers: unknown[] = [];
-  if (transferResult.ok && transferResult.data) {
+  // ── 3. Fetch transfer requests (outbound movements) ───────────────────────
+  const transferResult = await callLisApi(accessToken!, "/TransferRequests?$top=50&$orderby=requestDate desc");
+  let recentTransfers: any[] = [];
+  if (transferResult.data) {
     const d = transferResult.data as any;
     const inner = d.value ?? d.content?.items ?? d.items;
     if (Array.isArray(inner)) recentTransfers = inner;
     else if (Array.isArray(d)) recentTransfers = d;
   }
 
-  // ── 4. Fetch recent approved movements ───────────────────────────────────
-  // CLA API: GET /ApprovedMovements
-  const approvedResult = await callLisApi(accessToken!, "/ApprovedMovements?$top=10");
-
-  let approvedMovements: unknown[] = [];
-  if (approvedResult.ok && approvedResult.data) {
+  // ── 4. Fetch approved movements (full history) ────────────────────────────
+  const approvedResult = await callLisApi(accessToken!, "/ApprovedMovements?$top=200");
+  let approvedMovements: any[] = [];
+  if (approvedResult.data) {
     const d = approvedResult.data as any;
     const inner = d.value ?? d.content?.items ?? d.items;
     if (Array.isArray(inner)) approvedMovements = inner;
     else if (Array.isArray(d)) approvedMovements = d;
   }
 
-  // ── Build summary message ─────────────────────────────────────────────────
+  // ── 5. Import fetched records into the database ───────────────────────────
+  const importCounts = { approved: 0, transfers: 0, reviews: 0, errors: 0 };
+
+  // Flexible field extractors — the CLA API may use different names across versions
+  const cphNorm = (s: string | null | undefined) => (s ?? "").replace(/[^0-9]/g, "");
+  const extractRef = (item: any): string | null =>
+    String(item?.id ?? item?.reference ?? item?.movementReference ?? item?.transferId ?? item?.requestId ?? item?.reviewId ?? "").trim() || null;
+  const extractDate = (item: any): Date | null => {
+    const raw = item?.movementDate ?? item?.transferDate ?? item?.requestDate ?? item?.dateOfMovement ?? item?.date ?? item?.createdDate;
+    if (!raw) return null;
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? null : d;
+  };
+  const extractFrom = (item: any): string | null =>
+    item?.fromHolding ?? item?.fromCph ?? item?.holdingFrom ?? item?.fromLocation ?? item?.sourceCph ?? item?.departureHolding ?? null;
+  const extractTo = (item: any): string | null =>
+    item?.toHolding ?? item?.toCph ?? item?.holdingTo ?? item?.toLocation ?? item?.destinationCph ?? item?.destinationHolding ?? null;
+  const extractCount = (item: any): number | null => {
+    const v = item?.numberOfAnimals ?? item?.animalCount ?? item?.quantity ?? item?.count ?? item?.headCount;
+    return v != null ? Number(v) : null;
+  };
+
+  const upsertMovement = async (item: any, source: "approved" | "transfer_request" | "movement_review") => {
+    const ref = extractRef(item);
+    if (!ref) return;
+    const movDate = extractDate(item);
+    if (!movDate) return;
+    const lisRef = `${source}:${ref}`;
+    const from = extractFrom(item);
+    const to = extractTo(item);
+    // Determine direction: arrival = animals came to this farm, departure = animals left
+    const toNorm = cphNorm(to);
+    const cphN = cphNorm(cphNumber);
+    const isArrival = toNorm === cphN || source === "movement_review";
+    const movType = isArrival ? "arrival" : "departure";
+    const legalDone = source === "approved";
+
+    const [existing] = await db.select({ id: livestockMovementsTable.id })
+      .from(livestockMovementsTable)
+      .where(and(eq(livestockMovementsTable.farmId, farmId), eq(livestockMovementsTable.lisMovementRef, lisRef)));
+
+    if (existing) {
+      await db.update(livestockMovementsTable).set({
+        movementDate: movDate,
+        fromLocation: from,
+        toLocation: to,
+        numberOfAnimals: extractCount(item),
+        lisRawData: item,
+        lisImportedAt: new Date(),
+      }).where(eq(livestockMovementsTable.id, existing.id));
+    } else {
+      await db.insert(livestockMovementsTable).values({
+        farmId,
+        movementType: movType,
+        movementDate: movDate,
+        fromLocation: from,
+        toLocation: to,
+        numberOfAnimals: extractCount(item),
+        species: "Sheep",
+        legalNotificationSubmitted: legalDone,
+        lisMovementRef: lisRef,
+        lisSource: source,
+        lisRawData: item,
+        lisImportedAt: new Date(),
+      });
+    }
+  };
+
+  for (const item of approvedMovements) {
+    try { await upsertMovement(item, "approved"); importCounts.approved++; }
+    catch { importCounts.errors++; }
+  }
+  for (const item of recentTransfers) {
+    try { await upsertMovement(item, "transfer_request"); importCounts.transfers++; }
+    catch { importCounts.errors++; }
+  }
+  for (const item of pendingReviews) {
+    try { await upsertMovement(item, "movement_review"); importCounts.reviews++; }
+    catch { importCounts.errors++; }
+  }
+
+  // ── 6. Update sync timestamp on the token record ──────────────────────────
+  const totalImported = importCounts.approved + importCounts.transfers + importCounts.reviews;
+  const syncSummary = [
+    cphValid ? `CPH ${cphNumber} valid` : `CPH ${cphNumber} not recognised`,
+    importCounts.approved > 0 ? `${importCounts.approved} approved movements imported` : null,
+    importCounts.transfers > 0 ? `${importCounts.transfers} transfer requests imported` : null,
+    importCounts.reviews > 0 ? `${importCounts.reviews} pending reviews imported` : null,
+    totalImported === 0 ? "No movement records found in LIS for this holding" : null,
+  ].filter(Boolean).join(". ");
+
+  await db.update(lisFarmTokensTable).set({
+    lisLastSyncedAt: new Date(),
+    lisLastSyncSummary: syncSummary,
+    updatedAt: new Date(),
+  }).where(eq(lisFarmTokensTable.farmId, farmId));
+
+  // ── 7. Build response ─────────────────────────────────────────────────────
   const messages: string[] = [];
   if (cphValid === true) messages.push(`CPH ${cphNumber} is registered in LIS`);
   else if (cphValid === false) messages.push(`CPH ${cphNumber} is not recognised in LIS (state: ${cphState ?? "unknown"})`);
   else if (!cphValidation.ok) messages.push(`CPH validation failed (HTTP ${cphValidation.status})`);
 
-  if (pendingReviews.length > 0) messages.push(`${pendingReviews.length} sheep movement(s) awaiting review`);
-  if (recentTransfers.length > 0) messages.push(`${recentTransfers.length} recent transfer request(s) found`);
-  if (approvedMovements.length > 0) messages.push(`${approvedMovements.length} approved movement(s) found`);
+  if (importCounts.approved > 0) messages.push(`${importCounts.approved} approved movement(s) imported`);
+  if (importCounts.transfers > 0) messages.push(`${importCounts.transfers} transfer request(s) imported`);
+  if (importCounts.reviews > 0) messages.push(`${importCounts.reviews} pending review(s) imported`);
+  if (totalImported === 0 && (cphValidation.ok || reviewResult.ok || transferResult.ok || approvedResult.ok))
+    messages.push("No movement records found in LIS for this holding yet");
+  if (importCounts.errors > 0) messages.push(`${importCounts.errors} record(s) could not be imported`);
 
   const anySuccess = cphValidation.ok || reviewResult.ok || transferResult.ok || approvedResult.ok;
-
   res.json({
     success: anySuccess,
     sandbox: false,
     cphNumber,
     cphValid,
-    message: messages.length > 0
-      ? messages.join(". ")
-      : "LIS connection verified — no movement data found for this holding.",
+    imported: importCounts,
+    message: messages.length > 0 ? messages.join(". ") : "LIS sync completed — no data found for this holding.",
     pendingReviews,
     recentTransfers,
     approvedMovements,
