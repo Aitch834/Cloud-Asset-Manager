@@ -24,10 +24,28 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import type { Request } from "express";
 
-// ── Sandbox constants (confirmed from LIS LIP developer portal) ───────────────
-const LIP_B2C_AUTHORITY_SANDBOX =
-  process.env.LIS_LIP_B2C_AUTHORITY_SANDBOX ??
-  "https://livestockinformationb2cprod.b2clogin.com/tfp/livestockinformationb2cprod.onmicrosoft.com/B2C_1A_THIRDPARTY_SIGNIN/v2.0";
+// ── Sandbox constants (confirmed from LIS LIP developer portal + OIDC discovery) ─
+//
+// IMPORTANT: The authority/issuer value from the developer portal
+//   (https://{tenant}.b2clogin.com/tfp/{tenant}.onmicrosoft.com/{policy}/v2.0)
+// is the OIDC issuer URL only — NOT the base for authorize/token endpoints.
+//
+// Real endpoints (verified via OIDC discovery document):
+//   https://livestockinformationb2cprod.b2clogin.com/{tenant}/b2c_1a_thirdparty_signin/oauth2/v2.0/authorize
+//   https://livestockinformationb2cprod.b2clogin.com/{tenant}/b2c_1a_thirdparty_signin/oauth2/v2.0/token
+
+const LIP_B2C_TENANT = "livestockinformationb2cprod.onmicrosoft.com";
+const LIP_B2C_HOST   = "https://livestockinformationb2cprod.b2clogin.com";
+const LIP_B2C_POLICY_SANDBOX = "b2c_1a_thirdparty_signin";
+const LIP_B2C_POLICY_PROD    = process.env.LIS_LIP_B2C_POLICY_PROD ?? LIP_B2C_POLICY_SANDBOX;
+
+const LIP_B2C_AUTHORIZE_URL_SANDBOX =
+  process.env.LIS_LIP_B2C_AUTHORIZE_URL_SANDBOX ??
+  `${LIP_B2C_HOST}/${LIP_B2C_TENANT}/${LIP_B2C_POLICY_SANDBOX}/oauth2/v2.0/authorize`;
+
+const LIP_B2C_TOKEN_URL_SANDBOX =
+  process.env.LIS_LIP_B2C_TOKEN_URL_SANDBOX ??
+  `${LIP_B2C_HOST}/${LIP_B2C_TENANT}/${LIP_B2C_POLICY_SANDBOX}/oauth2/v2.0/token`;
 
 const LIP_SCOPE_SANDBOX =
   (process.env.LIS_LIP_SCOPE_SANDBOX ??
@@ -39,7 +57,14 @@ export const LIP_API_BASE_SANDBOX =
   "https://sandbox.movement.api.livestockinformation.org.uk/lis-public-sdbx/v1.0";
 
 // ── Production constants (TBC — update and set LIS_LIP_USE_PRODUCTION=true) ───
-const LIP_B2C_AUTHORITY_PROD = process.env.LIS_LIP_B2C_AUTHORITY_PROD ?? LIP_B2C_AUTHORITY_SANDBOX;
+const LIP_B2C_AUTHORIZE_URL_PROD =
+  process.env.LIS_LIP_B2C_AUTHORIZE_URL_PROD ??
+  `${LIP_B2C_HOST}/${LIP_B2C_TENANT}/${LIP_B2C_POLICY_PROD}/oauth2/v2.0/authorize`;
+
+const LIP_B2C_TOKEN_URL_PROD =
+  process.env.LIS_LIP_B2C_TOKEN_URL_PROD ??
+  `${LIP_B2C_HOST}/${LIP_B2C_TENANT}/${LIP_B2C_POLICY_PROD}/oauth2/v2.0/token`;
+
 const LIP_SCOPE_PROD = process.env.LIS_LIP_SCOPE_PROD ?? LIP_SCOPE_SANDBOX;
 export const LIP_API_BASE_PROD = process.env.LIS_LIP_API_URL_PROD ?? LIP_API_BASE_SANDBOX;
 
@@ -51,12 +76,10 @@ export function isLipSandboxMode(): boolean {
   return !isLipProduction();
 }
 
-const LIP_B2C_AUTHORITY = isLipProduction() ? LIP_B2C_AUTHORITY_PROD : LIP_B2C_AUTHORITY_SANDBOX;
-const LIP_SCOPE         = isLipProduction() ? LIP_SCOPE_PROD          : LIP_SCOPE_SANDBOX;
-export const LIP_API_BASE = isLipProduction() ? LIP_API_BASE_PROD : LIP_API_BASE_SANDBOX;
-
-const LIP_B2C_AUTHORIZE_URL = `${LIP_B2C_AUTHORITY}/authorize`;
-const LIP_B2C_TOKEN_URL     = `${LIP_B2C_AUTHORITY}/token`;
+const LIP_B2C_AUTHORIZE_URL = isLipProduction() ? LIP_B2C_AUTHORIZE_URL_PROD : LIP_B2C_AUTHORIZE_URL_SANDBOX;
+const LIP_B2C_TOKEN_URL     = isLipProduction() ? LIP_B2C_TOKEN_URL_PROD     : LIP_B2C_TOKEN_URL_SANDBOX;
+const LIP_SCOPE             = isLipProduction() ? LIP_SCOPE_PROD              : LIP_SCOPE_SANDBOX;
+export const LIP_API_BASE   = isLipProduction() ? LIP_API_BASE_PROD          : LIP_API_BASE_SANDBOX;
 
 const LIP_CLIENT_ID     = process.env.LIS_LIP_CLIENT_ID     ?? "";
 const LIP_CLIENT_SECRET = process.env.LIS_LIP_PRIMARY_SECRET ?? "";
