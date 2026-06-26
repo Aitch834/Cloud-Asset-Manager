@@ -24769,6 +24769,8 @@ router.get("/farms/:farmId/lis-credentials", requireAuth, requireTenant, async (
     testStatus: token.testStatus,
     testMessage: token.testMessage,
     tokenExpiresAt: token.tokenExpiresAt,
+    lisLastSyncedAt: token.lisLastSyncedAt,
+    lisLastSyncSummary: token.lisLastSyncSummary,
   });
 });
 

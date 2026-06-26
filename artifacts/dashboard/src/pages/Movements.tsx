@@ -44,6 +44,8 @@ interface Movement {
   reason: string | null;
   notes: string | null;
   createdAt: string;
+  lisSource: string | null;
+  lisMovementRef: string | null;
   // Dispatch checklist fields
   haulageRecordId: number | null;
   vehicleRegistration: string | null;
@@ -1955,7 +1957,14 @@ export default function Movements() {
                 {filtered.map((r) => (
                   <React.Fragment key={r.id}>
                     <tr className="border-b border-border/50 hover:bg-black/[0.02] transition-colors">
-                      <td className="p-4 text-sm font-medium text-foreground">{formatDate(r.movementDate)}</td>
+                      <td className="p-4 text-sm font-medium text-foreground">
+                        {formatDate(r.movementDate)}
+                        {r.lisSource && (
+                          <span title={`Imported from LIS (${r.lisSource.replace(/_/g, " ")})`} style={{ marginLeft: 6, display: "inline-flex", alignItems: "center", fontSize: "0.63rem", padding: "1px 5px", borderRadius: 8, background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", fontWeight: 700, verticalAlign: "middle", letterSpacing: "0.03em" }}>
+                            LIS
+                          </span>
+                        )}
+                      </td>
                       <td className="p-4">{movementTypeBadge(r.movementType)}</td>
                       <td className="p-4">
                         {r.species ? (

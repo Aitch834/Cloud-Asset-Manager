@@ -450,6 +450,7 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
     },
     onSuccess: (d) => {
       setSyncResult(d);
+      credsQ.refetch();
       toast({ title: d.success ? "LIS sync complete" : "LIS sync returned no data", description: d.message, variant: d.success ? "default" : "destructive" });
     },
     onError: (e: any) => toast({ title: "Sync failed", description: e?.message, variant: "destructive" }),
@@ -565,6 +566,18 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
           <div style={{ fontSize: "0.78rem", color: creds.testStatus === "ok" ? "#166534" : "#dc2626", display: "flex", alignItems: "center", gap: 6 }}>
             {creds.testStatus === "ok" ? <ShieldCheck size={13} /> : <WifiOff size={13} />}
             Last test: {new Date(creds.lastTestedAt).toLocaleString("en-GB")} — {creds.testMessage}
+          </div>
+        )}
+        {(creds as any)?.lisLastSyncedAt && (
+          <div style={{ fontSize: "0.78rem", color: "#374151", display: "flex", alignItems: "flex-start", gap: 6 }}>
+            <RefreshCw size={13} style={{ color: "#6b7280", flexShrink: 0, marginTop: 2 }} />
+            <span>
+              <span style={{ fontWeight: 600 }}>Last synced:</span>{" "}
+              {new Date((creds as any).lisLastSyncedAt).toLocaleString("en-GB")}
+              {(creds as any).lisLastSyncSummary
+                ? <span style={{ color: "#6b7280" }}> — {(creds as any).lisLastSyncSummary}</span>
+                : null}
+            </span>
           </div>
         )}
 
