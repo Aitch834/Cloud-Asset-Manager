@@ -63,6 +63,8 @@ export default function LivestockMovementScreen() {
   const [ataNumber, setAtaNumber] = useState("");
   const [ataExpiryDate, setAtaExpiryDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [lisNotified, setLisNotified] = useState<boolean | null>(null);
+  const [lisRef, setLisRef] = useState("");
 
   const handleSave = async () => {
     if (!animalCount.trim() || !fromLocation.trim() || !toLocation.trim()) {
@@ -114,6 +116,8 @@ export default function LivestockMovementScreen() {
       longitude,
       createdAt: new Date().toISOString(),
       synced: false,
+      lisNotified: lisNotified ?? false,
+      lisRef: lisRef.trim() || undefined,
     };
 
     await appendToList(STORAGE_KEYS.LIVESTOCK_MOVEMENTS, { ...record, documentUrl } as LivestockMovement);
@@ -293,6 +297,50 @@ export default function LivestockMovementScreen() {
             multiline
             numberOfLines={2}
           />
+
+          {["Sheep", "Goats", "Deer"].includes(species) && (
+            <>
+              <View style={styles.sectionLabel}>
+                <Feather name="shield" size={14} color="#2563eb" />
+                <Text style={styles.sectionTitle}>LIS Notification</Text>
+              </View>
+              <Text style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 8 }}>
+                Sheep, goat and deer movements must be notified to the Livestock Information Service (cla.livestockinformation.org.uk). Has this movement been notified?
+              </Text>
+              <View style={styles.chipRow}>
+                {([{ key: true, label: "Yes — Notified" }, { key: false, label: "No / Not yet" }] as const).map((opt) => (
+                  <Pressable
+                    key={String(opt.key)}
+                    onPress={() => { Haptics.selectionAsync(); setLisNotified(opt.key); }}
+                    style={[
+                      styles.chip,
+                      lisNotified === opt.key && {
+                        backgroundColor: opt.key ? "#16a34a" : "#dc2626",
+                        borderColor: opt.key ? "#16a34a" : "#dc2626",
+                      },
+                    ]}
+                  >
+                    <Feather
+                      name={opt.key ? "check-circle" : "clock"}
+                      size={14}
+                      color={lisNotified === opt.key ? "#fff" : opt.key ? "#16a34a" : "#dc2626"}
+                    />
+                    <Text style={[styles.chipText, lisNotified === opt.key && { color: "#fff" }]}>
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              {lisNotified === true && (
+                <Input
+                  label="LIS Reference Number"
+                  placeholder="e.g. CLA-2024-123456"
+                  value={lisRef}
+                  onChangeText={setLisRef}
+                />
+              )}
+            </>
+          )}
 
           <PhotoAttachButton
             photoUri={photoUri}

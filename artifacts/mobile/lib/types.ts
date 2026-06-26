@@ -266,6 +266,8 @@ export interface LivestockMovement {
   longitude?: number;
   createdAt: string;
   synced: boolean;
+  lisNotified?: boolean;
+  lisRef?: string;
 }
 
 export interface TransportRun {

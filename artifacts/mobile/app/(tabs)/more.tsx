@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   ScrollView,
@@ -19,7 +19,25 @@ import { useAuth } from "@/lib/auth";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiModules } from "@/lib/hooks/useApiModules";
-import { removeItem, STORAGE_KEYS } from "@/lib/storage";
+import { getItem, removeItem, STORAGE_KEYS } from "@/lib/storage";
+import { getApiBase } from "@/lib/uploadPhoto";
+
+type LisStatus = {
+  configured: boolean;
+  sandboxMode?: boolean;
+  testStatus?: string | null;
+  testMessage?: string | null;
+  lastTestedAt?: string | null;
+  lisLastSyncedAt?: string | null;
+  lisLastSyncSummary?: string | null;
+} | null;
+
+async function lisApiFetch(path: string, method = "GET"): Promise<Response> {
+  const token = await getItem<string>(STORAGE_KEYS.AUTH_TOKEN);
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  return fetch(`${getApiBase()}${path}`, { method, headers });
+}
 
 export default function MoreScreen() {
   const insets = useSafeAreaInsets();
@@ -27,6 +45,47 @@ export default function MoreScreen() {
   const { logout } = useAuth();
   const { pendingCount, isSyncing, isConnected, lastSyncTime, triggerSync } = useSync();
   const { activeModuleKeys } = useApiModules(currentFarm?.id);
+
+  const [lisStatus, setLisStatus] = useState<LisStatus>(null);
+  const [lisSyncing, setLisSyncing] = useState(false);
+
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    setLisStatus(null);
+    lisApiFetch(`/api/farms/${currentFarm.id}/lis-credentials`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setLisStatus(data as LisStatus); })
+      .catch(() => {});
+  }, [currentFarm?.id]);
+
+  const handleLisSync = async () => {
+    if (!currentFarm?.id || lisSyncing) return;
+    setLisSyncing(true);
+    try {
+      const res = await lisApiFetch(`/api/farms/${currentFarm.id}/lis/sync-herds`, "POST");
+      const data = await res.json() as { success?: boolean; message?: string; cphValid?: boolean; cphNumber?: string };
+      if (res.ok && data.success) {
+        setLisStatus(prev => prev ? {
+          ...prev,
+          lisLastSyncedAt: new Date().toISOString(),
+          lisLastSyncSummary: data.message ?? null,
+        } : prev);
+        Alert.alert(
+          "LIS Sync Complete",
+          [
+            data.cphNumber ? `CPH ${data.cphNumber} — ${data.cphValid ? "registered in LIS ✓" : "not recognised by LIS"}` : null,
+            data.message ?? "Sync completed.",
+          ].filter(Boolean).join("\n"),
+        );
+      } else {
+        Alert.alert("LIS Sync Failed", (data as any)?.message ?? "Unable to reach LIS. Check your connection and credentials in Farm Settings on the dashboard.");
+      }
+    } catch {
+      Alert.alert("LIS Sync Error", "Network error — please check your internet connection and try again.");
+    } finally {
+      setLisSyncing(false);
+    }
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -136,6 +195,56 @@ export default function MoreScreen() {
             }
             icon="clock"
             showChevron={false}
+          />
+        </View>
+
+        <SectionHeader title="Livestock Integration (LIS)" />
+        <View style={styles.section}>
+          <ListItem
+            title="Connection Status"
+            subtitle={
+              lisStatus === null
+                ? "Checking…"
+                : !lisStatus.configured
+                ? "Not configured — set up LIS credentials in Farm Settings on the dashboard"
+                : lisStatus.testStatus === "ok"
+                ? `Connected${lisStatus.sandboxMode ? " (sandbox)" : " (live)"} — CPH verified`
+                : "Configured — connection not yet tested"
+            }
+            icon="shield"
+            iconColor={lisStatus?.configured && lisStatus?.testStatus === "ok" ? colors.success : colors.textSecondary}
+            iconBgColor={lisStatus?.configured && lisStatus?.testStatus === "ok" ? colors.successBg : "#f3f4f6"}
+            showChevron={false}
+          />
+          <View style={styles.divider} />
+          <ListItem
+            title="Last LIS Sync"
+            subtitle={
+              lisStatus?.lisLastSyncedAt
+                ? `${new Date(lisStatus.lisLastSyncedAt).toLocaleString("en-GB")}${lisStatus.lisLastSyncSummary ? ` — ${lisStatus.lisLastSyncSummary}` : ""}`
+                : "Not yet synced"
+            }
+            icon="refresh-cw"
+            iconColor={lisStatus?.lisLastSyncedAt ? colors.info : colors.textSecondary}
+            iconBgColor={lisStatus?.lisLastSyncedAt ? "#eff6ff" : "#f3f4f6"}
+            showChevron={false}
+          />
+          <View style={styles.divider} />
+          <ListItem
+            title={lisSyncing ? "Syncing with LIS…" : "Sync with LIS"}
+            subtitle={
+              !lisStatus?.configured
+                ? "Configure LIS credentials on the dashboard first"
+                : "Pull latest approved movements and CPH status from the CLA API"
+            }
+            icon="download-cloud"
+            iconColor={lisStatus?.configured ? "#2563eb" : colors.textSecondary}
+            iconBgColor={lisStatus?.configured ? "#eff6ff" : "#f3f4f6"}
+            onPress={lisStatus?.configured ? handleLisSync : undefined}
+            showChevron={lisStatus?.configured ?? false}
+            rightElement={lisSyncing ? (
+              <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: "#2563eb", borderTopColor: "transparent" }} />
+            ) : undefined}
           />
         </View>
 
