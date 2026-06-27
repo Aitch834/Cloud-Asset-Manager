@@ -280,6 +280,7 @@ const TITLES: [string, string][] = [
   ["Seed Drilling Records — Crop Variety, Seed Rate, Treated Seed and Season Cost Tracking", "Fields & Crops"],
   ["Invoice Branding — Farm Logo, Company Details, VAT Number and Bank Information on Invoices", "Getting Started"],
   ["LIS One-Click Submission — Connecting Your Livestock Information Service Account", "Livestock"],
+  ["LIS LIP One-Click Cattle Submission — Connecting via LIS Account Sign-In", "Livestock"],
 ];
 
 const CONTENT: [string, string][] = [
@@ -5194,6 +5195,42 @@ const CONTENT: [string, string][] = [
 <p>While connected to the LIS Beta Sandbox, submissions are test-only and do not appear on the live government system. All test submissions are clearly labelled in the submission history. Switch to the Production environment in Farm Settings once you are satisfied with the integration and ready to submit live records.</p>
 <h3>Scotland, Wales and Northern Ireland</h3>
 <p>The LIS one-click integration covers England movements only (England CLA API). For Scotland, movements are reported to ScotEID via ScotMoves+. BDE Farm Trac captures all fields required for a ScotMoves+ manual submission — CPH numbers, ear tag lists, movement dates, haulier details, and AML reference numbers — which can be exported to assist with portal data entry.</p>`,
+  ],
+
+  // LIS LIP One-Click Cattle Submission — Connecting via LIS Account Sign-In
+  [
+    "How to connect each farm's LIS account to BDE Farm Trac and submit cattle movements, births, and deaths directly to the Livestock Information Platform (LIP) API.",
+    `<h2>LIS LIP One-Click Cattle Submission — Connecting via LIS Account Sign-In</h2>
+<p>BDE Farm Trac integrates with the Livestock Information Platform (LIP), the government cattle movement and recording system operated by the Livestock Information Service (LIS). Once connected, cattle movements, births, and deaths can be submitted directly to the LIP API with a single click from the Livestock Movements page — without leaving the dashboard.</p>
+<p>LIP uses a delegated <strong>per-farm OAuth sign-in</strong>. Each farm holding connects its own LIS account independently, meaning the farmer signs in with their existing LIS credentials rather than entering API keys. This mirrors how a farmer would log in to the LIS online portal, but the authorisation is held securely by BDE Farm Trac so submissions can be made on their behalf.</p>
+<h3>Connecting a farm's LIS account</h3>
+<p>Navigate to <strong>Settings → Farm Settings</strong> and scroll to the <strong>Livestock Information Platform (LIP)</strong> section.</p>
+<ol>
+<li>Click <strong>Connect LIS Account</strong>. A new browser tab opens showing the LIS sign-in page (hosted by the government Azure B2C identity service).</li>
+<li>Sign in with the farm's LIS username and password — the same credentials used to log in to the LIS online portal.</li>
+<li>After successful sign-in, the tab closes and Farm Settings shows a green <strong>Connected</strong> badge with the account name.</li>
+<li>The connection is stored securely against this farm holding. It does not need to be repeated unless the LIS account password changes or the connection is manually disconnected.</li>
+</ol>
+<p>In a multi-farm account, each farm holding connects its own LIS account independently. Switch between farms using the farm selector in the sidebar and repeat the connection step for each holding.</p>
+<h3>Submitting a cattle movement</h3>
+<p>Once connected, open <strong>Livestock → Movements</strong>. Each cattle movement row shows a <strong>Submit to LIP</strong> button in the actions column. Clicking it:</p>
+<ol>
+<li>Sends the movement data to the LIS LIP API — holding CPH, ear tag numbers, movement date, movement type (on/off), and destination or origin CPH.</li>
+<li>On success, stores the LIP reference number against the movement record and shows a <strong>LIP Submitted</strong> badge.</li>
+<li>On failure, shows the error returned by the LIP API (for example, an unrecognised ear tag or CPH mismatch) so you can correct the record and resubmit.</li>
+</ol>
+<h3>Submitting cattle births and deaths</h3>
+<p>LIP submission is also available for cattle births and deaths:</p>
+<ul>
+<li><strong>Births</strong> — from the Livestock Mortality Log, cattle calving records with a live outcome can be submitted to LIP to register the new calf. The dam's ear tag, birth date, and calf sex are included in the payload.</li>
+<li><strong>Deaths</strong> — cattle mortality records can be submitted to LIP to notify the death. The animal ear tag, date of death, and cause category are included.</li>
+</ul>
+<h3>LIP Submissions tab</h3>
+<p>The <strong>LIP Submissions</strong> tab in Livestock → Movements shows a full history of all LIP submissions for this farm — movement, birth, and death notifications — with the submission date, type, status, LIP reference number, and a link back to the originating record. Expanding any row reveals the full JSON payload that was sent and the API response received, providing a complete audit trail for cross-compliance purposes.</p>
+<h3>Sandbox mode</h3>
+<p>During initial setup and testing, LIP connections operate in <strong>sandbox mode</strong>. Submissions in sandbox mode are sent to the LIS test environment and do not affect live government records. All sandbox submissions are clearly labelled in the LIP Submissions tab. Sandbox mode is automatically used while the LIS LIP Alpha and sandbox APIs are the active environment; production mode will be available once LIS publish their production API endpoint.</p>
+<h3>Relationship to BCMS</h3>
+<p>LIP and BCMS (CTS Web Services) are two separate cattle reporting routes. LIP is the newer LIS-operated platform; BCMS/CTS is the existing British Cattle Movement Service operated by APHA. BDE Farm Trac supports both in parallel — use whichever route is appropriate for your holding. Both are accessible from the same movement row in Livestock → Movements.</p>`,
   ],
 ];
 

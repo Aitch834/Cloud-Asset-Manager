@@ -16,9 +16,13 @@ description: LIP (Livestock Information Platform) confirmed as per-farm delegate
 - **b2c-tenant**: `Livestockinformationb2cprod`
 - **b2c-policy**: `B2C_1A_THIRDPARTY_SIGNIN` (NOT B2C_1A_SIGNIN — different from CLA)
 
-**Critical:** Authority uses `/tfp/` path (older Azure B2C Trust Framework Policy URL format).
-Authorize: `{authority}/authorize`, Token: `{authority}/token`.
-Scope gets `offline_access` appended for refresh tokens.
+**Critical — B2C URL format (corrected June 2026):**
+- The `b2c-authority` value ending in `/tfp/.../v2.0` is the **OIDC issuer only** — DO NOT append `/authorize` or `/token` to it.
+- Real authorize endpoint: `https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/b2c_1a_thirdparty_signin/oauth2/v2.0/authorize`
+- Real token endpoint: same base + `/token`
+- Pattern: `https://{b2cDomain}/{tenant}/{policy_lowercase}/oauth2/v2.0/{authorize|token}`
+- Scope gets `offline_access` appended for refresh tokens.
+- **Why:** Azure B2C's developer portal shows the issuer URL as `b2c-authority`; the actual OAuth endpoints follow a different path structure not derivable from that issuer URL.
 
 ## Architecture (corrected)
 - Grant type: **authorization_code** (per-farm delegated OAuth — same pattern as CLA sheep)
