@@ -19,6 +19,7 @@ import {
   cropDocumentsTable,
   fieldCropAssignmentsTable,
   fieldSeasonLandUseTable,
+  fieldSeasonExpensesTable,
   harvestRecordsTable,
   cropTransportRecordsTable,
   cropStorageRecordsTable,
@@ -1559,6 +1560,8 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
       soilType: fieldsTable.soilType,
       isOrganic: fieldsTable.isOrganic,
       isNvz: fieldsTable.isNvz,
+      tenureType: fieldsTable.tenureType,
+      annualRentPounds: fieldsTable.annualRentPounds,
       cropName: cropsTable.name,
       varietyName: cropVarietiesTable.variety,
       cropCategory: cropsTable.category,
@@ -1735,6 +1738,11 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
     .orderBy(sql`date_trunc('month', ${weatherReadingsTable.readingTimestamp})`),
   ]);
 
+  // Field season expenses (agronomy, drying, haulage, etc.)
+  const fieldSeasonExpenses = await db.select().from(fieldSeasonExpensesTable)
+    .where(eq(fieldSeasonExpensesTable.fieldCropAssignmentId, assignmentId))
+    .orderBy(asc(fieldSeasonExpensesTable.expenseDate));
+
   // Enrich soil tests with results; enrich sisters with harvests
   const [soilTestResults, sisterHarvestRows] = await Promise.all([
     soilTests.length > 0
@@ -1793,7 +1801,20 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
     if (!h.salePricePerTonnePence || !h.yieldTonnes) return s;
     return s + Math.round(h.salePricePerTonnePence * parseFloat(String(h.yieldTonnes)));
   }, 0);
-  const totalInputCostPence = totalMachineCostPence + totalLabourCostPence + totalFertiliserCostPence + totalSeedCostPence + totalSprayCostPence;
+  // Prorated field rent (if rented, prorate annual rent over the season duration)
+  const isRented = asgn.tenureType === "rented" || asgn.tenureType === "tenanted" || asgn.tenureType === "fbt";
+  const annualRentPoundsVal = asgn.annualRentPounds ? parseFloat(String(asgn.annualRentPounds)) : 0;
+  let proratedRentPence = 0;
+  if (isRented && annualRentPoundsVal > 0) {
+    const seasonMs = seasonEnd.getTime() - seasonStart.getTime();
+    const seasonDays = Math.max(seasonMs / (1000 * 60 * 60 * 24), 1);
+    proratedRentPence = Math.round(annualRentPoundsVal * (seasonDays / 365) * 100);
+  }
+
+  // Miscellaneous field season expenses
+  const totalMiscExpensesPence = fieldSeasonExpenses.reduce((s, e) => s + (e.amountPence ?? 0), 0);
+
+  const totalInputCostPence = totalMachineCostPence + totalLabourCostPence + totalFertiliserCostPence + totalSeedCostPence + totalSprayCostPence + proratedRentPence + totalMiscExpensesPence;
   const grossMarginPence = totalRevenuePence - totalInputCostPence;
 
   res.json({
@@ -1808,6 +1829,7 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
     sisterFields,
     irrigation,
     monthlyRainfall,
+    fieldExpenses: fieldSeasonExpenses,
     generatedAt: new Date().toISOString(),
     summary: {
       totalYieldTonnes,
@@ -1829,11 +1851,41 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
       totalFertiliserCostPence,
       totalSeedCostPence,
       totalSprayCostPence,
+      proratedRentPence,
+      totalMiscExpensesPence,
       totalRevenuePence,
       totalInputCostPence,
       grossMarginPence,
     },
   });
+});
+
+// ─── Field Season Expenses CRUD ───────────────────────────────────────────────
+router.get("/farms/:farmId/field-season-expenses", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const assignmentId = parseInt(Array.isArray(req.query.assignmentId) ? (req.query.assignmentId[0] as string) : (req.query.assignmentId as string), 10);
+  if (isNaN(assignmentId)) { res.status(400).json({ error: "assignmentId required" }); return; }
+  const expenses = await db.select().from(fieldSeasonExpensesTable)
+    .where(and(eq(fieldSeasonExpensesTable.farmId, farmId), eq(fieldSeasonExpensesTable.fieldCropAssignmentId, assignmentId)))
+    .orderBy(asc(fieldSeasonExpensesTable.expenseDate));
+  res.json({ expenses });
+});
+
+router.post("/farms/:farmId/field-season-expenses", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [expense] = await db.insert(fieldSeasonExpensesTable).values({ ...body, farmId } as typeof fieldSeasonExpensesTable.$inferInsert).returning();
+  res.status(201).json({ expense });
+});
+
+router.delete("/farms/:farmId/field-season-expenses/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(String(req.params.id), 10);
+  await db.delete(fieldSeasonExpensesTable).where(and(eq(fieldSeasonExpensesTable.id, id), eq(fieldSeasonExpensesTable.farmId, farmId)));
+  res.json({ success: true });
 });
 
 // ─── Harvest Transport Records ───────────────────────

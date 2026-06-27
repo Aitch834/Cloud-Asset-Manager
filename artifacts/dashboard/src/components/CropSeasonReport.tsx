@@ -1,17 +1,30 @@
-import React from "react";
-import { useQuery } from "@tanstack/react-query";
+import React, { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Printer, Loader2, Wheat, Sprout, Droplets,
   Tractor, Fuel, FlaskConical, Scale, BarChart2,
   Leaf, CloudRain, AlertCircle, Calendar, TrendingUp,
+  Plus, Trash2, Home,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+interface FieldExpense {
+  id: number;
+  expenseDate: string;
+  category: string;
+  description: string;
+  amountPence: number;
+  notes: string | null;
+}
 
 interface ReportData {
   assignment: {
@@ -31,10 +44,13 @@ interface ReportData {
     soilType: string | null;
     isOrganic: boolean | null;
     isNvz: boolean | null;
+    tenureType: string | null;
+    annualRentPounds: string | null;
     cropName: string;
     varietyName: string | null;
     cropCategory: string | null;
   };
+  fieldExpenses: FieldExpense[];
   sprays: Array<{
     id: number;
     applicationDate: string;
@@ -193,12 +209,26 @@ interface ReportData {
     totalFertiliserCostPence: number;
     totalSeedCostPence: number;
     totalSprayCostPence: number;
+    proratedRentPence: number;
+    totalMiscExpensesPence: number;
     totalRevenuePence: number;
     totalInputCostPence: number;
     grossMarginPence: number;
   };
   generatedAt: string;
 }
+
+const EXPENSE_CATEGORIES = [
+  { value: "agronomy", label: "Agronomy / Consultancy" },
+  { value: "drying", label: "Grain Drying" },
+  { value: "haulage", label: "Haulage / Transport" },
+  { value: "storage", label: "Storage Charges" },
+  { value: "levy", label: "AHDB Levy / Deductions" },
+  { value: "drainage", label: "Land Drainage" },
+  { value: "insurance", label: "Crop Insurance" },
+  { value: "rent", label: "Additional Rent / Grazing" },
+  { value: "other", label: "Other" },
+];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -234,7 +264,7 @@ const Badge = ({ children, color = "gray" }: { children: React.ReactNode; color?
   return <span className={`inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded border ${cls[color]}`}>{children}</span>;
 };
 
-const Th = ({ children, right }: { children: React.ReactNode; right?: boolean }) => (
+const Th = ({ children, right }: { children?: React.ReactNode; right?: boolean }) => (
   <th className={`px-3 py-2 text-xs font-semibold text-gray-500 bg-gray-50 border-b border-gray-200 ${right ? "text-right" : "text-left"}`}>{children}</th>
 );
 const Td = ({ children, right, mono, colSpan }: { children?: React.ReactNode; right?: boolean; mono?: boolean; colSpan?: number }) => (
@@ -274,6 +304,42 @@ interface Props {
 export default function CropSeasonReport({ assignmentId, onClose }: Props) {
   const { farmId } = useAppStore();
   const safeFarmId = farmId ?? 0;
+  const queryClient = useQueryClient();
+
+  const [showAddExpense, setShowAddExpense] = useState(false);
+  const [expenseForm, setExpenseForm] = useState({ category: "", description: "", amountPounds: "", expenseDate: new Date().toISOString().slice(0, 10), notes: "" });
+
+  const addExpenseMutation = useMutation({
+    mutationFn: (body: object) =>
+      fetch(`/api/farms/${safeFarmId}/field-season-expenses`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+        .then(r => { if (!r.ok) throw new Error("Failed to add expense"); return r.json(); }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["crop-season-report", safeFarmId, assignmentId] });
+      setShowAddExpense(false);
+      setExpenseForm({ category: "", description: "", amountPounds: "", expenseDate: new Date().toISOString().slice(0, 10), notes: "" });
+    },
+  });
+
+  const deleteExpenseMutation = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`/api/farms/${safeFarmId}/field-season-expenses/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crop-season-report", safeFarmId, assignmentId] }),
+  });
+
+  const handleAddExpense = () => {
+    if (!expenseForm.category || !expenseForm.description || !expenseForm.amountPounds || !assignmentId || !data) return;
+    const amountPence = Math.round(parseFloat(expenseForm.amountPounds) * 100);
+    if (isNaN(amountPence) || amountPence <= 0) return;
+    addExpenseMutation.mutate({
+      fieldCropAssignmentId: assignmentId,
+      fieldId: data.assignment.fieldId,
+      expenseDate: expenseForm.expenseDate,
+      category: expenseForm.category,
+      description: expenseForm.description,
+      amountPence,
+      notes: expenseForm.notes || null,
+    });
+  };
 
   const { data, isLoading, isError } = useQuery<ReportData>({
     queryKey: ["crop-season-report", safeFarmId, assignmentId],
@@ -607,6 +673,115 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
                 </div>
               )}
 
+              {/* ── OTHER COSTS (rent + misc expenses) ── */}
+              <div className="report-section">
+                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200">
+                  <span className="text-green-700"><Home className="w-4 h-4" /></span>
+                  <h3 className="font-bold text-gray-800 text-sm tracking-wide uppercase">Other Season Costs</h3>
+                  <span className="ml-auto">
+                    <Button size="sm" variant="outline" className="gap-1 h-6 text-xs no-print" onClick={() => setShowAddExpense(s => !s)}>
+                      <Plus className="w-3 h-3" />{showAddExpense ? "Cancel" : "Add Expense"}
+                    </Button>
+                  </span>
+                </div>
+
+                {/* Add expense form */}
+                {showAddExpense && (
+                  <div className="mb-4 p-4 rounded-lg border border-green-200 bg-green-50 space-y-3 no-print">
+                    <p className="text-xs font-semibold text-green-800">Add a cost to this season (agronomy, drying, haulage, storage, insurance, levies, etc.)</p>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <div>
+                        <Label className="text-xs text-gray-600">Category</Label>
+                        <Select value={expenseForm.category} onValueChange={v => setExpenseForm(f => ({ ...f, category: v }))}>
+                          <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Select…" /></SelectTrigger>
+                          <SelectContent>
+                            {EXPENSE_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs text-gray-600">Description</Label>
+                        <Input className="h-8 text-xs mt-1" placeholder="e.g. Agronomy visit — spring spray timing" value={expenseForm.description} onChange={e => setExpenseForm(f => ({ ...f, description: e.target.value }))} />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-600">Amount (£)</Label>
+                        <Input className="h-8 text-xs mt-1" type="number" step="0.01" min="0" placeholder="0.00" value={expenseForm.amountPounds} onChange={e => setExpenseForm(f => ({ ...f, amountPounds: e.target.value }))} />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-600">Date</Label>
+                        <Input className="h-8 text-xs mt-1" type="date" value={expenseForm.expenseDate} onChange={e => setExpenseForm(f => ({ ...f, expenseDate: e.target.value }))} />
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs text-gray-600">Notes (optional)</Label>
+                        <Input className="h-8 text-xs mt-1" placeholder="Optional notes" value={expenseForm.notes} onChange={e => setExpenseForm(f => ({ ...f, notes: e.target.value }))} />
+                      </div>
+                      <div className="col-span-1 flex items-end">
+                        <Button size="sm" className="h-8 text-xs w-full bg-green-700 hover:bg-green-800" onClick={handleAddExpense} disabled={addExpenseMutation.isPending || !expenseForm.category || !expenseForm.description || !expenseForm.amountPounds}>
+                          {addExpenseMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save Expense"}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Prorated rent */}
+                {data.summary.proratedRentPence > 0 && (
+                  <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-xs">
+                    <Home className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                    <div className="flex-1">
+                      <span className="font-semibold text-amber-800">Field rent (prorated)</span>
+                      <span className="ml-2 text-amber-700">
+                        £{parseFloat(data.assignment.annualRentPounds ?? "0").toLocaleString("en-GB", { minimumFractionDigits: 2 })}/yr annual rent
+                        {data.assignment.tenureType && <span className="ml-1 text-amber-600 capitalize">({data.assignment.tenureType})</span>}
+                      </span>
+                    </div>
+                    <span className="font-mono font-semibold text-amber-800">{fmtCost(data.summary.proratedRentPence)}</span>
+                  </div>
+                )}
+
+                {/* Miscellaneous expense rows */}
+                {data.fieldExpenses.length > 0 ? (
+                  <div className="rounded-lg border border-gray-200 overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead><tr>
+                        <Th>Date</Th><Th>Category</Th><Th>Description</Th><Th right>Amount</Th><Th>Notes</Th><Th></Th>
+                      </tr></thead>
+                      <tbody>
+                        {data.fieldExpenses.map(e => (
+                          <tr key={e.id}>
+                            <Td>{fmt(e.expenseDate)}</Td>
+                            <Td><Badge color="gray">{EXPENSE_CATEGORIES.find(c => c.value === e.category)?.label ?? e.category}</Badge></Td>
+                            <Td><span className="font-medium text-gray-900">{e.description}</span></Td>
+                            <Td right mono><span className="font-semibold">{fmtCost(e.amountPence)}</span></Td>
+                            <Td>{e.notes ?? "—"}</Td>
+                            <Td>
+                              <button className="text-red-400 hover:text-red-600 no-print" onClick={() => deleteExpenseMutation.mutate(e.id)} disabled={deleteExpenseMutation.isPending}>
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </Td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      {data.summary.totalMiscExpensesPence > 0 && (
+                        <tfoot>
+                          <tr className="bg-gray-50">
+                            <Td colSpan={3}><span className="font-semibold text-gray-700">Total Miscellaneous</span></Td>
+                            <Td right mono><span className="font-semibold">{fmtCost(data.summary.totalMiscExpensesPence)}</span></Td>
+                            <Td colSpan={2}></Td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+                ) : (
+                  data.summary.proratedRentPence === 0 && (
+                    <p className="text-xs text-gray-400 italic py-1">
+                      No additional costs recorded. Use "Add Expense" above to record agronomy fees, drying, haulage, storage charges, AHDB levy, crop insurance, land drainage, or any other season costs.
+                    </p>
+                  )
+                )}
+              </div>
+
               {/* ── HARVEST ── */}
               <div className="report-section">
                 <SectionHeader icon={<Wheat className="w-4 h-4" />} title="Harvest Results" count={data.harvests.length} />
@@ -696,6 +871,23 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
                             <td className="px-4 py-2.5 text-right font-mono text-xs text-gray-800">{fmtCost(data.summary.totalLabourCostPence)}</td>
                           </tr>
                         )}
+                        {data.summary.proratedRentPence > 0 && (
+                          <tr className="border-b border-gray-100">
+                            <td className="px-4 py-2.5 text-gray-600 text-xs">
+                              Field rent (prorated)
+                              {data.assignment.annualRentPounds && (
+                                <span className="ml-2 text-gray-400">£{parseFloat(data.assignment.annualRentPounds).toLocaleString("en-GB", { minimumFractionDigits: 2 })}/yr annual</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-mono text-xs text-gray-800">{fmtCost(data.summary.proratedRentPence)}</td>
+                          </tr>
+                        )}
+                        {data.summary.totalMiscExpensesPence > 0 && (
+                          <tr className="border-b border-gray-100">
+                            <td className="px-4 py-2.5 text-gray-600 text-xs">Other season costs ({data.fieldExpenses.length} item{data.fieldExpenses.length !== 1 ? "s" : ""})</td>
+                            <td className="px-4 py-2.5 text-right font-mono text-xs text-gray-800">{fmtCost(data.summary.totalMiscExpensesPence)}</td>
+                          </tr>
+                        )}
                         {data.summary.totalInputCostPence > 0 && (
                           <tr className="border-b border-gray-200 bg-gray-50">
                             <td className="px-4 py-2.5 text-xs font-semibold text-gray-700">Total input cost</td>
@@ -731,7 +923,7 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
                       </tbody>
                     </table>
                     <p className="text-[10px] text-gray-400 px-4 py-2 border-t border-gray-100 italic">
-                      Gross margin = Revenue − (seed + fertiliser + spray + machinery + labour costs). Only costs entered against records are included. Overhead costs (rent, insurance, etc.) are excluded.
+                      Gross margin = Revenue − (seed + fertiliser + spray + machinery + labour + prorated rent + other season costs). Field rent is prorated from the annual rent set on the field record over the active season period. Use "Add Expense" in the Other Season Costs section to record agronomy, drying, haulage, storage, levies, insurance, and any other costs.
                     </p>
                   </div>
                 </div>

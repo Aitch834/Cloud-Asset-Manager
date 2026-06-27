@@ -321,6 +321,19 @@ export const fieldInspectionPhotosTable = pgTable("field_inspection_photos", {
   uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const fieldSeasonExpensesTable = pgTable("field_season_expenses", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  fieldCropAssignmentId: integer("field_crop_assignment_id").notNull().references(() => fieldCropAssignmentsTable.id),
+  fieldId: integer("field_id").notNull().references(() => fieldsTable.id),
+  expenseDate: date("expense_date").notNull(),
+  category: text("category").notNull(),
+  description: text("description").notNull(),
+  amountPence: integer("amount_pence").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const nvzRiskAssessmentsTable = pgTable("nvz_risk_assessments", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

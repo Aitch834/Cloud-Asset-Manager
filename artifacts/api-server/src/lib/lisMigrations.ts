@@ -36,6 +36,22 @@ export async function runLisMigrations(): Promise<void> {
   await db.execute(sql`ALTER TABLE lip_farm_tokens ADD COLUMN IF NOT EXISTS lip_refresh_token text`);
   await db.execute(sql`ALTER TABLE lip_farm_tokens ADD COLUMN IF NOT EXISTS oauth_state text`);
 
+  // Field Season Expenses — miscellaneous per-season costs (agronomy, drying, haulage, etc.)
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS field_season_expenses (
+      id serial primary key,
+      farm_id integer not null references farms(id),
+      field_crop_assignment_id integer not null references field_crop_assignments(id),
+      field_id integer not null references fields(id),
+      expense_date date not null,
+      category text not null,
+      description text not null,
+      amount_pence integer not null,
+      notes text,
+      created_at timestamptz not null default now()
+    )
+  `);
+
   // LIS LIP Submission Log — tracks every cattle movement/birth/death submission via LIP API
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS lip_submissions (
