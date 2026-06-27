@@ -1600,6 +1600,9 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
       bufferZoneMetres: sprayApplicationsTable.bufferZoneMetres,
       notes: sprayApplicationsTable.notes,
       productCostPencePerUnit: sprayApplicationsTable.productCostPencePerUnit,
+      batchNumber: sprayApplicationsTable.batchNumber,
+      lotNumber: sprayApplicationsTable.lotNumber,
+      stockDeliveryId: sprayApplicationsTable.stockDeliveryId,
     })
     .from(sprayApplicationsTable)
     .innerJoin(sprayProductsTable, eq(sprayProductsTable.id, sprayApplicationsTable.productId))
@@ -1646,6 +1649,7 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
       vehicleName: fuelUsageTable.vehicleName,
       tankName: fuelUsageTable.tankName,
       notes: fuelUsageTable.notes,
+      costPencePerLitre: fuelUsageTable.costPencePerLitre,
     })
     .from(fuelUsageTable)
     .where(and(
@@ -1782,13 +1786,23 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
   }, 0);
   const totalLabourCostPence = operations.reduce((s, op) => s + (op.labourHours && op.labourRatePence ? parseFloat(String(op.labourHours)) * op.labourRatePence : 0), 0);
   const totalFuelLitres = fuelUsage.reduce((s, f) => s + parseFloat(String(f.quantityLitres)), 0);
+  const totalFuelCostPence = fuelUsage.reduce((s, f) => {
+    if (!f.costPencePerLitre) return s;
+    return s + Math.round(parseFloat(String(f.quantityLitres)) * f.costPencePerLitre);
+  }, 0);
   const totalNitrogenKg = fertiliser.reduce((s, f) => s + (f.totalNitrogenKg ? parseFloat(String(f.totalNitrogenKg)) : 0), 0);
   const totalRainfallMm = monthlyRainfall.reduce((s, m) => s + parseFloat(String(m.totalRainfallMm ?? 0)), 0);
   const totalIrrigationMm = irrigation.reduce((s, i) => s + (i.applicationDepthMm ? parseFloat(String(i.applicationDepthMm)) : 0), 0);
   const totalIrrigationM3 = irrigation.reduce((s, i) => s + (i.volumeAppliedM3 ? parseFloat(String(i.volumeAppliedM3)) : 0), 0);
 
   // Financial summary
-  const totalFertiliserCostPence = fertiliser.reduce((s, f) => s + (f.totalCostPence ?? 0), 0);
+  const totalFertiliserCostPence = fertiliser.reduce((s, f) => {
+    // Use delivery-linked calculation if available, otherwise fall back to manually entered total
+    if (f.unitCostPencePerTonne && f.applicationRateKgHa && f.areaAppliedHa) {
+      return s + Math.round(Number(f.unitCostPencePerTonne) * parseFloat(String(f.applicationRateKgHa)) / 1000 * parseFloat(String(f.areaAppliedHa)));
+    }
+    return s + (f.totalCostPence ?? 0);
+  }, 0);
   const totalSeedCostPence = seedDrilling.reduce((s, d) => {
     if (!d.seedCostPencePerKg || !d.seedRate || !d.areaSeededHa) return s;
     return s + Math.round(Number(d.seedCostPencePerKg) * parseFloat(String(d.seedRate)) * parseFloat(String(d.areaSeededHa)));
@@ -1814,7 +1828,7 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
   // Miscellaneous field season expenses
   const totalMiscExpensesPence = fieldSeasonExpenses.reduce((s, e) => s + (e.amountPence ?? 0), 0);
 
-  const totalInputCostPence = totalMachineCostPence + totalLabourCostPence + totalFertiliserCostPence + totalSeedCostPence + totalSprayCostPence + proratedRentPence + totalMiscExpensesPence;
+  const totalInputCostPence = totalMachineCostPence + totalLabourCostPence + totalFertiliserCostPence + totalSeedCostPence + totalSprayCostPence + totalFuelCostPence + proratedRentPence + totalMiscExpensesPence;
   const grossMarginPence = totalRevenuePence - totalInputCostPence;
 
   res.json({
@@ -1851,6 +1865,7 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
       totalFertiliserCostPence,
       totalSeedCostPence,
       totalSprayCostPence,
+      totalFuelCostPence,
       proratedRentPence,
       totalMiscExpensesPence,
       totalRevenuePence,
@@ -2131,6 +2146,41 @@ router.delete("/farms/:farmId/spray-products/:recordId", requireAuth, requireTen
   res.json({ success: true });
 });
 
+// ─── Stock Deliveries for Item (delivery picker helper) ────────────────────────
+router.get("/farms/:farmId/stock-deliveries-for-item", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const stockItemId = req.query.stockItemId ? parseInt(String(req.query.stockItemId), 10) : null;
+  if (!stockItemId || isNaN(stockItemId)) { res.status(400).json({ error: "stockItemId required" }); return; }
+  const deliveries = await db
+    .select({
+      id: stockDeliveriesTable.id,
+      deliveryDate: stockDeliveriesTable.deliveryDate,
+      quantity: stockDeliveriesTable.quantity,
+      costPence: stockDeliveriesTable.costPence,
+      batchNumber: stockDeliveriesTable.batchNumber,
+      lotNumber: stockDeliveriesTable.lotNumber,
+      grnNumber: stockDeliveriesTable.grnNumber,
+      invoiceReference: stockDeliveriesTable.invoiceReference,
+      supplierId: stockDeliveriesTable.supplierId,
+      stockItemUnit: stockItemsTable.unit,
+      stockItemName: stockItemsTable.name,
+    })
+    .from(stockDeliveriesTable)
+    .leftJoin(stockItemsTable, eq(stockItemsTable.id, stockDeliveriesTable.stockItemId))
+    .where(and(eq(stockDeliveriesTable.farmId, farmId), eq(stockDeliveriesTable.stockItemId, stockItemId)))
+    .orderBy(desc(stockDeliveriesTable.deliveryDate));
+
+  // Compute unit price (pence per stock unit) for each delivery
+  const enriched = deliveries.map(d => ({
+    ...d,
+    unitPricePence: d.costPence && d.quantity && parseFloat(String(d.quantity)) > 0
+      ? Math.round(Number(d.costPence) / parseFloat(String(d.quantity)))
+      : null,
+  }));
+  res.json({ deliveries: enriched });
+});
+
 // ─── Spray Applications ────────────────────────────
 router.get("/farms/:farmId/spray-applications", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
@@ -2187,7 +2237,15 @@ router.post("/farms/:farmId/spray-applications", requireAuth, requireTenant, req
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   if (!(await checkFieldAreaLimit(farmId, req.body.fieldId ? Number(req.body.fieldId) : null, req.body.areaSprayedHa ? Number(req.body.areaSprayedHa) : null, res, "Area sprayed"))) return;
-  const [record] = await db.insert(sprayApplicationsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const sprayBody = sanitiseBody(req.body as Record<string, unknown>);
+  // Auto-populate productCostPencePerUnit from delivery when not explicitly provided
+  if (sprayBody.stockDeliveryId && !sprayBody.productCostPencePerUnit) {
+    const [del] = await db.select().from(stockDeliveriesTable).where(eq(stockDeliveriesTable.id, Number(sprayBody.stockDeliveryId))).limit(1);
+    if (del?.costPence && del?.quantity && parseFloat(String(del.quantity)) > 0) {
+      sprayBody.productCostPencePerUnit = Math.round(Number(del.costPence) / parseFloat(String(del.quantity)));
+    }
+  }
+  const [record] = await db.insert(sprayApplicationsTable).values({ ...sprayBody, farmId }).returning();
 
   const rate = parseFloat(req.body.applicationRate);
   const area = parseFloat(req.body.areaSprayedHa);
@@ -2451,21 +2509,51 @@ router.get("/farms/:farmId/nvz-applications", requireAuth, requireTenant, requir
 router.post("/farms/:farmId/nvz-applications", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { fieldId, applicationDate, productName, productType, nitrogenKgHa, areaAppliedHa, applicationMethod, notes, totalCostPence } = req.body as {
+  const b = req.body as Record<string, unknown>;
+  const { fieldId, applicationDate, productName, productType, nitrogenKgHa, areaAppliedHa, applicationMethod, notes } = b as {
     fieldId: number; applicationDate: string; productName: string; productType: string;
-    nitrogenKgHa: number; areaAppliedHa: number; applicationMethod?: string; notes?: string; totalCostPence?: number;
+    nitrogenKgHa: number; areaAppliedHa: number; applicationMethod?: string; notes?: string;
   };
   if (!fieldId || !applicationDate || !productName || !productType || nitrogenKgHa == null || areaAppliedHa == null) {
     res.status(400).json({ error: "Missing required fields" }); return;
   }
   if (!(await checkFieldAreaLimit(farmId, Number(fieldId), Number(areaAppliedHa), res, "Area applied"))) return;
   const totalNitrogenKg = String((parseFloat(String(nitrogenKgHa)) * parseFloat(String(areaAppliedHa))).toFixed(2));
+
+  // Delivery-linked costing
+  let stockItemId = b.stockItemId ? Number(b.stockItemId) : null;
+  let stockDeliveryId = b.stockDeliveryId ? Number(b.stockDeliveryId) : null;
+  let unitCostPencePerTonne = b.unitCostPencePerTonne ? Number(b.unitCostPencePerTonne) : null;
+  const applicationRateKgHa = b.applicationRateKgHa ? String(b.applicationRateKgHa) : null;
+  const batchNumber = b.batchNumber ? String(b.batchNumber) : null;
+  const lotNumber = b.lotNumber ? String(b.lotNumber) : null;
+
+  if (stockDeliveryId && !unitCostPencePerTonne) {
+    const [del] = await db.select().from(stockDeliveriesTable).where(eq(stockDeliveriesTable.id, stockDeliveryId)).limit(1);
+    if (del?.costPence && del?.quantity && parseFloat(String(del.quantity)) > 0) {
+      // Delivery quantity is in the stock item's unit; convert to pence/tonne
+      const [si] = del.stockItemId ? await db.select().from(stockItemsTable).where(eq(stockItemsTable.id, del.stockItemId)).limit(1) : [null];
+      const unit = si?.unit?.toLowerCase() ?? "kg";
+      const unitCostPerUnit = Number(del.costPence) / parseFloat(String(del.quantity));
+      unitCostPencePerTonne = unit === "tonne" || unit === "t" ? Math.round(unitCostPerUnit) : Math.round(unitCostPerUnit * 1000);
+      if (!stockItemId && del.stockItemId) stockItemId = del.stockItemId;
+    }
+  }
+
+  // Calculate total cost from delivery-linked price if available
+  let totalCostPence = b.totalCostPence ? Number(b.totalCostPence) : null;
+  if (unitCostPencePerTonne && applicationRateKgHa && areaAppliedHa) {
+    totalCostPence = Math.round(unitCostPencePerTonne * parseFloat(applicationRateKgHa) / 1000 * parseFloat(String(areaAppliedHa)));
+  }
+
   const [record] = await db.insert(nvzFertiliserApplicationsTable).values({
     farmId, fieldId, applicationDate: new Date(applicationDate),
     productName, productType,
     nitrogenKgHa: String(nitrogenKgHa), areaAppliedHa: String(areaAppliedHa), totalNitrogenKg,
     applicationMethod: applicationMethod ?? null, notes: notes ?? null,
     totalCostPence: totalCostPence ?? null,
+    stockItemId, stockDeliveryId, batchNumber, lotNumber,
+    applicationRateKgHa, unitCostPencePerTonne,
   }).returning();
   res.status(201).json({ record });
 });
@@ -2473,12 +2561,13 @@ router.post("/farms/:farmId/nvz-applications", requireAuth, requireTenant, requi
 router.put("/farms/:farmId/nvz-applications/:recordId", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const recordId = parseInt(req.params.recordId as string);
+  const recordId = parseInt(String(req.params.recordId), 10);
   const [existing] = await db.select().from(nvzFertiliserApplicationsTable).where(and(eq(nvzFertiliserApplicationsTable.id, recordId), eq(nvzFertiliserApplicationsTable.farmId, farmId))).limit(1);
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
-  const { fieldId, applicationDate, productName, productType, nitrogenKgHa, areaAppliedHa, applicationMethod, notes, totalCostPence } = req.body as {
+  const b = req.body as Record<string, unknown>;
+  const { fieldId, applicationDate, productName, productType, nitrogenKgHa, areaAppliedHa, applicationMethod, notes } = b as {
     fieldId?: number; applicationDate?: string; productName?: string; productType?: string;
-    nitrogenKgHa?: number; areaAppliedHa?: number; applicationMethod?: string; notes?: string; totalCostPence?: number;
+    nitrogenKgHa?: number; areaAppliedHa?: number; applicationMethod?: string; notes?: string;
   };
   const updNvzFieldId = fieldId != null ? Number(fieldId) : (existing.fieldId ?? null);
   const updAreaHaNum = areaAppliedHa != null ? Number(areaAppliedHa) : Number(existing.areaAppliedHa);
@@ -2486,17 +2575,41 @@ router.put("/farms/:farmId/nvz-applications/:recordId", requireAuth, requireTena
   const updNKgHa = nitrogenKgHa != null ? String(nitrogenKgHa) : existing.nitrogenKgHa;
   const updAreaHa = areaAppliedHa != null ? String(areaAppliedHa) : existing.areaAppliedHa;
   const updTotalNKg = String((parseFloat(updNKgHa) * parseFloat(updAreaHa)).toFixed(2));
+
+  // Delivery-linked costing update
+  let stockItemId = b.stockItemId != null ? Number(b.stockItemId) : existing.stockItemId;
+  let stockDeliveryId = b.stockDeliveryId != null ? Number(b.stockDeliveryId) : existing.stockDeliveryId;
+  let unitCostPencePerTonne = b.unitCostPencePerTonne != null ? Number(b.unitCostPencePerTonne) : existing.unitCostPencePerTonne;
+  const applicationRateKgHa = b.applicationRateKgHa != null ? String(b.applicationRateKgHa) : existing.applicationRateKgHa;
+  const batchNumber = b.batchNumber !== undefined ? (b.batchNumber ? String(b.batchNumber) : null) : existing.batchNumber;
+  const lotNumber = b.lotNumber !== undefined ? (b.lotNumber ? String(b.lotNumber) : null) : existing.lotNumber;
+
+  if (stockDeliveryId && b.stockDeliveryId != null && !b.unitCostPencePerTonne) {
+    const [del] = await db.select().from(stockDeliveriesTable).where(eq(stockDeliveriesTable.id, stockDeliveryId)).limit(1);
+    if (del?.costPence && del?.quantity && parseFloat(String(del.quantity)) > 0) {
+      const [si] = del.stockItemId ? await db.select().from(stockItemsTable).where(eq(stockItemsTable.id, del.stockItemId)).limit(1) : [null];
+      const unit = si?.unit?.toLowerCase() ?? "kg";
+      const unitCostPerUnit = Number(del.costPence) / parseFloat(String(del.quantity));
+      unitCostPencePerTonne = unit === "tonne" || unit === "t" ? Math.round(unitCostPerUnit) : Math.round(unitCostPerUnit * 1000);
+      if (!stockItemId && del.stockItemId) stockItemId = del.stockItemId;
+    }
+  }
+
+  let totalCostPence = b.totalCostPence != null ? Number(b.totalCostPence) : existing.totalCostPence;
+  if (unitCostPencePerTonne && applicationRateKgHa && updAreaHa) {
+    totalCostPence = Math.round(unitCostPencePerTonne * parseFloat(applicationRateKgHa) / 1000 * parseFloat(updAreaHa));
+  }
+
   const [record] = await db.update(nvzFertiliserApplicationsTable).set({
     fieldId: fieldId ?? existing.fieldId,
     applicationDate: applicationDate ? new Date(applicationDate) : existing.applicationDate,
     productName: productName ?? existing.productName,
     productType: productType ?? existing.productType,
-    nitrogenKgHa: updNKgHa,
-    areaAppliedHa: updAreaHa,
-    totalNitrogenKg: updTotalNKg,
+    nitrogenKgHa: updNKgHa, areaAppliedHa: updAreaHa, totalNitrogenKg: updTotalNKg,
     applicationMethod: applicationMethod !== undefined ? (applicationMethod || null) : existing.applicationMethod,
     notes: notes !== undefined ? (notes || null) : existing.notes,
-    totalCostPence: totalCostPence !== undefined ? (totalCostPence ?? null) : existing.totalCostPence,
+    totalCostPence, stockItemId, stockDeliveryId, batchNumber, lotNumber,
+    applicationRateKgHa, unitCostPencePerTonne,
   }).where(and(eq(nvzFertiliserApplicationsTable.id, recordId), eq(nvzFertiliserApplicationsTable.farmId, farmId))).returning();
   res.json({ record });
 });
@@ -13502,6 +13615,14 @@ router.post("/farms/:farmId/seed-drilling", requireAuth, requireTenant, requireM
   const fieldId = body.fieldId ? Number(body.fieldId) : null;
   const areaSeededHa = body.areaSeededHa ? Number(body.areaSeededHa) : null;
   if (!(await checkFieldAreaLimit(farmId, fieldId, areaSeededHa, res, "Area drilled"))) return;
+  // Auto-populate seedCostPencePerKg from delivery when not provided
+  if (body.stockDeliveryId && !body.seedCostPencePerKg) {
+    const [del] = await db.select().from(stockDeliveriesTable).where(eq(stockDeliveriesTable.id, Number(body.stockDeliveryId))).limit(1);
+    if (del?.costPence && del?.quantity && parseFloat(String(del.quantity)) > 0) {
+      body.seedCostPencePerKg = Math.round(Number(del.costPence) / parseFloat(String(del.quantity)));
+    }
+    if (!body.stockItemId && del?.stockItemId) body.stockItemId = del.stockItemId;
+  }
   const [record] = await db.insert(seedDrillingRecordsTable).values({ ...body, farmId }).returning();
   res.json({ record });
 });
@@ -21890,10 +22011,52 @@ router.get("/farms/:farmId/fuel/usage", requireAuth, requireTenant, requireModul
   res.json({ records });
 });
 
+router.get("/farms/:farmId/fuel-weighted-price", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const tankId = req.query.tankId ? parseInt(String(req.query.tankId), 10) : null;
+  if (!tankId || isNaN(tankId)) { res.status(400).json({ error: "tankId required" }); return; }
+  const deliveries = await db.select().from(fuelDeliveriesTable)
+    .where(and(eq(fuelDeliveriesTable.farmId, farmId), eq(fuelDeliveriesTable.tankId, tankId)))
+    .orderBy(desc(fuelDeliveriesTable.deliveryDate))
+    .limit(20);
+  if (deliveries.length === 0) { res.json({ costPencePerLitre: null, deliveryCount: 0 }); return; }
+  // Weighted average — use unitPricePence if available, else derive from totalCostPence/quantity
+  let totalCostPence = 0;
+  let totalQtyLitres = 0;
+  for (const d of deliveries) {
+    const qty = parseFloat(String(d.quantityLitres ?? 0));
+    if (qty <= 0) continue;
+    const unitP = d.unitPricePence ?? (d.totalCostPence ? Math.round(d.totalCostPence / qty) : null);
+    if (unitP == null) continue;
+    totalCostPence += unitP * qty;
+    totalQtyLitres += qty;
+  }
+  const costPencePerLitre = totalQtyLitres > 0 ? Math.round(totalCostPence / totalQtyLitres) : null;
+  res.json({ costPencePerLitre, deliveryCount: deliveries.length });
+});
+
 router.post("/farms/:farmId/fuel/usage", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.insert(fuelUsageTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const fuelUsageBody = sanitiseBody(req.body as Record<string, unknown>);
+  // Auto-populate costPencePerLitre from tank weighted average when not provided
+  if (fuelUsageBody.tankId && !fuelUsageBody.costPencePerLitre) {
+    const deliveries = await db.select().from(fuelDeliveriesTable)
+      .where(and(eq(fuelDeliveriesTable.farmId, farmId), eq(fuelDeliveriesTable.tankId, Number(fuelUsageBody.tankId))))
+      .orderBy(desc(fuelDeliveriesTable.deliveryDate))
+      .limit(20);
+    let totalCostP = 0; let totalQtyL = 0;
+    for (const d of deliveries) {
+      const qty = parseFloat(String(d.quantityLitres ?? 0));
+      if (qty <= 0) continue;
+      const unitP = d.unitPricePence ?? (d.totalCostPence ? Math.round(d.totalCostPence / qty) : null);
+      if (unitP == null) continue;
+      totalCostP += unitP * qty; totalQtyL += qty;
+    }
+    if (totalQtyL > 0) fuelUsageBody.costPencePerLitre = Math.round(totalCostP / totalQtyL);
+  }
+  const [record] = await db.insert(fuelUsageTable).values({ ...fuelUsageBody, farmId }).returning();
   if (record.tankId && record.quantityLitres) {
     const tank = await db.select().from(fuelTanksTable).where(eq(fuelTanksTable.id, record.tankId)).limit(1);
     if (tank[0]) {

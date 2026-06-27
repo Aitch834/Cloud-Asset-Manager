@@ -712,6 +712,9 @@ interface SeedRecord {
   weatherNotes: string | null;
   notes: string | null;
   createdAt: string;
+  stockItemId: number | null;
+  stockDeliveryId: number | null;
+  batchNumber: string | null;
 }
 
 const SOIL_CONDITIONS = [
@@ -740,6 +743,9 @@ const EMPTY_SEED = {
   soilConditions: "",
   weatherNotes: "",
   notes: "",
+  stockItemId: "",
+  stockDeliveryId: "",
+  batchNumber: "",
 };
 
 function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: FieldRecord[] }) {
@@ -836,6 +842,9 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
       soilConditions: r.soilConditions ?? "",
       weatherNotes: r.weatherNotes ?? "",
       notes: r.notes ?? "",
+      stockItemId: r.stockItemId != null ? String(r.stockItemId) : "",
+      stockDeliveryId: r.stockDeliveryId != null ? String(r.stockDeliveryId) : "",
+      batchNumber: r.batchNumber ?? "",
     });
     setShowForm(true);
   }
@@ -848,6 +857,38 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
     return { start: new Date(Date.UTC(sy, 7, 1)), end: new Date(Date.UTC(sy + 1, 6, 31, 23, 59, 59)) };
   }
 
+  const { data: seedStockItemsData } = useQuery<{ items: any[] }>({
+    queryKey: ["stock-items", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/stock-items`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const seedStockItems = (seedStockItemsData?.items ?? []).filter((si: any) =>
+    ["seed", "cereal", "grain", "osr", "crop", "variety"].some(t => String(si.stockType ?? si.category ?? "").toLowerCase().includes(t)) || !(["chemical", "fuel", "fertiliser", "fert"].some(t => String(si.stockType ?? "").toLowerCase().includes(t)))
+  );
+
+  const { data: seedDeliveriesData } = useQuery<{ deliveries: any[] }>({
+    queryKey: ["stock-deliveries-for-item", farmId, formData.stockItemId],
+    queryFn: () => fetch(`/api/farms/${farmId}/stock-deliveries-for-item?stockItemId=${formData.stockItemId}`).then(r => r.json()),
+    enabled: !!farmId && !!formData.stockItemId,
+  });
+
+  function handleSeedDeliverySelect(deliveryId: string) {
+    if (!deliveryId) {
+      setField("stockDeliveryId", "");
+      return;
+    }
+    const del = (seedDeliveriesData?.deliveries ?? []).find((d: any) => String(d.id) === deliveryId);
+    setField("stockDeliveryId", deliveryId);
+    if (del?.batchNumber) setField("batchNumber", del.batchNumber);
+    // Auto-populate cost — delivery is pence per stock unit (likely kg), form shows £/kg
+    if (del?.unitPricePence != null) {
+      const unit = (del.stockItemUnit ?? "kg").toLowerCase();
+      const pencePerKg = unit === "tonne" || unit === "t" ? del.unitPricePence / 1000 : del.unitPricePence;
+      setField("seedCostPencePerKg", (pencePerKg / 100).toFixed(4));
+    }
+    if (del?.stockItemId && !formData.stockItemId) setField("stockItemId", String(del.stockItemId));
+  }
+
   function buildBody() {
     return {
       ...formData,
@@ -856,6 +897,9 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
       seedRate: formData.seedRate ? formData.seedRate : null,
       areaSeededHa: formData.areaSeededHa ? formData.areaSeededHa : null,
       seedCostPencePerKg: formData.seedCostPencePerKg ? Math.round(parseFloat(formData.seedCostPencePerKg) * 100) : null,
+      stockItemId: formData.stockItemId ? Number(formData.stockItemId) : null,
+      stockDeliveryId: formData.stockDeliveryId ? Number(formData.stockDeliveryId) : null,
+      batchNumber: formData.batchNumber || null,
     };
   }
 
@@ -1012,6 +1056,40 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Seed Lot / Batch No.</label>
                   <Input placeholder="e.g. UK2025-A1234" value={formData.seedLotNumber} onChange={e => setField("seedLotNumber", e.target.value)} />
+                </div>
+                {/* ── Delivery-linked costing ── */}
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-3 py-2.5 space-y-2">
+                  <p className="text-xs font-semibold text-emerald-800">Link to Stock Delivery — auto-populate cost</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs font-medium text-foreground/60 mb-1 block">Seed Stock Item</label>
+                      <select className="w-full h-8 rounded-lg border border-border bg-white px-2 text-xs focus:outline-none"
+                        value={formData.stockItemId}
+                        onChange={e => { setField("stockItemId", e.target.value); setField("stockDeliveryId", ""); }}>
+                        <option value="">— None —</option>
+                        {(seedStockItemsData?.items ?? []).map((si: any) => (
+                          <option key={String(si.id)} value={String(si.id)}>{String(si.name)}{si.unit ? ` (${si.unit})` : ""}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-foreground/60 mb-1 block">Delivery</label>
+                      <select className="w-full h-8 rounded-lg border border-border bg-white px-2 text-xs focus:outline-none"
+                        value={formData.stockDeliveryId}
+                        onChange={e => handleSeedDeliverySelect(e.target.value)}
+                        disabled={!formData.stockItemId}>
+                        <option value="">{formData.stockItemId ? "— Select delivery —" : "— Select item first —"}</option>
+                        {(seedDeliveriesData?.deliveries ?? []).map((d: any) => (
+                          <option key={String(d.id)} value={String(d.id)}>
+                            {d.deliveryDate ? new Date(d.deliveryDate).toLocaleDateString("en-GB") : "—"}{d.batchNumber ? ` · ${d.batchNumber}` : ""}{d.unitPricePence != null ? ` · £${(d.unitPricePence / 100).toFixed(2)}/${d.stockItemUnit ?? "unit"}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  {formData.stockDeliveryId && (
+                    <p className="text-[11px] text-emerald-700">Seed cost auto-populated from delivery price.{formData.batchNumber ? ` Batch: ${formData.batchNumber}` : ""}</p>
+                  )}
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Seed Rate</label>

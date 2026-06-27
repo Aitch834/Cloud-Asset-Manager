@@ -59,6 +59,7 @@ export const fuelUsageTable = pgTable("fuel_usage", {
   fieldId: integer("field_id").references(() => fieldsTable.id),
   recordedBy: text("recorded_by"),
   notes: text("notes"),
+  costPencePerLitre: integer("cost_pence_per_litre"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

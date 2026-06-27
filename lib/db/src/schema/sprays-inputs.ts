@@ -95,6 +95,13 @@ export const nvzFertiliserApplicationsTable = pgTable("nvz_fertiliser_applicatio
   applicationMethod: text("application_method"),
   notes: text("notes"),
   totalCostPence: integer("total_cost_pence"),
+  // ── Delivery-linked costing (Option B) ──────────────────────────────────────
+  stockItemId: integer("stock_item_id").references(() => stockItemsTable.id),
+  stockDeliveryId: integer("stock_delivery_id").references(() => stockDeliveriesTable.id),
+  batchNumber: text("batch_number"),
+  lotNumber: text("lot_number"),
+  applicationRateKgHa: numeric("application_rate_kg_ha", { precision: 10, scale: 2 }),
+  unitCostPencePerTonne: integer("unit_cost_pence_per_tonne"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

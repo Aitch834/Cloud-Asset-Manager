@@ -621,12 +621,17 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
       setForm((f: any) => ({ ...f, stockDeliveryId: "", batchNumber: "", lotNumber: "", supplierId: "" }));
     } else {
       const del = (deliveriesQ.data ?? []).find((d: any) => String(d.id) === v);
+      // Compute unit price from delivery (pence per stock unit = costPence / quantity)
+      const unitPricePence = del?.costPence && del?.quantity && parseFloat(String(del.quantity)) > 0
+        ? Math.round(Number(del.costPence) / parseFloat(String(del.quantity)))
+        : null;
       setForm((f: any) => ({
         ...f,
         stockDeliveryId: v,
         batchNumber: del?.batchNumber || f.batchNumber,
         lotNumber: del?.lotNumber || f.lotNumber,
         supplierId: del?.supplierId ? String(del.supplierId) : f.supplierId,
+        productCostPencePerUnit: unitPricePence != null ? String(unitPricePence) : f.productCostPencePerUnit,
       }));
     }
   };

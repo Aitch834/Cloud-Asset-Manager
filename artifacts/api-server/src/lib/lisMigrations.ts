@@ -52,6 +52,27 @@ export async function runLisMigrations(): Promise<void> {
     )
   `);
 
+  // Delivery-linked costing — Option B schema additions
+  await db.execute(sql`
+    ALTER TABLE nvz_fertiliser_applications
+      ADD COLUMN IF NOT EXISTS stock_item_id integer,
+      ADD COLUMN IF NOT EXISTS stock_delivery_id integer,
+      ADD COLUMN IF NOT EXISTS batch_number text,
+      ADD COLUMN IF NOT EXISTS lot_number text,
+      ADD COLUMN IF NOT EXISTS application_rate_kg_ha numeric(10,2),
+      ADD COLUMN IF NOT EXISTS unit_cost_pence_per_tonne integer
+  `);
+  await db.execute(sql`
+    ALTER TABLE seed_drilling_records
+      ADD COLUMN IF NOT EXISTS stock_item_id integer,
+      ADD COLUMN IF NOT EXISTS stock_delivery_id integer,
+      ADD COLUMN IF NOT EXISTS batch_number text
+  `);
+  await db.execute(sql`
+    ALTER TABLE fuel_usage
+      ADD COLUMN IF NOT EXISTS cost_pence_per_litre integer
+  `);
+
   // LIS LIP Submission Log — tracks every cattle movement/birth/death submission via LIP API
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS lip_submissions (

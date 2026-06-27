@@ -209,6 +209,7 @@ interface ReportData {
     totalFertiliserCostPence: number;
     totalSeedCostPence: number;
     totalSprayCostPence: number;
+    totalFuelCostPence: number;
     proratedRentPence: number;
     totalMiscExpensesPence: number;
     totalRevenuePence: number;
@@ -623,7 +624,10 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
                               <Td right mono>{n(s.waterVolumeLitres, 0)}</Td>
                               <Td right mono>{sprayCost !== null ? fmtCost(sprayCost) : "—"}</Td>
                               <Td>{s.growthStage ?? "—"}</Td>
-                              <Td>{s.operatorName ?? "—"}</Td>
+                              <Td>
+                                <span>{s.operatorName ?? "—"}</span>
+                                {(s as any).stockDeliveryId && <span className="ml-1 inline-flex items-center text-[9px] font-semibold px-1 py-0 rounded bg-emerald-100 text-emerald-700 border border-emerald-200">DEL</span>}
+                              </Td>
                             </tr>
                           );
                         })}
@@ -857,6 +861,12 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
                           <tr className="border-b border-gray-100">
                             <td className="px-4 py-2.5 text-gray-600 text-xs">Spray input cost</td>
                             <td className="px-4 py-2.5 text-right font-mono text-xs text-gray-800">{fmtCost(data.summary.totalSprayCostPence)}</td>
+                          </tr>
+                        )}
+                        {(data.summary.totalFuelCostPence ?? 0) > 0 && (
+                          <tr className="border-b border-gray-100">
+                            <td className="px-4 py-2.5 text-gray-600 text-xs">Fuel cost</td>
+                            <td className="px-4 py-2.5 text-right font-mono text-xs text-gray-800">{fmtCost(data.summary.totalFuelCostPence)}</td>
                           </tr>
                         )}
                         {data.summary.totalMachineCostPence > 0 && (

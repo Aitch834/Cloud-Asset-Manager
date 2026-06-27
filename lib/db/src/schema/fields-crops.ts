@@ -257,6 +257,10 @@ export const seedDrillingRecordsTable = pgTable("seed_drilling_records", {
   soilConditions: text("soil_conditions"),
   weatherNotes: text("weather_notes"),
   notes: text("notes"),
+  // ── Delivery-linked costing (Option B) ──────────────────────────────────────
+  stockItemId: integer("stock_item_id"),
+  stockDeliveryId: integer("stock_delivery_id"),
+  batchNumber: text("batch_number"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

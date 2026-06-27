@@ -2695,6 +2695,26 @@ export default function FuelEnergyPage() {
                 <Input className="mt-1.5" value={usageForm.recordedByCustom ?? ""} onChange={e => setUsageForm(f => ({ ...f, recordedByCustom: e.target.value }))} placeholder="Staff member name" />
               )}
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Fuel cost (p/litre) <span className="text-xs text-gray-400 font-normal">— auto from tank deliveries</span></Label>
+                <Input
+                  type="number" step="1" min="0"
+                  placeholder="e.g. 110 (= £1.10/L)"
+                  value={usageForm.costPencePerLitre ?? ""}
+                  onChange={e => setUsageForm(f => ({ ...f, costPencePerLitre: e.target.value }))}
+                />
+                {usageForm.costPencePerLitre && usageForm.quantityLitres && (
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    ≈ {((parseInt(usageForm.costPencePerLitre) * parseFloat(usageForm.quantityLitres)) / 100).toFixed(2)} £ total
+                  </p>
+                )}
+              </div>
+              <div>
+                <Label>Field (optional)</Label>
+                <Input placeholder="Field name or ID" value={usageForm.fieldId ?? ""} onChange={e => setUsageForm(f => ({ ...f, fieldId: e.target.value }))} />
+              </div>
+            </div>
             <div><Label>Notes</Label><Textarea value={usageForm.notes ?? ""} onChange={e => setUsageForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
@@ -2704,7 +2724,13 @@ export default function FuelEnergyPage() {
               const resolvedVehicle = usageForm.vehicleName === "__custom__" ? (usageForm.vehicleNameCustom || undefined) : (usageForm.vehicleName || undefined);
               const resolvedRecordedBy = usageForm.recordedBy === "__custom__" ? (usageForm.recordedByCustom || undefined) : (usageForm.recordedBy || undefined);
               const { vehicleNameCustom: _vnc, recordedByCustom: _rbc, ...rest } = usageForm;
-              usageMut.mutate({ ...rest, vehicleName: resolvedVehicle, recordedBy: resolvedRecordedBy });
+              usageMut.mutate({
+                ...rest,
+                vehicleName: resolvedVehicle,
+                recordedBy: resolvedRecordedBy,
+                costPencePerLitre: usageForm.costPencePerLitre ? parseInt(usageForm.costPencePerLitre) : undefined,
+                fieldId: usageForm.fieldId ? parseInt(usageForm.fieldId) : undefined,
+              });
             }}>Record Usage</Button>
           </DialogFooter>
         </DialogContent>

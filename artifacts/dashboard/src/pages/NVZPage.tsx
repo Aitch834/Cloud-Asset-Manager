@@ -101,6 +101,9 @@ interface NvzApplication {
   applicationDate: string; productName: string; productType: string;
   nitrogenKgHa: string; areaAppliedHa: string; totalNitrogenKg: string;
   applicationMethod: string | null; notes: string | null; totalCostPence: number | null; createdAt: string;
+  stockItemId: number | null; stockDeliveryId: number | null;
+  applicationRateKgHa: string | null; unitCostPencePerTonne: number | null;
+  batchNumber: string | null; lotNumber: string | null;
 }
 
 interface Field { id: number; name: string; areaHectares: string | null; isNvz: boolean; nvzLandType: string | null; }
@@ -115,6 +118,12 @@ const emptyForm = {
   applicationMethod: "",
   notes: "",
   totalCostPence: "",
+  stockItemId: "",
+  stockDeliveryId: "",
+  applicationRateKgHa: "",
+  unitCostPencePerTonne: "",
+  batchNumber: "",
+  lotNumber: "",
 };
 
 function NBar({ value, limit, className = "" }: { value: number; limit: number; className?: string }) {
@@ -416,6 +425,12 @@ export default function NVZPage() {
       applicationMethod: r.applicationMethod ?? "",
       notes: r.notes ?? "",
       totalCostPence: r.totalCostPence != null ? String(r.totalCostPence) : "",
+      stockItemId: r.stockItemId != null ? String(r.stockItemId) : "",
+      stockDeliveryId: r.stockDeliveryId != null ? String(r.stockDeliveryId) : "",
+      applicationRateKgHa: r.applicationRateKgHa != null ? String(r.applicationRateKgHa) : "",
+      unitCostPencePerTonne: r.unitCostPencePerTonne != null ? String(r.unitCostPencePerTonne) : "",
+      batchNumber: r.batchNumber ?? "",
+      lotNumber: r.lotNumber ?? "",
     });
   }
   function closeAppForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }
@@ -547,17 +562,67 @@ export default function NVZPage() {
       (f.totalNKgHa > TOTAL_N_LIMIT * 0.85 || f.organicNKgHa > ORGANIC_N_LIMIT * 0.85)
   ).length;
 
-  const buildNvzPayload = (f: typeof emptyForm) => ({
-    fieldId: parseInt(f.fieldId),
-    applicationDate: f.applicationDate,
-    productName: f.productName,
-    productType: f.productType,
-    nitrogenKgHa: parseFloat(f.nitrogenKgHa),
-    areaAppliedHa: parseFloat(f.areaAppliedHa),
-    applicationMethod: f.applicationMethod || undefined,
-    notes: f.notes || undefined,
-    totalCostPence: f.totalCostPence !== "" && f.totalCostPence != null ? Number(f.totalCostPence) : undefined,
+  const nvzDeliveriesQ = useQuery<{ deliveries: any[] }>({
+    queryKey: ["stock-deliveries-for-item", farmId, form.stockItemId],
+    queryFn: () => fetch(`/api/farms/${farmId}/stock-deliveries-for-item?stockItemId=${form.stockItemId}`).then(r => r.json()),
+    enabled: !!farmId && !!form.stockItemId,
   });
+
+  const nvzStockItemsQ = useQuery<{ items: any[] }>({
+    queryKey: ["stock-items", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/stock-items`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
+  const fertStockItems = (nvzStockItemsQ.data?.items ?? []).filter((si: any) =>
+    ["fertiliser", "fert", "feed", "manure", "digestate"].some(t => String(si.stockType ?? "").toLowerCase().includes(t))
+  );
+
+  function handleNvzDeliverySelect(deliveryId: string) {
+    if (!deliveryId) {
+      setForm(f => ({ ...f, stockDeliveryId: "", batchNumber: "", lotNumber: "", unitCostPencePerTonne: "" }));
+      return;
+    }
+    const del = (nvzDeliveriesQ.data?.deliveries ?? []).find((d: any) => String(d.id) === deliveryId);
+    const unitPricePence = del?.unitPricePence ?? null;
+    const unit = (del?.stockItemUnit ?? "kg").toLowerCase();
+    const unitCostPencePerTonne = unitPricePence != null
+      ? (unit === "tonne" || unit === "t" ? unitPricePence : unitPricePence * 1000)
+      : null;
+    setForm(f => ({
+      ...f,
+      stockDeliveryId: deliveryId,
+      batchNumber: del?.batchNumber ?? f.batchNumber,
+      lotNumber: del?.lotNumber ?? f.lotNumber,
+      unitCostPencePerTonne: unitCostPencePerTonne != null ? String(Math.round(unitCostPencePerTonne)) : f.unitCostPencePerTonne,
+    }));
+  }
+
+  const buildNvzPayload = (f: typeof emptyForm) => {
+    const unitCostPT = f.unitCostPencePerTonne !== "" ? Number(f.unitCostPencePerTonne) : undefined;
+    const appRateKgHa = f.applicationRateKgHa !== "" ? parseFloat(f.applicationRateKgHa) : undefined;
+    const areaHa = parseFloat(f.areaAppliedHa);
+    const computedCost = unitCostPT && appRateKgHa && areaHa
+      ? Math.round(unitCostPT * appRateKgHa / 1000 * areaHa)
+      : undefined;
+    return {
+      fieldId: parseInt(f.fieldId),
+      applicationDate: f.applicationDate,
+      productName: f.productName,
+      productType: f.productType,
+      nitrogenKgHa: parseFloat(f.nitrogenKgHa),
+      areaAppliedHa: areaHa,
+      applicationMethod: f.applicationMethod || undefined,
+      notes: f.notes || undefined,
+      totalCostPence: computedCost ?? (f.totalCostPence !== "" && f.totalCostPence != null ? Number(f.totalCostPence) : undefined),
+      stockItemId: f.stockItemId ? parseInt(f.stockItemId) : undefined,
+      stockDeliveryId: f.stockDeliveryId ? parseInt(f.stockDeliveryId) : undefined,
+      applicationRateKgHa: appRateKgHa,
+      unitCostPencePerTonne: unitCostPT,
+      batchNumber: f.batchNumber || undefined,
+      lotNumber: f.lotNumber || undefined,
+    };
+  };
 
   const addMut = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
@@ -986,6 +1051,72 @@ export default function NVZPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* ── Delivery-linked costing ── */}
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-3 py-2.5 space-y-2.5">
+              <p className="text-xs font-semibold text-emerald-800 flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+                Link to Stock Delivery — auto-populate cost
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-medium text-foreground/60 mb-1 block">Fertiliser Stock Item</label>
+                  <Select value={form.stockItemId} onValueChange={v => setForm(f => ({ ...f, stockItemId: v, stockDeliveryId: "", unitCostPencePerTonne: "", batchNumber: "", lotNumber: "" }))}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select stock item…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">— None —</SelectItem>
+                      {fertStockItems.map((si: any) => <SelectItem key={String(si.id)} value={String(si.id)}>{String(si.name)}{si.unit ? ` (${si.unit})` : ""}</SelectItem>)}
+                      {nvzStockItemsQ.data?.items?.filter((si: any) => !fertStockItems.find((f: any) => f.id === si.id)).map((si: any) => <SelectItem key={String(si.id)} value={String(si.id)}>{String(si.name)}{si.unit ? ` (${si.unit})` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-foreground/60 mb-1 block">Delivery</label>
+                  <Select value={form.stockDeliveryId} onValueChange={handleNvzDeliverySelect} disabled={!form.stockItemId}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={form.stockItemId ? "Select delivery…" : "Select item first"} /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">— None —</SelectItem>
+                      {(nvzDeliveriesQ.data?.deliveries ?? []).map((d: any) => (
+                        <SelectItem key={String(d.id)} value={String(d.id)}>
+                          {d.deliveryDate ? new Date(d.deliveryDate).toLocaleDateString("en-GB") : "—"}{d.batchNumber ? ` · ${d.batchNumber}` : ""}{d.unitPricePence != null ? ` · £${(d.unitPricePence / 100).toFixed(2)}/${d.stockItemUnit ?? "unit"}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-xs font-medium text-foreground/60 mb-1 block">Application Rate (kg/ha)</label>
+                  <Input type="number" step="0.1" min="0" placeholder="e.g. 200" className="h-8 text-xs"
+                    value={form.applicationRateKgHa}
+                    onChange={e => setForm(f => ({ ...f, applicationRateKgHa: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-foreground/60 mb-1 block">Unit Cost (p/tonne)</label>
+                  <Input type="number" step="1" min="0" placeholder="auto" className="h-8 text-xs"
+                    value={form.unitCostPencePerTonne}
+                    onChange={e => setForm(f => ({ ...f, unitCostPencePerTonne: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-foreground/60 mb-1 block">Calc. cost</label>
+                  <div className="h-8 flex items-center px-2 rounded-lg border border-border/40 bg-white text-xs font-mono text-emerald-700">
+                    {form.unitCostPencePerTonne && form.applicationRateKgHa && form.areaAppliedHa
+                      ? `£${(Number(form.unitCostPencePerTonne) * parseFloat(form.applicationRateKgHa) / 1000 * parseFloat(form.areaAppliedHa) / 100).toFixed(2)}`
+                      : "—"}
+                  </div>
+                </div>
+              </div>
+              {(form.batchNumber || form.lotNumber) && (
+                <div className="flex gap-2 text-xs text-emerald-700">
+                  {form.batchNumber && <span>Batch: <strong>{form.batchNumber}</strong></span>}
+                  {form.lotNumber && <span>Lot: <strong>{form.lotNumber}</strong></span>}
+                </div>
+              )}
+            </div>
+
             <div>
               <label className="text-sm font-medium mb-1.5 block">Notes</label>
               <Input
@@ -995,7 +1126,7 @@ export default function NVZPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Total Application Cost <span className="text-foreground/40 font-normal">(£) — optional</span></label>
+              <label className="text-sm font-medium mb-1.5 block">Total Application Cost <span className="text-foreground/40 font-normal">(£) — optional, overridden by delivery calc above</span></label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/40 text-sm font-medium">£</span>
                 <Input
@@ -1008,7 +1139,7 @@ export default function NVZPage() {
                   }}
                 />
               </div>
-              <p className="text-xs text-foreground/40 mt-1">Total cost of this application (product + spreading). Used for gross margin reporting.</p>
+              <p className="text-xs text-foreground/40 mt-1">Manual override — leave blank if using delivery-linked costing above.</p>
             </div>
           </div>
           <DialogFooter className="mt-4">
