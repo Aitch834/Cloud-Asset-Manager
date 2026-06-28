@@ -1054,6 +1054,7 @@ const MV_TEST_TYPES = [
 
 interface MvRecord {
   id: number; testDate: string; testType: string;
+  testRef?: string | null; sampledByType?: string | null;
   laboratory?: string | null; labRef?: string | null;
   animalsTestedCount?: number | null; positiveCount?: number | null;
   result?: string | null;
@@ -1081,6 +1082,11 @@ export function MvTab({ farmId }: { farmId: number }) {
 
   const { data, isLoading } = useQuery({ queryKey: ["sheep-dairy-mv", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-dairy/mv-monitoring`)).then(r => r.json()) });
   const allRecords: MvRecord[] = Array.isArray(data) ? data : (data?.records ?? []);
+
+  const { data: vetData } = useQuery({ queryKey: ["vet-names", farmId], queryFn: () => fetch(api(`farms/${farmId}/vet-names`)).then(r => r.json()), enabled: open });
+  const vetNames: string[] = (vetData?.vets ?? []).map((v: { vetName: string }) => v.vetName).filter(Boolean);
+  const { data: staffData } = useQuery({ queryKey: ["farm-staff", farmId], queryFn: () => fetch(api(`farms/${farmId}/staff`)).then(r => r.json()), enabled: open });
+  const staffNames: string[] = Array.isArray(staffData) ? staffData.map((s: { name: string }) => s.name).filter(Boolean) : [];
 
   const mvYears = useMemo(() => {
     const s = new Set<string>(allRecords.map(r => String(r.testDate || "").slice(0, 4)).filter(Boolean));
@@ -1166,6 +1172,7 @@ export function MvTab({ farmId }: { farmId: number }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide">
+              <th className="py-2 px-3 text-left">Ref</th>
               <th className="py-2 px-3 text-left">Date</th>
               <th className="py-2 px-3 text-left">Test Type</th>
               <th className="py-2 px-3 text-left">Laboratory</th>
@@ -1176,6 +1183,7 @@ export function MvTab({ farmId }: { farmId: number }) {
             </tr></thead>
             <tbody>{records.map(r => (
               <tr key={r.id} className={`border-b border-gray-50 hover:bg-gray-50 ${mvIsAwaiting(r) ? "bg-amber-50/50" : ""}`}>
+                <td className="py-2 px-3 text-xs font-mono text-gray-400">{r.testRef || "—"}</td>
                 <td className="py-2 px-3 font-medium">{fmt(r.testDate)}</td>
                 <td className="py-2 px-3 text-xs">{MV_TEST_TYPES.find(t => t.value === r.testType)?.label || r.testType?.replace(/-/g, " ")}</td>
                 <td className="py-2 px-3 text-xs text-gray-500">{r.laboratory || "—"}</td>
@@ -1207,12 +1215,19 @@ export function MvTab({ farmId }: { farmId: number }) {
       {viewRec && (
         <Dialog open onOpenChange={() => setViewRec(null)}>
           <DialogContent style={{ maxWidth: "34rem" }}>
-            <DialogHeader><DialogTitle>MV Test — {fmt(viewRec.testDate)}</DialogTitle></DialogHeader>
+            <DialogHeader>
+              <DialogTitle>MV Test — {fmt(viewRec.testDate)}</DialogTitle>
+              {viewRec.testRef && <p className="text-xs font-mono text-muted-foreground pt-0.5">{viewRec.testRef}</p>}
+            </DialogHeader>
             <div className="grid grid-cols-2 gap-3 text-sm py-2">
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Test Type</p><p className="font-medium">{MV_TEST_TYPES.find(t => t.value === viewRec.testType)?.label || viewRec.testType}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Laboratory</p><p className="font-medium">{viewRec.laboratory || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lab Reference</p><p className="font-medium">{viewRec.labRef || "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">{mvIsPostMortem(viewRec.testType) ? "Examining Vet" : "Sample Taken By"}</p><p className="font-medium">{viewRec.vetName || "—"}</p></div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">{mvIsPostMortem(viewRec.testType) ? "Examining Vet" : "Sample Taken By"}</p>
+                <p className="font-medium">{viewRec.vetName || "—"}</p>
+                {viewRec.sampledByType && !mvIsPostMortem(viewRec.testType) && <p className="text-xs text-gray-400">{viewRec.sampledByType === "vet" ? "Veterinary surgeon" : viewRec.sampledByType === "staff" ? "Farm staff member" : "Other"}</p>}
+              </div>
               {!mvIsBulkMilk(viewRec.testType) && !mvIsPostMortem(viewRec.testType) && <>
                 <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Animals Tested</p><p className="font-medium">{viewRec.animalsTestedCount ?? "—"}</p></div>
                 <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Positives</p><p className={`font-medium ${(viewRec.positiveCount ?? 0) > 0 ? "text-red-700" : ""}`}>{viewRec.positiveCount ?? "—"}</p></div>
@@ -1267,13 +1282,57 @@ export function MvTab({ farmId }: { farmId: number }) {
                 {form.laboratory === "Other" && (
                   <div><Label>Specify laboratory</Label><Input value={labOther} onChange={e => setLabOther(e.target.value)} placeholder="Laboratory name" /></div>
                 )}
-                <div><Label>Lab Reference No.</Label><Input value={form.labRef || ""} onChange={e => set("labRef", e.target.value)} placeholder="Lab report reference" /></div>
               </>}
               {showAnimals && <div><Label>Animals Tested</Label><Input type="number" min="0" value={form.animalsTestedCount ?? ""} onChange={e => set("animalsTestedCount", e.target.value ? parseInt(e.target.value) : null)} /></div>}
-              <div><Label>{vetLabel}</Label><Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} placeholder={isPostMortem ? "Examining vet name" : "Vet / technician / farmer"} /></div>
+              <div className="col-span-2">
+                <Label>{vetLabel}</Label>
+                <div className="space-y-1.5 mt-1">
+                  {!isPostMortem && (
+                    <Select value={form.sampledByType || ""} onValueChange={v => { set("sampledByType", v || null); set("vetName", null); }}>
+                      <SelectTrigger><SelectValue placeholder="Who took the sample?" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="vet">Veterinary surgeon</SelectItem>
+                        <SelectItem value="staff">Farm staff member</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {(isPostMortem || form.sampledByType === "vet") && vetNames.length > 0 && (
+                    <Select value={vetNames.includes(form.vetName || "") ? (form.vetName || "") : ""} onValueChange={v => set("vetName", v || null)}>
+                      <SelectTrigger><SelectValue placeholder={isPostMortem ? "Select examining vet…" : "Select vet from ledger…"} /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">— Not listed, type below —</SelectItem>
+                        {vetNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {form.sampledByType === "staff" && staffNames.length > 0 && (
+                    <Select value={staffNames.includes(form.vetName || "") ? (form.vetName || "") : ""} onValueChange={v => set("vetName", v || null)}>
+                      <SelectTrigger><SelectValue placeholder="Select staff member…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">— Not listed, type below —</SelectItem>
+                        {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {(isPostMortem || form.sampledByType) && (
+                    <Input
+                      value={form.vetName || ""}
+                      onChange={e => set("vetName", e.target.value)}
+                      placeholder={
+                        isPostMortem ? "Examining vet name" :
+                        form.sampledByType === "vet" ? "Vet name (or select above)" :
+                        form.sampledByType === "staff" ? "Staff member name (or select above)" :
+                        "Name or description"
+                      }
+                    />
+                  )}
+                </div>
+              </div>
             </>}
 
             {(mode === "result" || mode === "edit") && <>
+              {showLab && <div><Label>Lab Reference No.</Label><Input value={form.labRef || ""} onChange={e => set("labRef", e.target.value)} placeholder="Lab report reference" /></div>}
               {showAnimals && mode === "result" && <div><Label>Animals Tested</Label><Input type="number" min="0" value={form.animalsTestedCount ?? ""} onChange={e => set("animalsTestedCount", e.target.value ? parseInt(e.target.value) : null)} /></div>}
               {showAnimals && <div><Label>Positives</Label><Input type="number" min="0" value={form.positiveCount ?? ""} onChange={e => set("positiveCount", e.target.value ? parseInt(e.target.value) : null)} /></div>}
               <div><Label>Result</Label>

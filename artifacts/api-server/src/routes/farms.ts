@@ -26172,6 +26172,12 @@ async function syncVetMedicinesToRegister(
   }
 }
 
+router.get("/farms/:farmId/vet-names", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.selectDistinct({ vetName: vetVisitsTable.vetName, vetPractice: vetVisitsTable.vetPractice }).from(vetVisitsTable).where(eq(vetVisitsTable.farmId, farmId)).orderBy(vetVisitsTable.vetName);
+  res.json({ vets: rows });
+});
+
 router.get("/farms/:farmId/vet-visits", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const visits = await db.select().from(vetVisitsTable).where(eq(vetVisitsTable.farmId, farmId)).orderBy(desc(vetVisitsTable.visitDate));
@@ -30353,7 +30359,13 @@ router.post("/farms/:farmId/sheep-dairy/mv-monitoring", requireAuth, requireTena
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(sheepDairyMvMonitoringTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
-  res.status(201).json({ record });
+  if (record && !record.testRef) {
+    const mvRef = `MV-${record.id}`;
+    const [updated] = await db.update(sheepDairyMvMonitoringTable).set({ testRef: mvRef }).where(eq(sheepDairyMvMonitoringTable.id, record.id)).returning();
+    res.status(201).json({ record: updated ?? record });
+  } else {
+    res.status(201).json({ record });
+  }
 });
 
 router.put("/farms/:farmId/sheep-dairy/mv-monitoring/:recordId", requireAuth, requireTenant, requireModuleByKey("sheep-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -30596,7 +30608,13 @@ router.post("/farms/:farmId/goat-dairy/cae-monitoring", requireAuth, requireTena
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(goatDairyCaeMonitoringTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
-  res.status(201).json({ record });
+  if (record && !record.testRef) {
+    const caeRef = `CAE-${record.id}`;
+    const [updated] = await db.update(goatDairyCaeMonitoringTable).set({ testRef: caeRef }).where(eq(goatDairyCaeMonitoringTable.id, record.id)).returning();
+    res.status(201).json({ record: updated ?? record });
+  } else {
+    res.status(201).json({ record });
+  }
 });
 
 router.put("/farms/:farmId/goat-dairy/cae-monitoring/:recordId", requireAuth, requireTenant, requireModuleByKey("goat-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
