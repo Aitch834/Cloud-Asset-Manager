@@ -3,6 +3,7 @@ import { openPrintWindow } from "@/lib/print-report";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { DocAttach } from "@/components/DocAttach";
+import { PigEnterpriseReport } from "@/components/PigEnterpriseReport";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby, ShieldCheck, Pill, CheckCircle2, Clock, MapPin, LayoutDashboard, XCircle, TrendingUp, Scale, FileDown, Eye, Paperclip, Printer } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -2626,7 +2627,7 @@ function PigAnalyticsTab({ farmId }: { farmId: number }) {
 }
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
-type Tab = "overview" | "flocks" | "movements" | "medicine" | "fci" | "feed" | "vet" | "stockmanship" | "tail-biting" | "farrowing" | "red-tractor" | "kill-records" | "salmonella" | "analytics";
+type Tab = "overview" | "flocks" | "movements" | "medicine" | "fci" | "feed" | "vet" | "stockmanship" | "tail-biting" | "farrowing" | "red-tractor" | "kill-records" | "salmonella" | "analytics" | "enterprise";
 
 export default function PigProductionPage() {
   const { farmId } = useAppStore();
@@ -2658,6 +2659,7 @@ export default function PigProductionPage() {
             <TabButton active={tab === "kill-records"} onClick={() => setTab("kill-records")}><Scale className="w-3.5 h-3.5 mr-1" />Kill Records</TabButton>
             <TabButton active={tab === "salmonella"} onClick={() => setTab("salmonella")}><AlertTriangle className="w-3.5 h-3.5 mr-1" />Salmonella</TabButton>
             <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}><TrendingUp className="w-3.5 h-3.5 mr-1" />Analytics</TabButton>
+            <TabButton active={tab === "enterprise"} onClick={() => setTab("enterprise")}><TrendingUp className="w-3.5 h-3.5 mr-1" />Enterprise Report</TabButton>
           </TabBar>
           <Button size="sm" variant="outline" onClick={handleGeneratePdf} disabled={generating} className="ml-2 shrink-0">
             {generating ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <FileDown className="w-4 h-4 mr-1" />}
@@ -2678,6 +2680,7 @@ export default function PigProductionPage() {
           {tab === "red-tractor" && <PigRedTractorChecklistTab farmId={farmId} />}
           {tab === "kill-records" && <KillRecordsTab farmId={farmId} />}
           {tab === "salmonella" && <SalmonellaMonitoringTab farmId={farmId} />}
+          {tab === "enterprise" && <PigEnterpriseReport farmId={farmId} />}
           {tab === "analytics" && <PigAnalyticsTab farmId={farmId} />}
         </CardContent></Card>
       </div>

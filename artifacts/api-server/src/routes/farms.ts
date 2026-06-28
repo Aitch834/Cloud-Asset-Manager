@@ -31746,3 +31746,440 @@ router.get("/lip/callback", async (req: Request, res: Response): Promise<void> =
 
   res.redirect(`${returnUrl}?lip_connected=true`);
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ENTERPRISE COST-OF-PRODUCTION REPORTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function speciesMatch(val: string | null | undefined, keywords: string[]): boolean {
+  if (!val) return false;
+  const s = val.toLowerCase();
+  return keywords.some(k => s.includes(k));
+}
+function qYear(q: unknown): number {
+  return parseInt(String(q ?? "")) || new Date().getFullYear();
+}
+
+// ── DAIRY ENTERPRISE REPORT ──────────────────────────────────────────────────
+router.get("/farms/:farmId/dairy-enterprise-report", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const year = qYear(req.query.year);
+  const from = new Date(`${year}-01-01T00:00:00Z`);
+  const to = new Date(`${year + 1}-01-01T00:00:00Z`);
+
+  const [milkCollections, allFeedDeliveries, livestockPurchases] = await Promise.all([
+    db.select().from(dairyMilkCollectionsTable)
+      .where(and(eq(dairyMilkCollectionsTable.farmId, farmId), gte(dairyMilkCollectionsTable.collectionDate, from), lt(dairyMilkCollectionsTable.collectionDate, to))),
+    db.select().from(feedDeliveriesTable)
+      .where(and(eq(feedDeliveriesTable.farmId, farmId), isNotNull(feedDeliveriesTable.costPence), gte(feedDeliveriesTable.deliveryDate as any, from as any), lt(feedDeliveriesTable.deliveryDate as any, to as any))),
+    db.select().from(livestockPurchasesTable)
+      .where(and(eq(livestockPurchasesTable.farmId, farmId), isNotNull(livestockPurchasesTable.totalAmountPence), gte(livestockPurchasesTable.invoiceDate as any, from as any), lt(livestockPurchasesTable.invoiceDate as any, to as any))),
+  ]);
+
+  const dairyKeywords = ["dairy", "cattle", "cow", "milk", "calf", "heifer", "bull"];
+  const feedDeliveries = allFeedDeliveries.filter(r => speciesMatch(r.speciesIntended, dairyKeywords) || !r.speciesIntended);
+
+  const totalVolumeLitres = milkCollections.reduce((s, r) => s + (parseFloat(String(r.volumeCollectedLitres ?? 0)) || 0), 0);
+  const totalMilkIncomePence = milkCollections.reduce((s, r) => {
+    if (r.netPaymentPence) return s + r.netPaymentPence;
+    if (r.pencePerLitre && r.volumeCollectedLitres) return s + Math.round(parseFloat(String(r.pencePerLitre)) * parseFloat(String(r.volumeCollectedLitres)));
+    return s;
+  }, 0);
+  const totalFeedCostPence = feedDeliveries.reduce((s, r) => s + (r.costPence ?? 0), 0);
+  const totalFeedKg = feedDeliveries.reduce((s, r) => s + (parseFloat(String(r.quantityKg ?? 0)) || 0), 0);
+  const dairyPurchaseCostPence = livestockPurchases
+    .filter(r => speciesMatch(r.species, ["cattle", "dairy", "cow", "heifer", "calf"]))
+    .reduce((s, r) => s + (r.totalAmountPence ?? 0), 0);
+
+  const totalVariableCostPence = totalFeedCostPence + dairyPurchaseCostPence;
+  const grossMarginPence = totalMilkIncomePence - totalVariableCostPence;
+
+  const months: Record<string, { volumeLitres: number; incomePence: number; feedCostPence: number; collections: number }> = {};
+  for (const r of milkCollections) {
+    const m = new Date(r.collectionDate).toISOString().slice(0, 7);
+    if (!months[m]) months[m] = { volumeLitres: 0, incomePence: 0, feedCostPence: 0, collections: 0 };
+    months[m].volumeLitres += parseFloat(String(r.volumeCollectedLitres ?? 0)) || 0;
+    months[m].incomePence += r.netPaymentPence ?? (r.pencePerLitre && r.volumeCollectedLitres ? Math.round(parseFloat(String(r.pencePerLitre)) * parseFloat(String(r.volumeCollectedLitres))) : 0);
+    months[m].collections += 1;
+  }
+  for (const r of feedDeliveries) {
+    const m = new Date(r.deliveryDate).toISOString().slice(0, 7);
+    if (!months[m]) months[m] = { volumeLitres: 0, incomePence: 0, feedCostPence: 0, collections: 0 };
+    months[m].feedCostPence += r.costPence ?? 0;
+  }
+
+  res.json({
+    year,
+    totalVolumeLitres: Math.round(totalVolumeLitres * 10) / 10,
+    totalMilkIncomePence,
+    totalFeedCostPence,
+    totalFeedKg: Math.round(totalFeedKg),
+    dairyPurchaseCostPence,
+    totalVariableCostPence,
+    grossMarginPence,
+    pencePerLitre: totalVolumeLitres > 0 ? Math.round((totalMilkIncomePence / totalVolumeLitres) * 100) / 100 : null,
+    feedCostPerLitrePence: totalVolumeLitres > 0 ? Math.round((totalFeedCostPence / totalVolumeLitres) * 100) / 100 : null,
+    grossMarginPerLitrePence: totalVolumeLitres > 0 ? Math.round((grossMarginPence / totalVolumeLitres) * 100) / 100 : null,
+    collectionCount: milkCollections.length,
+    feedDeliveryCount: feedDeliveries.length,
+    monthlyBreakdown: Object.entries(months).sort(([a], [b]) => a.localeCompare(b)).map(([month, data]) => ({
+      month, ...data,
+      grossMarginPence: data.incomePence - data.feedCostPence,
+      pplActual: data.volumeLitres > 0 ? Math.round((data.incomePence / data.volumeLitres) * 100) / 100 : null,
+    })),
+  });
+});
+
+// ── BEEF ENTERPRISE REPORT ───────────────────────────────────────────────────
+router.get("/farms/:farmId/beef-enterprise-report", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const year = qYear(req.query.year);
+  const from = new Date(`${year}-01-01T00:00:00Z`);
+  const to = new Date(`${year + 1}-01-01T00:00:00Z`);
+
+  const [settlements, allFeedDeliveries, allPurchases] = await Promise.all([
+    db.select().from(beefDeadweightSettlementsTable)
+      .where(and(eq(beefDeadweightSettlementsTable.farmId, farmId), gte(beefDeadweightSettlementsTable.killDate as any, from as any), lt(beefDeadweightSettlementsTable.killDate as any, to as any))),
+    db.select().from(feedDeliveriesTable)
+      .where(and(eq(feedDeliveriesTable.farmId, farmId), isNotNull(feedDeliveriesTable.costPence), gte(feedDeliveriesTable.deliveryDate as any, from as any), lt(feedDeliveriesTable.deliveryDate as any, to as any))),
+    db.select().from(livestockPurchasesTable)
+      .where(and(eq(livestockPurchasesTable.farmId, farmId), isNotNull(livestockPurchasesTable.totalAmountPence), gte(livestockPurchasesTable.invoiceDate as any, from as any), lt(livestockPurchasesTable.invoiceDate as any, to as any))),
+  ]);
+
+  const beefKeywords = ["beef", "cattle", "bull", "steer", "heifer", "store", "suckler"];
+  const feedDeliveries = allFeedDeliveries.filter(r => speciesMatch(r.speciesIntended, beefKeywords));
+  const purchases = allPurchases.filter(r => speciesMatch(r.species, ["cattle", "beef", "bull", "steer", "heifer", "store"]));
+
+  const totalHeadSold = settlements.reduce((s, r) => s + (r.numberOfHead ?? 0), 0);
+  const totalCarcassKg = settlements.reduce((s, r) => s + (parseFloat(String(r.totalCarcassWeightKg ?? 0)) || 0), 0);
+  const totalRevenuePence = settlements.reduce((s, r) => s + Math.round((parseFloat(String(r.netPaymentGbp ?? 0)) || 0) * 100), 0);
+  const totalFeedCostPence = feedDeliveries.reduce((s, r) => s + (r.costPence ?? 0), 0);
+  const totalFeedKg = feedDeliveries.reduce((s, r) => s + (parseFloat(String(r.quantityKg ?? 0)) || 0), 0);
+  const totalPurchaseCostPence = purchases.reduce((s, r) => s + (r.totalAmountPence ?? 0), 0);
+  const totalHeadPurchased = purchases.reduce((s, r) => s + (r.numberOfHead ?? 0), 0);
+  const totalVariableCostPence = totalFeedCostPence + totalPurchaseCostPence;
+  const grossMarginPence = totalRevenuePence - totalVariableCostPence;
+
+  res.json({
+    year,
+    totalHeadSold, totalCarcassKg: Math.round(totalCarcassKg * 10) / 10,
+    totalRevenuePence, totalFeedCostPence, totalFeedKg: Math.round(totalFeedKg),
+    totalPurchaseCostPence, totalHeadPurchased,
+    totalVariableCostPence, grossMarginPence,
+    grossMarginPerHeadPence: totalHeadSold > 0 ? Math.round(grossMarginPence / totalHeadSold) : null,
+    revenuePerKgDwtPence: totalCarcassKg > 0 ? Math.round((totalRevenuePence / totalCarcassKg) * 10) / 10 : null,
+    costPerKgDwtPence: totalCarcassKg > 0 && totalVariableCostPence > 0 ? Math.round((totalVariableCostPence / totalCarcassKg) * 10) / 10 : null,
+    settlementCount: settlements.length,
+    settlements: settlements.map(r => ({
+      id: r.id, killDate: r.killDate, abattoirName: r.abattoirName,
+      numberOfHead: r.numberOfHead, totalCarcassWeightKg: r.totalCarcassWeightKg,
+      averagePricePerKgGbp: r.averagePricePerKgGbp, dominantGrade: r.dominantGrade,
+      netPaymentGbp: r.netPaymentGbp, netPaymentPence: Math.round((parseFloat(String(r.netPaymentGbp ?? 0)) || 0) * 100),
+      killingOutPercentage: r.killingOutPercentage,
+    })),
+    feedDeliveries: feedDeliveries.map(r => ({ id: r.id, deliveryDate: r.deliveryDate, productName: r.productName, quantityKg: r.quantityKg, costPence: r.costPence })),
+    purchases: purchases.map(r => ({ id: r.id, invoiceDate: r.invoiceDate, species: r.species, numberOfHead: r.numberOfHead, totalAmountPence: r.totalAmountPence, pricePerHeadPence: r.pricePerHeadPence })),
+  });
+});
+
+// ── SHEEP ENTERPRISE REPORT ──────────────────────────────────────────────────
+router.get("/farms/:farmId/sheep-enterprise-report", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const year = qYear(req.query.year);
+  const from = new Date(`${year}-08-01T00:00:00Z`);
+  const to = new Date(`${year + 1}-08-01T00:00:00Z`);
+
+  const [cullRecords, shearingRecords, allFeedDeliveries, allPurchases] = await Promise.all([
+    db.select().from(sheepCullRecordsTable)
+      .where(and(eq(sheepCullRecordsTable.farmId, farmId), gte(sheepCullRecordsTable.cullDate as any, from as any), lt(sheepCullRecordsTable.cullDate as any, to as any))),
+    db.select().from(sheepShearingRecordsTable)
+      .where(and(eq(sheepShearingRecordsTable.farmId, farmId), gte(sheepShearingRecordsTable.shearingDate as any, from as any), lt(sheepShearingRecordsTable.shearingDate as any, to as any))),
+    db.select().from(feedDeliveriesTable)
+      .where(and(eq(feedDeliveriesTable.farmId, farmId), isNotNull(feedDeliveriesTable.costPence), gte(feedDeliveriesTable.deliveryDate as any, from as any), lt(feedDeliveriesTable.deliveryDate as any, to as any))),
+    db.select().from(livestockPurchasesTable)
+      .where(and(eq(livestockPurchasesTable.farmId, farmId), isNotNull(livestockPurchasesTable.totalAmountPence), gte(livestockPurchasesTable.invoiceDate as any, from as any), lt(livestockPurchasesTable.invoiceDate as any, to as any))),
+  ]);
+
+  const sheepKeywords = ["sheep", "ewe", "lamb", "ram", "ovine", "hogget", "shearling"];
+  const feedDeliveries = allFeedDeliveries.filter(r => speciesMatch(r.speciesIntended, sheepKeywords));
+  const purchases = allPurchases.filter(r => speciesMatch(r.species, sheepKeywords));
+
+  const totalCullRevenuePence = cullRecords.reduce((s, r) => s + Math.round((parseFloat(String(r.totalValueGbp ?? 0)) || 0) * 100), 0);
+  const totalWoolRevenuePence = shearingRecords.reduce((s, r) => s + Math.round((parseFloat(String(r.totalValueGbp ?? 0)) || 0) * 100), 0);
+  const totalRevenuePence = totalCullRevenuePence + totalWoolRevenuePence;
+  const totalHeadSold = cullRecords.reduce((s, r) => s + (r.numberCulled ?? 0), 0);
+  const totalWoolKg = shearingRecords.reduce((s, r) => s + (parseFloat(String(r.totalFleecesKg ?? 0)) || 0), 0);
+  const totalFeedCostPence = feedDeliveries.reduce((s, r) => s + (r.costPence ?? 0), 0);
+  const totalFeedKg = feedDeliveries.reduce((s, r) => s + (parseFloat(String(r.quantityKg ?? 0)) || 0), 0);
+  const totalPurchaseCostPence = purchases.reduce((s, r) => s + (r.totalAmountPence ?? 0), 0);
+  const totalHeadPurchased = purchases.reduce((s, r) => s + (r.numberOfHead ?? 0), 0);
+  const totalVariableCostPence = totalFeedCostPence + totalPurchaseCostPence;
+  const grossMarginPence = totalRevenuePence - totalVariableCostPence;
+
+  res.json({
+    flockYear: `${year}/${(year + 1).toString().slice(2)}`,
+    totalHeadSold, totalWoolKg: Math.round(totalWoolKg * 10) / 10,
+    totalCullRevenuePence, totalWoolRevenuePence, totalRevenuePence,
+    totalFeedCostPence, totalFeedKg: Math.round(totalFeedKg),
+    totalPurchaseCostPence, totalHeadPurchased,
+    totalVariableCostPence, grossMarginPence,
+    grossMarginPerHeadSoldPence: totalHeadSold > 0 ? Math.round(grossMarginPence / totalHeadSold) : null,
+    avgWoolPricePerKgGbp: totalWoolKg > 0 && totalWoolRevenuePence > 0 ? Math.round((totalWoolRevenuePence / totalWoolKg) / 100 * 100) / 100 : null,
+    cullRecords: cullRecords.map(r => ({ id: r.id, cullDate: r.cullDate, numberCulled: r.numberCulled, pricePerHeadGbp: r.pricePerHeadGbp, totalValueGbp: r.totalValueGbp, reason: r.reasonForCulling })),
+    shearingRecords: shearingRecords.map(r => ({ id: r.id, shearingDate: r.shearingDate, headSheared: r.numberOfAnimalsSheared, totalWoolKg: r.totalFleecesKg, pricePerKgGbp: r.pricePerKgGbp, totalValueGbp: r.totalValueGbp })),
+    feedDeliveries: feedDeliveries.map(r => ({ id: r.id, deliveryDate: r.deliveryDate, productName: r.productName, quantityKg: r.quantityKg, costPence: r.costPence })),
+    purchases: purchases.map(r => ({ id: r.id, invoiceDate: r.invoiceDate, numberOfHead: r.numberOfHead, totalAmountPence: r.totalAmountPence, pricePerHeadPence: r.pricePerHeadPence })),
+  });
+});
+
+// ── POULTRY FLOCK REPORT ─────────────────────────────────────────────────────
+router.get("/farms/:farmId/poultry-flock-report", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const flockId = req.query.flockId ? parseInt(String(req.query.flockId)) : null;
+  if (!flockId) { res.status(400).json({ error: "flockId required" }); return; }
+
+  const [flocks, allSettlements, chickPurchases, allFeedDeliveries] = await Promise.all([
+    db.select().from(poultryFlocksTable).where(and(eq(poultryFlocksTable.farmId, farmId), eq(poultryFlocksTable.id, flockId))).limit(1),
+    db.select().from(poultryBatchSettlementsTable).where(eq(poultryBatchSettlementsTable.farmId, farmId)),
+    db.select().from(poultryChickPurchasesTable).where(and(eq(poultryChickPurchasesTable.farmId, farmId), eq(poultryChickPurchasesTable.flockId, flockId))),
+    db.select().from(feedDeliveriesTable).where(and(eq(feedDeliveriesTable.farmId, farmId), isNotNull(feedDeliveriesTable.costPence))),
+  ]);
+
+  const flock = flocks[0];
+  // Settlements are linked by flockRef text = flock.flockNumber
+  const settlements = flock ? allSettlements.filter(s => s.flockRef === flock.flockNumber) : [];
+
+  const poultryKeywords = ["poultry", "broiler", "chicken", "bird", "layer", "turkey", "duck"];
+  const feedDeliveries = allFeedDeliveries.filter(r => speciesMatch(r.speciesIntended, poultryKeywords));
+
+  const flockStart = flock?.placementDate ? new Date(flock.placementDate) : null;
+  const flockEnd = flock?.depletionDate ? new Date(flock.depletionDate) : new Date();
+  const flockFeedDeliveries = flockStart
+    ? feedDeliveries.filter(r => { const d = new Date(r.deliveryDate); return d >= flockStart && d <= flockEnd; })
+    : feedDeliveries;
+
+  const totalBirdsPlaced = flock?.placementCount ?? chickPurchases.reduce((s, r) => s + (r.numberOfBirdsReceived ?? r.numberOfBirdsOrdered ?? 0), 0);
+  const totalChickCostPence = chickPurchases.reduce((s, r) => s + (r.totalCostPence ?? 0), 0);
+  const totalFeedCostPence = flockFeedDeliveries.reduce((s, r) => s + (r.costPence ?? 0), 0);
+  const totalFeedKg = flockFeedDeliveries.reduce((s, r) => s + (parseFloat(String(r.quantityKg ?? 0)) || 0), 0);
+  const totalRevenuePence = settlements.reduce((s, r) => s + (r.netPaymentPence ?? 0), 0);
+  const totalBirdsDelivered = settlements.reduce((s, r) => s + (r.birdsDelivered ?? 0), 0);
+  const totalLiveweightKg = settlements.reduce((s, r) => s + (parseFloat(String(r.totalLiveweightKg ?? 0)) || 0), 0);
+  const fcrSettlements = settlements.filter(r => r.fcr != null);
+  const avgFcr = fcrSettlements.length > 0 ? fcrSettlements.reduce((s, r) => s + (parseFloat(String(r.fcr ?? 0)) || 0), 0) / fcrSettlements.length : null;
+
+  const totalVariableCostPence = totalChickCostPence + totalFeedCostPence;
+  const grossMarginPence = totalRevenuePence - totalVariableCostPence;
+
+  res.json({
+    flockId,
+    flockNumber: flock?.flockNumber,
+    species: flock?.species,
+    placementDate: flock?.placementDate,
+    depletionDate: flock?.depletionDate,
+    totalBirdsPlaced, totalBirdsDelivered,
+    totalLiveweightKg: Math.round(totalLiveweightKg * 10) / 10,
+    totalChickCostPence, totalFeedCostPence, totalFeedKg: Math.round(totalFeedKg),
+    totalVariableCostPence, totalRevenuePence, grossMarginPence,
+    grossMarginPerBirdPence: totalBirdsPlaced > 0 ? Math.round(grossMarginPence / totalBirdsPlaced) : null,
+    costPerBirdPence: totalBirdsPlaced > 0 ? Math.round(totalVariableCostPence / totalBirdsPlaced) : null,
+    revenuePerKgLwPence: totalLiveweightKg > 0 ? Math.round((totalRevenuePence / totalLiveweightKg) * 10) / 10 : null,
+    feedCostPerBirdPence: totalBirdsPlaced > 0 ? Math.round(totalFeedCostPence / totalBirdsPlaced) : null,
+    feedKgPerBird: totalBirdsPlaced > 0 && totalFeedKg > 0 ? Math.round((totalFeedKg / totalBirdsPlaced) * 100) / 100 : null,
+    avgFcr: avgFcr != null ? Math.round(avgFcr * 100) / 100 : null,
+    mortalityRate: totalBirdsPlaced > 0 && totalBirdsDelivered > 0 ? Math.round(((totalBirdsPlaced - totalBirdsDelivered) / totalBirdsPlaced) * 1000) / 10 : null,
+    settlements: settlements.map(r => ({ id: r.id, catchDate: r.catchDate, birdsDelivered: r.birdsDelivered, totalLiveweightKg: r.totalLiveweightKg, grossValuePence: r.grossValuePence, netPaymentPence: r.netPaymentPence, fcr: r.fcr, ebi: r.ebi })),
+    chickPurchases: chickPurchases.map(r => ({ id: r.id, orderDate: r.orderDate, numberOfBirdsReceived: r.numberOfBirdsReceived, pricePerBirdPence: r.pricePerBirdPence, totalCostPence: r.totalCostPence })),
+    feedDeliveries: flockFeedDeliveries.map(r => ({ id: r.id, deliveryDate: r.deliveryDate, productName: r.productName, quantityKg: r.quantityKg, costPence: r.costPence })),
+  });
+});
+
+// ── PIG ENTERPRISE REPORT ────────────────────────────────────────────────────
+router.get("/farms/:farmId/pig-enterprise-report", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const year = qYear(req.query.year);
+  const from = new Date(`${year}-01-01T00:00:00Z`);
+  const to = new Date(`${year + 1}-01-01T00:00:00Z`);
+
+  const [killRecords, allFeedDeliveries, allPurchases] = await Promise.all([
+    db.select().from(pigKillRecordsTable)
+      .where(and(eq(pigKillRecordsTable.farmId, farmId), gte(pigKillRecordsTable.killDate as any, from as any), lt(pigKillRecordsTable.killDate as any, to as any))),
+    db.select().from(feedDeliveriesTable)
+      .where(and(eq(feedDeliveriesTable.farmId, farmId), isNotNull(feedDeliveriesTable.costPence), gte(feedDeliveriesTable.deliveryDate as any, from as any), lt(feedDeliveriesTable.deliveryDate as any, to as any))),
+    db.select().from(livestockPurchasesTable)
+      .where(and(eq(livestockPurchasesTable.farmId, farmId), isNotNull(livestockPurchasesTable.totalAmountPence), gte(livestockPurchasesTable.invoiceDate as any, from as any), lt(livestockPurchasesTable.invoiceDate as any, to as any))),
+  ]);
+
+  const pigKeywords = ["pig", "pork", "swine", "sow", "boar", "weaner", "finisher", "porker", "baconer"];
+  const feedDeliveries = allFeedDeliveries.filter(r => speciesMatch(r.speciesIntended, pigKeywords));
+  const purchases = allPurchases.filter(r => speciesMatch(r.species, pigKeywords));
+
+  const totalHeadKilled = killRecords.reduce((s, r) => s + (r.headCount ?? 0), 0);
+  const totalDeadweightKg = killRecords.reduce((s, r) => s + (parseFloat(String(r.totalDeadweightKg ?? 0)) || 0), 0);
+  const totalRevenuePence = killRecords.reduce((s, r) => s + (r.netPaymentPence ?? 0), 0);
+  const totalFeedCostPence = feedDeliveries.reduce((s, r) => s + (r.costPence ?? 0), 0);
+  const totalFeedKg = feedDeliveries.reduce((s, r) => s + (parseFloat(String(r.quantityKg ?? 0)) || 0), 0);
+  const totalPurchaseCostPence = purchases.reduce((s, r) => s + (r.totalAmountPence ?? 0), 0);
+  const totalHeadPurchased = purchases.reduce((s, r) => s + (r.numberOfHead ?? 0), 0);
+  const totalVariableCostPence = totalFeedCostPence + totalPurchaseCostPence;
+  const grossMarginPence = totalRevenuePence - totalVariableCostPence;
+  const lmpRecords = killRecords.filter(r => r.leanMeatPct != null);
+  const avgLmp = lmpRecords.length > 0 ? lmpRecords.reduce((s, r) => s + (parseFloat(String(r.leanMeatPct ?? 0)) || 0), 0) / lmpRecords.length : null;
+
+  res.json({
+    year,
+    totalHeadKilled, totalDeadweightKg: Math.round(totalDeadweightKg * 10) / 10,
+    totalRevenuePence, totalFeedCostPence, totalFeedKg: Math.round(totalFeedKg),
+    totalPurchaseCostPence, totalHeadPurchased,
+    totalVariableCostPence, grossMarginPence,
+    grossMarginPerHeadPence: totalHeadKilled > 0 ? Math.round(grossMarginPence / totalHeadKilled) : null,
+    revenuePerKgDwtPence: totalDeadweightKg > 0 ? Math.round((totalRevenuePence / totalDeadweightKg) * 10) / 10 : null,
+    variableCostPerKgDwtPence: totalDeadweightKg > 0 && totalVariableCostPence > 0 ? Math.round((totalVariableCostPence / totalDeadweightKg) * 10) / 10 : null,
+    feedCostPerKgDwtPence: totalDeadweightKg > 0 && totalFeedCostPence > 0 ? Math.round((totalFeedCostPence / totalDeadweightKg) * 10) / 10 : null,
+    avgLeanMeatPct: avgLmp != null ? Math.round(avgLmp * 10) / 10 : null,
+    killRecords: killRecords.map(r => ({ id: r.id, killDate: r.killDate, headCount: r.headCount, totalDeadweightKg: r.totalDeadweightKg, pricePerKgPence: r.pricePerKgPence, netPaymentPence: r.netPaymentPence, leanMeatPct: r.leanMeatPct, averageP2BackfatMm: r.averageP2BackfatMm })),
+    feedDeliveries: feedDeliveries.map(r => ({ id: r.id, deliveryDate: r.deliveryDate, productName: r.productName, quantityKg: r.quantityKg, costPence: r.costPence })),
+    purchases: purchases.map(r => ({ id: r.id, invoiceDate: r.invoiceDate, numberOfHead: r.numberOfHead, totalAmountPence: r.totalAmountPence, pricePerHeadPence: r.pricePerHeadPence })),
+  });
+});
+
+// ── FLEET COST REPORT ────────────────────────────────────────────────────────
+router.get("/farms/:farmId/fleet-cost-report", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const year = qYear(req.query.year);
+
+  const machines = await db.select().from(equipmentTable).where(and(eq(equipmentTable.farmId, farmId), eq(equipmentTable.isActive, true)));
+  const fuelUsages = await db.select().from(fuelUsageTable).where(and(
+    eq(fuelUsageTable.farmId, farmId),
+    gte(fuelUsageTable.usageDate as any, new Date(`${year}-01-01T00:00:00Z`) as any),
+    lt(fuelUsageTable.usageDate as any, new Date(`${year + 1}-01-01T00:00:00Z`) as any),
+    isNotNull(fuelUsageTable.equipmentId),
+  ));
+
+  const fuelByEquip: Record<number, { litres: number; costPence: number }> = {};
+  for (const r of fuelUsages) {
+    const eid = r.equipmentId!;
+    if (!fuelByEquip[eid]) fuelByEquip[eid] = { litres: 0, costPence: 0 };
+    fuelByEquip[eid].litres += parseFloat(String(r.quantityLitres ?? 0)) || 0;
+    const ppl = r.costPencePerLitre ?? null;
+    const litres = parseFloat(String(r.quantityLitres ?? 0)) || 0;
+    fuelByEquip[eid].costPence += ppl && litres ? Math.round(ppl * litres) : 0;
+  }
+
+  const ASSUMED_ANNUAL_HOURS = 500;
+  const machineCosts = machines.map(m => {
+    const purchasePricePence = m.purchasePricePence ?? 0;
+    const currentValuePence = m.currentValuePence ?? 0;
+    const depRatePct = m.depreciationRatePct ?? 15;
+    const annualDepreciationPence = Math.round(currentValuePence > 0 ? currentValuePence * depRatePct / 100 : purchasePricePence * depRatePct / 100);
+    const annualInsurancePence = m.insurancePremiumPence ?? 0;
+    const fuel = fuelByEquip[m.id] ?? { litres: 0, costPence: 0 };
+    const totalAnnualCostPence = annualDepreciationPence + annualInsurancePence + fuel.costPence;
+    const currentHours = m.currentHours ?? null;
+    const costPerHourPence = totalAnnualCostPence > 0 ? Math.round(totalAnnualCostPence / ASSUMED_ANNUAL_HOURS) : null;
+
+    return {
+      id: m.id, name: m.name, machineType: m.type,
+      makeModel: [m.make, m.model].filter(Boolean).join(" ") || null,
+      purchasePricePence, currentValuePence, depreciationRatePct: depRatePct,
+      annualDepreciationPence, annualInsurancePence,
+      fuelLitres: Math.round(fuel.litres * 10) / 10, fuelCostPence: fuel.costPence,
+      totalAnnualCostPence, costPerHourPence,
+      currentHours: currentHours ? Math.round(currentHours) : null,
+      registration: m.registrationNumber ?? m.serialNumber,
+    };
+  });
+
+  const totalFleetAnnualCostPence = machineCosts.reduce((s, m) => s + m.totalAnnualCostPence, 0);
+  const totalDepreciationPence = machineCosts.reduce((s, m) => s + m.annualDepreciationPence, 0);
+  const totalInsurancePence = machineCosts.reduce((s, m) => s + m.annualInsurancePence, 0);
+  const totalFuelCostPence = machineCosts.reduce((s, m) => s + m.fuelCostPence, 0);
+
+  res.json({
+    year, machineCount: machines.length,
+    totalFleetAnnualCostPence, totalDepreciationPence, totalInsurancePence, totalFuelCostPence,
+    machines: machineCosts.sort((a, b) => b.totalAnnualCostPence - a.totalAnnualCostPence),
+  });
+});
+
+// ── LABOUR ENTERPRISE REPORT ─────────────────────────────────────────────────
+router.get("/farms/:farmId/labour-enterprise-report", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId as string);
+  const year = qYear(req.query.year);
+  const from = `${year}-01-01`;
+  const to = `${year + 1}-01-01`;
+
+  const [timesheets, rates] = await Promise.all([
+    db.select().from(labourTimesheetEntriesTable)
+      .where(and(eq(labourTimesheetEntriesTable.farmId, farmId), gte(labourTimesheetEntriesTable.date as any, from as any), lt(labourTimesheetEntriesTable.date as any, to as any))),
+    db.select().from(labourHourlyRatesTable).where(eq(labourHourlyRatesTable.farmId, farmId)),
+  ]);
+
+  const rateMap: Record<string, { regularRatePence: number; overtimeRatePence: number }> = {};
+  for (const r of rates.sort((a, b) => (a.effectiveFrom ?? "").localeCompare(b.effectiveFrom ?? ""))) {
+    rateMap[r.staffName] = { regularRatePence: r.regularRatePence ?? 0, overtimeRatePence: r.overtimeRatePence ?? 0 };
+  }
+
+  const ENTERPRISE_MAP: Record<string, string> = {
+    milking: "Dairy", dairy_handling: "Dairy", dairy_management: "Dairy", milk_recording: "Dairy", parlour_cleaning: "Dairy",
+    livestock_handling: "Livestock", cattle_handling: "Beef", sheep_handling: "Sheep", pig_handling: "Pigs",
+    poultry_handling: "Poultry", poultry_catching: "Poultry", poultry_cleaning: "Poultry",
+    crop_spraying: "Arable", fertiliser_spreading: "Arable", seed_drilling: "Arable",
+    harvesting: "Arable", grain_management: "Arable", field_operations: "Arable",
+    feeding: "Livestock", bedding: "Livestock", vet_assistance: "Livestock",
+    machinery_maintenance: "Machinery", equipment_maintenance: "Machinery",
+    administration: "General", general: "General", other: "General",
+  };
+
+  const byEnterprise: Record<string, { regularHours: number; overtimeHours: number; totalCostPence: number }> = {};
+  const byStaff: Record<string, { regularHours: number; overtimeHours: number; totalCostPence: number }> = {};
+
+  let totalRegularHours = 0, totalOvertimeHours = 0, totalCostPence = 0;
+
+  for (const t of timesheets) {
+    const reg = parseFloat(String(t.hoursRegular ?? 0)) || 0;
+    const ot = parseFloat(String(t.hoursOvertime ?? 0)) || 0;
+    const rate = rateMap[t.staffName] ?? { regularRatePence: 0, overtimeRatePence: 0 };
+    const cost = Math.round(reg * rate.regularRatePence + ot * rate.overtimeRatePence);
+    const tt = t.taskType?.toLowerCase() ?? "";
+    const enterprise = Object.entries(ENTERPRISE_MAP).find(([k]) => tt.includes(k))?.[1] ?? "General";
+
+    if (!byEnterprise[enterprise]) byEnterprise[enterprise] = { regularHours: 0, overtimeHours: 0, totalCostPence: 0 };
+    byEnterprise[enterprise].regularHours += reg;
+    byEnterprise[enterprise].overtimeHours += ot;
+    byEnterprise[enterprise].totalCostPence += cost;
+
+    if (!byStaff[t.staffName]) byStaff[t.staffName] = { regularHours: 0, overtimeHours: 0, totalCostPence: 0 };
+    byStaff[t.staffName].regularHours += reg;
+    byStaff[t.staffName].overtimeHours += ot;
+    byStaff[t.staffName].totalCostPence += cost;
+
+    totalRegularHours += reg;
+    totalOvertimeHours += ot;
+    totalCostPence += cost;
+  }
+
+  res.json({
+    year,
+    totalRegularHours: Math.round(totalRegularHours * 10) / 10,
+    totalOvertimeHours: Math.round(totalOvertimeHours * 10) / 10,
+    totalCostPence,
+    timesheetEntries: timesheets.length,
+    byEnterprise: Object.entries(byEnterprise).sort((a, b) => b[1].totalCostPence - a[1].totalCostPence).map(([enterprise, data]) => ({
+      enterprise,
+      regularHours: Math.round(data.regularHours * 10) / 10,
+      overtimeHours: Math.round(data.overtimeHours * 10) / 10,
+      totalHours: Math.round((data.regularHours + data.overtimeHours) * 10) / 10,
+      totalCostPence: data.totalCostPence,
+      pctOfTotal: totalCostPence > 0 ? Math.round((data.totalCostPence / totalCostPence) * 1000) / 10 : 0,
+    })),
+    byStaff: Object.entries(byStaff).sort((a, b) => b[1].totalCostPence - a[1].totalCostPence).map(([staffName, data]) => ({
+      staffName,
+      regularHours: Math.round(data.regularHours * 10) / 10,
+      overtimeHours: Math.round(data.overtimeHours * 10) / 10,
+      totalHours: Math.round((data.regularHours + data.overtimeHours) * 10) / 10,
+      totalCostPence: data.totalCostPence,
+      regularRatePence: rateMap[staffName]?.regularRatePence ?? null,
+    })),
+  });
+});

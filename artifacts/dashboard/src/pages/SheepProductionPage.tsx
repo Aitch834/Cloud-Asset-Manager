@@ -6,6 +6,7 @@ import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { openPrintWindow } from "@/lib/print-report";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
+import { SheepEnterpriseReport } from "@/components/SheepEnterpriseReport";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1368,7 +1369,7 @@ function RTChecklistTab({ farmId }: { farmId: number }) {
 }
 
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
-type Tab = "flocks" | "tupping" | "scanning" | "weigh" | "shearing" | "health" | "rt-checklist" | "analytics" | "weighing-equipment";
+type Tab = "flocks" | "tupping" | "scanning" | "weigh" | "shearing" | "health" | "rt-checklist" | "analytics" | "weighing-equipment" | "enterprise";
 
 const SHEEP_COLORS = ["#15803d", "#a16207", "#1d4ed8", "#b91c1c", "#7c3aed", "#0e7490"];
 
@@ -1537,6 +1538,7 @@ export default function SheepProductionPage() {
           <TabButton active={tab === "rt-checklist"} onClick={() => setTab("rt-checklist")}>RT Checklist</TabButton>
           <TabButton active={tab === "weighing-equipment"} onClick={() => setTab("weighing-equipment")}><Scale className="w-3.5 h-3.5 mr-1 inline" />Equipment</TabButton>
           <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}><BarChart3 className="w-3.5 h-3.5 mr-1 inline" />Analytics</TabButton>
+          <TabButton active={tab === "enterprise"} onClick={() => setTab("enterprise")}><BarChart3 className="w-3.5 h-3.5 mr-1 inline" />Enterprise Report</TabButton>
         </TabBar>
 
         {tab === "flocks" && <FlocksTab farmId={farmId} />}
@@ -1548,6 +1550,7 @@ export default function SheepProductionPage() {
         {tab === "rt-checklist" && <RTChecklistTab farmId={farmId} />}
         {tab === "weighing-equipment" && <WeighingEquipmentTab farmId={farmId} />}
         {tab === "analytics" && <SheepAnalyticsTab farmId={farmId} />}
+        {tab === "enterprise" && <SheepEnterpriseReport farmId={farmId} />}
       </div>
     </AppLayout>
   );

@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, Loader2, Eye, Scale, TrendingUp, CheckCircle2, ClipboardList, Printer, BarChart3 } from "lucide-react";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
+import { BeefEnterpriseReport } from "@/components/BeefEnterpriseReport";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -676,7 +677,7 @@ ${gradeRows ? `<table><thead><tr><th>EUROP Grade</th><th>Count</th></tr></thead>
 }
 
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
-type Tab = "weigh" | "finishing" | "deadweight" | "rt-checklist" | "reports";
+type Tab = "weigh" | "finishing" | "deadweight" | "rt-checklist" | "reports" | "enterprise";
 
 export default function BeefProductionPage() {
   const farmId = useAppStore(s => s.farmId);
@@ -716,6 +717,7 @@ export default function BeefProductionPage() {
           <TabButton active={tab === "deadweight"} onClick={() => setTab("deadweight")}>Deadweight Settlement</TabButton>
           <TabButton active={tab === "rt-checklist"} onClick={() => setTab("rt-checklist")}>RT Checklist</TabButton>
           <TabButton active={tab === "reports"} onClick={() => setTab("reports")}><BarChart3 className="w-3.5 h-3.5 mr-1 inline" />Reports</TabButton>
+          <TabButton active={tab === "enterprise"} onClick={() => setTab("enterprise")}><TrendingUp className="w-3.5 h-3.5 mr-1 inline" />Enterprise Report</TabButton>
         </TabBar>
 
         {tabsReady && tab === "weigh" && <WeighTab farmId={farmId} onRaiseTask={setRaiseTaskFor} />}
@@ -723,6 +725,7 @@ export default function BeefProductionPage() {
         {tabsReady && tab === "deadweight" && <DeadweightTab farmId={farmId} />}
         {tabsReady && tab === "rt-checklist" && <RTChecklistTab farmId={farmId} />}
         {tabsReady && tab === "reports" && <ReportsTab farmId={farmId} />}
+        {tabsReady && tab === "enterprise" && <BeefEnterpriseReport farmId={farmId} />}
       </div>
 
       {raiseTaskFor && (

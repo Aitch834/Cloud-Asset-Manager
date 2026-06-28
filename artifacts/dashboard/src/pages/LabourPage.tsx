@@ -16,8 +16,9 @@ import {
   Plus, Pencil, Trash2, Printer, ChevronLeft, ChevronRight,
   Clock, CalendarDays, UmbrellaOff, PoundSterling, ShieldCheck,
   CheckCircle2, AlertTriangle, XCircle, Download, Bell, UserCheck, Zap, BarChart2,
-  ArrowLeftRight, Info, MessageSquare, CheckCircle, Trash2 as Trash2Icon, Eye,
+  ArrowLeftRight, Info, MessageSquare, CheckCircle, Trash2 as Trash2Icon, Eye, TrendingUp,
 } from "lucide-react";
+import { LabourEnterpriseReport } from "@/components/LabourEnterpriseReport";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -2829,7 +2830,7 @@ function WorkingTimeTab({ farmId, staffNames, staffMembers }: { farmId: number; 
 
 // ─── Main Labour Page ─────────────────────────────────────────────────────────
 
-type LabourTab = "timesheets" | "rota" | "actual" | "absence" | "pay" | "wtr" | "analytics" | "crossref";
+type LabourTab = "timesheets" | "rota" | "actual" | "absence" | "pay" | "wtr" | "analytics" | "crossref" | "enterprise";
 
 const LABOUR_COLORS = ["#15803d","#a16207","#1d4ed8","#b91c1c","#7c3aed","#0e7490"];
 
@@ -3304,6 +3305,7 @@ export default function LabourPage() {
         <TabBtn active={tab === "wtr"} onClick={() => setTab("wtr")} icon={ShieldCheck} label="Working Time" />
         <TabBtn active={tab === "analytics"} onClick={() => setTab("analytics")} icon={BarChart2} label="Analytics" />
         <TabBtn active={tab === "crossref"} onClick={() => setTab("crossref")} icon={ArrowLeftRight} label="Staff Hours X-Ref" />
+        <TabBtn active={tab === "enterprise"} onClick={() => setTab("enterprise")} icon={TrendingUp} label="Enterprise Report" />
       </div>
 
       {tab === "timesheets" && <TimesheetsTab farmId={farmId} staffNames={staffNames} staffMembers={staffMembers} />}
@@ -3314,6 +3316,7 @@ export default function LabourPage() {
       {tab === "wtr" && <WorkingTimeTab farmId={farmId} staffNames={staffNames} staffMembers={staffMembers} />}
       {tab === "analytics" && <LabourAnalyticsTab farmId={farmId} />}
       {tab === "crossref" && <StaffHoursCrossRefTab farmId={farmId} staffNames={staffNames} />}
+      {tab === "enterprise" && <LabourEnterpriseReport farmId={farmId} />}
     </AppLayout>
   );
 }

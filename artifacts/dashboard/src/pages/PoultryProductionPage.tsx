@@ -23,6 +23,7 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { Redirect } from "wouter";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FlocksTab } from "./poultry/FlocksTab";
+import { PoultryFlockReport } from "@/components/PoultryFlockReport";
 
 const api = (path: string) => `/api/${path}`;
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
@@ -3126,7 +3127,7 @@ function PoultryAnalyticsTab({ farmId }: { farmId: number }) {
   );
 }
 
-type Tab = "overview" | "houses" | "flocks" | "purchases" | "mortality" | "treatments" | "cleanouts" | "envlogs" | "fci" | "bwi" | "thinning" | "biosecurity" | "scheme-records" | "feed" | "campylobacter" | "analytics";
+type Tab = "overview" | "houses" | "flocks" | "purchases" | "mortality" | "treatments" | "cleanouts" | "envlogs" | "fci" | "bwi" | "thinning" | "biosecurity" | "scheme-records" | "feed" | "campylobacter" | "analytics" | "enterprise";
 
 export default function PoultryProductionPage() {
   const { farmId } = useAppStore();
@@ -3160,6 +3161,7 @@ export default function PoultryProductionPage() {
             <TabButton active={tab === "feed"} onClick={() => setTab("feed")}><Truck className="w-3.5 h-3.5 mr-1" />Feed</TabButton>
             <TabButton active={tab === "campylobacter"} onClick={() => setTab("campylobacter")}><AlertTriangle className="w-3.5 h-3.5 mr-1" />Campylobacter</TabButton>
             <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}><TrendingUp className="w-3.5 h-3.5 mr-1" />Analytics</TabButton>
+            <TabButton active={tab === "enterprise"} onClick={() => setTab("enterprise")}><TrendingUp className="w-3.5 h-3.5 mr-1" />Enterprise Report</TabButton>
           </TabBar>
           <Button size="sm" variant="outline" onClick={handleGeneratePdf} disabled={generating} className="ml-3 shrink-0">
             {generating ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <FileDown className="w-3.5 h-3.5 mr-1" />}
@@ -3183,6 +3185,7 @@ export default function PoultryProductionPage() {
           {tab === "feed" && <PoultryFeedTab farmId={farmId} />}
           {tab === "campylobacter" && <CampylobacterMonitoringTab farmId={farmId} />}
           {tab === "analytics" && <PoultryAnalyticsTab farmId={farmId} />}
+          {tab === "enterprise" && <PoultryFlockReport farmId={farmId} />}
         </CardContent></Card>
       </div>
     </AppLayout>

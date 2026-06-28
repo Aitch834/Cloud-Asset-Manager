@@ -23,6 +23,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { openPrintWindow } from "@/lib/print-report";
 import { VMD_MEDICINES } from "@/data/vmdMedicines";
 import { AbrProcurementSection } from "@/pages/dairy/AbrProcurementSection";
+import { DairyEnterpriseReport } from "@/components/DairyEnterpriseReport";
 
 const BASE = import.meta.env.BASE_URL;
 const api = (path: string) => `${BASE}api/${path}`;
@@ -67,7 +68,7 @@ function BcsBadge({ v }: { v?: string | null }) {
   return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ok ? "bg-green-100 text-green-800" : low ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"}`}>{v}</span>;
 }
 
-type Tab = "milk" | "mastitis" | "calving" | "bcs" | "mobility" | "tank" | "dct" | "johnes";
+type Tab = "milk" | "mastitis" | "calving" | "bcs" | "mobility" | "tank" | "dct" | "johnes" | "enterprise";
 
 export default function DairyPage() {
   const { farmId } = useAppStore();
@@ -92,6 +93,7 @@ export default function DairyPage() {
           <TabButton active={tab === "tank"} onClick={() => setTab("tank")}>Bulk Tank</TabButton>
           <TabButton active={tab === "dct"} onClick={() => setTab("dct")}>Dry Cow Therapy</TabButton>
           <TabButton active={tab === "johnes"} onClick={() => setTab("johnes")}>Johne's Monitoring</TabButton>
+          <TabButton active={tab === "enterprise"} onClick={() => setTab("enterprise")}>Enterprise Report</TabButton>
         </TabBar>
 
         <div className="mt-6">
@@ -103,6 +105,7 @@ export default function DairyPage() {
           {tab === "tank" && <BulkTankTab farmId={farmId} />}
           {tab === "dct" && <DctTab farmId={farmId} />}
           {tab === "johnes" && <JohnesTab farmId={farmId} />}
+          {tab === "enterprise" && <DairyEnterpriseReport farmId={farmId} />}
         </div>
       </div>
     </AppLayout>

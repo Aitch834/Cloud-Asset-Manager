@@ -1,8 +1,11 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useLocation } from "wouter";
-import { Wrench, CheckCircle2, AlertTriangle, Clock, ChevronRight, Tractor, Calendar } from "lucide-react";
+import { Wrench, CheckCircle2, AlertTriangle, Clock, ChevronRight, Tractor, Calendar, TrendingUp } from "lucide-react";
+import { TabBar, TabButton } from "@/components/ui/tab-button";
+import { FleetCostReport } from "@/components/FleetCostReport";
 
 function daysUntil(dateStr: string | null | undefined): number | null {
   if (!dateStr) return null;
@@ -47,6 +50,7 @@ function ServiceStatus({ days }: { days: number | null }) {
 export default function FleetDashboard() {
   const { farmId } = useAppStore();
   const [, navigate] = useLocation();
+  const [tab, setTab] = useState<"status" | "cost">("status");
 
   const equipmentQ = useQuery({
     queryKey: ["equipment", farmId],
@@ -97,16 +101,20 @@ export default function FleetDashboard() {
   return (
     <AppLayout title="Fleet Status">
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-        <div style={{ marginBottom: "1.5rem", display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-          <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>
-            Calibration, service, and certification status for all farm machinery and equipment.
-          </p>
-          <button onClick={() => navigate("/equipment")} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "0.8rem", fontWeight: 600, color: "#374151", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: "0.4rem 0.9rem", cursor: "pointer" }}>
-            Equipment Register <ChevronRight size={14} />
-          </button>
+        <div style={{ marginBottom: "1.25rem", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+          <TabBar>
+            <TabButton active={tab === "status"} onClick={() => setTab("status")}><Wrench className="w-3.5 h-3.5 mr-1 inline" />Service Status</TabButton>
+            <TabButton active={tab === "cost"} onClick={() => setTab("cost")}><TrendingUp className="w-3.5 h-3.5 mr-1 inline" />Cost Report</TabButton>
+          </TabBar>
+          {tab === "status" && (
+            <button onClick={() => navigate("/equipment")} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "0.8rem", fontWeight: 600, color: "#374151", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: "0.4rem 0.9rem", cursor: "pointer" }}>
+              Equipment Register <ChevronRight size={14} />
+            </button>
+          )}
         </div>
 
-        {equipmentQ.isLoading ? (
+        {tab === "cost" && <FleetCostReport farmId={farmId!} />}
+        {tab === "status" && (equipmentQ.isLoading ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} style={{ height: 88, background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 10 }} />
@@ -190,7 +198,7 @@ export default function FleetDashboard() {
               </div>
             )}
           </>
-        )}
+        ))}
       </div>
     </AppLayout>
   );
