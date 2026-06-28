@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Redirect } from "wouter";
+import { Redirect, useLocation } from "wouter";
 import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, Eye, FileDown, Droplets, Printer, ChevronDown, ChevronRight } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -1151,20 +1151,40 @@ export function MvTab({ farmId }: { farmId: number }) {
 // ─── Assurance Certs ───────────────────────────────────────────────────────────
 
 function AssuranceTab() {
+  const [, navigate] = useLocation();
   return (
     <div className="space-y-4">
+      {/* Assurance register link */}
+      <div className="rounded-md border border-indigo-100 bg-indigo-50 p-4 flex items-start justify-between gap-4">
+        <div>
+          <h3 className="font-semibold text-indigo-800 mb-1">Assurance Certificates Register</h3>
+          <p className="text-sm text-indigo-700">Your farm's assurance memberships and certificates (BSDA, Red Tractor, organic bodies etc.) are stored in the <strong>Inspections → Assurance Certificates</strong> tab. Record expiry dates, certificate numbers, and upload copies there.</p>
+        </div>
+        <button
+          onClick={() => navigate("/inspections?tab=assurance-certs")}
+          className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors whitespace-nowrap"
+        >
+          Open Register <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* BSDA */}
       <div className="rounded-md border border-green-100 bg-green-50 p-4">
         <h3 className="font-semibold text-green-800 mb-1">British Sheep Dairying Association (BSDA)</h3>
-        <p className="text-sm text-green-700">The BSDA supports UK sheep dairy producers with technical guidance, traceability, and assurance frameworks for sheep milk production. Record your membership and certification details using the Assurance Certs register in the main Compliance module.</p>
+        <p className="text-sm text-green-700">The BSDA supports UK sheep dairy producers with technical guidance, traceability, and assurance frameworks for sheep milk production. Record your BSDA membership and certificate details in the Assurance Certificates register (link above).</p>
         <a href="https://www.sheepdairying.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-2 text-xs text-green-800 underline hover:text-green-900">Visit British Sheep Dairying Association ↗</a>
       </div>
+
+      {/* Red Tractor */}
       <div className="rounded-md border border-blue-100 bg-blue-50 p-4">
         <h3 className="font-semibold text-blue-800 mb-1">Red Tractor — Sheep milk not currently covered</h3>
         <p className="text-sm text-blue-700">Red Tractor does not currently operate an assurance scheme specifically for sheep or goat milk production. Producers should refer to BSDA guidance, buyer assurance requirements, and their certifying body requirements directly.</p>
       </div>
+
+      {/* NMR */}
       <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
         <h3 className="font-semibold text-gray-700 mb-1">National Milk Records (NMR)</h3>
-        <p className="text-sm text-gray-600">NMR operates milk recording services for sheep and goat dairy enterprises in addition to dairy cattle. Recording with NMR provides SCC data, yield analysis, and quality reports that support compliance evidence.</p>
+        <p className="text-sm text-gray-600">NMR is a separate statutory milk recording service that sends recording officers to the farm and provides SCC analysis, yield data, and quality trend reports. NMR does not offer a public developer API — data exchange with NMR is handled through their own systems and cannot currently be automated from BDE Farm Trac. Your milk collection records within this app serve your own compliance audit trail and are independent of any NMR submission.</p>
         <a href="https://www.nmr.co.uk" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-2 text-xs text-gray-700 underline hover:text-gray-900">Visit National Milk Records ↗</a>
       </div>
     </div>

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Redirect } from "wouter";
+import { Redirect, useLocation } from "wouter";
 import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, Eye, Droplets, Printer, ChevronDown, ChevronRight } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -1207,20 +1207,40 @@ export function CaeTab({ farmId }: { farmId: number }) {
 // ─── Assurance Tab ─────────────────────────────────────────────────────────────
 
 function AssuranceTab() {
+  const [, navigate] = useLocation();
   return (
     <div className="space-y-4">
+      {/* Assurance register link */}
+      <div className="rounded-md border border-indigo-100 bg-indigo-50 p-4 flex items-start justify-between gap-4">
+        <div>
+          <h3 className="font-semibold text-indigo-800 mb-1">Assurance Certificates Register</h3>
+          <p className="text-sm text-indigo-700">Your farm's assurance memberships and certificates (BGS, organic bodies, buyer schemes etc.) are stored in the <strong>Inspections → Assurance Certificates</strong> tab. Record expiry dates, certificate numbers, and upload copies there.</p>
+        </div>
+        <button
+          onClick={() => navigate("/inspections?tab=assurance-certs")}
+          className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors whitespace-nowrap"
+        >
+          Open Register <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* BGS */}
       <div className="rounded-md border border-green-100 bg-green-50 p-4">
         <h3 className="font-semibold text-green-800 mb-1">British Goat Society (BGS)</h3>
-        <p className="text-sm text-green-700">The BGS is the UK body supporting dairy goat producers with herd recording, breed standards, and quality assurance. BGS milk recording data supports SCC compliance monitoring. Record BGS membership and certificate details in the main Compliance → Assurance Certs register.</p>
+        <p className="text-sm text-green-700">The BGS is the UK body supporting dairy goat producers with herd recording, breed standards, and quality assurance. BGS milk recording data supports SCC compliance monitoring. Record BGS membership and certificate details in the Assurance Certificates register (link above).</p>
         <a href="https://www.britishgoatsociety.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-2 text-xs text-green-800 underline hover:text-green-900">Visit British Goat Society ↗</a>
       </div>
+
+      {/* CAE */}
       <div className="rounded-md border border-amber-100 bg-amber-50 p-4">
         <h3 className="font-semibold text-amber-800 mb-1">CAE Accreditation</h3>
         <p className="text-sm text-amber-700">Several UK buyers require goat milk to come from CAEV-free or CAE accredited herds. Accreditation bodies include SGS UK and veterinary laboratories. Keep annual test records and accreditation certificates here and upload copies using the document attachment on each test record.</p>
       </div>
+
+      {/* NMR */}
       <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
         <h3 className="font-semibold text-gray-700 mb-1">National Milk Records (NMR)</h3>
-        <p className="text-sm text-gray-600">NMR operates milk recording for goat dairy enterprises providing SCC analysis, yield data, and quality trend reporting for compliance evidence and herd improvement.</p>
+        <p className="text-sm text-gray-600">NMR is a separate statutory milk recording service that sends recording officers to the farm and provides SCC analysis, yield data, and quality trend reporting. NMR does not offer a public developer API — data exchange with NMR is handled through their own systems and cannot currently be automated from BDE Farm Trac. Your milk collection records within this app serve your own compliance audit trail and are independent of any NMR submission.</p>
         <a href="https://www.nmr.co.uk" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-2 text-xs text-gray-700 underline hover:text-gray-900">Visit National Milk Records ↗</a>
       </div>
     </div>
