@@ -31925,8 +31925,8 @@ router.get("/farms/:farmId/sheep-enterprise-report", requireAuth, requireTenant,
     totalVariableCostPence, grossMarginPence,
     grossMarginPerHeadSoldPence: totalHeadSold > 0 ? Math.round(grossMarginPence / totalHeadSold) : null,
     avgWoolPricePerKgGbp: totalWoolKg > 0 && totalWoolRevenuePence > 0 ? Math.round((totalWoolRevenuePence / totalWoolKg) / 100 * 100) / 100 : null,
-    cullRecords: cullRecords.map(r => ({ id: r.id, cullDate: r.cullDate, numberCulled: r.numberCulled, pricePerHeadGbp: r.pricePerHeadGbp, totalValueGbp: r.totalValueGbp, reason: r.reasonForCulling })),
-    shearingRecords: shearingRecords.map(r => ({ id: r.id, shearingDate: r.shearingDate, headSheared: r.numberOfAnimalsSheared, totalWoolKg: r.totalFleecesKg, pricePerKgGbp: r.pricePerKgGbp, totalValueGbp: r.totalValueGbp })),
+    cullRecords: cullRecords.map(r => ({ id: r.id, cullDate: r.cullDate, numberOfHead: r.numberCulled, pricePerHeadGbp: r.pricePerHeadGbp, totalValueGbp: r.totalValueGbp, reason: r.reasonForCulling })),
+    shearingRecords: shearingRecords.map(r => ({ id: r.id, shearingDate: r.shearingDate, headSheared: r.numberOfAnimalsSheared, totalWoolWeightKg: r.totalFleecesKg, pricePerKgGbp: r.pricePerKgGbp, totalValueGbp: r.totalValueGbp })),
     feedDeliveries: feedDeliveries.map(r => ({ id: r.id, deliveryDate: r.deliveryDate, productName: r.productName, quantityKg: r.quantityKg, costPence: r.costPence })),
     purchases: purchases.map(r => ({ id: r.id, invoiceDate: r.invoiceDate, numberOfHead: r.numberOfHead, totalAmountPence: r.totalAmountPence, pricePerHeadPence: r.pricePerHeadPence })),
   });
@@ -31988,8 +31988,8 @@ router.get("/farms/:farmId/poultry-flock-report", requireAuth, requireTenant, as
     feedKgPerBird: totalBirdsPlaced > 0 && totalFeedKg > 0 ? Math.round((totalFeedKg / totalBirdsPlaced) * 100) / 100 : null,
     avgFcr: avgFcr != null ? Math.round(avgFcr * 100) / 100 : null,
     mortalityRate: totalBirdsPlaced > 0 && totalBirdsDelivered > 0 ? Math.round(((totalBirdsPlaced - totalBirdsDelivered) / totalBirdsPlaced) * 1000) / 10 : null,
-    settlements: settlements.map(r => ({ id: r.id, catchDate: r.catchDate, birdsDelivered: r.birdsDelivered, totalLiveweightKg: r.totalLiveweightKg, grossValuePence: r.grossValuePence, netPaymentPence: r.netPaymentPence, fcr: r.fcr, ebi: r.ebi })),
-    chickPurchases: chickPurchases.map(r => ({ id: r.id, orderDate: r.orderDate, numberOfBirdsReceived: r.numberOfBirdsReceived, pricePerBirdPence: r.pricePerBirdPence, totalCostPence: r.totalCostPence })),
+    settlements: settlements.map(r => ({ id: r.id, settlementDate: r.catchDate, birdsDelivered: r.birdsDelivered, totalLiveweightKg: r.totalLiveweightKg, grossValuePence: r.grossValuePence, netPaymentPence: r.netPaymentPence, fcr: r.fcr, ebi: r.ebi })),
+    chickPurchases: chickPurchases.map(r => ({ id: r.id, deliveryDate: r.orderDate, numberOfBirdsReceived: r.numberOfBirdsReceived, pricePer100BirdsPence: r.pricePerBirdPence, totalCostPence: r.totalCostPence })),
     feedDeliveries: flockFeedDeliveries.map(r => ({ id: r.id, deliveryDate: r.deliveryDate, productName: r.productName, quantityKg: r.quantityKg, costPence: r.costPence })),
   });
 });
@@ -32037,7 +32037,7 @@ router.get("/farms/:farmId/pig-enterprise-report", requireAuth, requireTenant, a
     variableCostPerKgDwtPence: totalDeadweightKg > 0 && totalVariableCostPence > 0 ? Math.round((totalVariableCostPence / totalDeadweightKg) * 10) / 10 : null,
     feedCostPerKgDwtPence: totalDeadweightKg > 0 && totalFeedCostPence > 0 ? Math.round((totalFeedCostPence / totalDeadweightKg) * 10) / 10 : null,
     avgLeanMeatPct: avgLmp != null ? Math.round(avgLmp * 10) / 10 : null,
-    killRecords: killRecords.map(r => ({ id: r.id, killDate: r.killDate, headCount: r.headCount, totalDeadweightKg: r.totalDeadweightKg, pricePerKgPence: r.pricePerKgPence, netPaymentPence: r.netPaymentPence, leanMeatPct: r.leanMeatPct, averageP2BackfatMm: r.averageP2BackfatMm })),
+    killRecords: killRecords.map(r => ({ id: r.id, killDate: r.killDate, numberOfHead: r.headCount, totalDeadweightKg: r.totalDeadweightKg, pricePerKgPence: r.pricePerKgPence, netPaymentPence: r.netPaymentPence, leanMeatPct: r.leanMeatPct, averageP2BackfatMm: r.averageP2BackfatMm })),
     feedDeliveries: feedDeliveries.map(r => ({ id: r.id, deliveryDate: r.deliveryDate, productName: r.productName, quantityKg: r.quantityKg, costPence: r.costPence })),
     purchases: purchases.map(r => ({ id: r.id, invoiceDate: r.invoiceDate, numberOfHead: r.numberOfHead, totalAmountPence: r.totalAmountPence, pricePerHeadPence: r.pricePerHeadPence })),
   });
