@@ -1059,145 +1059,311 @@ ${allColls.filter(c => new Date(c.collectionDate).getFullYear() === parseInt(mon
 
 // ─── CAE Monitoring ────────────────────────────────────────────────────────────
 
+const CAE_LABS = [
+  "SRUC Veterinary Services",
+  "SAC Consulting Veterinary Services",
+  "APHA Starcross (Exeter)",
+  "APHA Weybridge",
+  "APHA Shrewsbury",
+  "Axiom Veterinary Laboratories",
+  "Biobest Laboratories",
+  "University of Liverpool VDL",
+  "Fera Science",
+  "Other",
+] as const;
+
+const CAE_ACCRED_BODIES = [
+  "SGS UK (CAEV-free Scheme)",
+  "British Goat Society",
+  "Individual buyer scheme",
+  "APHA",
+  "Not enrolled in scheme",
+  "Other",
+] as const;
+
+const CAE_TEST_TYPES = [
+  { value: "blood-elisa", label: "Blood ELISA" },
+  { value: "agar-gel-id", label: "Agar gel immunodiffusion (AGID)" },
+  { value: "pcr", label: "PCR" },
+  { value: "western-blot", label: "Western blot" },
+  { value: "post-mortem", label: "Post-mortem / histopathology" },
+] as const;
+
 interface CaeRecord {
   id: number; testDate: string; testType: string;
   laboratory?: string | null; labRef?: string | null;
   animalsTestedCount?: number | null; positiveCount?: number | null;
-  result: string; caeAccreditationStatus?: string | null; accreditationBody?: string | null;
+  result?: string | null;
+  caeAccreditationStatus?: string | null; accreditationBody?: string | null;
   actionTaken?: string | null; nextTestDue?: string | null; vetName?: string | null; notes?: string | null;
 }
+
+type CaeDialogMode = "log" | "result" | "edit";
+
+const caeIsAwaiting = (r: CaeRecord) => !r.result || r.result === "";
+const caeIsPostMortem = (t: string) => t === "post-mortem";
 
 export function CaeTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<CaeDialogMode>("log");
   const [editing, setEditing] = useState<CaeRecord | null>(null);
   const [viewRec, setViewRec] = useState<CaeRecord | null>(null);
+  const [labOther, setLabOther] = useState("");
   const blank: Partial<CaeRecord> = { testDate: today(), testType: "blood-elisa" };
   const [form, setForm] = useState<Partial<CaeRecord>>(blank);
   const set = (k: keyof CaeRecord, v: unknown) => setForm(p => ({ ...p, [k]: v }));
 
   const { data, isLoading } = useQuery({ queryKey: ["goat-dairy-cae", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-dairy/cae-monitoring`)).then(r => r.json()) });
-  const allRecords: CaeRecord[] = data?.records ?? [];
-  const latestAccred = allRecords.find(r => r.caeAccreditationStatus)?.caeAccreditationStatus;
+  const allRecords: CaeRecord[] = Array.isArray(data) ? data : (data?.records ?? []);
 
   const caeYears = useMemo(() => {
     const s = new Set<string>(allRecords.map(r => String(r.testDate || "").slice(0, 4)).filter(Boolean));
     return Array.from(s).sort((a, b) => b.localeCompare(a));
   }, [allRecords]);
-  const [caeYearFilter, setCaeYearFilter] = useState("all");
-  const records = useMemo(() => caeYearFilter === "all" ? allRecords : allRecords.filter(r => String(r.testDate || "").startsWith(caeYearFilter)), [allRecords, caeYearFilter]);
+  const [yearFilter, setYearFilter] = useState("all");
+  const records = useMemo(() => yearFilter === "all" ? allRecords : allRecords.filter(r => String(r.testDate || "").startsWith(yearFilter)), [allRecords, yearFilter]);
+  const latestAccred = allRecords.find(r => r.caeAccreditationStatus)?.caeAccreditationStatus;
+  const awaitingCount = allRecords.filter(caeIsAwaiting).length;
 
   const printCae = () => {
     const w = window.open("", "_blank");
     if (!w) return;
-    w.document.write(`<html><head><title>CAE Test Records</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>CAE Monitoring Records${caeYearFilter !== "all" ? ` — ${caeYearFilter}` : ""}</h2><table><thead><tr><th>Date</th><th>Test Type</th><th>Animals</th><th>Positives</th><th>Result</th><th>Next Test Due</th><th>Notes</th></tr></thead><tbody>${records.map(r => `<tr><td>${fmt(r.testDate)}</td><td>${r.testType?.replace(/-/g, " ") || "—"}</td><td>${r.animalsTestedCount ?? "—"}</td><td>${r.positiveCount ?? "—"}</td><td>${r.result || "—"}</td><td>${fmt(r.nextTestDue)}</td><td>${r.notes || ""}</td></tr>`).join("")}</tbody></table></body></html>`);
+    w.document.write(`<html><head><title>CAE Monitoring</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>CAE Monitoring Records${yearFilter !== "all" ? ` — ${yearFilter}` : ""}</h2><table><thead><tr><th>Date</th><th>Test Type</th><th>Laboratory</th><th>Animals</th><th>Positives</th><th>Result</th><th>Next Test Due</th><th>Notes</th></tr></thead><tbody>${records.map(r => `<tr><td>${fmt(r.testDate)}</td><td>${CAE_TEST_TYPES.find(t => t.value === r.testType)?.label || r.testType}</td><td>${r.laboratory || "—"}</td><td>${r.animalsTestedCount ?? "—"}</td><td>${r.positiveCount ?? "—"}</td><td>${r.result || "Awaiting results"}</td><td>${fmt(r.nextTestDue)}</td><td>${r.notes || ""}</td></tr>`).join("")}</tbody></table></body></html>`);
     w.document.close(); w.print();
   };
 
+  const openLogTest = () => { setEditing(null); setForm({ ...blank }); setLabOther(""); setMode("log"); setOpen(true); };
+  const openEnterResult = (r: CaeRecord) => { setEditing(r); setForm({ ...r }); setLabOther(""); setMode("result"); setOpen(true); };
+  const openEdit = (r: CaeRecord) => { setEditing(r); setForm({ ...r }); setLabOther(""); setMode("edit"); setOpen(true); };
+
+  const labIsKnown = CAE_LABS.slice(0, -1).includes(form.laboratory as any);
+  const effectiveLab = form.laboratory === "Other" ? labOther : form.laboratory;
+
   const save = useMutation({
-    mutationFn: (body: Partial<CaeRecord>) => fetch(api(`farms/${farmId}/goat-dairy/cae-monitoring${editing ? `/${editing.id}` : ""}`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-dairy-cae", farmId] }); setOpen(false); toast({ title: editing ? "Updated" : "Added" }); },
+    mutationFn: (body: Partial<CaeRecord>) =>
+      fetch(api(`farms/${farmId}/goat-dairy/cae-monitoring${editing ? `/${editing.id}` : ""}`), {
+        method: editing ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, laboratory: effectiveLab }),
+      }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-dairy-cae", farmId] }); setOpen(false); toast({ title: mode === "log" ? "Test event logged" : editing ? "Record updated" : "Added" }); },
   });
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-dairy/cae-monitoring/${id}`), { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-dairy-cae", farmId] }); toast({ title: "Deleted" }); },
   });
 
+  const testType = form.testType || "blood-elisa";
+  const isPostMortem = caeIsPostMortem(testType);
+  const vetLabel = isPostMortem ? "Examining vet" : "Sample taken by";
+  const isNonNeg = !!(form.result && (form.result.includes("pos") || form.result === "inconclusive"));
+  const dialogTitle = mode === "log" ? "Log CAE Test Event" : mode === "result" ? "Enter CAE Test Results" : "Edit CAE Record";
+
   return (
     <div className="space-y-4">
       <div className="rounded-md border border-amber-100 bg-amber-50 p-3 text-sm text-amber-800">
-        <strong>CAE — Caprine Arthritis Encephalitis</strong> is a progressive viral disease of goats causing joint disease in adults and neurological disease in kids. Management through CAE accreditation programmes (e.g. SGS UK CAEV-free) is expected by dairy buyers and assurance bodies. Maintain a testing programme and keep records available for inspection.
+        <strong>CAE — Caprine Arthritis Encephalitis</strong> is a progressive viral disease of goats causing joint disease in adults and neurological disease in kids. Accreditation through programmes such as SGS UK CAEV-free is expected by dairy buyers and assurance bodies. <em>Log each sampling event now — enter laboratory results when the report arrives.</em>
       </div>
-      {latestAccred && <div className="flex items-center gap-2 text-sm"><span className="font-medium text-gray-600">Accreditation status:</span><ResultBadge v={latestAccred} /></div>}
+
+      <div className="flex flex-wrap items-center gap-4 text-sm">
+        {latestAccred && <div className="flex items-center gap-2"><span className="font-medium text-gray-600">Current accreditation:</span><ResultBadge v={latestAccred} /></div>}
+        {awaitingCount > 0 && (
+          <div className="flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-amber-700 font-medium">
+            <AlertTriangle className="w-3.5 h-3.5" />{awaitingCount} test{awaitingCount > 1 ? "s" : ""} awaiting results
+          </div>
+        )}
+      </div>
+
       <div className="flex flex-wrap justify-between items-center gap-2">
         <h2 className="text-base font-semibold text-gray-800">CAE Test Records</h2>
         <div className="flex items-center gap-2 flex-wrap">
-          <Select value={caeYearFilter} onValueChange={setCaeYearFilter}>
+          <Select value={yearFilter} onValueChange={setYearFilter}>
             <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="all">All years</SelectItem>{caeYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
           </Select>
           <Button size="sm" variant="outline" onClick={printCae}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
-          <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Test Record</Button>
+          <Button size="sm" onClick={openLogTest}><Plus className="w-4 h-4 mr-1" />Log Test Event</Button>
         </div>
       </div>
-      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : records.length === 0 ? <div className="text-center py-12 text-gray-400"><p>No CAE monitoring records yet.</p></div> : (
-        <div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead><tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide"><th className="py-2 px-3 text-left">Date</th><th className="py-2 px-3 text-left">Test Type</th><th className="py-2 px-3 text-left">Animals</th><th className="py-2 px-3 text-left">Positives</th><th className="py-2 px-3 text-left">Result</th><th className="py-2 px-3 text-left">Next Test</th><th className="py-2 px-3 text-left"></th><th className="py-2 px-3 text-left">Actions</th></tr></thead>
-          <tbody>{records.map(r => (
-            <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
-              <td className="py-2 px-3 font-medium">{fmt(r.testDate)}</td>
-              <td className="py-2 px-3 capitalize">{r.testType?.replace(/-/g, " ") || "—"}</td>
-              <td className="py-2 px-3">{r.animalsTestedCount ?? "—"}</td>
-              <td className="py-2 px-3">{r.positiveCount != null ? <span className={r.positiveCount > 0 ? "text-red-700 font-medium" : "text-green-700"}>{r.positiveCount}</span> : "—"}</td>
-              <td className="py-2 px-3"><ResultBadge v={r.result} /></td>
-              <td className="py-2 px-3 text-gray-500">{fmt(r.nextTestDue)}</td>
-              <td className="py-2 px-3"><DocAttach farmId={farmId} endpoint="goat-dairy/cae-monitoring" recordId={r.id} documentPath={(r as any).documentPath ?? null} documentName={(r as any).documentName ?? null} queryKey={["goat-dairy-cae", String(farmId)]} compact /></td>
-              <td className="py-2 px-3"><div className="flex gap-1">
-                <Button variant="ghost" size="sm" onClick={() => setViewRec(r)}><Eye className="w-3.5 h-3.5" /></Button>
-                <Button variant="ghost" size="sm" onClick={() => { setEditing(r); setForm(r); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                <Button variant="ghost" size="sm" className="text-red-500" onClick={() => del.mutate(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
-              </div></td>
-            </tr>
-          ))}</tbody>
-        </table></div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+      ) : records.length === 0 ? (
+        <div className="text-center py-12 text-gray-400">
+          <p className="font-medium">No CAE monitoring records yet.</p>
+          <p className="text-xs mt-1">Use "Log Test Event" to record a blood draw or sampling event. Enter results once your laboratory report arrives.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide">
+              <th className="py-2 px-3 text-left">Date</th>
+              <th className="py-2 px-3 text-left">Test Type</th>
+              <th className="py-2 px-3 text-left">Laboratory</th>
+              <th className="py-2 px-3 text-left">Animals</th>
+              <th className="py-2 px-3 text-left">Result</th>
+              <th className="py-2 px-3 text-left">Next Test</th>
+              <th className="py-2 px-3 text-left">Actions</th>
+            </tr></thead>
+            <tbody>{records.map(r => (
+              <tr key={r.id} className={`border-b border-gray-50 hover:bg-gray-50 ${caeIsAwaiting(r) ? "bg-amber-50/50" : ""}`}>
+                <td className="py-2 px-3 font-medium">{fmt(r.testDate)}</td>
+                <td className="py-2 px-3 text-xs">{CAE_TEST_TYPES.find(t => t.value === r.testType)?.label || r.testType?.replace(/-/g, " ")}</td>
+                <td className="py-2 px-3 text-xs text-gray-500">{r.laboratory || "—"}</td>
+                <td className="py-2 px-3">{r.animalsTestedCount != null ? r.animalsTestedCount : "—"}</td>
+                <td className="py-2 px-3">
+                  {caeIsAwaiting(r)
+                    ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Awaiting results</span>
+                    : <ResultBadge v={r.result} />}
+                </td>
+                <td className="py-2 px-3 text-xs text-gray-500">{fmt(r.nextTestDue)}</td>
+                <td className="py-2 px-3">
+                  <div className="flex gap-1 items-center">
+                    {caeIsAwaiting(r) && (
+                      <Button variant="outline" size="sm" className="text-xs h-7 px-2 text-amber-700 border-amber-300 hover:bg-amber-50" onClick={() => openEnterResult(r)}>
+                        Enter result
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="sm" onClick={() => setViewRec(r)}><Eye className="w-3.5 h-3.5" /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                    <Button variant="ghost" size="sm" className="text-red-500" onClick={() => del.mutate(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                  </div>
+                </td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
       )}
+
       {viewRec && (
         <Dialog open onOpenChange={() => setViewRec(null)}>
           <DialogContent style={{ maxWidth: "34rem" }}>
             <DialogHeader><DialogTitle>CAE Test — {fmt(viewRec.testDate)}</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-3 text-sm py-2">
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Test Type</p><p className="font-medium capitalize">{viewRec.testType?.replace(/-/g, " ")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Test Type</p><p className="font-medium">{CAE_TEST_TYPES.find(t => t.value === viewRec.testType)?.label || viewRec.testType}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Laboratory</p><p className="font-medium">{viewRec.laboratory || "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lab Ref</p><p className="font-medium">{viewRec.labRef || "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Animals Tested</p><p className="font-medium">{viewRec.animalsTestedCount ?? "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Positives</p><p className={`font-medium ${(viewRec.positiveCount ?? 0) > 0 ? "text-red-700" : "text-green-700"}`}>{viewRec.positiveCount ?? "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Overall Result</p><ResultBadge v={viewRec.result} /></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lab Reference</p><p className="font-medium">{viewRec.labRef || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">{caeIsPostMortem(viewRec.testType) ? "Examining Vet" : "Sample Taken By"}</p><p className="font-medium">{viewRec.vetName || "—"}</p></div>
+              {!caeIsPostMortem(viewRec.testType) && <>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Animals Tested</p><p className="font-medium">{viewRec.animalsTestedCount ?? "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Positives</p><p className={`font-medium ${(viewRec.positiveCount ?? 0) > 0 ? "text-red-700" : ""}`}>{viewRec.positiveCount ?? "—"}</p></div>
+              </>}
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Overall Result</p>
+                {caeIsAwaiting(viewRec) ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Awaiting results</span> : <ResultBadge v={viewRec.result} />}
+              </div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">CAE Accreditation</p><ResultBadge v={viewRec.caeAccreditationStatus} /></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Accreditation Body</p><p className="font-medium">{viewRec.accreditationBody || "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Action Taken</p><p className="font-medium">{viewRec.actionTaken || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Next Test Due</p><p className="font-medium">{fmt(viewRec.nextTestDue)}</p></div>
+              {viewRec.actionTaken && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Action Taken</p><p className="font-medium">{viewRec.actionTaken}</p></div>}
               {viewRec.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRec.notes}</p></div>}
               <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="goat-dairy-cae" recordId={viewRec.id} /></div>
             </div>
-            <DialogFooter><Button variant="outline" onClick={() => setViewRec(null)}>Close</Button><Button onClick={() => { setEditing(viewRec); setForm(viewRec); setOpen(true); setViewRec(null); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button></DialogFooter>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewRec(null)}>Close</Button>
+              {caeIsAwaiting(viewRec) && <Button variant="outline" onClick={() => { openEnterResult(viewRec); setViewRec(null); }}>Enter Result</Button>}
+              <Button onClick={() => { openEdit(viewRec); setViewRec(null); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
+
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "36rem" }}>
-          <DialogHeader><DialogTitle>{editing ? "Edit CAE Record" : "Add CAE Test Record"}</DialogTitle></DialogHeader>
+        <DialogContent style={{ maxWidth: "38rem" }}>
+          <DialogHeader>
+            <DialogTitle>{dialogTitle}</DialogTitle>
+            {mode === "log" && <p className="text-xs text-muted-foreground pt-1">Record the sampling event now. Return to enter laboratory results once they arrive.</p>}
+            {mode === "result" && <p className="text-xs text-muted-foreground pt-1">Test from <strong>{fmt(editing?.testDate)}</strong> · {CAE_TEST_TYPES.find(t => t.value === editing?.testType)?.label} · {editing?.laboratory || "lab not recorded"}</p>}
+          </DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
-            <div><Label>Test Date *</Label><Input type="date" value={String(form.testDate || "").slice(0, 10)} onChange={e => set("testDate", e.target.value)} /></div>
-            <div><Label>Test Type *</Label>
-              <Select value={form.testType || "blood-elisa"} onValueChange={v => set("testType", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="blood-elisa">Blood ELISA</SelectItem><SelectItem value="agar-gel-id">Agar gel immunodiffusion (AGID)</SelectItem><SelectItem value="pcr">PCR</SelectItem><SelectItem value="western-blot">Western blot</SelectItem><SelectItem value="post-mortem">Post-mortem / histopathology</SelectItem></SelectContent>
-              </Select>
-            </div>
-            <div><Label>Laboratory</Label><Input value={form.laboratory || ""} onChange={e => set("laboratory", e.target.value)} /></div>
-            <div><Label>Lab Ref</Label><Input value={form.labRef || ""} onChange={e => set("labRef", e.target.value)} /></div>
-            <div><Label>Animals Tested</Label><Input type="number" value={form.animalsTestedCount || ""} onChange={e => set("animalsTestedCount", e.target.value ? parseInt(e.target.value) : null)} /></div>
-            <div><Label>Positives</Label><Input type="number" value={form.positiveCount ?? ""} onChange={e => set("positiveCount", e.target.value ? parseInt(e.target.value) : null)} /></div>
-            <div><Label>Result *</Label>
-              <Select value={form.result || ""} onValueChange={v => set("result", v)}>
-                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-                <SelectContent><SelectItem value="negative">Negative (all clear)</SelectItem><SelectItem value="positive">Positive</SelectItem><SelectItem value="inconclusive">Inconclusive</SelectItem><SelectItem value="accredited-clear">Accredited — Clear</SelectItem></SelectContent>
-              </Select>
-            </div>
-            <div><Label>CAE Accreditation Status</Label>
-              <Select value={form.caeAccreditationStatus || "__none__"} onValueChange={v => set("caeAccreditationStatus", v === "__none__" ? null : v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="__none__">Not applicable</SelectItem><SelectItem value="caev-free">CAEV-free certified</SelectItem><SelectItem value="provisional">Provisional</SelectItem><SelectItem value="withdrawn">Withdrawn</SelectItem><SelectItem value="not-accredited">Not accredited</SelectItem></SelectContent>
-              </Select>
-            </div>
-            <div><Label>Accreditation Body</Label><Input value={form.accreditationBody || ""} onChange={e => set("accreditationBody", e.target.value)} placeholder="e.g. SGS UK" /></div>
-            <div><Label>Vet Name</Label><Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} /></div>
-            <div><Label>Next Test Due</Label><Input type="date" value={String(form.nextTestDue || "").slice(0, 10)} onChange={e => set("nextTestDue", e.target.value)} /></div>
-            <div className="col-span-2"><Label>Action Taken</Label><Input value={form.actionTaken || ""} onChange={e => set("actionTaken", e.target.value)} /></div>
-            <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={2} /></div>
+
+            {(mode === "log" || mode === "edit") && <>
+              <div><Label>Test Date *</Label><Input type="date" value={String(form.testDate || "").slice(0, 10)} onChange={e => set("testDate", e.target.value)} /></div>
+              <div><Label>Test Type *</Label>
+                <Select value={testType} onValueChange={v => set("testType", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{CAE_TEST_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              {!isPostMortem && <>
+                <div>
+                  <Label>Laboratory</Label>
+                  <Select value={labIsKnown ? form.laboratory! : form.laboratory ? "Other" : ""} onValueChange={v => { set("laboratory", v || null); if (v !== "Other") setLabOther(""); }}>
+                    <SelectTrigger><SelectValue placeholder="Select lab…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Not specified</SelectItem>
+                      {CAE_LABS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.laboratory === "Other" && (
+                  <div><Label>Specify laboratory</Label><Input value={labOther} onChange={e => setLabOther(e.target.value)} placeholder="Laboratory name" /></div>
+                )}
+                <div><Label>Lab Reference No.</Label><Input value={form.labRef || ""} onChange={e => set("labRef", e.target.value)} placeholder="Lab report reference" /></div>
+                <div><Label>Animals Tested</Label><Input type="number" min="0" value={form.animalsTestedCount ?? ""} onChange={e => set("animalsTestedCount", e.target.value ? parseInt(e.target.value) : null)} /></div>
+              </>}
+              <div><Label>{vetLabel}</Label><Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} placeholder={isPostMortem ? "Examining vet name" : "Vet / technician / farmer"} /></div>
+            </>}
+
+            {(mode === "result" || mode === "edit") && <>
+              {!isPostMortem && mode === "result" && <div><Label>Animals Tested</Label><Input type="number" min="0" value={form.animalsTestedCount ?? ""} onChange={e => set("animalsTestedCount", e.target.value ? parseInt(e.target.value) : null)} /></div>}
+              {!isPostMortem && <div><Label>Positives</Label><Input type="number" min="0" value={form.positiveCount ?? ""} onChange={e => set("positiveCount", e.target.value ? parseInt(e.target.value) : null)} /></div>}
+              <div><Label>Result</Label>
+                <Select value={form.result || ""} onValueChange={v => set("result", v || null)}>
+                  <SelectTrigger><SelectValue placeholder="Select result…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="negative">Negative (all clear)</SelectItem>
+                    <SelectItem value="positive">Positive</SelectItem>
+                    <SelectItem value="inconclusive">Inconclusive</SelectItem>
+                    <SelectItem value="caev-free">CAEV-free certified</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {isNonNeg && (
+                <div className="col-span-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 flex items-start gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                  <span><strong>Non-negative result:</strong> Vet consultation, biosecurity review, and segregation of any seropositive animals are required. Document actions taken below.</span>
+                </div>
+              )}
+              <div><Label>CAE Accreditation Status</Label>
+                <Select value={form.caeAccreditationStatus || "__none__"} onValueChange={v => set("caeAccreditationStatus", v === "__none__" ? null : v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No change / not applicable</SelectItem>
+                    <SelectItem value="caev-free">CAEV-free certified</SelectItem>
+                    <SelectItem value="provisional">Provisional accreditation</SelectItem>
+                    <SelectItem value="suspended">Suspended</SelectItem>
+                    <SelectItem value="withdrawn">Withdrawn</SelectItem>
+                    <SelectItem value="not-accredited">Not accredited</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Accreditation Body</Label>
+                <Select value={CAE_ACCRED_BODIES.includes(form.accreditationBody as any) ? form.accreditationBody! : form.accreditationBody ? "Other" : "__none__"} onValueChange={v => set("accreditationBody", v === "__none__" ? null : v)}>
+                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Not applicable</SelectItem>
+                    {CAE_ACCRED_BODIES.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Next Test Due</Label><Input type="date" value={String(form.nextTestDue || "").slice(0, 10)} onChange={e => set("nextTestDue", e.target.value)} /></div>
+              <div className="col-span-2">
+                <Label>{isNonNeg ? "Action Taken *" : "Action Taken"}</Label>
+                <Input value={form.actionTaken || ""} onChange={e => set("actionTaken", e.target.value)} placeholder={isNonNeg ? "Required — describe biosecurity / management actions" : "e.g. All clear — no action required"} className={isNonNeg && !form.actionTaken ? "border-red-300" : ""} />
+              </div>
+            </>}
+
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={2} placeholder="Additional notes" /></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>{save.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}Save</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>
+              {save.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+              {mode === "log" ? "Log Test Event" : mode === "result" ? "Save Results" : "Save"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -1206,7 +1372,7 @@ export function CaeTab({ farmId }: { farmId: number }) {
 
 // ─── Assurance Tab ─────────────────────────────────────────────────────────────
 
-function AssuranceTab() {
+export function AssuranceTab() {
   const [, navigate] = useLocation();
   return (
     <div className="space-y-4">

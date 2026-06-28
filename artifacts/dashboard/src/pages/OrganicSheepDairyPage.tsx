@@ -17,7 +17,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { MastitisTab, BcsTab, BulkTankTab, MvTab } from "@/pages/SheepDairyPage";
+import { MastitisTab, BcsTab, BulkTankTab, MvTab, AssuranceTab } from "@/pages/SheepDairyPage";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 
 const BASE = import.meta.env.BASE_URL;
@@ -69,7 +69,7 @@ const PRODUCT_CATEGORIES = ["Antibiotic", "NSAID", "Anthelmintic", "Antiparasiti
 
 const ROUTES_OF_ADMINISTRATION = ["Intramuscular (IM)", "Subcutaneous (SC)", "Intravenous (IV)", "Oral", "Intramammary", "Topical", "Other"];
 
-type Tab = "tupping" | "conversion" | "collections" | "feed" | "treatments" | "mastitis" | "bcs" | "tank" | "mv";
+type Tab = "tupping" | "conversion" | "collections" | "feed" | "treatments" | "mastitis" | "bcs" | "tank" | "mv" | "assurance";
 
 export default function OrganicSheepDairyPage() {
   const { farmId } = useAppStore();
@@ -98,6 +98,7 @@ export default function OrganicSheepDairyPage() {
           <TabButton active={tab === "bcs"} onClick={() => setTab("bcs")}>Body Condition</TabButton>
           <TabButton active={tab === "tank"} onClick={() => setTab("tank")}>Bulk Tank</TabButton>
           <TabButton active={tab === "mv"} onClick={() => setTab("mv")}>Maedi-Visna</TabButton>
+          <TabButton active={tab === "assurance"} onClick={() => setTab("assurance")}>Assurance</TabButton>
         </TabBar>
         <div className="mt-6">
           {tab === "tupping" && <TuppingTab farmId={farmId} />}
@@ -109,6 +110,7 @@ export default function OrganicSheepDairyPage() {
           {tab === "bcs" && <BcsTab farmId={farmId} />}
           {tab === "tank" && <BulkTankTab farmId={farmId} />}
           {tab === "mv" && <MvTab farmId={farmId} />}
+          {tab === "assurance" && <AssuranceTab />}
         </div>
       </div>
     </AppLayout>
