@@ -29,9 +29,9 @@ function todayDate(): string {
   return new Date().toISOString().split("T")[0];
 }
 
-const TEST_METHODS = ["ELISA", "AGID (Agar Gel Immunodiffusion)", "PCR", "Western Blot", "Other"];
-const STATUSES = ["CAEV Free Accredited", "Monitored Herd", "In Progress", "Positive — Action Required", "Pending Results"];
-const SCHEMES = ["GoatVet CAEV Accreditation", "British Goat Society", "Other", "None"];
+const TEST_TYPES = ["ELISA Blood Test", "AGID (Agar Gel Immunodiffusion)", "PCR", "Western Blot", "Other"];
+const ACCREDITATION_STATUSES = ["CAEV Free Accredited", "Monitored Herd", "In Progress", "Positive — Action Required", "Pending Results"];
+const ACCREDITATION_BODIES = ["GoatVet CAEV Accreditation", "British Goat Society", "Other", "None"];
 
 function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   return (
@@ -49,14 +49,14 @@ export default function CaeMonitoringScreen() {
   const [saving, setSaving] = useState(false);
 
   const [testDate, setTestDate] = useState(todayDate());
-  const [flockGroup, setFlockGroup] = useState("");
-  const [numberTested, setNumberTested] = useState("");
-  const [numberPositive, setNumberPositive] = useState("");
-  const [testMethod, setTestMethod] = useState("");
-  const [scheme, setScheme] = useState("");
-  const [status, setStatus] = useState("");
-  const [testingVet, setTestingVet] = useState("");
-  const [labName, setLabName] = useState("");
+  const [flockId, setFlockId] = useState("");
+  const [animalsTestedCount, setAnimalsTestedCount] = useState("");
+  const [positiveCount, setPositiveCount] = useState("");
+  const [testType, setTestType] = useState("");
+  const [accreditationBody, setAccreditationBody] = useState("");
+  const [caeAccreditationStatus, setCaeAccreditationStatus] = useState("");
+  const [vetName, setVetName] = useState("");
+  const [laboratory, setLaboratory] = useState("");
   const [labRef, setLabRef] = useState("");
   const [nextTestDue, setNextTestDue] = useState("");
   const [notes, setNotes] = useState("");
@@ -66,8 +66,12 @@ export default function CaeMonitoringScreen() {
       Alert.alert("Test date required", "Please enter the date of testing.");
       return;
     }
-    if (!numberTested.trim()) {
+    if (!animalsTestedCount.trim()) {
       Alert.alert("Animals tested required", "Please enter the number of animals tested.");
+      return;
+    }
+    if (!testType) {
+      Alert.alert("Test type required", "Please select the type of test performed.");
       return;
     }
     setSaving(true);
@@ -78,14 +82,14 @@ export default function CaeMonitoringScreen() {
         farmId: currentFarm?.id,
         type: "cae-monitoring",
         testDate,
-        flockGroup: flockGroup || null,
-        numberTested: Number(numberTested),
-        numberPositive: numberPositive ? Number(numberPositive) : null,
-        testMethod: testMethod || null,
-        scheme: scheme || null,
-        status: status || null,
-        testingVet: testingVet || null,
-        labName: labName || null,
+        flockId: flockId ? Number(flockId) : null,
+        animalsTestedCount: Number(animalsTestedCount),
+        positiveCount: positiveCount ? Number(positiveCount) : null,
+        testType: testType || null,
+        accreditationBody: accreditationBody || null,
+        caeAccreditationStatus: caeAccreditationStatus || null,
+        vetName: vetName || null,
+        laboratory: laboratory || null,
         labRef: labRef || null,
         nextTestDue: nextTestDue || null,
         notes: notes || null,
@@ -98,7 +102,7 @@ export default function CaeMonitoringScreen() {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         "CAE test recorded",
-        `Test for ${numberTested} animals recorded. Will sync when connected.`,
+        `Test for ${animalsTestedCount} animals recorded. Will sync when connected.`,
         [{ text: "OK", onPress: () => router.back() }]
       );
     } catch {
@@ -143,38 +147,38 @@ export default function CaeMonitoringScreen() {
 
         <View style={styles.field}>
           <Text style={styles.label}>Herd / Group</Text>
-          <SmallRuminantPicker species="goat" value={flockGroup} onChange={setFlockGroup} flocks={flocks} loading={flocksLoading} fromCache={flocksCached} error={flocksError} />
+          <SmallRuminantPicker species="goat" value={flockId} onChange={setFlockId} flocks={flocks} loading={flocksLoading} fromCache={flocksCached} error={flocksError} />
         </View>
 
         <View style={styles.row}>
           <View style={[styles.field, { flex: 1, marginRight: spacing.sm }]}>
             <Text style={styles.label}>Animals Tested *</Text>
-            <Input value={numberTested} onChangeText={setNumberTested} placeholder="e.g. 32" keyboardType="number-pad" />
+            <Input value={animalsTestedCount} onChangeText={setAnimalsTestedCount} placeholder="e.g. 32" keyboardType="number-pad" />
           </View>
           <View style={[styles.field, { flex: 1 }]}>
             <Text style={styles.label}>Positive Results</Text>
-            <Input value={numberPositive} onChangeText={setNumberPositive} placeholder="e.g. 0" keyboardType="number-pad" />
+            <Input value={positiveCount} onChangeText={setPositiveCount} placeholder="e.g. 0" keyboardType="number-pad" />
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Test Method</Text>
+        <Text style={styles.sectionTitle}>Test Type *</Text>
         <View style={styles.chips}>
-          {TEST_METHODS.map(m => (
-            <Chip key={m} label={m} selected={testMethod === m} onPress={() => setTestMethod(m === testMethod ? "" : m)} />
+          {TEST_TYPES.map(m => (
+            <Chip key={m} label={m} selected={testType === m} onPress={() => setTestType(m === testType ? "" : m)} />
           ))}
         </View>
 
         <Text style={styles.sectionTitle}>Accreditation Scheme</Text>
         <View style={styles.chips}>
-          {SCHEMES.map(s => (
-            <Chip key={s} label={s} selected={scheme === s} onPress={() => setScheme(s === scheme ? "" : s)} />
+          {ACCREDITATION_BODIES.map(s => (
+            <Chip key={s} label={s} selected={accreditationBody === s} onPress={() => setAccreditationBody(s === accreditationBody ? "" : s)} />
           ))}
         </View>
 
-        <Text style={styles.sectionTitle}>Status</Text>
+        <Text style={styles.sectionTitle}>Accreditation Status</Text>
         <View style={styles.chips}>
-          {STATUSES.map(s => (
-            <Chip key={s} label={s} selected={status === s} onPress={() => setStatus(s === status ? "" : s)} />
+          {ACCREDITATION_STATUSES.map(s => (
+            <Chip key={s} label={s} selected={caeAccreditationStatus === s} onPress={() => setCaeAccreditationStatus(s === caeAccreditationStatus ? "" : s)} />
           ))}
         </View>
 
@@ -182,13 +186,13 @@ export default function CaeMonitoringScreen() {
 
         <View style={styles.field}>
           <Text style={styles.label}>Testing Vet / Practice</Text>
-          <Input value={testingVet} onChangeText={setTestingVet} placeholder="Vet name or practice" />
+          <Input value={vetName} onChangeText={setVetName} placeholder="Vet name or practice" />
         </View>
 
         <View style={styles.row}>
           <View style={[styles.field, { flex: 1, marginRight: spacing.sm }]}>
             <Text style={styles.label}>Laboratory</Text>
-            <Input value={labName} onChangeText={setLabName} placeholder="e.g. APHA" />
+            <Input value={laboratory} onChangeText={setLaboratory} placeholder="e.g. APHA" />
           </View>
           <View style={[styles.field, { flex: 1 }]}>
             <Text style={styles.label}>Lab Reference</Text>
