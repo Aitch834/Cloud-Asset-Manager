@@ -636,6 +636,33 @@ export const dairyDctRecordsTable = pgTable("dairy_dct_records", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+// ─── NMR / Milk Recording Visit ───────────────────────────────────────────────
+export const dairyRecordingVisitsTable = pgTable("dairy_recording_visits", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  herdId: integer("herd_id").references(() => herdFlockRegisterTable.id),
+  visitDate: date("visit_date").notNull(),
+  recorderName: text("recorder_name"),
+  recorderNumber: text("recorder_number"),
+  cowsInMilk: integer("cows_in_milk"),
+  cowsRecorded: integer("cows_recorded"),
+  avgYieldLitresPerDay: numeric("avg_yield_litres_per_day", { precision: 6, scale: 2 }),
+  avgFatPercent: numeric("avg_fat_percent", { precision: 5, scale: 2 }),
+  avgProteinPercent: numeric("avg_protein_percent", { precision: 5, scale: 2 }),
+  avgLactosePercent: numeric("avg_lactose_percent", { precision: 5, scale: 2 }),
+  avgSccThousands: integer("avg_scc_thousands"),
+  highSccCount: integer("high_scc_count"),
+  highSccAnimalTags: text("high_scc_animal_tags"),
+  qualityAlert: text("quality_alert"),
+  nextVisitDate: date("next_visit_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export type DairyRecordingVisit = typeof dairyRecordingVisitsTable.$inferSelect;
+export type NewDairyRecordingVisit = typeof dairyRecordingVisitsTable.$inferInsert;
+
 export const strawInventoryTable = pgTable("straw_inventory", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

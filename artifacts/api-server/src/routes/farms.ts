@@ -89,6 +89,7 @@ import {
   dairyBulkTankRecordsTable,
   dairyMilkCollectionsTable,
   dairyDctRecordsTable,
+  dairyRecordingVisitsTable,
   seedDrillingRecordsTable,
   visitorContractorLogTable,
   pestControlRecordsTable,
@@ -15067,6 +15068,41 @@ router.delete("/farms/:farmId/dairy/dct-records/:recordId", requireAuth, require
   if (!farmId) return;
   const recordId = parseInt(req.params.recordId as string);
   await db.delete(dairyDctRecordsTable).where(and(eq(dairyDctRecordsTable.id, recordId), eq(dairyDctRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── NMR / Milk Recording Visits ─────────────────────────────────────────────
+
+router.get("/farms/:farmId/dairy/recording-visits", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const visits = await db.select().from(dairyRecordingVisitsTable).where(eq(dairyRecordingVisitsTable.farmId, farmId)).orderBy(desc(dairyRecordingVisitsTable.visitDate));
+  res.json({ visits });
+});
+
+router.post("/farms/:farmId/dairy/recording-visits", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { herdId, visitDate, recorderName, recorderNumber, cowsInMilk, cowsRecorded, avgYieldLitresPerDay, avgFatPercent, avgProteinPercent, avgLactosePercent, avgSccThousands, highSccCount, highSccAnimalTags, qualityAlert, nextVisitDate, notes } = req.body;
+  if (!visitDate) { res.status(400).json({ error: "visitDate is required" }); return; }
+  const [visit] = await db.insert(dairyRecordingVisitsTable).values({ farmId, herdId: herdId || null, visitDate, recorderName: recorderName || null, recorderNumber: recorderNumber || null, cowsInMilk: cowsInMilk ? parseInt(cowsInMilk) : null, cowsRecorded: cowsRecorded ? parseInt(cowsRecorded) : null, avgYieldLitresPerDay: avgYieldLitresPerDay || null, avgFatPercent: avgFatPercent || null, avgProteinPercent: avgProteinPercent || null, avgLactosePercent: avgLactosePercent || null, avgSccThousands: avgSccThousands ? parseInt(avgSccThousands) : null, highSccCount: highSccCount ? parseInt(highSccCount) : null, highSccAnimalTags: highSccAnimalTags || null, qualityAlert: qualityAlert || null, nextVisitDate: nextVisitDate || null, notes: notes || null }).returning();
+  res.json({ visit });
+});
+
+router.put("/farms/:farmId/dairy/recording-visits/:visitId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const visitId = parseInt(req.params.visitId as string);
+  const { herdId, visitDate, recorderName, recorderNumber, cowsInMilk, cowsRecorded, avgYieldLitresPerDay, avgFatPercent, avgProteinPercent, avgLactosePercent, avgSccThousands, highSccCount, highSccAnimalTags, qualityAlert, nextVisitDate, notes } = req.body;
+  const [visit] = await db.update(dairyRecordingVisitsTable).set({ herdId: herdId || null, visitDate: visitDate || undefined, recorderName: recorderName || null, recorderNumber: recorderNumber || null, cowsInMilk: cowsInMilk ? parseInt(cowsInMilk) : null, cowsRecorded: cowsRecorded ? parseInt(cowsRecorded) : null, avgYieldLitresPerDay: avgYieldLitresPerDay || null, avgFatPercent: avgFatPercent || null, avgProteinPercent: avgProteinPercent || null, avgLactosePercent: avgLactosePercent || null, avgSccThousands: avgSccThousands ? parseInt(avgSccThousands) : null, highSccCount: highSccCount ? parseInt(highSccCount) : null, highSccAnimalTags: highSccAnimalTags || null, qualityAlert: qualityAlert || null, nextVisitDate: nextVisitDate || null, notes: notes || null, updatedAt: new Date() }).where(and(eq(dairyRecordingVisitsTable.id, visitId), eq(dairyRecordingVisitsTable.farmId, farmId))).returning();
+  res.json({ visit });
+});
+
+router.delete("/farms/:farmId/dairy/recording-visits/:visitId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const visitId = parseInt(req.params.visitId as string);
+  await db.delete(dairyRecordingVisitsTable).where(and(eq(dairyRecordingVisitsTable.id, visitId), eq(dairyRecordingVisitsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
