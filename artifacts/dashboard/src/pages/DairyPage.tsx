@@ -4496,7 +4496,7 @@ const JOHNES_SCHEMES = [
   { value: "other", label: "Other" },
 ];
 
-function JohnesTab({ farmId }: { farmId: number }) {
+export function JohnesTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);

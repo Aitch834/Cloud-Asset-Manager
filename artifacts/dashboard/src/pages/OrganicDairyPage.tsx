@@ -39,7 +39,8 @@ import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { useToast } from "@/hooks/use-toast";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from "recharts";
-import { MastitisTab, CalvingTab, BcsTab, MobilityTab, BulkTankTab, DctTab, RecordingVisitsTab } from "@/pages/DairyPage";
+import { MastitisTab, CalvingTab, BcsTab, MobilityTab, BulkTankTab, DctTab, RecordingVisitsTab, JohnesTab } from "@/pages/DairyPage";
+import { DairyEnterpriseReport } from "@/components/DairyEnterpriseReport";
 
 const FEED_TYPES: [string, string][] = [
   ["Concentrate", "Concentrate"],
@@ -2067,8 +2068,10 @@ export default function OrganicDairyPage() {
             <TabsTrigger value="tank">Bulk Tank</TabsTrigger>
             <TabsTrigger value="dct">Dry Cow Therapy</TabsTrigger>
             <TabsTrigger value="recording">Recording Visits</TabsTrigger>
+            <TabsTrigger value="johnes">Johne's Monitoring</TabsTrigger>
             <TabsTrigger value="feed">Feed & Nutrition</TabsTrigger>
             <TabsTrigger value="treatments">Treatment Compliance</TabsTrigger>
+            <TabsTrigger value="enterprise">Enterprise Report</TabsTrigger>
           </TabsList>
           <TabsContent value="herd-conversion" className="mt-4">
             <HerdConversionTab farmId={farmId} farmName={name} />
@@ -2097,11 +2100,17 @@ export default function OrganicDairyPage() {
           <TabsContent value="recording" className="mt-4">
             <RecordingVisitsTab farmId={farmId} />
           </TabsContent>
+          <TabsContent value="johnes" className="mt-4">
+            <JohnesTab farmId={farmId} />
+          </TabsContent>
           <TabsContent value="feed" className="mt-4">
             <FeedNutritionTab farmId={farmId} farmName={name} />
           </TabsContent>
           <TabsContent value="treatments" className="mt-4">
             <TreatmentsTab farmId={farmId} farmName={name} />
+          </TabsContent>
+          <TabsContent value="enterprise" className="mt-4">
+            <DairyEnterpriseReport farmId={farmId} />
           </TabsContent>
         </Tabs>
       )}
