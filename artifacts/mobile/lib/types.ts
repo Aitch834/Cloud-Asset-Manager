@@ -788,6 +788,28 @@ export interface DairyMobilityScoring {
   synced: boolean;
 }
 
+export interface DairyNmrRecordingVisit {
+  id: string;
+  farmId: string;
+  visitDate: string;
+  recorderName: string;
+  recorderNumber: string;
+  cowsInMilk: string;
+  cowsRecorded: string;
+  avgYieldLitresPerDay: string;
+  avgFatPercent: string;
+  avgProteinPercent: string;
+  avgLactosePercent: string;
+  avgSccThousands: string;
+  highSccCount: string;
+  highSccAnimalTags: string;
+  qualityAlert: string;
+  nextVisitDate: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface SyncQueueItem {
   id: string;
   type: string;

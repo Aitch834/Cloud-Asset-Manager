@@ -508,6 +508,17 @@ const recordOptions: RecordOption[] = [
     requiresSectors: ["dairy"],
   },
   {
+    id: "nmr-recording-visit",
+    title: "NMR Recording Visit",
+    description: "Log monthly NMR recorder visit results — herd averages for yield, fat%, protein%, SCC, and F:P ratio",
+    icon: "clipboard-list",
+    color: "#0891b2",
+    bgColor: "#cffafe",
+    route: "/nmr-recording-visit",
+    moduleKeys: ["dairy-management"],
+    requiresSectors: ["dairy"],
+  },
+  {
     id: "sheep-milk-record",
     title: "Sheep Milk Record",
     description: "Record daily or per-collection sheep milk volumes, fat %, protein %, SCC (1,500k/mL limit) and TBC — syncs to Sheep Dairy module",

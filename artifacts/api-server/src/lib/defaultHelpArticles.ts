@@ -1056,7 +1056,42 @@ const CONTENT: [string, string][] = [
 <p>The calving record includes a Colostrum section covering the time of first colostrum (target: within two hours of birth), the volume fed (target: at least 3 litres for a dairy calf or allow suck for a suckler calf), and whether the colostrum was tested using a refractometer (Brix score recorded). A Brix reading below 22% indicates poor quality colostrum that should be supplemented from a frozen store.</p>`,
   ],
 
-  // 41 — Dry Cow Therapy (DCT) Records
+  // 41 — NMR Recording Visits
+  [
+    "How to log monthly NMR recording visits in BDE Farm Trac, track herd constituent averages, and interpret Fat:Protein Ratio trends for dairy compliance.",
+    `<h2>NMR Recording Visits</h2>
+<p>The NMR Recording Visits tab in the Dairy module lets you log the results of each monthly visit from your National Milk Records (NMR) recorder. While not a statutory legal requirement, milk recording is effectively mandatory for Red Tractor Dairy assurance — scheme standards require documented evidence of milk quality monitoring, SCC trend management, and herd health surveillance. Most processor contracts also tie milk price to recorded SCC and constituent data.</p>
+<h3>Recording a visit</h3>
+<p>Navigate to <strong>Dairy → Recording Visits</strong> and click <strong>Log Visit</strong>. The form captures:</p>
+<ul>
+<li><strong>Visit date</strong> — the date the NMR recorder attended.</li>
+<li><strong>Recorder name and NMR employee number</strong> — the recorder's identity for audit purposes.</li>
+<li><strong>Cows in milk / Cows recorded</strong> — the number of cows in the milking herd and the number included in the recording round.</li>
+<li><strong>Herd averages</strong> — yield per cow per day (litres), fat %, protein %, lactose %, and somatic cell count (SCC, in cells × 1,000/mL).</li>
+<li><strong>High-SCC animals</strong> — count of cows above 200,000 cells/mL and a free-text field for their ear tags (comma-separated) to flag animals requiring mastitis investigation.</li>
+<li><strong>Quality alert</strong> — any action note or advisory from the NMR report (e.g. "Bulk tank SCC elevated — investigate quarters on cow UK123").</li>
+<li><strong>Next visit date</strong> — the scheduled date for the following recording round.</li>
+</ul>
+<h3>Fat:Protein Ratio (F:P Ratio)</h3>
+<p>The Fat:Protein Ratio is calculated automatically as you enter fat % and protein % — no manual calculation needed. The ratio is displayed as a colour-coded badge on both the log form and the recording register:</p>
+<ul>
+<li><strong>Red — below 1.0:</strong> high risk of subclinical ruminal acidosis; review buffer feeding and ration composition with your nutritionist.</li>
+<li><strong>Amber — 1.0 to 1.19:</strong> below target; diet may be short of effective fibre or high in rapidly fermentable carbohydrate.</li>
+<li><strong>Green — 1.2 to 1.5:</strong> target range; indicates good rumen function and balanced energy and protein status.</li>
+<li><strong>Amber — above 1.5:</strong> may indicate an energy deficit or early ketosis; cows may be mobilising body fat. Review body condition scores and transition cow management.</li>
+</ul>
+<h3>Trend charts</h3>
+<p>Once you have two or more recording visits logged, click <strong>Trend Chart</strong> to open the rolling 24-visit visual analysis. Two charts are shown side by side:</p>
+<ul>
+<li><strong>Herd Average SCC</strong> — a bar chart with a reference line at 200,000 cells/mL (the EU/UK penalty threshold). Bars above the reference line are immediately visible for management action.</li>
+<li><strong>Fat%, Protein% and F:P Ratio</strong> — a dual-axis line chart showing constituent trends (left axis, %) and the Fat:Protein Ratio trend (right axis) together. The 1.2 F:P target is shown as a dashed reference line.</li>
+</ul>
+<p>Trend charts are the primary tool for spotting seasonal patterns, nutrition transitions, and early warning of herd health issues before they affect milk income or Red Tractor compliance status.</p>
+<h3>Mobile recording</h3>
+<p>NMR recording visit results can also be logged from the mobile app — useful if you want to capture key figures from the NMR report immediately after the recorder leaves, before you return to the office. Navigate to <strong>Record → NMR Recording Visit</strong> in the mobile app. Results sync to the dashboard automatically when connectivity is restored.</p>`,
+  ],
+
+  // 42 — Dry Cow Therapy (DCT) Records
   [
     "How to record dry cow therapy (DCT) decisions and treatments in BDE Farm Trac, including selective DCT justification and withdrawal period tracking.",
     `<h2>Dry Cow Therapy (DCT) Records</h2>

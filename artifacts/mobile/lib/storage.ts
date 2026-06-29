@@ -139,6 +139,7 @@ export const STORAGE_KEYS = {
   DAIRY_DCT_RECORDS: "bde_dairy_dct_records",
   DAIRY_BCS_RECORDS: "bde_dairy_bcs_records",
   DAIRY_MOBILITY_SCORINGS: "bde_dairy_mobility_scorings",
+  DAIRY_NMR_RECORDING_VISITS: "bde_dairy_nmr_recording_visits",
   FEED_RECORDS: "bde_feed_records",
   WATER_QUALITY_RECORDS: "bde_water_quality_records",
   ENVIRONMENTAL_EVENTS: "bde_environmental_events",
