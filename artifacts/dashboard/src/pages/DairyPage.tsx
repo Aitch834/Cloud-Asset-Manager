@@ -4807,7 +4807,7 @@ function FprBadge({ fat, protein }: { fat?: string | null; protein?: string | nu
   return <span className={`inline-flex gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>{display} <span className="opacity-60">({tip})</span></span>;
 }
 
-function RecordingVisitsTab({ farmId }: { farmId: number }) {
+export function RecordingVisitsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<RecordingVisit | null>(null);

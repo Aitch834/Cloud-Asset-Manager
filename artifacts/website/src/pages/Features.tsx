@@ -418,6 +418,7 @@ const sections: Section[] = [
           "Linked badge and organic herd banner — same herd-register linkage indicators as Organic Livestock, confirming organic status is active and consistent across all modules",
           "Year filter on Feed & Nutrition tab — filter organic feed and nutrition records by year; defaults to current year",
           "Document attachment on Feed & Nutrition record rows — compact attach/view button on every feed record row for uploading delivery notes, organic approval certificates, and certifier correspondence",
+          "Full standard dairy recording within Organic Dairy — the Organic Dairy page also includes all standard Dairy Management tabs (Mastitis Records, Calving Records, Body Condition Scoring, Mobility Scoring, Bulk Tank, Dry Cow Therapy, and NMR Recording Visits — monthly NMR recorder visit log with herd averages, F:P ratio colour bands, and 24-visit rolling trend charts); organic dairy farmers use the same NMR recording service and require the same SCC trend management evidence for their organic milk buyer contracts and certifier audits; no separate Dairy Management module subscription required",
         ],
       },
       {
