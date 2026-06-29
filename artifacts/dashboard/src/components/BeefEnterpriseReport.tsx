@@ -9,7 +9,7 @@ interface Purchase { id: number; invoiceDate: string; species: string; numberOfH
 
 interface BeefReportData {
   year: number; totalHeadSold: number; totalCarcassKg: number; totalRevenuePence: number;
-  totalFeedCostPence: number; totalFeedKg: number; totalPurchaseCostPence: number; totalHeadPurchased: number;
+  totalFeedCostPence: number; totalFeedKg: number; totalPurchaseCostPence: number; totalHeadPurchased: number; totalVetCostPence: number;
   totalVariableCostPence: number; grossMarginPence: number; grossMarginPerHeadPence: number | null;
   revenuePerKgDwtPence: number | null; costPerKgDwtPence: number | null; settlementCount: number;
   settlements: Settlement[]; feedDeliveries: FeedDelivery[]; purchases: Purchase[];
@@ -181,6 +181,7 @@ export function BeefEnterpriseReport({ farmId }: { farmId: number }) {
                   { label: `Deadweight revenue (${d!.settlementCount} settlements)`, value: d!.totalRevenuePence, positive: true, bold: false },
                   { label: `Livestock purchases (${d!.totalHeadPurchased} head)`, value: -d!.totalPurchaseCostPence, bold: false },
                   { label: `Feed cost (${d!.feedDeliveries.length} deliveries · ${d!.totalFeedKg.toLocaleString("en-GB")} kg)`, value: -d!.totalFeedCostPence, bold: false },
+                  ...(d!.totalVetCostPence > 0 ? [{ label: "Vet & medicine (invoiced)", value: -d!.totalVetCostPence, bold: false }] : []),
                   { label: "Total variable costs", value: -d!.totalVariableCostPence, bold: true, divider: true },
                   { label: "Gross margin", value: d!.grossMarginPence, bold: true, highlight: marginPositive ? "emerald" as const : "red" as const },
                 ].map((row, i) => (

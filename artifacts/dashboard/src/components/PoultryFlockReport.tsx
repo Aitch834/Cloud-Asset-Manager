@@ -11,7 +11,7 @@ interface FeedDelivery { id: number; deliveryDate: string; productName: string; 
 interface PoultryFlockReportData {
   flockId: number; flockNumber: string; species: string; placementDate: string; depletionDate: string | null;
   totalBirdsPlaced: number; totalBirdsDelivered: number; totalLiveweightKg: number;
-  totalChickCostPence: number; totalFeedCostPence: number; totalFeedKg: number;
+  totalChickCostPence: number; totalFeedCostPence: number; totalFeedKg: number; totalVetCostPence: number;
   totalVariableCostPence: number; totalRevenuePence: number; grossMarginPence: number;
   grossMarginPerBirdPence: number | null; costPerBirdPence: number | null;
   revenuePerKgLwPence: number | null; feedCostPerBirdPence: number | null; feedKgPerBird: number | null;
@@ -172,6 +172,7 @@ export function PoultryFlockReport({ farmId }: { farmId: number }) {
                   { label: `Settlement revenue (${d!.settlements.length} catches · ${d!.totalBirdsDelivered.toLocaleString("en-GB")} birds delivered)`, value: d!.totalRevenuePence, positive: true },
                   { label: `Chick/poult cost (${d!.chickPurchases.length} purchases)`, value: -d!.totalChickCostPence },
                   { label: `Feed cost (${d!.feedDeliveries.length} deliveries · ${d!.totalFeedKg.toLocaleString("en-GB")} kg)`, value: -d!.totalFeedCostPence },
+                  ...(d!.totalVetCostPence > 0 ? [{ label: "Vet & medicine (invoiced)", value: -d!.totalVetCostPence, bold: false }] : []),
                   { label: "Total variable costs", value: -d!.totalVariableCostPence, bold: true, divider: true },
                   { label: "Producer gross margin", value: d!.grossMarginPence, bold: true, highlight: marginPositive ? "emerald" as const : "red" as const },
                 ].map((row, i) => (

@@ -20,6 +20,7 @@ interface DairyReportData {
   totalFeedCostPence: number;
   totalFeedKg: number;
   dairyPurchaseCostPence: number;
+  totalVetCostPence: number;
   totalVariableCostPence: number;
   grossMarginPence: number;
   pencePerLitre: number | null;
@@ -185,6 +186,7 @@ export function DairyEnterpriseReport({ farmId }: { farmId: number }) {
                   { label: "Milk income", value: d!.totalMilkIncomePence, ppl: d!.pencePerLitre, bold: false, positive: true },
                   { label: `Feed cost (${d!.feedDeliveryCount} deliveries · ${d!.totalFeedKg.toLocaleString("en-GB")} kg)`, value: -d!.totalFeedCostPence, ppl: d!.feedCostPerLitrePence ? -d!.feedCostPerLitrePence : null, bold: false },
                   ...(d!.dairyPurchaseCostPence > 0 ? [{ label: "Livestock purchases (dairy)", value: -d!.dairyPurchaseCostPence, ppl: null as null, bold: false }] : []),
+                  ...(d!.totalVetCostPence > 0 ? [{ label: "Vet & medicine (invoiced)", value: -d!.totalVetCostPence, ppl: null as null, bold: false }] : []),
                   { label: "Total variable costs", value: -d!.totalVariableCostPence, ppl: null, bold: true, divider: true },
                   { label: "Gross margin", value: d!.grossMarginPence, ppl: d!.grossMarginPerLitrePence, bold: true, highlight: marginPositive ? "emerald" as const : "red" as const },
                 ].map((row, i) => {

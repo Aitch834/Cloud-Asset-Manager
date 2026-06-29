@@ -31821,13 +31821,15 @@ router.get("/farms/:farmId/dairy-enterprise-report", requireAuth, requireTenant,
   const from = new Date(`${year}-01-01T00:00:00Z`);
   const to = new Date(`${year + 1}-01-01T00:00:00Z`);
 
-  const [milkCollections, allFeedDeliveries, livestockPurchases] = await Promise.all([
+  const [milkCollections, allFeedDeliveries, livestockPurchases, vetInvoices] = await Promise.all([
     db.select().from(dairyMilkCollectionsTable)
       .where(and(eq(dairyMilkCollectionsTable.farmId, farmId), gte(dairyMilkCollectionsTable.collectionDate, from), lt(dairyMilkCollectionsTable.collectionDate, to))),
     db.select().from(feedDeliveriesTable)
       .where(and(eq(feedDeliveriesTable.farmId, farmId), isNotNull(feedDeliveriesTable.costPence), gte(feedDeliveriesTable.deliveryDate as any, from as any), lt(feedDeliveriesTable.deliveryDate as any, to as any))),
     db.select().from(livestockPurchasesTable)
       .where(and(eq(livestockPurchasesTable.farmId, farmId), isNotNull(livestockPurchasesTable.totalAmountPence), gte(livestockPurchasesTable.invoiceDate as any, from as any), lt(livestockPurchasesTable.invoiceDate as any, to as any))),
+    db.select().from(vetInvoicesTable)
+      .where(and(eq(vetInvoicesTable.farmId, farmId), gte(vetInvoicesTable.invoiceDate as any, from as any), lt(vetInvoicesTable.invoiceDate as any, to as any))),
   ]);
 
   const dairyKeywords = ["dairy", "cattle", "cow", "milk", "calf", "heifer", "bull"];
@@ -31845,7 +31847,8 @@ router.get("/farms/:farmId/dairy-enterprise-report", requireAuth, requireTenant,
     .filter(r => speciesMatch(r.species, ["cattle", "dairy", "cow", "heifer", "calf"]))
     .reduce((s, r) => s + (r.totalAmountPence ?? 0), 0);
 
-  const totalVariableCostPence = totalFeedCostPence + dairyPurchaseCostPence;
+  const totalVetCostPence = vetInvoices.reduce((s, r) => s + Math.round((parseFloat(String(r.totalAmountGbp ?? 0)) || 0) * 100), 0);
+  const totalVariableCostPence = totalFeedCostPence + dairyPurchaseCostPence + totalVetCostPence;
   const grossMarginPence = totalMilkIncomePence - totalVariableCostPence;
 
   const months: Record<string, { volumeLitres: number; incomePence: number; feedCostPence: number; collections: number }> = {};
@@ -31869,6 +31872,7 @@ router.get("/farms/:farmId/dairy-enterprise-report", requireAuth, requireTenant,
     totalFeedCostPence,
     totalFeedKg: Math.round(totalFeedKg),
     dairyPurchaseCostPence,
+    totalVetCostPence,
     totalVariableCostPence,
     grossMarginPence,
     pencePerLitre: totalVolumeLitres > 0 ? Math.round((totalMilkIncomePence / totalVolumeLitres) * 100) / 100 : null,
@@ -31891,13 +31895,15 @@ router.get("/farms/:farmId/beef-enterprise-report", requireAuth, requireTenant, 
   const from = new Date(`${year}-01-01T00:00:00Z`);
   const to = new Date(`${year + 1}-01-01T00:00:00Z`);
 
-  const [settlements, allFeedDeliveries, allPurchases] = await Promise.all([
+  const [settlements, allFeedDeliveries, allPurchases, vetInvoices] = await Promise.all([
     db.select().from(beefDeadweightSettlementsTable)
       .where(and(eq(beefDeadweightSettlementsTable.farmId, farmId), gte(beefDeadweightSettlementsTable.killDate as any, from as any), lt(beefDeadweightSettlementsTable.killDate as any, to as any))),
     db.select().from(feedDeliveriesTable)
       .where(and(eq(feedDeliveriesTable.farmId, farmId), isNotNull(feedDeliveriesTable.costPence), gte(feedDeliveriesTable.deliveryDate as any, from as any), lt(feedDeliveriesTable.deliveryDate as any, to as any))),
     db.select().from(livestockPurchasesTable)
       .where(and(eq(livestockPurchasesTable.farmId, farmId), isNotNull(livestockPurchasesTable.totalAmountPence), gte(livestockPurchasesTable.invoiceDate as any, from as any), lt(livestockPurchasesTable.invoiceDate as any, to as any))),
+    db.select().from(vetInvoicesTable)
+      .where(and(eq(vetInvoicesTable.farmId, farmId), gte(vetInvoicesTable.invoiceDate as any, from as any), lt(vetInvoicesTable.invoiceDate as any, to as any))),
   ]);
 
   const beefKeywords = ["beef", "cattle", "bull", "steer", "heifer", "store", "suckler"];
@@ -31911,14 +31917,15 @@ router.get("/farms/:farmId/beef-enterprise-report", requireAuth, requireTenant, 
   const totalFeedKg = feedDeliveries.reduce((s, r) => s + (parseFloat(String(r.quantityKg ?? 0)) || 0), 0);
   const totalPurchaseCostPence = purchases.reduce((s, r) => s + (r.totalAmountPence ?? 0), 0);
   const totalHeadPurchased = purchases.reduce((s, r) => s + (r.numberOfHead ?? 0), 0);
-  const totalVariableCostPence = totalFeedCostPence + totalPurchaseCostPence;
+  const totalVetCostPence = vetInvoices.reduce((s, r) => s + Math.round((parseFloat(String(r.totalAmountGbp ?? 0)) || 0) * 100), 0);
+  const totalVariableCostPence = totalFeedCostPence + totalPurchaseCostPence + totalVetCostPence;
   const grossMarginPence = totalRevenuePence - totalVariableCostPence;
 
   res.json({
     year,
     totalHeadSold, totalCarcassKg: Math.round(totalCarcassKg * 10) / 10,
     totalRevenuePence, totalFeedCostPence, totalFeedKg: Math.round(totalFeedKg),
-    totalPurchaseCostPence, totalHeadPurchased,
+    totalPurchaseCostPence, totalHeadPurchased, totalVetCostPence,
     totalVariableCostPence, grossMarginPence,
     grossMarginPerHeadPence: totalHeadSold > 0 ? Math.round(grossMarginPence / totalHeadSold) : null,
     revenuePerKgDwtPence: totalCarcassKg > 0 ? Math.round((totalRevenuePence / totalCarcassKg) * 10) / 10 : null,
@@ -31943,7 +31950,7 @@ router.get("/farms/:farmId/sheep-enterprise-report", requireAuth, requireTenant,
   const from = new Date(`${year}-08-01T00:00:00Z`);
   const to = new Date(`${year + 1}-08-01T00:00:00Z`);
 
-  const [cullRecords, shearingRecords, allFeedDeliveries, allPurchases] = await Promise.all([
+  const [cullRecords, shearingRecords, allFeedDeliveries, allPurchases, vetInvoices] = await Promise.all([
     db.select().from(sheepCullRecordsTable)
       .where(and(eq(sheepCullRecordsTable.farmId, farmId), gte(sheepCullRecordsTable.cullDate as any, from as any), lt(sheepCullRecordsTable.cullDate as any, to as any))),
     db.select().from(sheepShearingRecordsTable)
@@ -31952,6 +31959,8 @@ router.get("/farms/:farmId/sheep-enterprise-report", requireAuth, requireTenant,
       .where(and(eq(feedDeliveriesTable.farmId, farmId), isNotNull(feedDeliveriesTable.costPence), gte(feedDeliveriesTable.deliveryDate as any, from as any), lt(feedDeliveriesTable.deliveryDate as any, to as any))),
     db.select().from(livestockPurchasesTable)
       .where(and(eq(livestockPurchasesTable.farmId, farmId), isNotNull(livestockPurchasesTable.totalAmountPence), gte(livestockPurchasesTable.invoiceDate as any, from as any), lt(livestockPurchasesTable.invoiceDate as any, to as any))),
+    db.select().from(vetInvoicesTable)
+      .where(and(eq(vetInvoicesTable.farmId, farmId), gte(vetInvoicesTable.invoiceDate as any, from as any), lt(vetInvoicesTable.invoiceDate as any, to as any))),
   ]);
 
   const sheepKeywords = ["sheep", "ewe", "lamb", "ram", "ovine", "hogget", "shearling"];
@@ -31967,7 +31976,8 @@ router.get("/farms/:farmId/sheep-enterprise-report", requireAuth, requireTenant,
   const totalFeedKg = feedDeliveries.reduce((s, r) => s + (parseFloat(String(r.quantityKg ?? 0)) || 0), 0);
   const totalPurchaseCostPence = purchases.reduce((s, r) => s + (r.totalAmountPence ?? 0), 0);
   const totalHeadPurchased = purchases.reduce((s, r) => s + (r.numberOfHead ?? 0), 0);
-  const totalVariableCostPence = totalFeedCostPence + totalPurchaseCostPence;
+  const totalVetCostPence = vetInvoices.reduce((s, r) => s + Math.round((parseFloat(String(r.totalAmountGbp ?? 0)) || 0) * 100), 0);
+  const totalVariableCostPence = totalFeedCostPence + totalPurchaseCostPence + totalVetCostPence;
   const grossMarginPence = totalRevenuePence - totalVariableCostPence;
 
   res.json({
@@ -31975,7 +31985,7 @@ router.get("/farms/:farmId/sheep-enterprise-report", requireAuth, requireTenant,
     totalHeadSold, totalWoolKg: Math.round(totalWoolKg * 10) / 10,
     totalCullRevenuePence, totalWoolRevenuePence, totalRevenuePence,
     totalFeedCostPence, totalFeedKg: Math.round(totalFeedKg),
-    totalPurchaseCostPence, totalHeadPurchased,
+    totalPurchaseCostPence, totalHeadPurchased, totalVetCostPence,
     totalVariableCostPence, grossMarginPence,
     grossMarginPerHeadSoldPence: totalHeadSold > 0 ? Math.round(grossMarginPence / totalHeadSold) : null,
     avgWoolPricePerKgGbp: totalWoolKg > 0 && totalWoolRevenuePence > 0 ? Math.round((totalWoolRevenuePence / totalWoolKg) / 100 * 100) / 100 : null,
@@ -32022,7 +32032,13 @@ router.get("/farms/:farmId/poultry-flock-report", requireAuth, requireTenant, as
   const fcrSettlements = settlements.filter(r => r.fcr != null);
   const avgFcr = fcrSettlements.length > 0 ? fcrSettlements.reduce((s, r) => s + (parseFloat(String(r.fcr ?? 0)) || 0), 0) / fcrSettlements.length : null;
 
-  const totalVariableCostPence = totalChickCostPence + totalFeedCostPence;
+  const vetFrom = flockStart ?? new Date(`${new Date().getFullYear()}-01-01T00:00:00Z`);
+  const vetTo = flock?.depletionDate ? new Date(flock.depletionDate) : new Date();
+  const vetInvoices = await db.select().from(vetInvoicesTable)
+    .where(and(eq(vetInvoicesTable.farmId, farmId), gte(vetInvoicesTable.invoiceDate as any, vetFrom as any), lte(vetInvoicesTable.invoiceDate as any, vetTo as any)));
+  const totalVetCostPence = vetInvoices.reduce((s, r) => s + Math.round((parseFloat(String(r.totalAmountGbp ?? 0)) || 0) * 100), 0);
+
+  const totalVariableCostPence = totalChickCostPence + totalFeedCostPence + totalVetCostPence;
   const grossMarginPence = totalRevenuePence - totalVariableCostPence;
 
   res.json({
@@ -32034,7 +32050,7 @@ router.get("/farms/:farmId/poultry-flock-report", requireAuth, requireTenant, as
     totalBirdsPlaced, totalBirdsDelivered,
     totalLiveweightKg: Math.round(totalLiveweightKg * 10) / 10,
     totalChickCostPence, totalFeedCostPence, totalFeedKg: Math.round(totalFeedKg),
-    totalVariableCostPence, totalRevenuePence, grossMarginPence,
+    totalVetCostPence, totalVariableCostPence, totalRevenuePence, grossMarginPence,
     grossMarginPerBirdPence: totalBirdsPlaced > 0 ? Math.round(grossMarginPence / totalBirdsPlaced) : null,
     costPerBirdPence: totalBirdsPlaced > 0 ? Math.round(totalVariableCostPence / totalBirdsPlaced) : null,
     revenuePerKgLwPence: totalLiveweightKg > 0 ? Math.round((totalRevenuePence / totalLiveweightKg) * 10) / 10 : null,
@@ -32055,13 +32071,15 @@ router.get("/farms/:farmId/pig-enterprise-report", requireAuth, requireTenant, a
   const from = new Date(`${year}-01-01T00:00:00Z`);
   const to = new Date(`${year + 1}-01-01T00:00:00Z`);
 
-  const [killRecords, allFeedDeliveries, allPurchases] = await Promise.all([
+  const [killRecords, allFeedDeliveries, allPurchases, vetInvoices] = await Promise.all([
     db.select().from(pigKillRecordsTable)
       .where(and(eq(pigKillRecordsTable.farmId, farmId), gte(pigKillRecordsTable.killDate as any, from as any), lt(pigKillRecordsTable.killDate as any, to as any))),
     db.select().from(feedDeliveriesTable)
       .where(and(eq(feedDeliveriesTable.farmId, farmId), isNotNull(feedDeliveriesTable.costPence), gte(feedDeliveriesTable.deliveryDate as any, from as any), lt(feedDeliveriesTable.deliveryDate as any, to as any))),
     db.select().from(livestockPurchasesTable)
       .where(and(eq(livestockPurchasesTable.farmId, farmId), isNotNull(livestockPurchasesTable.totalAmountPence), gte(livestockPurchasesTable.invoiceDate as any, from as any), lt(livestockPurchasesTable.invoiceDate as any, to as any))),
+    db.select().from(vetInvoicesTable)
+      .where(and(eq(vetInvoicesTable.farmId, farmId), gte(vetInvoicesTable.invoiceDate as any, from as any), lt(vetInvoicesTable.invoiceDate as any, to as any))),
   ]);
 
   const pigKeywords = ["pig", "pork", "swine", "sow", "boar", "weaner", "finisher", "porker", "baconer"];
@@ -32075,7 +32093,8 @@ router.get("/farms/:farmId/pig-enterprise-report", requireAuth, requireTenant, a
   const totalFeedKg = feedDeliveries.reduce((s, r) => s + (parseFloat(String(r.quantityKg ?? 0)) || 0), 0);
   const totalPurchaseCostPence = purchases.reduce((s, r) => s + (r.totalAmountPence ?? 0), 0);
   const totalHeadPurchased = purchases.reduce((s, r) => s + (r.numberOfHead ?? 0), 0);
-  const totalVariableCostPence = totalFeedCostPence + totalPurchaseCostPence;
+  const totalVetCostPence = vetInvoices.reduce((s, r) => s + Math.round((parseFloat(String(r.totalAmountGbp ?? 0)) || 0) * 100), 0);
+  const totalVariableCostPence = totalFeedCostPence + totalPurchaseCostPence + totalVetCostPence;
   const grossMarginPence = totalRevenuePence - totalVariableCostPence;
   const lmpRecords = killRecords.filter(r => r.leanMeatPct != null);
   const avgLmp = lmpRecords.length > 0 ? lmpRecords.reduce((s, r) => s + (parseFloat(String(r.leanMeatPct ?? 0)) || 0), 0) / lmpRecords.length : null;
@@ -32084,7 +32103,7 @@ router.get("/farms/:farmId/pig-enterprise-report", requireAuth, requireTenant, a
     year,
     totalHeadKilled, totalDeadweightKg: Math.round(totalDeadweightKg * 10) / 10,
     totalRevenuePence, totalFeedCostPence, totalFeedKg: Math.round(totalFeedKg),
-    totalPurchaseCostPence, totalHeadPurchased,
+    totalPurchaseCostPence, totalHeadPurchased, totalVetCostPence,
     totalVariableCostPence, grossMarginPence,
     grossMarginPerHeadPence: totalHeadKilled > 0 ? Math.round(grossMarginPence / totalHeadKilled) : null,
     revenuePerKgDwtPence: totalDeadweightKg > 0 ? Math.round((totalRevenuePence / totalDeadweightKg) * 10) / 10 : null,

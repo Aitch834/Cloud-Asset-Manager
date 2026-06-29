@@ -30,43 +30,33 @@ if (!basePath) {
 // and force a full page reload when the Vite dev server restarts or re-optimises.
 //
 // ROOT CAUSE:
-// Replit's preview proxy caches module responses by URL (path + query string,
-// but it may ignore or normalise unknown query params).  The critical family:
+// Replit's preview proxy caches module responses keyed on the URL PATH only —
+// it ignores (or normalises away) query-string parameters.  This means the
+// previous query-string approach (?td=SESSION_TOKEN) was not effective: the
+// proxy served cached source files with stale dep-chunk hashes regardless of
+// the ?td= stamp, while freshly-served files embedded the current hashes.
+// Two different dep-chunk hash URLs for the same package (e.g. react.js?v=OLD
+// vs react.js?v=NEW) cause the browser to load TWO separate React module
+// instances → "Invalid hook call" on the first hook call in any component
+// served from the stale file.
 //
-//   @fs/ source files — compiled on demand; very large files (e.g. a 900 KB
-//   compiled page) may exceed the proxy's per-entry cache limit and are always
-//   fetched fresh from Vite, while smaller sibling files are served from cache.
+// FIX — PATH-BASED SESSION TOKEN (FOUR LAYERS):
 //
-// When the Vite server restarts (new sessionToken) and a large source file is
-// served fresh it embeds the current-session dep-chunk URLs; cached source
-// files embed the previous-session dep-chunk URLs.  If those two URL sets
-// differ (e.g. different &td= stamps), the browser's module cache treats them
-// as SEPARATE MODULE INSTANCES — even for React.  Two React instances coexist
-// → "Invalid hook call" on the first hook call in whatever component is
-// rendered from the freshly-served file.
-//
-// PREVIOUS (BROKEN) APPROACH: stamp dep-chunk URLs with &td=SESSION_TOKEN.
-// This made every session's dep-chunk URLs unique — but when the proxy served
-// cached source files (old &td=) alongside fresh source files (new &td=), the
-// browser loaded TWO React modules (different &td= → different URL → different
-// ES-module instance).  Exactly the crash it was meant to prevent.
-//
-// FIX — FOUR LAYERS:
-//
-// 1. SESSION-STAMPED @fs/ SOURCE FILE URLS
-//    Every @fs/ import URL in compiled source-file responses gains
-//    ?td=SESSION_TOKEN.  Tokens change on every server restart, so the proxy
-//    cannot serve a stale compiled source file for the current session.
+// 1. PATH-EMBEDDED SESSION TOKEN ON @fs/ SOURCE FILE URLS
+//    Every @fs/ import URL in compiled source-file responses is rewritten to
+//    embed the session token INSIDE THE URL PATH:
+//      /<base>@fs/path  →  /<base>@td/SESSION_TOKEN/@fs/path
+//    Because the token is part of the path (not the query string), the proxy
+//    treats each session as a completely different URL → guaranteed cache miss
+//    every session → Vite always serves the module fresh → consistent dep-chunk
+//    hashes across all source files → exactly one React instance.
 //    Dep-chunk URLs (/base/node_modules/.vite/deps/pkg.js?v=HASH) are left
-//    UN-stamped: the ?v=HASH already identifies content uniquely, and keeping
-//    the URL identical across all source files (cached or fresh) guarantees the
-//    browser loads exactly ONE React module instance regardless of which source
-//    files come from the proxy cache.
+//    completely unmodified: they are identical across all source files so the
+//    browser loads exactly ONE copy regardless of caching.
 //
-// 2. ENTRY SCRIPT URL STAMP (closes the last gap in the module cascade)
+// 2. PATH-EMBEDDED SESSION TOKEN ON ENTRY SCRIPT
 //    index.html's <script src="main.tsx"> is rewritten to
-//    main.tsx?td=SESSION_TOKEN so the very first module in the chain is
-//    session-unique and the proxy cannot serve a stale main.tsx.
+//    /<base>@td/SESSION_TOKEN/src/main.tsx for the same reason.
 //
 // 3. SERVER-RESTART RELOAD (belt-and-suspenders for connected browsers)
 //    A /__td_startup_token__ endpoint returns a per-session random token.
@@ -76,39 +66,39 @@ if (!basePath) {
 // 4. IN-SESSION RE-OPTIMISATION RELOAD (closes the mid-session dep-hash gap)
 //    When Vite fires a full-reload event (dep re-optimisation changed the
 //    browserHash WITHIN the current server process), the plugin regenerates
-//    sessionToken before the message reaches the browser.  The browser reloads
-//    (Vite's own full-reload), main.tsx re-fetches /__td_startup_token__, finds
-//    the new token ≠ the stored one, and reloads once more.  That second reload
-//    fetches all @fs/ source files under fresh ?td= URLs (proxy cache miss) so
-//    they embed the new-hash dep-chunk URLs — guaranteeing a single consistent
-//    React instance.
+//    sessionToken before the message reaches the browser.  The browser reloads,
+//    main.tsx re-fetches /__td_startup_token__, finds the new token ≠ stored,
+//    and reloads once more — fetching all @fs/ modules under new path-based
+//    session URLs (proxy cache miss) with the new dep-chunk hashes.
 //
 // MIDDLEWARE RESPONSIBILITY:
-//    Incoming requests for ?td=… @fs/ URLs have the stamp stripped before Vite
-//    sees them, so the module graph tracks modules by their clean file path.
+//    Incoming requests for /<base>@td/TOKEN/@fs/path are rewritten to
+//    /<base>@fs/path before Vite sees them, so the module graph tracks modules
+//    by their clean file path.  Legacy ?td= query params are also stripped for
+//    any remaining entry-point cases.
 function reconnectReloadPlugin(sessionBase: string) {
   let sessionToken =
     Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
 
-  // Stamp @fs/ import URL strings inside compiled JS response bodies.
-  // Captures the bare path in group 1; strips any existing query params so the
-  // result is always exactly `<path>?td=SESSION_TOKEN`.
   const escapedBase = sessionBase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  // Matches @fs/ source-file URL strings inside compiled JS.
+  // Group 1 captures the clean URL (BASE + @fs/ + path, no query string).
   const fsUrlRe = new RegExp(
     `"(${escapedBase}@fs/[^"?#]+)(?:\\?[^"]*)?"`, "g",
   );
 
-  // Stamp the <script type="module" src="…"> entry in HTML responses.
+  // Matches the <script type="module" src="…"> entry point in HTML responses.
   const scriptSrcRe = /(<script\b[^>]*type="module"[^>]*src=")([^"?#]+)(")/g;
 
-  // Wrap a response object so that the full body can be transformed before
-  // it is flushed to the socket.  Only used for text responses that are
-  // small enough to buffer safely (all Vite dev-mode module responses).
+  // Strips /<base>@td/<token>/ from the start of an incoming request URL,
+  // rewriting e.g. /test-dashboard/@td/TOKEN/@fs/path → /test-dashboard/@fs/path
+  const tdPathRe = new RegExp(`^${escapedBase}@td/[^/]+/`);
+
   function interceptText(res: any, transform: (body: string) => string) {
     const chunks: Buffer[] = [];
     const _end: typeof res.end = res.end.bind(res);
 
-    // Buffer any partial writes (Vite rarely uses write() but be safe).
     res.write = (chunk: any, enc?: any, cb?: any) => {
       if (chunk != null) {
         chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -123,15 +113,13 @@ function reconnectReloadPlugin(sessionBase: string) {
         chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
       }
       // If headers are already committed (e.g. Vite's proxy middleware wrote
-      // directly to the socket), skip the transformation — mutating headers
-      // or body at this point would throw ERR_HTTP_HEADERS_SENT.
+      // directly to the socket), skip the transformation.
       if (res.headersSent) {
         const done = typeof enc === "function" ? enc : typeof cb === "function" ? cb : undefined;
         return _end(Buffer.concat(chunks), done);
       }
       const body = transform(Buffer.concat(chunks).toString("utf-8"));
       res.removeHeader("content-length");
-      // Pass the callback correctly regardless of enc/cb ordering.
       const done = typeof enc === "function" ? enc : typeof cb === "function" ? cb : undefined;
       return _end(body, "utf-8", done);
     };
@@ -143,18 +131,11 @@ function reconnectReloadPlugin(sessionBase: string) {
 
     configureServer(server: any) {
       // ── Layer 4: Regenerate token on every Vite-triggered full-reload ──────
-      // Vite fires full-reload events when dep re-optimisation changes the
-      // browserHash within the same server process.  By regenerating sessionToken
-      // NOW (before the payload reaches the browser), the next page load will
-      // fetch a new token, detect the mismatch, and reload once more — ensuring
-      // all @fs/ modules are requested under fresh proxy-cache-bypassing URLs.
       const regenToken = () => {
         sessionToken =
           Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
       };
 
-      // Vite 5 uses server.hot.send; Vite 4 used server.ws.send.  Intercept
-      // whichever is present to catch the full-reload payload.
       if (server.hot?.send) {
         const origHotSend = server.hot.send.bind(server.hot);
         server.hot.send = (event: any, data?: any) => {
@@ -181,8 +162,13 @@ function reconnectReloadPlugin(sessionBase: string) {
       }
 
       server.middlewares.use((req: any, res: any, next: any) => {
-        // ── 1. Strip ?td= session stamp from incoming request URLs ─────────
-        // Vite must see the clean path so module-graph tracking is unaffected.
+        // ── 1. Strip session token from incoming request URLs ──────────────
+        // Path-based: /base@td/TOKEN/@fs/path → /base@fs/path
+        // (covers both @fs/ source files and src/ entry-point files)
+        if ((req.url as string)?.includes("/@td/")) {
+          req.url = (req.url as string).replace(tdPathRe, sessionBase);
+        }
+        // Query-based (legacy fallback): strip ?td=TOKEN
         if ((req.url as string)?.includes("td=")) {
           req.url = (req.url as string)
             .replace(/[?&]td=[^&]*/g, "")
@@ -199,11 +185,6 @@ function reconnectReloadPlugin(sessionBase: string) {
         }
 
         // ── 3. Intercept JS module and HTML responses ──────────────────────
-        // Only intercept @fs/ source files (which carry @fs/ import URLs that
-        // need stamping) and HTML (which carries the entry <script src>).
-        // Dep chunks are NOT intercepted: their URLs are left un-stamped so
-        // every source file — cached or fresh — references the same dep-chunk
-        // URL and the browser loads exactly one React module instance.
         const url = req.url as string;
         const isJsModule =
           url.includes("@fs/") ||
@@ -217,23 +198,31 @@ function reconnectReloadPlugin(sessionBase: string) {
         }
 
         interceptText(res, (body) => {
-          // Content-Type is set by Vite before res.end() fires, so it is
-          // available here via res.getHeader().
           const ct = ((res.getHeader?.("content-type") as string) ?? "").toLowerCase();
 
           if (ct.includes("javascript") || ct.includes("typescript")) {
-            // Stamp every @fs/ source-file URL with ?td=SESSION_TOKEN.
-            // Dep-chunk URLs (?v=HASH) are left un-stamped intentionally —
-            // see the plugin comment at the top for why.
-            return body.replace(fsUrlRe, `"$1?td=${sessionToken}"`);
+            // Rewrite every @fs/ source-file URL to embed the session token
+            // in the path: BASE@fs/path → BASE@td/TOKEN/@fs/path.
+            // This ensures the Replit proxy (which keys its cache on the URL
+            // path, ignoring query params) sees a fresh URL every session and
+            // always forwards to Vite rather than serving a stale cached module.
+            // Dep-chunk URLs (?v=HASH) are intentionally left unmodified.
+            return body.replace(fsUrlRe, (_match, p1: string) => {
+              // p1 = "/<base>@fs/home/runner/.../File.tsx"
+              const pathAfterBase = p1.slice(sessionBase.length); // "@fs/..."
+              return `"${sessionBase}@td/${sessionToken}/${pathAfterBase}"`;
+            });
           }
           if (ct.includes("text/html")) {
-            // Stamp the module entry-script src so main.tsx itself is
-            // served from a session-unique URL — closing the proxy-cache
-            // gap at the very start of the module-request cascade.
+            // Rewrite the entry-script src with a path-based session token.
             return body.replace(
               scriptSrcRe,
-              (_m, pre, src, post) => `${pre}${src}?td=${sessionToken}${post}`,
+              (_m, pre, src: string, post) => {
+                const pathAfterBase = src.startsWith(sessionBase)
+                  ? src.slice(sessionBase.length)
+                  : src.replace(/^\.\//, "");
+                return `${pre}${sessionBase}@td/${sessionToken}/${pathAfterBase}${post}`;
+              },
             );
           }
           return body;
