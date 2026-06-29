@@ -39,7 +39,8 @@ import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { useToast } from "@/hooks/use-toast";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from "recharts";
-import { MastitisTab, CalvingTab, BcsTab, MobilityTab, BulkTankTab, DctTab, RecordingVisitsTab, JohnesTab } from "@/pages/DairyPage";
+import { MastitisTab, CalvingTab, BcsTab, MobilityTab, BulkTankTab, DctTab, RecordingVisitsTab } from "@/pages/DairyPage";
+import { JohnesTab } from "@/pages/dairy/JohnesTab";
 import { DairyEnterpriseReport } from "@/components/DairyEnterpriseReport";
 
 const FEED_TYPES: [string, string][] = [
