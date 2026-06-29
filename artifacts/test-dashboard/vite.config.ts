@@ -162,6 +162,53 @@ function reconnectReloadPlugin(sessionBase: string) {
       }
 
       server.middlewares.use((req: any, res: any, next: any) => {
+        // ── 0. Force Cache-Control: no-store on ALL JavaScript/module responses
+        //
+        // ROOT CAUSE: Replit's preview proxy caches responses keyed on the URL
+        // PATH only — it strips (ignores) query-string parameters.  Vite's
+        // dep-serving middleware sets "Cache-Control: max-age=31536000,immutable"
+        // on pre-bundled dep chunks.  The proxy then caches these chunks forever
+        // (path key = "node_modules/.vite/deps/react.js", ignoring "?v=HASH").
+        //
+        // When the browserHash changes between restarts (triggered by any new
+        // dep discovery in a prior session), Vite embeds NEW hash references
+        // in freshly-served source files, but the proxy serves OLD cached dep
+        // chunks from the previous hash.  For a brief window two different React
+        // module instances exist in the same tab → "Invalid hook call" on the
+        // first component that renders (typically whichever tab the user just
+        // clicked).
+        //
+        // FIX: intercept res.setHeader BEFORE any of Vite's own middleware runs.
+        // Any attempt by Vite (or sirv) to set "Cache-Control: max-age=..." is
+        // silently replaced with "no-store".  The proxy therefore never caches
+        // dep chunks and always fetches the current version from Vite.
+        //
+        // We target all "module-like" URLs:
+        //   /.vite/deps/  — pre-bundled dep chunks (root cause of this bug)
+        //   /@fs/         — source file transforms
+        //   /@td/         — path-token'd source files (our Layer 1 URLs)
+        //   /node_modules/ — any other package URL Vite might serve directly
+        //   /src/         — entry-point source files
+        const rawUrl = (req.url as string) ?? "";
+        const isModuleUrl =
+          rawUrl.includes("/.vite/deps/") ||
+          rawUrl.includes("/@fs/") ||
+          rawUrl.includes("/@td/") ||
+          rawUrl.includes("/node_modules/") ||
+          /\/src\/[^?]+\.(tsx?|jsx?|js)/.test(rawUrl);
+
+        if (isModuleUrl) {
+          const origSet = (res.setHeader as Function).bind(res);
+          res.setHeader = (name: string, value: any) => {
+            if (typeof name === "string" && name.toLowerCase() === "cache-control") {
+              return origSet("Cache-Control", "no-store");
+            }
+            return origSet(name, value);
+          };
+          // Set proactively so any header inspection before Vite runs sees no-store.
+          (res.setHeader as Function)("Cache-Control", "no-store");
+        }
+
         // ── 1. Strip session token from incoming request URLs ──────────────
         // Path-based: /base@td/TOKEN/@fs/path → /base@fs/path
         // (covers both @fs/ source files and src/ entry-point files)
@@ -187,6 +234,7 @@ function reconnectReloadPlugin(sessionBase: string) {
         // ── 3. Intercept JS module and HTML responses ──────────────────────
         const url = req.url as string;
         const isJsModule =
+          url.includes("/.vite/deps/") ||
           url.includes("@fs/") ||
           /\/src\/[^?]+\.(tsx?|jsx?|js)(\?|$)/.test(url);
         const isHtml =

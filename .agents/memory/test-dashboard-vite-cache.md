@@ -1,36 +1,65 @@
 ---
 name: Test-dashboard Vite deps cache — persistent "Invalid hook call" fix
-description: Root cause and permanent fix for recurring "Invalid hook call" on CompliancePage in the test-dashboard.
+description: Root cause and permanent fix for recurring "Invalid hook call" on any tab in the test-dashboard caused by stale dep chunks served from Replit's proxy cache.
 ---
 
 ## Rule
-The test-dashboard's `dev` script MUST clear `node_modules/.vite` on every startup.
-This is already implemented in `package.json`.
+The test-dashboard's `dev` script MUST clear `node_modules/.vite` on every startup
+(already in `package.json`), AND `vite.config.ts` MUST intercept `res.setHeader` in
+the custom middleware to prevent Vite from writing `Cache-Control: max-age=31536000,immutable`
+on dep-chunk responses.
 
-## Why
-Replit's preview proxy caches JS module responses. Large files (>~500 KB compiled,
-e.g. CompliancePage.tsx at 2,690 lines) exceed the proxy's per-entry limit and are
-always fetched fresh from Vite with the **current** `browserHash`. Small files
-(AppLayout, TabBar, etc.) are served from proxy cache with the **old** `browserHash`.
+## Why (full root cause)
 
-When hashes differ — after any dep re-optimisation — the browser ends up with:
-- fresh CompliancePage → `react.js?v=NEW`
-- cached small deps  → `react.js?v=OLD`
+Replit's preview proxy caches responses keyed on URL PATH only — query-string
+parameters are stripped from the cache key.
 
-Two React instances → React's dispatcher is per-instance → any hook call from a
-component compiled against OLD React, while being rendered by NEW React's fiber,
-throws `"Invalid hook call"`. The error surfaces at the first JSX child in
-CompliancePage's return (line 936) because that is where inter-instance interaction
-first occurs.
+Vite's internal dep-serving (`sirv`) sets `Cache-Control: max-age=31536000,immutable`
+on all pre-bundled dep chunks (e.g. `node_modules/.vite/deps/react.js?v=BROWSERHASH`).
+The Vite config's `server.headers: { "Cache-Control": "no-store" }` is set BEFORE
+Vite's own middlewares run, so sirv OVERRIDES it with `max-age=immutable`.
 
-## How to apply
-If this error reappears after a future session, do NOT look for a hooks violation in
-CompliancePage source code — the code is correct. Run:
-  `rm -rf artifacts/test-dashboard/node_modules/.vite && restart workflow`
+Result: the proxy caches dep chunks under their path (`react.js`, `chunk-TUKGDGPK.js`,
+etc.) ignoring `?v=HASH`. Across sessions (or after any mid-session re-optimisation
+that changes the browserHash), the proxy serves STALE chunks with the old hash.
+Source files are fresh (our Layer-1 session-token prevents source caching), but they
+reference dep chunks by the NEW hash while the proxy serves OLD ones.
 
-The `dev` script already does this automatically on every startup via:
-  `node -e "...rmSync('node_modules/.vite')..." && vite --config ...`
+Two different React instances end up in the same tab → "Invalid hook call" on
+whichever component renders next (observed: JohnesTab, CompliancePage, FlocksTab,
+SlurryTab — always whichever tab the user clicked).
 
-The existing 4-layer session-token mechanism in `vite.config.ts` handles
-cross-session proxy cache busting; within-session consistency from the fresh cache
-is all that's needed.
+## Fix (Layer 0 in vite.config.ts)
+
+In `reconnectReloadPlugin`, at the very start of the `server.middlewares.use` handler,
+intercept `res.setHeader` for all module-like URLs BEFORE Vite sees the request:
+
+```javascript
+const isModuleUrl =
+  rawUrl.includes("/.vite/deps/") ||
+  rawUrl.includes("/@fs/") ||
+  rawUrl.includes("/@td/") ||
+  rawUrl.includes("/node_modules/") ||
+  /\/src\/[^?]+\.(tsx?|jsx?|js)/.test(rawUrl);
+
+if (isModuleUrl) {
+  const origSet = res.setHeader.bind(res);
+  res.setHeader = (name, value) => {
+    if (name.toLowerCase() === "cache-control") return origSet("Cache-Control", "no-store");
+    return origSet(name, value);
+  };
+  res.setHeader("Cache-Control", "no-store");
+}
+```
+
+This prevents sirv from ever writing `max-age=immutable`. The proxy sees `no-store`
+and always forwards dep-chunk requests to Vite, which always returns the CURRENT hash.
+
+## How to apply if the error reappears
+1. Do NOT look for a hooks violation in the component source — the code is correct.
+2. Check that Layer 0 (the `isModuleUrl` / `res.setHeader` override) is present in
+   `artifacts/test-dashboard/vite.config.ts` inside `reconnectReloadPlugin`.
+3. If it is missing, re-add it before the `── 1. Strip session token` block.
+4. Restart the test-dashboard workflow.
+
+The `dev` script already clears `node_modules/.vite` on every startup — keep that.
