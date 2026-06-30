@@ -22,9 +22,6 @@ the STALE transforms (old hash) alongside newly-compiled dep chunks (new hash) �
 different react.js URLs in the browser (different modules) → "Invalid hook call" on
 whichever component renders next.
 
-This is why the error is specific to one tab (e.g. JohnesTab): it's the tab the user
-clicks AFTER the re-optimisation fires and the stale transform is served.
-
 ## Fix layers implemented in vite.config.ts (reconnectReloadPlugin)
 
 ### Layer 0 — intercept res.setHeader to force Cache-Control: no-store on all module responses
@@ -82,18 +79,30 @@ meaning the stale transform cache was NEVER flushed — root cause of persistent
 4. Verify all 5 fix layers are present in `reconnectReloadPlugin` in `vite.config.ts`.
 5. Restart the workflow (clears `.vite` and the in-memory transform cache).
 
-## Inlining — additional fix for files imported by large pages
+## Inlining vs Extraction — important distinction
+
+### Original inlining rule (for sibling imports causing stale dep hash in a neighbour)
 If a small file (<500KB) is imported by a large page file (>500KB), the small file
 can still be served with a stale dep hash even when the large file is fresh.
 **Fix:** inline the small file's content directly into the large page file.
-- `AbrProcurementSection.tsx` (51KB) and `DairyEnterpriseReport.tsx` (15KB) were inlined
-  into `DairyPage.tsx` because they caused "Invalid hook call" in `JohnesTab` (which is
-  defined in DairyPage.tsx, but still failed because sibling imports had a stale React).
-- Strip duplicate preamble when inlining: imports, `const BASE`, `const api`,
-  `function formatDate`, `function today` — these are already in the large file.
-- Add any lucide/recharts icons from the small files that the large file doesn't already import.
+- `AbrProcurementSection.tsx` and `DairyEnterpriseReport.tsx` were inlined into
+  `DairyPage.tsx` because they caused stale React in co-imported sibling modules.
+
+### Extraction rule (for the failing component itself inside a huge file)
+When a component DEFINED INSIDE a huge file (>500KB, Babel deoptimised) persistently
+throws "Invalid hook call" on EVERY render — even with no caching involved — the cause
+is the React Refresh transform's `_s`/`_c` counter mismatch across 20+ components in
+one giant compilation unit.
+**Fix:** extract the failing component into its own standalone file and import it.
+- `JohnesTab` was defined inside DairyPage.tsx (6105 lines) with `_s12` as its Refresh
+  tracker. Moving it to `components/dairy/JohnesMonitoringTab.tsx` gave it a clean
+  isolated module scope with `_s` as its only tracker. Error resolved.
+- `OrganicDairyPage.tsx` also imported `JohnesTab` from `DairyPage` — update that import
+  to the new path when extracting.
 
 ## What NOT to do
 - Do NOT look for a hooks violation in the component source — the component code is correct.
 - Do NOT add `optimizeDeps.force:true` — it re-hashes chunks on every restart, making
   the proxy caching problem worse.
+- Do NOT inline a component that is itself the failing one — inlining makes it WORSE
+  by burying it deeper in a huge compilation unit. Extract it instead.
