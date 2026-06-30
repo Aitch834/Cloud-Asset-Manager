@@ -36,11 +36,17 @@ Every @fs/ source-file URL embedded in compiled JS is rewritten to include SESSI
 in the PATH:  `/base/@fs/path`  →  `/base/@td/TOKEN/@fs/path`
 Proxy sees a different path each session → cache miss → always fresh.
 
-### Layer 1b — path-based session token on dep chunks (.vite/deps/ URLs)
-Absolute dep-chunk URLs embedded in compiled source files are rewritten similarly:
-  `/base/node_modules/.vite/deps/`  →  `/base/@td/TOKEN/deps/`
-Dep chunks use only RELATIVE imports internally, so browser resolution of `"./sibling.js"`
-automatically follows the same `@td/TOKEN/deps/` base — no rewriting needed inside chunks.
+### Layer 1b — path-based session token on dep chunks (.vite/deps/ URLs) — STRIP ?v=HASH
+Absolute dep-chunk URLs embedded in compiled source files are rewritten:
+  `/base/node_modules/.vite/deps/react.js?v=HASH`  →  `/base/@td/TOKEN/deps/react.js`
+CRITICAL: ?v=HASH is STRIPPED (not just the prefix replaced). Why: dep chunks use RELATIVE
+imports internally without ?v= (e.g. `import "./chunk-KC53NVYV.js"`), which the browser
+resolves to `/base/@td/TOKEN/deps/chunk-KC53NVYV.js` (no ?v=). If source files kept
+`?v=HASH`, the browser's ES module registry would see two DIFFERENT module identities for
+the same React → two React instances → "Invalid hook call".
+Stripping ?v= unifies module identity between source-file imports and dep-chunk relative imports.
+Regex: `"BASE/node_modules/.vite/deps/([^"?#]+)(?:\\?[^"]*)?"`  (group 1 = bare filename)
+Replacement: `"BASE/@td/TOKEN/deps/${filename}"`
 
 ### Layer 2 — entry-script path token in index.html
 The `<script type="module" src="...">` entry point is also rewritten with the session token.
