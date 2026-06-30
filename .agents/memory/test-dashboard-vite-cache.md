@@ -67,6 +67,17 @@ browserHash in all dep-chunk URLs → single consistent React instance.
 4. Verify all 5 fix layers are present in `reconnectReloadPlugin` in `vite.config.ts`.
 5. Restart the workflow (clears `.vite` and the in-memory transform cache).
 
+## Inlining — additional fix for files imported by large pages
+If a small file (<500KB) is imported by a large page file (>500KB), the small file
+can still be served with a stale dep hash even when the large file is fresh.
+**Fix:** inline the small file's content directly into the large page file.
+- `AbrProcurementSection.tsx` (51KB) and `DairyEnterpriseReport.tsx` (15KB) were inlined
+  into `DairyPage.tsx` because they caused "Invalid hook call" in `JohnesTab` (which is
+  defined in DairyPage.tsx, but still failed because sibling imports had a stale React).
+- Strip duplicate preamble when inlining: imports, `const BASE`, `const api`,
+  `function formatDate`, `function today` — these are already in the large file.
+- Add any lucide/recharts icons from the small files that the large file doesn't already import.
+
 ## What NOT to do
 - Do NOT look for a hooks violation in the component source — the component code is correct.
 - Do NOT add `optimizeDeps.force:true` — it re-hashes chunks on every restart, making
