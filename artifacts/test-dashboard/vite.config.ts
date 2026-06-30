@@ -88,8 +88,33 @@ function reconnectReloadPlugin(sessionBase: string) {
     `"(${escapedBase}@fs/[^"?#]+)(?:\\?[^"]*)?"`, "g",
   );
 
+  // Matches absolute dep-chunk URL prefixes embedded in compiled JS source files.
+  // Example match: "/test-dashboard/node_modules/.vite/deps/react.js?v=60f50dc8"
+  // We replace the path prefix only — the filename + ?v=HASH + closing " are
+  // NOT part of the match, so they are preserved after replacement.
+  //   "/base/node_modules/.vite/deps/"  →  "/base/@td/SESSION/deps/"
+  // This gives dep chunks a session-unique path, so the Replit proxy (which
+  // caches by URL path, ignoring query params) always sees a cache miss and
+  // forwards the request to Vite — ensuring only the current-session chunks
+  // are served, regardless of what is stale in the proxy cache.
+  const depsUrlRe = new RegExp(
+    `"${escapedBase}node_modules/\\.vite/deps/`,
+    "g",
+  );
+
   // Matches the <script type="module" src="…"> entry point in HTML responses.
   const scriptSrcRe = /(<script\b[^>]*type="module"[^>]*src=")([^"?#]+)(")/g;
+
+  // Strips /<base>@td/<token>/deps/ from incoming dep-chunk request URLs,
+  // remapping them to the real Vite-served path.
+  // Example: /test-dashboard/@td/TOKEN/deps/react.js?v=60f50dc8
+  //        → /test-dashboard/node_modules/.vite/deps/react.js?v=60f50dc8
+  // NOTE: dep chunks use only RELATIVE imports to other chunks, so once the
+  // first chunk is served at /@td/TOKEN/deps/, the browser resolves all its
+  // relative siblings to the same token sub-path, and each sibling request
+  // is remapped here too — no body rewriting is needed inside dep chunks.
+  const tdDepsRe = new RegExp(`^${escapedBase}@td/[^/]+/deps/`);
+  const depsBase = `${sessionBase}node_modules/.vite/deps/`;
 
   // Strips /<base>@td/<token>/ from the start of an incoming request URL,
   // rewriting e.g. /test-dashboard/@td/TOKEN/@fs/path → /test-dashboard/@fs/path
@@ -210,10 +235,18 @@ function reconnectReloadPlugin(sessionBase: string) {
         }
 
         // ── 1. Strip session token from incoming request URLs ──────────────
-        // Path-based: /base@td/TOKEN/@fs/path → /base@fs/path
-        // (covers both @fs/ source files and src/ entry-point files)
-        if ((req.url as string)?.includes("/@td/")) {
-          req.url = (req.url as string).replace(tdPathRe, sessionBase);
+        if (rawUrl.includes("/@td/")) {
+          if (tdDepsRe.test(rawUrl)) {
+            // Dep-chunk URL: /base/@td/TOKEN/deps/chunk.js?v=HASH
+            //              → /base/node_modules/.vite/deps/chunk.js?v=HASH
+            // The dep chunk uses only RELATIVE imports; the browser resolves
+            // those relative to the /@td/TOKEN/deps/ base, so each sibling
+            // request also hits this branch and is remapped correctly.
+            req.url = rawUrl.replace(tdDepsRe, depsBase);
+          } else {
+            // Source-file URL: /base/@td/TOKEN/@fs/path → /base/@fs/path
+            req.url = rawUrl.replace(tdPathRe, sessionBase);
+          }
         }
         // Query-based (legacy fallback): strip ?td=TOKEN
         if ((req.url as string)?.includes("td=")) {
@@ -249,17 +282,27 @@ function reconnectReloadPlugin(sessionBase: string) {
           const ct = ((res.getHeader?.("content-type") as string) ?? "").toLowerCase();
 
           if (ct.includes("javascript") || ct.includes("typescript")) {
+            // Rewrite absolute dep-chunk URL prefixes to embed the session token.
+            //   "/base/node_modules/.vite/deps/"  →  "/base/@td/TOKEN/deps/"
+            // Because the proxy caches by path (ignoring ?v=HASH query params),
+            // giving each session a unique path ensures a cache miss every time,
+            // so the proxy always fetches the current chunk from Vite instead of
+            // serving a stale cached version with a mismatched React instance.
+            // Dep chunks use only relative imports internally, so browser
+            // resolution of "./sibling.js" automatically follows the same
+            // /@td/TOKEN/deps/ base — no rewriting needed inside chunks.
+            let result = body.replace(
+              depsUrlRe,
+              `"${sessionBase}@td/${sessionToken}/deps/`,
+            );
             // Rewrite every @fs/ source-file URL to embed the session token
             // in the path: BASE@fs/path → BASE@td/TOKEN/@fs/path.
-            // This ensures the Replit proxy (which keys its cache on the URL
-            // path, ignoring query params) sees a fresh URL every session and
-            // always forwards to Vite rather than serving a stale cached module.
-            // Dep-chunk URLs (?v=HASH) are intentionally left unmodified.
-            return body.replace(fsUrlRe, (_match, p1: string) => {
+            result = result.replace(fsUrlRe, (_match, p1: string) => {
               // p1 = "/<base>@fs/home/runner/.../File.tsx"
               const pathAfterBase = p1.slice(sessionBase.length); // "@fs/..."
               return `"${sessionBase}@td/${sessionToken}/${pathAfterBase}"`;
             });
+            return result;
           }
           if (ct.includes("text/html")) {
             // Rewrite the entry-script src with a path-based session token.
