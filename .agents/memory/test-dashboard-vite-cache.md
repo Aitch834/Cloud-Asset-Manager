@@ -57,10 +57,19 @@ since last load, reloads the page before stale hashes can mix.
 
 ### Layer 4 — moduleGraph.invalidateAll() on full-reload + token regen (FIX FOR CAUSE B)
 When Vite fires a full-reload event (dep re-optimisation changed the browserHash mid-session),
-the plugin now calls `server.moduleGraph.invalidateAll()` BEFORE regenerating the session
-token. This flushes Vite's in-memory transform cache. The browser reloads → fetches source
-files with the new session token → Vite re-transforms them fresh → embeds the CURRENT
-browserHash in all dep-chunk URLs → single consistent React instance.
+the plugin calls invalidateAll() BEFORE regenerating the session token. This flushes Vite's
+in-memory transform cache. The browser reloads → fetches source files with the new session
+token → Vite re-transforms them fresh → embeds the CURRENT browserHash in dep-chunk URLs →
+single consistent React instance.
+
+CRITICAL — VITE 7 API CHANGE: `server.moduleGraph.invalidateAll()` is a COMPATIBILITY SHIM
+in Vite 7 that SILENTLY NO-OPS. Vite 7 has a per-environment module graph:
+  for (const env of Object.values(server.environments)) {
+    env.moduleGraph.invalidateAll();
+  }
+This is confirmed by Vite 7 dist (config.js): `for (const environment of Object.values(server.environments)) environment.moduleGraph.invalidateAll()`
+The optional-chaining form `server.moduleGraph?.invalidateAll?.()` always succeeded silently,
+meaning the stale transform cache was NEVER flushed — root cause of persistent "Invalid hook call".
 
 ## Infrastructure
 - `dev` script clears `node_modules/.vite` on every startup (already in package.json).

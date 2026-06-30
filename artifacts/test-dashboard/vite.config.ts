@@ -179,8 +179,18 @@ function reconnectReloadPlugin(sessionBase: string) {
       // fresh, Vite re-transforms them and embeds the CURRENT browserHash
       // in every dep-chunk URL → single consistent React instance.
       const regenToken = () => {
-        // Flush Vite's transform cache so stale dep-chunk URLs are not served.
-        server.moduleGraph?.invalidateAll?.();
+        // Flush Vite 7's transform cache so stale dep-chunk URLs are not served.
+        // Vite 7 has a per-environment module graph; the old Vite 6 API
+        // server.moduleGraph.invalidateAll() is a compatibility shim that
+        // silently no-ops. Must iterate server.environments instead.
+        if (server.environments) {
+          for (const env of Object.values(server.environments)) {
+            (env as any).moduleGraph?.invalidateAll?.();
+          }
+        } else {
+          // Vite 6 fallback
+          (server as any).moduleGraph?.invalidateAll?.();
+        }
         sessionToken =
           Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
       };
