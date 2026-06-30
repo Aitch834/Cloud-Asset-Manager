@@ -67,13 +67,13 @@ export function PoultryFlockReport({ farmId }: { farmId: number }) {
   const [openSection, setOpenSection] = useState<string | null>(null);
   const toggle = (s: string) => setOpenSection(v => v === s ? null : s);
 
-  const { data: flockList } = useQuery<{ flocks: FlockOption[] }>({
+  const { data: flockList } = useQuery<FlockOption[]>({
     queryKey: ["poultry-flocks-list", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/poultry-flocks`).then(r => r.json()),
     enabled: !!farmId,
   });
 
-  const flocks = flockList?.flocks ?? [];
+  const flocks = flockList ?? [];
   const activeFlockId = selectedFlockId ?? (flocks[0]?.id ?? null);
 
   const { data, isLoading } = useQuery<PoultryFlockReportData>({

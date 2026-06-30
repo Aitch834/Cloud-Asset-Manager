@@ -13,7 +13,7 @@ interface SheepReportData {
   cullRecords: { id: number; cullDate: string; numberOfHead: number; pricePerHeadGbp: string; totalValueGbp: string; reason: string }[];
   shearingRecords: { id: number; shearingDate: string; headSheared: number; totalWoolWeightKg: string; pricePerKgGbp: string; totalValueGbp: string }[];
   feedDeliveries: { id: number; deliveryDate: string; productName: string; quantityKg: string; costPence: number }[];
-  purchases: { id: number; purchaseDate: string; numberOfHead: number; totalAmountPence: number; pricePerHeadPence: number }[];
+  purchases: { id: number; invoiceDate: string; numberOfHead: number; totalAmountPence: number; pricePerHeadPence: number }[];
 }
 
 const PRINT_ID = "sheep-enterprise-report-print";

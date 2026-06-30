@@ -5,7 +5,7 @@ import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianG
 
 interface KillRecord { id: number; killDate: string; numberOfHead: number; totalDeadweightKg: string; pricePerKgPence: number; netPaymentPence: number; leanMeatPct: string; averageP2BackfatMm: string; }
 interface FeedDelivery { id: number; deliveryDate: string; productName: string; quantityKg: string; costPence: number; }
-interface Purchase { id: number; purchaseDate: string; numberOfHead: number; totalAmountPence: number; pricePerHeadPence: number; }
+interface Purchase { id: number; invoiceDate: string; numberOfHead: number; totalAmountPence: number; pricePerHeadPence: number; }
 
 interface PigReportData {
   year: number; totalHeadKilled: number; totalDeadweightKg: number; totalRevenuePence: number;
@@ -83,7 +83,7 @@ export function PigEnterpriseReport({ farmId }: { farmId: number }) {
       map[m].feedCost += f.costPence;
     });
     d.purchases.forEach(p => {
-      const m = p.purchaseDate.slice(0, 7);
+      const m = p.invoiceDate.slice(0, 7);
       if (!map[m]) map[m] = { revenue: 0, feedCost: 0, purchases: 0 };
       map[m].purchases += p.totalAmountPence;
     });
