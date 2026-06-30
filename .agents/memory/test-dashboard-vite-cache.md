@@ -1,65 +1,73 @@
 ---
 name: Test-dashboard Vite deps cache — persistent "Invalid hook call" fix
-description: Root cause and permanent fix for recurring "Invalid hook call" on any tab in the test-dashboard caused by stale dep chunks served from Replit's proxy cache.
+description: Complete root cause and all fix layers for recurring "Invalid hook call" on any tab in the test-dashboard. There are TWO distinct causes — proxy stale-cache AND in-memory transform-cache staleness — both must be addressed.
 ---
 
-## Rule
-The test-dashboard's `dev` script MUST clear `node_modules/.vite` on every startup
-(already in `package.json`), AND `vite.config.ts` MUST intercept `res.setHeader` in
-the custom middleware to prevent Vite from writing `Cache-Control: max-age=31536000,immutable`
-on dep-chunk responses.
+## The TWO root causes (both must be fixed)
 
-## Why (full root cause)
+### Cause A — Replit proxy caches dep chunks by path, ignoring ?v=HASH
+Replit's preview proxy caches responses keyed on URL PATH only (query params stripped).
+Vite's dep-serving sets `Cache-Control: max-age=31536000,immutable` on pre-bundled
+dep chunks. The proxy caches them as `node_modules/.vite/deps/chunk-XXX.js` (path key).
+When the browserHash changes across sessions/restarts, fresh source files reference NEW
+dep-chunk hash URLs, but the proxy serves the OLD cached content from the previous hash.
+Two different react.js instances in the browser → "Invalid hook call".
 
-Replit's preview proxy caches responses keyed on URL PATH only — query-string
-parameters are stripped from the cache key.
+### Cause B — Vite's in-memory transform cache retains stale dep-chunk URL references
+When Vite re-optimises deps MID-SESSION (triggered by discovering a new dep at runtime),
+the browserHash changes. But Vite's in-memory transform cache still holds the previously
+compiled output of every source file (.tsx → .js), with the OLD ?v=HASH baked into every
+dep-chunk import URL. When the browser reloads after the full-reload event, Vite serves
+the STALE transforms (old hash) alongside newly-compiled dep chunks (new hash) → two
+different react.js URLs in the browser (different modules) → "Invalid hook call" on
+whichever component renders next.
 
-Vite's internal dep-serving (`sirv`) sets `Cache-Control: max-age=31536000,immutable`
-on all pre-bundled dep chunks (e.g. `node_modules/.vite/deps/react.js?v=BROWSERHASH`).
-The Vite config's `server.headers: { "Cache-Control": "no-store" }` is set BEFORE
-Vite's own middlewares run, so sirv OVERRIDES it with `max-age=immutable`.
+This is why the error is specific to one tab (e.g. JohnesTab): it's the tab the user
+clicks AFTER the re-optimisation fires and the stale transform is served.
 
-Result: the proxy caches dep chunks under their path (`react.js`, `chunk-TUKGDGPK.js`,
-etc.) ignoring `?v=HASH`. Across sessions (or after any mid-session re-optimisation
-that changes the browserHash), the proxy serves STALE chunks with the old hash.
-Source files are fresh (our Layer-1 session-token prevents source caching), but they
-reference dep chunks by the NEW hash while the proxy serves OLD ones.
+## Fix layers implemented in vite.config.ts (reconnectReloadPlugin)
 
-Two different React instances end up in the same tab → "Invalid hook call" on
-whichever component renders next (observed: JohnesTab, CompliancePage, FlocksTab,
-SlurryTab — always whichever tab the user clicked).
+### Layer 0 — intercept res.setHeader to force Cache-Control: no-store on all module responses
+Prevents Vite's sirv from overwriting our header with max-age=immutable.
+Targets URLs containing `/.vite/deps/`, `/@fs/`, `/@td/`, `/node_modules/`, or `/src/`.
 
-## Fix (Layer 0 in vite.config.ts)
+### Layer 1 — path-based session token on source files (@fs/ URLs)
+Every @fs/ source-file URL embedded in compiled JS is rewritten to include SESSION TOKEN
+in the PATH:  `/base/@fs/path`  →  `/base/@td/TOKEN/@fs/path`
+Proxy sees a different path each session → cache miss → always fresh.
 
-In `reconnectReloadPlugin`, at the very start of the `server.middlewares.use` handler,
-intercept `res.setHeader` for all module-like URLs BEFORE Vite sees the request:
+### Layer 1b — path-based session token on dep chunks (.vite/deps/ URLs)
+Absolute dep-chunk URLs embedded in compiled source files are rewritten similarly:
+  `/base/node_modules/.vite/deps/`  →  `/base/@td/TOKEN/deps/`
+Dep chunks use only RELATIVE imports internally, so browser resolution of `"./sibling.js"`
+automatically follows the same `@td/TOKEN/deps/` base — no rewriting needed inside chunks.
 
-```javascript
-const isModuleUrl =
-  rawUrl.includes("/.vite/deps/") ||
-  rawUrl.includes("/@fs/") ||
-  rawUrl.includes("/@td/") ||
-  rawUrl.includes("/node_modules/") ||
-  /\/src\/[^?]+\.(tsx?|jsx?|js)/.test(rawUrl);
+### Layer 2 — entry-script path token in index.html
+The `<script type="module" src="...">` entry point is also rewritten with the session token.
 
-if (isModuleUrl) {
-  const origSet = res.setHeader.bind(res);
-  res.setHeader = (name, value) => {
-    if (name.toLowerCase() === "cache-control") return origSet("Cache-Control", "no-store");
-    return origSet(name, value);
-  };
-  res.setHeader("Cache-Control", "no-store");
-}
-```
+### Layer 3 — startup-token endpoint (server-restart detection)
+Client (main.tsx) fetches `/__td_startup_token__` on vite:ws:connect; if token changed
+since last load, reloads the page before stale hashes can mix.
 
-This prevents sirv from ever writing `max-age=immutable`. The proxy sees `no-store`
-and always forwards dep-chunk requests to Vite, which always returns the CURRENT hash.
+### Layer 4 — moduleGraph.invalidateAll() on full-reload + token regen (FIX FOR CAUSE B)
+When Vite fires a full-reload event (dep re-optimisation changed the browserHash mid-session),
+the plugin now calls `server.moduleGraph.invalidateAll()` BEFORE regenerating the session
+token. This flushes Vite's in-memory transform cache. The browser reloads → fetches source
+files with the new session token → Vite re-transforms them fresh → embeds the CURRENT
+browserHash in all dep-chunk URLs → single consistent React instance.
 
-## How to apply if the error reappears
-1. Do NOT look for a hooks violation in the component source — the code is correct.
-2. Check that Layer 0 (the `isModuleUrl` / `res.setHeader` override) is present in
-   `artifacts/test-dashboard/vite.config.ts` inside `reconnectReloadPlugin`.
-3. If it is missing, re-add it before the `── 1. Strip session token` block.
-4. Restart the test-dashboard workflow.
+## Infrastructure
+- `dev` script clears `node_modules/.vite` on every startup (already in package.json).
+  This handles the cold-start case; Layer 4 handles the mid-session case.
 
-The `dev` script already clears `node_modules/.vite` on every startup — keep that.
+## How to diagnose if the error reappears
+1. Check the error component stack for dep chunk URL (e.g. `chunk-TUKGDGPK.js?v=HASH`).
+2. Check `artifacts/test-dashboard/node_modules/.vite/deps/_metadata.json` → `browserHash`.
+3. If the error's hash ≠ _metadata.json hash: Cause A or B — stale content.
+4. Verify all 5 fix layers are present in `reconnectReloadPlugin` in `vite.config.ts`.
+5. Restart the workflow (clears `.vite` and the in-memory transform cache).
+
+## What NOT to do
+- Do NOT look for a hooks violation in the component source — the component code is correct.
+- Do NOT add `optimizeDeps.force:true` — it re-hashes chunks on every restart, making
+  the proxy caching problem worse.

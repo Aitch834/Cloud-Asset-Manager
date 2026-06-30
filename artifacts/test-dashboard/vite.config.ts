@@ -156,7 +156,23 @@ function reconnectReloadPlugin(sessionBase: string) {
 
     configureServer(server: any) {
       // ── Layer 4: Regenerate token on every Vite-triggered full-reload ──────
+      //
+      // When Vite re-optimises deps mid-session the browserHash changes.
+      // Vite's in-memory transform cache still holds compiled source files
+      // with the OLD ?v=HASH baked into every dep-chunk import URL.  When
+      // the browser reloads after the full-reload event, Vite serves the
+      // STALE transforms (old hash) alongside freshly-compiled dep chunks
+      // (new hash) → two different React module instances → "Invalid hook
+      // call" on the next component that renders.
+      //
+      // FIX: before regenerating the session token, call
+      // server.moduleGraph.invalidateAll() so Vite discards every cached
+      // transform.  The reloading browser then fetches all source files
+      // fresh, Vite re-transforms them and embeds the CURRENT browserHash
+      // in every dep-chunk URL → single consistent React instance.
       const regenToken = () => {
+        // Flush Vite's transform cache so stale dep-chunk URLs are not served.
+        server.moduleGraph?.invalidateAll?.();
         sessionToken =
           Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
       };
