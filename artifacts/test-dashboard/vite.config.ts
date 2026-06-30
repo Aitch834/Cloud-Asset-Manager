@@ -461,6 +461,21 @@ export default defineConfig({
       // with the react alias above applied (avoiding a second React instance).
       { find: "@clerk/react", replacement: path.resolve(import.meta.dirname, "../dashboard/node_modules/@clerk/react") },
 
+      // ── @workspace/object-storage-web ────────────────────────────────────
+      // MUST be aliased to point directly at the compiled entry file (use-upload.ts),
+      // NOT at the package root. When Vite resolves the package root it scans
+      // every file in the package directory, including ObjectUploader.tsx.
+      // ObjectUploader.tsx imports @uppy/core directly (not as a type), which
+      // resolves from lib/object-storage-web/node_modules/@uppy/core — a separate
+      // copy from the dashboard/node_modules one. Vite then discovers a "new"
+      // dep mid-render, increments browserHash, re-hashes ALL chunk URLs, and
+      // for a brief window two different React module instances exist in the tab
+      // → "Invalid hook call" on JohnesTab and any other tab that first renders
+      // DocAttach or RecordAttachments.
+      // Fix: alias the package to the single source file that is actually used,
+      // bypassing the scanner's traversal of ObjectUploader.tsx entirely.
+      { find: "@workspace/object-storage-web", replacement: path.resolve(import.meta.dirname, "../../lib/object-storage-web/src/use-upload.ts") },
+
       // ── @uppy/* ───────────────────────────────────────────────────────────
       // Uppy lives only in dashboard/node_modules (via @workspace/object-storage-web).
       // Without explicit aliases + optimizeDeps entries, Vite discovers these
