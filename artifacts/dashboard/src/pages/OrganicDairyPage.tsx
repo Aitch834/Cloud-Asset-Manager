@@ -39,7 +39,7 @@ import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { useToast } from "@/hooks/use-toast";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from "recharts";
-import { MastitisTab, CalvingTab, BcsTab, MobilityTab, BulkTankTab, DctTab, RecordingVisitsTab, JohnesTab } from "@/pages/DairyPage";
+import { MastitisTab, CalvingTab, BcsTab, MobilityTab, BulkTankTab, DctTab, RecordingVisitsTab, JohnesTab as JohnesTabFromDairy } from "@/pages/DairyPage";
 import { DairyEnterpriseReport } from "@/components/DairyEnterpriseReport";
 
 const FEED_TYPES: [string, string][] = [
@@ -2041,6 +2041,13 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
       </Dialog>
     </div>
   );
+}
+
+// Local wrapper so JohnesTab is registered in this module's scope (not just as
+// a cross-file import from the 6000-line DairyPage). React Refresh and Radix
+// Tabs Presence both handle locally-defined components more reliably.
+function JohnesTab({ farmId }: { farmId: number }) {
+  return <JohnesTabFromDairy farmId={farmId} />;
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────

@@ -99,6 +99,32 @@ the proxy always serves it fresh. Code inlined into it is never independently ca
   - Helper functions renamed: `johnesFmtDate`, `johnesRiskLabel`, `johnesTypeLabel`
     (to avoid potential collisions with future functions in the same file).
 
+## Local wrapper pattern — cross-module import into Radix TabsContent
+
+When a component is imported from DairyPage.tsx (the >500KB inlined file) and rendered via
+Radix `<TabsContent>` in a DIFFERENT page file (e.g. OrganicDairyPage.tsx), the component
+can fail with "Invalid hook call" even though all dep URLs share the same session token.
+
+Root cause: Radix `Presence` uses `children` as a render prop function → `forceMount=true`
+always. React Refresh registers the cross-file import under DairyPage.tsx's module scope,
+not OrganicDairyPage.tsx's scope. This causes a mismatch in how React reconciles the
+component during Presence's render cycle.
+
+**Fix:** define a local wrapper function in OrganicDairyPage.tsx:
+```typescript
+import { JohnesTab as JohnesTabFromDairy } from "@/pages/DairyPage";
+function JohnesTab({ farmId }: { farmId: number }) {
+  return <JohnesTabFromDairy farmId={farmId} />;
+}
+```
+The wrapper gets registered in OrganicDairyPage.tsx's module scope (`$RefreshReg$(_c9, "JohnesTab")`).
+React renders the wrapper first (proper dispatcher context), then renders `JohnesTabFromDairy`
+in a separate reconciler pass — hooks work correctly.
+
+**Only JohnesTab needed this** — other DairyPage tabs (MastitisTab, CalvingTab etc.) work
+fine with direct import into TabsContent. The distinction is not fully explained; apply this
+wrapper pattern defensively if a cross-module Radix TabsContent import fails with this error.
+
 ## What NOT to do
 - Do NOT look for a hooks violation in the component source — the component code is correct.
 - Do NOT add `optimizeDeps.force:true` — it re-hashes chunks on every restart, making
