@@ -126,12 +126,30 @@ OrganicDairyPage.tsx uses raw paths throughout. Also add:
 **Rule:** if any cross-module Radix TabsContent import fails with "Invalid hook call" and a
 wrapper doesn't fix it, full inline into the consuming page is the only confirmed fix.
 
+## Dead export of same-named component — React Refresh name collision
+
+After inlining JohnesTab into OrganicDairyPage.tsx, the crash persisted because DairyPage.tsx
+still had `export function JohnesTab` — an orphaned export that nothing imported. Both modules
+were loaded in the browser simultaneously (OrganicDairyPage.tsx imports MastitisTab etc. from
+DairyPage.tsx, so DairyPage.tsx loads too). React Refresh registers components by name per
+module; having two modules both emit a `JohnesTab` registration can cause the Fast Refresh
+dispatcher to resolve to the wrong module's React instance.
+
+**Fix:** remove `export` from DairyPage.tsx's JohnesTab (make it private). Vite HMR confirms
+with `"Could not Fast Refresh (export removed)"` then re-syncs OrganicDairyPage.tsx cleanly.
+
+**Rule:** whenever you inline a component into page B by copying from page A, also remove the
+`export` keyword from page A's copy (or delete it entirely if nothing else imports it). An
+orphaned same-named export in an indirectly-loaded module is enough to trigger the crash.
+
 ## What NOT to do
 - Do NOT look for a hooks violation in the component source — the component code is correct.
 - Do NOT add `optimizeDeps.force:true` — it re-hashes chunks on every restart, making
   the proxy caching problem worse.
 - Do NOT extract JohnesTab (or the other inlined components) back into separate small files —
   small files get proxy-cached and the error returns.
+- Do NOT leave `export function SameName` in a module that is indirectly loaded alongside
+  the consumer — same-named component registrations across modules confuse React Refresh.
 
 ## Babel compile failure → stale HMR state (post-resolution note)
 

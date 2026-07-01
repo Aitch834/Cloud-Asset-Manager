@@ -179,18 +179,37 @@ function reconnectReloadPlugin(sessionBase: string) {
       // fresh, Vite re-transforms them and embeds the CURRENT browserHash
       // in every dep-chunk URL → single consistent React instance.
       const regenToken = () => {
-        // Flush Vite 7's transform cache so stale dep-chunk URLs are not served.
-        // Vite 7 has a per-environment module graph; the old Vite 6 API
-        // server.moduleGraph.invalidateAll() is a compatibility shim that
-        // silently no-ops. Must iterate server.environments instead.
+        // Flush Vite's in-memory transform cache before rotating the session
+        // token. Must run BEFORE token change so that the reloading browser
+        // fetches all source files fresh (no stale dep-chunk URLs baked in).
+        //
+        // Vite 7: per-environment module graph. server.environments may be
+        // a plain object OR a Map depending on the Vite version/config.
+        // Object.values() is a no-op on a Map, so we handle both forms.
+        let invalidatedCount = 0;
         if (server.environments) {
-          for (const env of Object.values(server.environments)) {
-            (env as any).moduleGraph?.invalidateAll?.();
+          const envIterable: any[] =
+            server.environments instanceof Map
+              ? Array.from((server.environments as Map<string, any>).values())
+              : Object.values(server.environments as Record<string, any>);
+          for (const env of envIterable) {
+            const invalidate = env?.moduleGraph?.invalidateAll;
+            if (typeof invalidate === "function") {
+              invalidate.call(env.moduleGraph);
+              invalidatedCount++;
+            }
           }
-        } else {
-          // Vite 6 fallback
-          (server as any).moduleGraph?.invalidateAll?.();
         }
+        // Vite 6 / compatibility shim fallback — runs even when environments
+        // is present, to cover any shim that does real work.
+        const legacyInvalidate = (server as any).moduleGraph?.invalidateAll;
+        if (typeof legacyInvalidate === "function") {
+          legacyInvalidate.call((server as any).moduleGraph);
+          invalidatedCount++;
+        }
+        console.log(
+          `[td] regenToken: invalidated ${invalidatedCount} module graph(s)`,
+        );
         sessionToken =
           Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
       };

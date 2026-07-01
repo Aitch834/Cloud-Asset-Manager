@@ -5851,7 +5851,7 @@ function johnesTypeLabel(v: string | null | undefined) {
   return JOHNES_TYPES.find(t => t.value === v)?.label ?? v ?? "—";
 }
 
-export function JohnesTab({ farmId }: { farmId: number }) {
+function JohnesTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
