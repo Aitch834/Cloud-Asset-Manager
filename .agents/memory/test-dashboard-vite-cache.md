@@ -59,114 +59,62 @@ in-memory transform cache. The browser reloads → fetches source files with the
 token → Vite re-transforms them fresh → embeds the CURRENT browserHash in dep-chunk URLs →
 single consistent React instance.
 
-CRITICAL — VITE 7 API CHANGE: `server.moduleGraph.invalidateAll()` is a COMPATIBILITY SHIM
-in Vite 7 that SILENTLY NO-OPS. Vite 7 has a per-environment module graph:
-  for (const env of Object.values(server.environments)) {
-    env.moduleGraph.invalidateAll();
-  }
-This is confirmed by Vite 7 dist (config.js): `for (const environment of Object.values(server.environments)) environment.moduleGraph.invalidateAll()`
-The optional-chaining form `server.moduleGraph?.invalidateAll?.()` always succeeded silently,
-meaning the stale transform cache was NEVER flushed — root cause of persistent "Invalid hook call".
+## React Refresh instrumentation limit — very large modules
 
-## Infrastructure
-- `dev` script clears `node_modules/.vite` on every startup (already in package.json).
-  This handles the cold-start case; Layer 4 handles the mid-session case.
+When a single source file grows large enough to register 9+ components with React Refresh,
+the Babel instrumentation can produce corrupted hook-dispatcher state for components near
+the end of the registration sequence (e.g. `_c9` / `_s6` in a 7,561-line compiled file).
 
-## How to diagnose if the error reappears
-1. Check the error component stack for dep chunk URL (e.g. `chunk-TUKGDGPK.js?v=HASH`).
-2. Check `artifacts/test-dashboard/node_modules/.vite/deps/_metadata.json` → `browserHash`.
-3. If the error's hash ≠ _metadata.json hash: Cause A or B — stale content.
-4. Verify all 5 fix layers are present in `reconnectReloadPlugin` in `vite.config.ts`.
-5. Restart the workflow (clears `.vite` and the in-memory transform cache).
+**Symptom:** "Invalid hook call" on a specific component that is:
+  - The 9th+ registered component in its module (9th `$RefreshReg$` call)
+  - The 6th+ hook-using component in its module (6th `$RefreshSig$` call)
+  - Using the SAME first hook (`useQueryClient()`) as earlier components that work fine
+  - Named uniquely (no React Refresh name collisions)
+  - Deterministic — crashes on every mount, not just after HMR
 
-## Inlining rule — small @fs/ components that get proxy-cached
+**Fix:** Extract the crashing component into its own separate file.
+  - The component gets a completely isolated React Refresh module scope
+  - Its compiled output has just `_s` (1 sig) and `_c` (1 reg) — no sequence issues
+  - The `Cache-Control: no-store` headers (Layer 0) prevent any small-file proxy caching issue
 
-Small @fs/ files (<500KB) CAN still be proxy-cached with stale dep hashes even with
-Layers 0-4 in place, because Replit's proxy may normalise away the @td/TOKEN path segment.
+**Applied fix:** OrganicJohnesTab extracted from OrganicDairyPage.tsx
+  → `artifacts/dashboard/src/pages/OrganicJohnesTab.tsx`
+  OrganicDairyPage.tsx now imports it: `import { OrganicJohnesTab } from "@/pages/OrganicJohnesTab"`
 
-**Fix:** inline the small component's code directly into the large page file (>500KB).
-DairyPage.tsx is >500KB (Babel deoptimised) and exceeds Replit's proxy cache limit;
-the proxy always serves it fresh. Code inlined into it is never independently cached.
+**Rule:** if a page file has 8+ named function components registered by React Refresh AND
+one of them crashes with "Invalid hook call" despite correct code, extract the crashing
+component to its own file. Do NOT inline it further — the module size IS the problem.
 
-**Components inlined into DairyPage.tsx** (do NOT extract back to separate files):
-- `AbrProcurementSection` — inlined to prevent sibling proxy-cache issue
-- `DairyEnterpriseReport` — inlined (enterprise report, too small on its own)
-- `JohnesTab` — inlined at bottom of DairyPage.tsx; confirmed fixes "Invalid hook call"
-  - Previously extracted to its own file (commit 4663f4a) which solved a React Refresh
-    counter mismatch, but then the small-file proxy caching caused the error to return.
-  - Layer 4 (per-environment invalidateAll) now correctly flushes the transform cache,
-    so the counter mismatch no longer occurs → inlining is safe and is the correct fix.
-  - Helper functions renamed: `johnesFmtDate`, `johnesRiskLabel`, `johnesTypeLabel`
-    (to avoid potential collisions with future functions in the same file).
+## React Refresh component name collisions
 
-## Cross-module import into Radix TabsContent — "Invalid hook call"
+If TWO modules imported by the test-dashboard define a component with the SAME function
+name (e.g. both define `function JohnesTab`), React Refresh conflates their families →
+"Invalid hook call" on the component that renders second, even after the file renaming.
 
-When a component is imported from DairyPage.tsx (the >500KB inlined file) and rendered via
-Radix `<TabsContent>` in a DIFFERENT page file (e.g. OrganicDairyPage.tsx), the component
-can fail with "Invalid hook call" even though all dep URLs share the same session token.
+**Detection:**
+  grep -oP "^function \K[A-Z][a-zA-Z]+" DairyPage.tsx | sort > /tmp/a.txt
+  grep -oP "^function \K[A-Z][a-zA-Z]+" OrganicDairyPage.tsx | sort > /tmp/b.txt
+  comm -12 /tmp/a.txt /tmp/b.txt   # prints collisions
 
-Root cause is unknown analytically — the component stack confirms React IS calling the
-function via its reconciler, and both files share the same session token (one React instance),
-yet the dispatcher is ContextOnlyDispatcher when hooks run. The condition is specific to
-`JohnesTab` from DairyPage.tsx; other cross-module tabs (MastitisTab, CalvingTab etc.)
-work fine in the same TabsContent context.
-
-**Local wrapper does NOT fix this.** A wrapper registered in OrganicDairyPage.tsx's scope
-(which renders `<JohnesTabFromDairy />`) was attempted — the wrapper appears in the component
-stack but the inner JohnesTab from DairyPage.tsx still throws "Invalid hook call".
-
-**Definitive fix: full code inline into OrganicDairyPage.tsx.**
-Remove the import of JohnesTab from DairyPage entirely. Copy all constants, helpers, and the
-function body directly into OrganicDairyPage.tsx. The locally-defined function object works
-correctly. API path style: use `/api/farms/${farmId}/...` directly (no `api()` helper) since
-OrganicDairyPage.tsx uses raw paths throughout. Also add:
-  `import { openPrintWindow } from "@/lib/print-report";`
-(not present in OrganicDairyPage.tsx by default).
-
-**Rule:** if any cross-module Radix TabsContent import fails with "Invalid hook call" and a
-wrapper doesn't fix it, full inline into the consuming page is the only confirmed fix.
-
-## React Refresh name collision — ALL same-named functions matter (not just exports)
-
-React Refresh registers EVERY `function UpperCase()` in a module by name, regardless of
-whether it is exported or not. If DairyPage.tsx (always loaded because OrganicDairyPage
-imports MastitisTab etc. from it) defines `function Foo` AND OrganicDairyPage.tsx also
-defines `function Foo`, React Refresh has two registrations for "Foo" across two loaded
-modules. This can cause the Fast Refresh dispatcher to resolve to the wrong module's React
-instance → "Invalid hook call" on first render of Foo (or any component rendered alongside).
-
-**Initial fix that failed:** removing `export` from DairyPage.tsx's JohnesTab. Making it
-private does NOT stop React Refresh from registering it — React Refresh tracks ALL function
-components by name, not just exported ones.
-
-**Complete fix (confirmed approach):**
-1. Rename ALL same-named functions between the two files (not just remove export).
-2. Also rename any other collisions found by diffing `^function [A-Z]` lines.
-3. Render the locally-defined component OUTSIDE `<Tabs>` entirely using conditional render
-   `{activeTab === "tab-value" && <Component ... />}` — NOT inside `<TabsContent>`.
-   Placing it inside `<TabsContent>` (Radix Presence) still causes "Invalid hook call"
-   even after name collisions are fixed. DairyPage uses this same outside-Tabs pattern.
-   Leave an empty `<TabsContent value="..." />` placeholder so Radix tracks trigger state.
+**Fix:** use page-prefixed names (OrganicXxx, DairyXxx) for all local components.
 
 Collisions fixed in OrganicDairyPage.tsx:
 - JohnesTab → OrganicJohnesTab (DairyPage has DairyJohnesTab)
 - AbrBadge → OrganicAbrBadge
 - LabResultsBadge → OrganicLabResultsBadge
 
-**Diagnostic command:**
-  grep -oP "^function \K[A-Z][a-zA-Z]+" DairyPage.tsx | sort > /tmp/a.txt
-  grep -oP "^function \K[A-Z][a-zA-Z]+" OrganicDairyPage.tsx | sort > /tmp/b.txt
-  comm -12 /tmp/a.txt /tmp/b.txt   # prints collisions
+## Radix Presence / TabsContent — locally-defined hook-heavy components
 
-**Rule:** whenever a page (B) imports from a large page (A), ensure NO function component
-names in B collide with names in A. Use page-prefixed names (OrganicXxx, DairyXxx) for
-components local to each page to guarantee uniqueness.
+Do NOT put a locally-defined hook-heavy tab component inside `<TabsContent>` (Radix
+Presence) — render it OUTSIDE the `<Tabs>` block with a conditional render instead.
+`{activeTab === "tab-value" && <Component ... />}` — NOT inside `<TabsContent>`.
+Leave an empty `<TabsContent value="..." />` placeholder so Radix tracks trigger state.
+DairyPage uses this same outside-Tabs pattern for all its locally-defined tab components.
 
 ## What NOT to do
 - Do NOT look for a hooks violation in the component source — the component code is correct.
 - Do NOT add `optimizeDeps.force:true` — it re-hashes chunks on every restart, making
   the proxy caching problem worse.
-- Do NOT extract JohnesTab (or other inlined components) back into separate small files.
 - Do NOT put a locally-defined hook-heavy tab component inside `<TabsContent>` (Radix
   Presence) — render it OUTSIDE the `<Tabs>` block with a conditional render instead.
 - Do NOT leave `export function SameName` in a module that is indirectly loaded alongside
