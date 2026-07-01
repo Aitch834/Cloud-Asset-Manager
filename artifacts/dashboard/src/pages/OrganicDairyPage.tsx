@@ -39,7 +39,7 @@ import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { useToast } from "@/hooks/use-toast";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from "recharts";
-import { MastitisTab, CalvingTab, BcsTab, MobilityTab, BulkTankTab, DctTab, RecordingVisitsTab, SageJohnesTab } from "@/pages/DairyPage";
+import { MastitisTab, CalvingTab, BcsTab, MobilityTab, BulkTankTab, DctTab, RecordingVisitsTab } from "@/pages/DairyPage";
 import { openPrintWindow } from "@/lib/print-report";
 import { DairyEnterpriseReport } from "@/components/DairyEnterpriseReport";
 import { OrganicJohnesTab } from "@/pages/OrganicJohnesTab";
@@ -2073,7 +2073,6 @@ export default function OrganicDairyPage() {
             <TabsTrigger value="dct">Dry Cow Therapy</TabsTrigger>
             <TabsTrigger value="recording">Recording Visits</TabsTrigger>
             <TabsTrigger value="johnes">Johne's Monitoring</TabsTrigger>
-            <TabsTrigger value="sage">Sage</TabsTrigger>
             <TabsTrigger value="feed">Feed & Nutrition</TabsTrigger>
             <TabsTrigger value="treatments">Treatment Compliance</TabsTrigger>
             <TabsTrigger value="enterprise">Enterprise Report</TabsTrigger>
@@ -2105,9 +2104,8 @@ export default function OrganicDairyPage() {
           <TabsContent value="recording" className="mt-4">
             <RecordingVisitsTab farmId={farmId} />
           </TabsContent>
-          <TabsContent value="johnes" className="mt-4" />
-          <TabsContent value="sage" className="mt-4">
-            <SageJohnesTab farmId={farmId} />
+          <TabsContent value="johnes" className="mt-4">
+            <OrganicJohnesTab farmId={farmId} />
           </TabsContent>
           <TabsContent value="feed" className="mt-4">
             <FeedNutritionTab farmId={farmId} farmName={name} />
