@@ -79,30 +79,29 @@ meaning the stale transform cache was NEVER flushed — root cause of persistent
 4. Verify all 5 fix layers are present in `reconnectReloadPlugin` in `vite.config.ts`.
 5. Restart the workflow (clears `.vite` and the in-memory transform cache).
 
-## Inlining vs Extraction — important distinction
+## Inlining rule — small @fs/ components that get proxy-cached
 
-### Original inlining rule (for sibling imports causing stale dep hash in a neighbour)
-If a small file (<500KB) is imported by a large page file (>500KB), the small file
-can still be served with a stale dep hash even when the large file is fresh.
-**Fix:** inline the small file's content directly into the large page file.
-- `AbrProcurementSection.tsx` and `DairyEnterpriseReport.tsx` were inlined into
-  `DairyPage.tsx` because they caused stale React in co-imported sibling modules.
+Small @fs/ files (<500KB) CAN still be proxy-cached with stale dep hashes even with
+Layers 0-4 in place, because Replit's proxy may normalise away the @td/TOKEN path segment.
 
-### Extraction rule (for the failing component itself inside a huge file)
-When a component DEFINED INSIDE a huge file (>500KB, Babel deoptimised) persistently
-throws "Invalid hook call" on EVERY render — even with no caching involved — the cause
-is the React Refresh transform's `_s`/`_c` counter mismatch across 20+ components in
-one giant compilation unit.
-**Fix:** extract the failing component into its own standalone file and import it.
-- `JohnesTab` was defined inside DairyPage.tsx (6105 lines) with `_s12` as its Refresh
-  tracker. Moving it to `components/dairy/JohnesMonitoringTab.tsx` gave it a clean
-  isolated module scope with `_s` as its only tracker. Error resolved.
-- `OrganicDairyPage.tsx` also imported `JohnesTab` from `DairyPage` — update that import
-  to the new path when extracting.
+**Fix:** inline the small component's code directly into the large page file (>500KB).
+DairyPage.tsx is >500KB (Babel deoptimised) and exceeds Replit's proxy cache limit;
+the proxy always serves it fresh. Code inlined into it is never independently cached.
+
+**Components inlined into DairyPage.tsx** (do NOT extract back to separate files):
+- `AbrProcurementSection` — inlined to prevent sibling proxy-cache issue
+- `DairyEnterpriseReport` — inlined (enterprise report, too small on its own)
+- `JohnesTab` — inlined at bottom of DairyPage.tsx; confirmed fixes "Invalid hook call"
+  - Previously extracted to its own file (commit 4663f4a) which solved a React Refresh
+    counter mismatch, but then the small-file proxy caching caused the error to return.
+  - Layer 4 (per-environment invalidateAll) now correctly flushes the transform cache,
+    so the counter mismatch no longer occurs → inlining is safe and is the correct fix.
+  - Helper functions renamed: `johnesFmtDate`, `johnesRiskLabel`, `johnesTypeLabel`
+    (to avoid potential collisions with future functions in the same file).
 
 ## What NOT to do
 - Do NOT look for a hooks violation in the component source — the component code is correct.
 - Do NOT add `optimizeDeps.force:true` — it re-hashes chunks on every restart, making
   the proxy caching problem worse.
-- Do NOT inline a component that is itself the failing one — inlining makes it WORSE
-  by burying it deeper in a huge compilation unit. Extract it instead.
+- Do NOT extract JohnesTab (or the other inlined components) back into separate small files —
+  small files get proxy-cached and the error returns.
