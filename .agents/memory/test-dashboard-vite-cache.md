@@ -105,3 +105,23 @@ the proxy always serves it fresh. Code inlined into it is never independently ca
   the proxy caching problem worse.
 - Do NOT extract JohnesTab (or the other inlined components) back into separate small files —
   small files get proxy-cached and the error returns.
+
+## Babel compile failure → stale HMR state (post-resolution note)
+
+When `vite:react-babel` fails to compile a source file (e.g. due to a duplicate
+`export { X }` re-export before the function declaration), Vite sends an error event
+via WebSocket. The browser's ES module cache may retain the previously-compiled module,
+which can have MISMATCHED React Refresh signatures vs the current running code.
+
+Even after the compilation error is fixed and a new HMR update arrives, the browser
+can remain in a bad state (hooks counter mismatch → "Invalid hook call") if it has
+a mix of old and new compiled modules in its cache.
+
+**Fix for this scenario**: Restart the test-dashboard workflow. The startup script
+clears `node_modules/.vite`, which regenerates the session token on next start, 
+forcing the browser to reload all modules fresh — any stale HMR state is cleared.
+
+**Key diagnostic**: if the error is deterministic (always on first render of the
+specific component) but all dep chunks share the same session token and there are
+0 "discovered" deps in _metadata.json, the cause is stale HMR module state, not
+a live dep re-optimization race. Restart the server to clear it.
