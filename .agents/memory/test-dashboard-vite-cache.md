@@ -26,7 +26,23 @@ whichever component renders next.
 
 ### Layer 0 — intercept res.setHeader to force Cache-Control: no-store on all module responses
 Prevents Vite's sirv from overwriting our header with max-age=immutable.
-Targets URLs containing `/.vite/deps/`, `/@fs/`, `/@td/`, `/node_modules/`, or `/src/`.
+Targets URLs containing `/.vite/deps/`, `/@fs/`, `/@td/`, `/node_modules/`, `/src/`,
+`/@react-refresh`, and `/@vite/`.
+**IMPORTANT:** `/@react-refresh` and `/@vite/client` MUST be in this list. Without no-store,
+Replit's proxy can cache these at fixed URLs across sessions — the React Refresh runtime
+retains stale family registrations and the Vite HMR client retains stale module hot contexts,
+both of which can lead to dispatcher confusion on the first render of a component that was
+newly extracted to its own file.
+
+### Layer 0b — interceptText must ALWAYS transform (never skip on res.headersSent)
+The `interceptText` wrapper patches `res.end` to apply dep-URL rewriting. It must NEVER
+skip the transformation even when `res.headersSent` is already true. If headers were already
+flushed (e.g. by `res.flushHeaders()` in some Vite middleware path), the body is still
+buffered by our `res.write` wrapper and must be transformed before sending. Skipping
+transformation when `res.headersSent=true` would serve raw dep URLs (no session token) →
+second React instance → "Invalid hook call".
+Fix: removed `if (res.headersSent) { return _end(raw); }` bypass; only skip
+`res.removeHeader("content-length")` when headers are already sent.
 
 ### Layer 1 — path-based session token on source files (@fs/ URLs)
 Every @fs/ source-file URL embedded in compiled JS is rewritten to include SESSION TOKEN

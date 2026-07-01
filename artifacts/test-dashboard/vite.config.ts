@@ -145,14 +145,16 @@ function reconnectReloadPlugin(sessionBase: string) {
       if (chunk != null) {
         chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
       }
-      // If headers are already committed (e.g. Vite's proxy middleware wrote
-      // directly to the socket), skip the transformation.
-      if (res.headersSent) {
-        const done = typeof enc === "function" ? enc : typeof cb === "function" ? cb : undefined;
-        return _end(Buffer.concat(chunks), done);
-      }
+      // Always apply the transformation regardless of res.headersSent.
+      // Skipping it when headers are already committed would serve raw dep URLs
+      // (without the session token) → second React instance → "Invalid hook call".
+      // In Vite's dev server the response is typically chunked (no Content-Length),
+      // so sending a differently-sized transformed body is safe even if headers
+      // were already flushed by an earlier res.flushHeaders() call.
       const body = transform(Buffer.concat(chunks).toString("utf-8"));
-      res.removeHeader("content-length");
+      if (!res.headersSent) {
+        res.removeHeader("content-length");
+      }
       const done = typeof enc === "function" ? enc : typeof cb === "function" ? cb : undefined;
       return _end(body, "utf-8", done);
     };
@@ -273,6 +275,8 @@ function reconnectReloadPlugin(sessionBase: string) {
           rawUrl.includes("/@fs/") ||
           rawUrl.includes("/@td/") ||
           rawUrl.includes("/node_modules/") ||
+          rawUrl.includes("/@react-refresh") ||
+          rawUrl.includes("/@vite/") ||
           /\/src\/[^?]+\.(tsx?|jsx?|js)/.test(rawUrl);
 
         if (isModuleUrl) {
