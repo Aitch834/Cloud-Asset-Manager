@@ -2591,9 +2591,7 @@ export default function OrganicDairyPage() {
           <TabsContent value="recording" className="mt-4">
             <RecordingVisitsTab farmId={farmId} />
           </TabsContent>
-          <TabsContent value="johnes" className="mt-4">
-            <OrganicJohnesTab farmId={farmId} />
-          </TabsContent>
+          <TabsContent value="johnes" className="mt-4" />
           <TabsContent value="feed" className="mt-4">
             <FeedNutritionTab farmId={farmId} farmName={name} />
           </TabsContent>
@@ -2604,6 +2602,7 @@ export default function OrganicDairyPage() {
             <DairyEnterpriseReport farmId={farmId} />
           </TabsContent>
         </Tabs>
+        {activeTab === "johnes" && <div className="mt-4"><OrganicJohnesTab farmId={farmId} /></div>}
         </>
       )}
     </AppLayout>

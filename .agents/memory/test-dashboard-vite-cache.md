@@ -142,8 +142,11 @@ components by name, not just exported ones.
 **Complete fix (confirmed approach):**
 1. Rename ALL same-named functions between the two files (not just remove export).
 2. Also rename any other collisions found by diffing `^function [A-Z]` lines.
-3. Move the component back inside `<TabsContent>` (the original outside-Tabs workaround was
-   for cross-module imports; locally-defined components work fine inside TabsContent).
+3. Render the locally-defined component OUTSIDE `<Tabs>` entirely using conditional render
+   `{activeTab === "tab-value" && <Component ... />}` — NOT inside `<TabsContent>`.
+   Placing it inside `<TabsContent>` (Radix Presence) still causes "Invalid hook call"
+   even after name collisions are fixed. DairyPage uses this same outside-Tabs pattern.
+   Leave an empty `<TabsContent value="..." />` placeholder so Radix tracks trigger state.
 
 Collisions fixed in OrganicDairyPage.tsx:
 - JohnesTab → OrganicJohnesTab (DairyPage has DairyJohnesTab)
@@ -163,8 +166,9 @@ components local to each page to guarantee uniqueness.
 - Do NOT look for a hooks violation in the component source — the component code is correct.
 - Do NOT add `optimizeDeps.force:true` — it re-hashes chunks on every restart, making
   the proxy caching problem worse.
-- Do NOT extract JohnesTab (or the other inlined components) back into separate small files —
-  small files get proxy-cached and the error returns.
+- Do NOT extract JohnesTab (or other inlined components) back into separate small files.
+- Do NOT put a locally-defined hook-heavy tab component inside `<TabsContent>` (Radix
+  Presence) — render it OUTSIDE the `<Tabs>` block with a conditional render instead.
 - Do NOT leave `export function SameName` in a module that is indirectly loaded alongside
   the consumer — same-named component registrations across modules confuse React Refresh.
 
