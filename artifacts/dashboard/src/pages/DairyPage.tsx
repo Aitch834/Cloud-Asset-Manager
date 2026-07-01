@@ -104,7 +104,7 @@ export default function DairyPage() {
           {tab === "mobility" && <MobilityTab farmId={farmId} />}
           {tab === "tank" && <BulkTankTab farmId={farmId} />}
           {tab === "dct" && <DctTab farmId={farmId} />}
-          {tab === "johnes" && <JohnesTab farmId={farmId} />}
+          {tab === "johnes" && <DairyJohnesTab farmId={farmId} />}
           {tab === "recording" && <RecordingVisitsTab farmId={farmId} />}
           {tab === "enterprise" && <DairyEnterpriseReport farmId={farmId} />}
         </div>
@@ -5851,7 +5851,7 @@ function johnesTypeLabel(v: string | null | undefined) {
   return JOHNES_TYPES.find(t => t.value === v)?.label ?? v ?? "—";
 }
 
-function JohnesTab({ farmId }: { farmId: number }) {
+function DairyJohnesTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);

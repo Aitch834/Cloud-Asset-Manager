@@ -863,7 +863,7 @@ function CollectionMonthlySummary({ records, monthLabel, farmName }: { records: 
 
 // ─── AbrBadge ────────────────────────────────────────────────────────────────
 
-function AbrBadge({ result }: { result?: string | null }) {
+function OrganicAbrBadge({ result }: { result?: string | null }) {
   if (!result || result === "not-tested") return <span className="text-gray-400 text-xs">—</span>;
   const map: Record<string, string> = {
     negative: "bg-green-100 text-green-800",
@@ -874,7 +874,7 @@ function AbrBadge({ result }: { result?: string | null }) {
   return <Badge className={`text-xs ${map[result] ?? "bg-gray-100 text-gray-600"}`}>{result}</Badge>;
 }
 
-function LabResultsBadge({ status }: { status?: string | null }) {
+function OrganicLabResultsBadge({ status }: { status?: string | null }) {
   if (!status) return <span className="text-gray-400 text-xs">—</span>;
   const map: Record<string, string> = {
     pass: "bg-green-100 text-green-800",
@@ -1047,8 +1047,8 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
               <TableCell>{r.fatPercentage ? `${r.fatPercentage}%` : "—"}</TableCell>
               <TableCell>{r.proteinPercentage ? `${r.proteinPercentage}%` : "—"}</TableCell>
               <TableCell><CollectionSccBadge v={r.sccCount} /></TableCell>
-              <TableCell><AbrBadge result={r.antibioticResidueTestResult} /></TableCell>
-              <TableCell><LabResultsBadge status={r.buyerLabResultsStatus} /></TableCell>
+              <TableCell><OrganicAbrBadge result={r.antibioticResidueTestResult} /></TableCell>
+              <TableCell><OrganicLabResultsBadge status={r.buyerLabResultsStatus} /></TableCell>
               <TableCell>
                 <div className="flex flex-col gap-0.5">
                   <Badge className={r.isOrganicCollection ? "bg-green-100 text-green-800 hover:bg-green-100" : "bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-100"}>
@@ -1097,7 +1097,7 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">SCC (k/mL)</p><p className="font-medium"><CollectionSccBadge v={viewRecord.sccCount} /></p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">TBC (k/mL)</p><p className="font-medium">{viewRecord.tbcCount ? `${viewRecord.tbcCount}k` : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Milk Temperature</p><p className="font-medium">{viewRecord.milkTemperatureCelsius ? `${viewRecord.milkTemperatureCelsius} °C` : "—"}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">ABR Result</p><p className="font-medium"><AbrBadge result={viewRecord.antibioticResidueTestResult} /></p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">ABR Result</p><p className="font-medium"><OrganicAbrBadge result={viewRecord.antibioticResidueTestResult} /></p></div>
               {viewRecord.abrTestedBy && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">ABR Tested By</p><p className="font-medium">{viewRecord.abrTestedBy}</p></div>}
               {viewRecord.lactosePercentage && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lactose %</p><p className="font-medium">{viewRecord.lactosePercentage}%</p></div>}
               {viewRecord.isRetest && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Retest</p><p className="font-medium text-amber-700">Follow-up retest{viewRecord.retestOfId ? ` of record #${viewRecord.retestOfId}` : ""}</p></div>}
@@ -2077,7 +2077,7 @@ function johnesRiskLabel(v: string | null | undefined) {
 function johnesTypeLabel(v: string | null | undefined) {
   return JOHNES_TYPES.find(t => t.value === v)?.label ?? v ?? "—";
 }
-function JohnesTab({ farmId }: { farmId: number }) {
+function OrganicJohnesTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
@@ -2591,7 +2591,9 @@ export default function OrganicDairyPage() {
           <TabsContent value="recording" className="mt-4">
             <RecordingVisitsTab farmId={farmId} />
           </TabsContent>
-          <TabsContent value="johnes" className="mt-4" />
+          <TabsContent value="johnes" className="mt-4">
+            <OrganicJohnesTab farmId={farmId} />
+          </TabsContent>
           <TabsContent value="feed" className="mt-4">
             <FeedNutritionTab farmId={farmId} farmName={name} />
           </TabsContent>
@@ -2602,7 +2604,6 @@ export default function OrganicDairyPage() {
             <DairyEnterpriseReport farmId={farmId} />
           </TabsContent>
         </Tabs>
-        {activeTab === "johnes" && <JohnesTab farmId={farmId} />}
         </>
       )}
     </AppLayout>

@@ -126,21 +126,38 @@ OrganicDairyPage.tsx uses raw paths throughout. Also add:
 **Rule:** if any cross-module Radix TabsContent import fails with "Invalid hook call" and a
 wrapper doesn't fix it, full inline into the consuming page is the only confirmed fix.
 
-## Dead export of same-named component — React Refresh name collision
+## React Refresh name collision — ALL same-named functions matter (not just exports)
 
-After inlining JohnesTab into OrganicDairyPage.tsx, the crash persisted because DairyPage.tsx
-still had `export function JohnesTab` — an orphaned export that nothing imported. Both modules
-were loaded in the browser simultaneously (OrganicDairyPage.tsx imports MastitisTab etc. from
-DairyPage.tsx, so DairyPage.tsx loads too). React Refresh registers components by name per
-module; having two modules both emit a `JohnesTab` registration can cause the Fast Refresh
-dispatcher to resolve to the wrong module's React instance.
+React Refresh registers EVERY `function UpperCase()` in a module by name, regardless of
+whether it is exported or not. If DairyPage.tsx (always loaded because OrganicDairyPage
+imports MastitisTab etc. from it) defines `function Foo` AND OrganicDairyPage.tsx also
+defines `function Foo`, React Refresh has two registrations for "Foo" across two loaded
+modules. This can cause the Fast Refresh dispatcher to resolve to the wrong module's React
+instance → "Invalid hook call" on first render of Foo (or any component rendered alongside).
 
-**Fix:** remove `export` from DairyPage.tsx's JohnesTab (make it private). Vite HMR confirms
-with `"Could not Fast Refresh (export removed)"` then re-syncs OrganicDairyPage.tsx cleanly.
+**Initial fix that failed:** removing `export` from DairyPage.tsx's JohnesTab. Making it
+private does NOT stop React Refresh from registering it — React Refresh tracks ALL function
+components by name, not just exported ones.
 
-**Rule:** whenever you inline a component into page B by copying from page A, also remove the
-`export` keyword from page A's copy (or delete it entirely if nothing else imports it). An
-orphaned same-named export in an indirectly-loaded module is enough to trigger the crash.
+**Complete fix (confirmed approach):**
+1. Rename ALL same-named functions between the two files (not just remove export).
+2. Also rename any other collisions found by diffing `^function [A-Z]` lines.
+3. Move the component back inside `<TabsContent>` (the original outside-Tabs workaround was
+   for cross-module imports; locally-defined components work fine inside TabsContent).
+
+Collisions fixed in OrganicDairyPage.tsx:
+- JohnesTab → OrganicJohnesTab (DairyPage has DairyJohnesTab)
+- AbrBadge → OrganicAbrBadge
+- LabResultsBadge → OrganicLabResultsBadge
+
+**Diagnostic command:**
+  grep -oP "^function \K[A-Z][a-zA-Z]+" DairyPage.tsx | sort > /tmp/a.txt
+  grep -oP "^function \K[A-Z][a-zA-Z]+" OrganicDairyPage.tsx | sort > /tmp/b.txt
+  comm -12 /tmp/a.txt /tmp/b.txt   # prints collisions
+
+**Rule:** whenever a page (B) imports from a large page (A), ensure NO function component
+names in B collide with names in A. Use page-prefixed names (OrganicXxx, DairyXxx) for
+components local to each page to guarantee uniqueness.
 
 ## What NOT to do
 - Do NOT look for a hooks violation in the component source — the component code is correct.
