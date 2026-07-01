@@ -287,6 +287,33 @@ function reconnectReloadPlugin(sessionBase: string) {
             }
             return origSet(name, value);
           };
+          // Also intercept res.writeHead() — some middleware (sirv, Vite's send helper)
+          // calls writeHead() instead of setHeader(), which bypasses the interception
+          // above and lets "max-age=immutable" slip through to the Replit proxy.
+          const origWriteHead = (res.writeHead as Function).bind(res);
+          res.writeHead = (statusCode: number, statusMessage?: any, headers?: any) => {
+            // Normalise the two overload shapes:
+            //   writeHead(status, headers)
+            //   writeHead(status, message, headers)
+            let hdrs: Record<string, any> | undefined;
+            let msg: string | undefined;
+            if (typeof statusMessage === "string") {
+              msg = statusMessage;
+              hdrs = headers as Record<string, any> | undefined;
+            } else if (statusMessage != null) {
+              hdrs = statusMessage as Record<string, any>;
+            }
+            if (hdrs) {
+              for (const k of Object.keys(hdrs)) {
+                if (k.toLowerCase() === "cache-control") {
+                  hdrs[k] = "no-store";
+                }
+              }
+            }
+            return msg !== undefined
+              ? origWriteHead(statusCode, msg, hdrs)
+              : origWriteHead(statusCode, hdrs);
+          };
           // Set proactively so any header inspection before Vite runs sees no-store.
           (res.setHeader as Function)("Cache-Control", "no-store");
         }
