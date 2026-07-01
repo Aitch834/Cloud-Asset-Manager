@@ -99,31 +99,32 @@ the proxy always serves it fresh. Code inlined into it is never independently ca
   - Helper functions renamed: `johnesFmtDate`, `johnesRiskLabel`, `johnesTypeLabel`
     (to avoid potential collisions with future functions in the same file).
 
-## Local wrapper pattern — cross-module import into Radix TabsContent
+## Cross-module import into Radix TabsContent — "Invalid hook call"
 
 When a component is imported from DairyPage.tsx (the >500KB inlined file) and rendered via
 Radix `<TabsContent>` in a DIFFERENT page file (e.g. OrganicDairyPage.tsx), the component
 can fail with "Invalid hook call" even though all dep URLs share the same session token.
 
-Root cause: Radix `Presence` uses `children` as a render prop function → `forceMount=true`
-always. React Refresh registers the cross-file import under DairyPage.tsx's module scope,
-not OrganicDairyPage.tsx's scope. This causes a mismatch in how React reconciles the
-component during Presence's render cycle.
+Root cause is unknown analytically — the component stack confirms React IS calling the
+function via its reconciler, and both files share the same session token (one React instance),
+yet the dispatcher is ContextOnlyDispatcher when hooks run. The condition is specific to
+`JohnesTab` from DairyPage.tsx; other cross-module tabs (MastitisTab, CalvingTab etc.)
+work fine in the same TabsContent context.
 
-**Fix:** define a local wrapper function in OrganicDairyPage.tsx:
-```typescript
-import { JohnesTab as JohnesTabFromDairy } from "@/pages/DairyPage";
-function JohnesTab({ farmId }: { farmId: number }) {
-  return <JohnesTabFromDairy farmId={farmId} />;
-}
-```
-The wrapper gets registered in OrganicDairyPage.tsx's module scope (`$RefreshReg$(_c9, "JohnesTab")`).
-React renders the wrapper first (proper dispatcher context), then renders `JohnesTabFromDairy`
-in a separate reconciler pass — hooks work correctly.
+**Local wrapper does NOT fix this.** A wrapper registered in OrganicDairyPage.tsx's scope
+(which renders `<JohnesTabFromDairy />`) was attempted — the wrapper appears in the component
+stack but the inner JohnesTab from DairyPage.tsx still throws "Invalid hook call".
 
-**Only JohnesTab needed this** — other DairyPage tabs (MastitisTab, CalvingTab etc.) work
-fine with direct import into TabsContent. The distinction is not fully explained; apply this
-wrapper pattern defensively if a cross-module Radix TabsContent import fails with this error.
+**Definitive fix: full code inline into OrganicDairyPage.tsx.**
+Remove the import of JohnesTab from DairyPage entirely. Copy all constants, helpers, and the
+function body directly into OrganicDairyPage.tsx. The locally-defined function object works
+correctly. API path style: use `/api/farms/${farmId}/...` directly (no `api()` helper) since
+OrganicDairyPage.tsx uses raw paths throughout. Also add:
+  `import { openPrintWindow } from "@/lib/print-report";`
+(not present in OrganicDairyPage.tsx by default).
+
+**Rule:** if any cross-module Radix TabsContent import fails with "Invalid hook call" and a
+wrapper doesn't fix it, full inline into the consuming page is the only confirmed fix.
 
 ## What NOT to do
 - Do NOT look for a hooks violation in the component source — the component code is correct.
