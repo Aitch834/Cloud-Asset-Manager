@@ -1,10 +1,16 @@
 import { Router, type IRouter, type Request, type Response } from "express";
+import multer from "multer";
 import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable, rolesTable, invoicesTable, platformConfigTable, platformAuditLogTable, helpArticlesTable } from "@workspace/db";
 import { eq, and, count, desc, sql, asc, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
 import { sendSetupGuideEmail, sendAdminEmail, sendTicketReplyEmail } from "../lib/mailer";
 import { fetchInbox, fetchEmail, markAsRead, markAsUnread, deleteEmail, isImapConfigured, listMailboxes, fetchFolder, fetchEmailFromFolder, markFolderEmailRead, permanentlyDeleteFromFolder, moveToInbox } from "../lib/imap";
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 10 },
+});
 
 const router: IRouter = Router();
 
@@ -604,7 +610,7 @@ router.delete("/admin/inbox/:uid", requireAuth, async (req: Request, res: Respon
   }
 });
 
-router.post("/admin/inbox/:uid/reply", requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.post("/admin/inbox/:uid/reply", requireAuth, upload.array("attachments"), async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
 
   const uid = parseInt(req.params.uid as string, 10);
@@ -616,6 +622,13 @@ router.post("/admin/inbox/:uid/reply", requireAuth, async (req: Request, res: Re
     return;
   }
 
+  const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+  const attachments = files.map((f) => ({
+    filename: f.originalname,
+    content: f.buffer,
+    contentType: f.mimetype,
+  }));
+
   try {
     const original = await fetchEmail(uid);
     const replyTo = original.replyTo || original.fromEmail;
@@ -626,6 +639,7 @@ router.post("/admin/inbox/:uid/reply", requireAuth, async (req: Request, res: Re
       toName: original.from !== original.fromEmail ? original.from : undefined,
       subject: replySubject,
       body: body.trim(),
+      attachments: attachments.length > 0 ? attachments : undefined,
     });
 
     if (result.sent) {
@@ -816,7 +830,7 @@ router.post("/admin/emails/test", requireAuth, async (req: Request, res: Respons
 
 // ─── Email: Compose & Send ────────────────────────────────────────────────────
 
-router.post("/admin/emails/send", requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.post("/admin/emails/send", requireAuth, upload.array("attachments"), async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
 
   const { to, toName, subject, body, templateId } = req.body;
@@ -833,11 +847,19 @@ router.post("/admin/emails/send", requireAuth, async (req: Request, res: Respons
     return;
   }
 
+  const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+  const attachments = files.map((f) => ({
+    filename: f.originalname,
+    content: f.buffer,
+    contentType: f.mimetype,
+  }));
+
   const result = await sendAdminEmail({
     to: to.trim(),
     toName: toName?.trim() || undefined,
     subject: subject.trim(),
     body: body.trim(),
+    attachments: attachments.length > 0 ? attachments : undefined,
   });
 
   const [record] = await db.insert(adminEmailsSentTable).values({

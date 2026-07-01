@@ -250,6 +250,8 @@ function InboxTab() {
   const [replyDisclaimer, setReplyDisclaimer] = useState(true);
   const [replying, setReplying] = useState(false);
   const [replyResult, setReplyResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [replyAttachments, setReplyAttachments] = useState<File[]>([]);
+  const replyFileRef = useRef<HTMLInputElement>(null);
   const [forwardOpen, setForwardOpen] = useState(false);
   const [forwardTo, setForwardTo] = useState("");
   const [forwardBody, setForwardBody] = useState("");
@@ -319,10 +321,11 @@ function InboxTab() {
     setReplyResult(null);
     try {
       const body = replyDisclaimer ? replyBody + EMAIL_DISCLAIMER : replyBody;
-      const r = await api.replyToEmail(selected.uid, body, secret);
+      const r = await api.replyToEmail(selected.uid, body, secret, replyAttachments);
       if (r.sent) {
         setReplyResult({ ok: true, message: "Reply sent successfully" });
         setReplyBody("");
+        setReplyAttachments([]);
         setReplyOpen(false);
       } else {
         setReplyResult({ ok: false, message: r.reason ?? "Send failed" });
@@ -578,6 +581,24 @@ function InboxTab() {
                       autoFocus
                     />
                   </div>
+                  {replyAttachments.length > 0 && (
+                    <div className="px-4 pb-3 flex flex-wrap gap-2">
+                      {replyAttachments.map((f, i) => (
+                        <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-muted border border-border rounded text-xs">
+                          <Paperclip className="w-3 h-3 text-muted-foreground shrink-0" />
+                          <span className="max-w-[180px] truncate">{f.name}</span>
+                          <span className="text-muted-foreground">({(f.size / 1024).toFixed(0)} KB)</span>
+                          <button
+                            type="button"
+                            onClick={() => setReplyAttachments((p) => p.filter((_, j) => j !== i))}
+                            className="ml-0.5 text-muted-foreground hover:text-red-600 transition-colors"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {replyResult && (
                     <div className={`px-4 py-2 text-xs flex items-center gap-2 ${replyResult.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
                       {replyResult.ok ? <Check className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
@@ -595,11 +616,29 @@ function InboxTab() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setReplyOpen(false); setReplyBody(""); setReplyResult(null); }}
+                      onClick={() => { setReplyOpen(false); setReplyBody(""); setReplyAttachments([]); setReplyResult(null); }}
                       className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                     >
                       Cancel
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => replyFileRef.current?.click()}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded px-2.5 py-1 hover:bg-muted transition-colors"
+                    >
+                      <Paperclip className="w-3.5 h-3.5" /> Attach files
+                    </button>
+                    <input
+                      ref={replyFileRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        const picked = Array.from(e.target.files ?? []);
+                        setReplyAttachments((p) => [...p, ...picked]);
+                        e.target.value = "";
+                      }}
+                    />
                     <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
                       <input
                         type="checkbox"
@@ -703,6 +742,8 @@ function ComposeTab({ tenants, initialTo, initialToName }: { tenants: Tenant[]; 
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
   const [includeDisclaimer, setIncludeDisclaimer] = useState(true);
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api.getEmailTemplates(secret)
@@ -737,12 +778,14 @@ function ComposeTab({ tenants, initialTo, initialToName }: { tenants: Tenant[]; 
           body,
           templateId: selectedTemplateId ?? undefined,
         },
-        secret
+        secret,
+        attachments,
       );
       if (r.sent) {
         setResult({ ok: true, message: `Email sent successfully to ${form.to}` });
         setForm({ to: "", toName: "", subject: "", body: "" });
         setSelectedTemplateId(null);
+        setAttachments([]);
       } else {
         setResult({ ok: false, message: r.reason ?? "Send failed" });
       }
@@ -836,6 +879,25 @@ function ComposeTab({ tenants, initialTo, initialToName }: { tenants: Tenant[]; 
           />
         </div>
 
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {attachments.map((f, i) => (
+              <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-muted border border-border rounded text-xs">
+                <Paperclip className="w-3 h-3 text-muted-foreground shrink-0" />
+                <span className="max-w-[200px] truncate">{f.name}</span>
+                <span className="text-muted-foreground">({(f.size / 1024).toFixed(0)} KB)</span>
+                <button
+                  type="button"
+                  onClick={() => setAttachments((p) => p.filter((_, j) => j !== i))}
+                  className="ml-0.5 text-muted-foreground hover:text-red-600 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
         {result && (
           <div className={`flex items-start gap-2 px-4 py-3 rounded-md text-sm ${result.ok ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
             {result.ok ? <Check className="w-4 h-4 mt-0.5 shrink-0" /> : <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />}
@@ -852,10 +914,28 @@ function ComposeTab({ tenants, initialTo, initialToName }: { tenants: Tenant[]; 
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             {sending ? "Sending…" : "Send Email"}
           </button>
-          {(form.to || form.subject || hasEditorContent(form.body)) && (
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm text-muted-foreground border border-border rounded-md hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <Paperclip className="w-4 h-4" /> Attach files
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              const picked = Array.from(e.target.files ?? []);
+              setAttachments((p) => [...p, ...picked]);
+              e.target.value = "";
+            }}
+          />
+          {(form.to || form.subject || hasEditorContent(form.body) || attachments.length > 0) && (
             <button
               type="button"
-              onClick={() => { setForm({ to: "", toName: "", subject: "", body: "" }); setSelectedTemplateId(null); setResult(null); }}
+              onClick={() => { setForm({ to: "", toName: "", subject: "", body: "" }); setSelectedTemplateId(null); setResult(null); setAttachments([]); }}
               className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               Clear

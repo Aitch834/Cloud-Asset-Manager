@@ -33,6 +33,16 @@ async function post<T>(path: string, body: unknown, secret: string): Promise<T> 
   return res.json();
 }
 
+async function postFormData<T>(path: string, formData: FormData, secret: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: { "x-admin-secret": secret },
+    body: formData,
+  });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json();
+}
+
 async function patch<T>(path: string, body: unknown, secret: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: "PATCH",
@@ -389,8 +399,12 @@ export const api = {
   deleteInboxEmail: (uid: number, secret: string) =>
     del<{ deleted: boolean }>(`/admin/inbox/${uid}`, secret),
 
-  replyToEmail: (uid: number, body: string, secret: string) =>
-    post<{ sent: boolean; reason?: string }>(`/admin/inbox/${uid}/reply`, { body }, secret),
+  replyToEmail: (uid: number, body: string, secret: string, attachments?: File[]) => {
+    const fd = new FormData();
+    fd.append("body", body);
+    (attachments ?? []).forEach((f) => fd.append("attachments", f));
+    return postFormData<{ sent: boolean; reason?: string }>(`/admin/inbox/${uid}/reply`, fd, secret);
+  },
 
   forwardEmail: (uid: number, to: string, body: string, secret: string) =>
     post<{ sent: boolean; reason?: string }>(`/admin/inbox/${uid}/forward`, { to, body }, secret),
@@ -413,8 +427,16 @@ export const api = {
   getSentEmails: (secret: string) =>
     get<{ emails: AdminEmailSent[] }>("/admin/emails/sent", secret),
 
-  sendEmail: (data: { to: string; toName?: string; subject: string; body: string; templateId?: number }, secret: string) =>
-    post<{ sent: boolean; email?: AdminEmailSent; reason?: string }>("/admin/emails/send", data, secret),
+  sendEmail: (data: { to: string; toName?: string; subject: string; body: string; templateId?: number }, secret: string, attachments?: File[]) => {
+    const fd = new FormData();
+    fd.append("to", data.to);
+    if (data.toName) fd.append("toName", data.toName);
+    fd.append("subject", data.subject);
+    fd.append("body", data.body);
+    if (data.templateId != null) fd.append("templateId", String(data.templateId));
+    (attachments ?? []).forEach((f) => fd.append("attachments", f));
+    return postFormData<{ sent: boolean; email?: AdminEmailSent; reason?: string }>("/admin/emails/send", fd, secret);
+  },
 
   getSmtpConfig: (secret: string) =>
     get<{ smtpHost: string; smtpPort: string; smtpUser: string; smtpPassSet: boolean; smtpFrom: string }>("/admin/emails/config", secret),

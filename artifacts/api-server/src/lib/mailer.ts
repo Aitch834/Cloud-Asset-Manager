@@ -7,6 +7,7 @@ export interface SendEmailOptions {
   subject: string;
   body: string;
   replyTo?: string;
+  attachments?: Array<{ filename: string; content: Buffer; contentType: string }>;
 }
 
 export async function sendAdminEmail(opts: SendEmailOptions): Promise<{ sent: boolean; reason?: string }> {
@@ -24,6 +25,11 @@ export async function sendAdminEmail(opts: SendEmailOptions): Promise<{ sent: bo
       subject: opts.subject,
       html,
       replyTo: opts.replyTo ?? SMTP_FROM,
+      attachments: opts.attachments?.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+        contentType: a.contentType,
+      })),
     });
     console.log(`[MAILER] SMTP response: ${info.response}`);
     console.log(`[MAILER] Message ID: ${info.messageId}`);

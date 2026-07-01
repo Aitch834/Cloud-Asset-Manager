@@ -11,6 +11,7 @@
   "dependencies": {
     "@clerk/express": "^2.1.0",
     "@google-cloud/storage": "^7.19.0",
+    "@types/multer": "^2.1.0",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/integrations-openai-ai-server": "workspace:*",
@@ -23,6 +24,7 @@
     "http-proxy-middleware": "^3.0.5",
     "imapflow": "^1.2.15",
     "mailparser": "^3.9.4",
+    "multer": "^2.2.0",
     "nodemailer": "^8.0.2",
     "openid-client": "^6.8.2",
     "pdfkit": "^0.18.0",
