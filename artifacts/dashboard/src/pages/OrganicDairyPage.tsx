@@ -2536,6 +2536,7 @@ function JohnesTab({ farmId }: { farmId: number }) {
 
 export default function OrganicDairyPage() {
   const { farmId } = useAppStore();
+  const [activeTab, setActiveTab] = useState("herd-conversion");
   const { data: farmData } = useQuery<{ name: string }>({
     queryKey: ["farm-detail", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
@@ -2546,7 +2547,8 @@ export default function OrganicDairyPage() {
   return (
     <AppLayout title="Organic Dairy">
       {farmId && (
-        <Tabs defaultValue="herd-conversion">
+        <>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="flex-wrap h-auto gap-y-1">
             <TabsTrigger value="herd-conversion">Herd Conversion</TabsTrigger>
             <TabsTrigger value="collections">Milk Collections</TabsTrigger>
@@ -2589,9 +2591,7 @@ export default function OrganicDairyPage() {
           <TabsContent value="recording" className="mt-4">
             <RecordingVisitsTab farmId={farmId} />
           </TabsContent>
-          <TabsContent value="johnes" className="mt-4">
-            <JohnesTab farmId={farmId} />
-          </TabsContent>
+          <TabsContent value="johnes" className="mt-4" />
           <TabsContent value="feed" className="mt-4">
             <FeedNutritionTab farmId={farmId} farmName={name} />
           </TabsContent>
@@ -2602,6 +2602,8 @@ export default function OrganicDairyPage() {
             <DairyEnterpriseReport farmId={farmId} />
           </TabsContent>
         </Tabs>
+        {activeTab === "johnes" && <JohnesTab farmId={farmId} />}
+        </>
       )}
     </AppLayout>
   );
