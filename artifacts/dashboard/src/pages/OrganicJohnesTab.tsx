@@ -384,18 +384,15 @@ export function OrganicJohnesTab({ farmId }: { farmId: number }) {
       ? allRecords
       : allRecords.filter((r: any) => String(r.testDate ?? "").startsWith(yearFilter));
 
-  const { data: herds = [] } = useQuery({
+  const { data: herdsRaw } = useQuery({
     queryKey: ["herds", farmId],
     queryFn: () =>
-      fetch(`/api/farms/${farmId}/herds`, { credentials: "include" })
-        .then(r => r.json())
-        .then(d =>
-          (d.records ?? []).filter((h: any) => {
-            const t = String(h.type ?? "").toLowerCase();
-            return ["cattle", "beef", "dairy", "suckler", "bovine"].some(k => t.includes(k));
-          })
-        ),
+      fetch(`/api/farms/${farmId}/herds`, { credentials: "include" }).then(r => r.json()),
     enabled: !!farmId,
+  });
+  const herds: any[] = (Array.isArray(herdsRaw) ? herdsRaw : (herdsRaw?.records ?? [])).filter((h: any) => {
+    const t = String(h.type ?? "").toLowerCase();
+    return ["cattle", "beef", "dairy", "suckler", "bovine"].some(k => t.includes(k));
   });
 
   function openAdd() {
