@@ -1,5 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useUpload } from "@workspace/object-storage-web";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,9 +20,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Eye, Printer } from "lucide-react";
-import { DocAttach } from "@/components/DocAttach";
-import { RecordAttachments } from "@/components/ui/RecordAttachments";
+import {
+  Plus, Pencil, Trash2, Eye, Printer,
+  FileText, Upload, Loader2, X,
+  Paperclip, Download, Image as ImageIcon,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 import { openPrintWindow } from "@/lib/print-report";
 
 const JOHNES_TYPES = [
@@ -55,32 +60,297 @@ function johnesTypeLabel(v: string | null | undefined) {
   return JOHNES_TYPES.find(t => t.value === v)?.label ?? v ?? "—";
 }
 
-interface JohnesTabInnerProps {
+/* ── Inlined DocAttach ─────────────────────────────────────────────────── */
+interface DocAttachProps {
   farmId: number;
-  open: boolean;
-  setOpen: (v: boolean) => void;
-  editing: any;
-  viewRec: any;
-  setViewRec: (r: any) => void;
-  form: any;
-  yearFilter: string;
-  setYearFilter: (v: string) => void;
-  records: any[];
-  years: string[];
-  herds: any[];
-  isLoading: boolean;
-  totalAnimals: number;
-  totalPositive: number;
-  prevalence: string | null;
-  highRisk: number;
-  openAdd: () => void;
-  openEdit: (r: any) => void;
-  save: () => Promise<void>;
-  del: (id: number) => Promise<void>;
-  printReport: () => void;
-  set: (k: string, v: any) => void;
+  endpoint: string;
+  recordId: number;
+  documentPath: string | null | undefined;
+  documentName: string | null | undefined;
+  queryKey: string | (string | number)[];
+  compact?: boolean;
 }
 
+function DocAttach({ farmId, endpoint, recordId, documentPath, documentName, queryKey, compact }: DocAttachProps) {
+  const qc = useQueryClient();
+  const { uploadFile } = useUpload();
+  const { toast } = useToast();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const keys = Array.isArray(queryKey) ? queryKey : [queryKey, farmId];
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    try {
+      const response = await uploadFile(file);
+      if (!response) throw new Error("Upload failed");
+      await fetch(`/api/farms/${farmId}/${endpoint}/${recordId}/document`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentPath: response.objectPath, documentName: file.name }),
+      });
+      qc.invalidateQueries({ queryKey: keys });
+      toast({ title: "Document attached" });
+    } catch {
+      toast({ title: "Upload failed", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function remove() {
+    await fetch(`/api/farms/${farmId}/${endpoint}/${recordId}/document`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documentPath: null, documentName: null }),
+    });
+    qc.invalidateQueries({ queryKey: keys });
+  }
+
+  if (documentPath) {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <a
+          href={`/api/storage${documentPath}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+        >
+          <FileText className="w-3 h-3" />
+          {compact ? null : (documentName ?? "View")}
+        </a>
+        <button
+          onClick={remove}
+          title="Remove document"
+          className="text-muted-foreground hover:text-destructive"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"
+        className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
+      />
+      <button
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+        title="Attach document"
+      >
+        {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+        {compact ? null : (uploading ? "Uploading…" : "Attach")}
+      </button>
+    </>
+  );
+}
+
+/* ── Inlined RecordAttachments ─────────────────────────────────────────── */
+interface Attachment {
+  id: number;
+  farmId: number;
+  recordType: string;
+  recordId: number;
+  fileUrl: string;
+  fileKey: string;
+  fileName: string;
+  fileSize: number | null;
+  mimeType: string | null;
+  notes: string | null;
+  uploadedByName: string | null;
+  uploadedAt: string;
+}
+
+function fmtBytes(bytes: number | null): string {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function isImageFile(mimeType: string | null, fileName: string): boolean {
+  if (mimeType?.startsWith("image/")) return true;
+  return /\.(jpg|jpeg|png|gif|webp|avif)$/i.test(fileName);
+}
+
+interface RecordAttachmentsProps {
+  farmId: number;
+  recordType: string;
+  recordId: number;
+  compact?: boolean;
+}
+
+function RecordAttachments({ farmId, recordType, recordId, compact = false }: RecordAttachmentsProps) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { uploadFile } = useUpload();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const queryKey = ["record-attachments", farmId, recordType, recordId];
+
+  const { data: attachments = [], isLoading } = useQuery<Attachment[]>({
+    queryKey,
+    queryFn: () =>
+      fetch(`/api/farms/${farmId}/record-attachments?recordType=${encodeURIComponent(recordType)}&recordId=${recordId}`, {
+        credentials: "include",
+      }).then((r) => r.json()),
+    enabled: !!farmId && !!recordId,
+  });
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    try {
+      const response = await uploadFile(file);
+      if (!response?.objectPath) throw new Error("Upload failed");
+      await fetch(`/api/farms/${farmId}/record-attachments`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recordType,
+          recordId,
+          fileUrl: `/api/storage${response.objectPath}`,
+          fileKey: response.objectPath,
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType: file.type || null,
+        }),
+      });
+      qc.invalidateQueries({ queryKey });
+      toast({ title: "Attachment uploaded" });
+    } catch {
+      toast({ title: "Upload failed", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleDelete(id: number) {
+    setDeletingId(id);
+    try {
+      await fetch(`/api/farms/${farmId}/record-attachments/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      qc.invalidateQueries({ queryKey });
+      toast({ title: "Attachment removed" });
+    } catch {
+      toast({ title: "Failed to remove attachment", variant: "destructive" });
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  return (
+    <div className={cn("space-y-2", compact ? "text-xs" : "text-sm")}>
+      <div className="flex items-center justify-between">
+        <span className={cn("font-medium flex items-center gap-1.5 text-muted-foreground", compact ? "text-xs" : "text-sm")}>
+          <Paperclip className={compact ? "w-3 h-3" : "w-4 h-4"} />
+          Attachments
+          {attachments.length > 0 && (
+            <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0 text-[10px] font-semibold">
+              {attachments.length}
+            </span>
+          )}
+        </span>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*,.pdf,.doc,.docx"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleFile(f);
+            e.target.value = "";
+          }}
+        />
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn("h-7 px-2 gap-1", compact ? "text-xs" : "text-xs")}
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+        >
+          {uploading ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            <Upload className="w-3 h-3" />
+          )}
+          {uploading ? "Uploading…" : "Add file"}
+        </Button>
+      </div>
+
+      {isLoading && (
+        <p className="text-xs text-muted-foreground py-1">Loading attachments…</p>
+      )}
+
+      {!isLoading && attachments.length === 0 && (
+        <p className="text-xs text-muted-foreground py-1 italic">No attachments yet.</p>
+      )}
+
+      {attachments.length > 0 && (
+        <ul className="space-y-1.5">
+          {attachments.map((att) => {
+            const img = isImageFile(att.mimeType, att.fileName);
+            return (
+              <li
+                key={att.id}
+                className="flex items-center gap-2 rounded border border-border bg-muted/40 px-2 py-1.5 group"
+              >
+                {img ? (
+                  <ImageIcon className="w-4 h-4 shrink-0 text-blue-500" />
+                ) : (
+                  <FileText className="w-4 h-4 shrink-0 text-orange-500" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="truncate font-medium leading-tight">{att.fileName}</p>
+                  {att.fileSize && (
+                    <p className="text-[10px] text-muted-foreground">{fmtBytes(att.fileSize)}</p>
+                  )}
+                </div>
+                <a
+                  href={att.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 text-muted-foreground hover:text-foreground"
+                  title="Download / view"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                </a>
+                <button
+                  onClick={() => handleDelete(att.id)}
+                  disabled={deletingId === att.id}
+                  className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Remove attachment"
+                >
+                  {deletingId === att.id ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <X className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/* ── Main exported component ───────────────────────────────────────────── */
 export function OrganicJohnesTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -224,60 +494,6 @@ export function OrganicJohnesTab({ farmId }: { farmId: number }) {
     (r: any) => r.riskLevel && (r.riskLevel.startsWith("3") || r.riskLevel.startsWith("4"))
   ).length;
 
-  return (
-    <JohnesTabInner
-      farmId={farmId}
-      open={open}
-      setOpen={setOpen}
-      editing={editing}
-      viewRec={viewRec}
-      setViewRec={setViewRec}
-      form={form}
-      yearFilter={yearFilter}
-      setYearFilter={setYearFilter}
-      records={records}
-      years={years}
-      herds={herds}
-      isLoading={isLoading}
-      totalAnimals={totalAnimals}
-      totalPositive={totalPositive}
-      prevalence={prevalence}
-      highRisk={highRisk}
-      openAdd={openAdd}
-      openEdit={openEdit}
-      save={save}
-      del={del}
-      printReport={printReport}
-      set={set}
-    />
-  );
-}
-
-function JohnesTabInner({
-  farmId,
-  open,
-  setOpen,
-  editing,
-  viewRec,
-  setViewRec,
-  form,
-  yearFilter,
-  setYearFilter,
-  records,
-  years,
-  herds,
-  isLoading,
-  totalAnimals,
-  totalPositive,
-  prevalence,
-  highRisk,
-  openAdd,
-  openEdit,
-  save,
-  del,
-  printReport,
-  set,
-}: JohnesTabInnerProps) {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">

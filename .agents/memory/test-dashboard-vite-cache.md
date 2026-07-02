@@ -127,6 +127,35 @@ Presence) — render it OUTSIDE the `<Tabs>` block with a conditional render ins
 Leave an empty `<TabsContent value="..." />` placeholder so Radix tracks trigger state.
 DairyPage uses this same outside-Tabs pattern for all its locally-defined tab components.
 
+## Child-component small-file trap — "Invalid hook call" on render, not on import
+
+**Symptom:** A component that was extracted to its own file (OrganicJohnesTab.tsx) still
+crashes with "Invalid hook call" even though its own hooks are correct. The crash is
+attributed to a child component (e.g. `JohnesTabInner`, `DocAttach`, `RecordAttachments`).
+
+**Root cause:** The extracted component IMPORTS and RENDERS other small @fs/ files
+(DocAttach.tsx ~100 lines, RecordAttachments.tsx ~200 lines). Those small files are
+proxy-cached with stale session tokens → different React instance. If those child
+components call hooks (useToast, useUpload, useQueryClient, useQuery), those hooks
+fire with the WRONG React → "Invalid hook call". The medium stub didn't crash because
+it imported the same files but NEVER RENDERED them (no JSX element created).
+
+**Detection:** "Invalid hook call" error stacktrace names a component that is NOT in
+the current file's imports list but IS a child rendered inside it. The component that
+actually crashes in the console (`JohnesTabInner`, `DocAttach`) may differ from the
+component React attributes the error to.
+
+**Fix:** Inline the problematic child component code directly into the parent's file.
+Remove the `import` and copy the function body verbatim. All code in the same file
+shares the same module-level React import → single React instance → no crash.
+
+**Applied to:** OrganicJohnesTab.tsx — inlined DocAttach and RecordAttachments
+directly; removed `import { DocAttach }` and `import { RecordAttachments }`.
+
+**Rule:** If any extracted component file imports OTHER small component files that
+themselves use hooks, inline those child components. Only the large page files (500KB+
+that escape proxy caching) can safely import small hook-using components as separate files.
+
 ## What NOT to do
 - Do NOT look for a hooks violation in the component source — the component code is correct.
 - Do NOT add `optimizeDeps.force:true` — it re-hashes chunks on every restart, making
