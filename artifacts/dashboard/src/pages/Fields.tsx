@@ -21,7 +21,7 @@ import { StaffSelect } from "@/components/ui/staff-select";
 import {
   Plus, PlusCircle, Search, Map as MapIcon, MoreVertical, Pencil, Trash2, AlertTriangle,
   Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical, Loader2, QrCode, StickyNote,
-  Landmark, Phone, MapPin, BadgePoundSterling, RefreshCw, FileText, CheckCircle2, Paperclip, Download, Key,
+  Landmark, Phone, MapPin, BadgePoundSterling, RefreshCw, FileText, CheckCircle2, XCircle, Paperclip, Download, Key,
   TreePine, Layers3, TrendingUp, TrendingDown, Minus, Scale, CloudRain, BarChart2, Trophy, Medal, ChevronUp, Eye,
 } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
@@ -51,6 +51,7 @@ interface FieldRecord {
   currentUse?: string;
   isActive?: boolean;
   isNvz?: boolean;
+  blackgrassRiskField?: boolean;
   latitude?: string | number | null;
   longitude?: string | number | null;
   tenureType?: string | null;
@@ -94,7 +95,7 @@ interface FieldCropAssignment {
   notes?: string | null;
 }
 
-interface FieldFormData { name: string; areaHectares: number; soilType: string; fieldReference?: string; }
+interface FieldFormData { name: string; areaHectares: number; soilType: string; fieldReference?: string; blackgrassRiskField?: boolean; }
 interface CropFormData { name: string; variety: string; category: string; }
 interface AssignCropFormData { varietyId: number; plantingDate: string; expectedHarvestDate: string; season: string; }
 
@@ -572,7 +573,7 @@ function FieldCardMenu({
             {displayCode ? "View QR label" : "Generate QR label"}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => { setEditOpen(true); reset({ name: field.name ?? "", areaHectares: parseFloat(String(field.areaHectares ?? 0)), soilType: field.soilType ?? "", fieldReference: (field as any).fieldReference ?? "" }); }}>
+          <DropdownMenuItem onClick={() => { setEditOpen(true); reset({ name: field.name ?? "", areaHectares: parseFloat(String(field.areaHectares ?? 0)), soilType: field.soilType ?? "", fieldReference: (field as any).fieldReference ?? "", blackgrassRiskField: (field as any).blackgrassRiskField ?? false } as any); }}>
             <Pencil className="w-4 h-4 text-foreground/50" />
             Edit field
           </DropdownMenuItem>
@@ -652,6 +653,15 @@ function FieldCardMenu({
                   Rural Payments portal
                 </a>{" "}
                 or on any RPA correspondence.
+              </p>
+            </div>
+            <div className="border-t border-border pt-3">
+              <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                <input type="checkbox" {...register("blackgrassRiskField")} className="rounded" />
+                Black-grass risk field
+              </label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Tracks this field in the Black-grass Five-in-Five cultural control view (Crop History &amp; Season Reports).
               </p>
             </div>
             <DialogFooter>
@@ -1460,6 +1470,40 @@ export default function FieldsPage() {
   });
   const fieldHarvests: FieldHarvestRecord[] = fieldHarvestsQ.data ?? [];
 
+  type PillarKey = "ploughing" | "delayedDrilling" | "springCropping" | "higherSeedRate" | "fallowCover";
+  type SeasonPillarResult = {
+    year: number;
+    season: string | null;
+    pillars: Record<PillarKey, boolean>;
+    pillarsUsedCount: number;
+    herbicideMoaGroupsUsed: string[];
+  };
+  type FiveInFiveScore = {
+    fieldId: number;
+    fieldName: string;
+    blackgrassRiskField: boolean;
+    seasons: SeasonPillarResult[];
+    distinctPillarsUsed: PillarKey[];
+    distinctPillarCount: number;
+    moaRepetitionRisk: boolean;
+    moaRepeatedGroup: string | null;
+  };
+  const PILLAR_LABELS: Record<PillarKey, { label: string; detail: string }> = {
+    ploughing: { label: "Rotational ploughing", detail: "Primary inversion cultivation used this season" },
+    delayedDrilling: { label: "Delayed autumn drilling", detail: "Drilled after the stale-seedbed cut-off (1 Oct)" },
+    springCropping: { label: "Spring cropping", detail: "Spring-sown crop breaks the autumn germination window" },
+    higherSeedRate: { label: "Higher seed rate", detail: "Denser crop competition suppresses black-grass" },
+    fallowCover: { label: "Fallow / cover crop", detail: "A reset season with no autumn cash crop" },
+  };
+  const fiveInFiveQ = useQuery<FiveInFiveScore | null>({
+    queryKey: ["field-five-in-five", safeFarmId, selectedFieldForHistory?.id],
+    queryFn: () =>
+      fetch(`/api/farms/${safeFarmId}/fields/${selectedFieldForHistory?.id}/blackgrass-five-in-five`)
+        .then(r => r.ok ? r.json() : null),
+    enabled: !!farmId && !!selectedFieldForHistory && drawerTab === "history" && !!(selectedFieldForHistory as any)?.blackgrassRiskField,
+  });
+  const fiveInFiveScore = fiveInFiveQ.data ?? null;
+
   const [isUploadingCropDoc, setIsUploadingCropDoc] = useState(false);
   const expandedCropTypeId = expandedVarietyId
     ? (cropsData?.records as CropRecord[] | undefined)?.find(c => c.id === expandedVarietyId)?.cropId ?? null
@@ -1771,6 +1815,15 @@ export default function FieldsPage() {
                         Rural Payments portal
                       </a>{" "}
                       or on any RPA correspondence. Leave blank if not registered for scheme payments.
+                    </p>
+                  </div>
+                  <div className="border-t border-border pt-3">
+                    <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                      <input type="checkbox" {...fieldForm.register("blackgrassRiskField")} className="rounded" />
+                      Black-grass risk field
+                    </label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Tracks this field in the Black-grass Five-in-Five cultural control view (Crop History &amp; Season Reports).
                     </p>
                   </div>
                   <DialogFooter>
@@ -3004,6 +3057,67 @@ export default function FieldsPage() {
                     <p className="text-sm text-foreground/50 mb-5">
                       All recorded crop and non-crop land use entries for this field across all seasons.
                     </p>
+                    {(f as any).blackgrassRiskField && (() => {
+                      if (fiveInFiveQ.isLoading) {
+                        return (
+                          <div className="mb-5 flex items-center gap-2 text-xs text-foreground/40 border border-border/50 rounded-xl p-4">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />Loading black-grass Five-in-Five score…
+                          </div>
+                        );
+                      }
+                      if (!fiveInFiveScore) return null;
+                      const { seasons, distinctPillarsUsed, distinctPillarCount, moaRepetitionRisk, moaRepeatedGroup } = fiveInFiveScore;
+                      const yearsConsidered = seasons.map(s => s.year);
+                      const strong = distinctPillarCount >= 4;
+                      const moderate = distinctPillarCount >= 2 && distinctPillarCount < 4;
+                      const pillarKeys = Object.keys(PILLAR_LABELS) as PillarKey[];
+                      return (
+                        <div className={`mb-5 rounded-xl border overflow-hidden ${strong ? "border-green-200 bg-green-50/50" : moderate ? "border-amber-200 bg-amber-50/50" : "border-red-200 bg-red-50/50"}`}>
+                          <div className={`px-4 py-3 flex items-center justify-between flex-wrap gap-2 ${strong ? "bg-green-600" : moderate ? "bg-amber-500" : "bg-red-500"} text-white`}>
+                            <div className="flex items-center gap-2">
+                              <Sprout className="w-4 h-4" />
+                              <span className="text-sm font-semibold">Black-grass Five-in-Five</span>
+                              {yearsConsidered.length > 0 && (
+                                <span className="text-[11px] bg-white/20 px-2 py-0.5 rounded-full">
+                                  {Math.min(...yearsConsidered)}–{Math.max(...yearsConsidered)}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-sm font-bold">{distinctPillarCount}/5 pillars</span>
+                          </div>
+                          <div className="p-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                              {pillarKeys.map(key => {
+                                const met = distinctPillarsUsed.includes(key);
+                                const { label, detail } = PILLAR_LABELS[key];
+                                return (
+                                  <div key={key} className="flex items-start gap-2 text-xs">
+                                    {met
+                                      ? <CheckCircle2 className="w-3.5 h-3.5 text-green-600 flex-shrink-0 mt-0.5" />
+                                      : <XCircle className="w-3.5 h-3.5 text-foreground/25 flex-shrink-0 mt-0.5" />}
+                                    <div>
+                                      <p className={`font-semibold ${met ? "text-green-800" : "text-foreground/60"}`}>{label}</p>
+                                      <p className="text-foreground/45 text-[11px]">{detail}</p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            {moaRepetitionRisk && (
+                              <div className="flex items-start gap-2 text-xs border-t border-border/30 pt-2.5 mt-1">
+                                <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="font-semibold text-red-700">Herbicide MOA repetition risk</p>
+                                  <p className="text-foreground/50 text-[11px]">
+                                    The same herbicide MOA group ({moaRepeatedGroup}) has been used for 3+ consecutive seasons on this field, increasing resistance risk.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                     {historyEntries.length === 0 ? (
                       <div className="py-12 text-center">
                         <History className="w-10 h-10 mx-auto text-foreground/20 mb-3" />

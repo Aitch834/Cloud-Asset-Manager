@@ -1422,7 +1422,7 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
   const [editRecord, setEditRecord] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [viewRecord, setViewRecord] = useState<any>(null);
-  const emptyForm = { productName: "", activeIngredient: "", mappaNumber: "", manufacturer: "", category: "", harvestInterval: "", maxApplicationsPerSeason: "", storageRequirements: "", coshhRecordId: "__none__", lerapCategory: "__none__", lerapStandardBufferM: "" };
+  const emptyForm = { productName: "", activeIngredient: "", mappaNumber: "", manufacturer: "", category: "", harvestInterval: "", maxApplicationsPerSeason: "", storageRequirements: "", coshhRecordId: "__none__", lerapCategory: "__none__", lerapStandardBufferM: "", herbicideMoaGroup: "" };
   const [form, setForm] = useState<any>(emptyForm);
 
   function openAdd() { setEditRecord(null); setForm(emptyForm); setDialogOpen(true); }
@@ -1440,6 +1440,7 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
       coshhRecordId: p.coshhRecordId ? String(p.coshhRecordId) : "__none__",
       lerapCategory: p.lerapCategory ?? "__none__",
       lerapStandardBufferM: p.lerapStandardBufferM != null ? String(p.lerapStandardBufferM) : "",
+      herbicideMoaGroup: p.herbicideMoaGroup ?? "",
     });
     setDialogOpen(true);
   }
@@ -1457,6 +1458,7 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
       coshhRecordId: coshhRecordId && coshhRecordId !== "__none__" ? Number(coshhRecordId) : null,
       lerapCategory: lerap,
       lerapStandardBufferM: lerap && lerapStandardBufferM ? lerapStandardBufferM : null,
+      herbicideMoaGroup: rest.category?.toLowerCase() === "herbicide" && rest.herbicideMoaGroup ? rest.herbicideMoaGroup : null,
     };
   }
   function hseMappUrl(mapp: string) {
@@ -1722,6 +1724,15 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
               <Label>Storage Requirements</Label>
               <Textarea placeholder="e.g. Store in original container, locked chemical store, above 5°C" value={form.storageRequirements} onChange={e => setForm((f: any) => ({ ...f, storageRequirements: e.target.value }))} rows={2} />
             </div>
+            {form.category?.toLowerCase() === "herbicide" && (
+              <div>
+                <Label>Herbicide MOA / HRAC Group</Label>
+                <Input placeholder="e.g. Group 1 / A — ACCase inhibitor" value={form.herbicideMoaGroup} onChange={e => setForm((f: any) => ({ ...f, herbicideMoaGroup: e.target.value }))} />
+                <p style={{ fontSize: "0.72rem", color: "#9ca3af", marginTop: 3 }}>
+                  Used to flag herbicide mode-of-action repetition risk in the Black-grass Five-in-Five tracker.
+                </p>
+              </div>
+            )}
             <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "0.75rem", marginTop: "0.25rem" }}>
               <Label style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.3rem" }}>LERAP Label</Label>
               <p style={{ fontSize: "0.75rem", color: "#9ca3af", margin: "0 0 0.4rem" }}>

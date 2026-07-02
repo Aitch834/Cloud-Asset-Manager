@@ -20,6 +20,7 @@ export const sprayProductsTable = pgTable("spray_products", {
   stockItemId: integer("stock_item_id").references(() => stockItemsTable.id),
   lerapCategory: text("lerap_category"),                                             // null = none, "A" = fixed buffer, "B" = reducible via LERAP
   lerapStandardBufferM: numeric("lerap_standard_buffer_m", { precision: 6, scale: 1 }), // buffer distance printed on product label
+  herbicideMoaGroup: text("herbicide_moa_group"),                                    // HRAC mode-of-action group code (e.g. "Group 1 / A"), herbicides only
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

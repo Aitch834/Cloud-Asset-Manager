@@ -17,6 +17,7 @@ export const fieldsTable = pgTable("fields", {
   notes: text("notes"),
   fieldCode: text("field_code"),
   isActive: boolean("is_active").notNull().default(true),
+  blackgrassRiskField: boolean("blackgrass_risk_field").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   // Land tenure

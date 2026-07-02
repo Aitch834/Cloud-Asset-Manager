@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import {
   Printer, ChevronDown, ChevronRight, Wheat, Tractor, Sprout, FlaskConical,
-  BarChart3, Beef, Milk, AlertCircle, Loader2, FileBarChart2,
+  BarChart3, Beef, Milk, AlertCircle, AlertTriangle, Loader2, FileBarChart2,
 } from "lucide-react";
 import { buildProReport, printProReport } from "@/lib/print-report";
 
@@ -437,6 +437,12 @@ export default function SeasonReportsPage() {
     enabled: !!farmId,
   });
 
+  const { data: fiveInFiveSummary } = useQuery<any>({
+    queryKey: ["blackgrass-five-in-five-summary", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/blackgrass-five-in-five/summary`).then(r => r.ok ? r.json() : null),
+    enabled: !!farmId,
+  });
+
   const availableYears = useMemo(() => {
     if (!yearsData?.years?.length) return [new Date().getFullYear()];
     return yearsData.years;
@@ -535,6 +541,38 @@ export default function SeasonReportsPage() {
 
             {tab === "arable" && (
               <div style={{ marginTop: "1rem" }}>
+                {fiveInFiveSummary && fiveInFiveSummary.totalRiskFields > 0 && (
+                  <div style={{ marginBottom: "1.25rem", borderRadius: 10, border: "1px solid #d1fae5", background: "#f0fdf4", overflow: "hidden" }}>
+                    <div style={{ padding: "0.75rem 1rem", background: "#059669", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <Sprout className="w-4 h-4" />
+                        <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>Black-grass Five-in-Five — Farm Rollup</span>
+                      </div>
+                      <span style={{ fontSize: "0.85rem", fontWeight: 700 }}>
+                        {fiveInFiveSummary.fieldsMeetingTarget}/{fiveInFiveSummary.totalRiskFields} fields meeting {fiveInFiveSummary.targetPillarCount}+ pillars
+                      </span>
+                    </div>
+                    <div style={{ padding: "0.9rem 1rem", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
+                      {fiveInFiveSummary.fields.map((f: any) => {
+                        const strong = f.distinctPillarCount >= 4;
+                        const moderate = f.distinctPillarCount >= 2 && f.distinctPillarCount < 4;
+                        const dotColor = strong ? "#16a34a" : moderate ? "#d97706" : "#dc2626";
+                        return (
+                          <div key={f.fieldId} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.5rem 0.7rem", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: "0.8rem" }}>
+                            <span style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 500, color: "#1f2937" }}>
+                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
+                              {f.fieldName}
+                            </span>
+                            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              {f.moaRepetitionRisk && <AlertTriangle className="w-3.5 h-3.5" style={{ color: "#dc2626" }} />}
+                              <span style={{ fontWeight: 700, color: "#374151" }}>{f.distinctPillarCount}/5</span>
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 {arableFields.length === 0 ? (
                   <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#9ca3af" }}>
                     <Wheat className="w-10 h-10 mx-auto mb-3 opacity-30" />

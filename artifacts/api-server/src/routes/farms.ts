@@ -426,6 +426,7 @@ import { generateDispatchNoteHtml } from "../lib/dispatch-note-html";
 import { submitMovement, testConnection, isSandboxMode } from "../lib/ctws";
 import { submitLisMovement, testLisConnection, fetchLisToken, refreshLisToken, isLisSandboxMode, callLisApi, buildLisAuthUrl, exchangeLisCode } from "../lib/lis";
 import { buildLipAuthUrl, exchangeLipCode, getLipRedirectUri, signLipOAuthState, verifyLipOAuthState, probeLipApi, isLipSandboxMode, refreshLipToken, callLipApi, submitLipMovement, submitLipBirth, submitLipDeath } from "../lib/lip";
+import { computeFieldFiveInFiveScore, computeFarmFiveInFiveSummary } from "../lib/blackgrassFiveInFive";
 
 const router: IRouter = Router();
 
@@ -898,6 +899,23 @@ router.get("/farms/:farmId/fields/by-code/:fieldCode", requireAuth, requireTenan
   const [record] = await db.select().from(fieldsTable).where(and(eq(fieldsTable.farmId, farmId), eq((fieldsTable as any).fieldCode, fieldCode)));
   if (!record) { res.status(404).json({ error: "No field found for this code" }); return; }
   res.json(record);
+});
+
+router.get("/farms/:farmId/blackgrass-five-in-five/summary", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const summary = await computeFarmFiveInFiveSummary(farmId);
+  res.json(summary);
+});
+
+router.get("/farms/:farmId/fields/:fieldId/blackgrass-five-in-five", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const fieldId = parseInt(req.params.fieldId as string);
+  if (isNaN(fieldId)) { res.status(400).json({ error: "Invalid field ID" }); return; }
+  const score = await computeFieldFiveInFiveScore(farmId, fieldId);
+  if (!score) { res.status(404).json({ error: "Field not found" }); return; }
+  res.json(score);
 });
 
 router.get("/farms/:farmId/fields/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
@@ -2088,6 +2106,7 @@ router.get("/farms/:farmId/spray-products", requireAuth, requireTenant, requireM
       stockItemId: sprayProductsTable.stockItemId,
       lerapCategory: sprayProductsTable.lerapCategory,
       lerapStandardBufferM: sprayProductsTable.lerapStandardBufferM,
+      herbicideMoaGroup: sprayProductsTable.herbicideMoaGroup,
       createdAt: sprayProductsTable.createdAt,
       coshhSubstanceName: coshhRecordsTable.substanceName,
       coshhHazardClassification: coshhRecordsTable.hazardClassification,
