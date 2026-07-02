@@ -60,8 +60,8 @@ function johnesTypeLabel(v: string | null | undefined) {
   return JOHNES_TYPES.find(t => t.value === v)?.label ?? v ?? "—";
 }
 
-/* ── Inlined DocAttach ─────────────────────────────────────────────────── */
-interface DocAttachProps {
+/* ── Inlined DocAttach (named JohnesDocAttach to avoid React Refresh collision) ─ */
+interface JohnesDocAttachProps {
   farmId: number;
   endpoint: string;
   recordId: number;
@@ -71,7 +71,7 @@ interface DocAttachProps {
   compact?: boolean;
 }
 
-function DocAttach({ farmId, endpoint, recordId, documentPath, documentName, queryKey, compact }: DocAttachProps) {
+function JohnesDocAttach({ farmId, endpoint, recordId, documentPath, documentName, queryKey, compact }: JohnesDocAttachProps) {
   const qc = useQueryClient();
   const { uploadFile } = useUpload();
   const { toast } = useToast();
@@ -155,7 +155,7 @@ function DocAttach({ farmId, endpoint, recordId, documentPath, documentName, que
   );
 }
 
-/* ── Inlined RecordAttachments ─────────────────────────────────────────── */
+/* ── Inlined RecordAttachments (named JohnesRecordAttachments to avoid React Refresh collision) ─ */
 interface Attachment {
   id: number;
   farmId: number;
@@ -183,14 +183,14 @@ function isImageFile(mimeType: string | null, fileName: string): boolean {
   return /\.(jpg|jpeg|png|gif|webp|avif)$/i.test(fileName);
 }
 
-interface RecordAttachmentsProps {
+interface JohnesRecordAttachmentsProps {
   farmId: number;
   recordType: string;
   recordId: number;
   compact?: boolean;
 }
 
-function RecordAttachments({ farmId, recordType, recordId, compact = false }: RecordAttachmentsProps) {
+function JohnesRecordAttachments({ farmId, recordType, recordId, compact = false }: JohnesRecordAttachmentsProps) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { uploadFile } = useUpload();
@@ -599,7 +599,7 @@ export function OrganicJohnesTab({ farmId }: { farmId: number }) {
                   <td className="px-3 py-2">{r.bulkMilkOd ?? "—"}</td>
                   <td className="px-3 py-2">{johnesFmtDate(r.nextTestDue)}</td>
                   <td className="px-3 py-2">
-                    <DocAttach
+                    <JohnesDocAttach
                       farmId={farmId}
                       endpoint="johnes-monitoring"
                       recordId={r.id}
@@ -664,7 +664,7 @@ export function OrganicJohnesTab({ farmId }: { farmId: number }) {
               )}
               {viewRec.id && (
                 <div className="col-span-2 border-t pt-3">
-                  <RecordAttachments farmId={farmId} recordType="johnes-monitoring" recordId={viewRec.id as number} />
+                  <JohnesRecordAttachments farmId={farmId} recordType="johnes-monitoring" recordId={viewRec.id as number} />
                 </div>
               )}
             </div>

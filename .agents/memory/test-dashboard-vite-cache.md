@@ -152,9 +152,17 @@ shares the same module-level React import → single React instance → no crash
 **Applied to:** OrganicJohnesTab.tsx — inlined DocAttach and RecordAttachments
 directly; removed `import { DocAttach }` and `import { RecordAttachments }`.
 
+**CRITICAL RENAME RULE:** When inlining a component from a separate file, the original
+file still exists and is loaded by other pages (DairyPage.tsx imports DocAttach.tsx,
+etc.). React Refresh sees TWO registrations of the same name → family conflict → crash
+attributed to the PARENT component (OrganicJohnesTab) not the inlined one. Always
+rename inlined copies with a page-specific prefix: `DocAttach` → `JohnesDocAttach`,
+`RecordAttachments` → `JohnesRecordAttachments`. Also rename their Props interfaces.
+
 **Rule:** If any extracted component file imports OTHER small component files that
-themselves use hooks, inline those child components. Only the large page files (500KB+
-that escape proxy caching) can safely import small hook-using components as separate files.
+themselves use hooks, inline those child components with UNIQUE names. Only the large
+page files (500KB+ that escape proxy caching) can safely import small hook-using
+components as separate files.
 
 ## What NOT to do
 - Do NOT look for a hooks violation in the component source — the component code is correct.
