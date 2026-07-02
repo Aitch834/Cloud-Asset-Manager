@@ -3225,7 +3225,7 @@ function TempBadge({ v }: { v?: string | null }) {
 
 // ─── BulkTankTab ──────────────────────────────────────────────────────────────
 
-export function BulkTankTab({ farmId }: { farmId: number }) {
+export function BulkTankTab({ farmId, showCollections = true }: { farmId: number; showCollections?: boolean }) {
   const qc = useQueryClient();
 
   // ── Tank registry ──────────────────────────────────────────────────────────
@@ -3737,6 +3737,7 @@ ${collRows ? `<h3>Milk Collections</h3><table><tr><th>Date</th><th>Tank</th><th>
         </DialogContent>
       </Dialog>
 
+      {showCollections && (<>
       {/* ── Section 3: Milk Collections ──────────────────────────────────────── */}
       <div className="border rounded-lg overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 bg-gray-50">
@@ -3838,6 +3839,7 @@ ${collRows ? `<h3>Milk Collections</h3><table><tr><th>Date</th><th>Tank</th><th>
         </DialogContent>
       </Dialog>
 
+      </>)}
       {/* ── Section 4: ABR Test Kit Stock ───────────────────────────────────── */}
       <AbrKitStockSection farmId={farmId} />
       <AbrProcurementSection farmId={farmId} />

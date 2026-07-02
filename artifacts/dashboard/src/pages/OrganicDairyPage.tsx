@@ -296,6 +296,12 @@ type CollectionRecord = {
   buyerFatPercentage: string | null;
   buyerProteinPercentage: string | null;
   buyerLactosePercentage: string | null;
+  buyerBactoscanThousands?: number | null;
+  buyerTvcCfuMl?: number | null;
+  buyerThermsCfuMl?: number | null;
+  buyerColiformsCfuMl?: number | null;
+  buyerCaseinPercent?: string | null;
+  buyerUreaMillimolesPerLitre?: string | null;
   isOrganicCollection: boolean;
   nonOrganicReason: string | null;
   processorRef: string | null;
@@ -1337,7 +1343,13 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
                 <div className="space-y-1"><Label>Buyer TBC (k/mL)</Label><Input type="number" value={form.buyerTbcCount ?? ""} onChange={(e) => setForm(p => ({ ...p, buyerTbcCount: e.target.value ? Number(e.target.value) : null }))} /></div>
                 <div className="space-y-1"><Label>Buyer Fat %</Label><Input type="number" step="0.01" value={form.buyerFatPercentage ?? ""} onChange={f("buyerFatPercentage")} /></div>
                 <div className="space-y-1"><Label>Buyer Protein %</Label><Input type="number" step="0.01" value={form.buyerProteinPercentage ?? ""} onChange={f("buyerProteinPercentage")} /></div>
-                <div className="col-span-2 space-y-1"><Label>Buyer Lactose %</Label><Input type="number" step="0.01" value={form.buyerLactosePercentage ?? ""} onChange={f("buyerLactosePercentage")} /></div>
+                <div className="space-y-1"><Label>Buyer Lactose %</Label><Input type="number" step="0.01" value={form.buyerLactosePercentage ?? ""} onChange={f("buyerLactosePercentage")} /></div>
+                <div className="space-y-1"><Label>Buyer Casein %</Label><Input type="number" step="0.01" value={form.buyerCaseinPercent ?? ""} onChange={f("buyerCaseinPercent")} /></div>
+                <div className="space-y-1"><Label>Bactoscan (k/mL)</Label><Input type="number" value={form.buyerBactoscanThousands ?? ""} onChange={(e) => setForm(p => ({ ...p, buyerBactoscanThousands: e.target.value ? Number(e.target.value) : null }))} /></div>
+                <div className="space-y-1"><Label>TVC (cfu/mL)</Label><Input type="number" value={form.buyerTvcCfuMl ?? ""} onChange={(e) => setForm(p => ({ ...p, buyerTvcCfuMl: e.target.value ? Number(e.target.value) : null }))} /></div>
+                <div className="space-y-1"><Label>Thermodurics (cfu/mL)</Label><Input type="number" value={form.buyerThermsCfuMl ?? ""} onChange={(e) => setForm(p => ({ ...p, buyerThermsCfuMl: e.target.value ? Number(e.target.value) : null }))} /></div>
+                <div className="space-y-1"><Label>Coliforms (cfu/mL)</Label><Input type="number" value={form.buyerColiformsCfuMl ?? ""} onChange={(e) => setForm(p => ({ ...p, buyerColiformsCfuMl: e.target.value ? Number(e.target.value) : null }))} /></div>
+                <div className="col-span-2 space-y-1"><Label>Urea (mmol/L)</Label><Input type="number" step="0.1" value={form.buyerUreaMillimolesPerLitre ?? ""} onChange={f("buyerUreaMillimolesPerLitre")} /></div>
               </div>
             </TabsContent>
           </Tabs>
@@ -2200,7 +2212,7 @@ export default function OrganicDairyPage() {
             <MobilityTab farmId={farmId} />
           </TabsContent>
           <TabsContent value="tank" className="mt-4">
-            <BulkTankTab farmId={farmId} />
+            <BulkTankTab farmId={farmId} showCollections={false} />
           </TabsContent>
           <TabsContent value="dct" className="mt-4">
             <DctTab farmId={farmId} />

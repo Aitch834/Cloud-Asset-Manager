@@ -803,6 +803,8 @@ export interface DairyNmrRecordingVisit {
   avgSccThousands: string;
   highSccCount: string;
   highSccAnimalTags: string;
+  avgCaseinPercent: string;
+  avgUreaMillimolesPerLitre: string;
   qualityAlert: string;
   nextVisitDate: string;
   notes: string;

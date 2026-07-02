@@ -77,6 +77,8 @@ export default function NmrRecordingVisitScreen() {
   const [avgFat, setAvgFat] = useState("");
   const [avgProtein, setAvgProtein] = useState("");
   const [avgLactose, setAvgLactose] = useState("");
+  const [avgCasein, setAvgCasein] = useState("");
+  const [avgUrea, setAvgUrea] = useState("");
   const [avgScc, setAvgScc] = useState("");
   const [highSccCount, setHighSccCount] = useState("");
   const [highSccTags, setHighSccTags] = useState("");
@@ -106,6 +108,8 @@ export default function NmrRecordingVisitScreen() {
       avgFatPercent: avgFat.trim(),
       avgProteinPercent: avgProtein.trim(),
       avgLactosePercent: avgLactose.trim(),
+      avgCaseinPercent: avgCasein.trim(),
+      avgUreaMillimolesPerLitre: avgUrea.trim(),
       avgSccThousands: avgScc.trim(),
       highSccCount: highSccCount.trim(),
       highSccAnimalTags: highSccTags.trim(),
@@ -282,6 +286,27 @@ export default function NmrRecordingVisitScreen() {
             onChangeText={setAvgLactose}
             keyboardType="decimal-pad"
           />
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <Label>Avg Casein % (optional)</Label>
+              <Input
+                placeholder="e.g. 2.60"
+                value={avgCasein}
+                onChangeText={setAvgCasein}
+                keyboardType="decimal-pad"
+              />
+            </View>
+            <View style={{ width: spacing.md }} />
+            <View style={{ flex: 1 }}>
+              <Label>Avg Urea (mmol/L)</Label>
+              <Input
+                placeholder="e.g. 4.5"
+                value={avgUrea}
+                onChangeText={setAvgUrea}
+                keyboardType="decimal-pad"
+              />
+            </View>
+          </View>
         </Section>
 
         <Section title="High-SCC Animals (>200k)">
