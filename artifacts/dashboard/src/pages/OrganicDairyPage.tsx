@@ -328,6 +328,7 @@ type DairyFeedRecord = {
 
 type DairyTreatmentRecord = {
   id: number;
+  herdId?: number | null;
   treatmentDate: string;
   cowIds: string | null;
   numberOfCows: number | null;
@@ -1719,6 +1720,22 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
   const [raiseTaskMeatRecord, setRaiseTaskMeatRecord] = useState<DairyTreatmentRecord | null>(null);
   const [form, setForm] = useState<Partial<DairyTreatmentRecord>>({});
   const [yearFilter, setYearFilter] = useState<string>("all");
+  const [animalSearch, setAnimalSearch] = useState("");
+
+  const { data: herdsData2 } = useQuery<{ records: CoreHerd[] }>({
+    queryKey: ["herds", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/herds`).then((r) => r.json()),
+    enabled: !!farmId,
+  });
+  const herds = herdsData2?.records ?? [];
+
+  const { data: animalsData, isLoading: animalsLoading } = useQuery<{ animals: any[] }>({
+    queryKey: ["animals", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/animals`, { credentials: "include" }).then(r => r.json()),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!farmId,
+  });
+  const allTreatAnimals = animalsData?.animals ?? [];
 
   const { data } = useQuery<{ records: DairyTreatmentRecord[] }>({
     queryKey: ["organic-dairy-treatments", farmId],
@@ -1736,10 +1753,26 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
 
   const save = useMutation({
     mutationFn: () => {
+      const stdMilk = form.standardMilkWithdrawalDays ? Number(form.standardMilkWithdrawalDays) : null;
+      const stdMeat = form.standardMeatWithdrawalDays ? Number(form.standardMeatWithdrawalDays) : null;
+      const dblMilk = stdMilk != null ? stdMilk * 2 : null;
+      const dblMeat = stdMeat != null ? stdMeat * 2 : null;
+      function addDays(d: string | null | undefined, days: number | null): string | null {
+        if (!d || days == null) return null;
+        const dt = new Date(d); dt.setDate(dt.getDate() + days); return dt.toISOString().slice(0, 10);
+      }
+      const body = {
+        ...form,
+        doubledMilkWithdrawalDays: dblMilk,
+        doubledMeatWithdrawalDays: dblMeat,
+        milkWithdrawalEndDate: addDays(form.treatmentDate, dblMilk),
+        meatWithdrawalEndDate: addDays(form.treatmentDate, dblMeat),
+        treatmentNumber: form.treatmentNumber ?? 1,
+      };
       const url = editing
         ? `/api/farms/${farmId}/organic-dairy/treatments/${editing.id}`
         : `/api/farms/${farmId}/organic-dairy/treatments`;
-      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["organic-dairy-treatments", farmId] });
@@ -1755,8 +1788,8 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
-  function openNew() { setEditing(null); setForm({ certifierNotified: false, treatmentNumber: 1, treatmentDate: new Date().toISOString().slice(0, 10) }); setOpen(true); }
-  function openEdit(r: DairyTreatmentRecord) { setEditing(r); setForm({ ...r }); setOpen(true); }
+  function openNew() { setEditing(null); setAnimalSearch(""); setForm({ certifierNotified: false, treatmentDate: new Date().toISOString().slice(0, 10) }); setOpen(true); }
+  function openEdit(r: DairyTreatmentRecord) { setEditing(r); setAnimalSearch(""); setForm({ ...r }); setOpen(true); }
 
   const f = (k: keyof DairyTreatmentRecord) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
@@ -1941,16 +1974,74 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
               <Input type="date" value={form.treatmentDate ?? ""} onChange={f("treatmentDate")} />
             </div>
             <div className="space-y-1">
-              <Label>Cow IDs</Label>
-              <Input value={form.cowIds ?? ""} onChange={f("cowIds")} placeholder="e.g. UK123456/789" />
+              <Label>Herd</Label>
+              <Select value={String(form.herdId ?? "__none__")} onValueChange={(v) => setForm((p) => ({ ...p, herdId: v === "__none__" ? null : Number(v) }))}>
+                <SelectTrigger><SelectValue placeholder="Select herd (optional)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— All herds</SelectItem>
+                  {herds.map((h) => <SelectItem key={h.id} value={String(h.id)}>{h.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
-              <Label>Number of Cows</Label>
+              <Label>Number of Cows Treated</Label>
               <Input type="number" value={form.numberOfCows ?? ""} onChange={f("numberOfCows")} />
             </div>
-            <div className="space-y-1">
-              <Label>Treatment Number</Label>
-              <Input type="number" min={1} value={form.treatmentNumber ?? 1} onChange={f("treatmentNumber")} />
+            <div className="col-span-2 space-y-1">
+              <Label>Animals Treated — Livestock Register</Label>
+              <p className="text-xs text-gray-400 mt-0.5 mb-1">Select animals from the herd. Selected ear tags are saved to the record.</p>
+              {(() => {
+                const selTags = (form.cowIds || "").split(",").map((t: string) => t.trim()).filter(Boolean);
+                const herdAnim = allTreatAnimals.filter((a: any) => !form.herdId || a.herdId === form.herdId);
+                const filtAnim = herdAnim.filter((a: any) => {
+                  if (!animalSearch) return true;
+                  return (a.earTagNumber || a.tagNumber || "").toLowerCase().includes(animalSearch.toLowerCase());
+                });
+                return (
+                  <div className="border rounded-md overflow-hidden">
+                    <Input placeholder="Search by ear tag…" value={animalSearch} onChange={(e) => setAnimalSearch(e.target.value)} className="border-0 border-b rounded-none text-sm" />
+                    {selTags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 px-2 py-1.5 bg-emerald-50 border-b">
+                        {selTags.map((tag: string) => (
+                          <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white border border-emerald-300 text-emerald-800 text-xs font-mono">
+                            {tag}
+                            <button type="button" className="text-emerald-500 hover:text-red-600 ml-0.5 leading-none" onClick={() => {
+                              const next = selTags.filter((t: string) => t !== tag);
+                              setForm((p) => ({ ...p, cowIds: next.join(", ") || null, numberOfCows: next.length || p.numberOfCows }));
+                            }}>×</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="max-h-36 overflow-y-auto">
+                      {herdAnim.length === 0
+                        ? <p className="text-xs text-gray-400 px-3 py-2 italic">{animalsLoading ? "Loading animals…" : "No animals found — add animals to the livestock register first."}</p>
+                        : filtAnim.length === 0
+                          ? <p className="text-xs text-gray-400 px-3 py-2 italic">No animals match your search.</p>
+                          : filtAnim.map((a: any) => {
+                            const tag = a.earTagNumber || a.tagNumber || `Animal #${a.id}`;
+                            const isSel = selTags.includes(tag);
+                            return (
+                              <button key={a.id} type="button"
+                                className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-gray-50 transition-colors ${isSel ? "bg-emerald-50" : ""}`}
+                                onClick={() => {
+                                  const next = isSel ? selTags.filter((t: string) => t !== tag) : [...selTags, tag];
+                                  setForm((p) => ({ ...p, cowIds: next.join(", ") || null, numberOfCows: next.length || p.numberOfCows }));
+                                }}
+                              >
+                                <span className={`h-3.5 w-3.5 rounded border flex-shrink-0 flex items-center justify-center ${isSel ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300 bg-white"}`}>
+                                  {isSel && <CheckCircle2 className="h-2.5 w-2.5" />}
+                                </span>
+                                <span className="font-mono">{tag}</span>
+                                {a.animalCode && <span className="text-gray-400">{a.animalCode}</span>}
+                              </button>
+                            );
+                          })
+                      }
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Product Name *</Label>
@@ -1996,30 +2087,43 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
               <Label>Prescription Ref</Label>
               <Input value={form.prescriptionRef ?? ""} onChange={f("prescriptionRef")} />
             </div>
+            <div className="col-span-2"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 mt-1">Withdrawal Periods <span className="text-gray-400 font-normal normal-case">(organic = standard × 2)</span></p></div>
             <div className="space-y-1">
-              <Label>Std Milk Withdrawal (days)</Label>
-              <Input type="number" value={form.standardMilkWithdrawalDays ?? ""} onChange={f("standardMilkWithdrawalDays")} />
+              <Label>Standard Milk Withdrawal (days)</Label>
+              <Input type="number" min={0} value={form.standardMilkWithdrawalDays ?? ""} onChange={f("standardMilkWithdrawalDays")} placeholder="e.g. 4" />
             </div>
             <div className="space-y-1">
-              <Label>Doubled Milk Withdrawal (days)</Label>
-              <Input type="number" value={form.doubledMilkWithdrawalDays ?? ""} onChange={f("doubledMilkWithdrawalDays")} />
+              <Label>Organic Milk Withdrawal (auto)</Label>
+              <div className="h-9 flex items-center px-3 rounded-md border bg-emerald-50 text-emerald-800 text-sm font-medium">
+                {form.standardMilkWithdrawalDays ? `${Number(form.standardMilkWithdrawalDays) * 2} days` : "—"}
+              </div>
             </div>
             <div className="space-y-1">
-              <Label>Std Meat Withdrawal (days)</Label>
-              <Input type="number" value={form.standardMeatWithdrawalDays ?? ""} onChange={f("standardMeatWithdrawalDays")} />
+              <Label>Standard Meat Withdrawal (days)</Label>
+              <Input type="number" min={0} value={form.standardMeatWithdrawalDays ?? ""} onChange={f("standardMeatWithdrawalDays")} placeholder="e.g. 28" />
             </div>
             <div className="space-y-1">
-              <Label>Doubled Meat Withdrawal (days)</Label>
-              <Input type="number" value={form.doubledMeatWithdrawalDays ?? ""} onChange={f("doubledMeatWithdrawalDays")} />
+              <Label>Organic Meat Withdrawal (auto)</Label>
+              <div className="h-9 flex items-center px-3 rounded-md border bg-emerald-50 text-emerald-800 text-sm font-medium">
+                {form.standardMeatWithdrawalDays ? `${Number(form.standardMeatWithdrawalDays) * 2} days` : "—"}
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label>Milk Withdrawal End Date</Label>
-              <Input type="date" value={form.milkWithdrawalEndDate ?? ""} onChange={f("milkWithdrawalEndDate")} />
-            </div>
-            <div className="space-y-1">
-              <Label>Meat Withdrawal End Date</Label>
-              <Input type="date" value={form.meatWithdrawalEndDate ?? ""} onChange={f("meatWithdrawalEndDate")} />
-            </div>
+            {form.treatmentDate && form.standardMilkWithdrawalDays && (
+              <div className="space-y-1">
+                <Label>Milk Withdrawal End Date (auto)</Label>
+                <div className="h-9 flex items-center px-3 rounded-md border bg-emerald-50 text-emerald-800 text-sm">
+                  {(() => { const dt = new Date(form.treatmentDate); dt.setDate(dt.getDate() + Number(form.standardMilkWithdrawalDays) * 2); return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); })()}
+                </div>
+              </div>
+            )}
+            {form.treatmentDate && form.standardMeatWithdrawalDays && (
+              <div className="space-y-1">
+                <Label>Meat Withdrawal End Date (auto)</Label>
+                <div className="h-9 flex items-center px-3 rounded-md border bg-emerald-50 text-emerald-800 text-sm">
+                  {(() => { const dt = new Date(form.treatmentDate); dt.setDate(dt.getDate() + Number(form.standardMeatWithdrawalDays) * 2); return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); })()}
+                </div>
+              </div>
+            )}
             <div className="flex items-center gap-2 pt-5">
               <Checkbox
                 checked={form.certifierNotified ?? false}

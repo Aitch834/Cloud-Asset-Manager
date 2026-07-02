@@ -14,7 +14,7 @@ import { DocAttach } from "@/components/DocAttach";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect } from "wouter";
-import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Eye, Droplets, Thermometer, FileDown, Paperclip, BarChart2, QrCode, Download, MapPin, ChevronsUpDown, Search, X, Sparkles, ClipboardList, Printer, Building2, ShoppingCart, PackageCheck, Receipt, Clock, BadgeCheck, XCircle, TrendingUp, TrendingDown, Package } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Eye, Droplets, Thermometer, FileDown, Paperclip, BarChart2, QrCode, Download, MapPin, ChevronsUpDown, Search, X, Sparkles, ClipboardList, Printer, Building2, ShoppingCart, PackageCheck, Receipt, Clock, BadgeCheck, XCircle, TrendingUp, TrendingDown, Package, Check, FlaskConical } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { QRCodeSVG } from "qrcode.react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -3186,6 +3186,12 @@ interface MilkCollection {
   pencePerLitre?: string | null; grossValuePence?: number | null;
   qualityBonusPence?: number | null; qualityPenaltyPence?: number | null;
   transportDeductionPence?: number | null; netPaymentPence?: number | null;
+  buyerSccThousands?: number | null; buyerBactoscanThousands?: number | null;
+  buyerTvcCfuMl?: number | null; buyerThermsCfuMl?: number | null;
+  buyerColiformsCfuMl?: number | null;
+  buyerFatPercent?: string | null; buyerProteinPercent?: string | null;
+  buyerCaseinPercent?: string | null; buyerLactosePercent?: string | null;
+  buyerUreaMillimolesPerLitre?: string | null;
   notes?: string | null;
 }
 
@@ -3278,12 +3284,37 @@ export function BulkTankTab({ farmId }: { farmId: number }) {
   function openEditMon(r: BulkTankRecord) { setEditingMon(r); setMonForm({ ...r, recordDate: r.recordDate.slice(0, 10) }); setMonDialog(true); }
   function setMon(k: keyof BulkTankRecord, v: unknown) { setMonForm(f => ({ ...f, [k]: v })); }
 
-  // ── Milk collections (read-only for summary/report) ───────────────────────
+  // ── Milk collections ──────────────────────────────────────────────────────
+  const [collDialog, setCollDialog] = useState(false);
+  const [editingColl, setEditingColl] = useState<MilkCollection | null>(null);
+  const [collForm, setCollForm] = useState<Partial<MilkCollection>>({});
+  const [showCollQuality, setShowCollQuality] = useState(false);
 
   const collQ = useQuery<{ collections: MilkCollection[] }>({
     queryKey: ["dairy-milk-collections", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/dairy/milk-collections`), { credentials: "include" }).then(r => r.json()),
   });
+
+  const saveColl = useMutation({
+    mutationFn: (body: Partial<MilkCollection>) => {
+      const url = editingColl ? api(`farms/${farmId}/dairy/milk-collections/${editingColl.id}`) : api(`farms/${farmId}/dairy/milk-collections`);
+      return fetch(url, { method: editingColl ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-milk-collections", farmId] }); setCollDialog(false); setEditingColl(null); setCollForm({}); },
+  });
+  const delColl = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/dairy/milk-collections/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["dairy-milk-collections", farmId] }),
+  });
+
+  function openAddColl() { setEditingColl(null); setCollForm({ collectionDate: today() }); setShowCollQuality(false); setCollDialog(true); }
+  function openEditColl(c: MilkCollection) {
+    setEditingColl(c);
+    setCollForm({ ...c, collectionDate: c.collectionDate.slice(0, 10) });
+    setShowCollQuality(!!(c.buyerSccThousands || c.buyerBactoscanThousands || c.buyerFatPercent));
+    setCollDialog(true);
+  }
+  function setColl(k: keyof MilkCollection, v: unknown) { setCollForm(f => ({ ...f, [k]: v })); }
 
   const tankName = (id?: number | null) => tanks.find(t => t.id === id)?.name ?? null;
 
@@ -3701,6 +3732,107 @@ ${collRows ? `<h3>Milk Collections</h3><table><tr><th>Date</th><th>Tank</th><th>
             <Button onClick={() => saveMon.mutate(monForm)} disabled={saveMon.isPending || !monForm.recordDate}>
               {saveMon.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
               {editingMon ? "Save Changes" : "Add Record"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Section 3: Milk Collections ──────────────────────────────────────── */}
+      <div className="border rounded-lg overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 bg-gray-50">
+          <div>
+            <h3 className="font-semibold text-sm text-gray-800">Milk Collections ({collRecords.length})</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Record each milk uplift with volumes, financial settlement, and buyer quality results.</p>
+          </div>
+          <Button size="sm" onClick={openAddColl}>
+            <Plus className="h-4 w-4 mr-1" />Log Collection
+          </Button>
+        </div>
+        {collQ.isLoading
+          ? <div className="p-4"><Loader2 className="h-4 w-4 animate-spin text-gray-400" /></div>
+          : collRecords.length === 0
+            ? <div className="px-4 py-6 text-center text-sm text-gray-400 italic">No milk collections recorded yet.</div>
+            : <div className="divide-y">
+              {[...collRecords].sort((a, b) => b.collectionDate.localeCompare(a.collectionDate)).map(c => (
+                <div key={c.id} className="px-4 py-3 flex items-center justify-between gap-3 hover:bg-gray-50">
+                  <div className="flex flex-wrap items-center gap-2 min-w-0">
+                    <span className="font-medium text-sm">{formatDate(c.collectionDate)}</span>
+                    {c.tankId && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{tankName(c.tankId)}</span>}
+                    {c.milkBuyer && <span className="text-xs text-gray-500">{c.milkBuyer}</span>}
+                    {c.volumeCollectedLitres && <span className="text-xs font-mono bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{parseFloat(String(c.volumeCollectedLitres)).toLocaleString()} L</span>}
+                    {c.pencePerLitre && <span className="text-xs text-gray-400">{parseFloat(String(c.pencePerLitre)).toFixed(2)}ppl</span>}
+                    {c.buyerSccThousands != null && <span className={`text-xs px-2 py-0.5 rounded ${c.buyerSccThousands < 100 ? "bg-green-50 text-green-700" : c.buyerSccThousands < 200 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>SCC: {c.buyerSccThousands}k</span>}
+                    {c.buyerBactoscanThousands != null && <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded">Bact: {c.buyerBactoscanThousands}k</span>}
+                    {c.buyerTvcCfuMl != null && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">TVC: {c.buyerTvcCfuMl.toLocaleString()}</span>}
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEditColl(c)}><Pencil className="h-3.5 w-3.5" /></Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-700" onClick={() => { if (confirm("Delete this collection record?")) delColl.mutate(c.id); }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+        }
+      </div>
+
+      {/* ── Milk Collections Dialog ────────────────────────────────────────────── */}
+      <Dialog open={collDialog} onOpenChange={setCollDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingColl ? "Edit" : "Log"} Milk Collection</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Collection Details</p></div>
+            <div><Label>Collection Date *</Label><Input type="date" value={collForm.collectionDate || ""} onChange={e => setColl("collectionDate", e.target.value)} /></div>
+            <div>
+              <Label>Bulk Tank</Label>
+              <Select value={String(collForm.tankId ?? "__none__")} onValueChange={v => setColl("tankId", v === "__none__" ? null : parseInt(v))}>
+                <SelectTrigger><SelectValue placeholder="Select tank" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— No tank</SelectItem>{tanks.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Volume Collected (L)</Label><Input type="number" step="0.1" value={collForm.volumeCollectedLitres ?? ""} onChange={e => setColl("volumeCollectedLitres", e.target.value)} placeholder="e.g. 8500" /></div>
+            <div><Label>Milk Buyer</Label><Input value={collForm.milkBuyer || ""} onChange={e => setColl("milkBuyer", e.target.value)} placeholder="e.g. Müller, Arla" /></div>
+            <div><Label>Tanker Registration</Label><Input value={collForm.tankerRegistration || ""} onChange={e => setColl("tankerRegistration", e.target.value)} /></div>
+            <div><Label>Tanker Driver</Label><Input value={collForm.tankerDriverName || ""} onChange={e => setColl("tankerDriverName", e.target.value)} /></div>
+            <div><Label>Collection Ref</Label><Input value={collForm.collectionRef || ""} onChange={e => setColl("collectionRef", e.target.value)} /></div>
+            <div><Label>Statement Ref</Label><Input value={collForm.statementRef || ""} onChange={e => setColl("statementRef", e.target.value)} /></div>
+            <div className="col-span-2"><Label>ABR Result (pre-collection)</Label><Input value={collForm.abtResultBeforeCollection || ""} onChange={e => setColl("abtResultBeforeCollection", e.target.value)} placeholder="e.g. Negative" /></div>
+
+            <div className="col-span-2"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 mt-1">Financial Settlement</p></div>
+            <div><Label>Pence per Litre</Label><Input type="number" step="0.01" value={collForm.pencePerLitre ?? ""} onChange={e => setColl("pencePerLitre", e.target.value)} placeholder="e.g. 35.50" /></div>
+            <div><Label>Gross Value (£)</Label><Input type="number" step="0.01" value={collForm.grossValuePence != null ? (collForm.grossValuePence / 100).toFixed(2) : ""} onChange={e => setColl("grossValuePence", e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null)} placeholder="e.g. 3018.00" /></div>
+            <div><Label>Quality Bonus (£)</Label><Input type="number" step="0.01" value={collForm.qualityBonusPence != null ? (collForm.qualityBonusPence / 100).toFixed(2) : ""} onChange={e => setColl("qualityBonusPence", e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null)} /></div>
+            <div><Label>Quality Penalty (£)</Label><Input type="number" step="0.01" value={collForm.qualityPenaltyPence != null ? (collForm.qualityPenaltyPence / 100).toFixed(2) : ""} onChange={e => setColl("qualityPenaltyPence", e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null)} /></div>
+            <div><Label>Transport Deduction (£)</Label><Input type="number" step="0.01" value={collForm.transportDeductionPence != null ? (collForm.transportDeductionPence / 100).toFixed(2) : ""} onChange={e => setColl("transportDeductionPence", e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null)} /></div>
+            <div><Label>Net Payment (£)</Label><Input type="number" step="0.01" value={collForm.netPaymentPence != null ? (collForm.netPaymentPence / 100).toFixed(2) : ""} onChange={e => setColl("netPaymentPence", e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null)} /></div>
+
+            <div className="col-span-2">
+              <button type="button" className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium" onClick={() => setShowCollQuality(v => !v)}>
+                <FlaskConical className="h-3.5 w-3.5" />{showCollQuality ? "Hide" : "Add"} Buyer Quality Results
+              </button>
+            </div>
+            {showCollQuality && <>
+              <div className="col-span-2"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 mt-0.5">Buyer Quality Results</p></div>
+              <div><Label>Buyer SCC (k/mL)</Label><Input type="number" min="0" value={collForm.buyerSccThousands ?? ""} onChange={e => setColl("buyerSccThousands", e.target.value ? parseInt(e.target.value) : null)} placeholder="e.g. 120" /></div>
+              <div><Label>Bactoscan (k/mL)</Label><Input type="number" min="0" value={collForm.buyerBactoscanThousands ?? ""} onChange={e => setColl("buyerBactoscanThousands", e.target.value ? parseInt(e.target.value) : null)} placeholder="e.g. 15" /></div>
+              <div><Label>TVC (cfu/mL)</Label><Input type="number" min="0" value={collForm.buyerTvcCfuMl ?? ""} onChange={e => setColl("buyerTvcCfuMl", e.target.value ? parseInt(e.target.value) : null)} /></div>
+              <div><Label>Thermodurics (cfu/mL)</Label><Input type="number" min="0" value={collForm.buyerThermsCfuMl ?? ""} onChange={e => setColl("buyerThermsCfuMl", e.target.value ? parseInt(e.target.value) : null)} /></div>
+              <div><Label>Coliforms (cfu/mL)</Label><Input type="number" min="0" value={collForm.buyerColiformsCfuMl ?? ""} onChange={e => setColl("buyerColiformsCfuMl", e.target.value ? parseInt(e.target.value) : null)} /></div>
+              <div><Label>Buyer Fat%</Label><Input type="number" step="0.01" value={collForm.buyerFatPercent ?? ""} onChange={e => setColl("buyerFatPercent", e.target.value)} placeholder="e.g. 4.15" /></div>
+              <div><Label>Buyer Protein%</Label><Input type="number" step="0.01" value={collForm.buyerProteinPercent ?? ""} onChange={e => setColl("buyerProteinPercent", e.target.value)} placeholder="e.g. 3.30" /></div>
+              <div><Label>Buyer Casein%</Label><Input type="number" step="0.01" value={collForm.buyerCaseinPercent ?? ""} onChange={e => setColl("buyerCaseinPercent", e.target.value)} placeholder="e.g. 2.60" /></div>
+              <div><Label>Buyer Lactose%</Label><Input type="number" step="0.01" value={collForm.buyerLactosePercent ?? ""} onChange={e => setColl("buyerLactosePercent", e.target.value)} placeholder="e.g. 4.70" /></div>
+              <div><Label>Buyer Urea (mmol/L)</Label><Input type="number" step="0.1" value={collForm.buyerUreaMillimolesPerLitre ?? ""} onChange={e => setColl("buyerUreaMillimolesPerLitre", e.target.value)} placeholder="e.g. 4.5" /></div>
+            </>}
+
+            <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={collForm.notes || ""} onChange={e => setColl("notes", e.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCollDialog(false)}>Cancel</Button>
+            <Button onClick={() => saveColl.mutate(collForm)} disabled={saveColl.isPending || !collForm.collectionDate}>
+              {saveColl.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              {editingColl ? "Save Changes" : "Log Collection"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -4487,6 +4619,8 @@ type RecordingVisit = {
   avgFatPercent?: string | null;
   avgProteinPercent?: string | null;
   avgLactosePercent?: string | null;
+  avgCaseinPercent?: string | null;
+  avgUreaMillimolesPerLitre?: string | null;
   avgSccThousands?: number | null;
   highSccCount?: number | null;
   highSccAnimalTags?: string | null;
@@ -4533,6 +4667,14 @@ export function RecordingVisitsTab({ farmId }: { farmId: number }) {
     staleTime: 5 * 60 * 1000,
   });
   const herds = herdsQ.data?.herds ?? [];
+
+  const animalsQ = useQuery<{ animals: { id: number; earTagNumber?: string | null; tagNumber?: string | null; herdId?: number | null; animalCode?: string | null }[] }>({
+    queryKey: ["animals", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/animals`), { credentials: "include" }).then(r => r.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+  const [animalSearch, setAnimalSearch] = useState("");
+  const allAnimals = (animalsQ.data as any)?.animals ?? [];
 
   const visits = data?.visits ?? [];
 
@@ -4711,6 +4853,8 @@ export function RecordingVisitsTab({ farmId }: { farmId: number }) {
                   <div><p className="text-xs text-muted-foreground">Average Fat%</p><p className="font-medium">{viewRec.avgFatPercent ? `${parseFloat(viewRec.avgFatPercent).toFixed(2)}%` : "—"}</p></div>
                   <div><p className="text-xs text-muted-foreground">Average Protein%</p><p className="font-medium">{viewRec.avgProteinPercent ? `${parseFloat(viewRec.avgProteinPercent).toFixed(2)}%` : "—"}</p></div>
                   <div><p className="text-xs text-muted-foreground">Average Lactose%</p><p className="font-medium">{viewRec.avgLactosePercent ? `${parseFloat(viewRec.avgLactosePercent).toFixed(2)}%` : "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Average Casein%</p><p className="font-medium">{viewRec.avgCaseinPercent ? `${parseFloat(viewRec.avgCaseinPercent).toFixed(2)}%` : "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Average Urea</p><p className="font-medium">{viewRec.avgUreaMillimolesPerLitre ? `${parseFloat(viewRec.avgUreaMillimolesPerLitre).toFixed(1)} mmol/L` : "—"}</p></div>
                   <div>
                     <p className="text-xs text-muted-foreground">Herd Avg SCC</p>
                     <SccBadge v={viewRec.avgSccThousands} />
@@ -4731,7 +4875,7 @@ export function RecordingVisitsTab({ farmId }: { farmId: number }) {
                   </div>
                   {viewRec.highSccAnimalTags && (
                     <div className="mt-2">
-                      <p className="text-xs text-muted-foreground mb-1">Ear Tags (comma-separated)</p>
+                      <p className="text-xs text-muted-foreground mb-1">Animals Selected</p>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {viewRec.highSccAnimalTags.split(",").map(t => t.trim()).filter(Boolean).map(tag => (
                           <span key={tag} className="inline-flex px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 text-xs font-mono">{tag}</span>
@@ -4784,22 +4928,80 @@ export function RecordingVisitsTab({ farmId }: { farmId: number }) {
             <div><Label>Cows in Milk</Label><Input type="number" min="0" value={form.cowsInMilk ?? ""} onChange={e => set("cowsInMilk", e.target.value)} /></div>
             <div><Label>Cows Recorded</Label><Input type="number" min="0" value={form.cowsRecorded ?? ""} onChange={e => set("cowsRecorded", e.target.value)} /></div>
 
-            <div className="col-span-2"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 mt-1">Herd Averages</p></div>
+            <div className="col-span-2"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 mt-1">NMR Report Results</p></div>
             <div><Label>Avg Yield / Cow / Day (L)</Label><Input type="number" step="0.1" value={form.avgYieldLitresPerDay ?? ""} onChange={e => set("avgYieldLitresPerDay", e.target.value)} placeholder="e.g. 28.5" /></div>
             <div><Label>Avg SCC (k/mL)</Label><Input type="number" min="0" value={form.avgSccThousands ?? ""} onChange={e => set("avgSccThousands", e.target.value)} placeholder="e.g. 150" /></div>
             <div><Label>Avg Fat%</Label><Input type="number" step="0.01" value={form.avgFatPercent ?? ""} onChange={e => set("avgFatPercent", e.target.value)} placeholder="e.g. 4.15" /></div>
             <div><Label>Avg Protein%</Label><Input type="number" step="0.01" value={form.avgProteinPercent ?? ""} onChange={e => set("avgProteinPercent", e.target.value)} placeholder="e.g. 3.30" /></div>
             <div><Label>Avg Lactose%</Label><Input type="number" step="0.01" value={form.avgLactosePercent ?? ""} onChange={e => set("avgLactosePercent", e.target.value)} placeholder="e.g. 4.70" /></div>
+            <div><Label>Avg Casein%</Label><Input type="number" step="0.01" value={form.avgCaseinPercent ?? ""} onChange={e => set("avgCaseinPercent", e.target.value)} placeholder="e.g. 2.60" /></div>
+            <div><Label>Avg Urea (mmol/L)</Label><Input type="number" step="0.1" value={form.avgUreaMillimolesPerLitre ?? ""} onChange={e => set("avgUreaMillimolesPerLitre", e.target.value)} placeholder="e.g. 4.5" /></div>
             <div className="flex flex-col justify-center pt-4">
               {form.avgFatPercent && form.avgProteinPercent && (
                 <div><p className="text-xs text-muted-foreground mb-1">Calculated F:P Ratio</p><FprBadge fat={form.avgFatPercent} protein={form.avgProteinPercent} /></div>
               )}
             </div>
 
-            <div className="col-span-2"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 mt-1">High-SCC Animals</p></div>
+            <div className="col-span-2"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 mt-2">High-SCC Animals (&gt;200k)</p></div>
             <div><Label>Count Above 200k</Label><Input type="number" min="0" value={form.highSccCount ?? ""} onChange={e => set("highSccCount", e.target.value)} /></div>
             <div><Label>Next Visit Date</Label><Input type="date" value={form.nextVisitDate || ""} onChange={e => set("nextVisitDate", e.target.value)} /></div>
-            <div className="col-span-2"><Label>High-SCC Ear Tags</Label><Input value={form.highSccAnimalTags || ""} onChange={e => set("highSccAnimalTags", e.target.value)} placeholder="Comma-separated ear tags, e.g. UK123456 789012, UK123456 789013" /></div>
+            <div className="col-span-2">
+              <Label>High-SCC Animals — Livestock Register</Label>
+              <p className="text-xs text-gray-400 mb-1.5 mt-0.5">Select animals flagged above 200k on this visit.</p>
+              {(() => {
+                const selectedTags = (form.highSccAnimalTags || "").split(",").map((t: string) => t.trim()).filter(Boolean);
+                const herdAnimals = allAnimals.filter((a: any) => !form.herdId || a.herdId === form.herdId);
+                const filteredA = herdAnimals.filter((a: any) => {
+                  if (!animalSearch) return true;
+                  const tag = (a.earTagNumber || a.tagNumber || "").toLowerCase();
+                  return tag.includes(animalSearch.toLowerCase());
+                });
+                return (
+                  <div className="border rounded-md overflow-hidden">
+                    <Input placeholder="Search by ear tag…" value={animalSearch} onChange={e => setAnimalSearch(e.target.value)} className="border-0 border-b rounded-none text-sm" />
+                    {selectedTags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 px-2 py-1.5 bg-amber-50 border-b">
+                        {selectedTags.map((tag: string) => (
+                          <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white border border-amber-300 text-amber-800 text-xs font-mono">
+                            {tag}
+                            <button type="button" className="text-amber-500 hover:text-red-600 ml-0.5 leading-none" onClick={() => {
+                              const next = selectedTags.filter((t: string) => t !== tag);
+                              set("highSccAnimalTags", next.join(", "));
+                            }}>×</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="max-h-36 overflow-y-auto">
+                      {herdAnimals.length === 0
+                        ? <p className="text-xs text-gray-400 px-3 py-2 italic">{animalsQ.isLoading ? "Loading animals…" : "No animals found — add animals to the livestock register first."}</p>
+                        : filteredA.length === 0
+                          ? <p className="text-xs text-gray-400 px-3 py-2 italic">No animals match your search.</p>
+                          : filteredA.map((a: any) => {
+                            const tag = a.earTagNumber || a.tagNumber || `Animal #${a.id}`;
+                            const isSel = selectedTags.includes(tag);
+                            return (
+                              <button key={a.id} type="button"
+                                className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-gray-50 transition-colors ${isSel ? "bg-amber-50" : ""}`}
+                                onClick={() => {
+                                  const next = isSel ? selectedTags.filter((t: string) => t !== tag) : [...selectedTags, tag];
+                                  set("highSccAnimalTags", next.join(", "));
+                                }}
+                              >
+                                <span className={`h-3.5 w-3.5 rounded border flex-shrink-0 flex items-center justify-center ${isSel ? "bg-amber-500 border-amber-500 text-white" : "border-gray-300 bg-white"}`}>
+                                  {isSel && <Check className="h-2.5 w-2.5" />}
+                                </span>
+                                <span className="font-mono">{tag}</span>
+                                {a.animalCode && <span className="text-gray-400">{a.animalCode}</span>}
+                              </button>
+                            );
+                          })
+                      }
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
             <div className="col-span-2"><Label>Quality Alert / NMR Action Note</Label><Input value={form.qualityAlert || ""} onChange={e => set("qualityAlert", e.target.value)} placeholder="Any action note from the NMR report" /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes || ""} onChange={e => set("notes", e.target.value)} placeholder="Additional observations…" /></div>
           </div>
