@@ -33,7 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, ChevronLeft, ChevronRight, FileDown, Droplets, AlertTriangle, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, ChevronLeft, ChevronRight, FileDown, Droplets, AlertTriangle, Loader2, CheckCircle2 } from "lucide-react";
 import { DocAttach } from "@/components/DocAttach";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { useToast } from "@/hooks/use-toast";
