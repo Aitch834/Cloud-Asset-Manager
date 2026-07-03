@@ -175,6 +175,8 @@ export const STORAGE_KEYS = {
   SLURRY_SPREADING_RECORDS: "bde_slurry_spreading_records",
   SLURRY_FILL_EVENTS: "bde_slurry_fill_events",
   SLURRY_STORE_INSPECTIONS: "bde_slurry_store_inspections",
+  SILAGE_ADDITIVE_RECORDS: "bde_silage_additive_records",
+  SILAGE_QUALITY_TESTS: "bde_silage_quality_tests",
   SFI_ACTIONS: "bde_sfi_actions",
   SPRAYER_CALIBRATIONS: "bde_sprayer_calibrations",
   MAINTENANCE_LOGS: "bde_maintenance_logs",

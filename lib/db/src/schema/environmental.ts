@@ -136,6 +136,9 @@ export const slurryStoreInspectionsTable = pgTable("slurry_store_inspections", {
   deficiencies: text("deficiencies"),
   actionsRequired: text("actions_required"),
   nextInspectionDue: date("next_inspection_due"),
+  effluentContained: boolean("effluent_contained"),
+  coverSheetIntact: boolean("cover_sheet_intact"),
+  wallsSound: boolean("walls_sound"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -173,6 +176,37 @@ export const slurryStoreFillEventsTable = pgTable("slurry_store_fill_events", {
   volumeM3: numeric("volume_m3", { precision: 10, scale: 2 }).notNull(),
   materialType: text("material_type"),
   sourceDescription: text("source_description"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const silageAdditiveRecordsTable = pgTable("silage_additive_records", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  storeId: integer("store_id").references(() => slurryStoresTable.id, { onDelete: "set null" }),
+  applicationDate: date("application_date").notNull(),
+  cropType: text("crop_type"),
+  productName: text("product_name").notNull(),
+  batchNumber: text("batch_number"),
+  applicationRate: text("application_rate"),
+  coshhAssessed: boolean("coshh_assessed").default(false),
+  operatorName: text("operator_name"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const silageQualityTestsTable = pgTable("silage_quality_tests", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  storeId: integer("store_id").references(() => slurryStoresTable.id, { onDelete: "set null" }),
+  testDate: date("test_date").notNull(),
+  cropType: text("crop_type"),
+  dryMatterPercent: numeric("dry_matter_percent", { precision: 5, scale: 2 }),
+  phLevel: numeric("ph_level", { precision: 4, scale: 2 }),
+  mePerKgDm: numeric("me_per_kg_dm", { precision: 5, scale: 2 }),
+  crudeProteinPercent: numeric("crude_protein_percent", { precision: 5, scale: 2 }),
+  ammoniaNPercent: numeric("ammonia_n_percent", { precision: 5, scale: 2 }),
+  labName: text("lab_name"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

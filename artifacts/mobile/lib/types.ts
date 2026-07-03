@@ -2274,6 +2274,43 @@ export interface SlurryStoreInspection {
   actionsRequired: string;
   nextInspectionDue: string;
   notes: string;
+  effluentContained?: boolean;
+  coverSheetIntact?: boolean;
+  wallsSound?: boolean;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface SilageAdditiveRecord {
+  id: string;
+  farmId: string;
+  storeId: string;
+  storeName: string;
+  applicationDate: string;
+  cropType: string;
+  productName: string;
+  additiveType: string;
+  applicationRate: string;
+  batchNumber: string;
+  appliedBy: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface SilageQualityTest {
+  id: string;
+  farmId: string;
+  storeId: string;
+  storeName: string;
+  testDate: string;
+  dryMatterPct: string;
+  ph: string;
+  metabolisableEnergy: string;
+  crudeProteinPct: string;
+  ammoniaN: string;
+  labName: string;
+  notes: string;
   createdAt: string;
   synced: boolean;
 }

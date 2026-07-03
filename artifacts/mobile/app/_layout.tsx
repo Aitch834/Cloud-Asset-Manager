@@ -102,6 +102,9 @@ function RootLayoutNav() {
         <Stack.Screen name="fly-tipping" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="encampments" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="pest-control-visit" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="silage-inspection" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="silage-additive" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="silage-quality-test" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="task-inbox" options={{ headerShown: false, presentation: "modal" }} />
       </Stack>
       <SyncStatusBar />

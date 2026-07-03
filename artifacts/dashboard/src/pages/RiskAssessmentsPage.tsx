@@ -115,6 +115,13 @@ const HAZARD_TEMPLATES = [
     controlMeasures: "Proper handling facilities used at all times. Lone working with cattle not permitted. Trained handlers only. Escape route always available. Protective clothing worn. Seasonal risk (calving, lambing) procedures in place.",
     riskLevel: "high",
   },
+  {
+    label: "Silo/Clamp Filling",
+    title: "Silo and Silage Clamp Filling",
+    hazardDescription: "Silo gas (nitrogen dioxide) exposure from freshly filled tower silos and fermenting silage causing respiratory injury or death; vehicle rollover, collision or crushing during clamp filling and consolidation by tractors/loaders working on sheeted, sloped or narrow clamp faces; clamp wall collapse; and self-heating/fire risk in stored haylage. Based on HSE AIS28 (Silage) guidance.",
+    controlMeasures: "Silo gas: do not enter towers/silos for at least 3 weeks after filling; ventilate fully and test atmosphere before entry; never enter alone; forage/blowing pipes ventilated away from occupied buildings. Clamp filling: exclusion zone enforced — no pedestrians/children/visitors on or near the clamp while filling; rolling tractors fitted with ROPS and seatbelts worn at all times; safe systems of work agreed and briefed before filling starts (one vehicle on the clamp face at a time, banksman used for reversing); clamp faces built with a safe batter, not vertical overhangs; sheeting and weighting carried out from ground level or with fall protection, never by standing on unsupported bale stacks; haylage bales stacked and monitored for self-heating with a written inspection routine; fire extinguisher and emergency contact numbers available on site during filling.",
+    riskLevel: "critical",
+  },
 ];
 
 const fmt = (d: string | null | undefined) => {

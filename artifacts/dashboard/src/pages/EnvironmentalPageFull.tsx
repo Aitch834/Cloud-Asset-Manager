@@ -17,7 +17,7 @@ import { Plus, Trash2, Leaf, TreePine, MapPin, Printer, ClipboardCheck, Calendar
 import { StorageLocationMapPicker } from "@/components/storage/StorageLocationMapPicker";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 
-type Tab = "features" | "schemes" | "assessments" | "events" | "sfi" | "slurry";
+type Tab = "features" | "schemes" | "assessments" | "events" | "sfi" | "slurry" | "silage";
 interface LatLng { lat: number; lng: number; }
 
 const fmt = (d: string | null | undefined) => {
@@ -2306,6 +2306,7 @@ export default function EnvironmentalPageFull() {
           <TabButton active={tab === "events"} onClick={() => setTab("events")}>Management Events</TabButton>
           <TabButton active={tab === "sfi"} onClick={() => setTab("sfi")}>SFI / ELMs Actions</TabButton>
           <TabButton active={tab === "slurry"} onClick={() => setTab("slurry")}>Slurry & Manure</TabButton>
+          <TabButton active={tab === "silage"} onClick={() => setTab("silage")}>Silage & Haylage</TabButton>
         </TabBar>
         {farmId && tab === "features" && <EnvironmentalFeaturesTab farmId={farmId} schemes={schemesQ.data ?? []} />}
         {farmId && tab === "schemes" && <AgriEnvSchemesTab farmId={farmId} />}
@@ -2313,6 +2314,7 @@ export default function EnvironmentalPageFull() {
         {farmId && tab === "events" && <ManagementEventsTab farmId={farmId} features={featuresQ.data ?? []} schemes={schemesQ.data ?? []} />}
         {farmId && tab === "sfi" && <SFIActionsTab farmId={farmId} openId={openId} />}
         {farmId && tab === "slurry" && <SlurryTab farmId={farmId} openId={openId} />}
+        {farmId && tab === "silage" && <SilageTab farmId={farmId} />}
       </div>
     </AppLayout>
   );
@@ -3980,6 +3982,67 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
                 </p>
               )}
             </div>
+            {(() => {
+              const selectedStore = stores.find(
+                (s: any) => String(s.id) === String(inspForm.storeId ?? inspStoreId)
+              );
+              if (String(selectedStore?.storeType ?? "") !== "Silage Clamp") return null;
+              return (
+                <div className="col-span-2 grid grid-cols-2 gap-3 rounded-lg border border-amber-200 bg-amber-50/40 p-3">
+                  <p className="col-span-2 text-xs font-medium text-amber-800">
+                    Silage Clamp — additional checks (SSAFO)
+                  </p>
+                  <label
+                    style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.875rem", cursor: "pointer" }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={inspForm.effluentContained === "true"}
+                      onChange={(e) =>
+                        setInspForm((f) => ({
+                          ...f,
+                          effluentContained: e.target.checked ? "true" : "false",
+                        }))
+                      }
+                      style={{ width: 16, height: 16 }}
+                    />
+                    Effluent contained (no runoff)
+                  </label>
+                  <label
+                    style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.875rem", cursor: "pointer" }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={inspForm.coverSheetIntact === "true"}
+                      onChange={(e) =>
+                        setInspForm((f) => ({
+                          ...f,
+                          coverSheetIntact: e.target.checked ? "true" : "false",
+                        }))
+                      }
+                      style={{ width: 16, height: 16 }}
+                    />
+                    Cover sheet intact &amp; weighted
+                  </label>
+                  <label
+                    style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.875rem", cursor: "pointer" }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={inspForm.wallsSound === "true"}
+                      onChange={(e) =>
+                        setInspForm((f) => ({
+                          ...f,
+                          wallsSound: e.target.checked ? "true" : "false",
+                        }))
+                      }
+                      style={{ width: 16, height: 16 }}
+                    />
+                    Clamp walls sound (no cracks/leans)
+                  </label>
+                </div>
+              );
+            })()}
             <div className="col-span-2">
               <Label>Notes</Label>
               <Textarea
@@ -4304,6 +4367,573 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
               variant="destructive"
               onClick={() => deleteInspId !== null && deleteInspMut.mutate(deleteInspId)}
               disabled={deleteInspMut.isPending}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ── Silage & Haylage Tab ─────────────────────────────────────────────────────
+
+function SilageTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [additiveOpen, setAdditiveOpen] = useState(false);
+  const [editingAdditive, setEditingAdditive] = useState<Row | null>(null);
+  const [additiveForm, setAdditiveForm] = useState<Form>({});
+  const [deleteAdditiveId, setDeleteAdditiveId] = useState<number | null>(null);
+
+  const [qualityOpen, setQualityOpen] = useState(false);
+  const [editingQuality, setEditingQuality] = useState<Row | null>(null);
+  const [qualityForm, setQualityForm] = useState<Form>({});
+  const [deleteQualityId, setDeleteQualityId] = useState<number | null>(null);
+
+  const storesQ = useQuery({
+    queryKey: ["slurry-stores", farmId],
+    queryFn: () =>
+      fetch(`/api/farms/${farmId}/slurry-stores`, { credentials: "include" }).then((r) => r.json()),
+    select: (d: any) => (d.records ?? []) as Row[],
+  });
+  const stores = (storesQ.data ?? []).filter(
+    (s: any) => String(s.storeType ?? "") === "Silage Clamp"
+  );
+
+  const additivesQ = useQuery({
+    queryKey: ["silage-additives", farmId],
+    queryFn: () =>
+      fetch(`/api/farms/${farmId}/silage-additive-records`, { credentials: "include" }).then((r) =>
+        r.json()
+      ),
+    enabled: !!farmId,
+    select: (d: any) => (d.records ?? []) as Row[],
+  });
+
+  const qualityQ = useQuery({
+    queryKey: ["silage-quality-tests", farmId],
+    queryFn: () =>
+      fetch(`/api/farms/${farmId}/silage-quality-tests`, { credentials: "include" }).then((r) =>
+        r.json()
+      ),
+    enabled: !!farmId,
+    select: (d: any) => (d.records ?? []) as Row[],
+  });
+
+  const saveAdditiveMut = useMutation({
+    mutationFn: (body: Form) => {
+      const url = editingAdditive
+        ? `/api/farms/${farmId}/silage-additive-records/${editingAdditive.id}`
+        : `/api/farms/${farmId}/silage-additive-records`;
+      return fetch(url, {
+        method: editingAdditive ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["silage-additives", farmId] });
+      setAdditiveOpen(false);
+      setEditingAdditive(null);
+      setAdditiveForm({});
+      toast({ title: "Additive record saved" });
+    },
+    onError: () => toast({ title: "Failed to save additive record", variant: "destructive" }),
+  });
+
+  const deleteAdditiveMut = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`/api/farms/${farmId}/silage-additive-records/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["silage-additives", farmId] });
+      setDeleteAdditiveId(null);
+      toast({ title: "Additive record deleted" });
+    },
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  const saveQualityMut = useMutation({
+    mutationFn: (body: Form) => {
+      const url = editingQuality
+        ? `/api/farms/${farmId}/silage-quality-tests/${editingQuality.id}`
+        : `/api/farms/${farmId}/silage-quality-tests`;
+      return fetch(url, {
+        method: editingQuality ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["silage-quality-tests", farmId] });
+      setQualityOpen(false);
+      setEditingQuality(null);
+      setQualityForm({});
+      toast({ title: "Quality test saved" });
+    },
+    onError: () => toast({ title: "Failed to save quality test", variant: "destructive" }),
+  });
+
+  const deleteQualityMut = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`/api/farms/${farmId}/silage-quality-tests/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["silage-quality-tests", farmId] });
+      setDeleteQualityId(null);
+      toast({ title: "Quality test deleted" });
+    },
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  const additives = additivesQ.data ?? [];
+  const qualityTests = qualityQ.data ?? [];
+
+  const storeName = (id: unknown) =>
+    (storesQ.data ?? []).find((s: any) => Number(s.id) === Number(id))?.storeName ?? "—";
+
+  return (
+    <div className="space-y-6">
+      {/* ══ Silage Additive Records ═══════════════════════════════════════════ */}
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <h3 className="font-semibold">Silage / Haylage Additive Records</h3>
+          <Button
+            size="sm"
+            onClick={() => {
+              setEditingAdditive(null);
+              setAdditiveForm({ applicationDate: today });
+              setAdditiveOpen(true);
+            }}
+          >
+            <Plus className="w-4 h-4 mr-2" /> Add Record
+          </Button>
+        </div>
+        <div className="bg-white rounded-xl border border-border/50 shadow-sm overflow-x-auto">
+          {additivesQ.isLoading ? (
+            <div className="text-sm text-muted-foreground p-4">Loading…</div>
+          ) : additives.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic py-6 text-center">
+              No additive / inoculant records yet.
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-black/5 border-b">
+                <tr>
+                  {["Date", "Store", "Crop", "Product", "Rate", "Applied By", ""].map((h) => (
+                    <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {additives.map((r) => (
+                  <tr key={Number(r.id)} className="hover:bg-black/5">
+                    <td className="px-4 py-3">{fmt(r.applicationDate as string)}</td>
+                    <td className="px-4 py-3">{String(r.storeName ?? storeName(r.storeId))}</td>
+                    <td className="px-4 py-3">{String(r.cropType ?? "—")}</td>
+                    <td className="px-4 py-3">{String(r.productName ?? "—")}</td>
+                    <td className="px-4 py-3">{String(r.applicationRate ?? "—")}</td>
+                    <td className="px-4 py-3">{String(r.appliedBy ?? "—")}</td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditingAdditive(r);
+                          setAdditiveForm(
+                            Object.fromEntries(
+                              Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])
+                            )
+                          );
+                          setAdditiveOpen(true);
+                        }}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => setDeleteAdditiveId(Number(r.id))}>
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* ══ Silage Quality / DM% Tests ════════════════════════════════════════ */}
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <h3 className="font-semibold">Silage Quality &amp; Dry Matter Tests</h3>
+          <Button
+            size="sm"
+            onClick={() => {
+              setEditingQuality(null);
+              setQualityForm({ testDate: today });
+              setQualityOpen(true);
+            }}
+          >
+            <Plus className="w-4 h-4 mr-2" /> Add Test
+          </Button>
+        </div>
+        <div className="bg-white rounded-xl border border-border/50 shadow-sm overflow-x-auto">
+          {qualityQ.isLoading ? (
+            <div className="text-sm text-muted-foreground p-4">Loading…</div>
+          ) : qualityTests.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic py-6 text-center">
+              No quality test records yet.
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-black/5 border-b">
+                <tr>
+                  {["Date", "Store", "DM %", "pH", "ME (MJ/kg)", "Crude Protein %", "Lab", ""].map((h) => (
+                    <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {qualityTests.map((r) => (
+                  <tr key={Number(r.id)} className="hover:bg-black/5">
+                    <td className="px-4 py-3">{fmt(r.testDate as string)}</td>
+                    <td className="px-4 py-3">{String(r.storeName ?? storeName(r.storeId))}</td>
+                    <td className="px-4 py-3">{String(r.dryMatterPct ?? "—")}</td>
+                    <td className="px-4 py-3">{String(r.ph ?? "—")}</td>
+                    <td className="px-4 py-3">{String(r.metabolisableEnergy ?? "—")}</td>
+                    <td className="px-4 py-3">{String(r.crudeProteinPct ?? "—")}</td>
+                    <td className="px-4 py-3">{String(r.labName ?? "—")}</td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditingQuality(r);
+                          setQualityForm(
+                            Object.fromEntries(
+                              Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])
+                            )
+                          );
+                          setQualityOpen(true);
+                        }}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => setDeleteQualityId(Number(r.id))}>
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* ══ Additive dialog ═══════════════════════════════════════════════════ */}
+      <Dialog
+        open={additiveOpen}
+        onOpenChange={(o) => {
+          setAdditiveOpen(o);
+          if (!o) {
+            setEditingAdditive(null);
+            setAdditiveForm({});
+          }
+        }}
+      >
+        <DialogContent style={{ maxWidth: "40rem" }}>
+          <DialogHeader>
+            <DialogTitle>
+              {editingAdditive ? "Edit Additive Record" : "Add Silage Additive / Inoculant Record"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Application Date *</Label>
+              <Input
+                type="date"
+                max={today}
+                value={additiveForm.applicationDate ?? ""}
+                onChange={(e) => setAdditiveForm((f) => ({ ...f, applicationDate: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>Store / Clamp</Label>
+              <Select
+                value={additiveForm.storeId ?? ""}
+                onValueChange={(v) => setAdditiveForm((f) => ({ ...f, storeId: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select clamp…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stores.map((s: any) => (
+                    <SelectItem key={String(s.id)} value={String(s.id)}>
+                      {String(s.storeName)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Crop Type</Label>
+              <Select
+                value={additiveForm.cropType ?? ""}
+                onValueChange={(v) => setAdditiveForm((f) => ({ ...f, cropType: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select crop…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Grass Silage">Grass Silage</SelectItem>
+                  <SelectItem value="Maize Silage">Maize Silage</SelectItem>
+                  <SelectItem value="Wholecrop">Wholecrop</SelectItem>
+                  <SelectItem value="Haylage">Haylage</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Product Name *</Label>
+              <Input
+                value={additiveForm.productName ?? ""}
+                onChange={(e) => setAdditiveForm((f) => ({ ...f, productName: e.target.value }))}
+                placeholder="e.g. Ecosyl, Magniva, propionic acid"
+              />
+            </div>
+            <div>
+              <Label>Additive Type</Label>
+              <Select
+                value={additiveForm.additiveType ?? ""}
+                onValueChange={(v) => setAdditiveForm((f) => ({ ...f, additiveType: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Bacterial Inoculant">Bacterial Inoculant</SelectItem>
+                  <SelectItem value="Acid-based">Acid-based</SelectItem>
+                  <SelectItem value="Enzyme">Enzyme</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Application Rate</Label>
+              <Input
+                value={additiveForm.applicationRate ?? ""}
+                onChange={(e) => setAdditiveForm((f) => ({ ...f, applicationRate: e.target.value }))}
+                placeholder="e.g. 3L/tonne"
+              />
+            </div>
+            <div>
+              <Label>Batch / Lot Number</Label>
+              <Input
+                value={additiveForm.batchNumber ?? ""}
+                onChange={(e) => setAdditiveForm((f) => ({ ...f, batchNumber: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>Applied By</Label>
+              <Input
+                value={additiveForm.appliedBy ?? ""}
+                onChange={(e) => setAdditiveForm((f) => ({ ...f, appliedBy: e.target.value }))}
+              />
+            </div>
+            <div className="col-span-2">
+              <Label>Notes</Label>
+              <Textarea
+                value={additiveForm.notes ?? ""}
+                onChange={(e) => setAdditiveForm((f) => ({ ...f, notes: e.target.value }))}
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdditiveOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!additiveForm.applicationDate || !additiveForm.productName || saveAdditiveMut.isPending}
+              onClick={() => saveAdditiveMut.mutate(additiveForm)}
+            >
+              {editingAdditive ? "Save Changes" : "Save Record"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══ Quality test dialog ═══════════════════════════════════════════════ */}
+      <Dialog
+        open={qualityOpen}
+        onOpenChange={(o) => {
+          setQualityOpen(o);
+          if (!o) {
+            setEditingQuality(null);
+            setQualityForm({});
+          }
+        }}
+      >
+        <DialogContent style={{ maxWidth: "40rem" }}>
+          <DialogHeader>
+            <DialogTitle>
+              {editingQuality ? "Edit Quality Test" : "Add Silage Quality / DM% Test"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Test Date *</Label>
+              <Input
+                type="date"
+                max={today}
+                value={qualityForm.testDate ?? ""}
+                onChange={(e) => setQualityForm((f) => ({ ...f, testDate: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>Store / Clamp</Label>
+              <Select
+                value={qualityForm.storeId ?? ""}
+                onValueChange={(v) => setQualityForm((f) => ({ ...f, storeId: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select clamp…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stores.map((s: any) => (
+                    <SelectItem key={String(s.id)} value={String(s.id)}>
+                      {String(s.storeName)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Dry Matter %</Label>
+              <Input
+                type="number"
+                step="0.1"
+                value={qualityForm.dryMatterPct ?? ""}
+                onChange={(e) => setQualityForm((f) => ({ ...f, dryMatterPct: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>pH</Label>
+              <Input
+                type="number"
+                step="0.1"
+                value={qualityForm.ph ?? ""}
+                onChange={(e) => setQualityForm((f) => ({ ...f, ph: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>Metabolisable Energy (MJ/kg DM)</Label>
+              <Input
+                type="number"
+                step="0.1"
+                value={qualityForm.metabolisableEnergy ?? ""}
+                onChange={(e) => setQualityForm((f) => ({ ...f, metabolisableEnergy: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>Crude Protein %</Label>
+              <Input
+                type="number"
+                step="0.1"
+                value={qualityForm.crudeProteinPct ?? ""}
+                onChange={(e) => setQualityForm((f) => ({ ...f, crudeProteinPct: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>Ammonia-N (% of total N)</Label>
+              <Input
+                type="number"
+                step="0.1"
+                value={qualityForm.ammoniaN ?? ""}
+                onChange={(e) => setQualityForm((f) => ({ ...f, ammoniaN: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>Lab / Analyser</Label>
+              <Input
+                value={qualityForm.labName ?? ""}
+                onChange={(e) => setQualityForm((f) => ({ ...f, labName: e.target.value }))}
+                placeholder="e.g. Trouw Nutrition, NIRS on-farm"
+              />
+            </div>
+            <div className="col-span-2">
+              <Label>Notes</Label>
+              <Textarea
+                value={qualityForm.notes ?? ""}
+                onChange={(e) => setQualityForm((f) => ({ ...f, notes: e.target.value }))}
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQualityOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!qualityForm.testDate || saveQualityMut.isPending}
+              onClick={() => saveQualityMut.mutate(qualityForm)}
+            >
+              {editingQuality ? "Save Changes" : "Save Test"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══ Delete confirms ═══════════════════════════════════════════════════ */}
+      <Dialog open={deleteAdditiveId !== null} onOpenChange={(o) => { if (!o) setDeleteAdditiveId(null); }}>
+        <DialogContent style={{ maxWidth: 400 }}>
+          <DialogHeader>
+            <DialogTitle>Delete Additive Record</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600 py-2">Delete this additive record? This cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteAdditiveId(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteAdditiveId !== null && deleteAdditiveMut.mutate(deleteAdditiveId)}
+              disabled={deleteAdditiveMut.isPending}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={deleteQualityId !== null} onOpenChange={(o) => { if (!o) setDeleteQualityId(null); }}>
+        <DialogContent style={{ maxWidth: 400 }}>
+          <DialogHeader>
+            <DialogTitle>Delete Quality Test</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600 py-2">Delete this quality test record? This cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteQualityId(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteQualityId !== null && deleteQualityMut.mutate(deleteQualityId)}
+              disabled={deleteQualityMut.isPending}
             >
               Delete
             </Button>

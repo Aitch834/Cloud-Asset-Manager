@@ -173,6 +173,8 @@ import {
   slurryStoreInspectionsTable,
   slurrySpreadingRecordsTable,
   slurryStoreFillEventsTable,
+  silageAdditiveRecordsTable,
+  silageQualityTestsTable,
   pigFlocksTable,
   pigMovementsTable,
   pigFciDocumentsTable,
@@ -21562,6 +21564,9 @@ router.get("/farms/:farmId/slurry-store-inspections", requireAuth, requireTenant
       deficiencies: slurryStoreInspectionsTable.deficiencies,
       actionsRequired: slurryStoreInspectionsTable.actionsRequired,
       nextInspectionDue: slurryStoreInspectionsTable.nextInspectionDue,
+      effluentContained: slurryStoreInspectionsTable.effluentContained,
+      coverSheetIntact: slurryStoreInspectionsTable.coverSheetIntact,
+      wallsSound: slurryStoreInspectionsTable.wallsSound,
       notes: slurryStoreInspectionsTable.notes,
       createdAt: slurryStoreInspectionsTable.createdAt,
     })
@@ -21574,12 +21579,15 @@ router.get("/farms/:farmId/slurry-store-inspections", requireAuth, requireTenant
 
 router.post("/farms/:farmId/slurry-store-inspections", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const { storeId, inspectionDate, inspectorName, inspectorOrganisation, outcome, freeboardOk, freeboardMm, leaksOrDamageFound, deficiencies, actionsRequired, nextInspectionDue, notes } = req.body;
+  const { storeId, inspectionDate, inspectorName, inspectorOrganisation, outcome, freeboardOk, freeboardMm, leaksOrDamageFound, deficiencies, actionsRequired, nextInspectionDue, effluentContained, coverSheetIntact, wallsSound, notes } = req.body;
   const [row] = await db.insert(slurryStoreInspectionsTable).values({
     farmId, storeId: Number(storeId), inspectionDate, inspectorName, inspectorOrganisation, outcome,
     freeboardOk: freeboardOk === true || freeboardOk === "true",
     freeboardMm: freeboardMm || null,
     leaksOrDamageFound: leaksOrDamageFound === true || leaksOrDamageFound === "true",
+    effluentContained: effluentContained === undefined ? null : (effluentContained === true || effluentContained === "true"),
+    coverSheetIntact: coverSheetIntact === undefined ? null : (coverSheetIntact === true || coverSheetIntact === "true"),
+    wallsSound: wallsSound === undefined ? null : (wallsSound === true || wallsSound === "true"),
     deficiencies, actionsRequired, nextInspectionDue: nextInspectionDue || null, notes,
   }).returning();
   // Update parent store's lastInspectionDate and nextInspectionDue
@@ -21616,13 +21624,16 @@ router.post("/farms/:farmId/slurry-store-inspections", requireAuth, requireTenan
 router.put("/farms/:farmId/slurry-store-inspections/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const { storeId, inspectionDate, inspectorName, inspectorOrganisation, outcome, freeboardOk, freeboardMm, leaksOrDamageFound, deficiencies, actionsRequired, nextInspectionDue, notes } = req.body;
+  const { storeId, inspectionDate, inspectorName, inspectorOrganisation, outcome, freeboardOk, freeboardMm, leaksOrDamageFound, deficiencies, actionsRequired, nextInspectionDue, effluentContained, coverSheetIntact, wallsSound, notes } = req.body;
   const [row] = await db.update(slurryStoreInspectionsTable).set({
     storeId: storeId ? Number(storeId) : undefined,
     inspectionDate, inspectorName, inspectorOrganisation, outcome,
     freeboardOk: freeboardOk === true || freeboardOk === "true",
     freeboardMm: freeboardMm || null,
     leaksOrDamageFound: leaksOrDamageFound === true || leaksOrDamageFound === "true",
+    effluentContained: effluentContained === undefined ? null : (effluentContained === true || effluentContained === "true"),
+    coverSheetIntact: coverSheetIntact === undefined ? null : (coverSheetIntact === true || coverSheetIntact === "true"),
+    wallsSound: wallsSound === undefined ? null : (wallsSound === true || wallsSound === "true"),
     deficiencies, actionsRequired, nextInspectionDue: nextInspectionDue || null, notes,
   }).where(and(eq(slurryStoreInspectionsTable.id, id), eq(slurryStoreInspectionsTable.farmId, farmId))).returning();
   if (row && inspectionDate) {
@@ -21638,6 +21649,119 @@ router.delete("/farms/:farmId/slurry-store-inspections/:id", requireAuth, requir
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(slurryStoreInspectionsTable).where(and(eq(slurryStoreInspectionsTable.id, id), eq(slurryStoreInspectionsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/silage-additive-records", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db
+    .select({
+      id: silageAdditiveRecordsTable.id,
+      farmId: silageAdditiveRecordsTable.farmId,
+      storeId: silageAdditiveRecordsTable.storeId,
+      storeName: slurryStoresTable.storeName,
+      applicationDate: silageAdditiveRecordsTable.applicationDate,
+      cropType: silageAdditiveRecordsTable.cropType,
+      productName: silageAdditiveRecordsTable.productName,
+      batchNumber: silageAdditiveRecordsTable.batchNumber,
+      applicationRate: silageAdditiveRecordsTable.applicationRate,
+      coshhAssessed: silageAdditiveRecordsTable.coshhAssessed,
+      operatorName: silageAdditiveRecordsTable.operatorName,
+      notes: silageAdditiveRecordsTable.notes,
+      createdAt: silageAdditiveRecordsTable.createdAt,
+    })
+    .from(silageAdditiveRecordsTable)
+    .leftJoin(slurryStoresTable, eq(silageAdditiveRecordsTable.storeId, slurryStoresTable.id))
+    .where(eq(silageAdditiveRecordsTable.farmId, farmId))
+    .orderBy(desc(silageAdditiveRecordsTable.applicationDate));
+  res.json({ records: rows });
+});
+
+router.post("/farms/:farmId/silage-additive-records", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { storeId, applicationDate, cropType, productName, batchNumber, applicationRate, coshhAssessed, operatorName, notes } = req.body;
+  const [row] = await db.insert(silageAdditiveRecordsTable).values({
+    farmId, storeId: storeId ? Number(storeId) : null, applicationDate, cropType, productName, batchNumber, applicationRate,
+    coshhAssessed: coshhAssessed === true || coshhAssessed === "true",
+    operatorName, notes,
+  }).returning();
+  res.json(row);
+});
+
+router.put("/farms/:farmId/silage-additive-records/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { storeId, applicationDate, cropType, productName, batchNumber, applicationRate, coshhAssessed, operatorName, notes } = req.body;
+  const [row] = await db.update(silageAdditiveRecordsTable).set({
+    storeId: storeId ? Number(storeId) : null, applicationDate, cropType, productName, batchNumber, applicationRate,
+    coshhAssessed: coshhAssessed === true || coshhAssessed === "true",
+    operatorName, notes,
+  }).where(and(eq(silageAdditiveRecordsTable.id, id), eq(silageAdditiveRecordsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/silage-additive-records/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(silageAdditiveRecordsTable).where(and(eq(silageAdditiveRecordsTable.id, id), eq(silageAdditiveRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/silage-quality-tests", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db
+    .select({
+      id: silageQualityTestsTable.id,
+      farmId: silageQualityTestsTable.farmId,
+      storeId: silageQualityTestsTable.storeId,
+      storeName: slurryStoresTable.storeName,
+      testDate: silageQualityTestsTable.testDate,
+      cropType: silageQualityTestsTable.cropType,
+      dryMatterPercent: silageQualityTestsTable.dryMatterPercent,
+      phLevel: silageQualityTestsTable.phLevel,
+      mePerKgDm: silageQualityTestsTable.mePerKgDm,
+      crudeProteinPercent: silageQualityTestsTable.crudeProteinPercent,
+      ammoniaNPercent: silageQualityTestsTable.ammoniaNPercent,
+      labName: silageQualityTestsTable.labName,
+      notes: silageQualityTestsTable.notes,
+      createdAt: silageQualityTestsTable.createdAt,
+    })
+    .from(silageQualityTestsTable)
+    .leftJoin(slurryStoresTable, eq(silageQualityTestsTable.storeId, slurryStoresTable.id))
+    .where(eq(silageQualityTestsTable.farmId, farmId))
+    .orderBy(desc(silageQualityTestsTable.testDate));
+  res.json({ records: rows });
+});
+
+router.post("/farms/:farmId/silage-quality-tests", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { storeId, testDate, cropType, dryMatterPercent, phLevel, mePerKgDm, crudeProteinPercent, ammoniaNPercent, labName, notes } = req.body;
+  const [row] = await db.insert(silageQualityTestsTable).values({
+    farmId, storeId: storeId ? Number(storeId) : null, testDate, cropType,
+    dryMatterPercent: dryMatterPercent || null, phLevel: phLevel || null, mePerKgDm: mePerKgDm || null,
+    crudeProteinPercent: crudeProteinPercent || null, ammoniaNPercent: ammoniaNPercent || null,
+    labName, notes,
+  }).returning();
+  res.json(row);
+});
+
+router.put("/farms/:farmId/silage-quality-tests/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { storeId, testDate, cropType, dryMatterPercent, phLevel, mePerKgDm, crudeProteinPercent, ammoniaNPercent, labName, notes } = req.body;
+  const [row] = await db.update(silageQualityTestsTable).set({
+    storeId: storeId ? Number(storeId) : null, testDate, cropType,
+    dryMatterPercent: dryMatterPercent || null, phLevel: phLevel || null, mePerKgDm: mePerKgDm || null,
+    crudeProteinPercent: crudeProteinPercent || null, ammoniaNPercent: ammoniaNPercent || null,
+    labName, notes,
+  }).where(and(eq(silageQualityTestsTable.id, id), eq(silageQualityTestsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/silage-quality-tests/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(silageQualityTestsTable).where(and(eq(silageQualityTestsTable.id, id), eq(silageQualityTestsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
