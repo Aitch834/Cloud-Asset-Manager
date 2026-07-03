@@ -20,3 +20,5 @@
 - [Mobile sync-engine endpoint map gaps](mobile-sync-endpoint-map.md) — a mobile screen can be fully built (form + local save) yet silently never reach the server if its storage key is missing from getSyncEndpoint()'s typeMap in sync-engine.ts; always check both when adding a new offline record type
 - [Silage/slurry field-name conventions](silage-slurry-field-names.md) — dryMatterPercent/phLevel/mePerKgDm/crudeProteinPercent/operatorName, not the abbreviated names UI labels suggest; verify against farms.ts selects
 - [LIS LIP Cattle test data](lis-lip-cattle-test-data.md) — 2 users, 14 CPHs, ~250 unallocated cattle tags each provided 3 Jul 2026; different sandbox tenant naming than sheep/goat data; blocked on LIP subscription approval
+- [API dev-bypass auth for direct testing](api-dev-bypass-auth.md) — x-dev-bypass + x-tenant-slug headers let you curl api-server endpoints directly, bypassing Clerk, to verify backend changes
+- [Testing agent phantom "Sign In with Replit"](testing-agent-phantom-replit-login.md) — runTest can get stuck on a nonexistent Replit-login button/404; not a real app bug, fall back to dev-bypass verification

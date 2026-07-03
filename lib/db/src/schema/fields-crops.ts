@@ -88,6 +88,7 @@ export const fieldCropAssignmentsTable = pgTable("field_crop_assignments", {
   season: text("season"),
   year: integer("year"),
   notes: text("notes"),
+  reasonTags: text("reason_tags").array(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

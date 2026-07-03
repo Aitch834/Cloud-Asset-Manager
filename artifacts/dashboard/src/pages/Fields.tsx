@@ -4093,8 +4093,19 @@ const CROP_CATEGORY: Record<string, string> = {
 type CropRec = { id: number; cropId?: number; name: string; variety?: string | null; category?: string | null };
 type AssignmentRec = {
   id: number; fieldId: number; varietyId: number; cropId?: number; cropName: string; variety?: string | null;
-  year: number | null; season: string | null; notes: string | null;
+  year: number | null; season: string | null; notes: string | null; reasonTags?: string[] | null;
 };
+
+const REASON_TAG_OPTIONS = [
+  "Disease/pest break",
+  "Blackgrass/weed control",
+  "Soil health/organic matter",
+  "Market price",
+  "Agronomist recommendation",
+  "Rotation requirement",
+  "Contract/quota commitment",
+  "Other",
+] as const;
 
 function getCropColor(name: string): string {
   if (ROTATION_COLORS[name]) return ROTATION_COLORS[name];
@@ -4128,9 +4139,10 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
 
   const [savingCell, setSavingCell] = useState<string | null>(null);
   const [localOverrides, setLocalOverrides] = useState<Record<string, string | null>>({});
-  const [fieldNotes, setFieldNotes] = useState<Record<number, string>>({});
-  const [savingNotes, setSavingNotes] = useState<Record<number, boolean>>({});
-  const [expandedNotesId, setExpandedNotesId] = useState<number | null>(null);
+  const [fieldNotes, setFieldNotes] = useState<Record<string, string>>({});
+  const [fieldReasonTags, setFieldReasonTags] = useState<Record<string, string[]>>({});
+  const [savingNotes, setSavingNotes] = useState<Record<string, boolean>>({});
+  const [expandedNotesKey, setExpandedNotesKey] = useState<string | null>(null);
   const [showRotationMgr, setShowRotationMgr] = useState(false);
   const [showSecondCropFor, setShowSecondCropFor] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -4152,8 +4164,19 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
     setFieldNotes(prev => {
       const merged = { ...prev };
       for (const a of assignmentsQ.data?.records ?? []) {
-        if (a.notes && a.fieldId && !(a.fieldId in merged)) {
-          merged[a.fieldId] = a.notes;
+        if (a.fieldId && a.year) {
+          const k = `${a.fieldId}:${a.year}`;
+          if (a.notes && !(k in merged)) merged[k] = a.notes;
+        }
+      }
+      return merged;
+    });
+    setFieldReasonTags(prev => {
+      const merged = { ...prev };
+      for (const a of assignmentsQ.data?.records ?? []) {
+        if (a.fieldId && a.year) {
+          const k = `${a.fieldId}:${a.year}`;
+          if (a.reasonTags && a.reasonTags.length > 0 && !(k in merged)) merged[k] = a.reasonTags;
         }
       }
       return merged;
@@ -4333,23 +4356,34 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
     await qc.invalidateQueries({ queryKey: ["crops-planner", farmId] });
   };
 
-  const handleSaveNotes = async (fieldId: number) => {
-    const notes = fieldNotes[fieldId] ?? "";
-    const assignment = assignmentMap[`${fieldId}:${currentYear}`]?.[0];
+  const handleSaveNotes = async (fieldId: number, year: number) => {
+    const key = `${fieldId}:${year}`;
+    const notes = fieldNotes[key] ?? "";
+    const reasonTags = fieldReasonTags[key] ?? [];
+    const assignment = assignmentMap[key]?.[0];
     if (!assignment) return;
-    setSavingNotes(p => ({ ...p, [fieldId]: true }));
+    setSavingNotes(p => ({ ...p, [key]: true }));
     try {
       await fetch(`/api/farms/${farmId}/field-crops/${assignment.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes }),
+        body: JSON.stringify({ notes, reasonTags }),
       });
       await qc.invalidateQueries({ queryKey: ["field-crops-planner", farmId] });
     } catch {
       toast({ title: "Failed to save notes", variant: "destructive" });
     } finally {
-      setSavingNotes(p => ({ ...p, [fieldId]: false }));
+      setSavingNotes(p => ({ ...p, [key]: false }));
     }
+  };
+
+  const toggleReasonTag = (fieldId: number, year: number, tag: string) => {
+    const key = `${fieldId}:${year}`;
+    setFieldReasonTags(prev => {
+      const existing = prev[key] ?? [];
+      const next = existing.includes(tag) ? existing.filter(t => t !== tag) : [...existing, tag];
+      return { ...prev, [key]: next };
+    });
   };
 
   const isLoading = fieldsLoading || assignmentsQ.isLoading || cropsQ.isLoading;
@@ -4434,7 +4468,7 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
       <div className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-800">
         <Sprout className="w-4 h-4 mt-0.5 shrink-0" />
         <div>
-          <strong>Crop Rotation Planner</strong> — Assign crops from your Crops Register to each field and year. Past years are read-only to protect your compliance records.
+          <strong>Crop Rotation Planner</strong> — Assign crops from your Crops Register to each field and year. Past years' crop choices are read-only to protect your compliance records, but you can still add or edit notes and reason tags for any year via the note icon.
           Future years show your plan; the current year is highlighted in green. Avoid continuous cropping — OSR should not return to the same field more than once in 4 years.
           Colours are guided by the rotation type legend below.
         </div>
@@ -4482,52 +4516,34 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
             <tbody>
               {activeFields.map((field, fi) => {
                 const metrics = fieldMetrics[fi];
-                const isNotesExpanded = expandedNotesId === field.id;
-                const hasCurrentAssignment = (assignmentMap[`${field.id}:${currentYear}`]?.length ?? 0) > 0;
-                const existingNotes = assignmentMap[`${field.id}:${currentYear}`]?.[0]?.notes ?? "";
+                const isNotesExpanded = expandedNotesKey?.startsWith(`${field.id}:`) ?? false;
+                const expandedYear = isNotesExpanded ? Number(expandedNotesKey!.split(":")[1]) : null;
                 const colSpan = 1 + YEARS.length;
                 return (
                   <React.Fragment key={field.id}>
                     <tr className={fi < activeFields.length - 1 && !isNotesExpanded ? "border-b border-gray-100" : ""}>
                       {/* Field name cell */}
                       <td className="px-3 py-2 sticky left-0 bg-white border-r border-gray-100 z-10">
-                        <div className="flex items-start justify-between gap-1">
-                          <div>
-                            <div className="font-medium text-gray-800 text-sm leading-tight">
-                              {field.name ?? `Field ${field.id}`}
-                            </div>
-                            {field.areaHectares && (
-                              <div className="text-[11px] text-gray-400 mt-0.5">
-                                {parseFloat(String(field.areaHectares)).toFixed(1)} ha
-                              </div>
-                            )}
-                            {(metrics?.diversity ?? 0) >= 3 && (
-                              <div className="text-[11px] text-green-600 mt-0.5">✓ {metrics?.diversity} crops — good diversity</div>
-                            )}
-                            {(metrics?.diversity ?? 0) === 2 && (
-                              <div className="text-[11px] text-amber-600 mt-0.5">⚠ 2 crops — low diversity</div>
-                            )}
-                            {(metrics?.diversity ?? 0) === 1 && (
-                              <div className="text-[11px] text-red-500 mt-0.5">⚠ Monoculture risk</div>
-                            )}
-                            {metrics?.osrTooClose && (
-                              <div className="text-[11px] text-amber-600">⚠ OSR too frequent</div>
-                            )}
-                          </div>
-                          <button
-                            title={isNotesExpanded ? "Hide notes" : "Show / edit notes"}
-                            onClick={() => setExpandedNotesId(isNotesExpanded ? null : field.id)}
-                            className={`flex-shrink-0 mt-0.5 p-0.5 rounded transition-colors ${
-                              isNotesExpanded
-                                ? "text-green-600 bg-green-50"
-                                : existingNotes
-                                  ? "text-green-500 hover:text-green-700"
-                                  : "text-gray-300 hover:text-gray-500"
-                            }`}
-                          >
-                            <StickyNote className="w-3.5 h-3.5" />
-                          </button>
+                        <div className="font-medium text-gray-800 text-sm leading-tight">
+                          {field.name ?? `Field ${field.id}`}
                         </div>
+                        {field.areaHectares && (
+                          <div className="text-[11px] text-gray-400 mt-0.5">
+                            {parseFloat(String(field.areaHectares)).toFixed(1)} ha
+                          </div>
+                        )}
+                        {(metrics?.diversity ?? 0) >= 3 && (
+                          <div className="text-[11px] text-green-600 mt-0.5">✓ {metrics?.diversity} crops — good diversity</div>
+                        )}
+                        {(metrics?.diversity ?? 0) === 2 && (
+                          <div className="text-[11px] text-amber-600 mt-0.5">⚠ 2 crops — low diversity</div>
+                        )}
+                        {(metrics?.diversity ?? 0) === 1 && (
+                          <div className="text-[11px] text-red-500 mt-0.5">⚠ Monoculture risk</div>
+                        )}
+                        {metrics?.osrTooClose && (
+                          <div className="text-[11px] text-amber-600">⚠ OSR too frequent</div>
+                        )}
                       </td>
                       {/* Year cells */}
                       {YEARS.map(y => {
@@ -4657,6 +4673,21 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
                                 title="Saved crop history record"
                               />
                             )}
+                            {hasRecord && !isSaving && (
+                              <button
+                                title={expandedNotesKey === key ? "Hide notes" : "Show / edit notes for this year"}
+                                onClick={() => setExpandedNotesKey(expandedNotesKey === key ? null : key)}
+                                className={`absolute bottom-0.5 left-0.5 p-0.5 rounded transition-colors ${
+                                  expandedNotesKey === key
+                                    ? "text-green-600 bg-green-100"
+                                    : (assignmentMap[key]?.[0]?.notes || (assignmentMap[key]?.[0]?.reasonTags?.length ?? 0) > 0)
+                                      ? "text-green-500 hover:text-green-700"
+                                      : "text-gray-300 hover:text-gray-500"
+                                }`}
+                              >
+                                <StickyNote className="w-3 h-3" />
+                              </button>
+                            )}
                           </td>
                         );
                       })}
@@ -4665,44 +4696,74 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
                     {isNotesExpanded && (
                       <tr className="border-b border-gray-100 bg-gray-50/60">
                         <td colSpan={colSpan} className="px-4 py-3">
-                          <div className="flex items-start gap-3">
-                            <StickyNote className="w-3.5 h-3.5 text-green-500 mt-1.5 shrink-0" />
-                            <div className="flex-1">
-                              <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                                Notes — {field.name ?? `Field ${field.id}`} ({currentYear} season)
-                              </p>
-                              {hasCurrentAssignment ? (
-                                <div className="space-y-2">
-                                  <textarea
-                                    className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-green-400 bg-white resize-y"
-                                    rows={3}
-                                    placeholder="Enter rotation notes for this field — variety choice, break crop reason, disease pressure, ground conditions…"
-                                    value={fieldNotes[field.id] ?? ""}
-                                    onChange={e => setFieldNotes(p => ({ ...p, [field.id]: e.target.value }))}
-                                    onBlur={() => handleSaveNotes(field.id)}
-                                  />
-                                  <div className="flex items-center gap-3">
-                                    <Button
-                                      size="sm"
-                                      onClick={() => void handleSaveNotes(field.id)}
-                                      disabled={savingNotes[field.id]}
-                                      className="h-7 text-xs"
-                                    >
-                                      {savingNotes[field.id] ? (
-                                        <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-                                      ) : (
-                                        <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                                      )}
-                                      Save notes
-                                    </Button>
-                                    <span className="text-xs text-gray-400">Also saves automatically when you click away</span>
-                                  </div>
+                          {(() => {
+                            const y = expandedYear as number;
+                            const noteKey = `${field.id}:${y}`;
+                            const hasAssignment = (assignmentMap[noteKey]?.length ?? 0) > 0;
+                            const selectedTags = fieldReasonTags[noteKey] ?? [];
+                            return (
+                              <div className="flex items-start gap-3">
+                                <StickyNote className="w-3.5 h-3.5 text-green-500 mt-1.5 shrink-0" />
+                                <div className="flex-1">
+                                  <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                                    Notes — {field.name ?? `Field ${field.id}`} ({y} season)
+                                  </p>
+                                  {hasAssignment ? (
+                                    <div className="space-y-2">
+                                      <div>
+                                        <p className="text-[10px] text-gray-400 mb-1">Why this crop? (select any that apply)</p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {REASON_TAG_OPTIONS.map(tag => {
+                                            const active = selectedTags.includes(tag);
+                                            return (
+                                              <button
+                                                key={tag}
+                                                type="button"
+                                                onClick={() => toggleReasonTag(field.id, y, tag)}
+                                                className={`text-[10px] px-2 py-1 rounded-full border transition-colors ${
+                                                  active
+                                                    ? "bg-green-100 border-green-300 text-green-700 font-medium"
+                                                    : "bg-white border-gray-200 text-gray-500 hover:border-green-300 hover:text-green-600"
+                                                }`}
+                                              >
+                                                {tag}
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                      <textarea
+                                        className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-green-400 bg-white resize-y"
+                                        rows={3}
+                                        placeholder="Enter rotation notes for this field — variety choice, break crop reason, disease pressure, ground conditions…"
+                                        value={fieldNotes[noteKey] ?? ""}
+                                        onChange={e => setFieldNotes(p => ({ ...p, [noteKey]: e.target.value }))}
+                                        onBlur={() => handleSaveNotes(field.id, y)}
+                                      />
+                                      <div className="flex items-center gap-3">
+                                        <Button
+                                          size="sm"
+                                          onClick={() => void handleSaveNotes(field.id, y)}
+                                          disabled={savingNotes[noteKey]}
+                                          className="h-7 text-xs"
+                                        >
+                                          {savingNotes[noteKey] ? (
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                                          ) : (
+                                            <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                                          )}
+                                          Save notes
+                                        </Button>
+                                        <span className="text-xs text-gray-400">Also saves automatically when you click away</span>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-gray-400 italic">Assign a crop to {y} before adding notes.</p>
+                                  )}
                                 </div>
-                              ) : (
-                                <p className="text-xs text-gray-400 italic">Assign a crop to {currentYear} before adding notes.</p>
-                              )}
-                            </div>
-                          </div>
+                              </div>
+                            );
+                          })()}
                         </td>
                       </tr>
                     )}

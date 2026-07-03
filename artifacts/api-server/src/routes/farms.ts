@@ -1246,6 +1246,7 @@ router.get("/farms/:farmId/field-crops", requireAuth, requireTenant, requireModu
       year: fieldCropAssignmentsTable.year,
       variety: cropVarietiesTable.variety,
       notes: fieldCropAssignmentsTable.notes,
+      reasonTags: fieldCropAssignmentsTable.reasonTags,
       createdAt: fieldCropAssignmentsTable.createdAt,
       // Earliest actual harvest date recorded against this assignment, if any.
       // Returned as a string (ISO date) or null when no harvest record exists.
@@ -1286,6 +1287,11 @@ router.patch("/farms/:farmId/field-crops/:id", requireAuth, requireTenant, requi
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const allowed: Record<string, unknown> = {};
   if (req.body.notes !== undefined) allowed.notes = req.body.notes || null;
+  if (req.body.reasonTags !== undefined) {
+    allowed.reasonTags = Array.isArray(req.body.reasonTags) && req.body.reasonTags.length > 0
+      ? req.body.reasonTags.map((t: unknown) => String(t))
+      : null;
+  }
   if (req.body.varietyId !== undefined) {
     const varietyId = Number(req.body.varietyId);
     if (isNaN(varietyId)) { res.status(400).json({ error: "Invalid varietyId" }); return; }
