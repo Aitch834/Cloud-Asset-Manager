@@ -16236,7 +16236,12 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   }
   for (const r of slurryInspRows) {
     if (!r.nextInspectionDue) continue;
-    tasks.push({ id: `slurryinsp-${r.id}`, type: "slurry_store_inspection", title: `Slurry Store Inspection Due — ${r.storeName}`, description: `The ${r.storeType} slurry store '${r.storeName}' is due for its inspection. Check integrity, freeboard, and leakage and update the record in Environmental → Slurry & Manure.`, dueDate: toISO(r.nextInspectionDue)!, module: "Environmental", href: `/environmental?tab=slurry&open=${r.id}`, colour: "orange" });
+    const isSilageClamp = /silage/i.test(String(r.storeType || ""));
+    const label = isSilageClamp ? "Silage Clamp" : "Slurry Store";
+    const detail = isSilageClamp
+      ? `The silage clamp '${r.storeName}' is due for its inspection. Check effluent containment, cover sheet integrity, and wall soundness and update the record in Environmental → Slurry & Manure.`
+      : `The ${r.storeType} slurry store '${r.storeName}' is due for its inspection. Check integrity, freeboard, and leakage and update the record in Environmental → Slurry & Manure.`;
+    tasks.push({ id: `slurryinsp-${r.id}`, type: "slurry_store_inspection", title: `${label} Inspection Due — ${r.storeName}`, description: detail, dueDate: toISO(r.nextInspectionDue)!, module: "Environmental", href: `/environmental?tab=slurry&open=${r.id}`, colour: "orange" });
   }
   for (const r of boreholeTestDueRows) {
     if (!r.nextTestDueDate) continue;
