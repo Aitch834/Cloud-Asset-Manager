@@ -16,3 +16,4 @@
 - [LIS OAuth HMAC state — no DB nonce](lis-oauth-hmac.md) — OAuth state is HMAC-SHA256 signed (not DB-stored); use createHmac/timingSafeEqual from "crypto" import, NOT global crypto
 - [Dashboard local build — PORT+BASE_PATH required](dashboard-local-build.md) — dashboard vite build needs both PORT and BASE_PATH: PORT=3000 BASE_PATH=/dashboard/ pnpm --filter @workspace/dashboard run build
 - [Enterprise reports — medicine cost gap](enterprise-reports-medicine.md) — livestockMedicineRecordsTable has NO unitCostPence and NO species field; medicine costs unqueryable; note as "add via Financial"
+- [Help article TITLES/CONTENT index-drift risk](help-articles-title-content-drift.md) — positional array pairing in defaultHelpArticles.ts silently mispairs title/content on any mid-array insert; verify by h2-vs-title match, and DB seed only inserts missing slugs (never overwrites)

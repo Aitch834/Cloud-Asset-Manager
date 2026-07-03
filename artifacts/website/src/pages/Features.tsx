@@ -95,6 +95,7 @@ const sections: Section[] = [
         features: [
           "GPS boundary mapping",
           "Crop rotation history",
+          "Black-grass Five-in-Five tracker — scores each flagged field's cultural control diversity against the five recognised pillars (rotational ploughing, delayed drilling, spring cropping, higher seed rate, fallow/cover crop) over its last five seasons; flags herbicide MOA/HRAC group repetition risk and rolls up at-risk fields farm-wide in the Season Production Report",
           "Seed drilling records — crop variety, seed lot, rate & treatment",
           "Harvest audit trail — transport, storage & yield",
           "Planned vs. actual harvest cross-referencing",
@@ -635,6 +636,8 @@ const sections: Section[] = [
           "Input cost logging — invoice reference, supplier, cost category and VAT treatment for feed, seed, fertiliser, agrochemicals, fuel and sundry costs",
           "CSV export and Xero-compatible export for seamless handoff to your accountant",
           "Gross margin analysis by crop, full P&L income statement, input cost breakdown with category percentages",
+          "Enterprise cost-of-production reports — 7 dedicated reports (Dairy, Beef, Sheep, Pig, Poultry, Labour, and Fleet/Machinery) pulling together feed, medicine, labour, and fixed costs per enterprise to show cost per litre, per head, or per bird, alongside a Season Reports profitability rollup with prorated rent and overhead allocation across enterprises",
+          "Delivery-linked input costing — link feed, fertiliser, and input deliveries directly to the enterprise or field they were used on, so actual delivered cost (not list price) flows straight into the enterprise cost-of-production reports and gross margin figures",
           "Grain position — harvested vs moved vs in store",
           "Agri-environment & subsidy income summary; year-on-year comparison across up to 5 seasons",
           "Asset register with straight-line depreciation",

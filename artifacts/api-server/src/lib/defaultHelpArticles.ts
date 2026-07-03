@@ -215,7 +215,7 @@ const TITLES: [string, string][] = [
   ["Winery Excise & Duty Returns — HMRC Wine Duty Register, Payment Status and Return Period Tracking", "Viticulture"],
   ["Winery Tastings & Tours — Cellar Door Event Register, Attendee Counts and Session Revenue", "Viticulture"],
   ["Winery Age Verification (Challenge 25) — ID Check Register, Outcome Log and Compliance Audit Trail", "Viticulture"],
-  ["Wine Production — SO\u2082 Compliance, Additive Records and Organic Wine Certification per Vintage", "Viticulture"],
+  ["Wine Production — SO₂ Compliance, Additive Records and Organic Wine Certification per Vintage", "Viticulture"],
   ["Organic Livestock — Feed Records Log, Date Defaults & Species-Filtered Herd Selector", "Organic"],
   ["Organic Livestock — Feed Derogations: Case Management, Correspondence Log & Document Storage", "Organic"],
   ["Organic Livestock — Outdoor Access Log, Herd Register Cascade & Compliance Status", "Organic"],
@@ -281,9 +281,15 @@ const TITLES: [string, string][] = [
   ["Invoice Branding — Farm Logo, Company Details, VAT Number and Bank Information on Invoices", "Getting Started"],
   ["LIS One-Click Submission — Connecting Your Livestock Information Service Account", "Livestock"],
   ["LIS LIP One-Click Cattle Submission — Connecting via LIS Account Sign-In", "Livestock"],
+  ["Black-grass Five-in-Five Tracker — Cultural Control Scoring and Herbicide Resistance Risk", "Fields & Crops"],
+  ["Horticulture Module — Overview", "Horticulture"],
+  ["Getting Started with Horticulture Records", "Horticulture"],
+  ["Horticulture Module — Crop Records, Sprays, and Assurance", "Horticulture"],
+  ["NMR Recording Visits — Herd Constituents, SCC and Fat:Protein Ratio Trends", "Livestock"],
 ];
 
 const CONTENT: [string, string][] = [
+  // 0 — Getting Started with Red Tractor Compliance
   // 0 — Getting Started with Red Tractor Compliance
   [
     "An introduction to Red Tractor Compliance on BDE Farm Trac, covering the setup wizard, module selection, and how records map to scheme standards.",
@@ -304,7 +310,7 @@ const CONTENT: [string, string][] = [
 <h3>Next steps</h3>
 <p>Once setup is complete, work through the following in order: add your fields to the Field Register, add your staff and their certificates to Staff &amp; Training, then begin recording spray applications, livestock movements, and medicine treatments. The Compliance Dashboard shows which areas still need attention.</p>`,
   ],
-
+  // 1 — Recording Spray Applications
   // 1 — Recording Spray Applications
   [
     "How to record a spray application in BDE Farm Trac, including operator certificates, product details, product cost, batch numbers, and weather conditions.",
@@ -327,7 +333,7 @@ const CONTENT: [string, string][] = [
 <h3>Exporting records</h3>
 <p>All spray records export to CSV from the Export button. The file includes all fields in a format compatible with Red Tractor evidence packs and BASIS consultant reporting.</p>`,
   ],
-
+  // 2 — Managing Your Field Register
   // 2 — Managing Your Field Register
   [
     "How to set up and maintain the Field Register in BDE Farm Trac, including field boundaries, soil type, NVZ status, and crop history.",
@@ -350,7 +356,7 @@ const CONTENT: [string, string][] = [
 <h3>Bulk import</h3>
 <p>If you have an existing spreadsheet of field data, contact the support team for assistance with a bulk import via CSV. Fields imported this way appear immediately in all pickers across the platform.</p>`,
   ],
-
+  // 3 — Equipment Service, MOT & Calibration Records
   // 3 — Equipment Service, MOT & Calibration Records
   [
     "How to record equipment services, MOTs, and calibration events in BDE Farm Trac to satisfy Red Tractor and BASIS audit requirements.",
@@ -367,7 +373,7 @@ const CONTENT: [string, string][] = [
 <h3>Defect reports</h3>
 <p>Pre-use defect checks can be logged from the mobile app or the dashboard. Each defect report captures the reporter, the defect description, urgency rating, and resolution status. Open defects appear as an action card on the Equipment page until marked as resolved.</p>`,
   ],
-
+  // 4 — Livestock Movement Records
   // 4 — Livestock Movement Records
   [
     "How to record on-farm and off-farm livestock movements in BDE Farm Trac to comply with BCMS, ScotEID, and APHA reporting requirements.",
@@ -387,7 +393,7 @@ const CONTENT: [string, string][] = [
 <h3>Linking to sales records</h3>
 <p>Off-farm movements can be linked to deadweight kill sheets or mart sale records in the Finance &amp; Business module, creating a complete chain from BCMS movement to settlement document for Red Tractor traceability requirements.</p>`,
   ],
-
+  // 5 — Visitor Logging and Biosecurity Plan
   // 5 — Visitor Logging and Biosecurity Plan
   [
     "How to log farm visitors and maintain a biosecurity plan in BDE Farm Trac to meet Red Tractor and APHA biosecurity requirements.",
@@ -408,7 +414,7 @@ const CONTENT: [string, string][] = [
 <h3>Downtime tracking</h3>
 <p>For poultry farms, the Cleanouts tab records the downtime period between flocks. The biosecurity plan specifies your minimum downtime and the system calculates whether the actual downtime met that standard for each house.</p>`,
   ],
-
+  // 6 — Staff Training & Certificates
   // 6 — Staff Training & Certificates
   [
     "How to record staff qualifications, training events, and certificate expiry dates in BDE Farm Trac to satisfy Red Tractor and FACTS requirements.",
@@ -430,7 +436,7 @@ const CONTENT: [string, string][] = [
 <h3>Expiry alerts</h3>
 <p>SMS text alerts and in-platform notifications are sent automatically when a certificate is within 90 days of expiry. The certificate holder and the farm manager both receive the alert.</p>`,
   ],
-
+  // 7 — Inspection Preparation Checklist
   // 7 — Inspection Preparation Checklist
   [
     "How to use the Inspections module in BDE Farm Trac to prepare for Red Tractor, APHA, or assurance scheme assessor visits.",
@@ -446,7 +452,7 @@ const CONTENT: [string, string][] = [
 <h3>Farm assurance certificates</h3>
 <p>Upload your Red Tractor, Lion Quality, or other scheme certificates to the Certificates tab. Certificate expiry dates are tracked with amber (90 days) and red (expired) warnings.</p>`,
   ],
-
+  // 8 — Understanding COSHH Requirements
   // 8 — Understanding COSHH Requirements
   [
     "How COSHH assessments work in BDE Farm Trac and what information to record for each hazardous substance used on the farm.",
@@ -468,7 +474,7 @@ const CONTENT: [string, string][] = [
 <h3>PPE requirements</h3>
 <p>PPE requirements identified in COSHH assessments feed into the PPE Register in Staff &amp; Training, ensuring that the PPE specified as a control measure is actually issued to the operators who use the substance.</p>`,
   ],
-
+  // 9 — Financial Record Keeping
   // 9 — Financial Record Keeping
   [
     "An overview of financial record keeping in BDE Farm Trac, covering purchase orders, grain sales, livestock sales, and input cost logging.",
@@ -483,7 +489,7 @@ const CONTENT: [string, string][] = [
 <h3>Business reports</h3>
 <p>The Reports tab provides a gross margin analysis by crop, a full P&amp;L income statement, and an input cost breakdown by category. Year-on-year comparisons are available for up to five seasons. CSV export and Xero-compatible export are available for handoff to your accountant.</p>`,
   ],
-
+  // 10 — Weather Station Setup
   // 10 — Weather Station Setup
   [
     "How to set up weather stations and vehicle weather devices in BDE Farm Trac, including calibration tracking and live weather fetch.",
@@ -498,7 +504,7 @@ const CONTENT: [string, string][] = [
 <h3>Calibration alerts</h3>
 <p>Devices within 30 days of their calibration due date or already overdue are flagged with amber and red status badges on the Device Register. An amber alert banner appears at the top of the Device Register tab listing all devices requiring attention. The register can be printed for inclusion in an audit pack.</p>`,
   ],
-
+  // 11 — Document Management Best Practices
   // 11 — Document Management Best Practices
   [
     "How to use the Documents module in BDE Farm Trac to store, organise, and retrieve the documents required for Red Tractor and other assurance audits.",
@@ -517,7 +523,7 @@ const CONTENT: [string, string][] = [
 <li>Link certificates to staff records (for training certificates) or equipment records (for NSTS certificates) so they are visible in context as well as in the Documents module.</li>
 </ul>`,
   ],
-
+  // 12 — Biofuel / RTFO Compliance Overview
   // 12 — Biofuel / RTFO Compliance Overview
   [
     "An overview of how BDE Farm Trac supports Renewable Transport Fuel Obligation (RTFO) and ISCC biofuel compliance records.",
@@ -535,7 +541,7 @@ const CONTENT: [string, string][] = [
 <h3>Linking to existing records</h3>
 <p>Field-level crop records from the Field &amp; Crop Management module can be referenced in land eligibility declarations, and fuel delivery records from the Fuel &amp; Energy module can be cross-referenced for on-farm consumption figures.</p>`,
   ],
-
+  // 13 — ISCC Certification and Land Eligibility
   // 13 — ISCC Certification and Land Eligibility
   [
     "How to record ISCC certification details and land eligibility declarations in BDE Farm Trac for RTFO biofuel compliance.",
@@ -555,7 +561,7 @@ const CONTENT: [string, string][] = [
 <h3>Annual audit preparation</h3>
 <p>ISCC audits typically occur annually. Use the Biofuel / RTFO module to compile your land eligibility records, delivery records, and GHG savings calculations into a single evidence pack for your auditor.</p>`,
   ],
-
+  // 14 — Recording Biofuel Deliveries and GHG Savings
   // 14 — Recording Biofuel Deliveries and GHG Savings
   [
     "How to record biofuel feedstock deliveries and greenhouse gas savings calculations in BDE Farm Trac for RTFO reporting.",
@@ -574,7 +580,7 @@ const CONTENT: [string, string][] = [
 <h3>GHG savings calculation</h3>
 <p>For each delivery, record the greenhouse gas emissions in gCO₂eq/MJ for the full production chain — cultivation, fertiliser production, processing, and transport. The platform compares this to the fossil fuel comparator (94 gCO₂eq/MJ for petrol/diesel) and calculates the GHG saving percentage. The RTFO minimum saving threshold is 65% for new installations and 50% for existing ones.</p>`,
   ],
-
+  // 15 — NVZ Rules, Applications and Risk Assessments
   // 15 — NVZ Rules, Applications and Risk Assessments
   [
     "How to record nitrogen fertiliser applications, costs, risk assessments, and closed period compliance in the NVZ module.",
@@ -591,7 +597,7 @@ const CONTENT: [string, string][] = [
 <h3>Risk assessments</h3>
 <p>Before spreading on steeply sloping ground, near water, or in wet conditions, a risk assessment must be completed. Record the field, the spreading date, the conditions, and the control measures applied (e.g. application equipment, rate reduction, spread direction). These records satisfy the field risk assessment requirement of the Nitrates Regulations.</p>`,
   ],
-
+  // 16 — Nutrient Management Planning (NMP)
   // 16 — Nutrient Management Planning (NMP)
   [
     "How to record and store Nutrient Management Plans (NMPs) in BDE Farm Trac, including plan details, review dates, and soil analysis linkage.",
@@ -613,7 +619,7 @@ const CONTENT: [string, string][] = [
 <h3>Review and update</h3>
 <p>NMPs should be reviewed annually and whenever there is a significant change in cropping or management. Record each review as a new plan version — the previous version is retained as part of the permanent audit trail.</p>`,
   ],
-
+  // 17 — Soil Testing and Sampling Records
   // 17 — Soil Testing and Sampling Records
   [
     "How to record soil samples and test results in BDE Farm Trac, including sampling references, laboratory linkage, and index tracking.",
@@ -634,7 +640,7 @@ const CONTENT: [string, string][] = [
 <h3>Sampling frequency</h3>
 <p>Red Tractor and FACTS guidance recommend sampling at least every four years on arable land and every five years on grassland. The sample date and the calculated next-due date are displayed on each field's record so overdue fields are visible at a glance.</p>`,
   ],
-
+  // 18 — Harvest Records and Yield Tracking
   // 18 — Harvest Records and Yield Tracking
   [
     "How to record grain and combinable crop harvest records in BDE Farm Trac, including yield per field, moisture, sale price, and grain position tracking.",
@@ -660,7 +666,7 @@ const CONTENT: [string, string][] = [
 <h3>Gross margin contribution</h3>
 <p>The Sale Price per tonne recorded here is picked up automatically by the <strong>Season Production Report</strong> (Field &amp; Crop Management → Season Reports). The report multiplies the sale price by total yield to produce a Revenue figure, then subtracts all recorded input costs (seed, fertiliser, and spray) to arrive at a Gross Margin in £ and £/ha. No re-entry is needed — completing the sale price field here is all that is required.</p>`,
   ],
-
+  // 19 — Livestock Medicine Records and Withdrawal Periods
   // 19 — Livestock Medicine Records and Withdrawal Periods
   [
     "How to record veterinary medicine treatments in BDE Farm Trac, including withdrawal periods, batch numbers, and Red Tractor medicine book requirements.",
@@ -683,7 +689,7 @@ const CONTENT: [string, string][] = [
 <h3>Vet authorisation</h3>
 <p>For medicines used under a Veterinary Written Direction (VWD) or Cascade prescription, attach the vet's written authorisation to the treatment record. The Vet Prescriptions tab provides a dedicated register for all outstanding prescriptions with their expiry dates.</p>`,
   ],
-
+  // 20 — Pest Control and Cleaning Records
   // 20 — Pest Control and Cleaning Records
   [
     "How to record pest control visits, rodenticide bait records, and farm cleaning events in BDE Farm Trac for Red Tractor and food safety audits.",
@@ -696,7 +702,7 @@ const CONTENT: [string, string][] = [
 <h3>Cleaning and disinfection records</h3>
 <p>Scheduled cleaning events for stores, handling equipment, vehicles, and farm buildings are logged separately. Each record captures the area cleaned, the cleaning date, the disinfectant product used, dilution rate, the person responsible, and whether the clean was pre-or post-harvest or pre- or post-crop. Photo attachments can be added as evidence.</p>`,
   ],
-
+  // 21 — Using the Mobile App for Field Recording
   // 21 — Using the Mobile App for Field Recording
   [
     "An overview of the BDE Farm Trac mobile app and how to use it for recording field operations, spray applications, livestock events, and viticulture records offline.",
@@ -718,7 +724,7 @@ const CONTENT: [string, string][] = [
 <h3>Offline behaviour</h3>
 <p>Reference pickers (field list, animal register, staff list, vine block picker) all work from the locally cached data when offline. Records created offline are queued in the Pending Sync tray, visible in the top toolbar as a badge count. Once connectivity is restored, records are uploaded automatically in the background. The sync status of each record is shown in the record list.</p>`,
   ],
-
+  // 22 — Livestock Movement Reporting: Scotland, Wales and Northern Ireland
   // 22 — Livestock Movement Reporting: Scotland, Wales and Northern Ireland
   [
     "How livestock movement reporting requirements differ in Scotland, Wales, and Northern Ireland, and how BDE Farm Trac handles cross-border recording.",
@@ -733,7 +739,7 @@ const CONTENT: [string, string][] = [
 <h3>General approach</h3>
 <p>BDE Farm Trac records do not automatically submit to any authority system — they provide a complete, auditable record of every movement that you can use to check and confirm your authority submissions. Cross-reference the BDE Farm Trac movement log with your authority portal to confirm all movements have been reported within the required deadline.</p>`,
   ],
-
+  // 23 — Analytical Dashboards and Compliance Snapshots
   // 23 — Analytical Dashboards and Compliance Snapshots
   [
     "How to use the BDE Farm Trac compliance dashboard, module snapshots, and analytics widgets to monitor your farm's compliance status at a glance.",
@@ -748,7 +754,7 @@ const CONTENT: [string, string][] = [
 <h3>Group dashboard</h3>
 <p>For multi-farm accounts, the Group Dashboard shows a consolidated compliance status across all registered holdings. Each farm is shown as a card with its overall status and the count of outstanding items per category. Click through to any farm's individual dashboard from the group view.</p>`,
   ],
-
+  // 24 — Sharing Records with Advisors and Inspectors
   // 24 — Sharing Records with Advisors and Inspectors
   [
     "How to give advisors, vets, and inspectors access to your BDE Farm Trac records using permanent advisor accounts and time-limited inspection sessions.",
@@ -761,7 +767,7 @@ const CONTENT: [string, string][] = [
 <h3>Access log</h3>
 <p>Every advisor and inspector login is recorded in a permanent access log with the date, time, and the name of the accessor. This provides an auditable trail of who has seen your farm records, satisfying GDPR data access obligations and Red Tractor requirements for record security.</p>`,
   ],
-
+  // 25 — Logging Field Operations
   // 25 — Logging Field Operations
   [
     "How to record cultivations, drilling, rolling, and other field operations in BDE Farm Trac to support your field management and agronomic records.",
@@ -783,7 +789,55 @@ const CONTENT: [string, string][] = [
 <h3>Labour and cost tracking</h3>
 <p>Operator time and contractor costs can be recorded against each operation. These feed the field gross margin analysis in the Finance &amp; Business module, letting you see the true cost of production by field and crop.</p>`,
   ],
-
+  // 26 — Organic Arable Seed Stock Ledger — Recording Seed Receipts, Use and Balance
+  [
+    "How to track organic seed stock — receipts, field consumption, and running balance — using the Seed Stock Ledger in the Organic Arable module.",
+    `<h2>Organic Arable Seed Stock Ledger — Recording Seed Receipts, Use and Balance</h2>
+<p>The <strong>Seed Stock Ledger</strong> (a sub-tab under <strong>Seed Sourcing</strong> in the Organic Arable module) gives you an auditable running balance of organic seed on farm, from delivery through to drilling. This is essential evidence under UK Retained EU Organic Regulation (e.g. Reg 2018/848), which requires organic land to be sown only with certified organic seed unless a documented derogation applies.</p>
+<h3>Setting up a stock line</h3>
+<p>Add a stock line for each seed batch: crop name, variety, batch/lot number, seed type (Certified Organic, Untreated Conventional, or Treated Conventional — the latter two only where a derogation applies), supplier name, a reorder threshold in kg, and a storage location.</p>
+<h3>Recording movements</h3>
+<p>Every change to a stock line is logged as a movement: <strong>Goods In</strong> (a delivery, with PO/GRN/invoice reference and unit cost), <strong>Consumption</strong> (drilled to a field, recording the field and seed rate in kg/ha), <strong>Adjustment</strong>, or <strong>Waste</strong>. Each movement records the date, quantity, and the operator who logged it.</p>
+<h3>Reading the balance</h3>
+<p>The ledger keeps a running balance for each stock line as movements are added, so you can see at a glance how much of a batch remains and confirm that seed used on organic land was drawn from a certified organic batch. When a stock line's balance falls near its reorder threshold, it is flagged so you can plan the next purchase in good time for drilling.</p>`,
+  ],
+  // 27 — Organic Arable Module — Bundled Field Management Access Explained
+  [
+    "How the Organic Arable module shares your farm's field register, sprays and drilling records with the standard Field & Crop Management module.",
+    `<h2>Organic Arable Module — Bundled Field Management Access Explained</h2>
+<p>The Organic Arable module doesn't duplicate your field data — it is built directly on top of your farm's central field register, so organic compliance records and everyday field operations stay in sync automatically.</p>
+<h3>Shared field register</h3>
+<p>Every field selector in the Organic Arable module (Field Conversion, Input Log, Harvest Declarations) pulls live from the same field list used across BDE Farm Trac. Add or edit a field once in <strong>Field &amp; Crop Management → Fields</strong> and it is immediately available throughout Organic Arable — there is no separate organic field list to maintain.</p>
+<h3>Cross-module traceability</h3>
+<p>Because Organic Arable records reference the same field IDs as sprays, drilling and harvest records, you can cross-check organic compliance against general farm operations for the same field — for example confirming that no non-approved spray has been logged against a field that is marked Certified organic.</p>
+<h3>Why this matters for audits</h3>
+<p>Auditors often ask to see a field's full history, not just its organic paperwork. Because the modules share the same field record, you can show conversion status, certification scope, input applications and standard field operations (drilling, sprays, harvest) side by side without re-keying anything.</p>`,
+  ],
+  // 28 — Organic Arable Field Conversion Tracker and Certification Records
+  [
+    "Tracking each field's organic conversion status and your farm's overall certification details in the Organic Arable module.",
+    `<h2>Organic Arable Field Conversion Tracker and Certification Records</h2>
+<p>Organic status is granted field-by-field, not farm-wide, and must be backed by an active certification. The Organic Arable module provides two linked tabs to manage this: <strong>Field Conversion</strong> and <strong>Certification</strong>.</p>
+<h3>Field Conversion tab</h3>
+<p>For each field, record its area, conversion status (Pre-Conversion, In Conversion, Certified, or Lapsed), the conversion start date, the expected certification date, the actual certification date once granted, and the field's previous land use. UK Retained EU Organic Regulation requires a minimum <strong>two-year conversion period</strong> for arable land before it can be certified fully organic — the tracker calculates and displays the expected certification date from the start date so you know exactly when each field becomes eligible.</p>
+<h3>Certification tab</h3>
+<p>Record your farm's overall organic certification: certifying body (e.g. Soil Association, OF&amp;G), certificate number, operator number, status (Certified, In Conversion, Suspended, or Withdrawn), certification date, renewal date, next inspection date, and certification scope (Arable, Horticulture, Livestock, Land, or Handling).</p>
+<h3>Why both matter</h3>
+<p>An auditor checking Red Tractor Organic Standard or EU organic compliance will want to see both: the farm-level certificate proving you are a certified operator, and the field-level conversion record proving each specific field has served its conversion period and is within the certified scope.</p>`,
+  ],
+  // 29 — Organic Arable Input Log and Annex II Substance Compliance
+  [
+    "How to record organic arable inputs using the Annex II SubstancePicker, manage Permitted and Restricted status, and capture certifier approval for restricted inputs.",
+    `<h2>Organic Arable Input Log and Annex II Substance Compliance</h2>
+<p>The <strong>Input Log</strong> tab in the Organic Arable module records every substance applied to organic or in-conversion arable land, checked against the <strong>Annex II</strong> list of permitted inputs under EU Organic Regulation 2018/848.</p>
+<h3>Recording an input</h3>
+<p>For each application, record the date, field/parcel, the product or substance (selected from a pre-defined Annex II approved list via the SubstancePicker), the active ingredient, input type, quantity applied, unit (kg/ha, l/ha, etc.), area applied, and supplier. Applications can be linked to a Goods Received Note for batch/lot traceability back to the seed or input delivery.</p>
+<h3>Permitted, Restricted and Prohibited status</h3>
+<p>Each substance in the picker carries a status: <strong>Permitted</strong> (usable without extra sign-off), <strong>Restricted</strong> (usable only with prior certifier notification), or <strong>Prohibited</strong> (not permitted on organic land under any circumstances). The regulatory basis (e.g. Annex II, EU Reg 2018/848) is shown alongside the substance.</p>
+<h3>Certifier approval for restricted inputs</h3>
+<p>When a Restricted substance is selected, the form requires a <strong>Certifier Approval Reference</strong> before the record can be saved — the UI displays a warning that restricted substances require prior certifier notification. This ensures you cannot log a restricted input without the paperwork to back it up, which is exactly what an organic inspector will ask to see.</p>`,
+  ],
+  // 30 — Logging Animal Mortality Records
   // 26 — Logging Animal Mortality Records
   [
     "How to record on-farm animal deaths in BDE Farm Trac, including cause, disposal method, and APHA reporting requirements.",
@@ -803,7 +857,7 @@ const CONTENT: [string, string][] = [
 <h3>BCMS notification</h3>
 <p>For cattle deaths, the BCMS must be notified within seven days. The mortality record flags when this deadline is approaching. Individual animals marked as deceased in the Mortality module are automatically flagged in the Individual Animal Register.</p>`,
   ],
-
+  // 31 — Feed Records and Traceability
   // 27 — Feed Records and Traceability
   [
     "How to record feed deliveries, medicated feed, and feed traceability in BDE Farm Trac to meet UFAS/FEMAS and Red Tractor requirements.",
@@ -823,7 +877,7 @@ const CONTENT: [string, string][] = [
 <h3>Feed Contingency Plan</h3>
 <p>The Feed Contingency Plan tab holds your documented plan for what to do if your primary feed supplier is unable to deliver — alternative suppliers, emergency contact details, and minimum stock level policy. Red Tractor requires this plan to be documented and reviewed annually.</p>`,
   ],
-
+  // 32 — Water Quality Testing Records
   // 28 — Water Quality Testing Records
   [
     "How to record water quality test results in BDE Farm Trac, including livestock drinking water tests and irrigation water tests for fresh produce.",
@@ -841,7 +895,7 @@ const CONTENT: [string, string][] = [
 <h3>Test frequency</h3>
 <p>Red Tractor guidance recommends annual testing of all livestock water sources. Fresh produce irrigation water should be tested at the frequency specified by your assurance scheme, typically at the start of the irrigation season and after any contamination event. Overdue tests are flagged on the Water Quality dashboard card.</p>`,
   ],
-
+  // 33 — Environmental Management — Features, Schemes & Management Events
   // 29 — Environmental Management — Features, Schemes & Management Events
   [
     "How the Environmental module in BDE Farm Trac captures agri-environment scheme records, SFI actions, and farm environmental management events.",
@@ -856,7 +910,7 @@ const CONTENT: [string, string][] = [
 <h3>Fly-tipping and encampments</h3>
 <p>Fly-tipping incidents and unauthorised encampments can be logged with photographs, authority report references, and resolution status. These records support insurance claims and local authority enforcement actions.</p>`,
   ],
-
+  // 34 — Field Inspections — Logging, Action Flags & Resolution Tracking
   // 30 — Field Inspections — Logging, Action Flags & Resolution Tracking
   [
     "How to record field-level inspections, raise action flags for non-compliant findings, and track resolution in BDE Farm Trac.",
@@ -871,7 +925,7 @@ const CONTENT: [string, string][] = [
 <h3>Non-conformance register</h3>
 <p>All open non-conformances across all inspections are visible in the Non-Conformance Register tab. Filter by severity, responsible person, or overdue status to prioritise the most urgent items. The register can be exported to CSV for review at management meetings or for submission to your assurance body.</p>`,
   ],
-
+  // 35 — Farm Buildings & Areas Registry
   // 31 — Farm Buildings & Areas Registry
   [
     "How to register farm buildings and operational areas in BDE Farm Trac and link them to biosecurity, pest control, and operational records.",
@@ -891,7 +945,7 @@ const CONTENT: [string, string][] = [
 <h3>Deactivating buildings</h3>
 <p>Buildings that are no longer in use can be marked as inactive, removing them from pickers while retaining all historical records that referenced them.</p>`,
   ],
-
+  // 36 — Understanding Business Reports
   // 32 — Understanding Business Reports
   [
     "How to use BDE Farm Trac's business reporting tools, including gross margin analysis, P&L statements, and AHDB benchmarking panels.",
@@ -904,7 +958,7 @@ const CONTENT: [string, string][] = [
 <h3>Benchmarking panel</h3>
 <p>The Benchmarking Panel compares your gross margin per hectare, cost of production, and overhead cost per hectare against AHDB Farm Business Survey top-third, average, and bottom-third performance bands. Your farm's figure is shown alongside the benchmark, colour-coded to indicate where you sit in the distribution. Benchmarks are updated annually when AHDB publishes new data.</p>`,
   ],
-
+  // 37 — SMS Text Alerts — Setup, Who Receives Them & Opting In
   // 33 — SMS Text Alerts — Setup, Who Receives Them & Opting In
   [
     "How to configure SMS text alerts in BDE Farm Trac, including who receives alerts, what triggers them, and how to opt individual users in or out.",
@@ -929,7 +983,7 @@ const CONTENT: [string, string][] = [
 <h3>Push notifications</h3>
 <p>Staff who have the mobile app installed also receive a push notification when a task is assigned to them. Tapping the notification opens the Task Inbox directly. Push notifications work alongside SMS — both are sent for task assignments.</p>`,
   ],
-
+  // 38 — Waste Disposal Logging — Records, Carrier Licences & Legal Requirements
   // 34 — Waste Disposal Logging — Records, Carrier Licences & Legal Requirements
   [
     "How to record waste disposal events in BDE Farm Trac, including carrier licence verification, waste classification codes, and duty of care documentation.",
@@ -949,7 +1003,7 @@ const CONTENT: [string, string][] = [
 <h3>Carrier licence verification</h3>
 <p>You are legally required to check that your waste carrier holds a valid licence before handing over controlled waste. Record the carrier's licence number for each collection. If the same contractor is used regularly, register them in the Supplier Directory with their licence number and expiry date — you will be alerted when the licence is due for renewal.</p>`,
   ],
-
+  // 39 — Week Ahead & Month Ahead — Your Compliance Planner
   // 35 — Week Ahead & Month Ahead — Your Compliance Planner
   [
     "How to use the Week Ahead and Month Ahead planner views in BDE Farm Trac to manage upcoming compliance deadlines, tasks, and operational priorities.",
@@ -973,7 +1027,7 @@ const CONTENT: [string, string][] = [
 <h3>Printing the planner</h3>
 <p>Use the Print button to produce a formatted week or month planner suitable for pinning in the office or farm office.</p>`,
   ],
-
+  // 40 — Task Board — Managing Staff Task Assignments
   // 36 — Task Board — Managing Staff Task Assignments
   [
     "How to use the Task Board in BDE Farm Trac to assign, track, and complete compliance and operational tasks across your farm team.",
@@ -988,7 +1042,7 @@ const CONTENT: [string, string][] = [
 <h3>Filtering and completing tasks</h3>
 <p>Filter the Task Board by assignee, module, priority, or status. Completed tasks can be hidden or filtered by completion date. All completed tasks are permanently retained in the task history for audit purposes.</p>`,
   ],
-
+  // 41 — Individual Animal Register and Electronic Identification (EID)
   // 37 — Individual Animal Register and Electronic Identification (EID)
   [
     "How to use the Individual Animal Register in BDE Farm Trac, including ear tag recording, EID scanning, and cross-module traceability.",
@@ -1003,7 +1057,7 @@ const CONTENT: [string, string][] = [
 <h3>Cross-module traceability</h3>
 <p>The IAR is the hub for animal traceability. Medicine treatment records, movement records, and mortality records all link back to individual animals by ear tag. When an animal is sold, its complete treatment history and movement history can be retrieved instantly for the buyer or slaughterhouse.</p>`,
   ],
-
+  // 42 — Milk Recording and Milk Records
   // 38 — Milk Recording and Milk Records
   [
     "How to record milk production, somatic cell counts, and monthly milk statements in BDE Farm Trac for dairy and Red Tractor Dairy compliance.",
@@ -1016,7 +1070,7 @@ const CONTENT: [string, string][] = [
 <h3>SCC threshold management</h3>
 <p>Bulk tank SCC above 200,000 cells/ml triggers a compliance warning in the dashboard. Persistent high SCC is a Red Tractor Dairy non-conformance and may result in milk price penalties from your processor. The SCC trend chart in the Milk Recording section shows bulk tank SCC month by month for the current year.</p>`,
   ],
-
+  // 43 — Mastitis Records and Treatment Logging
   // 39 — Mastitis Records and Treatment Logging
   [
     "How to record mastitis cases and treatment events in BDE Farm Trac, linking them to the Individual Animal Register and medicine records.",
@@ -1035,7 +1089,7 @@ const CONTENT: [string, string][] = [
 <h3>Mastitis incidence tracking</h3>
 <p>The Mastitis summary shows the number of cases per 100 cows per year (the industry standard incidence rate measure), the top quarter affected, and the most common causative organism from culture results. The 90-day repeat case rate is also calculated — cows with more than three cases in 12 months are highlighted for culling consideration.</p>`,
   ],
-
+  // 44 — Calving Records and Colostrum Management
   // 40 — Calving Records and Colostrum Management
   [
     "How to record calving events, calving ease scores, and colostrum management in BDE Farm Trac for dairy and suckler herd compliance.",
@@ -1055,42 +1109,7 @@ const CONTENT: [string, string][] = [
 <h3>Colostrum management</h3>
 <p>The calving record includes a Colostrum section covering the time of first colostrum (target: within two hours of birth), the volume fed (target: at least 3 litres for a dairy calf or allow suck for a suckler calf), and whether the colostrum was tested using a refractometer (Brix score recorded). A Brix reading below 22% indicates poor quality colostrum that should be supplemented from a frozen store.</p>`,
   ],
-
-  // 41 — NMR Recording Visits
-  [
-    "How to log monthly NMR recording visits in BDE Farm Trac, track herd constituent averages, and interpret Fat:Protein Ratio trends for dairy compliance.",
-    `<h2>NMR Recording Visits</h2>
-<p>The NMR Recording Visits tab in the Dairy module lets you log the results of each monthly visit from your National Milk Records (NMR) recorder. While not a statutory legal requirement, milk recording is effectively mandatory for Red Tractor Dairy assurance — scheme standards require documented evidence of milk quality monitoring, SCC trend management, and herd health surveillance. Most processor contracts also tie milk price to recorded SCC and constituent data.</p>
-<h3>Recording a visit</h3>
-<p>Navigate to <strong>Dairy → Recording Visits</strong> and click <strong>Log Visit</strong>. The form captures:</p>
-<ul>
-<li><strong>Visit date</strong> — the date the NMR recorder attended.</li>
-<li><strong>Recorder name and NMR employee number</strong> — the recorder's identity for audit purposes.</li>
-<li><strong>Cows in milk / Cows recorded</strong> — the number of cows in the milking herd and the number included in the recording round.</li>
-<li><strong>Herd averages</strong> — yield per cow per day (litres), fat %, protein %, lactose %, and somatic cell count (SCC, in cells × 1,000/mL).</li>
-<li><strong>High-SCC animals</strong> — count of cows above 200,000 cells/mL and a free-text field for their ear tags (comma-separated) to flag animals requiring mastitis investigation.</li>
-<li><strong>Quality alert</strong> — any action note or advisory from the NMR report (e.g. "Bulk tank SCC elevated — investigate quarters on cow UK123").</li>
-<li><strong>Next visit date</strong> — the scheduled date for the following recording round.</li>
-</ul>
-<h3>Fat:Protein Ratio (F:P Ratio)</h3>
-<p>The Fat:Protein Ratio is calculated automatically as you enter fat % and protein % — no manual calculation needed. The ratio is displayed as a colour-coded badge on both the log form and the recording register:</p>
-<ul>
-<li><strong>Red — below 1.0:</strong> high risk of subclinical ruminal acidosis; review buffer feeding and ration composition with your nutritionist.</li>
-<li><strong>Amber — 1.0 to 1.19:</strong> below target; diet may be short of effective fibre or high in rapidly fermentable carbohydrate.</li>
-<li><strong>Green — 1.2 to 1.5:</strong> target range; indicates good rumen function and balanced energy and protein status.</li>
-<li><strong>Amber — above 1.5:</strong> may indicate an energy deficit or early ketosis; cows may be mobilising body fat. Review body condition scores and transition cow management.</li>
-</ul>
-<h3>Trend charts</h3>
-<p>Once you have two or more recording visits logged, click <strong>Trend Chart</strong> to open the rolling 24-visit visual analysis. Two charts are shown side by side:</p>
-<ul>
-<li><strong>Herd Average SCC</strong> — a bar chart with a reference line at 200,000 cells/mL (the EU/UK penalty threshold). Bars above the reference line are immediately visible for management action.</li>
-<li><strong>Fat%, Protein% and F:P Ratio</strong> — a dual-axis line chart showing constituent trends (left axis, %) and the Fat:Protein Ratio trend (right axis) together. The 1.2 F:P target is shown as a dashed reference line.</li>
-</ul>
-<p>Trend charts are the primary tool for spotting seasonal patterns, nutrition transitions, and early warning of herd health issues before they affect milk income or Red Tractor compliance status.</p>
-<h3>Mobile recording</h3>
-<p>NMR recording visit results can also be logged from the mobile app — useful if you want to capture key figures from the NMR report immediately after the recorder leaves, before you return to the office. Navigate to <strong>Record → NMR Recording Visit</strong> in the mobile app. Results sync to the dashboard automatically when connectivity is restored.</p>`,
-  ],
-
+  // 45 — Dry Cow Therapy (DCT) Records
   // 42 — Dry Cow Therapy (DCT) Records
   [
     "How to record dry cow therapy (DCT) decisions and treatments in BDE Farm Trac, including selective DCT justification and withdrawal period tracking.",
@@ -1110,7 +1129,7 @@ const CONTENT: [string, string][] = [
 <h3>Withdrawal period tracking</h3>
 <p>The intramammary antibiotic withdrawal period for milk runs from the expected calving date, not the dry-off date. The platform calculates the earliest safe date to enter the milk supply after calving based on the product's withdrawal period.</p>`,
   ],
-
+  // 46 — Workshop & Asset Management — Overview
   // 42 — Equipment Module — Overview
   [
     "An overview of the Equipment module in BDE Farm Trac, covering the Equipment Register, asset numbers, QR labels, service history, PUWER compliance, insurance, depreciation, defect reporting, and Workshop Analytics.",
@@ -1133,7 +1152,7 @@ const CONTENT: [string, string][] = [
 <h3>Workshop Analytics tab</h3>
 <p>The Workshop Analytics tab provides a summary of workshop activity across a selected date range — total jobs completed, average completion time, most-serviced machines, mechanic workload breakdown, parts cost totals, and open-job count by priority. Use it to identify machines with high maintenance frequency or to review workshop throughput for cost control.</p>`,
   ],
-
+  // 47 — Scanning QR Codes with the Mobile App
   // 43 — Scanning QR Codes with the Mobile App
   [
     "How to use the BDE Farm Trac mobile app to scan QR codes for fields, animals, equipment, storage locations, and buildings.",
@@ -1151,7 +1170,7 @@ const CONTENT: [string, string][] = [
 <h3>Generating and printing QR labels</h3>
 <p>QR labels are generated from the corresponding register page in the dashboard. For fields, use the Field Register. For animals, use the Individual Animal Register. For equipment, use the Equipment Register — click the <strong>Assign / QR</strong> button on any equipment row. Labels are printed as A5 or A4 sheets with the QR code and the item name for easy identification. Use weatherproof label materials for outdoor use.</p>`,
   ],
-
+  // 48 — Generating QR Labels for Fields, Animals, and Storage
   // 44 — Generating QR Labels for Fields, Animals, Equipment, and Storage
   [
     "How to generate and print QR code labels for fields, animals, equipment, and storage locations in BDE Farm Trac.",
@@ -1173,7 +1192,7 @@ const CONTENT: [string, string][] = [
 <li>For equipment, fix labels inside the cab near the steering column or on the chassis where they are protected from dirt and weather.</li>
 </ul>`,
   ],
-
+  // 49 — PAT Testing & Fire Extinguisher Records
   // 45 — PAT Testing & Fire Extinguisher Records
   [
     "How to record PAT test results and fire extinguisher service records in BDE Farm Trac as part of your health and safety documentation.",
@@ -1192,7 +1211,7 @@ const CONTENT: [string, string][] = [
 <h3>Fire extinguisher records</h3>
 <p>Navigate to <strong>Equipment → Fire Extinguishers</strong> and click <strong>Add Extinguisher</strong>. Record the extinguisher type (water, CO₂, dry powder, foam, wet chemical), its location, the last service date, and the next service due date. Extinguishers approaching or past their service date are flagged in amber or red. Annual service is required under BS 5306-3. The record can be attached to a service certificate from the contractor.</p>`,
   ],
-
+  // 50 — Workshop Risk Assessments & COSHH
   // 46 — Workshop Risk Assessments & COSHH
   [
     "How to record workshop-specific risk assessments and COSHH assessments for chemicals used in farm maintenance activities.",
@@ -1212,7 +1231,7 @@ const CONTENT: [string, string][] = [
 <h3>Toolbox talks</h3>
 <p>Risk assessments can be used as the basis for a recorded toolbox talk. Log the talk in Staff &amp; Training → Training Events, attaching the risk assessment as the subject document and recording the staff members who attended.</p>`,
   ],
-
+  // 51 — Getting Started with Pig Production Records
   // 47 — Getting Started with Pig Production Records
   [
     "An introduction to the Pig Production module in BDE Farm Trac, covering herd registration, movement records, farrowing, and health records.",
@@ -1225,7 +1244,7 @@ const CONTENT: [string, string][] = [
 <h3>Health plans and biosecurity</h3>
 <p>Annual vet-signed health plans are stored in the Health Plans tab. Red Tractor Pigs requires an annual health plan covering PRRS, PCV2, tail biting risk, and biosecurity. The PRRS vaccination programme and tail biting risk assessment each have their own structured record forms in the Pig Production module.</p>`,
   ],
-
+  // 52 — Pig Movement and Identification
   // 48 — Pig Movement and Identification
   [
     "How pig movement reporting and individual identification records work in BDE Farm Trac for eAML2 and Red Tractor Pigs compliance.",
@@ -1246,7 +1265,7 @@ const CONTENT: [string, string][] = [
 <h3>Slap mark identification</h3>
 <p>Pigs are identified by their registered slap mark (herd mark) rather than individual ear tags. Record the herd mark, movement batch size, and — where relevant for breeding pigs — individual sow ear tags from the Individual Animal Register. Finishing pigs are typically recorded as batch movements without individual identification.</p>`,
   ],
-
+  // 53 — Getting Started with Poultry Production Records
   // 49 — Getting Started with Poultry Production Records
   [
     "An introduction to the Poultry Production module in BDE Farm Trac, covering flock registration, placements, environmental logs, and cleanout records.",
@@ -1261,7 +1280,7 @@ const CONTENT: [string, string][] = [
 <h3>Cleanout records</h3>
 <p>Each house cleanout is recorded with the disinfectant used, DEFRA approval number, dilution rate, contact time, contractor details (if applicable), and swab testing results. See the dedicated Cleanout Records article for full details.</p>`,
   ],
-
+  // 54 — Salmonella, Biosecurity and Poultry Health Plans
   // 50 — Salmonella, Biosecurity and Poultry Health Plans
   [
     "How to record Salmonella NCP testing, biosecurity programmes, and poultry health plans in BDE Farm Trac for Red Tractor and Lion Quality compliance.",
@@ -1276,7 +1295,7 @@ const CONTENT: [string, string][] = [
 <h3>Downtime between placements</h3>
 <p>The cleanout record captures the date the house was cleaned, and the subsequent placement record captures the next placement date. The system calculates the actual downtime in days between the two events — this is compared against your target minimum downtime documented in the biosecurity plan.</p>`,
   ],
-
+  // 55 — Getting Started with Fresh Produce Records
   // 51 — Getting Started with Fresh Produce Records
   [
     "An introduction to the Fresh Produce module in BDE Farm Trac, covering crop registration, spray records, water testing, and harvest records for Red Tractor and GlobalG.A.P.",
@@ -1291,7 +1310,7 @@ const CONTENT: [string, string][] = [
 <h3>Harvest and pack-out records</h3>
 <p>The Harvest tab captures total yield, marketable yield, and reject rate per crop and per harvest date. Pack-out records add the grade, pack size, packing date, and batch code — which provides the traceability chain required by retailers for recall management.</p>`,
   ],
-
+  // 56 — Pre-Harvest Intervals, MRLs and Residue Testing
   // 52 — Pre-Harvest Intervals, MRLs and Residue Testing
   [
     "How BDE Farm Trac tracks pre-harvest intervals (PHIs), maximum residue levels (MRLs), and residue test results for fresh produce food safety compliance.",
@@ -1304,7 +1323,7 @@ const CONTENT: [string, string][] = [
 <h3>Residue testing records</h3>
 <p>Navigate to <strong>Fresh Produce → Residue Testing</strong> to log results from independent residue testing — either your own monitoring programme or a retailer-requested test. Record the sample date, crop and batch, laboratory used, substances tested, results (mg/kg), and whether each result is below, at, or above the applicable MRL. Failed tests trigger a mandatory corrective action record.</p>`,
   ],
-
+  // 57 — Carbon & Sustainability Records
   // 53 — Carbon & Sustainability Records
   [
     "How to record carbon audits, sequestration, sustainability actions, and biodiversity net gain records in BDE Farm Trac's Carbon & Sustainability module.",
@@ -1319,7 +1338,7 @@ const CONTENT: [string, string][] = [
 <h3>Biodiversity net gain</h3>
 <p>BNG records capture habitat creation with area, habitat type, condition score (on the statutory BNG metric scale), and estimated biodiversity units gained. These records support Environment Act 2021 BNG obligations and can be submitted as evidence to local planning authorities.</p>`,
   ],
-
+  // 58 — Farm Diversification Records
   // 54 — Farm Diversification Records
   [
     "How to record diversification enterprise activities in BDE Farm Trac, including glamping, farm shop, equine, and shooting records.",
@@ -1334,7 +1353,7 @@ const CONTENT: [string, string][] = [
 <h3>Shooting records</h3>
 <p>Each shoot day is logged with shoot type, number of guns, per-species bag counts (pheasant, partridge, grouse, duck, woodcock), game dealer name, and income received. These records support income returns and compliance with the Code of Good Shooting Practice.</p>`,
   ],
-
+  // 59 — Water & Irrigation Management
   // 55 — Water & Irrigation Management
   [
     "How to record water abstraction licences, meter readings, irrigation events, and EA compliance records in BDE Farm Trac.",
@@ -1349,7 +1368,7 @@ const CONTENT: [string, string][] = [
 <h3>Irrigation events</h3>
 <p>Each irrigation event links to a field, a crop, the water source, the volume applied (m³), the irrigation method (overhead spray, drip, trickle, boom), and the crop growth stage. These records satisfy the irrigation traceability requirement of Red Tractor Fresh Produce and GlobalG.A.P.</p>`,
   ],
-
+  // 60 — AI & Reproduction Records for Livestock
   // 56 — AI & Reproduction Records for Livestock
   [
     "How to record artificial insemination (AI), natural service, and reproduction events in BDE Farm Trac for cattle, sheep, and other livestock.",
@@ -1369,7 +1388,7 @@ const CONTENT: [string, string][] = [
 <h3>Straw Inventory</h3>
 <p>The Straw Inventory tracks semen deliveries — sire, breed, AI company, quantity received, storage location (liquid nitrogen tank), and current stock level. Stock decrements automatically each time a straw is used in an AI record, providing a running balance for ordering decisions.</p>`,
   ],
-
+  // 61 — Veterinary Prescriptions & Medicine Book
   // 57 — Veterinary Prescriptions & Medicine Book
   [
     "How to manage veterinary prescriptions (VWDs and VPDs) and the farm medicine book in BDE Farm Trac for Red Tractor and VMR compliance.",
@@ -1382,7 +1401,7 @@ const CONTENT: [string, string][] = [
 <h3>Linking treatments to prescriptions</h3>
 <p>When recording a medicine treatment under a prescription, link the treatment record to the relevant VWD from the prescription register. This creates a clear chain from the vet's authorisation to the specific treatment events carried out under it — satisfying both the VMR requirement and the Red Tractor medicines trail.</p>`,
   ],
-
+  // 62 — SFI & Agri-Environment Actions
   // 58 — SFI & Agri-Environment Actions
   [
     "How to record Sustainable Farming Incentive (SFI) actions, Countryside Stewardship options, and other agri-environment scheme activities in BDE Farm Trac.",
@@ -1397,7 +1416,7 @@ const CONTENT: [string, string][] = [
 <h3>RPA inspection preparation</h3>
 <p>The SFI and CS records in BDE Farm Trac are formatted to provide the evidence RPA inspectors look for at a spot-check — dated management records, GPS-referenced field parcels, and photographic evidence. Export all records for a selected agreement to CSV for inclusion in an inspection evidence file.</p>`,
   ],
-
+  // 63 — Slurry & Manure Management Records
   // 59 — Slurry & Manure Management Records
   [
     "How to record slurry and organic manure store fills, spreading events, and closed period compliance in BDE Farm Trac — including species-specific storage enforcement.",
@@ -1414,7 +1433,7 @@ const CONTENT: [string, string][] = [
 <h3>Closed period compliance</h3>
 <p>NVZ closed periods for slurry spreading (typically 1 October to 31 January for most livestock slurries in England) are shown as a countdown on the Environmental dashboard. Spreading forms display a warning if the selected date falls within a closed period, requiring the user to explicitly confirm before saving. Applications during a closed period are flagged on the record for compliance review.</p>`,
   ],
-
+  // 64 — Grain Storage Quality Records
   // 60 — Grain Storage Quality Records
   [
     "How to record grain store temperature, moisture monitoring, and pest inspection records in BDE Farm Trac for Red Tractor and assured merchant requirements.",
@@ -1429,7 +1448,7 @@ const CONTENT: [string, string][] = [
 <h3>Drying records</h3>
 <p>The Grain Drying tab logs each drying event with intake moisture, target moisture, tonnes dried, fuel consumed, cost, and moisture reduction achieved. These records are used in cost-of-production calculations in the Business Reports module.</p>`,
   ],
-
+  // 65 — Fly-Tipping — Recording Incidents, Authority Reporting and Photo Evidence
   // 61 — Fly-Tipping — Recording Incidents, Authority Reporting and Photo Evidence
   [
     "How to record fly-tipping incidents, report them to the local authority, and attach photo evidence in BDE Farm Trac.",
@@ -1448,7 +1467,7 @@ const CONTENT: [string, string][] = [
 <h3>Why this record matters</h3>
 <p>A documented incident record with photographs, reporting references, and clearance costs is the evidence needed for an insurance claim. It also helps the local authority build a picture of repeat offenders in your area and supports enforcement action.</p>`,
   ],
-
+  // 66 — Unauthorized Encampments — Recording, Authority Action and Legal Remedies
   // 62 — Unauthorized Encampments — Recording, Authority Action and Legal Remedies
   [
     "How to record unauthorised encampment incidents and the authority actions taken in BDE Farm Trac.",
@@ -1466,7 +1485,7 @@ const CONTENT: [string, string][] = [
 <h3>Costs and clearance</h3>
 <p>Record all costs associated with the incident — legal fees, bailiff costs, waste clearance contractor, and any repair costs. These are needed for a civil claim or insurance recovery. Attach invoices from contractors and solicitors as supporting documents.</p>`,
   ],
-
+  // 67 — Crop Trials Register — Setting Up and Managing On-Farm Trials
   // 63 — Crop Trials Register — Setting Up and Managing On-Farm Trials
   [
     "How to set up and manage on-farm crop variety trials and input trials in BDE Farm Trac.",
@@ -1479,7 +1498,7 @@ const CONTENT: [string, string][] = [
 <h3>Measurements and results</h3>
 <p>Record interim measurements (plant counts, disease ratings, BBCH stages) and final yield results (t/ha, moisture, specific weight) for each treatment. The trial summary calculates the yield difference between treatments and the estimated gross margin impact per hectare, allowing a simple economic evaluation of the trial outcome.</p>`,
   ],
-
+  // 68 — Haulage & Transport — Module Overview
   // 64 — Haulage & Transport — Module Overview
   [
     "An overview of the Haulage & Transport module in BDE Farm Trac, covering haulier directory, movement records, dispatch plans, and grain position tracking.",
@@ -1494,7 +1513,7 @@ const CONTENT: [string, string][] = [
 <h3>Grain position</h3>
 <p>The Grain Position tab shows total harvested, total moved, and current balance for each commodity, aggregated across all storage locations. Year filter and location filter allow you to drill down to a specific store or crop year.</p>`,
   ],
-
+  // 69 — Dispatch Plans — Planning and Managing Crop Movements
   // 65 — Dispatch Plans — Planning and Managing Crop Movements
   [
     "How to create and manage dispatch plans for grain movements in BDE Farm Trac, tracking load counts, tonnage, and completion progress.",
@@ -1516,7 +1535,7 @@ const CONTENT: [string, string][] = [
 <h3>Plan completion</h3>
 <p>When the target tonnage has been delivered, mark the plan as Complete. The final record set is retained permanently and can be exported to CSV for submission to your merchant or processor as delivery confirmation. The linked forward contract balance is updated to reflect the completed call-off.</p>`,
   ],
-
+  // 70 — Forward Contracts — Managing Grain Sales & Pricing
   // 66 — Forward Contracts — Managing Grain Sales & Pricing
   [
     "How to record and manage grain forward contracts in BDE Farm Trac, tracking committed tonnage, call-offs, and contract completion.",
@@ -1529,7 +1548,7 @@ const CONTENT: [string, string][] = [
 <h3>Contract progress tracking</h3>
 <p>The Contracts register shows each contract's status — Open, Partially Called-Off, Fully Delivered, or Expired. A green contract badge appears on each linked grain sale row in the sales table. The full list of call-offs and their weighbridge ticket numbers is visible from the contract record, providing the end-to-end audit trail from merchant contract to weighbridge delivery.</p>`,
   ],
-
+  // 71 — Grain Position — Tracking Your Crop Stock
   // 67 — Grain Position — Tracking Your Crop Stock
   [
     "How the Grain Position tracker in BDE Farm Trac shows harvested tonnage, stock movements, and current balance by commodity and location.",
@@ -1549,7 +1568,7 @@ const CONTENT: [string, string][] = [
 <h3>Reconciliation</h3>
 <p>Compare the BDE Farm Trac position against your physical stocktake results or merchant storage statements. Any discrepancy should prompt a review of movement records to identify missing deliveries or data entry errors. The stock movement audit trail in the Grain &amp; Crop Storage module shows every intake, dispatch, and transfer with its date and reference for systematic reconciliation.</p>`,
   ],
-
+  // 72 — Tail Biting Risk Assessments — Pig Production
   // 68 — Tail Biting Risk Assessments — Pig Production
   [
     "How to record tail biting risk assessments and management responses in BDE Farm Trac for Red Tractor Pigs scheme compliance.",
@@ -1568,7 +1587,7 @@ const CONTENT: [string, string][] = [
 <h3>Risk score and actions</h3>
 <p>Based on the assessment, record an overall risk score (Low, Medium, or High) and the specific management actions taken to address identified risk factors. Set a review date — the assessment must be reviewed whenever an outbreak occurs and at least annually.</p>`,
   ],
-
+  // 73 — Farrowing & Sow Records — Pig Production
   // 69 — Farrowing & Sow Records — Pig Production
   [
     "How to record farrowing events, litter sizes, sow performance, and weaning records in BDE Farm Trac for Red Tractor Pigs.",
@@ -1588,7 +1607,7 @@ const CONTENT: [string, string][] = [
 <h3>Weaning records</h3>
 <p>When the litter is weaned, record the weaning date, number of piglets weaned, total litter weight at weaning, and average weaning weight. The weaning-to-service interval is calculated automatically from the weaning date and the sow's subsequent service record. This feeds the sow productivity summary showing litters per sow per year and piglets weaned per sow per year.</p>`,
   ],
-
+  // 74 — Broiler Welfare Indicators (BWI) — Poultry Production
   // 70 — Broiler Welfare Indicators (BWI) — Poultry Production
   [
     "How to record Broiler Welfare Indicator (BWI) results in BDE Farm Trac for Red Tractor Poultry and Lion Code compliance.",
@@ -1608,7 +1627,7 @@ const CONTENT: [string, string][] = [
 <h3>Trend analysis</h3>
 <p>The BWI summary chart shows each indicator's trend across the last six crops for the selected house. Persistent high hock burn rates often indicate litter quality issues; high gait scores may indicate nutritional or health challenges. The trend view helps identify root causes that should be addressed in the next crop plan.</p>`,
   ],
-
+  // 75 — House Cleanout Records — Contractor Tracking, Disinfectant and Cost
   // 71 — House Cleanout Records — Contractor Tracking, Disinfectant and Cost
   [
     "How to record poultry house cleanouts in BDE Farm Trac, including disinfectant compliance, contractor details, swab testing, and the food safety advisory.",
@@ -1627,7 +1646,7 @@ const CONTENT: [string, string][] = [
 <h3>Cost and stock tracking</h3>
 <p>Record the contractor cost (pence) and invoice reference if using a contractor. If using your own stock, log each product consumed by quantity — this decrements stock levels in the Trade Contacts &amp; Stock module and provides an audit trail of chemical usage. Attach photo evidence of the cleaned house.</p>`,
   ],
-
+  // 76 — Right to Work Checks for Farm Employers
   // 72 — Right to Work Checks for Farm Employers
   [
     "How to record right to work checks for farm employees in BDE Farm Trac to comply with the Immigration, Asylum and Nationality Act 2006.",
@@ -1647,7 +1666,7 @@ const CONTENT: [string, string][] = [
 <h3>Expiry tracking</h3>
 <p>For employees whose right to work is time-limited (visa holders, students), the check expiry date is tracked with amber (90 days) and red (expired) alerts, prompting a repeat check before the document expires.</p>`,
   ],
-
+  // 77 — Staff Management & System Access
   // 73 — Staff Management & System Access
   [
     "How to add, manage, and control system access for farm staff members in BDE Farm Trac.",
@@ -1666,7 +1685,7 @@ const CONTENT: [string, string][] = [
 <h3>Mobile app access</h3>
 <p>All staff members with an active account can use the mobile app. Their role permissions apply — an Operator can create records but cannot access the Finance module from the mobile app.</p>`,
   ],
-
+  // 78 — Thinning Records — Poultry Production
   // 74 — Thinning Records — Poultry Production
   [
     "How to record partial depletions (thinning) of broiler flocks in BDE Farm Trac for Red Tractor Poultry and stocking density compliance.",
@@ -1686,7 +1705,7 @@ const CONTENT: [string, string][] = [
 <h3>Stocking density calculation</h3>
 <p>After each thinning event, the system recalculates the current stocking density (kg/m²) based on the remaining birds and their projected liveweight at the current age. This is compared against the permitted maximum (33 kg/m² standard, up to 39 kg/m² under an approved higher stocking density programme). An alert is shown if stocking density exceeds the applicable limit.</p>`,
   ],
-
+  // 79 — Soil Sample Register — Understanding References and Status
   // 75 — Soil Sample Register — Understanding References and Status
   [
     "How soil sample references work in BDE Farm Trac and what the different status stages mean for your sampling programme.",
@@ -1703,7 +1722,7 @@ const CONTENT: [string, string][] = [
 <h3>Overdue sampling alerts</h3>
 <p>The field record tracks the most recent sample date and displays the calculated next-due date based on your sampling frequency setting (typically every four years). Fields past their next-due date are flagged in the Soil Samples dashboard with an amber Overdue indicator.</p>`,
   ],
-
+  // 80 — AI & Reproduction Records — Cattle and Livestock
   // 76 — AI & Reproduction Records — Cattle and Livestock
   [
     "How to record AI and natural service breeding events for cattle in BDE Farm Trac, including sire linkage and pregnancy checking.",
@@ -1725,7 +1744,7 @@ const CONTENT: [string, string][] = [
 <h3>Natural service records</h3>
 <p>For herds using a stock bull, natural service is recorded against the bull from the Sire Register. Note the bull turn-out date, the group of cows served, and the expected calving date range.</p>`,
   ],
-
+  // 81 — Vet Prescriptions — Storing and Tracking Written Authorisations
   // 77 — Vet Prescriptions — Storing and Tracking Written Authorisations
   [
     "How to store and track veterinary written directions (VWDs) and prescriptions in BDE Farm Trac, including expiry monitoring and treatment linkage.",
@@ -1747,7 +1766,7 @@ const CONTENT: [string, string][] = [
 <h3>Linking treatments</h3>
 <p>When recording a medicine treatment, the prescription reference picker shows all active prescriptions for the species and medicine being used. Selecting the prescription links the treatment record to the authorisation — the inspector can trace from the prescription to every treatment administered under it.</p>`,
   ],
-
+  // 82 — SFI / ELMS Agreements — Recording and Tracking Agri-Environment Schemes
   // 78 — SFI / ELMS Agreements — Recording and Tracking Agri-Environment Schemes
   [
     "How to record and track Sustainable Farming Incentive and Environmental Land Management scheme agreements in BDE Farm Trac.",
@@ -1762,7 +1781,7 @@ const CONTENT: [string, string][] = [
 <h3>Agreement expiry</h3>
 <p>The agreement expiry date is tracked with amber (90 days) and red (expired) alerts. Before an agreement expires, review whether it needs to be rolled over, renegotiated, or replaced with a new agreement for the next commitment period.</p>`,
   ],
-
+  // 83 — Slurry & Manure Management — Records and Closed Period Compliance
   // 79 — Slurry & Manure Management — Records and Closed Period Compliance
   [
     "How to manage NVZ closed period compliance, store fill tracking, and species-specific material enforcement in BDE Farm Trac's Slurry & Manure module.",
@@ -1777,7 +1796,7 @@ const CONTENT: [string, string][] = [
 <h3>Store capacity compliance</h3>
 <p>NVZ regulations require minimum slurry storage capacity equivalent to six months' production for pig and poultry units (five months for cattle). Register each store in the Stores tab with its type and capacity (m³). The stores table shows live fill-level bars so you can see at a glance if any store is approaching capacity — critical for planning emptying runs before the closed period begins.</p>`,
   ],
-
+  // 84 — Grain Storage Quality — Monitoring and Record Keeping
   // 80 — Grain Storage Quality — Monitoring and Record Keeping
   [
     "How to maintain grain store quality monitoring records in BDE Farm Trac, including temperature probing, moisture checks, and fumigation events.",
@@ -1796,7 +1815,7 @@ const CONTENT: [string, string][] = [
 <h3>Fumigation records</h3>
 <p>If fumigation is required, record the fumigant product (phosphine, methyl bromide is no longer permitted in the UK), the quantity used, the date and duration of treatment, the operators involved (PA4 certificate required for phosphine), the gas concentration achieved, and the ventilation period before re-entry. These records satisfy the Health and Safety at Work Act requirements for fumigation operations.</p>`,
   ],
-
+  // 85 — Fresh Produce Module — Crop Records, Sprays, and Assurance
   // 81 — Fresh Produce Module — Crop Records, Sprays, and Assurance
   [
     "How the Fresh Produce module integrates crop records, spray applications, and assurance scheme requirements in BDE Farm Trac.",
@@ -1809,7 +1828,7 @@ const CONTENT: [string, string][] = [
 <h3>Allergen records</h3>
 <p>For fresh produce operations that process or handle allergenic crops alongside non-allergenic ones, allergen presence records can be logged for each growing location and packing line. These records support the mandatory allergen labelling requirements of the Food Information to Consumers Regulation (FIC).</p>`,
   ],
-
+  // 86 — Carbon & Sustainability — Measuring and Recording Your Farm's Footprint
   // 82 — Carbon & Sustainability — Measuring and Recording Your Farm's Footprint
   [
     "How to measure, calculate, and record your farm's carbon footprint in BDE Farm Trac using the Carbon Auto-Calculator and manual audit records.",
@@ -1824,7 +1843,7 @@ const CONTENT: [string, string][] = [
 <h3>Net-zero pathway</h3>
 <p>Set a baseline year and a net-zero target year in the settings. The pathway calculator shows the required annual reduction rate and displays where your current footprint sits against the trajectory in the Reports tab.</p>`,
   ],
-
+  // 87 — Farm Diversification — Recording Non-Agricultural Activities
   // 83 — Farm Diversification — Recording Non-Agricultural Activities
   [
     "How to record non-agricultural business activities in BDE Farm Trac's Farm Diversification module, including tourism, food hygiene inspections, and food sales.",
@@ -1837,7 +1856,7 @@ const CONTENT: [string, string][] = [
 <h3>Events and tastings</h3>
 <p>Farm events — harvest suppers, pick-your-own days, outdoor markets — are logged with the event date, expected attendance, revenue, and any required licences or temporary event notices (TENs). These records support planning condition compliance and licensing authority reporting.</p>`,
   ],
-
+  // 88 — Water & Irrigation — Abstraction, Usage, and Compliance Records
   // 84 — Water & Irrigation — Abstraction, Usage, and Compliance Records
   [
     "How to record water abstraction, usage, and irrigation compliance records in BDE Farm Trac for EA licence conditions and scheme requirements.",
@@ -1852,7 +1871,7 @@ const CONTENT: [string, string][] = [
 <h3>CAMS reporting</h3>
 <p>If your local Catchment Abstraction Management Strategy (CAMS) requires periodic reporting of abstraction volumes, the meter reading records provide the data needed to complete the return. Export the readings to CSV for submission to the EA.</p>`,
   ],
-
+  // 89 — Equipment Defect Reports — Tracking Faults and Repairs
   // 85 — Equipment Defect Reports — Tracking Faults and Repairs
   [
     "How to log equipment defects and track their resolution in BDE Farm Trac for health and safety and maintenance management.",
@@ -1868,7 +1887,7 @@ const CONTENT: [string, string][] = [
 <h3>Resolution tracking</h3>
 <p>Defect reports appear on the Equipment dashboard as open items categorised by severity. Safety-Critical defects trigger an SMS alert to all opted-in managers. The manager assigns the repair to a workshop mechanic or external contractor and sets a target resolution date. When repaired, record the work done, the parts used, and the date resolved. The defect is then closed and retained in the machine's full defect history.</p>`,
   ],
-
+  // 90 — Testing Laboratories — Registering Labs and Linking Test Results
   // 86 — Testing Laboratories — Registering Labs and Linking Test Results
   [
     "How to register testing laboratories in BDE Farm Trac and link them to soil samples, water tests, grain quality tests, and residue analyses.",
@@ -1881,7 +1900,7 @@ const CONTENT: [string, string][] = [
 <h3>Why UKAS accreditation matters</h3>
 <p>UKAS (United Kingdom Accreditation Service) is the national accreditation body. Test results from UKAS-accredited laboratories are accepted as authoritative by Red Tractor, GlobalG.A.P., TASCC, and most retailers. Non-accredited laboratory results may not be accepted as compliance evidence. Always check the scope of a laboratory's accreditation covers the specific tests you need before submitting samples.</p>`,
   ],
-
+  // 91 — Pig Production Module — Overview
   // 87 — Pig Production Module — Overview
   [
     "An overview of the Pig Production module in BDE Farm Trac, covering all available record types for Red Tractor Pigs compliance.",
@@ -1901,7 +1920,7 @@ const CONTENT: [string, string][] = [
 <h3>Herd registration</h3>
 <p>Pig herds are registered centrally in Livestock → Herds &amp; Animals. All Pig Production records link to the registered herd. If you have multiple pig units (farrow-to-finish, specialist weaner producer, and finishing unit), each unit can be registered as a separate herd with its own record sets.</p>`,
   ],
-
+  // 92 — Poultry Production Module — Overview
   // 88 — Poultry Production Module — Overview
   [
     "An overview of the Poultry Production module in BDE Farm Trac, covering all record types for Red Tractor Poultry and Lion Code compliance.",
@@ -1923,7 +1942,7 @@ const CONTENT: [string, string][] = [
 <h3>Flock-level dashboard</h3>
 <p>Each flock has a summary card showing placement date, current age, estimated liveweight, current stocking density, and most recent environmental log values. The stocking density is highlighted if it approaches the regulatory maximum for the applicable production standard.</p>`,
   ],
-
+  // 93 — Fresh Produce Module — Overview
   // 89 — Fresh Produce Module — Overview
   [
     "An overview of the Fresh Produce module in BDE Farm Trac, covering all record types for Red Tractor Fresh Produce and GlobalG.A.P. compliance.",
@@ -1944,7 +1963,7 @@ const CONTENT: [string, string][] = [
 <h3>Batch traceability</h3>
 <p>The batch code assigned in the pack-out record links back through the harvest record to the spray application records and field register, providing a complete product recall chain from retailer shelf to the field where the produce was grown.</p>`,
   ],
-
+  // 94 — Carbon & Sustainability Module — Overview
   // 90 — Carbon & Sustainability Module — Overview
   [
     "An overview of the Carbon & Sustainability module in BDE Farm Trac, covering all record types for farm carbon measurement and sustainability reporting.",
@@ -1964,7 +1983,7 @@ const CONTENT: [string, string][] = [
 <h3>FCT import</h3>
 <p>Upload your Farm Carbon Toolkit (FCT) report directly to pre-populate an annual audit record. This eliminates re-keying and keeps your on-farm data consistent with the independent assessment your agronomist or certifier sees.</p>`,
   ],
-
+  // 95 — Farm Diversification Module — Overview
   // 91 — Farm Diversification Module — Overview
   [
     "An overview of the Farm Diversification module in BDE Farm Trac, covering all enterprise types and record categories.",
@@ -1982,7 +2001,7 @@ const CONTENT: [string, string][] = [
 <h3>Income reporting</h3>
 <p>All diversification income is available in the Business Reports module alongside agricultural income. The P&amp;L statement shows diversification income by enterprise type, allowing you to evaluate which diversification activities are contributing most to farm business profitability.</p>`,
   ],
-
+  // 96 — Water & Irrigation Module — Overview
   // 92 — Water & Irrigation Module — Overview
   [
     "An overview of the Water & Irrigation module in BDE Farm Trac, covering all record types for abstraction compliance and irrigation management.",
@@ -2000,7 +2019,7 @@ const CONTENT: [string, string][] = [
 <li><strong>Drought management:</strong> drought management plan document storage and restriction alert records.</li>
 </ul>`,
   ],
-
+  // 97 — AI & Reproduction Records — Livestock
   // 93 — AI & Reproduction Records — Livestock
   [
     "How to use the AI & Reproduction module in BDE Farm Trac for cattle, sheep, pig, and goat breeding event records.",
@@ -2018,7 +2037,7 @@ const CONTENT: [string, string][] = [
 <h3>Expected event planner integration</h3>
 <p>Expected calving, lambing, farrowing, and kidding dates calculated from breeding records appear in the Week Ahead and Month Ahead planner, allowing you to plan supervision and staffing around key events in advance.</p>`,
   ],
-
+  // 98 — Sire Register — Recording Donor Bulls, Rams, Boars & Bucks
   // 94 — Sire Register — Recording Donor Bulls, Rams, Boars & Bucks
   [
     "How to register sires in BDE Farm Trac and link them to AI records, natural service records, and straw inventory management.",
@@ -2037,7 +2056,7 @@ const CONTENT: [string, string][] = [
 <h3>Straw Inventory</h3>
 <p>For each AI sire, the Straw Inventory tracks deliveries — date received, quantity, storage tank location, and cost. The inventory balance decrements automatically each time a straw from that sire is used in an AI record. A low-stock alert can be set at a threshold quantity to prompt reordering before straws run out.</p>`,
   ],
-
+  // 99 — Straw Inventory — Managing AI Semen Deliveries & Stock Levels
   // 95 — Straw Inventory — Managing AI Semen Deliveries & Stock Levels
   [
     "How to manage artificial insemination semen straw deliveries and stock levels in BDE Farm Trac.",
@@ -2058,7 +2077,7 @@ const CONTENT: [string, string][] = [
 <h3>Usage history</h3>
 <p>Every AI record that uses a straw from the inventory creates a usage entry — showing the date, the female inseminated, and the remaining balance after the use. The full usage history for each sire is viewable from the Straw Inventory record.</p>`,
   ],
-
+  // 100 — Lambing Records — Red Tractor Sheep Assurance
   // 96 — Lambing Records — Red Tractor Sheep Assurance
   [
     "How to record lambing events, ewe and lamb health, and mortality in BDE Farm Trac for Red Tractor Sheep Assurance.",
@@ -2080,7 +2099,7 @@ const CONTENT: [string, string][] = [
 <h3>Mortality recording</h3>
 <p>Lambs that die before weaning are recorded in the Mortality Records section — cause of death (starvation, mismothering, hypothermia, watery mouth, trauma, or other) and disposal method. Red Tractor requires perinatal mortality to be recorded with cause analysis to demonstrate flock welfare is being actively managed.</p>`,
   ],
-
+  // 101 — Vet Prescriptions & Medicines — Red Tractor Requirements
   // 97 — Vet Prescriptions & Medicines — Red Tractor Requirements
   [
     "What Red Tractor requires from farm medicine records and how BDE Farm Trac meets those requirements.",
@@ -2098,7 +2117,7 @@ const CONTENT: [string, string][] = [
 <h3>How BDE Farm Trac meets these requirements</h3>
 <p>BDE Farm Trac's Medicine Records module captures all required fields for each treatment. Batch numbers are mandatory fields — the record cannot be saved without one. Withdrawal periods are calculated automatically from the product's label data. VWD references link to the Vet Prescriptions register. Stock levels are tracked via the Trade Contacts &amp; Stock module against product batches received in Goods Received Notes, providing the medicine stock record alongside the treatment book.</p>`,
   ],
-
+  // 102 — SFI / ELMs Actions & Agreements — Environmental Module
   // 98 — SFI / ELMs Actions & Agreements — Environmental Module
   [
     "How to record SFI and Environmental Land Management scheme actions and management events in BDE Farm Trac's Environmental module.",
@@ -2115,7 +2134,7 @@ const CONTENT: [string, string][] = [
 <h3>Inspection preparation</h3>
 <p>For RPA spot-checks, use the agreement export feature to generate a PDF of all management events for the selected agreement period. Each event includes the date, activity, area or length, and any attached photographs. This provides the inspecting officer with a clear chronological evidence file without needing to navigate through multiple screens.</p>`,
   ],
-
+  // 103 — Slurry & Manure Management — Environmental Module
   // 99 — Slurry & Manure Management — Environmental Module
   [
     "Full overview of the Slurry & Manure section in BDE Farm Trac — store register with fill-level tracking, Fill & Intake Events log, species-specific material enforcement, spreading records, and mobile app capture.",
@@ -2134,7 +2153,7 @@ const CONTENT: [string, string][] = [
 <h3>Mobile app — field capture for spreading and store fills</h3>
 <p>Both spreading and fill events can be captured in the field on the BDE Farm Trac mobile app. The <strong>Slurry / Manure Spreading</strong> screen shows your registered stores as selectable tiles, locks the material type to the store's configured species, provides a field picker, soil condition chips (with run-off warnings), NVZ closed-period gate, and GPS capture — all saved offline and synced when connectivity returns. The <strong>Slurry Store Fill / Intake</strong> screen shows the receiving store with a live capacity bar indicating what percentage of the store's capacity the intake represents, locks the material type, and saves offline to sync to the fill events log.</p>`,
   ],
-
+  // 104 — Grain Store Quality Management — Equipment Module
   // 100 — Grain Store Quality Management — Equipment Module
   [
     "How the Equipment module's grain store quality management records integrate with the grain position tracker and TASCC compliance.",
@@ -2147,7 +2166,7 @@ const CONTENT: [string, string][] = [
 <h3>Grain quality tests</h3>
 <p>The Grain Quality Tests tab covers mycotoxin screening (DON, ZEA, AFB1, OTA, FUM), specific weight measurements, pesticide residue tests, and grain conditioning tests commissioned before loading for sale. Each test record links to the storage location and the laboratory that performed the analysis. Results outside the relevant standard (e.g. DON above 1.25 mg/kg for human food wheat) are flagged in red and trigger a mandatory decision record — either the grain is re-tested, blended, or diverted to feed use.</p>`,
   ],
-
+  // 105 — Soil Sample Register — Format and Reference Numbers
   // 101 — Soil Sample Register — Format and Reference Numbers
   [
     "How soil sample references are structured in BDE Farm Trac and best practice for maintaining a consistent, auditable sampling history.",
@@ -2165,7 +2184,7 @@ const CONTENT: [string, string][] = [
 <h3>Attaching laboratory certificates</h3>
 <p>Attach the PDF or scanned laboratory report to each sample record using the document attachment feature. Inspectors and agronomists can view the original certificate from the record without needing to search through paper files.</p>`,
   ],
-
+  // 106 — Farm Insurance Register
   // 102 — Farm Insurance Register
   [
     "How to record farm insurance policies in BDE Farm Trac, including coverage types, sums insured, renewal dates, per-machine insurance tabs in Equipment, and policy documents.",
@@ -2189,7 +2208,7 @@ const CONTENT: [string, string][] = [
 <h3>Coverage cross-reference</h3>
 <p>The Farm Services &amp; Contracting module cross-references the insurance register to flag when equipment hire or contracting jobs are booked outside the current public liability or employer's liability policy period.</p>`,
   ],
-
+  // 107 — Purchase Orders — Raising and Managing POs
   // 103 — Purchase Orders — Raising and Managing POs
   [
     "How to raise, approve, track, and receive against Purchase Orders in BDE Farm Trac.",
@@ -2204,7 +2223,7 @@ const CONTENT: [string, string][] = [
 <h3>Goods Received Notes</h3>
 <p>When stock arrives, raise a GRN against the open PO. The received quantities update the PO line items. When all lines are fully received, the PO moves to Fully Received and stock levels in the Product Catalogue are updated.</p>`,
   ],
-
+  // 108 — Goods Received Notes (GRN) — Logging Deliveries and Linking to POs
   // 104 — Goods Received Notes (GRN) — Logging Deliveries and Linking to POs
   [
     "How to record goods received notes (GRNs) in BDE Farm Trac, link them to Purchase Orders, and update stock levels.",
@@ -2217,7 +2236,7 @@ const CONTENT: [string, string][] = [
 <h3>Stock level updates</h3>
 <p>When the GRN is saved, the received quantities are added to the stock levels in the Product Catalogue. The running stock balance for each product shows the total received (all GRNs) minus the total used (all consumption records from spray applications, cleanouts, and manual adjustments).</p>`,
   ],
-
+  // 109 — Batch & Lot Traceability in Spray Application Records
   // 105 — Batch & Lot Traceability in Spray Application Records
   [
     "How batch and lot numbers flow from goods received notes to spray application records in BDE Farm Trac for Red Tractor and BASIS traceability requirements.",
@@ -2234,7 +2253,7 @@ const CONTENT: [string, string][] = [
 <h3>Manual batch entry</h3>
 <p>If the product was not received through the GRN system, you can enter the batch number manually in the spray application record. The batch number field is not optional for products applied to food crops.</p>`,
   ],
-
+  // 110 — Farm Planner — Week Ahead & Month Ahead View
   // 106 — Farm Planner — Week Ahead & Month Ahead View
   [
     "How to use the Farm Planner in BDE Farm Trac to view and manage upcoming compliance deadlines, tasks, and key agricultural dates.",
@@ -2253,7 +2272,7 @@ const CONTENT: [string, string][] = [
 <h3>Printing the planner</h3>
 <p>The Print button produces a formatted planner output — useful for sharing at a weekly farm team meeting or posting on the office notice board for staff without app access.</p>`,
   ],
-
+  // 111 — Grants & Funding Register — Tracking FETF and Scheme Applications
   // 107 — Grants & Funding Register — Tracking FETF and Scheme Applications
   [
     "How to record FETF, Countryside Productivity, and other grant applications in BDE Farm Trac, including payment status and claim tracking.",
@@ -2274,7 +2293,7 @@ const CONTENT: [string, string][] = [
 <h3>Claim deadlines</h3>
 <p>Many capital grant schemes require eligible items to be purchased, installed, and claimed within a fixed window. Record the claim deadline in the notes field and set a reminder from the Task Board to ensure claims are not forfeited through a missed deadline.</p>`,
   ],
-
+  // 112 — Inspections Module — Tabs, Non-Conformances and Farm Assurance Certificates
   // 108 — Inspections Module — Tabs, Non-Conformances and Farm Assurance Certificates
   [
     "A detailed guide to the Inspections module tabs, non-conformance tracking, and assurance certificate storage in BDE Farm Trac.",
@@ -2289,7 +2308,7 @@ const CONTENT: [string, string][] = [
 <h3>Farm Assurance Certificates tab</h3>
 <p>Store your Red Tractor, Lion Quality, LEAF Marque, BRCGS, or other scheme certificates here. Each certificate shows the issue date, expiry date, and current status (Active, Expired, or Suspended). Amber warnings at 90 days and red warnings at expiry ensure renewals are not missed.</p>`,
   ],
-
+  // 113 — Risk Assessments — Using Hazard Templates and Recording COSHH Assessments
   // 109 — Risk Assessments — Using Hazard Templates and Recording COSHH Assessments
   [
     "How to complete risk assessments and COSHH assessments in BDE Farm Trac using the hazard template library.",
@@ -2308,7 +2327,7 @@ const CONTENT: [string, string][] = [
 <h3>COSHH assessments</h3>
 <p>For each hazardous substance, a separate COSHH assessment form captures the substance classification, routes of exposure, occupational exposure limits (WELS), control measures in place, PPE requirements, emergency procedures, and assessment review date. Link the completed assessment to the relevant supplier product in Trade Contacts &amp; Stock so it appears whenever that product is referenced in spray or treatment records.</p>`,
   ],
-
+  // 114 — Waste Disposal — EWC Codes and Duty of Care
   // 110 — Waste Disposal — EWC Codes and Duty of Care
   [
     "How EWC codes work in BDE Farm Trac's waste disposal records and what duty of care obligations apply to farm waste.",
@@ -2334,7 +2353,7 @@ const CONTENT: [string, string][] = [
 </ul>
 <p>BDE Farm Trac's Waste Disposal records serve as your waste transfer note register. Retain these records for the legally required two-year period — they are permanently stored in the system and cannot be deleted.</p>`,
   ],
-
+  // 115 — Documents Module — Red Tractor Required Documents Checklist
   // 111 — Documents Module — Red Tractor Required Documents Checklist
   [
     "How to use the Red Tractor Required Documents Checklist in BDE Farm Trac to ensure all mandatory documents are held and current before an assessor visit.",
@@ -2361,7 +2380,7 @@ const CONTENT: [string, string][] = [
 <h3>Uploading a missing document</h3>
 <p>Click the upload icon next to any missing or out-of-date item to open the document upload form pre-filled with the correct document type. Set an appropriate review date — typically annually for policy documents — so the status turns green immediately on upload.</p>`,
   ],
-
+  // 116 — Crop Contracts — Recording Grain Marketing Agreements
   // 112 — Crop Contracts — Recording Grain Marketing Agreements
   [
     "How to record grain marketing contracts, basis contracts, and pool scheme positions in BDE Farm Trac.",
@@ -2374,7 +2393,7 @@ const CONTENT: [string, string][] = [
 <h3>Pool scheme positions</h3>
 <p>Pool scheme positions are recorded with the pool operator, commodity, crop year, total tonnes committed, estimated outturn price, and settlement status (Open, Settled). As pool payments are received, individual payment tranches can be logged against the pool record with payment date and price per tonne received.</p>`,
   ],
-
+  // 117 — Haulage Module — Movement Records, Grain Position and Haulier Directory
   // 113 — Haulage Module — Movement Records, Grain Position and Haulier Directory
   [
     "How to use the Haulage module in BDE Farm Trac to manage grain movement records, the haulier directory, and the grain position tracker.",
@@ -2389,7 +2408,7 @@ const CONTENT: [string, string][] = [
 <h3>Grain position</h3>
 <p>The Grain Position tab summarises the current stock position by commodity across all registered storage locations. Total harvested, total moved out, and current balance are shown — updated in real time as movements are added or removed. Year filter defaults to the current crop year.</p>`,
   ],
-
+  // 118 — Mobile App — Offline Data and How Reference Pickers Work
   // 114 — Mobile App — Offline Data and How Reference Pickers Work
   [
     "How offline data storage and reference pickers work in the BDE Farm Trac mobile app when there is no internet connectivity.",
@@ -2411,7 +2430,7 @@ const CONTENT: [string, string][] = [
 <h3>Pending sync tray</h3>
 <p>The badge count in the top toolbar of the mobile app shows how many records are waiting to sync. Tap the badge to see the pending sync list. All synced records appear in the dashboard immediately after upload — no manual merge step is required.</p>`,
   ],
-
+  // 119 — Fuel & Energy Management — HMRC Compliance, Oil Storage, LPG and Grid Energy
   // 115 — Fuel & Energy Management — HMRC Compliance, Oil Storage, LPG and Grid Energy
   [
     "How to record fuel drawdowns, oil storage records, and energy consumption in BDE Farm Trac for HMRC compliance and carbon reporting.",
@@ -2426,7 +2445,7 @@ const CONTENT: [string, string][] = [
 <h3>Solar generation</h3>
 <p>Solar panel generation records are logged in <strong>Fuel &amp; Energy → Solar Generation</strong>. Monthly generation (kWh) feeds the Carbon Auto-Calculator to calculate CO₂ avoided at the UK grid emission factor, contributing to your carbon sequestration/avoidance total.</p>`,
   ],
-
+  // 120 — Feed Management — UFAS/FEMAS Traceability, Medicated Feed and Stock Levels
   // 116 — Feed Management — UFAS/FEMAS Traceability, Medicated Feed and Stock Levels
   [
     "How to manage feed deliveries, UFAS/FEMAS supplier compliance, medicated feed records, and stock levels in BDE Farm Trac.",
@@ -2439,7 +2458,7 @@ const CONTENT: [string, string][] = [
 <h3>Stock levels</h3>
 <p>Feed stock levels are maintained per feed type and per storage location (bin, silo, or store). Deliveries (GRN receipts) add to stock. Manual consumption records or batch usage entries reduce stock. Low-stock alerts can be set at reorder threshold quantities for each feed type.</p>`,
   ],
-
+  // 121 — Compliance & Plans — Feed Contingency Plan, Disease Log and Feed Recalls
   // 117 — Compliance & Plans — Feed Contingency Plan, Disease Log and Feed Recalls
   [
     "How to use the Compliance & Plans module in BDE Farm Trac for feed contingency plans, disease incident logging, and feed recall records.",
@@ -2452,7 +2471,7 @@ const CONTENT: [string, string][] = [
 <h3>Feed Recall records</h3>
 <p>When a feed manufacturer or UFAS scheme operator issues a recall, log the recall in <strong>Compliance &amp; Plans → Feed Recalls</strong>. Record the feed product name, the recall reference number, the batch numbers affected, the date the recall was received, and the action taken — stock withdrawn, returned to supplier, or destroyed. Attach the recall notice from the manufacturer.</p>`,
   ],
-
+  // 122 — Sales & Trading — Recording Farm Output
   // 118 — Sales & Trading — Recording Farm Output
   [
     "An overview of how to record grain, livestock, milk, and direct farm sales in BDE Farm Trac's Finance & Business module.",
@@ -2465,7 +2484,7 @@ const CONTENT: [string, string][] = [
 <h3>Direct sales</h3>
 <p>Farm shop, box scheme, farmers market, restaurant, and online sales are recorded in the Direct Sales tab — product, quantity, unit price, customer name (optional), payment method, and payment status (Invoiced, Paid, or Overdue). Outstanding invoices are flagged in amber until the payment status is updated to Paid.</p>`,
   ],
-
+  // 123 — Continuous Soil Monitoring — Sensor Probes and Readings
   // 119 — Continuous Soil Monitoring — Sensor Probes and Readings
   [
     "How to record continuous soil monitoring sensor data in BDE Farm Trac, including probe registration, readings, and alerts.",
@@ -2478,7 +2497,7 @@ const CONTENT: [string, string][] = [
 <h3>Irrigation scheduling support</h3>
 <p>The soil moisture readings feed the Soil Moisture Deficit (SMD) section in the Water &amp; Irrigation module, where they can be compared against crop available water capacity thresholds for the soil type. When the SMD approaches the trigger threshold for the crop at the current growth stage, an amber alert prompts an irrigation scheduling review.</p>`,
   ],
-
+  // 124 — Organic Compliance Overview & Certification Tracking
   // 120 — Organic Compliance Overview & Certification Tracking
   [
     "How BDE Farm Trac supports organic farm compliance, covering certification tracking, organic inspection records, and the organic input register.",
@@ -2491,7 +2510,7 @@ const CONTENT: [string, string][] = [
 <h3>Parallel production</h3>
 <p>If you grow both organic and non-organic crops (parallel production), you must maintain clear separation records. The Field Conversion Tracker shows each field's organic status (In Conversion, Fully Organic, Conventional) and the conversion start date, providing the audit trail to confirm that organic and non-organic products are managed and stored separately.</p>`,
   ],
-
+  // 125 — Recording Organic Inspections & Attaching Documents
   // 121 — Recording Organic Inspections & Attaching Documents
   [
     "How to record annual organic certification inspections, attach the inspection report, and track outstanding conditions in BDE Farm Trac.",
@@ -2510,7 +2529,7 @@ const CONTENT: [string, string][] = [
 <h3>Tracking conditions</h3>
 <p>For any conditions attached to certification, create a condition record from the inspection. Each condition captures the clause or standard breached, the corrective action required, the deadline set by the certifier, and the resolution status. Unresolved conditions approaching their deadline are flagged in amber on the Organic dashboard. When resolved, attach any evidence submitted to the certifier and record the certifier's confirmation of acceptance.</p>`,
   ],
-
+  // 126 — Organic Input Register & Restricted Inputs
   // 122 — Organic Input Register & Restricted Inputs
   [
     "How to maintain the organic input register in BDE Farm Trac, including approved products, restricted inputs, and certifier approval records.",
@@ -2528,7 +2547,7 @@ const CONTENT: [string, string][] = [
 <h3>Restricted inputs and derogations</h3>
 <p>For inputs that are restricted or require a derogation, record the justification for use and the certifier's specific approval (or derogation) reference. Using a restricted input without certifier approval is a certification breach. The Input Derogations section of the Organic module (for crops) or Organic Viticulture module (for viticulture) manages the formal derogation case workflow.</p>`,
   ],
-
+  // 127 — Field Conversion Tracker & Parallel Production
   // 123 — Field Conversion Tracker & Parallel Production
   [
     "How to track organic field conversion status and manage parallel production records in BDE Farm Trac.",
@@ -2546,7 +2565,7 @@ const CONTENT: [string, string][] = [
 <h3>Parallel production</h3>
 <p>Parallel production — growing the same variety of the same crop as both organic and non-organic on the same holding — is only permitted with specific certifier approval and robust separation records. Record any parallel production approval from your certifier and maintain clear field-level records showing which fields are organic and which are conventional. Spray application records from conventional fields must not be confused with organic field records — the module flags any spray application record referencing a product classified as Not Permitted in the Organic Input Register.</p>`,
   ],
-
+  // 128 — Organic Livestock — Herd Register Linkage & Conversion
   // 124 — Organic Livestock — Herd Register Linkage & Conversion
   [
     "How organic livestock herds are registered and linked in BDE Farm Trac, including conversion status and organic herd separation records.",
@@ -2565,7 +2584,7 @@ const CONTENT: [string, string][] = [
 <h3>Treatment compliance</h3>
 <p>Organic livestock may only be treated with permitted medicines. See the dedicated <em>Organic Livestock — Treatment Compliance</em> article for how the module handles treatment records without requiring double entry of medicine data.</p>`,
   ],
-
+  // 129 — Organic Livestock — Treatment Compliance (No Double Entry)
   // 125 — Organic Livestock — Treatment Compliance (No Double Entry)
   [
     "How BDE Farm Trac handles organic livestock treatment records without duplicating data across the Organic and Livestock modules.",
@@ -2581,7 +2600,7 @@ const CONTENT: [string, string][] = [
 <h3>Animal organic status</h3>
 <p>The Individual Animal Register shows the current organic certification status of each animal alongside its treatment history. Animals that have received a prohibited treatment or exceeded the treatment frequency threshold are flagged for certifier notification. Document any certifier correspondence regarding these animals in the Notes field of the animal's record.</p>`,
   ],
-
+  // 130 — Organic Dairy — Herd Conversion & Milk Collection Records
   // 126 — Organic Dairy — Herd Conversion & Milk Collection Records
   [
     "How to record organic dairy herd conversion and milk collection records in BDE Farm Trac for organic dairy certification.",
@@ -2594,7 +2613,7 @@ const CONTENT: [string, string][] = [
 <h3>Organic feed compliance</h3>
 <p>Organic dairy cows must receive at least 60% of their dry matter intake from organic forage from the second year of conversion onward. Feed records in the Organic Dairy → Feed Records section log each feed type against its organic status (Certified Organic, In Conversion, or Conventional — within the permitted 10% allowance) to support the ration compliance calculation.</p>`,
   ],
-
+  // 131 — Organic Dairy — Treatment Compliance & Organic Feed Records
   // 127 — Organic Dairy — Treatment Compliance & Organic Feed Records
   [
     "How organic dairy treatment compliance and feed ratio records work in BDE Farm Trac.",
@@ -2611,7 +2630,7 @@ const CONTENT: [string, string][] = [
 <h3>Organic feed ratio records</h3>
 <p>Navigate to <strong>Organic → Dairy → Feed Records</strong>. Each daily or weekly feed record logs the ration composition by feed type. The organic status of each component (certified organic, in conversion, or permitted conventional) is recorded, and the calculated organic dry matter proportion is shown against the 60% minimum threshold. The record is flagged amber if the ration falls below 60% organic dry matter on any day.</p>`,
   ],
-
+  // 132 — TB Testing — Enhanced Data Capture & History
   // 128 — TB Testing — Enhanced Data Capture & History
   [
     "How to record tuberculosis (bTB) test events in BDE Farm Trac, including APHA test reference, reactor records, and movement linkage.",
@@ -2632,7 +2651,7 @@ const CONTENT: [string, string][] = [
 <h3>Pre-movement testing</h3>
 <p>Livestock movement records from your holding include a pre-movement testing compliance field — confirming whether a pre-movement test was required and carried out within the APHA-specified window before the movement. The TB test record provides the evidence to support this confirmation.</p>`,
   ],
-
+  // 133 — Welfare Outcome Assessments — Scoring, Reporting & Mobile Recording
   // 129 — Welfare Outcome Assessments — Scoring, Reporting & Mobile Recording
   [
     "How to record welfare outcome assessments (WOAs) in BDE Farm Trac, including assessor type selection, species-adaptive measures, walkthrough tally, and external assessor purchase orders.",
@@ -2653,7 +2672,7 @@ const CONTENT: [string, string][] = [
 <h3>Mobile recording</h3>
 <p>Tap <strong>Record → Welfare Outcome</strong> in the mobile app to log an assessment in the field. The form saves offline if you have no signal and syncs to the dashboard automatically when connectivity is restored.</p>`,
   ],
-
+  // 134 — Fallen Stock Records — Contractor, Veterinary Details & Invoice Tracking
   // 130 — Fallen Stock Records — Contractor, Veterinary Details & Invoice Tracking
   [
     "How to record fallen stock collection events in BDE Farm Trac, including contractor details, collection method, and invoice tracking.",
@@ -2672,7 +2691,7 @@ const CONTENT: [string, string][] = [
 <h3>Invoice tracking</h3>
 <p>If the contractor charges for collection, record the invoice amount, invoice reference, and payment status. These costs can be reported in the Finance module under miscellaneous costs for gross margin analysis.</p>`,
   ],
-
+  // 135 — Sheep Dipping Records — Pesticide Certificates & Stock Usage
   // 131 — Sheep Dipping Records — Pesticide Certificates & Stock Usage
   [
     "How to record sheep dipping events in BDE Farm Trac, including operator certificates, dip product, disposal, and stock usage.",
@@ -2693,7 +2712,7 @@ const CONTENT: [string, string][] = [
 <h3>Product stock usage</h3>
 <p>The quantity of dip product used is linked to the stock record in Trade Contacts &amp; Stock, reducing the running balance. This satisfies the agrochemical stock reconciliation requirement of Red Tractor.</p>`,
   ],
-
+  // 136 — Vet Prescriptions — Linking Treatments to Written Authorisations
   // 132 — Vet Prescriptions — Linking Treatments to Written Authorisations
   [
     "How to link individual medicine treatment records to veterinary written authorisations in BDE Farm Trac.",
@@ -2706,7 +2725,7 @@ const CONTENT: [string, string][] = [
 <h3>Authorisation quantity tracking</h3>
 <p>For VWDs that specify a maximum quantity authorised (e.g. 200 tubes of antibiotic for dry cow therapy), the linked treatments allow you to calculate total usage against the authorised maximum. An alert is shown on the prescription record when usage approaches the authorised quantity, prompting a request for a new or renewed prescription from the vet.</p>`,
   ],
-
+  // 137 — Department Management — Creating Departments & Assigning Staff
   // 133 — Department Management — Creating Departments & Assigning Staff
   [
     "How to create departments in BDE Farm Trac and assign staff members to them for task filtering and labour management.",
@@ -2721,7 +2740,7 @@ const CONTENT: [string, string][] = [
 <h3>Department filtering in task board and Labour Management</h3>
 <p>The Task Board's department filter shows only tasks assigned to staff within the selected department. The Labour Management Submission Status grid groups staff by department with colour-coded section headers, making it easy to check which teams have submitted and approved their timesheets for the week.</p>`,
   ],
-
+  // 138 — Task Assignment — Filtering by Department & Viewing Department Tasks
   // 134 — Task Assignment — Filtering by Department & Viewing Department Tasks
   [
     "How to use department filters in the Task Board to manage and view tasks by team in BDE Farm Trac.",
@@ -2736,7 +2755,7 @@ const CONTENT: [string, string][] = [
 <h3>Mobile task inbox</h3>
 <p>Staff members see only their own assigned tasks in the mobile app's Task Inbox, regardless of department settings. Department filtering applies only to the dashboard Task Board management view used by managers and administrators.</p>`,
   ],
-
+  // 139 — Contractor H&S File — Reviews, Compliance Tasks & Supplier Badges
   // 135 — Contractor H&S File — Reviews, Compliance Tasks & Supplier Badges
   [
     "How to manage contractor health and safety files in BDE Farm Trac, including compliance reviews, induction records, and insurance verification.",
@@ -2756,7 +2775,7 @@ const CONTENT: [string, string][] = [
 <h3>Compliance tasks</h3>
 <p>Set periodic review tasks — annually for insurance renewals, every three years for NSTS sprayer tests, or whenever a contractor starts a new project. Tasks linked to a contractor record appear in the Task Board as Contractor H&amp;S Review type tasks.</p>`,
   ],
-
+  // 140 — Task Board — New Task Types & Filtering Completed Tasks by Date
   // 136 — Task Board — New Task Types & Filtering Completed Tasks by Date
   [
     "How new task types work in BDE Farm Trac and how to filter and review completed tasks by date on the Task Board.",
@@ -2774,7 +2793,7 @@ const CONTENT: [string, string][] = [
 <h3>Filtering completed tasks by date</h3>
 <p>Navigate to the Completed filter tab on the Task Board. Use the date range picker to select a specific period — e.g. last month or last crop year. The completed tasks within that range are displayed with their completion date and who completed them. Export the filtered list to CSV for inclusion in an inspection evidence pack.</p>`,
   ],
-
+  // 141 — PPE Register — Where to Find It & How the Three Sub-Registers Work
   // 137 — PPE Register — Where to Find It & How the Three Sub-Registers Work
   [
     "How the PPE Register is structured in BDE Farm Trac, covering the three sub-registers: Stock, Issue, and Risk Assessments.",
@@ -2789,7 +2808,7 @@ const CONTENT: [string, string][] = [
 <h3>PPE Risk Assessments</h3>
 <p>The Risk Assessments tab holds the assessments required by the PPE at Work Regulations 2022 — identifying which PPE is required for which tasks, the standard the selected PPE must meet, and the assessment date. Each assessment links to the relevant COSHH assessment or task risk assessment that identified the PPE need.</p>`,
   ],
-
+  // 142 — PPE Stock Register — Supplier Traceability, Invoice Refs & Stock Levels
   // 138 — PPE Stock Register — Supplier Traceability, Invoice Refs & Stock Levels
   [
     "How to maintain the PPE stock register in BDE Farm Trac, including supplier records, invoice references, and reorder level management.",
@@ -2808,7 +2827,7 @@ const CONTENT: [string, string][] = [
 <h3>Stock level management</h3>
 <p>When PPE is issued to a staff member via the Issue Register, the quantity in stock decrements by the number of items issued. When new stock is purchased, log the receipt against the stock item to increment the balance. Low-stock alerts appear on the PPE Register dashboard when any item falls to or below its reorder level.</p>`,
   ],
-
+  // 143 — PPE Issue Register — Issuing PPE to Staff & Recording Condition Checks
   // 139 — PPE Issue Register — Issuing PPE to Staff & Recording Condition Checks
   [
     "How to record PPE issuances to farm staff and periodic condition checks in BDE Farm Trac.",
@@ -2828,7 +2847,7 @@ const CONTENT: [string, string][] = [
 <h3>Condition checks</h3>
 <p>PPE must be inspected periodically to confirm it remains fit for purpose. Log a condition check by opening an existing issue record and adding a check entry — date, current condition (Good, Worn/Faded, or Damaged/Replace), and any action taken (replaced, repaired, returned to stock). A check frequency recommendation appears on each issue record based on the PPE type — daily inspection for chemical-resistant gloves, monthly for hard hats, annually for safety harnesses.</p>`,
   ],
-
+  // 144 — PPE Risk Assessments — Recording Assessments Under PPE at Work Regulations 2022
   // 140 — PPE Risk Assessments — Recording Assessments Under PPE at Work Regulations 2022
   [
     "How to complete and record PPE risk assessments in BDE Farm Trac under the PPE at Work Regulations 2022.",
@@ -2846,7 +2865,7 @@ const CONTENT: [string, string][] = [
 </ul>
 <p>Link the assessment to the relevant COSHH assessment or task risk assessment that identified the hazard. The completed PPE risk assessment is stored permanently and appears in the PPE Compliance Pack for inspectors.</p>`,
   ],
-
+  // 145 — PPE Compliance Pack — Printing the Full PPE Register for Inspection
   // 141 — PPE Compliance Pack — Printing the Full PPE Register for Inspection
   [
     "How to generate and print a PPE Compliance Pack from BDE Farm Trac for HSE inspections or farm assurance audits.",
@@ -2864,7 +2883,7 @@ const CONTENT: [string, string][] = [
 <h3>When to use the Compliance Pack</h3>
 <p>Generate the pack before any H&amp;S inspection or assurance audit visit. It presents the complete PPE compliance evidence without requiring the inspector to navigate through multiple screens — print it and have it available at the start of the visit.</p>`,
   ],
-
+  // 146 — PPE Staff Record — Printing an Individual Staff Member's PPE History
   // 142 — PPE Staff Record — Printing an Individual Staff Member's PPE History
   [
     "How to print a PPE history record for an individual staff member in BDE Farm Trac.",
@@ -2882,7 +2901,7 @@ const CONTENT: [string, string][] = [
 <h3>Leaving checklist use</h3>
 <p>When a staff member leaves, use their PPE Staff Record as the basis for a PPE return check. Any items listed as currently issued should be returned or written off as consumables. Update the Issue Register with a return date and condition note for any items recovered. Items not returned and not consumable (safety boots, hard hats) should be written off as a loss with a note on the record.</p>`,
   ],
-
+  // 147 — Sheep Production Module — Overview and Getting Started
   // 143 — Sheep Production Module — Overview and Getting Started
   [
     "An overview of the Sheep Production module in BDE Farm Trac, covering all record types and how to get started.",
@@ -2902,7 +2921,7 @@ const CONTENT: [string, string][] = [
 <li><strong>Red Tractor Sheep Assurance Checklist:</strong> pre-inspection self-assessment.</li>
 </ul>`,
   ],
-
+  // 148 — Sheep Flock Register — Flocks are Registered in Livestock → Herds & Animals
   // 144 — Sheep Flock Register — Flocks are Registered in Livestock → Herds & Animals
   [
     "How sheep flocks are registered and managed in BDE Farm Trac's Livestock module and how they link to Sheep Production records.",
@@ -2921,7 +2940,7 @@ const CONTENT: [string, string][] = [
 <h3>Using the flock register across modules</h3>
 <p>The registered flock appears as a picker option in the Sheep Production module for every record type — tupping, scanning, weigh-in, shearing, disease monitoring, and the assurance checklist. It also appears in Livestock Movements, Medicine Records, and Mortality Records. This means all records for a flock are linked through a single registered entity, making it straightforward to pull together a complete flock history for an assessor.</p>`,
   ],
-
+  // 149 — Sheep Tupping Records — Ram Selection, Service Dates and Scanning Expectation
   // 145 — Sheep Tupping Records — Ram Selection, Service Dates and Scanning Expectation
   [
     "How to record tupping events in BDE Farm Trac, including ram selection, service dates, and expected scanning dates.",
@@ -2942,7 +2961,7 @@ const CONTENT: [string, string][] = [
 <h3>Multiple rams per group</h3>
 <p>If multiple rams are running with the same ewe group (e.g. a vasectomised teaser followed by a stock ram), create a separate tupping record for each ram with the relevant date put to and date removed.</p>`,
   ],
-
+  // 150 — Sheep Scanning Records — Pregnancy Scanning, Litter Sizes and Expected Lambing
   // 146 — Sheep Scanning Records — Pregnancy Scanning, Litter Sizes and Expected Lambing
   [
     "How to record pregnancy scanning results in BDE Farm Trac, including litter distribution, pregnancy rate, and expected lambing dates.",
@@ -2967,7 +2986,7 @@ const CONTENT: [string, string][] = [
 <h3>Expected lambing date</h3>
 <p>Record the expected lambing start date (typically 147 days from the tupping start date for most breeds). This date and the expected end date appear in the Farm Planner as a lambing period block, allowing staffing and resource planning to be built around the key supervision period.</p>`,
   ],
-
+  // 151 — Sheep Weigh-in and DLWG — Performance Recording and Target Tracking
   // 147 — Sheep Weigh-in and DLWG — Performance Recording and Target Tracking
   [
     "How to record sheep weigh-in events and DLWG performance in BDE Farm Trac for Red Tractor Sheep Assurance.",
@@ -2992,7 +3011,7 @@ const CONTENT: [string, string][] = [
 </ul>
 <p>Red results prompt a review of nutrition, health status, and pasture availability for the group.</p>`,
   ],
-
+  // 152 — Sheep Shearing Records — Fleece Weight, Contractor Details and BWMB Traceability
   // 148 — Sheep Shearing Records — Fleece Weight, Contractor Details and BWMB Traceability
   [
     "How to record shearing events in BDE Farm Trac, including fleece weight, contractor details, and BWMB traceability requirements.",
@@ -3012,7 +3031,7 @@ const CONTENT: [string, string][] = [
 <h3>BWMB traceability</h3>
 <p>For producers registered with the BWMB, the shearing record provides the clip record required for the wool docket system — quantity, flock, shearing date, and merchant. The clip weight and quality grade determine the payment rate applied by BWMB to your annual settlement. Retain this record alongside the BWMB wool docket for traceability in the event of a quality query from the merchant.</p>`,
   ],
-
+  // 153 — Red Tractor Sheep Assurance Checklist — Preparing for an Assessor Visit
   // 149 — Red Tractor Sheep Assurance Checklist — Preparing for an Assessor Visit
   [
     "How to use the Red Tractor Sheep Assurance pre-inspection checklist in BDE Farm Trac to prepare for an assessor visit.",
@@ -3032,7 +3051,7 @@ const CONTENT: [string, string][] = [
 <h3>Completing and printing the checklist</h3>
 <p>Tick each item as compliant. Items with outstanding issues can be marked as non-compliant with a note. The section summary turns green, amber, or red based on the completeness of each section. Print the completed checklist to present to the assessor at the start of the visit.</p>`,
   ],
-
+  // 154 — Beef Production Module — Overview and Getting Started
   // 150 — Beef Production Module — Overview and Getting Started
   [
     "An overview of the Beef Production module in BDE Farm Trac, covering all record types and how to get started.",
@@ -3050,7 +3069,7 @@ const CONTENT: [string, string][] = [
 <h3>Red Tractor Beef &amp; Lamb readiness</h3>
 <p>All weigh-in, finishing, and settlement records map directly to the evidence trail required by Red Tractor Beef &amp; Lamb assurance standards — performance monitoring, feed records, and cattle traceability. Run the Red Tractor Audit Pack Generator from the Inspections module to compile all Beef Production records into a formatted pre-inspection document.</p>`,
   ],
-
+  // 155 — Beef Weigh-in and DLWG Records — Tracking Growth Performance
   // 151 — Beef Weigh-in and DLWG Records — Tracking Growth Performance
   [
     "How to record beef cattle weigh-in events and track DLWG performance in BDE Farm Trac for Red Tractor Beef & Lamb compliance.",
@@ -3076,7 +3095,7 @@ const CONTENT: [string, string][] = [
 <h3>DLWG trend chart</h3>
 <p>The Beef Production page shows a trend chart of DLWG across all weigh-in records for the selected group, making it easy to spot when performance dropped and correlate the change with a health event or ration change.</p>`,
   ],
-
+  // 156 — Beef Finishing Records — Entry Weight, Exit Weight and Deadweight Settlement
   // 152 — Beef Finishing Records — Entry Weight, Exit Weight and Deadweight Settlement
   [
     "How to record beef finishing group entry and close-out records, linking to deadweight settlement data in BDE Farm Trac.",
@@ -3102,7 +3121,7 @@ const CONTENT: [string, string][] = [
 <h3>Deadweight settlement linkage</h3>
 <p>After receiving the kill sheet from the processor, add a Deadweight Settlement record to the closed-out finishing record. The settlement captures kill date, slaughter number, cold deadweight, kill-out percentage, EUROP grade and fat class from the plant, pence/kg DW, and net settlement value. This creates a complete chain from entry weight to kill sheet to settlement payment.</p>`,
   ],
-
+  // 157 — Beef Body Condition Scoring — Recording and Monitoring BCS on the 1–5 Scale
   // 153 — Beef Body Condition Scoring — Recording and Monitoring BCS on the 1–5 Scale
   [
     "How to record body condition scores for beef cattle in BDE Farm Trac at key production stages.",
@@ -3120,7 +3139,7 @@ const CONTENT: [string, string][] = [
 <h3>Action flags</h3>
 <p>Animals or groups scoring below the minimum target BCS for the production stage are flagged with an amber action card. Suggested management actions (nutritional review, individual supplementary feeding, veterinary assessment) are shown on the card. These action flags remain open until a follow-up BCS record shows the score has improved to within the target range.</p>`,
   ],
-
+  // 158 — Medicated Feed Withdrawal Tracking — Recording Active Ingredients and Clearance Dates
   // 154 — Medicated Feed Withdrawal Tracking — Recording Active Ingredients and Clearance Dates
   [
     "How BDE Farm Trac tracks medicated feed withdrawal periods and clearance dates for livestock treated with medicated feed.",
@@ -3139,7 +3158,7 @@ const CONTENT: [string, string][] = [
 <h3>Clearance date tracking</h3>
 <p>When animals start consuming medicated feed, log the start date and the expected end date (last day of medicated feed use) for the group. The clearance date — the earliest date animals can be presented for slaughter — is calculated automatically as: end of medicated feed + withdrawal period. Animals with an active medicated feed withdrawal period are flagged in the Individual Animal Register and in the Movement Records section. Moving such animals for slaughter before the clearance date is a food safety breach.</p>`,
   ],
-
+  // 159 — Grain Drying Records — Logging Drying Events, Moisture Reduction and Costs
   // 155 — Grain Drying Records — Logging Drying Events, Moisture Reduction and Costs
   [
     "How to record grain drying events in BDE Farm Trac, including intake and target moisture, tonnes dried, fuel consumed, and drying costs.",
@@ -3162,7 +3181,7 @@ const CONTENT: [string, string][] = [
 <h3>Cost of production reporting</h3>
 <p>Drying costs from the Grain Drying register feed directly into the gross margin analysis in the Finance &amp; Business module under the Drying/Storage variable cost category. This ensures your true cost of production per tonne accounts for the full drying cost, not just the combined drill-to-store cost.</p>`,
   ],
-
+  // 160 — Grain Quality Tests — Mycotoxin, Pesticide Residue, Specific Weight and Conditioning
   // 156 — Grain Quality Tests — Mycotoxin, Pesticide Residue, Specific Weight and Conditioning
   [
     "How to record grain quality test results in BDE Farm Trac, including mycotoxin screening, specific weight, and pesticide residue analysis.",
@@ -3185,7 +3204,7 @@ const CONTENT: [string, string][] = [
 </ul>
 <p>Results outside the applicable limit are flagged in red and trigger a mandatory decision record — divert to feed use, re-test, or blend. The decision and its rationale are stored permanently alongside the test result.</p>`,
   ],
-
+  // 161 — Training Competency Matrix — Staff × Certificate Traffic-Light Compliance View
   // 157 — Training Competency Matrix — Staff × Certificate Traffic-Light Compliance View
   [
     "How to use the Training Competency Matrix in BDE Farm Trac to view staff certificate compliance at a glance.",
@@ -3203,7 +3222,7 @@ const CONTENT: [string, string][] = [
 <h3>Printing the matrix</h3>
 <p>The Print button produces a formatted certificate compliance grid suitable for inclusion in an audit pack or for posting in the farm office as a standing reference. Print after each certificate renewal to keep the displayed version current.</p>`,
   ],
-
+  // 162 — Red Tractor Audit Pack Generator — Assembling Evidence Packs for Assessor Visits
   // 158 — Red Tractor Audit Pack Generator — Assembling Evidence Packs for Assessor Visits
   [
     "How to use the Red Tractor Audit Pack Generator in BDE Farm Trac to compile evidence packs for assessor visits.",
@@ -3227,7 +3246,7 @@ const CONTENT: [string, string][] = [
 <h3>Sharing with the assessor</h3>
 <p>The pack can be printed directly from the browser, or a time-limited Inspection Access session can be created so the assessor can review records on-screen during the visit without being given full platform access. Both methods satisfy the Red Tractor evidence presentation requirement.</p>`,
   ],
-
+  // 163 — NVZ Closed Period Automation — Countdown Widgets and Application Budget Remaining
   // 159 — NVZ Closed Period Automation — Countdown Widgets and Application Budget Remaining
   [
     "How BDE Farm Trac automates NVZ closed period monitoring and displays application budget remaining for each field.",
@@ -3245,7 +3264,7 @@ const CONTENT: [string, string][] = [
 <h3>Closed period breach detection</h3>
 <p>Application records created with a spreading date that falls within a closed period for the relevant material type and soil type are flagged automatically as potential closed period breaches. The records cannot be deleted — the breach is permanently recorded with a mandatory note field for documenting the circumstances.</p>`,
   ],
-
+  // 164 — Carbon Auto-Calculator — DEFRA 2023 Emission Factors and Scope 1, 2 and 3 Calculations
   // 160 — Carbon Auto-Calculator — DEFRA 2023 Emission Factors and Scope 1, 2 and 3 Calculations
   [
     "How the Carbon Auto-Calculator in BDE Farm Trac uses DEFRA 2023 emission factors to calculate farm Scope 1, 2, and 3 emissions automatically.",
@@ -3263,7 +3282,7 @@ const CONTENT: [string, string][] = [
 <h3>Output</h3>
 <p>The calculated result shows gross emissions in tCO₂e per year by category, the total farm footprint, and the intensity figure in tCO₂e per hectare. These figures can be copied directly into an annual carbon audit record for year-on-year comparison.</p>`,
   ],
-
+  // 165 — Crop Rotation Planner — Field × Year Grid, OSR Interval Warnings and Sequence Planning
   // 161 — Crop Rotation Planner — Field × Year Grid, OSR Interval Warnings and Sequence Planning
   [
     "How to use the Crop Rotation Planner in BDE Farm Trac to visualise and plan field rotations, including OSR break interval warnings.",
@@ -3278,7 +3297,7 @@ const CONTENT: [string, string][] = [
 <h3>Export to CSV</h3>
 <p>Export the full rotation grid to CSV for sharing with an agronomist or BASIS adviser at the seasonal agronomy meeting.</p>`,
   ],
-
+  // 166 — Labour Management — Setup Order, Rota, Timesheet Submission & Approval Workflow
   // 162 — Labour Management — Setup Order, Rota, Timesheet Submission & Approval Workflow
   [
     "How to set up Labour Management in BDE Farm Trac in the correct order, from rota planning through to timesheet approval.",
@@ -3293,7 +3312,7 @@ const CONTENT: [string, string][] = [
 <h3>Steps 4 &amp; 5 — Pay Summary and Working Time</h3>
 <p>Once hourly rates are set per staff member, monthly gross pay is calculated automatically from approved timesheet hours. The Working Time tab calculates the 17-week rolling average weekly hours for WTR compliance — any breach above 48 hours is flagged automatically.</p>`,
   ],
-
+  // 167 — Labour Management — Timesheet Approval, SMS Notifications & Submission Status Grid
   // 163 — Labour Management — Timesheet Approval, SMS Notifications & Submission Status Grid
   [
     "How timesheet approval, SMS notifications, and the submission status grid work in BDE Farm Trac's Labour Management module.",
@@ -3312,7 +3331,7 @@ const CONTENT: [string, string][] = [
 <h3>SMS notifications</h3>
 <p>If the SMS Alerts module is active, opted-in managers receive an SMS when staff submit their timesheets, prompting timely review. Staff also receive an SMS notification when their timesheet is approved or when a leave request decision is made. This keeps the approval loop moving without requiring constant dashboard monitoring.</p>`,
   ],
-
+  // 168 — Labour Management — Mobile Leave Requests, Pending Approval Panel & SMS Notifications
   // 164 — Labour Management — Mobile Leave Requests, Pending Approval Panel & SMS Notifications
   [
     "How staff submit leave requests from the mobile app and how managers review and approve them in BDE Farm Trac.",
@@ -3325,7 +3344,7 @@ const CONTENT: [string, string][] = [
 <h3>SMS notifications</h3>
 <p>When a leave request is submitted, opted-in managers receive an SMS notification. When the manager approves or declines, an SMS is sent back to the staff member confirming the decision. For declined requests, the decline reason (if entered) is included in the SMS — so the staff member knows why and can plan accordingly without needing to check the dashboard.</p>`,
   ],
-
+  // 169 — Labour Management — Holiday Planner, Conflict Detection and Month-by-Month Calendar View
   // 165 — Labour Management — Holiday Planner, Conflict Detection and Month-by-Month Calendar View
   [
     "How the Holiday Planner in BDE Farm Trac displays team absences, detects scheduling conflicts, and shows month-by-month calendars.",
@@ -3348,7 +3367,7 @@ const CONTENT: [string, string][] = [
 <h3>Conflict detection</h3>
 <p>At the bottom of the calendar grid, a Staff Off count row shows how many team members are absent each day. Any day where 40% or more of the team are absent is highlighted in red — this flags a potential scheduling conflict before you approve further requests for the same period. This prevents under-resourcing at harvest, lambing, or other critical periods.</p>`,
   ],
-
+  // 170 — Labour Management — Printable Blank Leave Request Form (FT-LR-01) and Paper Submission Workflow
   // 166 — Labour Management — Printable Blank Leave Request Form (FT-LR-01) and Paper Submission Workflow
   [
     "How to print a blank leave request form from BDE Farm Trac for staff who cannot use the mobile app.",
@@ -3368,7 +3387,7 @@ const CONTENT: [string, string][] = [
 <h3>Digital transcription</h3>
 <p>Once the paper form is signed by both employee and manager, transcribe the outcome into the Holiday &amp; Absence tab by adding a new absence record. This keeps the digital record complete for Working Time Regulations calculations and the Submission Status grid — staff on approved leave should show as grey (–) not red (!) in the grid.</p>`,
   ],
-
+  // 171 — Labour Management — Actual Attendance Recording, Discrepancy Flags and Bradford Factor Sickness Analysis
   // 167 — Labour Management — Actual Attendance Recording, Discrepancy Flags and Bradford Factor Sickness Analysis
   [
     "How actual attendance recording, discrepancy flags, and Bradford Factor sickness analysis work in BDE Farm Trac's Labour Management module.",
@@ -3381,7 +3400,7 @@ const CONTENT: [string, string][] = [
 <h3>Bradford Factor sickness analysis</h3>
 <p>The Bradford Factor is calculated as B = S² × D where S = number of separate absence instances and D = total days absent over a rolling 52-week period. A high Bradford Factor (typically above 450) indicates a pattern of persistent short-term sickness absence even if total days are low. The Bradford Factor tab shows each staff member's current score with colour-coded bands, helping managers identify absence patterns that warrant a formal review conversation.</p>`,
   ],
-
+  // 172 — Labour Management — Department Grouping and Colour-Coded Section Headers Across All Six Tabs
   // 168 — Labour Management — Department Grouping and Colour-Coded Section Headers Across All Six Tabs
   [
     "How department grouping and colour-coded section headers organise staff across Labour Management tabs in BDE Farm Trac.",
@@ -3394,7 +3413,7 @@ const CONTENT: [string, string][] = [
 <h3>Setting up department colours</h3>
 <p>Navigate to <strong>Settings → Departments</strong> and assign a colour to each department. Six distinct colours are available. The chosen colour appears as the section header in all Labour Management tabs. Assign colours that reflect your farm's existing team identity or follow a logical colour scheme (e.g. green for Livestock, amber for Arable, blue for Administration).</p>`,
   ],
-
+  // 173 — Labour Cross-Reference — Comparing Timesheet Hours Against Field Operations Records
   // 169 — Labour Cross-Reference — Comparing Timesheet Hours Against Field Operations Records
   [
     "How to use the Labour Cross-Reference tab in BDE Farm Trac to compare timesheet hours against field operations hours and annotate discrepancies.",
@@ -3415,7 +3434,7 @@ const CONTENT: [string, string][] = [
 <h3>Why this matters</h3>
 <p>Red Tractor assessors look for evidence that farms actively monitor the consistency of their labour records. An unexplained gap between timesheet hours and field operations records is a potential compliance finding. The Labour Cross-Reference tab, together with its annotation audit trail, provides a single place to demonstrate that any discrepancy has been identified, investigated, and either explained or corrected — without requiring additional spreadsheets or manual reconciliation reports.</p>`,
   ],
-
+  // 174 — Livestock Deadweight Sales — Linking Kill Sheets to Off-Farm Movement Records (BCMS Audit Trail)
   // 170 — Livestock Deadweight Sales — Linking Kill Sheets to Off-Farm Movement Records (BCMS Audit Trail)
   [
     "How to link deadweight livestock kill sheets to off-farm movement records in BDE Farm Trac to create the complete BCMS audit trail.",
@@ -3428,7 +3447,7 @@ const CONTENT: [string, string][] = [
 <h3>Document attachment</h3>
 <p>Attach the abattoir's kill sheet or deadweight settlement PDF directly to the record using the Doc column paperclip icon. The physical document is stored permanently alongside the digital record — an inspector can view both the digital data and the original kill sheet from a single record without searching through paper files.</p>`,
   ],
-
+  // 175 — Livestock Mart / Auction Sales — Linking Sale Records to Off-Farm Movement Records (LIS Audit Trail)
   // 170 — Livestock Mart / Auction Sales — Linking Sale Records to Off-Farm Movement Records (LIS Audit Trail)
   [
     "How to link livestock mart and auction sale records to off-farm movement records in BDE Farm Trac for LIS and Red Tractor traceability.",
@@ -3441,7 +3460,7 @@ const CONTENT: [string, string][] = [
 <h3>Lot sheet attachment</h3>
 <p>Attach the auctioneer's lot sheet or sale docket PDF to the mart sale record via the Doc paperclip. The lot sheet, digital record, and movement notification are now all accessible from one place — the complete chain of evidence required by Red Tractor Beef &amp; Lamb for mart sales.</p>`,
   ],
-
+  // 176 — TB Test to Movement Record Linkage — APHA Pre-Movement Testing Evidence and Cross-Compliance
   // 171 — TB Test to Movement Record Linkage — APHA Pre-Movement Testing Evidence and Cross-Compliance
   [
     "How to link TB test records to livestock movement records in BDE Farm Trac to evidence pre-movement testing compliance.",
@@ -3458,7 +3477,7 @@ const CONTENT: [string, string][] = [
 <h3>Cross-compliance</h3>
 <p>Movement of cattle without a valid pre-movement test from a required holding is a bTB cross-compliance breach and can result in BCMS penalty and prosecution. The linkage in BDE Farm Trac makes it straightforward to verify that every movement from a test-required holding is covered by a clear, unexpired test before the animals leave.</p>`,
   ],
-
+  // 177 — Grain Sale Call-Off to Forward Contract Linkage — Traceability from Merchant Contract to Weighbridge
   // 172 — Grain Sale Call-Off to Forward Contract Linkage — Traceability from Merchant Contract to Weighbridge
   [
     "How grain sale call-offs are linked to forward contracts in BDE Farm Trac, creating traceability from merchant contract to weighbridge ticket.",
@@ -3475,7 +3494,7 @@ const CONTENT: [string, string][] = [
 <h3>Red Tractor traceability requirement</h3>
 <p>Red Tractor Combinable Crops requires traceability from the merchant contract to the delivery of grain from that contract. The linked call-off records satisfy this requirement by creating a direct, queryable database reference from every weighbridge load back to the original merchant contract — without any manual document matching.</p>`,
   ],
-
+  // 178 — Benchmarking Panels — AHDB and Andersons Performance Comparisons
   // 173 — Benchmarking Panels — AHDB and Andersons Performance Comparisons
   [
     "How the Benchmarking Panels in BDE Farm Trac compare your farm's financial and production performance against AHDB and Andersons industry benchmarks.",
@@ -3499,7 +3518,7 @@ const CONTENT: [string, string][] = [
 <h3>Using benchmark data</h3>
 <p>Benchmarks are most powerful when reviewed alongside your agronomist or farm consultant at an annual business review. Metrics in the bottom third should drive a conversation about root causes — whether a low gross margin is driven by low yield, high variable costs, or low selling price requires different management responses.</p>`,
   ],
-
+  // 179 — NVZ Budget Calculator — Per-Field Nitrogen Budget vs DEFRA Field Limit
   // 174 — NVZ Budget Calculator — Per-Field Nitrogen Budget vs DEFRA Field Limit
   [
     "How the NVZ Budget Calculator in BDE Farm Trac shows nitrogen budget remaining by field and flags over-applications.",
@@ -3518,7 +3537,7 @@ const CONTENT: [string, string][] = [
 <h3>Cross-checking with applications</h3>
 <p>Click any field row to see the full list of nitrogen applications contributing to the applied-to-date figure — each application is shown with its date, material type, application rate, and kg N/ha. If an application appears to be missing, navigate to NVZ Applications to add it; the budget calculator updates immediately.</p>`,
   ],
-
+  // 180 — Multi-Farm Consolidated Dashboard — Group Compliance Overview Across Holdings
   // 175 — Multi-Farm Consolidated Dashboard — Group Compliance Overview Across Holdings
   [
     "How the Group Dashboard in BDE Farm Trac provides a consolidated compliance view across all farm holdings in a multi-farm account.",
@@ -3538,7 +3557,7 @@ const CONTENT: [string, string][] = [
 <h3>Navigating to an individual farm</h3>
 <p>Click any farm card to switch context to that farm's full dashboard — all modules, records, and data switch to the selected holding. The farm selector in the top sidebar shows the currently active farm. Switch back to the group view at any time by clicking Group Overview from the main dashboard.</p>`,
   ],
-
+  // 181 — Settlement Notes — Recording Grain and Livestock Settlement Documents
   // 176 — Settlement Notes — Recording Grain and Livestock Settlement Documents
   [
     "How to record grain and livestock settlement notes in BDE Farm Trac, including payment references and document attachment.",
@@ -3551,7 +3570,7 @@ const CONTENT: [string, string][] = [
 <h3>Linking to sale records</h3>
 <p>The settlement note can be linked to the specific grain sale records or kill sheet records it covers. This creates a cross-reference from every sale line to its settlement document — important when a merchant's statement covers multiple loads or a period's deliveries rather than a single transaction.</p>`,
   ],
-
+  // 182 — Inspector Mode — Advisor Portal Filtered Compliance View
   // 177 — Inspector Mode — Advisor Portal Filtered Compliance View
   [
     "How the Inspector Mode in BDE Farm Trac gives advisors and inspectors a filtered, read-only view of farm compliance records.",
@@ -3569,7 +3588,7 @@ const CONTENT: [string, string][] = [
 <li><strong>Bank or lender:</strong> Finance &amp; Business and Carbon &amp; Sustainability (read only).</li>
 </ul>`,
   ],
-
+  // 183 — Smart Date Validation — How Date Fields Work Across the Platform
   // 178 — Smart Date Validation — How Date Fields Work Across the Platform
   [
     "How BDE Farm Trac's smart date validation works to prevent future dates on past-event records and past dates on future-event records.",
@@ -3598,7 +3617,7 @@ const CONTENT: [string, string][] = [
 <h3>Flexible range fields</h3>
 <p>Some fields accept both past and future dates — NVZ application planning records (which can record a planned future application for budget forecasting), and agreement start/end dates for agri-environment schemes that have fixed calendar terms regardless of the current date.</p>`,
   ],
-
+  // 184 — Staff Auto-Populate — Operator and Assessor Fields Pre-Fill from Your Login
   // 179 — Staff Auto-Populate — Operator and Assessor Fields Pre-Fill from Your Login
   [
     "How BDE Farm Trac automatically fills operator, assessor, and 'recorded by' fields from the logged-in user's name.",
@@ -3617,7 +3636,7 @@ const CONTENT: [string, string][] = [
 <h3>Overriding the auto-populated name</h3>
 <p>In scenarios where a manager is entering records for a team member who is not logged in — for example, entering spray records from a written spray operator sheet at the end of the day — select the correct operator from the staff picker or type their name in the manual text field. The auto-populated name is just a default; it can be overridden on any record.</p>`,
   ],
-
+  // 185 — Viticulture Module Overview — Vine Register, Blocks, Phenology, Operations, Harvest & Scouting
   // 180 — Viticulture Module Overview — Vine Register, Blocks, Phenology, Operations, Harvest & Scouting
   [
     "A comprehensive overview of the Viticulture module in BDE Farm Trac, covering all twelve tabs and their compliance purpose.",
@@ -3639,7 +3658,7 @@ const CONTENT: [string, string][] = [
 <h3>Mobile app</h3>
 <p>Four dedicated mobile screens: Vine Scouting, Vine Phenology, Vine Operation, and Vine Harvest — each with an active block picker that shows registered blocks with live/suspended status.</p>`,
   ],
-
+  // 186 — Vine Register — UK Variety and Rootstock Selects, Removal Status and Audit Trail
   // 181 — Vine Register — UK Variety and Rootstock Selects, Removal Status and Audit Trail
   [
     "How to use the Vine Register in BDE Farm Trac, including UK variety and rootstock selectors, removal records, and the permanent audit trail.",
@@ -3654,7 +3673,7 @@ const CONTENT: [string, string][] = [
 <h3>Removal records</h3>
 <p>When vines are removed, record the removal date, reason (grubbing up, replanting, disease, or other), and the operative who removed them. The vine is flagged as removed but retained in the register with its full planting history — the audit trail shows exactly what was growing where and when.</p>`,
   ],
-
+  // 187 — Vineyard Block Management — Permanent Block Sites, Active Planting Lifecycle (Active, Suspended, Removed), Retire and Replant Workflows, and Full Planting History per Block
   // 182 — Vineyard Block Management — Permanent Block Sites, Active Planting Lifecycle
   [
     "How vineyard block management works in BDE Farm Trac, including permanent block sites, planting lifecycles, retire and replant workflows, and planting history.",
@@ -3672,7 +3691,7 @@ const CONTENT: [string, string][] = [
 <h3>Retire and replant workflow</h3>
 <p>When a block is grubbed up, click <strong>Retire Planting</strong> on the active planting. Record the deactivation date, reason type (temporary suspension, grubbed up, replanting, or other), the operator, and any notes. The planting moves to Removed status. When the block is replanted, click <strong>Replant Block</strong> to create a new planting record linked to the same permanent block site. The new planting's history shows its relationship to all previous plantings on the same site.</p>`,
   ],
-
+  // 188 — BBCH Phenology Records — Growth Stage Observation Log and Season Comparison
   // 183 — BBCH Phenology Records — Growth Stage Observation Log and Season Comparison
   [
     "How to record BBCH phenology observations in BDE Farm Trac and compare growth stage progression across seasons.",
@@ -3692,7 +3711,7 @@ const CONTENT: [string, string][] = [
 <h3>Season-by-season comparison</h3>
 <p>Export all phenology records to CSV and filter by block and BBCH stage to compare the date of budburst, flowering, and veraison across multiple seasons. Comparing your phenology record with weather data and yield outcomes helps identify whether early or late seasons correlate with particular yield or quality results in your vineyard.</p>`,
   ],
-
+  // 189 — Canopy & Pruning Operations — Operation Types, Pruning Systems and Bud Count Records
   // 184 — Canopy & Pruning Operations — Operation Types, Pruning Systems and Bud Count Records
   [
     "How to record viticulture canopy and pruning operations in BDE Farm Trac, including operation types, pruning systems, and bud count records.",
@@ -3718,7 +3737,7 @@ const CONTENT: [string, string][] = [
 <h3>Contractor and labour records</h3>
 <p>Record the operator (auto-filled), contractor name if the work was contracted out, and hours worked. These feed into labour cost analysis in the Business Reports module for the vineyard enterprise gross margin.</p>`,
   ],
-
+  // 190 — Harvest Records — Yield, Must Chemistry (Brix, pH, TA, Potential Alcohol) and Botrytis Flag
   // 185 — Harvest Records — Yield, Must Chemistry (Brix, pH, TA, Potential Alcohol) and Botrytis Flag
   [
     "How to record vintage harvest records in BDE Farm Trac, including yield data, must chemistry, destination type, and the botrytis advisory.",
@@ -3739,7 +3758,7 @@ const CONTENT: [string, string][] = [
 <h3>Automatic task raise</h3>
 <p>If grape condition is rated as Poor, or if botrytis percentage exceeds 30%, the Raise Task dialog opens automatically after saving — pre-filled with the block name, vintage year, yield, botrytis percentage, and Brix — so you can assign a winemaker review task without leaving the harvest workflow.</p>`,
   ],
-
+  // 191 — Disease & Pest Scouting — Pressure Ratings, Xylella and Phytophthora Notifiable Organism Flags
   // 186 — Disease & Pest Scouting — Pressure Ratings, Xylella and Phytophthora Notifiable Organism Flags
   [
     "How to record disease and pest scouting observations in BDE Farm Trac, including pressure ratings and mandatory APHA alerts for Xylella and Phytophthora.",
@@ -3757,7 +3776,7 @@ const CONTENT: [string, string][] = [
 <h3>Automatic task raise</h3>
 <p>After saving a scouting record with Medium or High pressure for any disease, a Vine Weevil sighting, or a notifiable organism flag, the Raise Task dialog opens automatically on the dashboard — pre-filled with the scouting details — so you can assign a spray review or APHA notification task immediately.</p>`,
   ],
-
+  // 192 — Viticulture Mobile Screens — Vine Scouting, Phenology, Operations and Harvest with Active Block Picker
   // 187 — Viticulture Mobile Screens — Vine Scouting, Phenology, Operations and Harvest with Active Block Picker
   [
     "How the four viticulture mobile screens in BDE Farm Trac work, including the active block picker and offline behaviour.",
@@ -3774,7 +3793,7 @@ const CONTENT: [string, string][] = [
 <h3>Vine Harvest screen</h3>
 <p>Yield fields, must chemistry, grape condition chip picker, botrytis toggle with amber advisory, destination type chip selector (Own Holding / Contract Processor / Grape Sale) with contact name field. Raise Task sheet triggers on Poor condition or botrytis &gt;30%.</p>`,
   ],
-
+  // 193 — Winery Licensing — Premises Licence, Personal Licence, DPS and Expiry Status Records
   // 188 — Winery Licensing — Premises Licence, Personal Licence, DPS and Expiry Status Records
   [
     "How to record premises and personal licences in BDE Farm Trac's Viticulture winery licensing register.",
@@ -3795,7 +3814,7 @@ const CONTENT: [string, string][] = [
 <h3>DPS change</h3>
 <p>If the DPS changes (the key holder named on the Personal Licence leaves or changes role), this is a material change to the licence. Record a new licence entry for the updated DPS and mark the previous licence as Inactive — the history of who was DPS and when is retained for inspection purposes.</p>`,
   ],
-
+  // 194 — Winery Excise & Duty Returns — HMRC Wine Duty Register, Payment Status and Return Period Tracking
   // 189 — Winery Excise & Duty Returns — HMRC Wine Duty Register, Payment Status and Return Period Tracking
   [
     "How to record HMRC wine excise duty returns in BDE Farm Trac's Viticulture Excise & Duty tab.",
@@ -3815,7 +3834,7 @@ const CONTENT: [string, string][] = [
 <h3>Overdue alerts</h3>
 <p>Any return in <em>Submitted</em> status where payment has not been recorded by the due date is automatically flagged as Overdue with a red chip. Late payment of wine duty incurs HMRC surcharges. Set the payment status to Paid as soon as the CHAPS or BACs payment clears.</p>`,
   ],
-
+  // 195 — Winery Tastings & Tours — Cellar Door Event Register, Attendee Counts and Session Revenue
   // 190 — Winery Tastings & Tours — Cellar Door Event Register, Attendee Counts and Session Revenue
   [
     "How to record cellar door tastings, vineyard tours, and other winery events in BDE Farm Trac.",
@@ -3836,7 +3855,7 @@ const CONTENT: [string, string][] = [
 <h3>Revenue integration</h3>
 <p>Session revenue figures feed into the Farm Diversification module's income records for tax and gross margin reporting. The total revenue from cellar door activities is shown in the annual revenue summary alongside accommodation, farm shop, and other diversification income streams.</p>`,
   ],
-
+  // 196 — Winery Age Verification (Challenge 25) — ID Check Register, Outcome Log and Compliance Audit Trail
   // 191 — Winery Age Verification (Challenge 25) — ID Check Register, Outcome Log and Compliance Audit Trail
   [
     "How to maintain the Challenge 25 age verification register in BDE Farm Trac for winery on-site wine sales compliance.",
@@ -3855,7 +3874,7 @@ const CONTENT: [string, string][] = [
 <h3>Compliance audit trail</h3>
 <p>The complete register of Challenge 25 checks provides the documented audit trail that demonstrates your Challenge 25 policy is being actively applied at the point of sale. In the event of an HMRC or licensing authority check or complaint, this register is the primary evidence that your team follows the policy consistently.</p>`,
   ],
-
+  // 197 — Wine Production — SO₂ Compliance, Additive Records and Organic Wine Certification per Vintage
   // 192 — Wine Production — SO₂ Compliance, Additive Records and Organic Wine Certification per Vintage
   [
     "How to record wine production SO₂ compliance and additive records in BDE Farm Trac for each vintage, including organic wine certification.",
@@ -3877,7 +3896,7 @@ const CONTENT: [string, string][] = [
 <h3>Organic wine SO₂ limits</h3>
 <p>For organic wines, UK-retained EU Regulation 203/2012 sets maximum total SO₂ of 100 mg/L for red wine and 150 mg/L for white and rosé. Where actual SO₂ exceeds the applicable limit, the record shows an Exceeds Limit chip in red — a compliance breach that must be investigated and resolved with your certifier before the wine can be sold as organic.</p>`,
   ],
-
+  // 198 — Organic Livestock — Feed Records Log, Date Defaults & Species-Filtered Herd Selector
   // 193 — Organic Livestock — Feed Records Log, Date Defaults & Species-Filtered Herd Selector
   [
     "How the Organic Livestock feed records log works in BDE Farm Trac, including date defaults and species-filtered herd selection.",
@@ -3890,7 +3909,7 @@ const CONTENT: [string, string][] = [
 <h3>Organic feed proportion calculation</h3>
 <p>Each feed component is entered with its organic status (Certified Organic, In Conversion Organic, or Conventional). The record calculates the organic dry matter proportion automatically — the total organic and in-conversion DM as a percentage of total DM. Conventional feed may be included up to 10% of DM (25% for ruminants in their first year of conversion). Records where the conventional proportion exceeds the permitted allowance are flagged for review.</p>`,
   ],
-
+  // 199 — Organic Livestock — Feed Derogations: Case Management, Correspondence Log & Document Storage
   // 194 — Organic Livestock — Feed Derogations: Case Management, Correspondence Log & Document Storage
   [
     "How to manage organic livestock feed derogation cases in BDE Farm Trac, including correspondence logs and document storage.",
@@ -3909,7 +3928,7 @@ const CONTENT: [string, string][] = [
 <h3>Document storage</h3>
 <p>Attach the availability search evidence, application submission, and approval/refusal letter to the case. All documents are stored permanently in the case record and can be retrieved instantly for an annual inspection.</p>`,
   ],
-
+  // 200 — Organic Livestock — Outdoor Access Log, Herd Register Cascade & Compliance Status
   // 195 — Organic Livestock — Outdoor Access Log, Herd Register Cascade & Compliance Status
   [
     "How to record organic livestock outdoor access events in BDE Farm Trac and maintain compliance status in the herd register.",
@@ -3929,7 +3948,7 @@ const CONTENT: [string, string][] = [
 <h3>Seasonal patterns</h3>
 <p>The Outdoor Access chart on the Organic Livestock overview page shows month-by-month access vs restriction across the certification year. Certifiers expect to see a clear pattern of access during spring, summer, and autumn, with documented restrictions concentrated in the winter months when weather and ground conditions typically prevent safe access.</p>`,
   ],
-
+  // 201 — Organic Dairy — Milk Collection Records, Feed Records & Daily Date Defaults
   // 196 — Organic Dairy — Milk Collection Records, ABR Testing, Buyer Lab Results & Retest Linkage
   [
     "How milk collection records work in BDE Farm Trac's Organic Dairy module, including ABR testing, temperature recording, buyer lab results, and retest linkage.",
@@ -3969,7 +3988,7 @@ const CONTENT: [string, string][] = [
 <h3>Document attachments</h3>
 <p>The full view dialog for any Milk Collection record includes a RecordAttachments panel. Attach PDFs, photos, or documents — for example a copy of the collection docket, an ABR test printout, or the buyer's lab results letter — directly to the record. Attachments are stored permanently in secure cloud storage and accessible instantly during certifier inspection. The same attachment capability is available on Herd Conversion records and Feed &amp; Nutrition records.</p>`,
   ],
-
+  // 202 — Organic Fresh Produce — Input Log, Supplier Lookup, Applied-By Staff & Date Defaults
   // 197 — Organic Fresh Produce — Input Log, Supplier Lookup, Applied-By Staff & Date Defaults
   [
     "How the Organic Fresh Produce input log works in BDE Farm Trac, including supplier lookup, applied-by staff records, and date defaults.",
@@ -3984,7 +4003,7 @@ const CONTENT: [string, string][] = [
 <h3>Organic approval status</h3>
 <p>Each input is assigned an approval status (Permitted, Restricted, Derogation Required, or Not Permitted) from the Organic Input Register. Not Permitted inputs flagged in an application record generate a compliance alert — this input should not have been used on organic land and the certifier must be notified.</p>`,
   ],
-
+  // 203 — Organic Fresh Produce — Input Derogations: Case Register, Correspondence Log & Document Storage
   // 198 — Organic Fresh Produce — Input Derogations: Case Register, Correspondence Log & Document Storage
   [
     "How to manage organic fresh produce input derogation cases in BDE Farm Trac, including case workflow, correspondence, and document storage.",
@@ -4001,7 +4020,7 @@ const CONTENT: [string, string][] = [
 <h3>Correspondence log and documents</h3>
 <p>Expand any case card to view and add correspondence entries. Attach availability search evidence, application submissions, and certifier decision letters directly to the case record. The complete case file — application, correspondence, and decision — is permanently stored and instantly retrievable for annual certification inspection.</p>`,
   ],
-
+  // 204 — Organic Dairy — Feed Derogation Case Linking in Feed & Nutrition Records
   // 199 — Organic Dairy — Feed Derogation Case Linking in Feed & Nutrition Records
   [
     "How to link organic dairy feed derogation cases to individual feed and nutrition records in BDE Farm Trac.",
@@ -4014,7 +4033,7 @@ const CONTENT: [string, string][] = [
 <h3>Derogation expiry alert</h3>
 <p>If a derogation case linked to a feed record expires before the end of the record's date range, the record is flagged with an amber warning — the derogation was in place at the start of the period but expired before the end. Either obtain a renewed derogation or source a certified organic alternative for the remaining period.</p>`,
   ],
-
+  // 205 — Mobile App — FP Input Derogation Register: Viewing Cases and Logging Derogation-Required Inputs
   // 200 — Mobile App — FP Input Derogation Register: Viewing Cases and Logging Derogation-Required Inputs
   [
     "How to view organic fresh produce input derogation cases and log derogation-required inputs from the BDE Farm Trac mobile app.",
@@ -4027,7 +4046,7 @@ const CONTENT: [string, string][] = [
 <h3>Offline behaviour</h3>
 <p>Derogation case data is cached on the device during the last refresh. If you are offline in the field, the cached case data is available in the picker. Records created offline sync automatically when connectivity is restored.</p>`,
   ],
-
+  // 206 — Mobile App — Organic Farming Quick Capture: Herd Lookup, Outdoor Access & Treatment Recording
   // 201 — Mobile App — Organic Farming Quick Capture: Herd Lookup, Outdoor Access & Treatment Recording
   [
     "How to use the BDE Farm Trac mobile app for quick organic farming data capture, including herd lookup, outdoor access, and treatment recording.",
@@ -4040,7 +4059,7 @@ const CONTENT: [string, string][] = [
 <h3>Treatment recording</h3>
 <p>When an organic animal requires treatment, the mobile treatment form includes an organic compliance layer — the selected product is checked against the permitted medicines list, and a warning appears if the product is not permitted for organic livestock. The organic withdrawal period (typically double the standard label period) is calculated and shown on the treatment confirmation screen.</p>`,
   ],
-
+  // 207 — Organic Viticulture — Block Conversion Register: 3-Year Conversion Tracking and Certifying Body Records
   // 202 — Organic Viticulture — Block Conversion Register: 3-Year Conversion Tracking and Certifying Body Records
   [
     "How to record vineyard block conversion status in BDE Farm Trac's Organic Viticulture module, including 3-year conversion period tracking.",
@@ -4059,7 +4078,7 @@ const CONTENT: [string, string][] = [
 <h3>Compliance display</h3>
 <p>The Block Conversion Register shows a countdown for in-conversion blocks — days remaining until each block becomes fully organic. Fully organic blocks display a green Fully Organic chip. The conversion history of each block is retained permanently, providing the evidence required by certifiers to confirm the conversion period was observed.</p>`,
   ],
-
+  // 208 — Organic Viticulture — Organic Input Log: Approved Products, Approval Status and Certifier References
   // 203 — Organic Viticulture — Organic Input Log: Approved Products, Approval Status and Certifier References
   [
     "How to maintain the Organic Viticulture input log in BDE Farm Trac, recording approved products and certifier references for vineyard inputs.",
@@ -4080,7 +4099,7 @@ const CONTENT: [string, string][] = [
 <h3>Copper inputs</h3>
 <p>Copper-based inputs are automatically cross-referenced to the Copper Register, which tracks the running 28 kg/ha per 7-year limit. Each copper input logged in the Input Log adds to the running copper total shown on the Copper Register — you do not need to make a separate entry in the Copper Register.</p>`,
   ],
-
+  // 209 — Organic Viticulture — Copper Register: Application Log and Running 28 kg Per 7-Year Limit Tracker
   // 204 — Organic Viticulture — Copper Register: Application Log and Running 28 kg Per 7-Year Limit Tracker
   [
     "How the Organic Viticulture Copper Register tracks cumulative copper applications against the 28 kg/ha per 7-year regulatory limit.",
@@ -4103,7 +4122,7 @@ const CONTENT: [string, string][] = [
 <h3>Certifier reporting</h3>
 <p>Your certifier requires the copper register to be broken down by block and filtered to a rolling 7-year window for inspection. Export all copper records to CSV and apply a 7-year date filter to produce the report your certifier requires. The raw data provides everything needed to calculate block-level copper use within the regulatory window.</p>`,
   ],
-
+  // 210 — Organic Viticulture — Input Derogations: Case Register, Correspondence Log and Availability Evidence
   // 205 — Organic Viticulture — Input Derogations: Case Register, Correspondence Log and Availability Evidence
   [
     "How to manage organic viticulture input derogation cases in BDE Farm Trac, including the availability search requirement.",
@@ -4118,7 +4137,7 @@ const CONTENT: [string, string][] = [
 <h3>Refusal handling</h3>
 <p>When a certifier refuses an application, the Record Decision form captures the <strong>Refusal Reason</strong> (the certifier's stated grounds), the <strong>Refusal Reference</strong> (the certifier's correspondence reference), and a <strong>Corrective Action</strong> field for documenting the farm's response — sourcing a permitted alternative, amending the treatment programme, or submitting a revised application with additional evidence. Until a corrective action is recorded, the case card displays an <strong>Action Required</strong> badge to ensure refused applications do not remain unresolved. The mobile app viewer mirrors this badge so field teams see open items without logging into the dashboard.</p>`,
   ],
-
+  // 211 — Organic Viticulture — Wine Production Additives: SO2 Compliance, Additive Records and Organic Certification (Shared with Standard Viticulture)
   // 206 — Organic Viticulture — Wine Production Additives: SO₂ Compliance, Additive Records and Organic Certification
   [
     "How organic wine production additive records work in BDE Farm Trac, including SO₂ limits and the shared tab with standard Viticulture.",
@@ -4136,7 +4155,7 @@ const CONTENT: [string, string][] = [
 <h3>Regulatory basis field</h3>
 <p>Each record includes a Regulatory Basis field where the specific retained regulation is referenced. For organic wine, this is UK-retained EU Regulation 203/2012. Recording the regulatory basis on each entry provides a clear audit trail linking the product's SO₂ management to the specific legal requirement it is demonstrating compliance with.</p>`,
   ],
-
+  // 212 — Organic Viticulture — Certificates: Vineyard and Wine Organic Certificate Register
   // 207 — Organic Viticulture — Certificates: Vineyard and Wine Organic Certificate Register
   [
     "How to maintain the organic certificate register in BDE Farm Trac's Organic Viticulture module, including expiry tracking and condition monitoring.",
@@ -4158,7 +4177,7 @@ const CONTENT: [string, string][] = [
 <h3>Certificate history</h3>
 <p>Previous certificates are retained in the register even after they have been superseded by a renewed certificate. This provides an unbroken certification history for the holding — useful for buyers who require proof of organic certification continuity, and for certifiers reviewing conversion history during appeals or transfers of certification between bodies.</p>`,
   ],
-
+  // 213 — Mobile App — Organic Viticulture Derogation Register: Viewing Input Derogation Cases in the Field
   // 208 — Mobile App — Organic Viticulture Derogation Register: Viewing Input Derogation Cases in the Field
   [
     "How to view organic viticulture input derogation cases from the BDE Farm Trac mobile app while working in the vineyard.",
@@ -4180,7 +4199,7 @@ const CONTENT: [string, string][] = [
 <h3>Read-only view</h3>
 <p>The mobile derogation screen is read-only. To add correspondence, upload documents, record a certifier decision, or edit case details, use the dashboard at <strong>Organic Viticulture → Input Derogations</strong>. Pull down to refresh the screen and ensure the latest case status is displayed.</p>`,
   ],
-
+  // 214 — Organic Livestock — Full Livestock Tab Access: Herds & Flocks, Animals, Vet Health Plans, Mortality, TB Tests and More
   // 209 — Organic Livestock — Full Livestock Tab Access
   [
     "How Organic Livestock subscribers in BDE Farm Trac access the full set of core livestock module tabs from within the Organic section.",
@@ -4199,7 +4218,7 @@ const CONTENT: [string, string][] = [
 </ul>
 <p>The organic-specific tabs — Feed Records, Outdoor Access, Feed Derogations, Input Log — are the additions that Organic Livestock adds on top of this complete standard livestock record set.</p>`,
   ],
-
+  // 215 — Organic Fresh Produce — Full Fresh Produce Tab Access: Crops, Water Tests, Harvest, Intake, Packhouse and Allergens
   // 210 — Organic Fresh Produce — Full Fresh Produce Tab Access
   [
     "How Organic Fresh Produce subscribers access the full set of Fresh Produce module tabs from within the Organic section of BDE Farm Trac.",
@@ -4218,7 +4237,7 @@ const CONTENT: [string, string][] = [
 </ul>
 <p>The organic-specific additions — Input Log, Input Derogations — are available from the same navigation alongside this complete standard record set.</p>`,
   ],
-
+  // 216 — Organic Arable — Certification Tab and Field Conversion Tracker
   // 211 — Organic Arable — Certification Tab and Field Conversion Tracker
   [
     "How to record organic arable certification status, certifying body details, and per-field conversion tracking with progress bars in BDE Farm Trac.",
@@ -4248,7 +4267,7 @@ const CONTENT: [string, string][] = [
 <h3>Reporting</h3>
 <p>The Print Register button on the Field Conversion tab generates a formatted A4 landscape report of all field conversion records, suitable for presentation to your certifying body at an annual inspection. The Export CSV button exports all records with the current filter applied.</p>`,
   ],
-
+  // 217 — Organic Arable — Seed Sourcing Register and Derogation Approval Flow
   // 212 — Organic Arable — Seed Sourcing Register and Derogation Approval Flow
   [
     "How to record organic arable seed sourcing, certified organic seed status, and the derogation approval flow when no certified organic equivalent is available.",
@@ -4275,7 +4294,7 @@ const CONTENT: [string, string][] = [
 <h3>Filtering and Reporting</h3>
 <p>The Seed Sourcing tab has FilterPills for Certified Organic, Untreated, Heat Treated, and Derogation Approved status, plus a crop-year selector. The Print Register generates a formatted A4 report of all seed records for certifier inspection; Export CSV exports the current filtered view.</p>`,
   ],
-
+  // 218 — Organic Arable — Input Log: Annex II Approved Substances and Restricted Input Workflow
   // 213 — Organic Arable — Input Log: Annex II Approved Substances and Restricted Input Workflow
   [
     "How to record organic arable inputs using the Annex II SubstancePicker, manage Permitted and Restricted status, and capture certifier approval for restricted inputs.",
@@ -4302,7 +4321,7 @@ const CONTENT: [string, string][] = [
 <h3>Filtering and Reporting</h3>
 <p>FilterPills above the table show live record counts by permitted status. Combine with the year and crop dropdowns to narrow the view for a specific inspection period. Print Register and Export CSV apply the active filter to the output.</p>`,
   ],
-
+  // 219 — Organic Arable — Harvest Declarations and Buyer Declaration Record
   // 214 — Organic Arable — Harvest Declarations and Buyer Declaration Record
   [
     "How to record organic arable harvest events and attach a separate buyer declaration from within the harvest view dialog in BDE Farm Trac.",
@@ -4331,7 +4350,7 @@ const CONTENT: [string, string][] = [
 <h3>Filtering and Reporting</h3>
 <p>Filter by crop year, crop type, and organic certified status using the dropdowns and FilterPills. Print Register generates an A4 landscape harvest register; Export CSV exports the filtered harvest records.</p>`,
   ],
-
+  // 220 — Mobile App — Organic Arable: Input, Seed, and Harvest Recording
   // 215 — Mobile App — Organic Arable: Input, Seed, and Harvest Recording
   [
     "How to record organic arable inputs, seed sourcing, and harvest declarations offline in the BDE Farm Trac mobile app.",
@@ -4364,7 +4383,7 @@ const CONTENT: [string, string][] = [
 </ul>
 <p>All records created offline are queued in local device storage (AsyncStorage) and uploaded to the API automatically on the next successful connection. The sync badge on the Overview screen shows the number of unsynced records outstanding.</p>`,
   ],
-
+  // 221 — Organic Viticulture — Full Viticulture Tab Access: Vine Register, Block Lifecycle, Phenology, Pruning & Canopy, Harvest, Disease Scouting and Winery Compliance (Licensing, Excise & Duty, Tastings & Tours, Age Verification, Wine Production)
   // 216 — Organic Viticulture — Full Viticulture Tab Access
   [
     "How Organic Viticulture subscribers access the complete set of standard Viticulture tabs from within the Organic Viticulture section of BDE Farm Trac.",
@@ -4385,7 +4404,7 @@ const CONTENT: [string, string][] = [
 <li>Licensing, Excise &amp; Duty, Tastings &amp; Tours, Age Verification (Challenge 25), Wine Production (SO₂ and additive compliance — with organic SO₂ limits applied for certified wine).</li>
 </ul>`,
   ],
-
+  // 222 — Accident Book — Four-Stage Investigation Workflow
   // 212 — Accident Book — Four-Stage Investigation Workflow
   [
     "How the Accident Book and four-stage investigation workflow work in BDE Farm Trac for H&S legal compliance.",
@@ -4400,7 +4419,7 @@ const CONTENT: [string, string][] = [
 <h3>Stage 4 — Investigation and Close</h3>
 <p>Record the root cause analysis, contributing factors, and corrective actions taken to prevent recurrence. Attach any photographs, risk assessment reviews, or witness statements. Close the investigation when all actions are complete.</p>`,
   ],
-
+  // 223 — Vet Health Plans — Recording Action Completion and Manager Sign-Off
   // 213 — Vet Health Plans — Recording Action Completion and Manager Sign-Off
   [
     "How to record vet health plan action completion and manager sign-off in BDE Farm Trac.",
@@ -4415,7 +4434,7 @@ const CONTENT: [string, string][] = [
 <h3>Manager sign-off</h3>
 <p>For farms with a formal farm management structure, the completed action requires manager sign-off. The manager reviews the completion evidence and signs off by entering their name in the <em>Signed Off By</em> field. This creates an accountable review trail showing the action was both completed and verified by a manager.</p>`,
   ],
-
+  // 224 — Livestock Mortality Records — Four-Stage Disposal Tracking
   // 214 — Livestock Mortality Records — Four-Stage Disposal Tracking
   [
     "How the four-stage disposal tracking workflow works for livestock mortality records in BDE Farm Trac.",
@@ -4430,7 +4449,7 @@ const CONTENT: [string, string][] = [
 <h3>Stage 4 — Close the record</h3>
 <p>When all collection and documentation steps are confirmed, mark the record as Closed. The closed record is permanently retained in the mortality history with all four stages completed. BCMS notification for cattle deaths is confirmed at this stage — the record flags whether the BCMS notification has been made and within the required seven-day window.</p>`,
   ],
-
+  // 225 — Organic Viticulture — Input Derogations: Split New Case / Record Decision Workflow
   // 215 — Organic Viticulture — Input Derogations: Split New Case / Record Decision Workflow
   [
     "How the split New Case and Record Decision workflow for organic viticulture input derogations maintains clear separation of evidence in BDE Farm Trac.",
@@ -4446,7 +4465,7 @@ const CONTENT: [string, string][] = [
 <h3>Practical workflow</h3>
 <p>Create the New Case record as soon as you submit your application. Leave the Decision fields empty. When the certifier responds, find the case card in the derogation register and click <strong>Record Decision</strong> to open the decision-only form. Enter the outcome, date, expiry, and conditions. Save — the case card now shows both the application and the decision as separate, dated sections of the same case record.</p>`,
   ],
-
+  // 226 — Sheep Disease Monitoring — Reportable Disease Flag and APHA Advisory
   // 216 — Sheep Disease Monitoring — Reportable Disease Flag and APHA Advisory
   [
     "How the Sheep Production disease monitoring tab in BDE Farm Trac works, including the Reportable Disease flag and the APHA advisory banner.",
@@ -4463,7 +4482,7 @@ const CONTENT: [string, string][] = [
 <h3>Relationship to the Disease &amp; Incident Log</h3>
 <p>The Sheep Production disease observation is a quick-capture field flag for the moment of suspicion. Once APHA has been contacted and an incident reference number received, the formal incident record is created in <strong>Compliance &amp; Plans → Disease &amp; Incident Log</strong> where the APHA reference, isolation measures, and investigation outcome are all recorded.</p>`,
   ],
-
+  // 227 — Herd Health Follow-Up Tasks — Raising Tasks from Clinical Event Timeline Entries
   // 217 — Herd Health Follow-Up Tasks — Raising Tasks from Clinical Event Timeline Entries
   [
     "How to raise follow-up tasks from clinical event timeline entries in the Herd Health Register in BDE Farm Trac.",
@@ -4482,7 +4501,7 @@ const CONTENT: [string, string][] = [
 <h3>Follow-up required flag</h3>
 <p>When logging a new clinical event, a <strong>Follow-up Required</strong> toggle is available. Enabling it places an amber Follow-up Required chip on the timeline entry card and a Raise Task prompt appears at the top of the timeline view for any entries marked with this flag — ensuring no outstanding follow-ups are overlooked across a busy herd health period.</p>`,
   ],
-
+  // 228 — Poultry Cleanout Swab Testing — Food Safety Advisory and Do Not Restock Guidance
   // 218 — Poultry Cleanout Swab Testing — Food Safety Advisory and Do Not Restock Guidance
   [
     "How swab testing records and the food safety advisory work in BDE Farm Trac's poultry house cleanout records.",
@@ -4503,7 +4522,7 @@ const CONTENT: [string, string][] = [
 <h3>Compliance context</h3>
 <p>Under the Zoonoses Regulations and Red Tractor Poultry standards, restocking a house before confirming negative environmental swabs is a significant non-conformance. The advisory in BDE Farm Trac acts as an in-system check to prevent inadvertent restocking while swab results are outstanding.</p>`,
   ],
-
+  // 229 — Poultry Environmental Alarm Advisory — Corrective Action Before Next Flush Cycle
   // 219 — Poultry Environmental Alarm Advisory — Corrective Action Before Next Flush Cycle
   [
     "How the environmental alarm advisory works in BDE Farm Trac's poultry environmental log records and what action it requires.",
@@ -4518,7 +4537,7 @@ const CONTENT: [string, string][] = [
 <h3>Dashboard visibility</h3>
 <p>Environmental logs with an active alarm advisory are highlighted in the Poultry Production dashboard with an amber indicator, making them visible at a glance to managers reviewing the day's environmental records. The advisory remains on the card until the corrective action documentation is completed and the follow-up task (if raised) is closed.</p>`,
   ],
-
+  // 230 — Harvest Destination Type — Own Holding, Contract Processor and Grape Sale Selector
   // 220 — Harvest Destination Type — Own Holding, Contract Processor and Grape Sale Selector
   [
     "How the harvest destination type selector works in BDE Farm Trac's Viticulture harvest records, including Trade Contact linkage.",
@@ -4533,7 +4552,7 @@ const CONTENT: [string, string][] = [
 <h3>Why destination type matters</h3>
 <p>For PDO and PGI wines, the processing location must be within the geographical indication area. Recording the destination type and processor creates the evidence trail that the English or Welsh wine PDO/PGI certification body may request. For HMRC duty purposes, grape sale records provide traceability of when ownership transferred and to whom.</p>`,
   ],
-
+  // 231 — Harvest Botrytis Advisory — Amber Quality Alert and Task Raising on High Botrytis or Poor Condition
   // 221 — Harvest Botrytis Advisory — Amber Quality Alert and Task Raising on High Botrytis or Poor Condition
   [
     "How the botrytis advisory and automatic task-raise prompt work in BDE Farm Trac's Viticulture harvest records.",
@@ -4553,150 +4572,7 @@ const CONTENT: [string, string][] = [
 <h3>Mobile app</h3>
 <p>The same amber advisory and automatic RaiseTaskSheet prompt are present on the Vine Harvest screen in the mobile app — the task sheet opens after saving whenever Poor condition or botrytis &gt;30% is recorded, ensuring the follow-up is triggered regardless of whether the record is created in the field or at a desk.</p>`,
   ],
-
-  // 232 — Goat Production Module — Overview and Getting Started
-  [
-    "An overview of the Goat Production module in BDE Farm Trac, covering all record types and how to get started.",
-    `<h2>Goat Production Module — Overview and Getting Started</h2>
-<p>The Goat Production module provides dedicated records for the key stages of the commercial and dairy goat production calendar. Herds are registered and managed centrally in <strong>Livestock → Herds &amp; Animals</strong> — the single herd register used across the platform — and every Goat Production record links back to the relevant herd from there.</p>
-<h3>Record types available</h3>
-<ul>
-<li><strong>Mating:</strong> buck-to-doe service records with buck breed, ear tag, owner, mating method (natural, AI fresh/frozen, ET), expected kidding date, and CIDR / progesterone sponge flag.</li>
-<li><strong>Pregnancy Scanning:</strong> scanning results per herd including barren, singles, doubles, and triples with automatic scanning percentage calculation.</li>
-<li><strong>Weigh-in &amp; DLWG:</strong> group or individual weigh-in events with animal category (Kids, Weanlings, Yearlings, Does, Bucks), DLWG auto-calculated and colour-coded against target, and BCS (Body Condition Score).</li>
-<li><strong>Cull / Market Records:</strong> destination CPH, auction or slaughter date, number of head, liveweight, deadweight, kill-out percentage, EUROP grade, sale value, and reason for cull.</li>
-<li><strong>Health — Vaccination Programmes:</strong> product name, batch number, dose, route, withdrawal period (days), and vet prescription flag.</li>
-<li><strong>Health — Disease Monitoring:</strong> CAE, CLA, Johne's disease, foot rot, cryptosporidiosis, mycoplasma, toxoplasmosis, chlamydiosis, and faecal egg count records with testing body, samples, positive/negative results, status, actions taken, and next test due date.</li>
-</ul>
-<h3>Analytics tab</h3>
-<p>The Analytics tab summarises performance across all record types: four KPI cards (mating cycles, average scanning %, average DLWG in g/day, total cull head), a Kid Type Distribution pie chart aggregated from all scanning events (barren / singles / doubles / triplets), a DLWG by Batch horizontal bar chart for the most recent ten weigh-in groups, a Cull &amp; Market Summary, and a Mating Summary.</p>
-<h3>Mobile recording</h3>
-<p>All six record types are available in the BDE Farm Trac mobile app under the Record tab. Records save offline and sync automatically when connectivity is restored — useful when scanning, weighing, or vaccinating outdoors.</p>
-<h3>Print reports</h3>
-<p>Every record type includes a Print button that generates a formatted A4 report suitable for assurance scheme audit packs. Mating and scanning reports include a footer reminding you to retain records for a minimum of 3 years.</p>`,
-  ],
-
-  // 233 — Goat Herd Register — Herds are Registered in Livestock → Herds & Animals
-  [
-    "How goat herds are registered and managed in BDE Farm Trac, and how the herd register links to Goat Production records.",
-    `<h2>Goat Herd Register — Herds are Registered in Livestock → Herds &amp; Animals</h2>
-<p>BDE Farm Trac uses a single herd and flock register across the entire platform. Goat herds are created and managed in <strong>Livestock → Herds &amp; Animals</strong> — not in the Goat Production module directly. Every tab in the Goat Production module (Mating, Scanning, Weigh-in, Cull / Market, and Health) links back to herds from that register.</p>
-<h3>Setting up a goat herd</h3>
-<p>Navigate to <strong>Livestock → Herds &amp; Animals</strong> and click <strong>Add Herd / Flock</strong>. Set the species to Goat. Record the herd name, breed, purpose (dairy, meat, dual-purpose, or fibre), your CPH herd number, and any notes. The herd status defaults to Active — archived herds are hidden from record forms but their historical records are retained.</p>
-<h3>Herd number (CPH herd identifier)</h3>
-<p>Your goat herd number is required for LIS (Livestock Information Service) goat movement submissions via the England CLA API. It appears on movement records and should match the registration held with APHA and LIS. Ensure the herd number is populated on each goat herd record in Livestock → Herds &amp; Animals before raising LIS movement submissions.</p>
-<h3>How herd selection works in Goat Production</h3>
-<p>When adding any Goat Production record, a herd picker displays all active goat herds registered on the farm. Select the relevant herd — its ID is stored with the record for reporting and filtering. If no goat herds appear in the picker, check that at least one herd with species set to Goat is registered as Active in Livestock → Herds &amp; Animals.</p>`,
-  ],
-
-  // 234 — Goat Mating Records
-  [
-    "How to record goat mating and breeding events in BDE Farm Trac, including buck details, mating method, expected kidding date, and CIDR/sponge use.",
-    `<h2>Goat Mating Records — Buck Selection, Mating Methods and Expected Kidding</h2>
-<p>Mating records document each breeding cycle on the holding — which buck was used, which does were exposed, the method of service, and the expected kidding date. These records provide the traceability evidence needed to manage kidding preparation and are retained for assurance scheme audits.</p>
-<h3>Adding a mating record</h3>
-<p>Navigate to <strong>Goat Production → Mating</strong> and click <strong>Add Record</strong>. Complete the following fields:</p>
-<ul>
-<li><strong>Mating Start Date *</strong> — date the buck was introduced to the group.</li>
-<li><strong>Mating End Date</strong> — date the buck was removed.</li>
-<li><strong>Buck Breed</strong> — selected from a list of UK commercial and dairy goat breeds (Boer, Kiko, Savanna, Anglo-Nubian, Cashmere, Pygmy, Pygmy x, Crossbred, and Other).</li>
-<li><strong>Buck Ear Tag</strong> — the individual ear tag number of the buck used.</li>
-<li><strong>Buck Owner</strong> — name of the owner if the buck was hired or belongs to another holding.</li>
-<li><strong>Buck Hired or Owned</strong> — indicates whether the buck is owned by the farm or hired in for the season.</li>
-<li><strong>Does Exposed</strong> — number of does in the mating group.</li>
-<li><strong>Mating Method</strong> — Natural, AI (fresh), AI (frozen), or ET (embryo transfer).</li>
-<li><strong>Expected Kidding Date</strong> — enter the expected kidding date based on your chosen gestation period; standard goat gestation is 150 days from mating start.</li>
-<li><strong>CIDR / Progesterone Sponge Used</strong> — tick if intravaginal progesterone devices were used to synchronise oestrus before mating.</li>
-</ul>
-<h3>Analytics</h3>
-<p>The Analytics tab Mating Summary shows the total number of mating cycles recorded, total does exposed across all cycles, and the number of distinct buck breeds used.</p>
-<h3>Print report</h3>
-<p>The Mating Records print report is a landscape A4 table including all key fields with a footer noting the 3-year record retention requirement. Suitable for compliance document packs and assurance scheme audits.</p>
-<h3>Mobile recording</h3>
-<p>Mating records can be entered in the mobile app's Record tab under <em>Goat Mating Record</em>. The record saves offline and syncs to the dashboard automatically when connectivity is restored.</p>`,
-  ],
-
-  // 235 — Goat Pregnancy Scanning
-  [
-    "How to record goat pregnancy scanning results in BDE Farm Trac, including does barren, singles, doubles, triplets, scanning percentage, and expected total kids.",
-    `<h2>Goat Pregnancy Scanning — Does Barren, Singles, Doubles and Triplets</h2>
-<p>Pregnancy scanning determines the litter distribution of the kidding crop and allows you to plan housing, nutrition, and labour requirements before kidding begins. BDE Farm Trac records the scanning event with a full litter breakdown and calculates the scanning percentage automatically.</p>
-<h3>Adding a scanning record</h3>
-<p>Navigate to <strong>Goat Production → Scanning</strong> and click <strong>Add Record</strong>. Complete the following fields:</p>
-<ul>
-<li><strong>Scan Date *</strong> — date of the scanning event.</li>
-<li><strong>Scanner Name</strong> — name of the scanning technician or vet performing the scan.</li>
-<li><strong>Scanner Company</strong> — the scanning company or veterinary practice.</li>
-<li><strong>Does Scanned *</strong> — total number of does put through the scanner.</li>
-<li><strong>Barren</strong> — number of does confirmed empty.</li>
-<li><strong>Singles</strong> — number of does carrying one kid.</li>
-<li><strong>Doubles</strong> — number of does carrying twins.</li>
-<li><strong>Triplets</strong> — number of does carrying three kids.</li>
-<li><strong>Scanning %</strong> — automatically calculated as (expected total kids ÷ does scanned) × 100; can be overridden if your scanning report shows a different figure.</li>
-<li><strong>Expected Kids Total</strong> — calculated from the litter breakdown entered above.</li>
-</ul>
-<h3>Analytics</h3>
-<p>The Analytics tab aggregates all scanning records into a <strong>Kid Type Distribution</strong> pie chart showing the proportion of barren, singles, doubles, and triplets across all scanning events on the farm. The <strong>Avg Scanning %</strong> KPI card shows the mean across all recorded rounds.</p>
-<h3>Print report</h3>
-<p>The Pregnancy Scanning print report uses landscape A4 layout with the full litter breakdown and a record retention footer. Suitable for veterinary health plan reviews and CAE accreditation scheme audit packs.</p>`,
-  ],
-
-  // 236 — Goat Weigh-in and DLWG
-  [
-    "How to record goat weigh-in events in BDE Farm Trac, including DLWG calculation, body condition scoring, and performance tracking against target.",
-    `<h2>Goat Weigh-in and DLWG — Performance Recording and Body Condition Scoring</h2>
-<p>Regular weight recording is the most reliable way to monitor kid and doe performance and to identify production issues early. BDE Farm Trac calculates the Daily Live Weight Gain (DLWG) from consecutive weigh-in records and colour-codes the result against your target to make underperformance immediately visible.</p>
-<h3>Adding a weigh-in record</h3>
-<p>Navigate to <strong>Goat Production → Weigh-in</strong> and click <strong>Add Record</strong>. Complete the following fields:</p>
-<ul>
-<li><strong>Weigh Date *</strong> — date of the weigh-in event.</li>
-<li><strong>Animal Category</strong> — Kids, Weanlings, Yearlings, Does, or Bucks — the age or class group being weighed.</li>
-<li><strong>Batch / Group Reference</strong> — a label to identify the group across multiple weigh-ins (e.g. "Spring Kids 2025"); used to link consecutive records when calculating DLWG.</li>
-<li><strong>Number Weighed</strong> — count of animals in the group at this weigh-in.</li>
-<li><strong>Average Weight (kg)</strong> — mean weight for the group or batch.</li>
-<li><strong>Lightest Weight (kg)</strong> and <strong>Heaviest Weight (kg)</strong> — range captured at the same event to indicate spread within the group.</li>
-<li><strong>Target Weight (kg)</strong> — the breed-standard or management target for this group at this stage.</li>
-<li><strong>Previous Weigh Date</strong> and <strong>Previous Avg Weight (kg)</strong> — used to calculate DLWG; enter the date and average weight from the preceding weigh-in for this batch.</li>
-<li><strong>DLWG (g/day)</strong> — calculated automatically from the difference between current and previous average weights divided by the number of days between weigh dates; colour-coded green (on or above target), amber (within 10% below target), or red (significantly below target).</li>
-<li><strong>BCS (Body Condition Score)</strong> — the 1–5 body condition score assessed at the time of weighing.</li>
-</ul>
-<h3>Raise Task</h3>
-<p>Each weigh-in record includes a <strong>Raise Task</strong> button in the View dialog. Use it to create a follow-up task when a group's DLWG is below target — the task appears on the Task Board assigned to the responsible team member.</p>
-<h3>Analytics</h3>
-<p>The Analytics tab shows the average DLWG (g/day) across all records as a KPI card and a <strong>DLWG by Batch</strong> horizontal bar chart for the most recent ten weigh-in groups. Groups consistently below target are immediately visible.</p>`,
-  ],
-
-  // 237 — Goat Health and Disease Monitoring
-  [
-    "How to record goat vaccination programmes and disease monitoring in BDE Farm Trac, covering CAE, CLA, Johne's disease, and the reportable disease advisory.",
-    `<h2>Goat Health and Disease Monitoring — CAE, CLA, Johne's and Reportable Diseases</h2>
-<p>The Health tab in Goat Production provides two sub-sections: <strong>Vaccination Programmes</strong> for recording all vaccination events per herd, and <strong>Disease Monitoring</strong> for logging the results of disease surveillance tests and health observations.</p>
-<h3>Vaccination Programmes</h3>
-<p>Navigate to <strong>Goat Production → Health → Vaccinations</strong> and click <strong>Add Vaccination</strong>. Capture:</p>
-<ul>
-<li><strong>Product Name</strong> — the vaccine or biological product (e.g. Heptavac P Plus, Lambivac, Covexin 10, Bravoxin 10).</li>
-<li><strong>Batch / Lot Number</strong> — for product traceability in medicine records.</li>
-<li><strong>Vaccination Date *</strong> — date of administration.</li>
-<li><strong>Number of Animals</strong> — animals vaccinated in this event.</li>
-<li><strong>Dose (ml)</strong> and <strong>Route</strong> — subcutaneous, intramuscular, or oral.</li>
-<li><strong>Withdrawal Period (days)</strong> — the meat and/or milk withdrawal period for this product; displayed prominently on the saved record as a compliance reminder.</li>
-<li><strong>Vet Prescribed</strong> — tick if administered under veterinary prescription (POM-V product).</li>
-</ul>
-<p>Vaccination records print as a formatted A4 compliance document including batch traceability and withdrawal period reminder, suitable for veterinary health plan reviews and assurance scheme audits.</p>
-<h3>Disease Monitoring</h3>
-<p>Navigate to <strong>Goat Production → Health → Disease Monitoring</strong> and click <strong>Add</strong>. Monitoring types include:</p>
-<ul>
-<li><strong>CAE (Caprine Arthritis Encephalitis)</strong> — the most significant viral disease in UK dairy and fibre goat herds; records support CAE Accreditation Scheme documentation requirements (scheme reference, testing body, samples, result status).</li>
-<li><strong>CLA (Caseous Lymphadenitis)</strong> — caseous lymphadenitis serology or post-mortem confirmation records per herd.</li>
-<li><strong>Johne's Disease</strong> — paratuberculosis surveillance tests; tracks herd risk level and next test due across monitoring rounds.</li>
-<li><strong>Foot rot surveillance, Cryptosporidiosis, Toxoplasmosis, Chlamydiosis, Mycoplasma</strong> — additional important disease conditions captured with the same record structure.</li>
-<li><strong>Faecal egg count (worms)</strong> — FEC results per batch with number of samples and positive count for SCOPS-aligned anthelmintic decision making.</li>
-</ul>
-<p>Each monitoring record captures the testing body or laboratory, number of samples, positive and negative results, overall status (Pending / Clear / Positive / Inconclusive), actions taken, and the next test due date. Status is shown as a colour-coded badge — green for Clear, red for Positive, amber for Inconclusive or Pending.</p>
-<h3>Reportable diseases</h3>
-<p>If you suspect a notifiable disease — including Foot and Mouth Disease, Bluetongue, Anthrax, Scrapie, or any other listed disease — contact APHA immediately on <strong>03000 200 301</strong> before recording the observation in BDE Farm Trac. The statutory notification obligation is triggered by reasonable suspicion, not by laboratory confirmation. The formal incident record including the APHA reference number, isolation measures applied, and case outcome is recorded in <strong>Compliance &amp; Plans → Disease &amp; Incident Log</strong>.</p>`,
-  ],
-
+  // 232 — Sustainability Reports — Certifying Body Register, Supplier Lookup and PO/Invoice Tracking
   // 222 — Sustainability Reports — Certifying Body Register, Supplier Lookup and PO/Invoice Tracking
   [
     "How to record, track, and manage carbon and sustainability reports submitted to supply chain customers using BDE Farm Trac's Sustainability Reports tab.",
@@ -4763,6 +4639,150 @@ const CONTENT: [string, string][] = [
 <h3>Linking to the Auto-Calculator</h3>
 <p>After using the Carbon Auto-Calculator to pre-fill a new Carbon Audit record (see the Carbon Auto-Calculator help article), the resulting audit record provides the verified tCO₂e figures that form the basis of your Sustainability Report submission. Record the corresponding audit year in the Sustainability Report's Report Year field and attach the completed audit workings document to create a complete evidence chain from raw farm data through to the submitted supply chain declaration.</p>`,
   ],
+  // 233 — Goat Production Module — Overview and Getting Started
+  // 232 — Goat Production Module — Overview and Getting Started
+  [
+    "An overview of the Goat Production module in BDE Farm Trac, covering all record types and how to get started.",
+    `<h2>Goat Production Module — Overview and Getting Started</h2>
+<p>The Goat Production module provides dedicated records for the key stages of the commercial and dairy goat production calendar. Herds are registered and managed centrally in <strong>Livestock → Herds &amp; Animals</strong> — the single herd register used across the platform — and every Goat Production record links back to the relevant herd from there.</p>
+<h3>Record types available</h3>
+<ul>
+<li><strong>Mating:</strong> buck-to-doe service records with buck breed, ear tag, owner, mating method (natural, AI fresh/frozen, ET), expected kidding date, and CIDR / progesterone sponge flag.</li>
+<li><strong>Pregnancy Scanning:</strong> scanning results per herd including barren, singles, doubles, and triples with automatic scanning percentage calculation.</li>
+<li><strong>Weigh-in &amp; DLWG:</strong> group or individual weigh-in events with animal category (Kids, Weanlings, Yearlings, Does, Bucks), DLWG auto-calculated and colour-coded against target, and BCS (Body Condition Score).</li>
+<li><strong>Cull / Market Records:</strong> destination CPH, auction or slaughter date, number of head, liveweight, deadweight, kill-out percentage, EUROP grade, sale value, and reason for cull.</li>
+<li><strong>Health — Vaccination Programmes:</strong> product name, batch number, dose, route, withdrawal period (days), and vet prescription flag.</li>
+<li><strong>Health — Disease Monitoring:</strong> CAE, CLA, Johne's disease, foot rot, cryptosporidiosis, mycoplasma, toxoplasmosis, chlamydiosis, and faecal egg count records with testing body, samples, positive/negative results, status, actions taken, and next test due date.</li>
+</ul>
+<h3>Analytics tab</h3>
+<p>The Analytics tab summarises performance across all record types: four KPI cards (mating cycles, average scanning %, average DLWG in g/day, total cull head), a Kid Type Distribution pie chart aggregated from all scanning events (barren / singles / doubles / triplets), a DLWG by Batch horizontal bar chart for the most recent ten weigh-in groups, a Cull &amp; Market Summary, and a Mating Summary.</p>
+<h3>Mobile recording</h3>
+<p>All six record types are available in the BDE Farm Trac mobile app under the Record tab. Records save offline and sync automatically when connectivity is restored — useful when scanning, weighing, or vaccinating outdoors.</p>
+<h3>Print reports</h3>
+<p>Every record type includes a Print button that generates a formatted A4 report suitable for assurance scheme audit packs. Mating and scanning reports include a footer reminding you to retain records for a minimum of 3 years.</p>`,
+  ],
+  // 234 — Goat Herd Register — Herds are Registered in Livestock → Herds & Animals
+  // 233 — Goat Herd Register — Herds are Registered in Livestock → Herds & Animals
+  [
+    "How goat herds are registered and managed in BDE Farm Trac, and how the herd register links to Goat Production records.",
+    `<h2>Goat Herd Register — Herds are Registered in Livestock → Herds &amp; Animals</h2>
+<p>BDE Farm Trac uses a single herd and flock register across the entire platform. Goat herds are created and managed in <strong>Livestock → Herds &amp; Animals</strong> — not in the Goat Production module directly. Every tab in the Goat Production module (Mating, Scanning, Weigh-in, Cull / Market, and Health) links back to herds from that register.</p>
+<h3>Setting up a goat herd</h3>
+<p>Navigate to <strong>Livestock → Herds &amp; Animals</strong> and click <strong>Add Herd / Flock</strong>. Set the species to Goat. Record the herd name, breed, purpose (dairy, meat, dual-purpose, or fibre), your CPH herd number, and any notes. The herd status defaults to Active — archived herds are hidden from record forms but their historical records are retained.</p>
+<h3>Herd number (CPH herd identifier)</h3>
+<p>Your goat herd number is required for LIS (Livestock Information Service) goat movement submissions via the England CLA API. It appears on movement records and should match the registration held with APHA and LIS. Ensure the herd number is populated on each goat herd record in Livestock → Herds &amp; Animals before raising LIS movement submissions.</p>
+<h3>How herd selection works in Goat Production</h3>
+<p>When adding any Goat Production record, a herd picker displays all active goat herds registered on the farm. Select the relevant herd — its ID is stored with the record for reporting and filtering. If no goat herds appear in the picker, check that at least one herd with species set to Goat is registered as Active in Livestock → Herds &amp; Animals.</p>`,
+  ],
+  // 235 — Goat Mating Records — Buck Selection, Mating Methods and Expected Kidding
+  // 234 — Goat Mating Records
+  [
+    "How to record goat mating and breeding events in BDE Farm Trac, including buck details, mating method, expected kidding date, and CIDR/sponge use.",
+    `<h2>Goat Mating Records — Buck Selection, Mating Methods and Expected Kidding</h2>
+<p>Mating records document each breeding cycle on the holding — which buck was used, which does were exposed, the method of service, and the expected kidding date. These records provide the traceability evidence needed to manage kidding preparation and are retained for assurance scheme audits.</p>
+<h3>Adding a mating record</h3>
+<p>Navigate to <strong>Goat Production → Mating</strong> and click <strong>Add Record</strong>. Complete the following fields:</p>
+<ul>
+<li><strong>Mating Start Date *</strong> — date the buck was introduced to the group.</li>
+<li><strong>Mating End Date</strong> — date the buck was removed.</li>
+<li><strong>Buck Breed</strong> — selected from a list of UK commercial and dairy goat breeds (Boer, Kiko, Savanna, Anglo-Nubian, Cashmere, Pygmy, Pygmy x, Crossbred, and Other).</li>
+<li><strong>Buck Ear Tag</strong> — the individual ear tag number of the buck used.</li>
+<li><strong>Buck Owner</strong> — name of the owner if the buck was hired or belongs to another holding.</li>
+<li><strong>Buck Hired or Owned</strong> — indicates whether the buck is owned by the farm or hired in for the season.</li>
+<li><strong>Does Exposed</strong> — number of does in the mating group.</li>
+<li><strong>Mating Method</strong> — Natural, AI (fresh), AI (frozen), or ET (embryo transfer).</li>
+<li><strong>Expected Kidding Date</strong> — enter the expected kidding date based on your chosen gestation period; standard goat gestation is 150 days from mating start.</li>
+<li><strong>CIDR / Progesterone Sponge Used</strong> — tick if intravaginal progesterone devices were used to synchronise oestrus before mating.</li>
+</ul>
+<h3>Analytics</h3>
+<p>The Analytics tab Mating Summary shows the total number of mating cycles recorded, total does exposed across all cycles, and the number of distinct buck breeds used.</p>
+<h3>Print report</h3>
+<p>The Mating Records print report is a landscape A4 table including all key fields with a footer noting the 3-year record retention requirement. Suitable for compliance document packs and assurance scheme audits.</p>
+<h3>Mobile recording</h3>
+<p>Mating records can be entered in the mobile app's Record tab under <em>Goat Mating Record</em>. The record saves offline and syncs to the dashboard automatically when connectivity is restored.</p>`,
+  ],
+  // 236 — Goat Pregnancy Scanning — Does Barren, Singles, Doubles and Triplets
+  // 235 — Goat Pregnancy Scanning
+  [
+    "How to record goat pregnancy scanning results in BDE Farm Trac, including does barren, singles, doubles, triplets, scanning percentage, and expected total kids.",
+    `<h2>Goat Pregnancy Scanning — Does Barren, Singles, Doubles and Triplets</h2>
+<p>Pregnancy scanning determines the litter distribution of the kidding crop and allows you to plan housing, nutrition, and labour requirements before kidding begins. BDE Farm Trac records the scanning event with a full litter breakdown and calculates the scanning percentage automatically.</p>
+<h3>Adding a scanning record</h3>
+<p>Navigate to <strong>Goat Production → Scanning</strong> and click <strong>Add Record</strong>. Complete the following fields:</p>
+<ul>
+<li><strong>Scan Date *</strong> — date of the scanning event.</li>
+<li><strong>Scanner Name</strong> — name of the scanning technician or vet performing the scan.</li>
+<li><strong>Scanner Company</strong> — the scanning company or veterinary practice.</li>
+<li><strong>Does Scanned *</strong> — total number of does put through the scanner.</li>
+<li><strong>Barren</strong> — number of does confirmed empty.</li>
+<li><strong>Singles</strong> — number of does carrying one kid.</li>
+<li><strong>Doubles</strong> — number of does carrying twins.</li>
+<li><strong>Triplets</strong> — number of does carrying three kids.</li>
+<li><strong>Scanning %</strong> — automatically calculated as (expected total kids ÷ does scanned) × 100; can be overridden if your scanning report shows a different figure.</li>
+<li><strong>Expected Kids Total</strong> — calculated from the litter breakdown entered above.</li>
+</ul>
+<h3>Analytics</h3>
+<p>The Analytics tab aggregates all scanning records into a <strong>Kid Type Distribution</strong> pie chart showing the proportion of barren, singles, doubles, and triplets across all scanning events on the farm. The <strong>Avg Scanning %</strong> KPI card shows the mean across all recorded rounds.</p>
+<h3>Print report</h3>
+<p>The Pregnancy Scanning print report uses landscape A4 layout with the full litter breakdown and a record retention footer. Suitable for veterinary health plan reviews and CAE accreditation scheme audit packs.</p>`,
+  ],
+  // 237 — Goat Weigh-in and DLWG — Performance Recording and Body Condition Scoring
+  // 236 — Goat Weigh-in and DLWG
+  [
+    "How to record goat weigh-in events in BDE Farm Trac, including DLWG calculation, body condition scoring, and performance tracking against target.",
+    `<h2>Goat Weigh-in and DLWG — Performance Recording and Body Condition Scoring</h2>
+<p>Regular weight recording is the most reliable way to monitor kid and doe performance and to identify production issues early. BDE Farm Trac calculates the Daily Live Weight Gain (DLWG) from consecutive weigh-in records and colour-codes the result against your target to make underperformance immediately visible.</p>
+<h3>Adding a weigh-in record</h3>
+<p>Navigate to <strong>Goat Production → Weigh-in</strong> and click <strong>Add Record</strong>. Complete the following fields:</p>
+<ul>
+<li><strong>Weigh Date *</strong> — date of the weigh-in event.</li>
+<li><strong>Animal Category</strong> — Kids, Weanlings, Yearlings, Does, or Bucks — the age or class group being weighed.</li>
+<li><strong>Batch / Group Reference</strong> — a label to identify the group across multiple weigh-ins (e.g. "Spring Kids 2025"); used to link consecutive records when calculating DLWG.</li>
+<li><strong>Number Weighed</strong> — count of animals in the group at this weigh-in.</li>
+<li><strong>Average Weight (kg)</strong> — mean weight for the group or batch.</li>
+<li><strong>Lightest Weight (kg)</strong> and <strong>Heaviest Weight (kg)</strong> — range captured at the same event to indicate spread within the group.</li>
+<li><strong>Target Weight (kg)</strong> — the breed-standard or management target for this group at this stage.</li>
+<li><strong>Previous Weigh Date</strong> and <strong>Previous Avg Weight (kg)</strong> — used to calculate DLWG; enter the date and average weight from the preceding weigh-in for this batch.</li>
+<li><strong>DLWG (g/day)</strong> — calculated automatically from the difference between current and previous average weights divided by the number of days between weigh dates; colour-coded green (on or above target), amber (within 10% below target), or red (significantly below target).</li>
+<li><strong>BCS (Body Condition Score)</strong> — the 1–5 body condition score assessed at the time of weighing.</li>
+</ul>
+<h3>Raise Task</h3>
+<p>Each weigh-in record includes a <strong>Raise Task</strong> button in the View dialog. Use it to create a follow-up task when a group's DLWG is below target — the task appears on the Task Board assigned to the responsible team member.</p>
+<h3>Analytics</h3>
+<p>The Analytics tab shows the average DLWG (g/day) across all records as a KPI card and a <strong>DLWG by Batch</strong> horizontal bar chart for the most recent ten weigh-in groups. Groups consistently below target are immediately visible.</p>`,
+  ],
+  // 238 — Goat Health and Disease Monitoring — CAE, CLA, Johne's and Reportable Diseases
+  // 237 — Goat Health and Disease Monitoring
+  [
+    "How to record goat vaccination programmes and disease monitoring in BDE Farm Trac, covering CAE, CLA, Johne's disease, and the reportable disease advisory.",
+    `<h2>Goat Health and Disease Monitoring — CAE, CLA, Johne's and Reportable Diseases</h2>
+<p>The Health tab in Goat Production provides two sub-sections: <strong>Vaccination Programmes</strong> for recording all vaccination events per herd, and <strong>Disease Monitoring</strong> for logging the results of disease surveillance tests and health observations.</p>
+<h3>Vaccination Programmes</h3>
+<p>Navigate to <strong>Goat Production → Health → Vaccinations</strong> and click <strong>Add Vaccination</strong>. Capture:</p>
+<ul>
+<li><strong>Product Name</strong> — the vaccine or biological product (e.g. Heptavac P Plus, Lambivac, Covexin 10, Bravoxin 10).</li>
+<li><strong>Batch / Lot Number</strong> — for product traceability in medicine records.</li>
+<li><strong>Vaccination Date *</strong> — date of administration.</li>
+<li><strong>Number of Animals</strong> — animals vaccinated in this event.</li>
+<li><strong>Dose (ml)</strong> and <strong>Route</strong> — subcutaneous, intramuscular, or oral.</li>
+<li><strong>Withdrawal Period (days)</strong> — the meat and/or milk withdrawal period for this product; displayed prominently on the saved record as a compliance reminder.</li>
+<li><strong>Vet Prescribed</strong> — tick if administered under veterinary prescription (POM-V product).</li>
+</ul>
+<p>Vaccination records print as a formatted A4 compliance document including batch traceability and withdrawal period reminder, suitable for veterinary health plan reviews and assurance scheme audits.</p>
+<h3>Disease Monitoring</h3>
+<p>Navigate to <strong>Goat Production → Health → Disease Monitoring</strong> and click <strong>Add</strong>. Monitoring types include:</p>
+<ul>
+<li><strong>CAE (Caprine Arthritis Encephalitis)</strong> — the most significant viral disease in UK dairy and fibre goat herds; records support CAE Accreditation Scheme documentation requirements (scheme reference, testing body, samples, result status).</li>
+<li><strong>CLA (Caseous Lymphadenitis)</strong> — caseous lymphadenitis serology or post-mortem confirmation records per herd.</li>
+<li><strong>Johne's Disease</strong> — paratuberculosis surveillance tests; tracks herd risk level and next test due across monitoring rounds.</li>
+<li><strong>Foot rot surveillance, Cryptosporidiosis, Toxoplasmosis, Chlamydiosis, Mycoplasma</strong> — additional important disease conditions captured with the same record structure.</li>
+<li><strong>Faecal egg count (worms)</strong> — FEC results per batch with number of samples and positive count for SCOPS-aligned anthelmintic decision making.</li>
+</ul>
+<p>Each monitoring record captures the testing body or laboratory, number of samples, positive and negative results, overall status (Pending / Clear / Positive / Inconclusive), actions taken, and the next test due date. Status is shown as a colour-coded badge — green for Clear, red for Positive, amber for Inconclusive or Pending.</p>
+<h3>Reportable diseases</h3>
+<p>If you suspect a notifiable disease — including Foot and Mouth Disease, Bluetongue, Anthrax, Scrapie, or any other listed disease — contact APHA immediately on <strong>03000 200 301</strong> before recording the observation in BDE Farm Trac. The statutory notification obligation is triggered by reasonable suspicion, not by laboratory confirmation. The formal incident record including the APHA reference number, isolation measures applied, and case outcome is recorded in <strong>Compliance &amp; Plans → Disease &amp; Incident Log</strong>.</p>`,
+  ],
+  // 239 — Venison Production Module — Overview and Getting Started
   // Venison Production
   [
     "Overview of stalking & cull records, carcass processing, herd monitoring, health records, and the firearms certificate register for farmed and estate deer enterprises.",
@@ -4781,6 +4801,7 @@ const CONTENT: [string, string][] = [
 <h3>Getting started</h3>
 <p>Before using this module, register your deer herd(s) in <strong>Livestock → Herds &amp; Animals</strong> and set the species to a deer species (Red Deer, Fallow Deer, Sika, Roe Deer, Muntjac, etc.). All records in Venison Production link back to herds from that central register.</p>`,
   ],
+  // 240 — Venison Cull Records — Stalking Events, Carcass Weights and Food Safety Inspection
   [
     "Record stalking and culling events with species, sex, age class, beat location, larder number, carcass weight data, and food safety inspection result.",
     `<h2>Venison Cull Records</h2>
@@ -4801,6 +4822,7 @@ const CONTENT: [string, string][] = [
 <li><strong>Food Safety Inspection Result</strong> — Passed / Conditionally passed / Failed / Not inspected. Colour-coded badge on each record.</li>
 </ul>`,
   ],
+  // 241 — Venison Cull Records — Notifiable Disease Suspect Flag and APHA Advisory
   [
     "Tick the Notifiable Disease Suspect flag to trigger an APHA advisory and record that APHA was contacted on 03000 200 301.",
     `<h2>Notifiable Disease Suspect Flag — Venison Cull Records</h2>
@@ -4812,6 +4834,7 @@ const CONTENT: [string, string][] = [
 <p>Under the Animal Health Act 1981 and associated disease control legislation, keepers are legally required to notify APHA of any suspected notifiable disease. Failure to notify is a criminal offence. The system records the flag on the cull record so inspectors can see which events prompted APHA contact.</p>
 <p>APHA's emergency number is available 24 hours a day, 7 days a week: <strong>03000 200 301</strong>.</p>`,
   ],
+  // 242 — Venison Carcass Sales — Wild Game Declaration, Facility Type and Destination Recording
   [
     "Record each carcass sale or processing event with facility type, destination, buyer details, Wild Game Declaration number, price per kg, and total value.",
     `<h2>Venison Carcass Sales — Wild Game Declaration and Destination Recording</h2>
@@ -4830,6 +4853,7 @@ const CONTENT: [string, string][] = [
 <h3>Financial fields</h3>
 <p>Record price per kg (£), total weight (kg), and total value (£) to track enterprise income across the season. The Analytics tab aggregates these into a total sales value KPI.</p>`,
   ],
+  // 243 — Venison Herd Monitoring — Population Surveys: Driven Count, Thermal Imaging and Camera Trap
   [
     "Log regular herd population surveys using driven counts, thermal imaging, camera trap census, or aerial methods to support your annual deer management plan.",
     `<h2>Venison Herd Monitoring — Population Surveys</h2>
@@ -4846,6 +4870,7 @@ const CONTENT: [string, string][] = [
 <h3>Key recorded data</h3>
 <p>Species, male/female/young/total counts, male:female ratio, recruitment rate %, observer name, and weather conditions. The Analytics tab shows the average herd count across all survey events as a KPI card.</p>`,
   ],
+  // 244 — Venison Health Records — bTB SICCT Skin Test, Gamma-Interferon Blood Test and APHA Reference
   [
     "Record vaccination events, bTB SICCT skin tests, gamma-interferon blood tests, post mortem examinations, and vet treatments with withdrawal period tracking.",
     `<h2>Venison Health Records — bTB Testing and Vet Treatments</h2>
@@ -4862,6 +4887,7 @@ const CONTENT: [string, string][] = [
 <h3>Notifiable disease suspect</h3>
 <p>If a notifiable disease is suspected during a health event or post mortem, tick the Notifiable Disease Suspect checkbox. Contact APHA on <strong>03000 200 301</strong> immediately.</p>`,
   ],
+  // 245 — Venison Firearms & Stalking Certificates — Section 1 FC, DSC1, DSC2 and WGMI Expiry Tracking
   [
     "Register Section 1 Firearms Certificates, DSC1, DSC2, WGMI hunter food hygiene certificates, and other stalker licences with 90-day expiry alerts.",
     `<h2>Firearms &amp; Stalking Certificates Register</h2>
@@ -4879,6 +4905,7 @@ const CONTENT: [string, string][] = [
 <h3>Expiry alerts</h3>
 <p>An <strong>amber warning banner</strong> appears when any certificate expires within 90 days. A <strong>red banner</strong> appears for expired certificates. Review and renew certificates before the expiry date — lapsed FCs must be reported to the police authority and stalking must cease until a renewed certificate is obtained.</p>`,
   ],
+  // 246 — Organic Venison Module — Overview and Getting Started
   [
     "Overview of the Organic Venison module — certification, land register, feed and supplement log, and derogation case management for certified organic farmed deer enterprises.",
     `<h2>Organic Venison Module — Overview</h2>
@@ -4895,6 +4922,7 @@ const CONTENT: [string, string][] = [
 <h3>Certifying bodies</h3>
 <p>The main UK organic certifying bodies for deer enterprises are <strong>Soil Association Certification</strong> and <strong>OF&amp;G (Organic Farmers &amp; Growers)</strong>. Both are accredited under UKAS to certify against the UK Organic Regulations.</p>`,
   ],
+  // 247 — Organic Venison — Certification Tab: Certifying Body, Certificate Number and Scope Register
   [
     "Record certifying body details, certificate numbers, issue and expiry dates, scope, and active/pending/suspended status for organic venison certification.",
     `<h2>Organic Venison — Certification Tab</h2>
@@ -4917,6 +4945,7 @@ const CONTENT: [string, string][] = [
 <h3>Scope field</h3>
 <p>Use the Scope field to record what the certificate covers, for example: <em>"Farmed red and fallow deer for venison — Deer Park compartments A, B and C"</em>. This helps cross-reference the certificate against the Land Register compartments.</p>`,
   ],
+  // 248 — Organic Venison — Land Register: Grazing Compartment Conversion Status Tracking
   [
     "Track each deer park or grazing compartment through organic conversion from pre-conversion to certified organic with area, conversion dates, and certifier reference.",
     `<h2>Organic Venison — Land Register</h2>
@@ -4940,6 +4969,7 @@ const CONTENT: [string, string][] = [
 <li><strong>Previous Land Use</strong> — e.g. conventional arable, improved pasture, woodland; reviewed by inspectors when assessing conversion eligibility.</li>
 </ul>`,
   ],
+  // 249 — Organic Venison — Feed and Supplement Log: Organic Approval Status and Certifier Reference
   [
     "Log all supplementary feed and mineral inputs with organic approval status — Certified Organic, Approved for Organic Use, Derogation Required, or Not Permitted.",
     `<h2>Organic Venison — Feed and Supplement Log</h2>
@@ -4956,6 +4986,7 @@ const CONTENT: [string, string][] = [
 <h3>What inputs must be recorded?</h3>
 <p>All supplementary inputs beyond the deer's natural grazing: mineral licks, salt blocks, hay and silage, concentrate feeds, organic concentrates, liquid supplements, and drenches. Natural pasture grazing does not require a separate record.</p>`,
   ],
+  // 250 — Organic Venison — Derogations: Case Register, Justification, Decision and Approval Conditions
   [
     "Manage input derogation cases from application through to certifier decision, recording justification, regulatory basis, approval conditions, and expiry date.",
     `<h2>Organic Venison — Derogations</h2>
@@ -4978,6 +5009,7 @@ const CONTENT: [string, string][] = [
 <h3>Inspection review</h3>
 <p>Your certifying body inspector will review the derogations register at your annual inspection. All derogation cases — whether approved, refused, or withdrawn — should be retained for audit purposes.</p>`,
   ],
+  // 251 — Year Filters on Livestock Recording Tabs — All Production Modules
   [
     "All recording tabs across Sheep, Goat, Beef, Venison, Pig, Dairy, and Poultry production modules include a year filter dropdown that defaults to the current year, so recent records are always shown first.",
     `<h2>Year Filters on Livestock Recording Tabs</h2>
@@ -4999,6 +5031,7 @@ const CONTENT: [string, string][] = [
 <h3>Why this matters for audits</h3>
 <p>Red Tractor and organic certification schemes require records to be retained for a minimum of three years. The year filter lets you switch between years instantly during an assessor visit, presenting evidence from any past season without scrolling through all historical data. It also makes it straightforward to print a year-specific report for inclusion in an audit pack.</p>`,
   ],
+  // 252 — Document Attachment on Livestock Record Rows — Compact DocAttach Across All Production Tabs
   [
     "Every record row across all livestock production recording tabs has a compact attach/view button for uploading PDFs, photos, and Word documents directly against that specific record.",
     `<h2>Document Attachment on Livestock Record Rows</h2>
@@ -5023,6 +5056,7 @@ const CONTENT: [string, string][] = [
 <h3>Audit trail</h3>
 <p>All attachments are stored in secure cloud storage and linked permanently to the record. They are accessible from the dashboard at any time, including during an assessor visit. Each attachment shows the file name, upload date, and uploader name.</p>`,
   ],
+  // 253 — Johne's Disease Monitoring — Year Filter, Print Report and Record Attachments
   [
     "Johne's Disease Monitoring records now include a year filter, a formatted print report for assessor presentation, and a RecordAttachments panel in the view dialog for lab certificates and correspondence.",
     `<h2>Johne's Disease Monitoring — Year Filter, Print Report and Record Attachments</h2>
@@ -5046,6 +5080,7 @@ const CONTENT: [string, string][] = [
 </ul>
 <p>Red Tractor Dairy and Beef &amp; Lamb standards require Johne's monitoring records to be retained for a minimum of three years.</p>`,
   ],
+  // 254 — Campylobacter Monitoring — Year Filter, Print Report and Record Attachments
   [
     "Campylobacter Monitoring records now include a year filter, a formatted A4 print report for Red Tractor Poultry assessors, and a RecordAttachments panel in the view dialog for NCP lab reports and correspondence.",
     `<h2>Campylobacter Monitoring — Year Filter, Print Report and Record Attachments</h2>
@@ -5064,6 +5099,7 @@ const CONTENT: [string, string][] = [
 <h3>RecordAttachments panel in the view dialog</h3>
 <p>Opening any Campylobacter Monitoring record shows a full <strong>RecordAttachments panel</strong> in the view dialog alongside the structured record data. This gives a complete evidence file for each individual NCP test result, with all documents accessible in one place during an audit.</p>`,
   ],
+  // 255 — Organic Livestock Outdoor Access Log — Year Filter and Document Attachment on Rows
   [
     "The Outdoor Access Log in Organic Livestock now has a year filter and compact document attachment on every row for uploading grazing evidence, paddock maps, and certifier inspection notes.",
     `<h2>Organic Livestock Outdoor Access Log — Year Filter and Document Attachment</h2>
@@ -5081,6 +5117,7 @@ const CONTENT: [string, string][] = [
 <h3>Compliance context</h3>
 <p>UK Organic Regulations require that organic livestock have continuous access to outdoor pasture whenever conditions allow, with stocking density not exceeding the limits set for each species. The Outdoor Access Log provides the dated evidence trail that your certifying body inspector (Soil Association, OF&amp;G, or equivalent) will review at your annual organic inspection.</p>`,
   ],
+  // 256 — Organic Dairy Feed & Nutrition Tab — Year Filter and Document Attachment on Rows
   [
     "The Feed & Nutrition tab in Organic Dairy now has a year filter and compact document attachment on every row for uploading delivery notes, organic approval certificates, and certifier correspondence.",
     `<h2>Organic Dairy Feed &amp; Nutrition Tab — Year Filter and Document Attachment</h2>
@@ -5098,7 +5135,7 @@ const CONTENT: [string, string][] = [
 <h3>Relationship to Organic Livestock Feed Derogations</h3>
 <p>Where a feed delivery is not fully organic-approved, the Feed &amp; Nutrition tab shows a <strong>Link to Approved Derogation Case</strong> picker. Selecting an approved derogation case from the Organic Livestock module auto-fills the certifier approval reference — the document attached to the derogation case and the document attached to the feed record together form a complete, inspector-ready evidence chain without any re-keying.</p>`,
   ],
-
+  // 257 — Season Production Report — Gross Margin and Financial Summary
   // Dairy Mobility Scoring — Per-Animal Records, Prevalence and Mobile Recording (inserted before Season Production Report to maintain index order)
 
   // Season Production Report — Gross Margin and Financial Summary
@@ -5132,7 +5169,7 @@ const CONTENT: [string, string][] = [
 <h3>Partial data and incomplete seasons</h3>
 <p>The report can be opened at any point during the season — it will show costs and revenue for whichever records have been completed so far. If harvest has not yet been recorded, Revenue and Gross Margin will show as £0 or be omitted from the summary. This lets you use the report part-way through the season to track input costs as they accumulate.</p>`,
   ],
-
+  // 258 — Dairy Mobility Scoring — Per-Animal Records, Prevalence and Mobile Recording
   // Dairy Mobility Scoring — Per-Animal Records, Prevalence and Mobile Recording
   [
     "How to record individual per-animal dairy mobility scoring sessions in BDE Farm Trac, including AHDB 0–3 scoring, prevalence calculation, and mobile recording.",
@@ -5155,7 +5192,7 @@ const CONTENT: [string, string][] = [
 <h3>Printable report</h3>
 <p>Every session has a <strong>Print Report</strong> button generating a formatted A4 document that shows the session date, assessor, pen, all individual animal scores and notes, and the calculated prevalence percentage. This is designed for presentation at herd health reviews and Red Tractor Dairy assessor visits.</p>`,
   ],
-
+  // 259 — Seed Drilling Records — Crop Variety, Seed Rate, Treated Seed and Season Cost Tracking
   // Seed Drilling Records — Crop Variety, Seed Rate, Treated Seed and Season Cost Tracking
   [
     "How to record seed drilling events in BDE Farm Trac, covering variety, seed lot number, treated seed, seed rate, and seed cost for Season Production Report gross margin.",
@@ -5182,7 +5219,7 @@ const CONTENT: [string, string][] = [
 <h3>Season Production Report integration</h3>
 <p>The seed cost (£/kg) recorded here is picked up automatically by the <strong>Season Production Report</strong> (Field &amp; Crop Management → Season Reports). The report multiplies cost by seed rate and area drilled across all records for the season to produce a <strong>Total Seed Cost</strong> line in the Financial Summary. No re-entry is required — completing the Seed Cost (£/kg) field on each drilling record is sufficient.</p>`,
   ],
-
+  // 260 — Invoice Branding — Farm Logo, Company Details, VAT Number and Bank Information on Invoices
   // Invoice Branding — Farm Logo, Company Details, VAT Number and Bank Information on Invoices
   [
     "How to configure invoice branding in BDE Farm Trac — uploading your farm logo, company details, VAT number, and bank information to appear on all invoices.",
@@ -5204,7 +5241,7 @@ const CONTENT: [string, string][] = [
 <h3>Multi-farm accounts</h3>
 <p>Each farm holding in a multi-farm account has its own independent invoice branding settings. Switch between farms using the farm selector in the sidebar, then navigate to Settings → Farm Settings to configure the branding for that specific holding. This allows group farming businesses to trade under different legal entities from a single BDE Farm Trac account.</p>`,
   ],
-
+  // 261 — LIS One-Click Submission — Connecting Your Livestock Information Service Account
   // LIS One-Click Submission — Connecting Your Livestock Information Service Account
   [
     "How to connect your Livestock Information Service (LIS) account to BDE Farm Trac and submit sheep, goat, and deer movement records to the England CLA API with a single click.",
@@ -5231,7 +5268,7 @@ const CONTENT: [string, string][] = [
 <h3>Scotland, Wales and Northern Ireland</h3>
 <p>The LIS one-click integration covers England movements only (England CLA API). For Scotland, movements are reported to ScotEID via ScotMoves+. BDE Farm Trac captures all fields required for a ScotMoves+ manual submission — CPH numbers, ear tag lists, movement dates, haulier details, and AML reference numbers — which can be exported to assist with portal data entry.</p>`,
   ],
-
+  // 262 — LIS LIP One-Click Cattle Submission — Connecting via LIS Account Sign-In
   // LIS LIP One-Click Cattle Submission — Connecting via LIS Account Sign-In
   [
     "How to connect each farm's LIS account to BDE Farm Trac and submit cattle movements, births, and deaths directly to the Livestock Information Platform (LIP) API.",
@@ -5266,6 +5303,125 @@ const CONTENT: [string, string][] = [
 <p>During initial setup and testing, LIP connections operate in <strong>sandbox mode</strong>. Submissions in sandbox mode are sent to the LIS test environment and do not affect live government records. All sandbox submissions are clearly labelled in the LIP Submissions tab. Sandbox mode is automatically used while the LIS LIP Alpha and sandbox APIs are the active environment; production mode will be available once LIS publish their production API endpoint.</p>
 <h3>Relationship to BCMS</h3>
 <p>LIP and BCMS (CTS Web Services) are two separate cattle reporting routes. LIP is the newer LIS-operated platform; BCMS/CTS is the existing British Cattle Movement Service operated by APHA. BDE Farm Trac supports both in parallel — use whichever route is appropriate for your holding. Both are accessible from the same movement row in Livestock → Movements.</p>`,
+  ],
+  // 263 — Black-grass Five-in-Five Tracker — Cultural Control Scoring and Herbicide Resistance Risk
+  // Black-grass Five-in-Five Tracker — Cultural Control Scoring and Herbicide Resistance Risk
+  [
+    "How the Black-grass Five-in-Five tracker scores a field's cultural control diversity over its last five seasons and flags herbicide resistance risk.",
+    `<h2>Black-grass Five-in-Five Tracker — Cultural Control Scoring and Herbicide Resistance Risk</h2>
+<p>The Black-grass Five-in-Five tracker measures how consistently a field has used cultural (non-chemical) black-grass control methods over its last five cropping seasons, following the well-established "Five-in-Five" principle: using at least five different cultural control pillars across five years significantly reduces black-grass seed return and slows herbicide resistance.</p>
+<h3>Flagging a field for tracking</h3>
+<p>Open <strong>Field &amp; Crop Management → Fields</strong>, edit a field, and tick <strong>Black-grass risk field</strong>. Only flagged fields are scored and appear in the tracker — use this for fields with a known or suspected black-grass problem.</p>
+<h3>The five pillars</h3>
+<p>Each season, the tracker checks your existing records for evidence of each pillar being used on that field:</p>
+<ul>
+<li><strong>Rotational ploughing</strong> — a ploughing operation logged for that field in that season.</li>
+<li><strong>Delayed drilling</strong> — the drilling date recorded in Seed Drilling Records falls after the season's delayed-drilling threshold.</li>
+<li><strong>Spring cropping</strong> — the crop grown that season is a spring-sown crop rather than a winter crop.</li>
+<li><strong>Higher seed rate</strong> — the recorded seed rate exceeds the standard benchmark rate for that crop.</li>
+<li><strong>Fallow or cover crop</strong> — the field's land use that season is recorded as fallow, cover crop, or an equivalent stewardship option.</li>
+</ul>
+<h3>Reading the score</h3>
+<p>In <strong>Fields → Crop History</strong>, each flagged field shows a five-year × five-pillar grid with a tick for every pillar used in every season, and a distinct-pillar count. Scoring at least five distinct pillars across the five seasons meets the Five-in-Five target; fields falling short are highlighted so you can plan a pillar you haven't used recently into next season's rotation.</p>
+<h3>Herbicide MOA repetition risk</h3>
+<p>Record each herbicide product's <strong>MOA/HRAC group</strong> on the product record in Sprays &amp; Inputs (shown when the product category is Herbicide). The tracker checks grass-weed herbicide applications on the field and flags a resistance-risk warning if the same MOA group has been used in three or more consecutive seasons — a strong driver of herbicide resistance development.</p>
+<h3>Farm-wide rollup</h3>
+<p><strong>Season Reports → Black-grass Five-in-Five</strong> shows a farm-wide summary card: the percentage of flagged fields meeting the five-pillar target this rotation, and a list of at-risk fields — those missing pillars or showing MOA group repetition — so problem fields can be prioritised in next season's cropping plan.</p>`,
+  ],
+  // 264 — Horticulture Module — Overview
+  // 264 — Horticulture Module — Overview
+  [
+    "What the Fresh Produce module covers and how it maps to Red Tractor Fresh Produce compliance.",
+    `<h2>Horticulture Module — Overview</h2>
+<p>The <strong>Fresh Produce</strong> module (found under Specialist Modules → Fresh Produce) is a full lifecycle management system for growers, covering everything from growing blocks through to harvest, intake, packing and despatch. It is designed to satisfy the <strong>Red Tractor Fresh Produce (CP &amp; CB)</strong> assurance standard.</p>
+<h3>The seven tabs</h3>
+<ul>
+<li><strong>Blocks</strong> — growing blocks and field sections, including linking blocks to parent fields on mixed farms and drawing block boundaries on the map.</li>
+<li><strong>Crops</strong> — a crop register for specific plantings: variety, seed supplier, lot number, sowing/transplanting dates and growing method (open field, protected cropping, hydroponics).</li>
+<li><strong>Water Tests</strong> — irrigation water quality results, including microbial counts (E.coli, Salmonella) and chemical analysis (pH, nitrates), with next-test-due tracking.</li>
+<li><strong>Harvest</strong> — daily harvest records: batch reference, grading (Grade A/B/C/Waste) and Pre-Harvest Interval (PHI) compliance.</li>
+<li><strong>Intake</strong> — produce arriving into pre-cooling or storage, including condition-on-arrival checks and temperature monitoring.</li>
+<li><strong>Packhouse</strong> — packing and despatch records, linking harvest batches to customers and traceability codes.</li>
+<li><strong>Allergens</strong> — documented reviews of allergen risk, cross-contamination controls and label verification.</li>
+</ul>
+<h3>Traceability</h3>
+<p>Every record links: growing block → crop → harvest batch → intake → packhouse despatch, giving full farm-to-customer traceability in one place, ready to show an auditor.</p>`,
+  ],
+  // 265 — Getting Started with Horticulture Records
+  // 265 — Getting Started with Horticulture Records
+  [
+    "A first-time setup guide for the Fresh Produce module — blocks, crops, and your first harvest record.",
+    `<h2>Getting Started with Horticulture Records</h2>
+<p>Follow these steps the first time you set up the Fresh Produce module.</p>
+<h3>1. Enable the module</h3>
+<p>Ask your farm administrator to enable <strong>Fresh Produce</strong> under Specialist Modules if you don't see it in the navigation.</p>
+<h3>2. Set up your Blocks</h3>
+<p>Go to <strong>Fresh Produce → Blocks</strong> and add each growing block. If a block sits within a mixed farm, link it to its parent field so organic and NVZ status carry across automatically. Optionally draw the block boundary on the map.</p>
+<h3>3. Register your Crops</h3>
+<p>In the <strong>Crops</strong> tab, record each planting: variety, seed supplier and lot number, seed treatment status, sowing/transplanting date, and growing method (open field, protected cropping, or hydroponics).</p>
+<h3>4. Log Water Tests</h3>
+<p>If you irrigate, add a water test result for each source under <strong>Water Tests</strong> — microbial and chemical results — and set a next-test-due date so you get a reminder.</p>
+<h3>5. Record your first Harvest</h3>
+<p>When you start harvesting, add a record under <strong>Harvest</strong> with the batch reference, grade split and the Pre-Harvest Interval for any sprays applied to that crop.</p>
+<h3>6. Track Intake and Packhouse</h3>
+<p>As produce moves into storage or packing, log it under <strong>Intake</strong> (condition on arrival, temperature) and <strong>Packhouse</strong> (customer, traceability code) to complete the chain.</p>
+<h3>7. Review Allergens periodically</h3>
+<p>Use the <strong>Allergens</strong> tab to record a periodic management review of allergen risks and cross-contamination controls — most assurance schemes expect this at least annually.</p>`,
+  ],
+  // 266 — Horticulture Module — Crop Records, Sprays, and Assurance
+  // 266 — Horticulture Module — Crop Records, Sprays, and Assurance
+  [
+    "How crop records, spray records and PHI tracking work together in the Fresh Produce module for Red Tractor CB compliance.",
+    `<h2>Horticulture Module — Crop Records, Sprays, and Assurance</h2>
+<p>The Fresh Produce module integrates crop, spray and quality records to build the evidence trail Red Tractor Fresh Produce (CP &amp; CB) auditors expect.</p>
+<h3>Crop records</h3>
+<p>Each entry in <strong>Crops</strong> captures the variety, seed supplier and lot number, whether the seed was treated, sowing/transplanting date and growing method. This is your planting register — every batch of produce should trace back to a crop record here.</p>
+<h3>Spray records and PHI</h3>
+<p>Spray and input applications are recorded in <strong>Sprays &amp; Inputs</strong> (Field &amp; Crop Management → Sprays), the same place as arable spray records. When a block is linked to Fresh Produce, its spray history feeds into the <strong>Harvest</strong> tab's Pre-Harvest Interval check, warning you if a harvest date falls inside a product's PHI window.</p>
+<h3>Assurance evidence by section</h3>
+<ul>
+<li><strong>Site management (CP)</strong> — Blocks define and map your growing sites and cold store locations.</li>
+<li><strong>Water management (CB)</strong> — Water Tests provide microbial and chemical evidence for irrigation sources.</li>
+<li><strong>Harvesting &amp; storage (CB)</strong> — Harvest PHI checks and Intake pre-cooling/temperature logs.</li>
+<li><strong>Product safety (CB)</strong> — Intake foreign-body and pest-damage checks, plus Allergen management reviews.</li>
+<li><strong>Traceability (CB)</strong> — the Harvest Batch Ref and Traceability Code link every step from block to customer despatch in Packhouse.</li>
+</ul>
+<p>Keeping all four tabs (Crops, Water Tests, Harvest, Intake/Packhouse, Allergens) up to date gives you a single, exportable record set for your Red Tractor Fresh Produce audit.</p>`,
+  ],
+  // 267 — NMR Recording Visits — Herd Constituents, SCC and Fat:Protein Ratio Trends
+  // 41 — NMR Recording Visits
+  [
+    "How to log monthly NMR recording visits in BDE Farm Trac, track herd constituent averages, and interpret Fat:Protein Ratio trends for dairy compliance.",
+    `<h2>NMR Recording Visits</h2>
+<p>The NMR Recording Visits tab in the Dairy module lets you log the results of each monthly visit from your National Milk Records (NMR) recorder. While not a statutory legal requirement, milk recording is effectively mandatory for Red Tractor Dairy assurance — scheme standards require documented evidence of milk quality monitoring, SCC trend management, and herd health surveillance. Most processor contracts also tie milk price to recorded SCC and constituent data.</p>
+<h3>Recording a visit</h3>
+<p>Navigate to <strong>Dairy → Recording Visits</strong> and click <strong>Log Visit</strong>. The form captures:</p>
+<ul>
+<li><strong>Visit date</strong> — the date the NMR recorder attended.</li>
+<li><strong>Recorder name and NMR employee number</strong> — the recorder's identity for audit purposes.</li>
+<li><strong>Cows in milk / Cows recorded</strong> — the number of cows in the milking herd and the number included in the recording round.</li>
+<li><strong>Herd averages</strong> — yield per cow per day (litres), fat %, protein %, lactose %, and somatic cell count (SCC, in cells × 1,000/mL).</li>
+<li><strong>High-SCC animals</strong> — count of cows above 200,000 cells/mL and a free-text field for their ear tags (comma-separated) to flag animals requiring mastitis investigation.</li>
+<li><strong>Quality alert</strong> — any action note or advisory from the NMR report (e.g. "Bulk tank SCC elevated — investigate quarters on cow UK123").</li>
+<li><strong>Next visit date</strong> — the scheduled date for the following recording round.</li>
+</ul>
+<h3>Fat:Protein Ratio (F:P Ratio)</h3>
+<p>The Fat:Protein Ratio is calculated automatically as you enter fat % and protein % — no manual calculation needed. The ratio is displayed as a colour-coded badge on both the log form and the recording register:</p>
+<ul>
+<li><strong>Red — below 1.0:</strong> high risk of subclinical ruminal acidosis; review buffer feeding and ration composition with your nutritionist.</li>
+<li><strong>Amber — 1.0 to 1.19:</strong> below target; diet may be short of effective fibre or high in rapidly fermentable carbohydrate.</li>
+<li><strong>Green — 1.2 to 1.5:</strong> target range; indicates good rumen function and balanced energy and protein status.</li>
+<li><strong>Amber — above 1.5:</strong> may indicate an energy deficit or early ketosis; cows may be mobilising body fat. Review body condition scores and transition cow management.</li>
+</ul>
+<h3>Trend charts</h3>
+<p>Once you have two or more recording visits logged, click <strong>Trend Chart</strong> to open the rolling 24-visit visual analysis. Two charts are shown side by side:</p>
+<ul>
+<li><strong>Herd Average SCC</strong> — a bar chart with a reference line at 200,000 cells/mL (the EU/UK penalty threshold). Bars above the reference line are immediately visible for management action.</li>
+<li><strong>Fat%, Protein% and F:P Ratio</strong> — a dual-axis line chart showing constituent trends (left axis, %) and the Fat:Protein Ratio trend (right axis) together. The 1.2 F:P target is shown as a dashed reference line.</li>
+</ul>
+<p>Trend charts are the primary tool for spotting seasonal patterns, nutrition transitions, and early warning of herd health issues before they affect milk income or Red Tractor compliance status.</p>
+<h3>Mobile recording</h3>
+<p>NMR recording visit results can also be logged from the mobile app — useful if you want to capture key figures from the NMR report immediately after the recorder leaves, before you return to the office. Navigate to <strong>Record → NMR Recording Visit</strong> in the mobile app. Results sync to the dashboard automatically when connectivity is restored.</p>`,
   ],
 ];
 
