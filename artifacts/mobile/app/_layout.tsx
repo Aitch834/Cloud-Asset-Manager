@@ -99,6 +99,10 @@ function RootLayoutNav() {
         <Stack.Screen name="welfare-outcome" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="ppe-issue" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="labour-timesheet" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="fly-tipping" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="encampments" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="pest-control-visit" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="task-inbox" options={{ headerShown: false, presentation: "modal" }} />
       </Stack>
       <SyncStatusBar />
     </View>
