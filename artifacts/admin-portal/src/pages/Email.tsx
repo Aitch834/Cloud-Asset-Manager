@@ -550,8 +550,34 @@ function InboxTab() {
                   onLoad={(e) => {
                     const iframe = e.currentTarget;
                     try {
-                      const h = iframe.contentDocument?.documentElement?.scrollHeight ?? 0;
+                      const doc = iframe.contentDocument;
+                      const h = doc?.documentElement?.scrollHeight ?? 0;
                       if (h > 0) iframe.style.height = (h + 32) + "px";
+                      if (doc) {
+                        const mailtoLinks = Array.from(doc.querySelectorAll('a[href^="mailto:" i]'));
+                        for (const link of mailtoLinks) {
+                          link.addEventListener("click", (ev) => {
+                            ev.preventDefault();
+                            ev.stopPropagation();
+                            const href = link.getAttribute("href") || "";
+                            const label = (link.textContent || "").trim() || "Reply";
+                            let subject = "";
+                            let body = "";
+                            try {
+                              const url = new URL(href);
+                              subject = url.searchParams.get("subject") || "";
+                              body = url.searchParams.get("body") || "";
+                            } catch { /* malformed mailto, fall back to label only */ }
+                            const prefill = [
+                              `<p>${label}</p>`,
+                              subject ? `<p style="color:#6b7280;font-size:12px">Re: ${subject}</p>` : "",
+                              body ? `<p>${body.replace(/\r?\n/g, "<br>")}</p>` : "",
+                            ].filter(Boolean).join("");
+                            setReplyOpen(true);
+                            setReplyBody(prefill);
+                          });
+                        }
+                      }
                     } catch { /* cross-origin guard */ }
                   }}
                 />
