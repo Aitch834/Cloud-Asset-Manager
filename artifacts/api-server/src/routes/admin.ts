@@ -653,6 +653,14 @@ router.post("/admin/inbox/:uid/reply", requireAuth, upload.array("attachments"),
       });
       res.json({ sent: true });
     } else {
+      await db.insert(adminEmailsSentTable).values({
+        toAddress: replyTo,
+        toName: original.from || null,
+        subject: replySubject,
+        body: body.trim(),
+        status: "failed",
+        errorMessage: result.reason ?? "Unknown error",
+      });
       res.status(500).json({ sent: false, reason: result.reason });
     }
   } catch (err) {

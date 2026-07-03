@@ -138,7 +138,7 @@ function RichTextEditor({
   autoFocus?: boolean;
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
-  const lastSetRef = useRef<string>(value);
+  const lastSetRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (editorRef.current && value !== lastSetRef.current) {
