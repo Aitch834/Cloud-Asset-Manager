@@ -16,6 +16,7 @@ import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Plus, Trash2, Leaf, TreePine, MapPin, Printer, ClipboardCheck, CalendarDays, Pencil, Eye, AlertTriangle } from "lucide-react";
 import { StorageLocationMapPicker } from "@/components/storage/StorageLocationMapPicker";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
 type Tab = "features" | "schemes" | "assessments" | "events" | "sfi" | "slurry" | "silage";
 interface LatLng { lat: number; lng: number; }
@@ -2709,8 +2710,12 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
       const hasLeaks = variables.leaksOrDamageFound === "true";
       const hasDeficiencies = !!variables.deficiencies?.trim();
       const hasActions = !!variables.actionsRequired?.trim();
-      if (hasLeaks || hasDeficiencies || hasActions) {
-        const store = (storesQ.data ?? []).find((s) => String(s.id) === String(variables.storeId));
+      const store = (storesQ.data ?? []).find((s) => String(s.id) === String(variables.storeId));
+      const isSilageClamp = String(store?.storeType ?? "") === "Silage Clamp";
+      const effluentFailed = isSilageClamp && variables.effluentContained === "false";
+      const coverFailed = isSilageClamp && variables.coverSheetIntact === "false";
+      const wallsFailed = isSilageClamp && variables.wallsSound === "false";
+      if (hasLeaks || hasDeficiencies || hasActions || effluentFailed || coverFailed || wallsFailed) {
         const storeName = store ? String(store.storeName ?? "store") : "store";
         const dateStr = variables.inspectionDate
           ? new Date(variables.inspectionDate).toLocaleDateString("en-GB", {
@@ -2724,10 +2729,18 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
           parts.push(
             "URGENT: Leaks or structural damage found — immediate remedial action required. Do not allow further filling until the store is made safe."
           );
+        if (effluentFailed)
+          parts.push(
+            "URGENT: Silage effluent is not contained — pollution risk. Check drainage/collection and stop filling until resolved (SSAFO)."
+          );
+        if (coverFailed)
+          parts.push("Cover sheet is not intact/weighted — reseal to prevent spoilage and rainwater ingress.");
+        if (wallsFailed)
+          parts.push("Clamp walls are not sound (cracks/lean) — arrange structural inspection/repair before further filling.");
         if (hasDeficiencies) parts.push(`Deficiencies noted: ${variables.deficiencies!.trim()}`);
         if (hasActions) parts.push(`Actions required: ${variables.actionsRequired!.trim()}`);
         setPendingTask({
-          title: `${hasLeaks ? "[URGENT] " : ""}Slurry Store Inspection — ${storeName} (${dateStr})`,
+          title: `${hasLeaks || effluentFailed ? "[URGENT] " : ""}${isSilageClamp ? "Silage Clamp" : "Slurry Store"} Inspection — ${storeName} (${dateStr})`,
           description: parts.join("\n\n"),
         });
         setTaskAssigneeId("");
@@ -4394,6 +4407,9 @@ function SilageTab({ farmId }: { farmId: number }) {
   const [qualityForm, setQualityForm] = useState<Form>({});
   const [deleteQualityId, setDeleteQualityId] = useState<number | null>(null);
 
+  const [raiseTaskOpen, setRaiseTaskOpen] = useState(false);
+  const [pendingTask, setPendingTask] = useState<{ title: string; description: string } | null>(null);
+
   const storesQ = useQuery({
     queryKey: ["slurry-stores", farmId],
     queryFn: () =>
@@ -4472,12 +4488,39 @@ function SilageTab({ farmId }: { farmId: number }) {
         body: JSON.stringify(body),
       });
     },
-    onSuccess: () => {
+    onSuccess: (_data: unknown, variables: Form) => {
       qc.invalidateQueries({ queryKey: ["silage-quality-tests", farmId] });
       setQualityOpen(false);
       setEditingQuality(null);
       setQualityForm({});
       toast({ title: "Quality test saved" });
+
+      const ph = variables.ph ? parseFloat(String(variables.ph)) : null;
+      const ammoniaN = variables.ammoniaN ? parseFloat(String(variables.ammoniaN)) : null;
+      const dryMatterPct = variables.dryMatterPct ? parseFloat(String(variables.dryMatterPct)) : null;
+      const phFailed = ph !== null && !isNaN(ph) && ph > 4.5;
+      const ammoniaFailed = ammoniaN !== null && !isNaN(ammoniaN) && ammoniaN > 15;
+      const dmFailed = dryMatterPct !== null && !isNaN(dryMatterPct) && dryMatterPct < 25;
+
+      if (phFailed || ammoniaFailed || dmFailed) {
+        const store = (storesQ.data ?? []).find((s: any) => String(s.id) === String(variables.storeId));
+        const storeName = store ? String((store as any).storeName ?? "clamp") : "clamp";
+        const dateStr = variables.testDate
+          ? new Date(variables.testDate as string).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+          : "";
+        const parts: string[] = [];
+        if (phFailed)
+          parts.push(`pH is ${ph} (above 4.5) — poor fermentation, elevated listeria/clostridial risk. Review before feeding.`);
+        if (ammoniaFailed)
+          parts.push(`Ammonia-N is ${ammoniaN}% of total N (above 15%) — indicates spoilage/proteolysis. May be unsuitable to feed; seek nutritionist/vet advice.`);
+        if (dmFailed)
+          parts.push(`Dry Matter is ${dryMatterPct}% (below 25%) — high effluent risk. Check clamp drainage/effluent containment (SSAFO).`);
+        setPendingTask({
+          title: `[Silage Quality] ${storeName} test out of range (${dateStr})`,
+          description: parts.join("\n\n"),
+        });
+        setRaiseTaskOpen(true);
+      }
     },
     onError: () => toast({ title: "Failed to save quality test", variant: "destructive" }),
   });
@@ -4884,6 +4927,26 @@ function SilageTab({ farmId }: { farmId: number }) {
                 rows={2}
               />
             </div>
+            {(() => {
+              const ph = qualityForm.ph ? parseFloat(String(qualityForm.ph)) : null;
+              const ammoniaN = qualityForm.ammoniaN ? parseFloat(String(qualityForm.ammoniaN)) : null;
+              const dryMatterPct = qualityForm.dryMatterPct ? parseFloat(String(qualityForm.dryMatterPct)) : null;
+              const flags: string[] = [];
+              if (ph !== null && !isNaN(ph) && ph > 4.5) flags.push("pH above 4.5 — fermentation/listeria risk");
+              if (ammoniaN !== null && !isNaN(ammoniaN) && ammoniaN > 15) flags.push("Ammonia-N above 15% — spoilage risk");
+              if (dryMatterPct !== null && !isNaN(dryMatterPct) && dryMatterPct < 25) flags.push("DM below 25% — effluent/pollution risk");
+              if (flags.length === 0) return null;
+              return (
+                <div className="col-span-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                  <p className="text-xs font-medium text-amber-800">
+                    Out of normal range — a task will be raised on the Task Board when you save.
+                  </p>
+                  <ul className="text-xs text-amber-700 mt-1 list-disc pl-4">
+                    {flags.map((f) => <li key={f}>{f}</li>)}
+                  </ul>
+                </div>
+              );
+            })()}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setQualityOpen(false)}>
@@ -4940,6 +5003,16 @@ function SilageTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <RaiseTaskDialog
+        farmId={farmId}
+        open={raiseTaskOpen}
+        onClose={() => { setRaiseTaskOpen(false); setPendingTask(null); }}
+        defaultTitle={pendingTask?.title ?? ""}
+        defaultDescription={pendingTask?.description ?? ""}
+        taskType="silage_quality_out_of_range"
+        module="Silage & Haylage"
+      />
     </div>
   );
 }
