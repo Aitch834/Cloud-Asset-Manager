@@ -2386,7 +2386,7 @@ function RedTractorAuditPack({ farmId }: { farmId: number }) {
   const [dateTo, setDateTo] = useState(today.toISOString().slice(0, 10));
   const [sections, setSections] = useState({
     spray: true, movements: true, medicines: true, training: true,
-    tbTests: true, casualtySlaughter: true, mortality: true, feedAndWater: true,
+    tbTests: true, casualtySlaughter: true, mortality: true, feedAndWater: true, silage: true,
   });
 
   const farmQ = useQuery<{ record: any }>({
@@ -2446,6 +2446,16 @@ function RedTractorAuditPack({ farmId }: { farmId: number }) {
     queryFn: () => fetch(`/api/farms/${farmId}/water-records`, { credentials: "include" }).then(r => r.json()),
     enabled: !!farmId && sections.feedAndWater,
   });
+  const silageAdditivesQ = useQuery<{ records: any[] }>({
+    queryKey: ["silage-additives-audit", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/silage-additive-records`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId && sections.silage,
+  });
+  const silageQualityQ = useQuery<{ records: any[] }>({
+    queryKey: ["silage-quality-audit", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/silage-quality-tests`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId && sections.silage,
+  });
 
   const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
 
@@ -2466,6 +2476,8 @@ function RedTractorAuditPack({ farmId }: { farmId: number }) {
   const mortalityRecords = (Array.isArray(mortalityQ.data?.records) ? mortalityQ.data!.records : []).filter(r => inRange(r.dateOfDeath));
   const feedRecords = (Array.isArray(feedQ.data?.records) ? feedQ.data!.records : []).filter(r => inRange(r.feedDate));
   const waterRecords = (Array.isArray(waterQ.data?.records) ? waterQ.data!.records : []).filter(r => inRange(r.testDate || r.createdAt));
+  const silageAdditiveRecords = (Array.isArray(silageAdditivesQ.data?.records) ? silageAdditivesQ.data!.records : []).filter(r => inRange(r.applicationDate));
+  const silageQualityRecords = (Array.isArray(silageQualityQ.data?.records) ? silageQualityQ.data!.records : []).filter(r => inRange(r.testDate));
 
   const handlePrint = () => {
     const printedDate = today.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
@@ -2515,6 +2527,14 @@ function RedTractorAuditPack({ farmId }: { farmId: number }) {
       `<tr><td style="${tdStyle}">${fmtD(r.testDate||r.createdAt)}</td><td style="${tdStyle}">${r.waterSource||"—"}</td><td style="${tdStyle}">${r.testResult||"—"}</td><td style="${tdStyle}">${r.testPass === true ? "Pass" : r.testPass === false ? "Fail" : "—"}</td></tr>`
     ).join("") : "";
 
+    const silageAdditiveRows = sections.silage ? silageAdditiveRecords.map(r =>
+      `<tr><td style="${tdStyle}">${fmtD(r.applicationDate)}</td><td style="${tdStyle}">${r.storeName||"—"}</td><td style="${tdStyle}">${r.cropType||"—"}</td><td style="${tdStyle}">${r.productName||"—"}</td><td style="${tdStyle}">${r.applicationRate||"—"}</td><td style="${tdStyle}">${r.operatorName||"—"}</td></tr>`
+    ).join("") : "";
+
+    const silageQualityRows = sections.silage ? silageQualityRecords.map(r =>
+      `<tr><td style="${tdStyle}">${fmtD(r.testDate)}</td><td style="${tdStyle}">${r.storeName||"—"}</td><td style="${tdStyle}">${r.dryMatterPercent||"—"}</td><td style="${tdStyle}">${r.phLevel||"—"}</td><td style="${tdStyle}">${r.mePerKgDm||"—"}</td><td style="${tdStyle}">${r.crudeProteinPercent||"—"}</td><td style="${tdStyle}">${r.labName||"—"}</td></tr>`
+    ).join("") : "";
+
     let sectionNum = 1;
 
     const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>RT Audit Pack — ${farm?.name||"Farm"}</title>
@@ -2562,6 +2582,11 @@ ${sections.feedAndWater ? `<p style="${sectionH}">${sectionNum++}. Feed Records<
 <p style="${sectionH}">${sectionNum-1}b. Water Quality Records</p>
 <table style="${tableStyle}"><thead><tr><th style="${thStyle}">Test Date</th><th style="${thStyle}">Water Source</th><th style="${thStyle}">Result</th><th style="${thStyle}">Pass / Fail</th></tr></thead><tbody>${waterRows||noData(4)}</tbody></table>` : ""}
 
+${sections.silage ? `<p style="${sectionH}">${sectionNum++}. Silage &amp; Haylage Additive Records</p>
+<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Date</th><th style="${thStyle}">Clamp</th><th style="${thStyle}">Crop</th><th style="${thStyle}">Product</th><th style="${thStyle}">Rate</th><th style="${thStyle}">Applied by</th></tr></thead><tbody>${silageAdditiveRows||noData(6)}</tbody></table>
+<p style="${sectionH}">${sectionNum-1}b. Silage Quality &amp; Dry Matter Tests</p>
+<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Date</th><th style="${thStyle}">Clamp</th><th style="${thStyle}">DM %</th><th style="${thStyle}">pH</th><th style="${thStyle}">ME (MJ/kg)</th><th style="${thStyle}">Crude Protein %</th><th style="${thStyle}">Lab</th></tr></thead><tbody>${silageQualityRows||noData(7)}</tbody></table>` : ""}
+
 <div style="margin-top:32px;border-top:1px solid #e5e7eb;padding-top:12px;font-size:9px;color:#6b7280">
 <p>This document was prepared by ${farm?.name||"this holding"} using BDE Farm Trac and printed on ${printedDate}. It contains on-farm compliance records for presentation to a Red Tractor assessor. These records are the responsibility of the holding and must be retained for a minimum of 3 years. This document does not constitute submission to Red Tractor or any regulatory body.</p>
 </div></body></html>`;
@@ -2579,7 +2604,8 @@ ${sections.feedAndWater ? `<p style="${sectionH}">${sectionNum++}. Feed Records<
     (sections.tbTests ? tbTests.length : 0) +
     (sections.casualtySlaughter ? casualtyRecords.length : 0) +
     (sections.mortality ? mortalityRecords.length : 0) +
-    (sections.feedAndWater ? feedRecords.length + waterRecords.length : 0);
+    (sections.feedAndWater ? feedRecords.length + waterRecords.length : 0) +
+    (sections.silage ? silageAdditiveRecords.length + silageQualityRecords.length : 0);
 
   return (
     <div className="max-w-3xl">
@@ -2618,6 +2644,7 @@ ${sections.feedAndWater ? `<p style="${sectionH}">${sectionNum++}. Feed Records<
             ["casualtySlaughter","Casualty / Emergency Slaughter"],
             ["mortality",        "Mortality Records"],
             ["feedAndWater",     "Feed & Water Quality"],
+            ["silage",           "Silage & Haylage Records"],
           ] as [keyof typeof sections, string][]).map(([k, label]) => (
             <label key={k} className="flex items-center gap-2 cursor-pointer text-sm">
               <input type="checkbox" checked={sections[k]} onChange={() => sectionToggle(k)}
@@ -2680,6 +2707,12 @@ ${sections.feedAndWater ? `<p style="${sectionH}">${sectionNum++}. Feed Records<
             <div className="text-center p-3 border rounded-lg">
               <p className="text-xl font-bold text-green-700">{feedRecords.length + waterRecords.length}</p>
               <p className="text-xs text-gray-500">Feed &amp; water</p>
+            </div>
+          )}
+          {sections.silage && (
+            <div className="text-center p-3 border rounded-lg">
+              <p className="text-xl font-bold text-green-700">{silageAdditiveRecords.length + silageQualityRecords.length}</p>
+              <p className="text-xs text-gray-500">Silage &amp; haylage</p>
             </div>
           )}
         </div>

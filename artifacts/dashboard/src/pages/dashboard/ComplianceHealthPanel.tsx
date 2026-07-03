@@ -1,7 +1,7 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Droplets, ShieldCheck, Leaf, Sprout, FileText } from "lucide-react";
+import { Droplets, ShieldCheck, Leaf, Sprout, FileText, Warehouse } from "lucide-react";
 
 export function ComplianceHealthPanel({ farmId }: { farmId: number }) {
   const now = new Date();
@@ -14,6 +14,8 @@ export function ComplianceHealthPanel({ farmId }: { farmId: number }) {
   const docsQ = useQuery({ queryKey: ["documents", farmId], queryFn: () => fetch(`/api/farms/${farmId}/documents`).then(r => r.json()), select: d => d.records ?? [] });
   const fieldsQ = useQuery({ queryKey: ["fields", farmId], queryFn: () => fetch(`/api/farms/${farmId}/fields`).then(r => r.json()), select: d => d.records ?? [] });
   const insuranceQ = useQuery({ queryKey: ["insurance", farmId], queryFn: () => fetch(`/api/farms/${farmId}/insurance`).then(r => r.json()), select: d => d.records ?? [] });
+  const slurryStoresQ = useQuery({ queryKey: ["slurry-stores", farmId], queryFn: () => fetch(`/api/farms/${farmId}/slurry-stores`).then(r => r.json()), select: d => d.records ?? [] });
+  const slurryInspectionsQ = useQuery({ queryKey: ["slurry-store-inspections", farmId], queryFn: () => fetch(`/api/farms/${farmId}/slurry-store-inspections`).then(r => r.json()), select: d => d.records ?? [] });
 
   const sprays: any[] = spraysQ.data ?? [];
   const products: any[] = productsQ.data ?? [];
@@ -21,6 +23,8 @@ export function ComplianceHealthPanel({ farmId }: { farmId: number }) {
   const docs: any[] = docsQ.data ?? [];
   const fields: any[] = fieldsQ.data ?? [];
   const insurance: any[] = insuranceQ.data ?? [];
+  const slurryStores: any[] = slurryStoresQ.data ?? [];
+  const slurryInspections: any[] = slurryInspectionsQ.data ?? [];
 
   const currentYear = now.getFullYear();
 
@@ -138,6 +142,32 @@ export function ComplianceHealthPanel({ farmId }: { farmId: number }) {
       })(),
       href: "/documents",
       icon: FileText,
+    },
+    {
+      label: "Silage & Silo Safety",
+      status: (() => {
+        const clamps = slurryStores.filter((s: any) => s.storeType === "Silage Clamp");
+        if (clamps.length === 0) return "ok";
+        const clampIds = new Set(clamps.map((c: any) => c.id));
+        const clampInspections = slurryInspections.filter((i: any) => clampIds.has(i.storeId));
+        if (clampInspections.length === 0) return "gap";
+        const latest = clampInspections.reduce((max: any, i: any) => !max || new Date(i.inspectionDate) > new Date(max.inspectionDate) ? i : max, null);
+        const twelveMonthsAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        return latest && new Date(latest.inspectionDate) < twelveMonthsAgo ? "warn" : "ok";
+      })() as "ok" | "warn" | "gap",
+      message: (() => {
+        const clamps = slurryStores.filter((s: any) => s.storeType === "Silage Clamp");
+        if (clamps.length === 0) return "No silage clamps registered";
+        const clampIds = new Set(clamps.map((c: any) => c.id));
+        const clampInspections = slurryInspections.filter((i: any) => clampIds.has(i.storeId));
+        if (clampInspections.length === 0) return `${clamps.length} silage clamp${clamps.length !== 1 ? "s" : ""} registered — no safety inspections logged`;
+        const latest = clampInspections.reduce((max: any, i: any) => !max || new Date(i.inspectionDate) > new Date(max.inspectionDate) ? i : max, null);
+        const twelveMonthsAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        if (latest && new Date(latest.inspectionDate) < twelveMonthsAgo) return `Last silo inspection was ${new Date(latest.inspectionDate).toLocaleDateString("en-GB")} — over 12 months ago`;
+        return `${clampInspections.length} silo inspection${clampInspections.length !== 1 ? "s" : ""} on record`;
+      })(),
+      href: "/environmental-management?tab=silage",
+      icon: Warehouse,
     },
   ] as { label: string; status: "ok" | "warn" | "gap"; message: string; href: string; icon: React.ComponentType<{ className?: string }> }[];
 

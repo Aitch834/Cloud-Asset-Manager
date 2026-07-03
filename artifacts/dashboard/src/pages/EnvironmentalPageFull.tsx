@@ -2277,7 +2277,7 @@ function SFIActionsTab({ farmId, openId }: { farmId: number; openId?: number | n
 
 export default function EnvironmentalPageFull() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["features","schemes","assessments","events","sfi","slurry"]; return t && valid.includes(t) ? t : "features"; });
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["features","schemes","assessments","events","sfi","slurry","silage"]; return t && valid.includes(t) ? t : "features"; });
   const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
   const schemesQ = useQuery({
     queryKey: ["agri-schemes", farmId],
