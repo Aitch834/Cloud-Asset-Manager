@@ -765,6 +765,36 @@ function InboxTab({ onCountsChange }: { onCountsChange?: () => void }) {
   );
 }
 
+const COMPOSE_DRAFT_KEY = "bde_admin_compose_draft";
+
+type ComposeDraft = { to: string; toName: string; subject: string; body: string; savedAt: number };
+
+function loadComposeDraft(): ComposeDraft | null {
+  try {
+    const raw = localStorage.getItem(COMPOSE_DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ComposeDraft;
+    if (!parsed || (!parsed.to && !parsed.subject && !hasEditorContent(parsed.body || ""))) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveComposeDraft(draft: Omit<ComposeDraft, "savedAt">) {
+  try {
+    if (!draft.to && !draft.toName && !draft.subject && !hasEditorContent(draft.body)) {
+      localStorage.removeItem(COMPOSE_DRAFT_KEY);
+      return;
+    }
+    localStorage.setItem(COMPOSE_DRAFT_KEY, JSON.stringify({ ...draft, savedAt: Date.now() }));
+  } catch {}
+}
+
+function clearComposeDraft() {
+  try { localStorage.removeItem(COMPOSE_DRAFT_KEY); } catch {}
+}
+
 function ComposeTab({ tenants, initialTo, initialToName }: { tenants: Tenant[]; initialTo?: string; initialToName?: string }) {
   const secret = getSecret()!;
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
@@ -776,6 +806,8 @@ function ComposeTab({ tenants, initialTo, initialToName }: { tenants: Tenant[]; 
   const [includeDisclaimer, setIncludeDisclaimer] = useState(true);
   const [attachments, setAttachments] = useState<File[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [pendingDraft, setPendingDraft] = useState<ComposeDraft | null>(null);
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
 
   useEffect(() => {
     api.getEmailTemplates(secret)
@@ -783,6 +815,35 @@ function ComposeTab({ tenants, initialTo, initialToName }: { tenants: Tenant[]; 
       .catch(() => {})
       .finally(() => setLoadingTemplates(false));
   }, []);
+
+  useEffect(() => {
+    if (initialTo) return;
+    const draft = loadComposeDraft();
+    if (draft) setPendingDraft(draft);
+  }, []);
+
+  useEffect(() => {
+    if (pendingDraft) return;
+    const timeout = setTimeout(() => {
+      saveComposeDraft({ to: form.to, toName: form.toName, subject: form.subject, body: form.body });
+      if (form.to || form.toName || form.subject || hasEditorContent(form.body)) {
+        setDraftSavedAt(Date.now());
+      }
+    }, 800);
+    return () => clearTimeout(timeout);
+  }, [form, pendingDraft]);
+
+  function restoreDraft() {
+    if (!pendingDraft) return;
+    setForm({ to: pendingDraft.to, toName: pendingDraft.toName, subject: pendingDraft.subject, body: pendingDraft.body });
+    setDraftSavedAt(pendingDraft.savedAt);
+    setPendingDraft(null);
+  }
+
+  function discardDraft() {
+    clearComposeDraft();
+    setPendingDraft(null);
+  }
 
   function set(field: keyof typeof form, value: string) {
     setForm((p) => ({ ...p, [field]: value }));
@@ -818,6 +879,8 @@ function ComposeTab({ tenants, initialTo, initialToName }: { tenants: Tenant[]; 
         setForm({ to: "", toName: "", subject: "", body: "" });
         setSelectedTemplateId(null);
         setAttachments([]);
+        clearComposeDraft();
+        setDraftSavedAt(null);
       } else {
         setResult({ ok: false, message: r.reason ?? "Send failed" });
       }
@@ -830,12 +893,51 @@ function ComposeTab({ tenants, initialTo, initialToName }: { tenants: Tenant[]; 
 
   return (
     <div className="p-6 max-w-3xl">
-      <div className="mb-6">
-        <h2 className="text-base font-semibold mb-1">Compose Email</h2>
-        <p className="text-sm text-muted-foreground">
-          Emails are sent from <span className="font-mono text-xs bg-muted px-1 py-0.5 rounded">hello@bdefarmtrac.co.uk</span> via Brevo
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-base font-semibold mb-1">Compose Email</h2>
+          <p className="text-sm text-muted-foreground">
+            Emails are sent from <span className="font-mono text-xs bg-muted px-1 py-0.5 rounded">hello@bdefarmtrac.co.uk</span> via Brevo
+          </p>
+        </div>
+        {draftSavedAt && !pendingDraft && (
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 mt-0.5">
+            <Check className="w-3.5 h-3.5 text-green-600" />
+            Draft saved locally
+          </span>
+        )}
       </div>
+
+      {pendingDraft && (
+        <div className="mb-5 flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-md">
+          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-amber-900">
+              You have an unsent draft from {new Date(pendingDraft.savedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+            </p>
+            <p className="text-xs text-amber-800 mt-0.5 truncate">
+              {pendingDraft.subject ? `Subject: ${pendingDraft.subject}` : "No subject"}
+              {pendingDraft.to ? ` — to ${pendingDraft.to}` : ""}
+            </p>
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                type="button"
+                onClick={restoreDraft}
+                className="px-3 py-1.5 text-xs font-medium bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-colors"
+              >
+                Restore draft
+              </button>
+              <button
+                type="button"
+                onClick={discardDraft}
+                className="px-3 py-1.5 text-xs font-medium text-amber-800 border border-amber-300 rounded-md hover:bg-amber-100 transition-colors"
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {!loadingTemplates && templates.length > 0 && (
         <div className="mb-5">
