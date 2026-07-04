@@ -3,11 +3,22 @@ name: LIS LIP Cattle credentials & integration status
 description: LIP (Livestock Information Platform) confirmed as per-farm delegated OAuth — full OAuth routes built
 ---
 
-## Status (June 2026)
+## Status (updated 4 Jul 2026)
 - LIP OAuth architecture corrected to per-farm delegated flow (user_impersonation)
 - Full authorize + callback routes built, LipConnectionCard rewritten to match
-- LIP subscription approvals still pending from LIS (up to 5 working days from first request)
+- **Interactive sign-in CONFIRMED WORKING end-to-end** (4 Jul 2026): farm 1 successfully connected using
+  the cattle test account (`lisprodsandboxuser26-prod01-li@...`), refresh token stored, `test_status: ok`,
+  Test API returns "LIP API reachable (no /health endpoint — expected during Alpha)" — this is the expected/
+  correct response, not an error.
+- LIP subscription approvals for actual movement/birth/death submission endpoints still pending from LIS —
+  authenticated sign-in and basic reachability work now, but movement submission calls may still 403 until
+  those subscriptions are approved. Don't re-test connection/sign-in flow again; only test submission
+  endpoints once subscriptions are confirmed approved.
 - Redirect URI `https://api.bdefarmtrac.co.uk/api/lip/callback` must be registered in LIP developer portal
+- ROPC/username-password is NOT supported by LIP (confirmed by LIS, same as CLA) — do not attempt to store
+  or script credentials; always use the interactive sign-in popup. Attempting to script the B2C login risks
+  triggering bot/fraud detection on a government-linked identity provider — always have the human do the
+  interactive step.
 
 ## Confirmed portal values (LIP Developer Portal "Additional Credentials", June 2026)
 - **api-scopes**: `https://livestockinformationb2cprod.onmicrosoft.com/ms-apimlisapisdbx/user_impersonation`
