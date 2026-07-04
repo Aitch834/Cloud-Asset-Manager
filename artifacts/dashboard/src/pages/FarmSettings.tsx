@@ -406,6 +406,14 @@ function LipConnectionCard({ farmId }: { farmId: number }) {
       const u = new URL(window.location.href);
       u.searchParams.delete("lip_connected");
       window.history.replaceState({}, "", u.toString());
+      // Notify the opener tab (this may be a popup window) so it refreshes its
+      // connection status immediately instead of waiting for a manual refresh.
+      try {
+        new BroadcastChannel("lip-connection").postMessage({ farmId, type: "connected" });
+      } catch {
+        // BroadcastChannel unsupported — opener will still pick up the change
+        // next time it refetches (e.g. Test API, or a manual page reload).
+      }
       setTimeout(() => window.close(), 1500);
     }
     if (error) {
@@ -415,6 +423,23 @@ function LipConnectionCard({ farmId }: { farmId: number }) {
       window.history.replaceState({}, "", u.toString());
     }
   }, []);
+
+  // Listen for the popup tab announcing a successful connection so this
+  // (opener) tab's card updates without needing a manual refresh.
+  useEffect(() => {
+    let channel: BroadcastChannel | undefined;
+    try {
+      channel = new BroadcastChannel("lip-connection");
+      channel.onmessage = (event) => {
+        if (event.data?.farmId === farmId && event.data?.type === "connected") {
+          credsQ.refetch();
+        }
+      };
+    } catch {
+      // BroadcastChannel unsupported in this browser — no-op.
+    }
+    return () => channel?.close();
+  }, [farmId]);
 
   const testMut = useMutation({
     mutationFn: () => fetch(`/api/farms/${farmId}/lip-credentials/test`, { method: "POST" }).then(r => r.json()),
