@@ -3,6 +3,35 @@ name: LIS LIP Cattle credentials & integration status
 description: LIP (Livestock Information Platform) confirmed as per-farm delegated OAuth — full OAuth routes built
 ---
 
+## Status (updated 4 Jul 2026 — subscription key + endpoint investigation)
+- **Root cause of the 401 "invalid subscription key" found:** `LIS_LIP_SUBSCRIPTION_KEY` (primary APIM key) is
+  rejected by the real sandbox, but `LIS_LIP_SUBSCRIPTION_KEY_2` (secondary) is live and works — confirmed via
+  direct calls returning real 200/400 business responses (not auth errors) once key_2 was used. Most likely
+  explanation: LIS regenerated the primary key on their side after issuance and our stored primary secret is
+  stale, while the secondary was unaffected. `LIS_LIP_MYLIS_SUBSCRIPTION_KEY`/`_2` are unused/unrelated and both
+  401 — do not use them for LIP movement calls.
+- **Fix applied:** `callLipApi` in `lip.ts` now automatically retries with `LIS_LIP_SUBSCRIPTION_KEY_2` whenever
+  the primary key is rejected with an "invalid subscription key" response, so submissions keep working
+  regardless of which key LIS currently has active. `probeLipApi` also falls back if the primary key is unset.
+- **`/movements` resource confirmed real and partially working:** `GET /movements?SiteIdentifier=<CPH>` (URL-
+  encoded CPH, e.g. `44/025/0001`) returns real `200` responses (`{values, errors, meta}` shape) once
+  authenticated with the working key — this is a genuine query-by-holding endpoint. `SiteIdentifier` is a
+  **query parameter on the API call itself**, not something that needs separate per-holding storage in Farm
+  Settings — the farm's own CPH(s) already stored in the app can be passed straight through.
+  - **However, `POST /movements` (actual submission) reliably returns 415 Unsupported Media Type** regardless of
+    Content-Type variant tried (`application/json`, `application/json-patch+json`, with/without SiteIdentifier
+    as query param, single object vs array body). This is NOT a subscription/auth problem — the request
+    authenticates fine and reaches the app, but the API rejects the write. Most likely this sandbox resource is
+    read-only (a movement-history query API), and genuine third-party submission requires either a different
+    LIS product/endpoint not yet accessible in Alpha, or a different request shape not yet documented.
+  - `/births`, `/deaths`, `/animals`, `/holdings` all return genuine 404 "Resource not found" under the working
+    key too (not a key/auth issue) — these paths do not exist in this sandbox. They were always provisional
+    guesses (see code comments); no confirmed alternative path was found despite probing common variants
+    (`/movements/submit`, `/movementreports`, `PUT /movements`, etc. — all 404).
+  - **Open question for LIS support:** whether cattle birth/death reporting is even a LIP REST resource at all,
+    or whether it's expected to go through BCMS/a different channel, and what the correct write endpoint/method
+    is for movements (this sandbox looks read-only for `/movements` as tested).
+
 ## Status (updated 4 Jul 2026)
 - LIP OAuth architecture corrected to per-farm delegated flow (user_impersonation)
 - Full authorize + callback routes built, LipConnectionCard rewritten to match

@@ -9,7 +9,7 @@
 - [RLS fix script — regex multistatement pitfall](rls-fix-regex-multistatement.md) — bulk regex-line-replace silently drops trailing content; check with tsc after any bulk script
 - [TanStack Query shared-key cache-shape mismatch](tanstack-query-shared-key-shape-mismatch.md) — never unwrap arrays inside queryFn for shared keys; normalise at access point with Array.isArray guard
 - [LIS credentials & integration status](lis-credentials.md) — both secrets set; Beta Sandbox client ID documented; pending: client_secret confirmation from LIS support
-- [LIS LIP Cattle credentials & integration status](lis-lip-cattle.md) — sign-in confirmed working; movement/birth/death subscriptions confirmed still pending via live API test (4 Jul 2026); sandbox short-circuit bug fixed so future approval auto-detects
+- [LIS LIP Cattle credentials & integration status](lis-lip-cattle.md) — secondary APIM key is the live one (auto-fallback added); GET /movements works via SiteIdentifier query param; POST/births/deaths still unresolved (415/404) — open question for LIS support
 - [LIS LIP submission layer](lis-lip-submission-layer.md) — sandbox-first; callLipApi/submitLipMovement/Birth/Death in lip.ts; 4 routes in farms.ts; lip_submissions table; LIP tab in Movements.tsx
 - [LIS Beta Sandbox test data](lis-test-data.md) — 2 users, 14 CPHs, herds/tags for sheep/goat/deer; passwords in attached_assets/testData_1781087138915.json
 - [LIS sync import — DB write](lis-sync-import.md) — movements upserted into livestock_movements on sync; dedup via lis_movement_ref; flexible field extractors; lisMigrations.ts runs on startup

@@ -84,6 +84,13 @@ export const LIP_API_BASE   = isLipProduction() ? LIP_API_BASE_PROD          : L
 const LIP_CLIENT_ID     = process.env.LIS_LIP_CLIENT_ID     ?? "";
 const LIP_CLIENT_SECRET = process.env.LIS_LIP_PRIMARY_SECRET ?? "";
 export const LIP_SUBSCRIPTION_KEY = process.env.LIS_LIP_SUBSCRIPTION_KEY ?? "";
+// Verified live against the real LIP sandbox (4 Jul 2026): the primary APIM key
+// (LIS_LIP_SUBSCRIPTION_KEY) is rejected with "invalid subscription key" (401),
+// but the secondary key (LIS_LIP_SUBSCRIPTION_KEY_2) is accepted and returns
+// real business responses. This is consistent with the primary key having been
+// regenerated on LIS's side after issuance. Used as an automatic fallback below
+// so submissions keep working regardless of which key LIS currently has live.
+const LIP_SUBSCRIPTION_KEY_FALLBACK = process.env.LIS_LIP_SUBSCRIPTION_KEY_2 ?? "";
 
 /**
  * Resolve the redirect URI for the LIP OAuth callback.
@@ -224,7 +231,7 @@ export async function exchangeLipCode(code: string, redirectUri: string): Promis
 export async function probeLipApi(): Promise<{ reachable: boolean; status: number; message: string }> {
   try {
     const res = await fetch(`${LIP_API_BASE}/health`, {
-      headers: { "Ocp-Apim-Subscription-Key": LIP_SUBSCRIPTION_KEY },
+      headers: { "Ocp-Apim-Subscription-Key": LIP_SUBSCRIPTION_KEY || LIP_SUBSCRIPTION_KEY_FALLBACK },
     });
     if (res.status === 200) {
       return { reachable: true, status: 200, message: "LIP API is reachable and responding." };
@@ -307,16 +314,17 @@ export interface LipApiResponse {
  * Attaches Bearer token and APIM subscription key. The caller is responsible
  * for ensuring the accessToken is fresh (use refreshLipToken if needed).
  */
-export async function callLipApi(
+async function callLipApiWithKey(
   accessToken: string,
   method: "GET" | "POST" | "PUT" | "DELETE",
   path: string,
+  subscriptionKey: string,
   body?: unknown,
 ): Promise<LipApiResponse> {
   const url = `${LIP_API_BASE}${path}`;
   const headers: Record<string, string> = {
     "Authorization": `Bearer ${accessToken}`,
-    "Ocp-Apim-Subscription-Key": LIP_SUBSCRIPTION_KEY,
+    "Ocp-Apim-Subscription-Key": subscriptionKey,
     "Accept": "application/json",
   };
   if (body !== undefined) {
@@ -331,6 +339,36 @@ export async function callLipApi(
   const text = await res.text();
   try { data = JSON.parse(text); } catch { data = text; }
   return { ok: res.ok, status: res.status, data };
+}
+
+/** True if a response's subscription key was specifically rejected as invalid (not just unapproved). */
+function isInvalidSubscriptionKeyResponse(res: LipApiResponse): boolean {
+  if (res.status !== 401 && res.status !== 403) return false;
+  const text = typeof res.data === "string" ? res.data : JSON.stringify(res.data ?? "");
+  return /invalid subscription key/i.test(text);
+}
+
+/**
+ * Make an authenticated call to the LIS LIP REST API.
+ * Attaches Bearer token and APIM subscription key. The caller is responsible
+ * for ensuring the accessToken is fresh (use refreshLipToken if needed).
+ *
+ * Automatically retries with the secondary subscription key
+ * (LIS_LIP_SUBSCRIPTION_KEY_2) if the primary key is rejected as invalid —
+ * verified live against the sandbox that the secondary key is currently the
+ * one LIS has active (see comment on LIP_SUBSCRIPTION_KEY_FALLBACK above).
+ */
+export async function callLipApi(
+  accessToken: string,
+  method: "GET" | "POST" | "PUT" | "DELETE",
+  path: string,
+  body?: unknown,
+): Promise<LipApiResponse> {
+  const primary = await callLipApiWithKey(accessToken, method, path, LIP_SUBSCRIPTION_KEY, body);
+  if (isInvalidSubscriptionKeyResponse(primary) && LIP_SUBSCRIPTION_KEY_FALLBACK) {
+    return callLipApiWithKey(accessToken, method, path, LIP_SUBSCRIPTION_KEY_FALLBACK, body);
+  }
+  return primary;
 }
 
 // ── Submission types ──────────────────────────────────────────────────────────
