@@ -390,6 +390,9 @@ export const api = {
   getInbox: (secret: string, limit = 50) =>
     get<{ emails: InboxEmail[] }>(`/admin/inbox?limit=${limit}`, secret),
 
+  getFolderCounts: (secret: string) =>
+    get<{ counts: { inbox: number; spam: number; trash: number } }>("/admin/folder-counts", secret),
+
   getEmail: (uid: number, secret: string) =>
     get<{ email: FullEmail }>(`/admin/inbox/${uid}`, secret),
 

@@ -288,6 +288,37 @@ export async function listMailboxes(): Promise<string[]> {
   }
 }
 
+/**
+ * Get unseen (unread) message counts for a set of mailboxes using a single
+ * connection and the lightweight IMAP STATUS command (no message fetching).
+ */
+export async function getUnreadCounts(folders: string[]): Promise<Record<string, number>> {
+  if (!IMAP_PASS) {
+    throw new Error("IMAP password not configured (TITAN_IMAP_PASSWORD missing)");
+  }
+
+  const client = createClient();
+  const counts: Record<string, number> = {};
+
+  try {
+    await client.connect();
+    for (const folder of folders) {
+      try {
+        const status = await client.status(folder, { unseen: true });
+        counts[folder] = status.unseen ?? 0;
+      } catch (err) {
+        console.error(`[IMAP] status(${folder}) error:`, err);
+        counts[folder] = 0;
+      }
+    }
+    await client.logout();
+    return counts;
+  } catch (err) {
+    try { client.close(); } catch {}
+    throw err;
+  }
+}
+
 export async function fetchFolder(folder: string, limit = 50): Promise<InboxEmail[]> {
   if (!IMAP_PASS) {
     throw new Error("IMAP password not configured (TITAN_IMAP_PASSWORD missing)");

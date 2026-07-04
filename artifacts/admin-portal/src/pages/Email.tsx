@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { api, type EmailTemplate, type AdminEmailSent, type Tenant, type InboxEmail, type FullEmail } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
 import {
@@ -29,7 +29,7 @@ function TabBar({
   active,
   onChange,
 }: {
-  tabs: { key: string; label: string; icon: React.ReactNode }[];
+  tabs: { key: string; label: string; icon: React.ReactNode; unreadCount?: number }[];
   active: string;
   onChange: (k: string) => void;
 }) {
@@ -46,7 +46,12 @@ function TabBar({
           }`}
         >
           {t.icon}
-          {t.label}
+          <span className={t.unreadCount ? "font-semibold" : undefined}>{t.label}</span>
+          {!!t.unreadCount && (
+            <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[11px] font-semibold leading-none">
+              {t.unreadCount > 99 ? "99+" : t.unreadCount}
+            </span>
+          )}
         </button>
       ))}
     </div>
@@ -237,7 +242,7 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" });
 }
 
-function InboxTab() {
+function InboxTab({ onCountsChange }: { onCountsChange?: () => void }) {
   const secret = getSecret()!;
   const [emails, setEmails] = useState<InboxEmail[]>([]);
   const [loading, setLoading] = useState(true);
@@ -295,6 +300,7 @@ function InboxTab() {
       if (!e.seen) {
         await api.markEmailRead(e.uid, true, secret);
         setEmails((prev) => prev.map((m) => m.uid === e.uid ? { ...m, seen: true } : m));
+        onCountsChange?.();
       }
     } catch (err) {
       setError(`Failed to load email: ${err instanceof Error ? err.message : String(err)}`);
@@ -1388,7 +1394,7 @@ function TemplatesTab() {
   );
 }
 
-function FolderTab({ folder, label }: { folder: string; label: string }) {
+function FolderTab({ folder, label, onCountsChange }: { folder: string; label: string; onCountsChange?: () => void }) {
   const secret = getSecret()!;
   const [emails, setEmails] = useState<InboxEmail[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1425,7 +1431,10 @@ function FolderTab({ folder, label }: { folder: string; label: string }) {
     try {
       const r = await api.getFolderEmail(folder, e.uid, secret);
       setSelected(r.email);
-      setEmails((prev) => prev.map((m) => m.uid === e.uid ? { ...m, seen: true } : m));
+      if (!e.seen) {
+        setEmails((prev) => prev.map((m) => m.uid === e.uid ? { ...m, seen: true } : m));
+        onCountsChange?.();
+      }
     } catch (err) {
       setError(`Failed to load email: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
@@ -1442,6 +1451,7 @@ function FolderTab({ folder, label }: { folder: string; label: string }) {
       setEmails((prev) => prev.filter((e) => e.uid !== selected.uid));
       setSelected(null);
       setActionResult({ ok: true, message: "Email moved to Inbox" });
+      onCountsChange?.();
     } catch (err) {
       setActionResult({ ok: false, message: `Failed to restore: ${err instanceof Error ? err.message : String(err)}` });
     } finally {
@@ -1457,6 +1467,7 @@ function FolderTab({ folder, label }: { folder: string; label: string }) {
       await api.deleteFolderEmail(folder, selected.uid, secret);
       setEmails((prev) => prev.filter((e) => e.uid !== selected.uid));
       setSelected(null);
+      onCountsChange?.();
     } catch (err) {
       setActionResult({ ok: false, message: `Failed to delete: ${err instanceof Error ? err.message : String(err)}` });
     } finally {
@@ -1785,6 +1796,11 @@ export default function Email() {
   const [initialTo] = useState(params.get("to") ?? "");
   const [initialToName] = useState(params.get("toName") ?? "");
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [folderCounts, setFolderCounts] = useState<{ inbox: number; spam: number; trash: number }>({
+    inbox: 0,
+    spam: 0,
+    trash: 0,
+  });
 
   useEffect(() => {
     api.getTenants(secret)
@@ -1792,12 +1808,24 @@ export default function Email() {
       .catch(() => {});
   }, []);
 
+  const loadCounts = useCallback(() => {
+    api.getFolderCounts(secret)
+      .then((r) => setFolderCounts(r.counts))
+      .catch(() => {});
+  }, [secret]);
+
+  useEffect(() => {
+    loadCounts();
+    const interval = setInterval(loadCounts, 60_000);
+    return () => clearInterval(interval);
+  }, [loadCounts]);
+
   const tabs = [
-    { key: "inbox", label: "Inbox", icon: <Inbox className="w-4 h-4" /> },
+    { key: "inbox", label: "Inbox", icon: <Inbox className="w-4 h-4" />, unreadCount: folderCounts.inbox },
     { key: "compose", label: "Compose", icon: <Send className="w-4 h-4" /> },
     { key: "sent", label: "Sent", icon: <Clock className="w-4 h-4" /> },
-    { key: "spam", label: "Spam", icon: <ShieldAlert className="w-4 h-4" /> },
-    { key: "trash", label: "Trash", icon: <Trash2 className="w-4 h-4" /> },
+    { key: "spam", label: "Spam", icon: <ShieldAlert className="w-4 h-4" />, unreadCount: folderCounts.spam },
+    { key: "trash", label: "Trash", icon: <Trash2 className="w-4 h-4" />, unreadCount: folderCounts.trash },
     { key: "templates", label: "Templates", icon: <FileText className="w-4 h-4" /> },
     { key: "settings", label: "Settings", icon: <Settings className="w-4 h-4" /> },
   ];
@@ -1818,11 +1846,11 @@ export default function Email() {
       </div>
 
       <div className={`${tab === "inbox" || tab === "spam" || tab === "trash" ? "flex-1 flex flex-col overflow-hidden" : "flex-1 overflow-y-auto"}`}>
-        {tab === "inbox" && <InboxTab />}
+        {tab === "inbox" && <InboxTab onCountsChange={loadCounts} />}
         {tab === "compose" && <ComposeTab tenants={tenants} initialTo={initialTo} initialToName={initialToName} />}
         {tab === "sent" && <SentTab />}
-        {tab === "spam" && <FolderTab folder="Spam" label="Spam" />}
-        {tab === "trash" && <FolderTab folder="Trash" label="Trash" />}
+        {tab === "spam" && <FolderTab folder="Spam" label="Spam" onCountsChange={loadCounts} />}
+        {tab === "trash" && <FolderTab folder="Trash" label="Trash" onCountsChange={loadCounts} />}
         {tab === "templates" && <TemplatesTab />}
         {tab === "settings" && <SmtpSettingsTab />}
       </div>

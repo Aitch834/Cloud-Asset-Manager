@@ -5,7 +5,7 @@ import { eq, and, count, desc, sql, asc, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
 import { sendSetupGuideEmail, sendAdminEmail, sendTicketReplyEmail } from "../lib/mailer";
-import { fetchInbox, fetchEmail, markAsRead, markAsUnread, deleteEmail, isImapConfigured, listMailboxes, fetchFolder, fetchEmailFromFolder, markFolderEmailRead, permanentlyDeleteFromFolder, moveToInbox } from "../lib/imap";
+import { fetchInbox, fetchEmail, markAsRead, markAsUnread, deleteEmail, isImapConfigured, listMailboxes, fetchFolder, fetchEmailFromFolder, markFolderEmailRead, permanentlyDeleteFromFolder, moveToInbox, getUnreadCounts } from "../lib/imap";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -554,6 +554,29 @@ router.get("/admin/inbox", requireAuth, async (req: Request, res: Response): Pro
     res.json({ emails });
   } catch (err) {
     console.error("[IMAP] fetchInbox error:", err);
+    res.status(502).json({ error: "Unable to connect to mail server. Check server logs for details." });
+  }
+});
+
+router.get("/admin/folder-counts", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  if (!(await isImapConfigured())) {
+    res.status(503).json({ error: "IMAP not configured (TITAN_IMAP_PASSWORD missing)" });
+    return;
+  }
+
+  try {
+    const counts = await getUnreadCounts(["INBOX", "Spam", "Trash"]);
+    res.json({
+      counts: {
+        inbox: counts["INBOX"] ?? 0,
+        spam: counts["Spam"] ?? 0,
+        trash: counts["Trash"] ?? 0,
+      },
+    });
+  } catch (err) {
+    console.error("[IMAP] getUnreadCounts error:", err);
     res.status(502).json({ error: "Unable to connect to mail server. Check server logs for details." });
   }
 });

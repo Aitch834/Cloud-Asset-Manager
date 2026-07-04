@@ -22,3 +22,4 @@
 - [LIS LIP Cattle test data](lis-lip-cattle-test-data.md) — 2 users, 14 CPHs, ~250 unallocated cattle tags each provided 3 Jul 2026; different sandbox tenant naming than sheep/goat data; blocked on LIP subscription approval
 - [API dev-bypass auth for direct testing](api-dev-bypass-auth.md) — x-dev-bypass + x-tenant-slug headers let you curl api-server endpoints directly, bypassing Clerk, to verify backend changes
 - [Testing agent phantom "Sign In with Replit"](testing-agent-phantom-replit-login.md) — runTest can get stuck on a nonexistent Replit-login button/404; not a real app bug, fall back to dev-bypass verification
+- [Vite stale deps/transform cache (generic)](vite-stale-deps-cache.md) — new import throws "X is not defined" despite correct source + passing typecheck; rm -rf node_modules/.vite + restart fixes it in plain (non-test-dashboard) artifacts
