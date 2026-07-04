@@ -345,6 +345,25 @@ export interface LipSubmissionResult {
   subscriptionPending?: boolean;
 }
 
+/**
+ * Detects whether a failed LIP API response indicates the APIM product
+ * subscription for this endpoint is not yet approved/active, as opposed to a
+ * genuine data/auth error. LIS's Alpha API has been observed to signal this
+ * two different ways depending on endpoint: a plain 403, or a 401 whose body
+ * explicitly complains about an invalid/inactive subscription key (this
+ * happens even though the OAuth token and general reachability both work,
+ * because each API product — movements/births/deaths — has its own separate
+ * subscription that must be approved individually).
+ */
+function isSubscriptionPendingResponse(res: LipApiResponse): boolean {
+  if (res.status === 403) return true;
+  if (res.status === 401) {
+    const text = typeof res.data === "string" ? res.data : JSON.stringify(res.data ?? "");
+    return /subscription/i.test(text);
+  }
+  return false;
+}
+
 // ── Movement submission ───────────────────────────────────────────────────────
 
 export interface LipMovementParams {
@@ -367,13 +386,11 @@ export interface LipMovementParams {
  * conventions. Verify and update against the LIP Alpha API swagger/OpenAPI spec
  * when subscription access is granted.
  *
- * In sandbox mode OR when the subscription returns 403 (pending approval), the
- * payload is built and logged but not sent to the API. A provisional LIP-SANDBOX
- * reference is returned so the full farm workflow can be tested immediately.
+ * When the subscription returns 403 (pending approval), the payload is logged
+ * and a provisional LIP-SANDBOX reference is returned so the full farm workflow
+ * can be tested immediately without waiting on LIS approval.
  */
 export async function submitLipMovement(params: LipMovementParams): Promise<LipSubmissionResult> {
-  const sandbox = isLipSandboxMode();
-
   const tagList = params.earTagNumbers
     ? params.earTagNumbers.split(/[\s,\n]+/).filter(Boolean).map(t => ({ earTag: t.trim(), species: "bovine" }))
     : [];
@@ -388,18 +405,17 @@ export async function submitLipMovement(params: LipMovementParams): Promise<LipS
     ...(params.licenceNumber ? { licenceNumber: params.licenceNumber } : {}),
   };
 
-  if (sandbox) {
-    const ref = `LIP-SANDBOX-${Date.now()}`;
-    console.log("[LIP] Sandbox movement submission:", JSON.stringify(payload, null, 2));
-    return { sandbox: true, success: true, lipReference: ref, requestPayload: payload, responsePayload: { sandboxRef: ref, note: "Sandbox mode — LIP subscription pending approval" } };
-  }
-
+  // NOTE: sandbox mode uses the real LIS sandbox environment (LIP_API_BASE points
+  // to the sandbox URL). We always attempt the real call so we can detect the
+  // moment LIS approves the pending subscriptions — the fake local reference is
+  // only used as a fallback when the API actively reports the subscription is
+  // not yet active (403), not as a default for "sandbox".
   const res = await callLipApi(params.accessToken, "POST", "/movements", payload);
 
   if (!res.ok) {
-    if (res.status === 403) {
+    if (isSubscriptionPendingResponse(res)) {
       const ref = `LIP-SANDBOX-${Date.now()}`;
-      console.log("[LIP] 403 — subscription pending; sandbox movement:", JSON.stringify(payload, null, 2));
+      console.log(`[LIP] ${res.status} — subscription pending; sandbox movement:`, JSON.stringify(payload, null, 2));
       return { sandbox: true, success: true, lipReference: ref, requestPayload: payload, responsePayload: res.data, subscriptionPending: true };
     }
     return {
@@ -431,8 +447,6 @@ export interface LipBirthParams {
  * against the LIP Alpha API spec.
  */
 export async function submitLipBirth(params: LipBirthParams): Promise<LipSubmissionResult> {
-  const sandbox = isLipSandboxMode();
-
   const payload: Record<string, unknown> = {
     birthDate: params.birthDate,
     holdingCph: params.holdingCph,
@@ -444,16 +458,13 @@ export async function submitLipBirth(params: LipBirthParams): Promise<LipSubmiss
     },
   };
 
-  if (sandbox) {
-    const ref = `LIP-BIRTH-SANDBOX-${Date.now()}`;
-    console.log("[LIP] Sandbox birth registration:", JSON.stringify(payload, null, 2));
-    return { sandbox: true, success: true, lipReference: ref, requestPayload: payload, responsePayload: { sandboxRef: ref } };
-  }
-
+  // See submitLipMovement note — always attempt the real call so we can detect
+  // when LIS approves the pending subscription; fall back to a fake reference
+  // only when the API actively reports the subscription as not yet active.
   const res = await callLipApi(params.accessToken, "POST", "/births", payload);
 
   if (!res.ok) {
-    if (res.status === 403) {
+    if (isSubscriptionPendingResponse(res)) {
       const ref = `LIP-BIRTH-SANDBOX-${Date.now()}`;
       return { sandbox: true, success: true, lipReference: ref, requestPayload: payload, responsePayload: res.data, subscriptionPending: true };
     }
@@ -485,8 +496,6 @@ export interface LipDeathParams {
  * against the LIP Alpha API spec.
  */
 export async function submitLipDeath(params: LipDeathParams): Promise<LipSubmissionResult> {
-  const sandbox = isLipSandboxMode();
-
   const payload: Record<string, unknown> = {
     deathDate: params.deathDate,
     holdingCph: params.holdingCph,
@@ -495,16 +504,13 @@ export async function submitLipDeath(params: LipDeathParams): Promise<LipSubmiss
     ...(params.disposalMethod ? { disposalMethod: params.disposalMethod } : {}),
   };
 
-  if (sandbox) {
-    const ref = `LIP-DEATH-SANDBOX-${Date.now()}`;
-    console.log("[LIP] Sandbox death registration:", JSON.stringify(payload, null, 2));
-    return { sandbox: true, success: true, lipReference: ref, requestPayload: payload, responsePayload: { sandboxRef: ref } };
-  }
-
+  // See submitLipMovement note — always attempt the real call so we can detect
+  // when LIS approves the pending subscription; fall back to a fake reference
+  // only when the API actively reports the subscription as not yet active.
   const res = await callLipApi(params.accessToken, "POST", "/deaths", payload);
 
   if (!res.ok) {
-    if (res.status === 403) {
+    if (isSubscriptionPendingResponse(res)) {
       const ref = `LIP-DEATH-SANDBOX-${Date.now()}`;
       return { sandbox: true, success: true, lipReference: ref, requestPayload: payload, responsePayload: res.data, subscriptionPending: true };
     }

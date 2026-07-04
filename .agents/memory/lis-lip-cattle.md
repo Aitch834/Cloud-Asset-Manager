@@ -14,6 +14,22 @@ description: LIP (Livestock Information Platform) confirmed as per-farm delegate
   authenticated sign-in and basic reachability work now, but movement submission calls may still 403 until
   those subscriptions are approved. Don't re-test connection/sign-in flow again; only test submission
   endpoints once subscriptions are confirmed approved.
+- **Bug found & fixed (4 Jul 2026):** `submitLipMovement`/`submitLipBirth`/`submitLipDeath` in `lip.ts` used
+  to short-circuit and fabricate a fake local success whenever `isLipSandboxMode()` was true — they never
+  called the real API at all, so approval could never have been detected. Fixed to always attempt the real
+  call (against the correct sandbox/prod URL) and only fall back to a fake reference when the response
+  actively signals "not yet approved" (see `isSubscriptionPendingResponse` helper — handles both a plain 403
+  and a 401 whose body mentions "subscription", since LIP's APIM has been observed to use either depending
+  on endpoint/product).
+- **Live subscription test (4 Jul 2026), against real sandbox API using farm 1's stored OAuth token:**
+  movement submission → HTTP 401 "invalid subscription key" (still NOT approved — different subscription
+  key requirement per API product than the general reachability check, which already works). Birth/death
+  submission → HTTP 404 "Resource not found" (endpoint paths `/births` and `/deaths` are still unverified/
+  provisional per the code comments — a separate problem from subscription approval, not yet resolved).
+  Test artifacts (temporary `lip_submissions` rows) were cleaned up after testing.
+- **To re-check approval status in future:** just re-run a real movement submission (via UI or the
+  dev-bypass API test) — thanks to the fix above, it will now genuinely succeed the moment LIS approves the
+  movement subscription, instead of always faking success. No code changes needed to detect it.
 - Redirect URI `https://api.bdefarmtrac.co.uk/api/lip/callback` must be registered in LIP developer portal
 - ROPC/username-password is NOT supported by LIP (confirmed by LIS, same as CLA) — do not attempt to store
   or script credentials; always use the interactive sign-in popup. Attempting to script the B2C login risks
