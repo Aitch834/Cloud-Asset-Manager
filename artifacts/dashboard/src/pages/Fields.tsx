@@ -41,6 +41,17 @@ import CropSeasonReport from "@/components/CropSeasonReport";
 const CURRENT_YEAR = new Date().getFullYear();
 const SEASON_OPTIONS = ["Autumn", "Winter", "Spring", "Summer"];
 
+function deriveSeasonFromDate(dateStr: string | undefined | null): string {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "";
+  const month = d.getMonth() + 1;
+  if (month >= 8 && month <= 10) return "Autumn";
+  if (month === 11 || month === 12 || month === 1) return "Winter";
+  if (month >= 2 && month <= 5) return "Spring";
+  return "Summer";
+}
+
 interface FieldRecord {
   id: number;
   name?: string;
@@ -1677,6 +1688,7 @@ export default function FieldsPage() {
   const fieldForm = useForm<FieldFormData>();
   const cropForm = useForm<CropFormData>();
   const assignForm = useForm<AssignCropFormData>();
+  const [seasonManuallySet, setSeasonManuallySet] = useState(false);
   const landUseForm = useForm<LandUseFormData>({
     defaultValues: { landUse: "fallow", year: String(CURRENT_YEAR), season: "", schemeActionCode: "", schemeReference: "", areaHectares: "", startDate: "", endDate: "", managementNotes: "" },
   });
@@ -1957,7 +1969,7 @@ export default function FieldsPage() {
                       farmId={farmId}
                       crops={crops}
                       currentCrop={crop}
-                      onAssignCrop={() => { setAssignForField(field); assignForm.reset(); }}
+                      onAssignCrop={() => { setAssignForField(field); assignForm.reset(); setSeasonManuallySet(false); }}
                       onBoundaryUpdated={() => { fieldsRefetch(); }}
                     />
                   </div>
@@ -2081,7 +2093,7 @@ export default function FieldsPage() {
                     ) : (
                       <div className="mb-3 space-y-1.5">
                         <button
-                          onClick={() => { setAssignForField(field); assignForm.reset(); }}
+                          onClick={() => { setAssignForField(field); assignForm.reset(); setSeasonManuallySet(false); }}
                           className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-green-200 rounded-xl text-xs text-green-700 font-medium hover:bg-green-50 transition-colors cursor-pointer"
                         >
                           <Sprout className="w-3.5 h-3.5" />
@@ -2718,7 +2730,7 @@ export default function FieldsPage() {
                           {selectedYear === CURRENT_YEAR && (
                             <div className="flex justify-center gap-3 mt-3">
                               <button
-                                onClick={() => { setSelectedFieldForHistory(null); setAssignForField(f); assignForm.reset(); }}
+                                onClick={() => { setSelectedFieldForHistory(null); setAssignForField(f); assignForm.reset(); setSeasonManuallySet(false); }}
                                 className="text-xs font-semibold text-green-700 hover:underline cursor-pointer"
                               >
                                 + Assign a crop
@@ -2734,7 +2746,7 @@ export default function FieldsPage() {
                           )}
                           {selectedYear !== CURRENT_YEAR && (
                             <button
-                              onClick={() => { setSelectedFieldForHistory(null); setAssignForField(f); assignForm.reset(); }}
+                              onClick={() => { setSelectedFieldForHistory(null); setAssignForField(f); assignForm.reset(); setSeasonManuallySet(false); }}
                               className="mt-3 text-xs font-semibold text-green-700 hover:underline cursor-pointer"
                             >
                               + Assign a crop
@@ -3759,7 +3771,17 @@ export default function FieldsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium mb-1.5 block">Planting Date</label>
-                  <Input type="date" {...assignForm.register("plantingDate")} />
+                  <Input
+                    type="date"
+                    {...assignForm.register("plantingDate", {
+                      onChange: (e) => {
+                        if (!seasonManuallySet) {
+                          const derived = deriveSeasonFromDate(e.target.value);
+                          if (derived) assignForm.setValue("season", derived);
+                        }
+                      },
+                    })}
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium mb-1.5 block">Expected Harvest</label>
@@ -3768,8 +3790,11 @@ export default function FieldsPage() {
               </div>
               <div>
                 <label className="text-sm font-medium mb-1.5 block">Season</label>
+                <p className="text-xs text-muted-foreground mb-1.5">When the crop goes in the ground — auto-filled from Planting Date, but you can change it.</p>
                 <select
-                  {...assignForm.register("season")}
+                  {...assignForm.register("season", {
+                    onChange: () => setSeasonManuallySet(true),
+                  })}
                   className="w-full border border-input rounded-md px-3 py-2 text-sm bg-white"
                 >
                   <option value="">Select a season...</option>
