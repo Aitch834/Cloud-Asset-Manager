@@ -4,6 +4,7 @@ import { kvGet } from "@/lib/database";
 
 export interface ApiCrop {
   id: number;
+  cropId?: number;
   name: string;
   variety?: string | null;
   category?: string | null;

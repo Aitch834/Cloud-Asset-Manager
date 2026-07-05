@@ -26,3 +26,4 @@
 - [Drizzle timestamp columns reject raw JSON date strings](drizzle-timestamp-json-string.md) — POST/PUT routes must wrap date fields in `new Date(...)` before db.insert/update or get a generic 500
 - [TGW seed rate calculator](tgw-seed-rate-calculator.md) — establishment % model (soil × drilling month), target population defaults, and where the calculator lives/feeds into field_crop_assignments
 - [lib/api-client-react build fix](api-client-react-build-fix.md) — tsc --build fails without noImplicitAny:false in its tsconfig + react/react-query as devDependencies (peerDeps aren't resolvable during standalone build)
+- [Crops API cropId vs varietyId](crops-api-cropid-vs-varietyid.md) — /api/crops rows' `id` is the variety row id, not the crop id; batch/seed-store style POSTs need a separate `cropId` field

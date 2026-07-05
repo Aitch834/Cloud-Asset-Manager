@@ -105,6 +105,9 @@ function RootLayoutNav() {
         <Stack.Screen name="silage-inspection" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="silage-additive" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="silage-quality-test" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="seed-store" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="seed-rate-calculator" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="field-crop-assignment" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="task-inbox" options={{ headerShown: false, presentation: "modal" }} />
       </Stack>
       <SyncStatusBar />
