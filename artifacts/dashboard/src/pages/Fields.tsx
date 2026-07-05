@@ -39,6 +39,7 @@ import { DocAttach } from "@/components/DocAttach";
 import CropSeasonReport from "@/components/CropSeasonReport";
 
 const CURRENT_YEAR = new Date().getFullYear();
+const SEASON_OPTIONS = ["Autumn", "Winter", "Spring", "Summer"];
 
 interface FieldRecord {
   id: number;
@@ -3767,7 +3768,15 @@ export default function FieldsPage() {
               </div>
               <div>
                 <label className="text-sm font-medium mb-1.5 block">Season</label>
-                <Input {...assignForm.register("season")} placeholder="e.g. Winter 2025/26, Spring 2026" />
+                <select
+                  {...assignForm.register("season")}
+                  className="w-full border border-input rounded-md px-3 py-2 text-sm bg-white"
+                >
+                  <option value="">Select a season...</option>
+                  {SEASON_OPTIONS.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
               </div>
 
               {(() => {
