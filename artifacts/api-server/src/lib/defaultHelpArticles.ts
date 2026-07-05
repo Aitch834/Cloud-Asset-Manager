@@ -286,6 +286,11 @@ const TITLES: [string, string][] = [
   ["Getting Started with Horticulture Records", "Horticulture"],
   ["Horticulture Module — Crop Records, Sprays, and Assurance", "Horticulture"],
   ["NMR Recording Visits — Herd Constituents, SCC and Fat:Protein Ratio Trends", "Livestock"],
+  ["Seed Store — Batch Tracking, Stock Levels and Bag Labels", "Fields & Crops"],
+  ["Seed Rate Calculator — Establishment-Adjusted Sowing Rates", "Fields & Crops"],
+  ["Silage & Haylage Recording — Additives, Quality Tests and Clamp Safety Checks", "Environmental"],
+  ["Crop Rotation Reason Tags and the Field Map Year Selector", "Fields & Crops"],
+  ["Enterprise Cost-of-Production Reports — Dairy, Beef, Sheep, Pig, Poultry, Labour and Fleet", "Dashboards"],
 ];
 
 const CONTENT: [string, string][] = [
@@ -5422,6 +5427,70 @@ const CONTENT: [string, string][] = [
 <p>Trend charts are the primary tool for spotting seasonal patterns, nutrition transitions, and early warning of herd health issues before they affect milk income or Red Tractor compliance status.</p>
 <h3>Mobile recording</h3>
 <p>NMR recording visit results can also be logged from the mobile app — useful if you want to capture key figures from the NMR report immediately after the recorder leaves, before you return to the office. Navigate to <strong>Record → NMR Recording Visit</strong> in the mobile app. Results sync to the dashboard automatically when connectivity is restored.</p>`,
+  ],
+  // 268 — Seed Store — Batch Tracking, Stock Levels and Bag Labels
+  [
+    "How to log seed batches in BDE Farm Trac's Seed Store, track remaining stock as seed is drilled, and print Avery-format bag labels.",
+    `<h2>Seed Store — Batch Tracking, Stock Levels and Bag Labels</h2>
+<p>The Seed Store (Field &amp; Crop Management → Seed Store) is a running inventory of the seed batches you've received from suppliers. It underpins traceability for Red Tractor Combinable Crops (batch/lot recording of seed) and removes the need to re-key TGW (thousand grain weight) every time you assign a crop to a field.</p>
+<h3>Logging a seed batch</h3>
+<p>Click <strong>Log Seed Batch</strong> and record the crop, variety, supplier, batch/lot number, TGW (g), bag weight (kg, defaults to 25kg), quantity received (kg), date received, and any treatment notes (e.g. "Redigo Deter treated"). Quantity received is fixed once logged — stock reduces automatically as the batch is drawn down.</p>
+<h3>Stock tracking and low-stock warnings</h3>
+<p>Each batch card shows TGW, remaining stock out of the quantity received, and the number of bags remaining at the recorded bag weight. A progress bar colours amber once a batch drops to 15% or less remaining, and batches at zero are marked <strong>Used up</strong>. Use <strong>Show Used-Up Batches</strong> to bring depleted batches back into view for historical reference.</p>
+<h3>Linking batches to crop assignments</h3>
+<p>When assigning a crop to a field in <strong>Fields</strong>, selecting a seed batch auto-fills the TGW for the seed rate calculator and deducts the drilled quantity from that batch's remaining stock. If a field-crop assignment referencing a batch is later deleted, the allocated stock is automatically restored to the batch.</p>
+<h3>Printing bag labels</h3>
+<p>From a crop assignment, use <strong>Print Bag Labels</strong> to generate an A4 sheet of Avery-compatible 63.5mm × 38.1mm labels (21 per sheet, 3 columns × 7 rows — the standard "L7160"-style layout). Each label shows the crop, variety, batch number, supplier, TGW, germination % (if recorded), destination field, and planting date, with your farm name and CPH number printed at the bottom for full batch-to-field traceability on the bag or seed box.</p>`,
+  ],
+  // 269 — Seed Rate Calculator — Establishment-Adjusted Sowing Rates
+  [
+    "How BDE Farm Trac's seed rate calculator turns a target plant population into a recommended sowing rate, adjusted for soil type and drilling date.",
+    `<h2>Seed Rate Calculator — Establishment-Adjusted Sowing Rates</h2>
+<p>When assigning a crop to a field, the seed rate calculator (shown alongside the crop assignment form) converts a target plant population into a recommended seed rate in kg/ha, using the same approach an agronomist or seed merchant would apply: seeds/m² = target plants/m² ÷ (establishment % ÷ 100), then seed rate (kg/ha) = seeds/m² × TGW (g) ÷ 100.</p>
+<h3>Establishment percentage</h3>
+<p>"Establishment %" folds germination and field losses (frost, slugs, seedbed quality, drilling depth) into a single assumption, mirroring standard merchant guidance. BDE Farm Trac starts from a base percentage keyed to the field's recorded soil type (e.g. medium loam ~78%, clay ~65%, sand ~70%) and adjusts it further based on the planned drilling date — early autumn and main spring windows get a positive adjustment, while late-October, November, December, and early-spring drilling reduce the estimate to reflect a harder establishment window. If no soil type is recorded, a general UK arable default (72%) is used.</p>
+<h3>Target population and black-grass fields</h3>
+<p>The default target population is 250 plants/m² for a standard crop. For fields flagged in the Black-grass Five-in-Five cultural control tracker, the calculator suggests a higher target of 350 plants/m² — reflecting AHDB guidance that a denser crop increases competition against black-grass and supports the "higher seed rate" cultural control pillar.</p>
+<h3>Using the result</h3>
+<p>The calculator is a starting point, not a replacement for agronomist advice — always sense-check the recommended rate against your variety's specific vigour and your drill's calibration. The calculated seed rate can be carried straight into the crop assignment's seed rate field, and combines with the seed batch's TGW and bag weight to estimate how many bags a field will need.</p>`,
+  ],
+  // 270 — Silage & Haylage Recording — Additives, Quality Tests and Clamp Safety Checks
+  [
+    "How to record silage and haylage additive use, quality/dry matter tests, and clamp safety inspections in BDE Farm Trac's Environmental module.",
+    `<h2>Silage &amp; Haylage Recording — Additives, Quality Tests and Clamp Safety Checks</h2>
+<p>The <strong>Silage &amp; Haylage</strong> tab (Environmental module) sits alongside Slurry &amp; Manure and gives forage-making its own dedicated records, distinct from slurry store management, while sharing the same store register so a clamp's fill level, inspections, and safety status are all tracked from one place.</p>
+<h3>Silage clamps vs. slurry stores</h3>
+<p>Stores are typed when registered — a store type of <strong>Silage Clamp</strong> is treated distinctly from slurry/manure stores throughout the Environmental module: clamps get additive and quality-test records, and clamp inspections include additional SSAFO structural checks that don't apply to slurry stores. This keeps the weekly planning view and store register from mixing silage-making with slurry management.</p>
+<h3>Silage / Haylage additive records</h3>
+<p>Log each clamp filling event under <strong>Additive Records</strong>: select the clamp, forage type (Grass Silage, Maize Silage, Wholecrop, Haylage), additive/inoculant product (bacterial inoculant, acid-based additive, or none), application rate, and fill date. This provides the traceability trail for any subsequent quality issues.</p>
+<h3>Silage quality &amp; dry matter tests</h3>
+<p>Log <strong>Quality / DM% Tests</strong> against a clamp with the test date, dry matter percentage, and any lab-reported metrics (pH, ME, crude protein). If dry matter comes back below 25%, BDE Farm Trac automatically raises a high-priority task flagging the elevated effluent risk and the need to check clamp drainage and effluent containment under the SSAFO regulations.</p>
+<h3>Clamp safety inspections</h3>
+<p>Silage clamp inspections (logged from the store register) include the standard slurry-store checks plus clamp-specific SSAFO structural checks: effluent containment, cover sheet integrity, and wall soundness. A failed effluent-containment check raises an urgent task warning of a pollution risk and recommends checking drainage/collection and pausing filling until resolved. Any failed check is clearly labelled on the inspection record and rolled into the farm's weekly planning view alongside slurry store tasks.</p>`,
+  ],
+  // 271 — Crop Rotation Reason Tags and the Field Map Year Selector
+  [
+    "How to tag the reasoning behind a crop rotation choice and use the field map's year selector to review historical plantings.",
+    `<h2>Crop Rotation Reason Tags and the Field Map Year Selector</h2>
+<p>Two additions to <strong>Fields</strong> make it easier to plan and review rotations across seasons: reason tags on each crop assignment, and a year selector on the field map for viewing historical plantings.</p>
+<h3>Crop rotation reason tags</h3>
+<p>When assigning or reviewing a crop for a field, you can attach one or more reason tags explaining why that crop or land use was chosen for the season — for example, "Black-grass suppression", "Break crop", "OSR interval compliance", "Soil structure recovery", or "Scheme requirement". Tags are shown alongside the assignment's notes in the Crop History view, giving a quick-glance rationale for each season's choice without having to open the full record. This is particularly useful when reviewing several years of rotation at once, or when explaining rotation decisions to an agronomist or assessor.</p>
+<h3>Crop season — auto-determined from planting date</h3>
+<p>The season (Autumn, Winter, Spring, Summer) for a crop assignment is now derived automatically from the planting date as soon as it's entered, using a dropdown that can still be overridden manually if you need to record a season that doesn't match the calendar date (for example, a delayed drilling that's still agronomically an autumn crop). Once you've manually changed the season for an assignment, it stops auto-updating from the date so your manual choice is preserved.</p>
+<h3>Field map year selector</h3>
+<p>The Field Map now has a year selector so you can step back through previous seasons and see exactly what was planted in each field historically — useful for checking OSR break intervals, reviewing rotation diversity for Black-grass Five-in-Five scoring, or confirming what was cropped in a field before a new tenancy or contract-farming arrangement began. Selecting a past year redraws the map with that season's crop assignments and land use records; switching back to the current year returns to live planning.</p>`,
+  ],
+  // 272 — Enterprise Cost-of-Production Reports — Dairy, Beef, Sheep, Pig, Poultry, Labour and Fleet
+  [
+    "How to use BDE Farm Trac's seven enterprise cost-of-production reports to see cost per litre, per head or per bird across dairy, beef, sheep, pig, poultry, labour and fleet.",
+    `<h2>Enterprise Cost-of-Production Reports</h2>
+<p>Alongside the crop-focused gross margin and P&amp;L reports, the Finance &amp; Business module's <strong>Business Reports</strong> page includes seven dedicated enterprise cost-of-production reports: <strong>Dairy</strong>, <strong>Beef</strong>, <strong>Sheep</strong>, <strong>Pig</strong>, <strong>Poultry</strong>, <strong>Labour</strong>, and <strong>Fleet/Machinery</strong>. Each report pulls together the operational records you're already keeping — feed, medicine, vet costs, labour, and fixed costs — into a single per-enterprise cost view, without any separate data entry.</p>
+<h3>What each report shows</h3>
+<p>The livestock reports (Dairy, Beef, Sheep, Pig, Poultry) calculate cost per litre, per head, or per bird by combining feed cost, medicine and vet cost, bedding/housing, labour allocation, and a share of fixed overheads for that enterprise. The Labour report breaks down staff cost by department and enterprise using recorded timesheets, and the Fleet/Machinery report allocates fuel, servicing, depreciation, and repair costs across the equipment used on each enterprise.</p>
+<h3>Vet costs</h3>
+<p>All five livestock enterprise reports include a dedicated vet cost line, sourced from your Vet Ledger and medicine records, so veterinary spend is properly reflected in the cost per head/litre/bird figure rather than being buried in a general overhead.</p>
+<h3>Where to find them</h3>
+<p>Navigate to <strong>Finance &amp; Business → Business Reports</strong> and select the enterprise report you want from the report picker. Each report can be filtered by date range/crop year and exported for use with your accountant or when benchmarking against AHDB figures. These sit alongside the farm-wide Season Reports profitability rollup, which prorates rent and overheads across all enterprises for a whole-farm view.</p>`,
   ],
 ];
 
