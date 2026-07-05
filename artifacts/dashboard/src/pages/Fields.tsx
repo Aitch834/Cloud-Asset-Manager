@@ -33,6 +33,7 @@ import { Redirect } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { printProReport } from "@/lib/print-report";
 import { cropYearOptions, cropYearLabel, currentCropYear, isInCropYear } from "@/lib/cropYear";
+import { getEstablishmentPercent, calculateSeedRate, suggestTargetPopulation, BLACKGRASS_TARGET_POPULATION_M2 } from "@/lib/seedRateCalculator";
 import { useToast } from "@/hooks/use-toast";
 import { DocAttach } from "@/components/DocAttach";
 import CropSeasonReport from "@/components/CropSeasonReport";
@@ -93,11 +94,28 @@ interface FieldCropAssignment {
   season?: string;
   year?: number;
   notes?: string | null;
+  seedRate?: string | null;
+  seedUnit?: string | null;
+  tgwGrams?: string | null;
+  targetPlantPopulationM2?: string | null;
+  estimatedEstablishmentPercent?: string | null;
+  calculatedSeedRateKgHa?: string | null;
+  targetRowSpacingCm?: string | null;
 }
 
 interface FieldFormData { name: string; areaHectares: number; soilType: string; fieldReference?: string; blackgrassRiskField?: boolean; }
 interface CropFormData { name: string; variety: string; category: string; }
-interface AssignCropFormData { varietyId: number; plantingDate: string; expectedHarvestDate: string; season: string; }
+interface AssignCropFormData {
+  varietyId: number;
+  plantingDate: string;
+  expectedHarvestDate: string;
+  season: string;
+  targetPlantPopulationM2: string;
+  tgwGrams: string;
+  targetRowSpacingCm: string;
+  seedRate: string;
+  seedUnit: string;
+}
 
 interface LandUseRecord {
   id: number;
@@ -1760,8 +1778,34 @@ export default function FieldsPage() {
 
   const onSubmitAssign = (values: AssignCropFormData) => {
     if (!assignForField) return;
+    const targetPop = values.targetPlantPopulationM2 ? parseFloat(values.targetPlantPopulationM2) : null;
+    const tgw = values.tgwGrams ? parseFloat(values.tgwGrams) : null;
+    let estimatedEstablishmentPercent: number | null = null;
+    let calculatedSeedRateKgHa: number | null = null;
+    if (targetPop && tgw) {
+      const establishment = getEstablishmentPercent(assignForField.soilType, values.plantingDate);
+      const calc = calculateSeedRate(targetPop, tgw, establishment.percent);
+      estimatedEstablishmentPercent = establishment.percent;
+      calculatedSeedRateKgHa = calc?.seedRateKgHa ?? null;
+    }
     assignCrop(
-      { farmId, data: { ...values, fieldId: assignForField.id, varietyId: Number(values.varietyId), year: CURRENT_YEAR, season: values.season } },
+      {
+        farmId,
+        data: {
+          ...values,
+          fieldId: assignForField.id,
+          varietyId: Number(values.varietyId),
+          year: CURRENT_YEAR,
+          season: values.season,
+          seedRate: values.seedRate || null,
+          seedUnit: values.seedRate ? (values.seedUnit || "kg/ha") : null,
+          targetPlantPopulationM2: targetPop,
+          tgwGrams: tgw,
+          estimatedEstablishmentPercent,
+          calculatedSeedRateKgHa,
+          targetRowSpacingCm: values.targetRowSpacingCm ? parseFloat(values.targetRowSpacingCm) : null,
+        },
+      },
       { onSuccess: () => { setAssignForField(null); assignForm.reset(); } }
     );
   };
@@ -3725,6 +3769,92 @@ export default function FieldsPage() {
                 <label className="text-sm font-medium mb-1.5 block">Season</label>
                 <Input {...assignForm.register("season")} placeholder="e.g. Winter 2025/26, Spring 2026" />
               </div>
+
+              {(() => {
+                const soilType = assignForField?.soilType;
+                const blackgrassRisk = !!assignForField?.blackgrassRiskField;
+                const watchedPlantingDate = assignForm.watch("plantingDate");
+                const watchedTarget = assignForm.watch("targetPlantPopulationM2");
+                const watchedTgw = assignForm.watch("tgwGrams");
+                const establishment = getEstablishmentPercent(soilType, watchedPlantingDate);
+                const targetNum = watchedTarget ? parseFloat(watchedTarget) : NaN;
+                const tgwNum = watchedTgw ? parseFloat(watchedTgw) : NaN;
+                const calc = !isNaN(targetNum) && !isNaN(tgwNum)
+                  ? calculateSeedRate(targetNum, tgwNum, establishment.percent)
+                  : null;
+                const applyCalculatedRate = () => {
+                  if (!calc) return;
+                  assignForm.setValue("seedRate", String(calc.seedRateKgHa));
+                  assignForm.setValue("seedUnit", "kg/ha");
+                };
+                return (
+                  <div className="rounded-lg border-2 border-dashed border-green-200 bg-green-50/40 p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Sprout className="w-4 h-4 text-green-700" />
+                      <p className="text-sm font-semibold text-green-900">Seed rate calculator</p>
+                      <span className="text-xs text-foreground/50">(optional)</span>
+                    </div>
+                    <p className="text-xs text-foreground/60">
+                      Target plants/m² × TGW ÷ estimated establishment %, adjusted for this field's soil type and planting date.
+                    </p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-medium mb-1 block text-foreground/70">Target Plant Population (plants/m²)</label>
+                        <Input
+                          type="number" step="1" placeholder={String(suggestTargetPopulation(blackgrassRisk))}
+                          {...assignForm.register("targetPlantPopulationM2")}
+                        />
+                        {blackgrassRisk && (
+                          <p className="text-[11px] text-red-700 mt-1">Black-grass risk field — suggest {BLACKGRASS_TARGET_POPULATION_M2}/m² to raise crop competition.</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium mb-1 block text-foreground/70">TGW — Thousand Grain Weight (g)</label>
+                        <Input type="number" step="0.1" placeholder="e.g. 48.5" {...assignForm.register("tgwGrams")} />
+                      </div>
+                    </div>
+                    <div className="text-xs text-foreground/60 space-y-0.5">
+                      <p>Soil: {soilType || "not set"} — {establishment.soilLabel}</p>
+                      <p>Timing: {establishment.dateLabel}</p>
+                      <p className="font-medium text-foreground/80">Estimated establishment: {establishment.percent}%</p>
+                    </div>
+                    {calc ? (
+                      <div className="flex items-center justify-between rounded-md bg-white border border-green-300 px-3 py-2">
+                        <div>
+                          <p className="text-sm font-semibold text-green-900">Suggested seed rate: {calc.seedRateKgHa} kg/ha</p>
+                          <p className="text-xs text-foreground/60">{calc.seedsPerM2} seeds/m²</p>
+                        </div>
+                        <Button type="button" size="sm" variant="outline" onClick={applyCalculatedRate}>Use this rate</Button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-foreground/50">Enter a target population and TGW to see a suggested seed rate.</p>
+                    )}
+                  </div>
+                );
+              })()}
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">Seed Rate</label>
+                  <Input type="number" step="0.1" placeholder="e.g. 180" {...assignForm.register("seedRate")} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">Unit</label>
+                  <select
+                    {...assignForm.register("seedUnit")}
+                    className="w-full h-10 rounded-md border border-input bg-white px-3 py-2 text-sm"
+                  >
+                    <option value="kg/ha">kg/ha</option>
+                    <option value="seeds/m²">seeds/m²</option>
+                    <option value="kg/acre">kg/acre</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">Target Row Spacing (cm)</label>
+                  <Input type="number" step="0.5" placeholder={assignForField?.blackgrassRiskField ? "≤ 15" : "e.g. 12.5"} {...assignForm.register("targetRowSpacingCm")} />
+                </div>
+              </div>
+
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setAssignForField(null)}>Cancel</Button>
                 <Button type="submit" disabled={assigningCrop}>{assigningCrop ? "Saving..." : "Assign Crop"}</Button>

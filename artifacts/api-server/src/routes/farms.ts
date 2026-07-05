@@ -1247,6 +1247,13 @@ router.get("/farms/:farmId/field-crops", requireAuth, requireTenant, requireModu
       variety: cropVarietiesTable.variety,
       notes: fieldCropAssignmentsTable.notes,
       reasonTags: fieldCropAssignmentsTable.reasonTags,
+      seedRate: fieldCropAssignmentsTable.seedRate,
+      seedUnit: fieldCropAssignmentsTable.seedUnit,
+      tgwGrams: fieldCropAssignmentsTable.tgwGrams,
+      targetPlantPopulationM2: fieldCropAssignmentsTable.targetPlantPopulationM2,
+      estimatedEstablishmentPercent: fieldCropAssignmentsTable.estimatedEstablishmentPercent,
+      calculatedSeedRateKgHa: fieldCropAssignmentsTable.calculatedSeedRateKgHa,
+      targetRowSpacingCm: fieldCropAssignmentsTable.targetRowSpacingCm,
       createdAt: fieldCropAssignmentsTable.createdAt,
       // Earliest actual harvest date recorded against this assignment, if any.
       // Returned as a string (ISO date) or null when no harvest record exists.
@@ -1276,7 +1283,10 @@ router.post("/farms/:farmId/field-crops", requireAuth, requireTenant, requireMod
     const [variety] = await db.select({ id: cropVarietiesTable.id }).from(cropVarietiesTable).where(and(eq(cropVarietiesTable.id, req.body.varietyId), eq(cropVarietiesTable.farmId, farmId))).limit(1);
     if (!variety) { res.status(400).json({ error: "Crop variety not found on this farm" }); return; }
   }
-  const [record] = await db.insert(fieldCropAssignmentsTable).values(sanitiseBody(req.body as Record<string, unknown>)).returning();
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  if (body.plantingDate) body.plantingDate = new Date(body.plantingDate as string);
+  if (body.expectedHarvestDate) body.expectedHarvestDate = new Date(body.expectedHarvestDate as string);
+  const [record] = await db.insert(fieldCropAssignmentsTable).values(body).returning();
   res.status(201).json({ record });
 });
 
@@ -1299,6 +1309,16 @@ router.patch("/farms/:farmId/field-crops/:id", requireAuth, requireTenant, requi
     if (!variety) { res.status(400).json({ error: "Crop variety not found on this farm" }); return; }
     allowed.varietyId = varietyId;
   }
+  if (req.body.plantingDate !== undefined) allowed.plantingDate = req.body.plantingDate ? new Date(req.body.plantingDate as string) : null;
+  if (req.body.expectedHarvestDate !== undefined) allowed.expectedHarvestDate = req.body.expectedHarvestDate ? new Date(req.body.expectedHarvestDate as string) : null;
+  if (req.body.season !== undefined) allowed.season = req.body.season || null;
+  if (req.body.seedRate !== undefined) allowed.seedRate = req.body.seedRate === "" ? null : req.body.seedRate;
+  if (req.body.seedUnit !== undefined) allowed.seedUnit = req.body.seedUnit || null;
+  if (req.body.tgwGrams !== undefined) allowed.tgwGrams = req.body.tgwGrams === "" ? null : req.body.tgwGrams;
+  if (req.body.targetPlantPopulationM2 !== undefined) allowed.targetPlantPopulationM2 = req.body.targetPlantPopulationM2 === "" ? null : req.body.targetPlantPopulationM2;
+  if (req.body.estimatedEstablishmentPercent !== undefined) allowed.estimatedEstablishmentPercent = req.body.estimatedEstablishmentPercent === "" ? null : req.body.estimatedEstablishmentPercent;
+  if (req.body.calculatedSeedRateKgHa !== undefined) allowed.calculatedSeedRateKgHa = req.body.calculatedSeedRateKgHa === "" ? null : req.body.calculatedSeedRateKgHa;
+  if (req.body.targetRowSpacingCm !== undefined) allowed.targetRowSpacingCm = req.body.targetRowSpacingCm === "" ? null : req.body.targetRowSpacingCm;
   if (Object.keys(allowed).length === 0) { res.status(400).json({ error: "No updatable fields provided" }); return; }
   const [existing] = await db
     .select({ id: fieldCropAssignmentsTable.id })

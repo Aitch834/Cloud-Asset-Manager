@@ -89,6 +89,14 @@ export const fieldCropAssignmentsTable = pgTable("field_crop_assignments", {
   year: integer("year"),
   notes: text("notes"),
   reasonTags: text("reason_tags").array(),
+  // Seed rate calculator inputs/outputs — target plants/m² x TGW (g) / establishment %,
+  // adjusted for soil type and drilling date. Stored so the suggested rate is
+  // auditable and can be recalculated if inputs change.
+  tgwGrams: numeric("tgw_grams", { precision: 6, scale: 2 }),
+  targetPlantPopulationM2: numeric("target_plant_population_m2", { precision: 6, scale: 1 }),
+  estimatedEstablishmentPercent: numeric("estimated_establishment_percent", { precision: 5, scale: 1 }),
+  calculatedSeedRateKgHa: numeric("calculated_seed_rate_kg_ha", { precision: 10, scale: 2 }),
+  targetRowSpacingCm: numeric("target_row_spacing_cm", { precision: 6, scale: 1 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
