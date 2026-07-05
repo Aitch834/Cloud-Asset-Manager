@@ -3974,12 +3974,32 @@ export default function FieldsPage() {
 
       {/* ── FIELD MAP TAB ── */}
       {tab === "map" && (
-        <FieldSchematicMap
-          fields={fields}
-          currentCropByField={currentCropByField as Record<number, { fieldId: number; cropName?: string; season?: string; year?: number; plantingDate?: string; expectedHarvestDate?: string }>}
-          currentLandUseByField={currentLandUseByField as Record<number, { fieldId: number; landUse: string }>}
-          selectedYear={selectedYear}
-        />
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div>
+              <h2 className="text-base font-semibold">Field Map</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Showing plantings and land use for the selected season.</p>
+            </div>
+            <div className="relative flex-shrink-0">
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40 pointer-events-none" />
+              <select
+                value={selectedYear}
+                onChange={e => setSelectedYear(Number(e.target.value))}
+                className="appearance-none border border-input rounded-lg pl-3 pr-8 py-2 text-sm bg-white font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
+              >
+                {availableYears.map(y => (
+                  <option key={y} value={y}>{y} Season{y === CURRENT_YEAR ? " (Current)" : ""}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <FieldSchematicMap
+            fields={fields}
+            currentCropByField={currentCropByField as Record<number, { fieldId: number; cropName?: string; season?: string; year?: number; plantingDate?: string; expectedHarvestDate?: string }>}
+            currentLandUseByField={currentLandUseByField as Record<number, { fieldId: number; landUse: string }>}
+            selectedYear={selectedYear}
+          />
+        </div>
       )}
 
       {/* ── LAND TENURE REGISTER TAB ── */}
