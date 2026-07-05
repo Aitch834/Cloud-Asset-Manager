@@ -23,3 +23,4 @@
 - [API dev-bypass auth for direct testing](api-dev-bypass-auth.md) — x-dev-bypass + x-tenant-slug headers let you curl api-server endpoints directly, bypassing Clerk, to verify backend changes
 - [Testing agent phantom "Sign In with Replit"](testing-agent-phantom-replit-login.md) — runTest can get stuck on a nonexistent Replit-login button/404; not a real app bug, fall back to dev-bypass verification
 - [Vite stale deps/transform cache (generic)](vite-stale-deps-cache.md) — new import throws "X is not defined" despite correct source + passing typecheck; rm -rf node_modules/.vite + restart fixes it in plain (non-test-dashboard) artifacts
+- [Drizzle timestamp columns reject raw JSON date strings](drizzle-timestamp-json-string.md) — POST/PUT routes must wrap date fields in `new Date(...)` before db.insert/update or get a generic 500

@@ -32,8 +32,20 @@ const DELAYED_DRILLING_CUTOFF_MONTH = 10; // October (1-indexed)
 const DELAYED_DRILLING_CUTOFF_DAY = 1;
 const SEASONS_WINDOW = 5;
 const MOA_REPETITION_RISK_YEARS = 3;
+// Narrower drill row spacing improves crop competition against black-grass;
+// wider rows (typical of some min-till drills) reduce early canopy closure.
+const RECOMMENDED_MAX_ROW_SPACING_CM = 15;
 
 export type PillarKey = "ploughing" | "delayedDrilling" | "springCropping" | "higherSeedRate" | "fallowCover";
+
+export type RecommendationSeverity = "high" | "medium" | "low";
+
+export interface FieldRecommendation {
+  key: string;
+  severity: RecommendationSeverity;
+  title: string;
+  detail: string;
+}
 
 export interface SeasonPillarResult {
   year: number;
@@ -52,6 +64,7 @@ export interface FieldFiveInFiveScore {
   distinctPillarCount: number;
   moaRepetitionRisk: boolean;
   moaRepeatedGroup: string | null;
+  recommendations: FieldRecommendation[];
 }
 
 function isSpringSeason(season: string | null): boolean {
@@ -186,6 +199,88 @@ export async function computeFieldFiveInFiveScore(farmId: number, fieldId: numbe
     }
   }
 
+  // ── Forward-looking recommendations for the CURRENT/upcoming season ──────
+  // Distinct from the pillar score above (which reviews what has already
+  // happened): these are proactive nudges for what to do differently this
+  // season, based on which pillars have been under-used and any emerging
+  // resistance-management risks.
+  const recommendations: FieldRecommendation[] = [];
+  if (field.blackgrassRiskField) {
+    if (!distinctPillarsUsed.includes("ploughing")) {
+      recommendations.push({
+        key: "ploughing",
+        severity: "medium",
+        title: "Consider rotational ploughing this season",
+        detail: "No primary inversion cultivation (ploughing/subsoiling) recorded in the last 5 seasons — burying the seed bank helps break the black-grass cycle.",
+      });
+    }
+    if (!distinctPillarsUsed.includes("delayedDrilling")) {
+      recommendations.push({
+        key: "delayedDrilling",
+        severity: "high",
+        title: "Delay autumn drilling past 1 October",
+        detail: "Drilling has not been delayed past the stale-seedbed cut-off (1 Oct) in the last 5 seasons — an extra flush of black-grass could be sprayed off pre-drilling this year.",
+      });
+    }
+    if (!distinctPillarsUsed.includes("springCropping")) {
+      recommendations.push({
+        key: "springCropping",
+        severity: "medium",
+        title: "Consider a spring crop this season",
+        detail: "This field has not carried a spring-sown crop in the last 5 seasons — spring cropping breaks the autumn germination window that favours black-grass.",
+      });
+    }
+    if (!distinctPillarsUsed.includes("higherSeedRate")) {
+      recommendations.push({
+        key: "higherSeedRate",
+        severity: "high",
+        title: `Raise seed rate to ${HIGHER_SEED_RATE_THRESHOLD_KG_HA}kg/ha or above`,
+        detail: `Seed rate has stayed below ${HIGHER_SEED_RATE_THRESHOLD_KG_HA}kg/ha for the last 5 seasons — a denser crop competes harder against black-grass.`,
+      });
+    }
+    if (!distinctPillarsUsed.includes("fallowCover")) {
+      recommendations.push({
+        key: "fallowCover",
+        severity: "low",
+        title: "Consider a fallow or cover-crop reset season",
+        detail: "No fallow, SFI, or cover-crop season recorded in the last 5 years — a reset season with no autumn cash crop lets the seed bank be exhausted.",
+      });
+    }
+    // Warn one season before a MOA repeat becomes an established resistance risk.
+    if (!moaRepetitionRisk && streakLength === MOA_REPETITION_RISK_YEARS - 1 && streakGroup) {
+      recommendations.push({
+        key: "moaRotationDue",
+        severity: "high",
+        title: `Rotate away from herbicide MOA group ${streakGroup} this season`,
+        detail: `MOA group ${streakGroup} has been the only herbicide group used for ${streakLength} consecutive seasons — using it again this year would reach the 3-year resistance-risk threshold.`,
+      });
+    } else if (moaRepetitionRisk && moaRepeatedGroup) {
+      recommendations.push({
+        key: "moaRotationOverdue",
+        severity: "high",
+        title: `Rotate away from herbicide MOA group ${moaRepeatedGroup} this season`,
+        detail: `MOA group ${moaRepeatedGroup} has now been used for ${MOA_REPETITION_RISK_YEARS}+ consecutive seasons — continuing it further increases the risk of resistance developing.`,
+      });
+    }
+
+    const latestDrillingWithSpacing = drillingRecords
+      .filter((d) => d.rowSpacingCm != null)
+      .sort((a, b) => b.drillingDate.getTime() - a.drillingDate.getTime())[0];
+    if (latestDrillingWithSpacing) {
+      const spacing = parseFloat(String(latestDrillingWithSpacing.rowSpacingCm));
+      if (!isNaN(spacing) && spacing > RECOMMENDED_MAX_ROW_SPACING_CM) {
+        recommendations.push({
+          key: "rowSpacing",
+          severity: "low",
+          title: `Narrow drill row spacing to ${RECOMMENDED_MAX_ROW_SPACING_CM}cm or less`,
+          detail: `The most recent drilling record on this field used ${spacing}cm row spacing — narrower rows close the canopy sooner and improve crop competition against black-grass.`,
+        });
+      }
+    }
+  }
+  const severityRank: Record<RecommendationSeverity, number> = { high: 0, medium: 1, low: 2 };
+  recommendations.sort((a, b) => severityRank[a.severity] - severityRank[b.severity]);
+
   return {
     fieldId: field.id,
     fieldName: field.name,
@@ -195,6 +290,7 @@ export async function computeFieldFiveInFiveScore(farmId: number, fieldId: numbe
     distinctPillarCount: distinctPillarsUsed.length,
     moaRepetitionRisk,
     moaRepeatedGroup,
+    recommendations,
   };
 }
 

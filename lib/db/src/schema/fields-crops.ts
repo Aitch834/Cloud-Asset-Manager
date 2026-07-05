@@ -251,6 +251,7 @@ export const seedDrillingRecordsTable = pgTable("seed_drilling_records", {
   seedLotNumber: text("seed_lot_number"),
   seedRate: numeric("seed_rate", { precision: 10, scale: 2 }),
   seedRateUnit: text("seed_rate_unit"),
+  rowSpacingCm: numeric("row_spacing_cm", { precision: 6, scale: 1 }),
   isTreated: boolean("is_treated").notNull().default(false),
   treatmentProduct: text("treatment_product"),
   operator: text("operator"),

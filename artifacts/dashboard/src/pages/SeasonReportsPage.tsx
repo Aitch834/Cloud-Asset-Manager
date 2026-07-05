@@ -557,16 +557,31 @@ export default function SeasonReportsPage() {
                         const strong = f.distinctPillarCount >= 4;
                         const moderate = f.distinctPillarCount >= 2 && f.distinctPillarCount < 4;
                         const dotColor = strong ? "#16a34a" : moderate ? "#d97706" : "#dc2626";
+                        const recs: any[] = f.recommendations ?? [];
                         return (
-                          <div key={f.fieldId} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.5rem 0.7rem", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: "0.8rem" }}>
-                            <span style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 500, color: "#1f2937" }}>
-                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
-                              {f.fieldName}
-                            </span>
-                            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                              {f.moaRepetitionRisk && <AlertTriangle className="w-3.5 h-3.5" style={{ color: "#dc2626" }} />}
-                              <span style={{ fontWeight: 700, color: "#374151" }}>{f.distinctPillarCount}/5</span>
-                            </span>
+                          <div key={f.fieldId} style={{ padding: "0.5rem 0.7rem", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: "0.8rem" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                              <span style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 500, color: "#1f2937" }}>
+                                <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
+                                {f.fieldName}
+                              </span>
+                              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                {f.moaRepetitionRisk && <AlertTriangle className="w-3.5 h-3.5" style={{ color: "#dc2626" }} />}
+                                <span style={{ fontWeight: 700, color: "#374151" }}>{f.distinctPillarCount}/5</span>
+                              </span>
+                            </div>
+                            {recs.length > 0 && (
+                              <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px dashed #e5e7eb", display: "flex", flexDirection: "column", gap: 3 }}>
+                                {recs.slice(0, 3).map((r: any) => (
+                                  <span key={r.key} style={{ fontSize: "0.72rem", color: r.severity === "high" ? "#b91c1c" : r.severity === "medium" ? "#b45309" : "#1d4ed8" }}>
+                                    • {r.title}
+                                  </span>
+                                ))}
+                                {recs.length > 3 && (
+                                  <span style={{ fontSize: "0.72rem", color: "#9ca3af" }}>+{recs.length - 3} more recommendation{recs.length - 3 === 1 ? "" : "s"}</span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })}

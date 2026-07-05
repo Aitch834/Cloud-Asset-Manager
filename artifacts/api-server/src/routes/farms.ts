@@ -13640,6 +13640,7 @@ router.post("/farms/:farmId/seed-drilling", requireAuth, requireTenant, requireM
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const body = sanitiseBody(req.body as Record<string, unknown>);
+  if (body.drillingDate) body.drillingDate = new Date(body.drillingDate as string);
   const fieldId = body.fieldId ? Number(body.fieldId) : null;
   const areaSeededHa = body.areaSeededHa ? Number(body.areaSeededHa) : null;
   if (!(await checkFieldAreaLimit(farmId, fieldId, areaSeededHa, res, "Area drilled"))) return;
@@ -13660,6 +13661,7 @@ router.put("/farms/:farmId/seed-drilling/:recordId", requireAuth, requireTenant,
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
   const body = sanitiseBody(req.body as Record<string, unknown>);
+  if (body.drillingDate) body.drillingDate = new Date(body.drillingDate as string);
   const fieldId = body.fieldId ? Number(body.fieldId) : null;
   const areaSeededHa = body.areaSeededHa ? Number(body.areaSeededHa) : null;
   if (!(await checkFieldAreaLimit(farmId, fieldId, areaSeededHa, res, "Area drilled"))) return;

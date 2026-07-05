@@ -713,6 +713,7 @@ interface SeedRecord {
   seedLotNumber: string | null;
   seedRate: string | null;
   seedRateUnit: string | null;
+  rowSpacingCm: string | null;
   isTreated: boolean;
   treatmentProduct: string | null;
   operator: string | null;
@@ -745,6 +746,7 @@ const EMPTY_SEED = {
   seedLotNumber: "",
   seedRate: "",
   seedRateUnit: "kg/ha",
+  rowSpacingCm: "",
   isTreated: false,
   treatmentProduct: "",
   operator: "",
@@ -844,6 +846,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
       seedLotNumber: r.seedLotNumber ?? "",
       seedRate: r.seedRate ?? "",
       seedRateUnit: r.seedRateUnit ?? "kg/ha",
+      rowSpacingCm: r.rowSpacingCm ?? "",
       isTreated: r.isTreated ?? false,
       treatmentProduct: r.treatmentProduct ?? "",
       operator: r.operator ?? "",
@@ -905,6 +908,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
       fieldId: formData.fieldId ? Number(formData.fieldId) : null,
       drillingDate: formData.drillingDate ? new Date(formData.drillingDate).toISOString() : null,
       seedRate: formData.seedRate ? formData.seedRate : null,
+      rowSpacingCm: formData.rowSpacingCm ? formData.rowSpacingCm : null,
       areaSeededHa: formData.areaSeededHa ? formData.areaSeededHa : null,
       seedCostPencePerKg: formData.seedCostPencePerKg ? Math.round(parseFloat(formData.seedCostPencePerKg) * 100) : null,
       stockItemId: formData.stockItemId ? Number(formData.stockItemId) : null,
@@ -1112,6 +1116,10 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
                   </select>
                 </div>
                 <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Row Spacing (cm)</label>
+                  <Input type="number" step="0.1" placeholder="e.g. 12.5" value={formData.rowSpacingCm} onChange={e => setField("rowSpacingCm", e.target.value)} />
+                </div>
+                <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Operator / Driller</label>
                   <StaffSelect
                     staffNames={(membersData?.members ?? []).map(m => memberFullName(m))}
@@ -1130,6 +1138,41 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
                   <Input placeholder="e.g. Dry, light wind, 8°C" value={formData.weatherNotes} onChange={e => setField("weatherNotes", e.target.value)} />
                 </div>
               </div>
+
+              {(() => {
+                const fr = fields.find(f => String(f.id) === formData.fieldId);
+                if (!fr || !(fr as any).blackgrassRiskField) return null;
+                const warnings: string[] = [];
+                const rate = formData.seedRate ? parseFloat(formData.seedRate) : null;
+                if (rate != null && !isNaN(rate) && formData.seedRateUnit === "kg/ha" && rate < 220) {
+                  warnings.push(`Seed rate of ${rate}kg/ha is below the recommended 220kg/ha for black-grass suppression on this field — consider raising it.`);
+                }
+                if (formData.drillingDate) {
+                  const d = new Date(formData.drillingDate);
+                  const month = d.getMonth() + 1;
+                  const day = d.getDate();
+                  const isAutumn = month >= 8 || month <= 2;
+                  const isDelayed = month > 10 || (month === 10 && day >= 1);
+                  if (isAutumn && !isDelayed) {
+                    warnings.push("Drilling before 1 October misses the stale-seedbed window — delaying drilling lets an extra flush of black-grass be sprayed off first on this at-risk field.");
+                  }
+                }
+                const spacing = formData.rowSpacingCm ? parseFloat(formData.rowSpacingCm) : null;
+                if (spacing != null && !isNaN(spacing) && spacing > 15) {
+                  warnings.push(`Row spacing of ${spacing}cm is wider than the recommended 15cm max — narrower rows close the canopy sooner and compete harder against black-grass.`);
+                }
+                if (warnings.length === 0) return null;
+                return (
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-3.5 space-y-1.5">
+                    <p className="text-xs font-semibold text-red-800 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5" />{fr.name} is flagged as a black-grass risk field
+                    </p>
+                    {warnings.map((w, i) => (
+                      <p key={i} className="text-[11px] text-red-700 pl-5">{w}</p>
+                    ))}
+                  </div>
+                );
+              })()}
 
               <div className="border-t border-border pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
@@ -1284,6 +1327,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
               {viewSeed.variety && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Variety</p><p className="font-medium">{viewSeed.variety}</p></div>}
               {viewSeed.seedLotNumber && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Seed Lot No.</p><p className="font-medium font-mono">{viewSeed.seedLotNumber}</p></div>}
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Seed Rate</p><p className="font-medium">{viewSeed.seedRate ? `${viewSeed.seedRate} ${viewSeed.seedRateUnit ?? ""}` : "—"}</p></div>
+              {viewSeed.rowSpacingCm && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Row Spacing</p><p className="font-medium">{viewSeed.rowSpacingCm} cm</p></div>}
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Area Seeded</p><p className="font-medium">{viewSeed.areaSeededHa ? `${parseFloat(viewSeed.areaSeededHa).toFixed(2)} ha` : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Treated Seed</p>
                 {viewSeed.isTreated
@@ -1478,6 +1522,13 @@ export default function FieldsPage() {
     pillarsUsedCount: number;
     herbicideMoaGroupsUsed: string[];
   };
+  type RecommendationSeverity = "high" | "medium" | "low";
+  type FieldRecommendation = {
+    key: string;
+    severity: RecommendationSeverity;
+    title: string;
+    detail: string;
+  };
   type FiveInFiveScore = {
     fieldId: number;
     fieldName: string;
@@ -1487,6 +1538,12 @@ export default function FieldsPage() {
     distinctPillarCount: number;
     moaRepetitionRisk: boolean;
     moaRepeatedGroup: string | null;
+    recommendations: FieldRecommendation[];
+  };
+  const RECOMMENDATION_SEVERITY_STYLES: Record<RecommendationSeverity, string> = {
+    high: "border-red-200 bg-red-50 text-red-800",
+    medium: "border-amber-200 bg-amber-50 text-amber-800",
+    low: "border-blue-200 bg-blue-50 text-blue-800",
   };
   const PILLAR_LABELS: Record<PillarKey, { label: string; detail: string }> = {
     ploughing: { label: "Rotational ploughing", detail: "Primary inversion cultivation used this season" },
@@ -1886,6 +1943,12 @@ export default function FieldsPage() {
                         </span>
                       );
                     })()}
+                    {(field as any).blackgrassRiskField && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border mt-1.5 ml-1.5 uppercase tracking-wide bg-red-100 text-red-800 border-red-300">
+                        <AlertTriangle className="w-2.5 h-2.5" />
+                        Black-grass risk
+                      </span>
+                    )}
                   </div>
 
                   <div className="p-5">
@@ -3118,6 +3181,25 @@ export default function FieldsPage() {
                         </div>
                       );
                     })()}
+                    {(f as any).blackgrassRiskField && fiveInFiveScore && fiveInFiveScore.recommendations.length > 0 && (
+                      <div className="mb-5 rounded-xl border border-border/50 overflow-hidden">
+                        <div className="px-4 py-3 bg-stone-700 text-white flex items-center gap-2">
+                          <Sprout className="w-4 h-4" />
+                          <span className="text-sm font-semibold">Recommended actions for this season</span>
+                        </div>
+                        <div className="p-4 space-y-2.5">
+                          {fiveInFiveScore.recommendations.map((rec) => (
+                            <div key={rec.key} className={`flex items-start gap-2 text-xs rounded-lg border px-3 py-2.5 ${RECOMMENDATION_SEVERITY_STYLES[rec.severity]}`}>
+                              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                              <div>
+                                <p className="font-semibold">{rec.title}</p>
+                                <p className="text-[11px] opacity-80 mt-0.5">{rec.detail}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {historyEntries.length === 0 ? (
                       <div className="py-12 text-center">
                         <History className="w-10 h-10 mx-auto text-foreground/20 mb-3" />
