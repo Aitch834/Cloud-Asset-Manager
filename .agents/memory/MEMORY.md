@@ -25,3 +25,4 @@
 - [Vite stale deps/transform cache (generic)](vite-stale-deps-cache.md) — new import throws "X is not defined" despite correct source + passing typecheck; rm -rf node_modules/.vite + restart fixes it in plain (non-test-dashboard) artifacts
 - [Drizzle timestamp columns reject raw JSON date strings](drizzle-timestamp-json-string.md) — POST/PUT routes must wrap date fields in `new Date(...)` before db.insert/update or get a generic 500
 - [TGW seed rate calculator](tgw-seed-rate-calculator.md) — establishment % model (soil × drilling month), target population defaults, and where the calculator lives/feeds into field_crop_assignments
+- [lib/api-client-react build fix](api-client-react-build-fix.md) — tsc --build fails without noImplicitAny:false in its tsconfig + react/react-query as devDependencies (peerDeps aren't resolvable during standalone build)

@@ -12,5 +12,10 @@
   "peerDependencies": {
     "react": ">=18",
     "@tanstack/react-query": "^5.0.0"
+  },
+  "devDependencies": {
+    "react": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@types/react": "catalog:"
   }
 }

@@ -551,6 +551,17 @@ export type UpdateCropBody = { [key: string]: unknown };
 
 export type CreateFieldCropAssignmentBody = { [key: string]: unknown };
 
+export type UpdateFieldCropAssignmentBody = { [key: string]: unknown };
+
+export type ListSeedBatchesParams = {
+  cropId?: number;
+  varietyId?: number;
+};
+
+export type CreateSeedBatchBody = { [key: string]: unknown };
+
+export type UpdateSeedBatchBody = { [key: string]: unknown };
+
 export type CreateHarvestBody = { [key: string]: unknown };
 
 export type CreateSprayProductBody = { [key: string]: unknown };

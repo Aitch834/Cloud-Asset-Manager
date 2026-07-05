@@ -66,6 +66,7 @@ import type {
   CreatePestControlBody,
   CreateRiskAssessmentBody,
   CreateRoleBody,
+  CreateSeedBatchBody,
   CreateSoilTestBody,
   CreateSprayApplicationBody,
   CreateSprayProductBody,
@@ -97,6 +98,7 @@ import type {
   InvitationListResponse,
   Lead,
   ListHelpArticlesParams,
+  ListSeedBatchesParams,
   LogoutSuccess,
   MobileTokenExchangeRequest,
   MobileTokenExchangeSuccess,
@@ -121,6 +123,7 @@ import type {
   UpdateEnvironmentalFeatureBody,
   UpdateEquipmentBody,
   UpdateFieldBody,
+  UpdateFieldCropAssignmentBody,
   UpdateFinancialTransactionBody,
   UpdateHaulageBody,
   UpdateHerdBody,
@@ -129,6 +132,7 @@ import type {
   UpdateNonconformanceBody,
   UpdatePermissionBody,
   UpdateRiskAssessmentBody,
+  UpdateSeedBatchBody,
   UpdateSoilTestBody,
   UpdateSprayApplicationBody,
   UpdateSprayProductBody,
@@ -4436,6 +4440,678 @@ export const useCreateFieldCropAssignment = <
   TContext
 > => {
   return useMutation(getCreateFieldCropAssignmentMutationOptions(options));
+};
+
+/**
+ * @summary Update a field-crop assignment
+ */
+export const getUpdateFieldCropAssignmentUrl = (
+  farmId: number,
+  recordId: number,
+) => {
+  return `/api/farms/${farmId}/field-crops/${recordId}`;
+};
+
+export const updateFieldCropAssignment = async (
+  farmId: number,
+  recordId: number,
+  updateFieldCropAssignmentBody: UpdateFieldCropAssignmentBody,
+  options?: RequestInit,
+): Promise<RecordEnvelope> => {
+  return customFetch<RecordEnvelope>(
+    getUpdateFieldCropAssignmentUrl(farmId, recordId),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateFieldCropAssignmentBody),
+    },
+  );
+};
+
+export const getUpdateFieldCropAssignmentMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFieldCropAssignment>>,
+    TError,
+    {
+      farmId: number;
+      recordId: number;
+      data: BodyType<UpdateFieldCropAssignmentBody>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateFieldCropAssignment>>,
+  TError,
+  {
+    farmId: number;
+    recordId: number;
+    data: BodyType<UpdateFieldCropAssignmentBody>;
+  },
+  TContext
+> => {
+  const mutationKey = ["updateFieldCropAssignment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateFieldCropAssignment>>,
+    {
+      farmId: number;
+      recordId: number;
+      data: BodyType<UpdateFieldCropAssignmentBody>;
+    }
+  > = (props) => {
+    const { farmId, recordId, data } = props ?? {};
+
+    return updateFieldCropAssignment(farmId, recordId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateFieldCropAssignmentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateFieldCropAssignment>>
+>;
+export type UpdateFieldCropAssignmentMutationBody =
+  BodyType<UpdateFieldCropAssignmentBody>;
+export type UpdateFieldCropAssignmentMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a field-crop assignment
+ */
+export const useUpdateFieldCropAssignment = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFieldCropAssignment>>,
+    TError,
+    {
+      farmId: number;
+      recordId: number;
+      data: BodyType<UpdateFieldCropAssignmentBody>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateFieldCropAssignment>>,
+  TError,
+  {
+    farmId: number;
+    recordId: number;
+    data: BodyType<UpdateFieldCropAssignmentBody>;
+  },
+  TContext
+> => {
+  return useMutation(getUpdateFieldCropAssignmentMutationOptions(options));
+};
+
+/**
+ * @summary Delete a field-crop assignment
+ */
+export const getDeleteFieldCropAssignmentUrl = (
+  farmId: number,
+  recordId: number,
+) => {
+  return `/api/farms/${farmId}/field-crops/${recordId}`;
+};
+
+export const deleteFieldCropAssignment = async (
+  farmId: number,
+  recordId: number,
+  options?: RequestInit,
+): Promise<DeleteResponse> => {
+  return customFetch<DeleteResponse>(
+    getDeleteFieldCropAssignmentUrl(farmId, recordId),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getDeleteFieldCropAssignmentMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFieldCropAssignment>>,
+    TError,
+    { farmId: number; recordId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteFieldCropAssignment>>,
+  TError,
+  { farmId: number; recordId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteFieldCropAssignment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteFieldCropAssignment>>,
+    { farmId: number; recordId: number }
+  > = (props) => {
+    const { farmId, recordId } = props ?? {};
+
+    return deleteFieldCropAssignment(farmId, recordId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteFieldCropAssignmentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteFieldCropAssignment>>
+>;
+
+export type DeleteFieldCropAssignmentMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a field-crop assignment
+ */
+export const useDeleteFieldCropAssignment = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFieldCropAssignment>>,
+    TError,
+    { farmId: number; recordId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteFieldCropAssignment>>,
+  TError,
+  { farmId: number; recordId: number },
+  TContext
+> => {
+  return useMutation(getDeleteFieldCropAssignmentMutationOptions(options));
+};
+
+/**
+ * @summary Mark bag labels as generated for a field-crop assignment
+ */
+export const getGenerateFieldCropLabelsUrl = (
+  farmId: number,
+  recordId: number,
+) => {
+  return `/api/farms/${farmId}/field-crops/${recordId}/generate-labels`;
+};
+
+export const generateFieldCropLabels = async (
+  farmId: number,
+  recordId: number,
+  options?: RequestInit,
+): Promise<RecordEnvelope> => {
+  return customFetch<RecordEnvelope>(
+    getGenerateFieldCropLabelsUrl(farmId, recordId),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getGenerateFieldCropLabelsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateFieldCropLabels>>,
+    TError,
+    { farmId: number; recordId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof generateFieldCropLabels>>,
+  TError,
+  { farmId: number; recordId: number },
+  TContext
+> => {
+  const mutationKey = ["generateFieldCropLabels"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof generateFieldCropLabels>>,
+    { farmId: number; recordId: number }
+  > = (props) => {
+    const { farmId, recordId } = props ?? {};
+
+    return generateFieldCropLabels(farmId, recordId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GenerateFieldCropLabelsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generateFieldCropLabels>>
+>;
+
+export type GenerateFieldCropLabelsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Mark bag labels as generated for a field-crop assignment
+ */
+export const useGenerateFieldCropLabels = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateFieldCropLabels>>,
+    TError,
+    { farmId: number; recordId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof generateFieldCropLabels>>,
+  TError,
+  { farmId: number; recordId: number },
+  TContext
+> => {
+  return useMutation(getGenerateFieldCropLabelsMutationOptions(options));
+};
+
+/**
+ * @summary List seed batches for a farm
+ */
+export const getListSeedBatchesUrl = (
+  farmId: number,
+  params?: ListSeedBatchesParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/farms/${farmId}/seed-batches?${stringifiedParams}`
+    : `/api/farms/${farmId}/seed-batches`;
+};
+
+export const listSeedBatches = async (
+  farmId: number,
+  params?: ListSeedBatchesParams,
+  options?: RequestInit,
+): Promise<RecordListResponse> => {
+  return customFetch<RecordListResponse>(
+    getListSeedBatchesUrl(farmId, params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListSeedBatchesQueryKey = (
+  farmId: number,
+  params?: ListSeedBatchesParams,
+) => {
+  return [
+    `/api/farms/${farmId}/seed-batches`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getListSeedBatchesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSeedBatches>>,
+  TError = ErrorType<unknown>,
+>(
+  farmId: number,
+  params?: ListSeedBatchesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSeedBatches>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListSeedBatchesQueryKey(farmId, params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listSeedBatches>>> = ({
+    signal,
+  }) => listSeedBatches(farmId, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!farmId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSeedBatches>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSeedBatchesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSeedBatches>>
+>;
+export type ListSeedBatchesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List seed batches for a farm
+ */
+
+export function useListSeedBatches<
+  TData = Awaited<ReturnType<typeof listSeedBatches>>,
+  TError = ErrorType<unknown>,
+>(
+  farmId: number,
+  params?: ListSeedBatchesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSeedBatches>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSeedBatchesQueryOptions(farmId, params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a seed batch
+ */
+export const getCreateSeedBatchUrl = (farmId: number) => {
+  return `/api/farms/${farmId}/seed-batches`;
+};
+
+export const createSeedBatch = async (
+  farmId: number,
+  createSeedBatchBody: CreateSeedBatchBody,
+  options?: RequestInit,
+): Promise<RecordEnvelope> => {
+  return customFetch<RecordEnvelope>(getCreateSeedBatchUrl(farmId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createSeedBatchBody),
+  });
+};
+
+export const getCreateSeedBatchMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSeedBatch>>,
+    TError,
+    { farmId: number; data: BodyType<CreateSeedBatchBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSeedBatch>>,
+  TError,
+  { farmId: number; data: BodyType<CreateSeedBatchBody> },
+  TContext
+> => {
+  const mutationKey = ["createSeedBatch"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSeedBatch>>,
+    { farmId: number; data: BodyType<CreateSeedBatchBody> }
+  > = (props) => {
+    const { farmId, data } = props ?? {};
+
+    return createSeedBatch(farmId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSeedBatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSeedBatch>>
+>;
+export type CreateSeedBatchMutationBody = BodyType<CreateSeedBatchBody>;
+export type CreateSeedBatchMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a seed batch
+ */
+export const useCreateSeedBatch = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSeedBatch>>,
+    TError,
+    { farmId: number; data: BodyType<CreateSeedBatchBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSeedBatch>>,
+  TError,
+  { farmId: number; data: BodyType<CreateSeedBatchBody> },
+  TContext
+> => {
+  return useMutation(getCreateSeedBatchMutationOptions(options));
+};
+
+/**
+ * @summary Update a seed batch
+ */
+export const getUpdateSeedBatchUrl = (farmId: number, recordId: number) => {
+  return `/api/farms/${farmId}/seed-batches/${recordId}`;
+};
+
+export const updateSeedBatch = async (
+  farmId: number,
+  recordId: number,
+  updateSeedBatchBody: UpdateSeedBatchBody,
+  options?: RequestInit,
+): Promise<RecordEnvelope> => {
+  return customFetch<RecordEnvelope>(getUpdateSeedBatchUrl(farmId, recordId), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateSeedBatchBody),
+  });
+};
+
+export const getUpdateSeedBatchMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSeedBatch>>,
+    TError,
+    { farmId: number; recordId: number; data: BodyType<UpdateSeedBatchBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSeedBatch>>,
+  TError,
+  { farmId: number; recordId: number; data: BodyType<UpdateSeedBatchBody> },
+  TContext
+> => {
+  const mutationKey = ["updateSeedBatch"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSeedBatch>>,
+    { farmId: number; recordId: number; data: BodyType<UpdateSeedBatchBody> }
+  > = (props) => {
+    const { farmId, recordId, data } = props ?? {};
+
+    return updateSeedBatch(farmId, recordId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSeedBatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSeedBatch>>
+>;
+export type UpdateSeedBatchMutationBody = BodyType<UpdateSeedBatchBody>;
+export type UpdateSeedBatchMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a seed batch
+ */
+export const useUpdateSeedBatch = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSeedBatch>>,
+    TError,
+    { farmId: number; recordId: number; data: BodyType<UpdateSeedBatchBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSeedBatch>>,
+  TError,
+  { farmId: number; recordId: number; data: BodyType<UpdateSeedBatchBody> },
+  TContext
+> => {
+  return useMutation(getUpdateSeedBatchMutationOptions(options));
+};
+
+/**
+ * @summary Delete a seed batch
+ */
+export const getDeleteSeedBatchUrl = (farmId: number, recordId: number) => {
+  return `/api/farms/${farmId}/seed-batches/${recordId}`;
+};
+
+export const deleteSeedBatch = async (
+  farmId: number,
+  recordId: number,
+  options?: RequestInit,
+): Promise<DeleteResponse> => {
+  return customFetch<DeleteResponse>(getDeleteSeedBatchUrl(farmId, recordId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteSeedBatchMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSeedBatch>>,
+    TError,
+    { farmId: number; recordId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteSeedBatch>>,
+  TError,
+  { farmId: number; recordId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteSeedBatch"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteSeedBatch>>,
+    { farmId: number; recordId: number }
+  > = (props) => {
+    const { farmId, recordId } = props ?? {};
+
+    return deleteSeedBatch(farmId, recordId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteSeedBatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteSeedBatch>>
+>;
+
+export type DeleteSeedBatchMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a seed batch
+ */
+export const useDeleteSeedBatch = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSeedBatch>>,
+    TError,
+    { farmId: number; recordId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteSeedBatch>>,
+  TError,
+  { farmId: number; recordId: number },
+  TContext
+> => {
+  return useMutation(getDeleteSeedBatchMutationOptions(options));
 };
 
 /**

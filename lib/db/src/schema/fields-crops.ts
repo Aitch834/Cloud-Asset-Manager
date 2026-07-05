@@ -77,6 +77,25 @@ export const cropDocumentsTable = pgTable("crop_documents", {
   uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const seedBatchesTable = pgTable("seed_batches", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  cropId: integer("crop_id").notNull().references(() => cropsTable.id),
+  varietyId: integer("variety_id").notNull().references(() => cropVarietiesTable.id),
+  supplierId: integer("supplier_id").references(() => suppliersTable.id),
+  batchNumber: text("batch_number").notNull(),
+  tgwGrams: numeric("tgw_grams", { precision: 6, scale: 2 }).notNull(),
+  bagWeightKg: numeric("bag_weight_kg", { precision: 8, scale: 2 }).notNull().default("25"),
+  quantityReceivedKg: numeric("quantity_received_kg", { precision: 10, scale: 2 }).notNull(),
+  quantityRemainingKg: numeric("quantity_remaining_kg", { precision: 10, scale: 2 }).notNull(),
+  dateReceived: date("date_received"),
+  treatmentNotes: text("treatment_notes"),
+  certificateDocumentPath: text("certificate_document_path"),
+  certificateDocumentName: text("certificate_document_name"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const fieldCropAssignmentsTable = pgTable("field_crop_assignments", {
   id: serial("id").primaryKey(),
   fieldId: integer("field_id").notNull().references(() => fieldsTable.id),
@@ -97,6 +116,11 @@ export const fieldCropAssignmentsTable = pgTable("field_crop_assignments", {
   estimatedEstablishmentPercent: numeric("estimated_establishment_percent", { precision: 5, scale: 1 }),
   calculatedSeedRateKgHa: numeric("calculated_seed_rate_kg_ha", { precision: 10, scale: 2 }),
   targetRowSpacingCm: numeric("target_row_spacing_cm", { precision: 6, scale: 1 }),
+  // Seed batch allocation — links this planting to the physical seed batch used,
+  // so TGW can be sourced from the supplier's batch record and stock/labels tracked.
+  seedBatchId: integer("seed_batch_id").references(() => seedBatchesTable.id),
+  bagsAllocated: integer("bags_allocated"),
+  labelsGeneratedAt: timestamp("labels_generated_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

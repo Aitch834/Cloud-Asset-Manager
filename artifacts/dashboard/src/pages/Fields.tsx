@@ -15,7 +15,14 @@ import {
 import { useAppStore } from "@/hooks/use-app-store";
 import { useFields, useAddField, useUpdateField, useDeleteField } from "@/hooks/use-fields";
 import { useCrops, useAddCrop, useFieldCropAssignments, useAssignCrop } from "@/hooks/use-crops";
-import { getListFieldCropAssignmentsQueryKey, getListFieldsQueryKey, getListCropsQueryKey } from "@workspace/api-client-react/src/generated/api";
+import {
+  getListFieldCropAssignmentsQueryKey,
+  getListFieldsQueryKey,
+  getListCropsQueryKey,
+  useListSeedBatches,
+  getListSeedBatchesQueryKey,
+  useGenerateFieldCropLabels,
+} from "@workspace/api-client-react/src/generated/api";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 import {
@@ -32,6 +39,7 @@ import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { printProReport } from "@/lib/print-report";
+import { printSeedBagLabels } from "@/lib/print-labels";
 import { cropYearOptions, cropYearLabel, currentCropYear, isInCropYear } from "@/lib/cropYear";
 import { getEstablishmentPercent, calculateSeedRate, suggestTargetPopulation, BLACKGRASS_TARGET_POPULATION_M2 } from "@/lib/seedRateCalculator";
 import { useToast } from "@/hooks/use-toast";
@@ -113,6 +121,9 @@ interface FieldCropAssignment {
   estimatedEstablishmentPercent?: string | null;
   calculatedSeedRateKgHa?: string | null;
   targetRowSpacingCm?: string | null;
+  seedBatchId?: number | null;
+  bagsAllocated?: number | null;
+  labelsGeneratedAt?: string | null;
 }
 
 interface FieldFormData { name: string; areaHectares: number; soilType: string; fieldReference?: string; blackgrassRiskField?: boolean; }
@@ -127,6 +138,27 @@ interface AssignCropFormData {
   targetRowSpacingCm: string;
   seedRate: string;
   seedUnit: string;
+  seedBatchId: string;
+}
+
+interface SeedBatchRecord {
+  id: number;
+  farmId: number;
+  cropId: number;
+  cropName: string;
+  varietyId: number;
+  varietyName: string | null;
+  supplierId: number | null;
+  supplierName: string | null;
+  batchNumber: string;
+  tgwGrams: string;
+  bagWeightKg: string;
+  quantityReceivedKg: string;
+  quantityRemainingKg: string;
+  dateReceived: string | null;
+  treatmentNotes: string | null;
+  isActive: boolean;
+  createdAt: string;
 }
 
 interface LandUseRecord {
@@ -1689,6 +1721,62 @@ export default function FieldsPage() {
   const cropForm = useForm<CropFormData>();
   const assignForm = useForm<AssignCropFormData>();
   const [seasonManuallySet, setSeasonManuallySet] = useState(false);
+  const [tgwManuallySet, setTgwManuallySet] = useState(false);
+  const watchedAssignVarietyId = assignForm.watch("varietyId");
+  const { data: seedBatchesForVariety } = useListSeedBatches(
+    safeFarmId,
+    watchedAssignVarietyId ? { varietyId: Number(watchedAssignVarietyId) } : undefined,
+    { query: { enabled: !!safeFarmId && !!watchedAssignVarietyId } as any },
+  );
+  const { data: allSeedBatchesData } = useListSeedBatches(
+    safeFarmId,
+    undefined,
+    { query: { enabled: !!safeFarmId } as any },
+  );
+  const allSeedBatches: SeedBatchRecord[] = ((allSeedBatchesData as any)?.records ?? []) as SeedBatchRecord[];
+  const { data: currentFarmData } = useQuery<{ record: { name?: string; cphNumber?: string } }>({
+    queryKey: ["farm", safeFarmId],
+    queryFn: async () => {
+      const r = await fetch(`/api/farms/${safeFarmId}`);
+      return r.json();
+    },
+    enabled: !!safeFarmId,
+  });
+  const currentFarm = currentFarmData?.record;
+  const { mutate: generateLabels, isPending: generatingLabelsForId } = useGenerateFieldCropLabels();
+  const [labelCountDraft, setLabelCountDraft] = useState<Record<number, string>>({});
+
+  const handleGenerateLabels = (a: FieldCropAssignment) => {
+    const batch = allSeedBatches.find(b => b.id === a.seedBatchId);
+    if (!batch) return;
+    const defaultCount = a.bagsAllocated ?? 1;
+    const raw = labelCountDraft[a.id];
+    const count = raw !== undefined && raw !== "" ? Math.max(1, parseInt(raw, 10) || defaultCount) : defaultCount;
+    const field = fields.find(f => f.id === a.fieldId);
+    printSeedBagLabels(
+      {
+        cropName: a.cropName,
+        varietyName: a.variety,
+        batchNumber: batch.batchNumber,
+        supplierName: batch.supplierName ?? null,
+        tgwGrams: batch.tgwGrams,
+        fieldName: field?.name ?? null,
+        fieldReference: field?.fieldReference ?? null,
+        plantingDate: a.plantingDate ? formatDate(a.plantingDate) : null,
+        farmName: currentFarm?.name ?? null,
+        cphNumber: currentFarm?.cphNumber ?? null,
+      },
+      count
+    );
+    generateLabels({ farmId: safeFarmId, recordId: a.id }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListFieldCropAssignmentsQueryKey(safeFarmId) });
+      },
+    });
+  };
+  const availableSeedBatches: SeedBatchRecord[] = (
+    ((seedBatchesForVariety as any)?.records ?? []) as SeedBatchRecord[]
+  ).filter((b) => b.isActive && Number(b.quantityRemainingKg) > 0);
   const landUseForm = useForm<LandUseFormData>({
     defaultValues: { landUse: "fallow", year: String(CURRENT_YEAR), season: "", schemeActionCode: "", schemeReference: "", areaHectares: "", startDate: "", endDate: "", managementNotes: "" },
   });
@@ -1801,6 +1889,17 @@ export default function FieldsPage() {
       estimatedEstablishmentPercent = establishment.percent;
       calculatedSeedRateKgHa = calc?.seedRateKgHa ?? null;
     }
+    const seedBatchId = values.seedBatchId ? Number(values.seedBatchId) : null;
+    let bagsAllocated: number | null = null;
+    if (seedBatchId) {
+      const selectedBatch = availableSeedBatches.find(b => b.id === seedBatchId);
+      const seedRateNum = values.seedRate ? parseFloat(values.seedRate) : NaN;
+      const areaHa = assignForField.areaHectares ? Number(assignForField.areaHectares) : NaN;
+      const bagWeightKg = selectedBatch ? Number(selectedBatch.bagWeightKg) || 25 : 25;
+      if (selectedBatch && !isNaN(seedRateNum) && !isNaN(areaHa) && (values.seedUnit || "kg/ha") === "kg/ha") {
+        bagsAllocated = Math.ceil((seedRateNum * areaHa) / bagWeightKg);
+      }
+    }
     assignCrop(
       {
         farmId,
@@ -1817,9 +1916,20 @@ export default function FieldsPage() {
           estimatedEstablishmentPercent,
           calculatedSeedRateKgHa,
           targetRowSpacingCm: values.targetRowSpacingCm ? parseFloat(values.targetRowSpacingCm) : null,
+          seedBatchId,
+          bagsAllocated,
         },
       },
-      { onSuccess: () => { setAssignForField(null); assignForm.reset(); } }
+      {
+        onSuccess: () => {
+          setAssignForField(null);
+          assignForm.reset();
+          setTgwManuallySet(false);
+          if (seedBatchId) {
+            queryClient.invalidateQueries({ queryKey: getListSeedBatchesQueryKey(safeFarmId) });
+          }
+        },
+      }
     );
   };
 
@@ -1969,7 +2079,7 @@ export default function FieldsPage() {
                       farmId={farmId}
                       crops={crops}
                       currentCrop={crop}
-                      onAssignCrop={() => { setAssignForField(field); assignForm.reset(); setSeasonManuallySet(false); }}
+                      onAssignCrop={() => { setAssignForField(field); assignForm.reset(); setSeasonManuallySet(false); setTgwManuallySet(false); }}
                       onBoundaryUpdated={() => { fieldsRefetch(); }}
                     />
                   </div>
@@ -2093,7 +2203,7 @@ export default function FieldsPage() {
                     ) : (
                       <div className="mb-3 space-y-1.5">
                         <button
-                          onClick={() => { setAssignForField(field); assignForm.reset(); setSeasonManuallySet(false); }}
+                          onClick={() => { setAssignForField(field); assignForm.reset(); setSeasonManuallySet(false); setTgwManuallySet(false); }}
                           className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-green-200 rounded-xl text-xs text-green-700 font-medium hover:bg-green-50 transition-colors cursor-pointer"
                         >
                           <Sprout className="w-3.5 h-3.5" />
@@ -2388,6 +2498,38 @@ export default function FieldsPage() {
                                               <p className="text-xs text-foreground/40 italic mt-1 flex items-center gap-1">
                                                 <StickyNote className="w-2.5 h-2.5" />{a.notes}
                                               </p>
+                                            )}
+                                            {a.seedBatchId && (
+                                              <div className="mt-2 pt-2 border-t border-border/30 flex items-center gap-2 flex-wrap">
+                                                <QrCode className="w-3 h-3 text-foreground/30" />
+                                                <span className="text-[11px] text-foreground/50">
+                                                  Seed batch: <strong>{allSeedBatches.find(b => b.id === a.seedBatchId)?.batchNumber ?? `#${a.seedBatchId}`}</strong>
+                                                  {a.bagsAllocated ? ` · ${a.bagsAllocated} bag${a.bagsAllocated !== 1 ? "s" : ""}` : ""}
+                                                </span>
+                                                <Input
+                                                  type="number"
+                                                  min={1}
+                                                  placeholder={String(a.bagsAllocated ?? 1)}
+                                                  value={labelCountDraft[a.id] ?? ""}
+                                                  onChange={e => setLabelCountDraft(prev => ({ ...prev, [a.id]: e.target.value }))}
+                                                  className="h-6 w-16 text-xs px-2"
+                                                />
+                                                <Button
+                                                  type="button"
+                                                  size="sm"
+                                                  variant="outline"
+                                                  className="h-6 text-[11px] px-2 gap-1"
+                                                  onClick={() => handleGenerateLabels(a)}
+                                                >
+                                                  <Printer className="w-3 h-3" />
+                                                  {a.labelsGeneratedAt ? "Reprint labels" : "Print bag labels"}
+                                                </Button>
+                                                {a.labelsGeneratedAt && (
+                                                  <span className="text-[10px] text-foreground/35">
+                                                    Last printed {formatDate(a.labelsGeneratedAt)}
+                                                  </span>
+                                                )}
+                                              </div>
                                             )}
                                           </div>
                                         );
@@ -2730,7 +2872,7 @@ export default function FieldsPage() {
                           {selectedYear === CURRENT_YEAR && (
                             <div className="flex justify-center gap-3 mt-3">
                               <button
-                                onClick={() => { setSelectedFieldForHistory(null); setAssignForField(f); assignForm.reset(); setSeasonManuallySet(false); }}
+                                onClick={() => { setSelectedFieldForHistory(null); setAssignForField(f); assignForm.reset(); setSeasonManuallySet(false); setTgwManuallySet(false); }}
                                 className="text-xs font-semibold text-green-700 hover:underline cursor-pointer"
                               >
                                 + Assign a crop
@@ -2746,7 +2888,7 @@ export default function FieldsPage() {
                           )}
                           {selectedYear !== CURRENT_YEAR && (
                             <button
-                              onClick={() => { setSelectedFieldForHistory(null); setAssignForField(f); assignForm.reset(); setSeasonManuallySet(false); }}
+                              onClick={() => { setSelectedFieldForHistory(null); setAssignForField(f); assignForm.reset(); setSeasonManuallySet(false); setTgwManuallySet(false); }}
                               className="mt-3 text-xs font-semibold text-green-700 hover:underline cursor-pointer"
                             >
                               + Assign a crop
@@ -3757,7 +3899,14 @@ export default function FieldsPage() {
               <div>
                 <label className="text-sm font-medium mb-1.5 block">Crop</label>
                 <select
-                  {...assignForm.register("varietyId", { required: true, valueAsNumber: true })}
+                  {...assignForm.register("varietyId", {
+                    required: true,
+                    valueAsNumber: true,
+                    onChange: () => {
+                      assignForm.setValue("seedBatchId", "");
+                      setTgwManuallySet(false);
+                    },
+                  })}
                   className="w-full border border-input rounded-md px-3 py-2 text-sm bg-white"
                 >
                   <option value="">Select a crop...</option>
@@ -3768,6 +3917,36 @@ export default function FieldsPage() {
                   ))}
                 </select>
               </div>
+
+              {!!watchedAssignVarietyId && (
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">Seed Batch</label>
+                  <p className="text-xs text-muted-foreground mb-1.5">Optional — selecting a batch auto-fills TGW and reserves stock.</p>
+                  <select
+                    {...assignForm.register("seedBatchId", {
+                      onChange: (e) => {
+                        const batch = availableSeedBatches.find(b => String(b.id) === e.target.value);
+                        if (batch && !tgwManuallySet) {
+                          assignForm.setValue("tgwGrams", batch.tgwGrams);
+                        }
+                      },
+                    })}
+                    className="w-full border border-input rounded-md px-3 py-2 text-sm bg-white"
+                  >
+                    <option value="">No batch — enter TGW manually</option>
+                    {availableSeedBatches.map(b => (
+                      <option key={b.id} value={b.id}>
+                        {b.batchNumber} — TGW {b.tgwGrams}g — {Number(b.quantityRemainingKg).toFixed(1)}kg remaining
+                        {b.supplierName ? ` (${b.supplierName})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {availableSeedBatches.length === 0 && (
+                    <p className="text-[11px] text-foreground/50 mt-1">No seed batches in stock for this variety. Add one in Seed Store.</p>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium mb-1.5 block">Planting Date</label>
@@ -3844,7 +4023,10 @@ export default function FieldsPage() {
                       </div>
                       <div>
                         <label className="text-xs font-medium mb-1 block text-foreground/70">TGW — Thousand Grain Weight (g)</label>
-                        <Input type="number" step="0.1" placeholder="e.g. 48.5" {...assignForm.register("tgwGrams")} />
+                        <Input
+                          type="number" step="0.1" placeholder="e.g. 48.5"
+                          {...assignForm.register("tgwGrams", { onChange: () => setTgwManuallySet(true) })}
+                        />
                       </div>
                     </div>
                     <div className="text-xs text-foreground/60 space-y-0.5">
@@ -3862,6 +4044,42 @@ export default function FieldsPage() {
                       </div>
                     ) : (
                       <p className="text-xs text-foreground/50">Enter a target population and TGW to see a suggested seed rate.</p>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {(() => {
+                const watchedSeedBatchId = assignForm.watch("seedBatchId");
+                const selectedBatch = availableSeedBatches.find(b => String(b.id) === String(watchedSeedBatchId));
+                if (!selectedBatch) return null;
+                const watchedSeedRate = assignForm.watch("seedRate");
+                const watchedSeedUnit = assignForm.watch("seedUnit") || "kg/ha";
+                const seedRateNum = watchedSeedRate ? parseFloat(watchedSeedRate) : NaN;
+                const areaHa = assignForField?.areaHectares ? Number(assignForField.areaHectares) : NaN;
+                const bagWeightKg = Number(selectedBatch.bagWeightKg) || 25;
+                const canCalc = !isNaN(seedRateNum) && !isNaN(areaHa) && watchedSeedUnit === "kg/ha";
+                const bagsNeeded = canCalc ? Math.ceil((seedRateNum * areaHa) / bagWeightKg) : null;
+                const kgNeeded = bagsNeeded !== null ? bagsNeeded * bagWeightKg : null;
+                const remainingKg = Number(selectedBatch.quantityRemainingKg);
+                const insufficient = kgNeeded !== null && kgNeeded > remainingKg;
+                return (
+                  <div className={`rounded-lg border p-3 text-sm ${insufficient ? "border-red-300 bg-red-50" : "border-blue-200 bg-blue-50/50"}`}>
+                    {bagsNeeded !== null ? (
+                      <>
+                        <p className={insufficient ? "text-red-900 font-medium" : "text-blue-900 font-medium"}>
+                          Bags needed: {bagsNeeded} ({kgNeeded?.toFixed(1)}kg of {bagWeightKg}kg bags)
+                        </p>
+                        {insufficient ? (
+                          <p className="text-xs text-red-700 mt-1">
+                            Only {remainingKg.toFixed(1)}kg remaining in this batch — not enough stock. Choose another batch or reduce area/rate.
+                          </p>
+                        ) : (
+                          <p className="text-xs text-blue-700 mt-1">{remainingKg.toFixed(1)}kg remaining in batch after allocation would be {(remainingKg - (kgNeeded ?? 0)).toFixed(1)}kg.</p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-xs text-foreground/60">Enter a Seed Rate in kg/ha to calculate bags needed from this batch.</p>
                     )}
                   </div>
                 );

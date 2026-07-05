@@ -994,6 +994,142 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/field-crops/{recordId}:
+    patch:
+      operationId: updateFieldCropAssignment
+      tags: [fields]
+      summary: Update a field-crop assignment
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    delete:
+      operationId: deleteFieldCropAssignment
+      tags: [fields]
+      summary: Delete a field-crop assignment
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+  /farms/{farmId}/field-crops/{recordId}/generate-labels:
+    post:
+      operationId: generateFieldCropLabels
+      tags: [fields]
+      summary: Mark bag labels as generated for a field-crop assignment
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  # ─── Seed Batches ────────────────────────────────────
+  /farms/{farmId}/seed-batches:
+    get:
+      operationId: listSeedBatches
+      tags: [fields]
+      summary: List seed batches for a farm
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - name: cropId
+          in: query
+          schema:
+            type: integer
+        - name: varietyId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Seed batch list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createSeedBatch
+      tags: [fields]
+      summary: Create a seed batch
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/seed-batches/{recordId}:
+    patch:
+      operationId: updateSeedBatch
+      tags: [fields]
+      summary: Update a seed batch
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    delete:
+      operationId: deleteSeedBatch
+      tags: [fields]
+      summary: Delete a seed batch
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
   /farms/{farmId}/harvests:
     get:
       operationId: listHarvests

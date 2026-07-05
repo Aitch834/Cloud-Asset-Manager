@@ -18,6 +18,7 @@ import {
   cropVarietiesTable,
   cropDocumentsTable,
   fieldCropAssignmentsTable,
+  seedBatchesTable,
   fieldSeasonLandUseTable,
   fieldSeasonExpensesTable,
   harvestRecordsTable,
@@ -1226,6 +1227,114 @@ router.delete("/farms/:farmId/crops/:cropId/documents/:docId", requireAuth, requ
   res.json({ ok: true });
 });
 
+// ─── Seed Batches (received from suppliers, TGW recorded per batch) ─────────
+router.get("/farms/:farmId/seed-batches", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const conditions = [eq(seedBatchesTable.farmId, farmId)];
+  if (req.query.cropId) {
+    const cropId = parseInt(req.query.cropId as string, 10);
+    if (!isNaN(cropId)) conditions.push(eq(seedBatchesTable.cropId, cropId));
+  }
+  if (req.query.varietyId) {
+    const varietyId = parseInt(req.query.varietyId as string, 10);
+    if (!isNaN(varietyId)) conditions.push(eq(seedBatchesTable.varietyId, varietyId));
+  }
+  const records = await db
+    .select({
+      id: seedBatchesTable.id,
+      farmId: seedBatchesTable.farmId,
+      cropId: seedBatchesTable.cropId,
+      cropName: cropsTable.name,
+      varietyId: seedBatchesTable.varietyId,
+      varietyName: cropVarietiesTable.variety,
+      supplierId: seedBatchesTable.supplierId,
+      supplierName: suppliersTable.name,
+      batchNumber: seedBatchesTable.batchNumber,
+      tgwGrams: seedBatchesTable.tgwGrams,
+      bagWeightKg: seedBatchesTable.bagWeightKg,
+      quantityReceivedKg: seedBatchesTable.quantityReceivedKg,
+      quantityRemainingKg: seedBatchesTable.quantityRemainingKg,
+      dateReceived: seedBatchesTable.dateReceived,
+      treatmentNotes: seedBatchesTable.treatmentNotes,
+      certificateDocumentPath: seedBatchesTable.certificateDocumentPath,
+      certificateDocumentName: seedBatchesTable.certificateDocumentName,
+      isActive: seedBatchesTable.isActive,
+      createdAt: seedBatchesTable.createdAt,
+    })
+    .from(seedBatchesTable)
+    .innerJoin(cropsTable, eq(seedBatchesTable.cropId, cropsTable.id))
+    .innerJoin(cropVarietiesTable, eq(seedBatchesTable.varietyId, cropVarietiesTable.id))
+    .leftJoin(suppliersTable, eq(seedBatchesTable.supplierId, suppliersTable.id))
+    .where(and(...conditions))
+    .orderBy(desc(seedBatchesTable.createdAt));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/seed-batches", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { cropId, varietyId, supplierId, batchNumber, tgwGrams, bagWeightKg, quantityReceivedKg, dateReceived, treatmentNotes } = req.body as Record<string, unknown>;
+  if (!cropId || !varietyId || !batchNumber || !tgwGrams || !quantityReceivedKg) {
+    res.status(400).json({ error: "cropId, varietyId, batchNumber, tgwGrams and quantityReceivedKg are required" });
+    return;
+  }
+  const [crop] = await db.select({ id: cropsTable.id }).from(cropsTable).where(and(eq(cropsTable.id, Number(cropId)), eq(cropsTable.farmId, farmId))).limit(1);
+  if (!crop) { res.status(400).json({ error: "Crop not found on this farm" }); return; }
+  const [variety] = await db.select({ id: cropVarietiesTable.id }).from(cropVarietiesTable).where(and(eq(cropVarietiesTable.id, Number(varietyId)), eq(cropVarietiesTable.farmId, farmId))).limit(1);
+  if (!variety) { res.status(400).json({ error: "Crop variety not found on this farm" }); return; }
+  const [record] = await db.insert(seedBatchesTable).values({
+    farmId,
+    cropId: Number(cropId),
+    varietyId: Number(varietyId),
+    supplierId: supplierId ? Number(supplierId) : null,
+    batchNumber: String(batchNumber),
+    tgwGrams: String(tgwGrams),
+    bagWeightKg: bagWeightKg ? String(bagWeightKg) : "25",
+    quantityReceivedKg: String(quantityReceivedKg),
+    quantityRemainingKg: String(quantityReceivedKg),
+    dateReceived: dateReceived ? String(dateReceived) : null,
+    treatmentNotes: treatmentNotes ? String(treatmentNotes) : null,
+  }).returning();
+  res.status(201).json({ record });
+});
+
+router.patch("/farms/:farmId/seed-batches/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [existing] = await db.select({ id: seedBatchesTable.id }).from(seedBatchesTable).where(and(eq(seedBatchesTable.id, id), eq(seedBatchesTable.farmId, farmId))).limit(1);
+  if (!existing) { res.status(404).json({ error: "Seed batch not found" }); return; }
+  const allowed: Record<string, unknown> = {};
+  const body = req.body as Record<string, unknown>;
+  if (body.supplierId !== undefined) allowed.supplierId = body.supplierId ? Number(body.supplierId) : null;
+  if (body.batchNumber !== undefined) allowed.batchNumber = String(body.batchNumber);
+  if (body.tgwGrams !== undefined) allowed.tgwGrams = String(body.tgwGrams);
+  if (body.bagWeightKg !== undefined) allowed.bagWeightKg = String(body.bagWeightKg);
+  if (body.quantityReceivedKg !== undefined) allowed.quantityReceivedKg = String(body.quantityReceivedKg);
+  if (body.quantityRemainingKg !== undefined) allowed.quantityRemainingKg = String(body.quantityRemainingKg);
+  if (body.dateReceived !== undefined) allowed.dateReceived = body.dateReceived ? String(body.dateReceived) : null;
+  if (body.treatmentNotes !== undefined) allowed.treatmentNotes = body.treatmentNotes ? String(body.treatmentNotes) : null;
+  if (body.certificateDocumentPath !== undefined) allowed.certificateDocumentPath = body.certificateDocumentPath || null;
+  if (body.certificateDocumentName !== undefined) allowed.certificateDocumentName = body.certificateDocumentName || null;
+  if (body.isActive !== undefined) allowed.isActive = !!body.isActive;
+  if (Object.keys(allowed).length === 0) { res.status(400).json({ error: "No updatable fields provided" }); return; }
+  const [record] = await db.update(seedBatchesTable).set(allowed).where(eq(seedBatchesTable.id, id)).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/seed-batches/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [existing] = await db.select({ id: seedBatchesTable.id }).from(seedBatchesTable).where(and(eq(seedBatchesTable.id, id), eq(seedBatchesTable.farmId, farmId))).limit(1);
+  if (!existing) { res.status(404).json({ error: "Seed batch not found" }); return; }
+  await db.delete(seedBatchesTable).where(eq(seedBatchesTable.id, id));
+  res.json({ success: true });
+});
+
 // ─── Field-Crop Assignments ─────────────────────────
 router.get("/farms/:farmId/field-crops", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
@@ -1255,6 +1364,12 @@ router.get("/farms/:farmId/field-crops", requireAuth, requireTenant, requireModu
       calculatedSeedRateKgHa: fieldCropAssignmentsTable.calculatedSeedRateKgHa,
       targetRowSpacingCm: fieldCropAssignmentsTable.targetRowSpacingCm,
       createdAt: fieldCropAssignmentsTable.createdAt,
+      seedBatchId: fieldCropAssignmentsTable.seedBatchId,
+      seedBatchNumber: seedBatchesTable.batchNumber,
+      seedBatchTgwGrams: seedBatchesTable.tgwGrams,
+      seedBatchBagWeightKg: seedBatchesTable.bagWeightKg,
+      bagsAllocated: fieldCropAssignmentsTable.bagsAllocated,
+      labelsGeneratedAt: fieldCropAssignmentsTable.labelsGeneratedAt,
       // Earliest actual harvest date recorded against this assignment, if any.
       // Returned as a string (ISO date) or null when no harvest record exists.
       actualHarvestDate: sql<string | null>`(
@@ -1267,6 +1382,7 @@ router.get("/farms/:farmId/field-crops", requireAuth, requireTenant, requireModu
     .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
     .innerJoin(cropVarietiesTable, eq(fieldCropAssignmentsTable.varietyId, cropVarietiesTable.id))
       .innerJoin(cropsTable, eq(cropVarietiesTable.cropId, cropsTable.id))
+    .leftJoin(seedBatchesTable, eq(fieldCropAssignmentsTable.seedBatchId, seedBatchesTable.id))
     .where(eq(fieldsTable.farmId, farmId))
     .orderBy(asc(fieldCropAssignmentsTable.createdAt));
   res.json({ records });
@@ -1286,6 +1402,22 @@ router.post("/farms/:farmId/field-crops", requireAuth, requireTenant, requireMod
   const body = sanitiseBody(req.body as Record<string, unknown>);
   if (body.plantingDate) body.plantingDate = new Date(body.plantingDate as string);
   if (body.expectedHarvestDate) body.expectedHarvestDate = new Date(body.expectedHarvestDate as string);
+  if (body.seedBatchId) {
+    const seedBatchId = Number(body.seedBatchId);
+    const bagsAllocated = body.bagsAllocated ? Number(body.bagsAllocated) : 0;
+    const [batch] = await db.select().from(seedBatchesTable).where(and(eq(seedBatchesTable.id, seedBatchId), eq(seedBatchesTable.farmId, farmId))).limit(1);
+    if (!batch) { res.status(400).json({ error: "Seed batch not found on this farm" }); return; }
+    const kgNeeded = bagsAllocated * Number(batch.bagWeightKg);
+    if (kgNeeded > Number(batch.quantityRemainingKg)) {
+      res.status(400).json({ error: `Not enough stock in this batch: ${batch.quantityRemainingKg}kg remaining, ${kgNeeded}kg required` });
+      return;
+    }
+    body.seedBatchId = seedBatchId;
+    body.bagsAllocated = bagsAllocated || null;
+    if (kgNeeded > 0) {
+      await db.update(seedBatchesTable).set({ quantityRemainingKg: String(Number(batch.quantityRemainingKg) - kgNeeded) }).where(eq(seedBatchesTable.id, seedBatchId));
+    }
+  }
   const [record] = await db.insert(fieldCropAssignmentsTable).values(body).returning();
   res.status(201).json({ record });
 });
@@ -1319,15 +1451,55 @@ router.patch("/farms/:farmId/field-crops/:id", requireAuth, requireTenant, requi
   if (req.body.estimatedEstablishmentPercent !== undefined) allowed.estimatedEstablishmentPercent = req.body.estimatedEstablishmentPercent === "" ? null : req.body.estimatedEstablishmentPercent;
   if (req.body.calculatedSeedRateKgHa !== undefined) allowed.calculatedSeedRateKgHa = req.body.calculatedSeedRateKgHa === "" ? null : req.body.calculatedSeedRateKgHa;
   if (req.body.targetRowSpacingCm !== undefined) allowed.targetRowSpacingCm = req.body.targetRowSpacingCm === "" ? null : req.body.targetRowSpacingCm;
-  if (Object.keys(allowed).length === 0) { res.status(400).json({ error: "No updatable fields provided" }); return; }
+  const changingBatch = req.body.seedBatchId !== undefined || req.body.bagsAllocated !== undefined;
+  if (Object.keys(allowed).length === 0 && !changingBatch) { res.status(400).json({ error: "No updatable fields provided" }); return; }
   const [existing] = await db
-    .select({ id: fieldCropAssignmentsTable.id })
+    .select({ id: fieldCropAssignmentsTable.id, seedBatchId: fieldCropAssignmentsTable.seedBatchId, bagsAllocated: fieldCropAssignmentsTable.bagsAllocated })
     .from(fieldCropAssignmentsTable)
     .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
     .where(and(eq(fieldCropAssignmentsTable.id, id), eq(fieldsTable.farmId, farmId)))
     .limit(1);
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  if (changingBatch) {
+    // Restore stock to the previously-allocated batch (if any) before applying the new allocation.
+    if (existing.seedBatchId && existing.bagsAllocated) {
+      const [oldBatch] = await db.select().from(seedBatchesTable).where(eq(seedBatchesTable.id, existing.seedBatchId)).limit(1);
+      if (oldBatch) {
+        const restoredKg = Number(oldBatch.quantityRemainingKg) + existing.bagsAllocated * Number(oldBatch.bagWeightKg);
+        await db.update(seedBatchesTable).set({ quantityRemainingKg: String(restoredKg) }).where(eq(seedBatchesTable.id, oldBatch.id));
+      }
+    }
+    const newSeedBatchId = req.body.seedBatchId !== undefined ? (req.body.seedBatchId ? Number(req.body.seedBatchId) : null) : existing.seedBatchId;
+    const newBagsAllocated = req.body.bagsAllocated !== undefined ? (req.body.bagsAllocated ? Number(req.body.bagsAllocated) : null) : existing.bagsAllocated;
+    if (newSeedBatchId && newBagsAllocated) {
+      const [newBatch] = await db.select().from(seedBatchesTable).where(and(eq(seedBatchesTable.id, newSeedBatchId), eq(seedBatchesTable.farmId, farmId))).limit(1);
+      if (!newBatch) { res.status(400).json({ error: "Seed batch not found on this farm" }); return; }
+      const kgNeeded = newBagsAllocated * Number(newBatch.bagWeightKg);
+      if (kgNeeded > Number(newBatch.quantityRemainingKg)) {
+        res.status(400).json({ error: `Not enough stock in this batch: ${newBatch.quantityRemainingKg}kg remaining, ${kgNeeded}kg required` });
+        return;
+      }
+      await db.update(seedBatchesTable).set({ quantityRemainingKg: String(Number(newBatch.quantityRemainingKg) - kgNeeded) }).where(eq(seedBatchesTable.id, newBatch.id));
+    }
+    allowed.seedBatchId = newSeedBatchId;
+    allowed.bagsAllocated = newBagsAllocated;
+  }
   const [record] = await db.update(fieldCropAssignmentsTable).set(allowed).where(eq(fieldCropAssignmentsTable.id, id)).returning();
+  res.json({ record });
+});
+
+router.post("/farms/:farmId/field-crops/:id/generate-labels", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [record] = await db
+    .update(fieldCropAssignmentsTable)
+    .set({ labelsGeneratedAt: new Date() })
+    .from(fieldsTable)
+    .where(and(eq(fieldCropAssignmentsTable.id, id), eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id), eq(fieldsTable.farmId, farmId)))
+    .returning({ id: fieldCropAssignmentsTable.id, labelsGeneratedAt: fieldCropAssignmentsTable.labelsGeneratedAt });
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
 
@@ -1337,12 +1509,19 @@ router.delete("/farms/:farmId/field-crops/:id", requireAuth, requireTenant, requ
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const [existing] = await db
-    .select({ id: fieldCropAssignmentsTable.id })
+    .select({ id: fieldCropAssignmentsTable.id, seedBatchId: fieldCropAssignmentsTable.seedBatchId, bagsAllocated: fieldCropAssignmentsTable.bagsAllocated })
     .from(fieldCropAssignmentsTable)
     .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
     .where(and(eq(fieldCropAssignmentsTable.id, id), eq(fieldsTable.farmId, farmId)))
     .limit(1);
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  if (existing.seedBatchId && existing.bagsAllocated) {
+    const [batch] = await db.select().from(seedBatchesTable).where(eq(seedBatchesTable.id, existing.seedBatchId)).limit(1);
+    if (batch) {
+      const restoredKg = Number(batch.quantityRemainingKg) + existing.bagsAllocated * Number(batch.bagWeightKg);
+      await db.update(seedBatchesTable).set({ quantityRemainingKg: String(restoredKg) }).where(eq(seedBatchesTable.id, batch.id));
+    }
+  }
   await db.delete(fieldCropAssignmentsTable).where(eq(fieldCropAssignmentsTable.id, id));
   res.json({ success: true });
 });

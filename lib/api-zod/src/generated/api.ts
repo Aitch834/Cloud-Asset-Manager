@@ -64,9 +64,6 @@ export const CreateSupportTicketBody = zod.object({
       }),
     )
     .optional(),
-  source: zod.string().optional(),
-  farmId: zod.number().int().positive().optional(),
-  tenantSlug: zod.string().optional(),
 });
 
 /**
@@ -981,6 +978,123 @@ export const CreateFieldCropAssignmentHeader = zod.object({
 });
 
 export const CreateFieldCropAssignmentBody = zod.object({}).passthrough();
+
+/**
+ * @summary Update a field-crop assignment
+ */
+export const UpdateFieldCropAssignmentParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateFieldCropAssignmentHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateFieldCropAssignmentBody = zod.object({}).passthrough();
+
+export const UpdateFieldCropAssignmentResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Delete a field-crop assignment
+ */
+export const DeleteFieldCropAssignmentParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const DeleteFieldCropAssignmentHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const DeleteFieldCropAssignmentResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary Mark bag labels as generated for a field-crop assignment
+ */
+export const GenerateFieldCropLabelsParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const GenerateFieldCropLabelsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const GenerateFieldCropLabelsResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary List seed batches for a farm
+ */
+export const ListSeedBatchesParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListSeedBatchesQueryParams = zod.object({
+  cropId: zod.coerce.number().optional(),
+  varietyId: zod.coerce.number().optional(),
+});
+
+export const ListSeedBatchesHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListSeedBatchesResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Create a seed batch
+ */
+export const CreateSeedBatchParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateSeedBatchHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateSeedBatchBody = zod.object({}).passthrough();
+
+/**
+ * @summary Update a seed batch
+ */
+export const UpdateSeedBatchParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateSeedBatchHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateSeedBatchBody = zod.object({}).passthrough();
+
+export const UpdateSeedBatchResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Delete a seed batch
+ */
+export const DeleteSeedBatchParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const DeleteSeedBatchHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const DeleteSeedBatchResponse = zod.object({
+  success: zod.boolean(),
+});
 
 /**
  * @summary List harvest records

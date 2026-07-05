@@ -51,6 +51,7 @@ import InspectionsPageFull from "@/pages/InspectionsPageFull";
 import WeatherPageFull from "@/pages/WeatherPageFull";
 import HaulagePageFull from "@/pages/HaulagePageFull";
 import CropStockPage from "@/pages/CropStockPage";
+import SeedStorePage from "@/pages/SeedStorePage";
 import EnvironmentalPageFull from "@/pages/EnvironmentalPageFull";
 import StorageLocationsPage from "@/pages/StorageLocationsPage";
 import AccountSettings from "@/pages/AccountSettings";
@@ -344,6 +345,7 @@ function ProtectedContent() {
         <Route path="/environmental" component={EnvironmentalPage} />
         <Route path="/haulage" component={HaulagePage} />
         <Route path="/crop-stock" component={CropStockPage} />
+        <Route path="/seed-store" component={SeedStorePage} />
         <Route path="/documents" component={DocumentsPageCustom} />
         <Route path="/weather" component={WeatherPage} />
         <Route path="/help" component={HelpPage} />
@@ -467,6 +469,7 @@ function DevBypassContent() {
         <Route path="/environmental" component={EnvironmentalPage} />
         <Route path="/haulage" component={HaulagePage} />
         <Route path="/crop-stock" component={CropStockPage} />
+        <Route path="/seed-store" component={SeedStorePage} />
         <Route path="/documents" component={DocumentsPageCustom} />
         <Route path="/weather" component={WeatherPage} />
         <Route path="/help" component={HelpPage} />
