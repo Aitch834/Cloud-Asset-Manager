@@ -20,6 +20,7 @@ import {
   fieldCropAssignmentsTable,
   seedBatchesTable,
   seedPurchaseOrdersTable,
+  seedStorageSegregationChecksTable,
   fieldSeasonLandUseTable,
   fieldSeasonExpensesTable,
   harvestRecordsTable,
@@ -1408,6 +1409,64 @@ router.delete("/farms/:farmId/seed-purchase-orders/:recordId", requireAuth, requ
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(seedPurchaseOrdersTable).where(and(eq(seedPurchaseOrdersTable.id, recordId), eq(seedPurchaseOrdersTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Seed Storage Segregation Checks (Red Tractor CR.ST.19) ─────────────────────────
+router.get("/farms/:farmId/seed-storage-checks", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db
+    .select({
+      id: seedStorageSegregationChecksTable.id,
+      farmId: seedStorageSegregationChecksTable.farmId,
+      storageLocationId: seedStorageSegregationChecksTable.storageLocationId,
+      storageLocationName: storageLocationsTable.name,
+      checkDate: seedStorageSegregationChecksTable.checkDate,
+      segregationMethod: seedStorageSegregationChecksTable.segregationMethod,
+      isCompliant: seedStorageSegregationChecksTable.isCompliant,
+      treatedSeedStoredLoose: seedStorageSegregationChecksTable.treatedSeedStoredLoose,
+      notes: seedStorageSegregationChecksTable.notes,
+      evidencePhotoPath: seedStorageSegregationChecksTable.evidencePhotoPath,
+      evidencePhotoName: seedStorageSegregationChecksTable.evidencePhotoName,
+      checkedBy: seedStorageSegregationChecksTable.checkedBy,
+      createdAt: seedStorageSegregationChecksTable.createdAt,
+      updatedAt: seedStorageSegregationChecksTable.updatedAt,
+    })
+    .from(seedStorageSegregationChecksTable)
+    .leftJoin(storageLocationsTable, eq(seedStorageSegregationChecksTable.storageLocationId, storageLocationsTable.id))
+    .where(eq(seedStorageSegregationChecksTable.farmId, farmId))
+    .orderBy(desc(seedStorageSegregationChecksTable.checkDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/seed-storage-checks", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const body = req.body as Record<string, unknown>;
+  if (!body.checkDate) {
+    res.status(400).json({ error: "checkDate is required" });
+    return;
+  }
+  const [record] = await db.insert(seedStorageSegregationChecksTable).values({ ...sanitiseBody(body), farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.patch("/farms/:farmId/seed-storage-checks/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(seedStorageSegregationChecksTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), updatedAt: new Date() }).where(and(eq(seedStorageSegregationChecksTable.id, recordId), eq(seedStorageSegregationChecksTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/seed-storage-checks/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(seedStorageSegregationChecksTable).where(and(eq(seedStorageSegregationChecksTable.id, recordId), eq(seedStorageSegregationChecksTable.farmId, farmId)));
   res.json({ success: true });
 });
 

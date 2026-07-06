@@ -399,6 +399,22 @@ export const fieldSeasonExpensesTable = pgTable("field_season_expenses", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const seedStorageSegregationChecksTable = pgTable("seed_storage_segregation_checks", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  storageLocationId: integer("storage_location_id").references(() => storageLocationsTable.id),
+  checkDate: date("check_date").notNull(),
+  segregationMethod: text("segregation_method").notNull().default("distance_3m"), // rigid_barrier | distance_3m | secure_segregation
+  isCompliant: boolean("is_compliant").notNull().default(true),
+  treatedSeedStoredLoose: boolean("treated_seed_stored_loose").notNull().default(false),
+  notes: text("notes"),
+  evidencePhotoPath: text("evidence_photo_path"),
+  evidencePhotoName: text("evidence_photo_name"),
+  checkedBy: text("checked_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
 export const nvzRiskAssessmentsTable = pgTable("nvz_risk_assessments", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

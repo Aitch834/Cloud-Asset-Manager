@@ -37,8 +37,9 @@ const CHECKLISTS: Record<string, { title: string; items: ChecklistItem[] }> = {
     title: "Seed Treatment Records",
     items: [
       { id: "1", text: "Seed treatment records are complete and up to date" },
-      { id: "2", text: "Treated seeds are stored separately from untreated" },
-      { id: "3", text: "Treated seed bag disposal is documented" },
+      { id: "2", text: "Treated seed is segregated from stored grain (rigid barrier or 3m distance) — CR.ST.19" },
+      { id: "3", text: "Treated seed is never stored loose in the grain store — CR.ST.19" },
+      { id: "4", text: "Treated seed bag disposal is documented" },
     ],
   },
   "rt-fertiliser": {

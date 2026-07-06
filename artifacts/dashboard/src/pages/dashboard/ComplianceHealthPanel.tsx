@@ -1,7 +1,7 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Droplets, ShieldCheck, Leaf, Sprout, FileText, Warehouse } from "lucide-react";
+import { Droplets, ShieldCheck, Leaf, Sprout, FileText, Warehouse, Package } from "lucide-react";
 
 export function ComplianceHealthPanel({ farmId }: { farmId: number }) {
   const now = new Date();
@@ -16,6 +16,7 @@ export function ComplianceHealthPanel({ farmId }: { farmId: number }) {
   const insuranceQ = useQuery({ queryKey: ["insurance", farmId], queryFn: () => fetch(`/api/farms/${farmId}/insurance`).then(r => r.json()), select: d => d.records ?? [] });
   const slurryStoresQ = useQuery({ queryKey: ["slurry-stores", farmId], queryFn: () => fetch(`/api/farms/${farmId}/slurry-stores`).then(r => r.json()), select: d => d.records ?? [] });
   const slurryInspectionsQ = useQuery({ queryKey: ["slurry-store-inspections", farmId], queryFn: () => fetch(`/api/farms/${farmId}/slurry-store-inspections`).then(r => r.json()), select: d => d.records ?? [] });
+  const seedSegChecksQ = useQuery({ queryKey: ["seed-storage-checks", farmId], queryFn: () => fetch(`/api/farms/${farmId}/seed-storage-checks`).then(r => r.json()), select: d => d.records ?? [] });
 
   const sprays: any[] = spraysQ.data ?? [];
   const products: any[] = productsQ.data ?? [];
@@ -25,6 +26,7 @@ export function ComplianceHealthPanel({ farmId }: { farmId: number }) {
   const insurance: any[] = insuranceQ.data ?? [];
   const slurryStores: any[] = slurryStoresQ.data ?? [];
   const slurryInspections: any[] = slurryInspectionsQ.data ?? [];
+  const seedSegChecks: any[] = seedSegChecksQ.data ?? [];
 
   const currentYear = now.getFullYear();
 
@@ -168,6 +170,28 @@ export function ComplianceHealthPanel({ farmId }: { farmId: number }) {
       })(),
       href: "/environmental-management?tab=silage",
       icon: Warehouse,
+    },
+    {
+      label: "Seed Storage Segregation",
+      status: (() => {
+        if (seedSegChecks.length === 0) return "gap";
+        const nonCompliant = seedSegChecks.filter((c: any) => c.isCompliant === false || c.treatedSeedStoredLoose === true).length;
+        if (nonCompliant > 0) return "gap";
+        const twelveMonthsAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        const latest = seedSegChecks.reduce((max: any, c: any) => !max || new Date(c.checkDate) > new Date(max.checkDate) ? c : max, null);
+        return latest && new Date(latest.checkDate) < twelveMonthsAgo ? "warn" : "ok";
+      })() as "ok" | "warn" | "gap",
+      message: (() => {
+        if (seedSegChecks.length === 0) return "No CR.ST.19 segregation checks on record — treated seed must be segregated from stored grain";
+        const nonCompliant = seedSegChecks.filter((c: any) => c.isCompliant === false || c.treatedSeedStoredLoose === true).length;
+        if (nonCompliant > 0) return `${nonCompliant} check${nonCompliant !== 1 ? "s" : ""} flagged non-compliant — resolve segregation`;
+        const twelveMonthsAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        const latest = seedSegChecks.reduce((max: any, c: any) => !max || new Date(c.checkDate) > new Date(max.checkDate) ? c : max, null);
+        if (latest && new Date(latest.checkDate) < twelveMonthsAgo) return `Last check was ${new Date(latest.checkDate).toLocaleDateString("en-GB")} — over 12 months ago`;
+        return `${seedSegChecks.length} segregation check${seedSegChecks.length !== 1 ? "s" : ""} on record — all compliant`;
+      })(),
+      href: "/seed-store?tab=segregation",
+      icon: Package,
     },
   ] as { label: string; status: "ok" | "warn" | "gap"; message: string; href: string; icon: React.ComponentType<{ className?: string }> }[];
 

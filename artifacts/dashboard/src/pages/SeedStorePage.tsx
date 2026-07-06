@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,9 +37,12 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
+  ShieldCheck,
+  ShieldAlert,
+  XCircle,
 } from "lucide-react";
 
-type Tab = "stock" | "orders";
+type Tab = "stock" | "orders" | "segregation";
 
 function fmt(dateStr: string | null | undefined) {
   if (!dateStr) return "—";
@@ -123,6 +127,20 @@ export default function SeedStorePage() {
     enabled: !!safeFarmId,
   });
   const pos: any[] = posQ.data ?? [];
+
+  const storageLocationsQ = useQuery({
+    queryKey: ["storage-locations", safeFarmId],
+    queryFn: () => fetch(`/api/farms/${safeFarmId}/storage-locations`).then(r => r.json()),
+    enabled: !!safeFarmId,
+  });
+  const storageLocations: any[] = (storageLocationsQ.data as any)?.records ?? (Array.isArray(storageLocationsQ.data) ? storageLocationsQ.data : []);
+
+  const segChecksQ = useQuery({
+    queryKey: ["seed-storage-checks", safeFarmId],
+    queryFn: () => fetch(`/api/farms/${safeFarmId}/seed-storage-checks`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!safeFarmId,
+  });
+  const segChecks: any[] = segChecksQ.data ?? [];
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["seed-batches", safeFarmId] });
@@ -347,6 +365,65 @@ export default function SeedStorePage() {
 
   const savingBatch = saveMut.isPending;
 
+  // ─── Seed Storage Segregation Checks (Red Tractor CR.ST.19) ───────────────
+  const emptySegForm = {
+    storageLocationId: "__none__",
+    checkDate: new Date().toISOString().slice(0, 10),
+    segregationMethod: "rigid_barrier",
+    isCompliant: true,
+    treatedSeedStoredLoose: false,
+    notes: "",
+    checkedBy: "",
+  };
+  const [showSegDialog, setShowSegDialog] = useState(false);
+  const [editSeg, setEditSeg] = useState<any | null>(null);
+  const [viewSeg, setViewSeg] = useState<any | null>(null);
+  const [segForm, setSegForm] = useState<any>(emptySegForm);
+  const [deleteSegTarget, setDeleteSegTarget] = useState<any>(null);
+
+  const invalidateSeg = () => qc.invalidateQueries({ queryKey: ["seed-storage-checks", safeFarmId] });
+
+  function openSegAdd() {
+    setEditSeg(null);
+    setSegForm(emptySegForm);
+    setShowSegDialog(true);
+  }
+  function openSegEdit(rec: any) {
+    setEditSeg(rec);
+    setSegForm({
+      storageLocationId: rec.storageLocationId ? String(rec.storageLocationId) : "__none__",
+      checkDate: rec.checkDate ? String(rec.checkDate).slice(0, 10) : new Date().toISOString().slice(0, 10),
+      segregationMethod: rec.segregationMethod ?? "rigid_barrier",
+      isCompliant: rec.isCompliant !== false,
+      treatedSeedStoredLoose: !!rec.treatedSeedStoredLoose,
+      notes: rec.notes ?? "",
+      checkedBy: rec.checkedBy ?? "",
+    });
+    setShowSegDialog(true);
+  }
+
+  const segMut = useMutation({
+    mutationFn: async (data: any) => {
+      const url = editSeg ? `/api/farms/${safeFarmId}/seed-storage-checks/${editSeg.id}` : `/api/farms/${safeFarmId}/seed-storage-checks`;
+      const res = await fetch(url, { method: editSeg ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error("Failed to save");
+      return res.json();
+    },
+    onSuccess: () => { invalidateSeg(); setShowSegDialog(false); toast({ title: editSeg ? "Check updated" : "Segregation check logged" }); },
+    onError: () => toast({ title: "Failed to save check", variant: "destructive" }),
+  });
+
+  const deleteSegMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${safeFarmId}/seed-storage-checks/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { invalidateSeg(); setDeleteSegTarget(null); toast({ title: "Check deleted" }); },
+    onError: () => toast({ title: "Failed to delete check", variant: "destructive" }),
+  });
+
+  const nonCompliantSegChecks = useMemo(
+    () => segChecks.filter((c: any) => c.isCompliant === false || c.treatedSeedStoredLoose === true),
+    [segChecks]
+  );
+
   return (
     <AppLayout title="Seed Store">
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
@@ -362,6 +439,15 @@ export default function SeedStorePage() {
             {overduePos.length > 0 && (
               <span className="ml-1.5 inline-flex items-center justify-center text-[10px] font-bold bg-red-500 text-white rounded-full w-4 h-4">
                 {overduePos.length}
+              </span>
+            )}
+          </TabButton>
+          <TabButton active={tab === "segregation"} onClick={() => setTab("segregation")}>
+            <ShieldCheck className="w-3.5 h-3.5 mr-1 inline" />
+            Segregation Checks
+            {nonCompliantSegChecks.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center text-[10px] font-bold bg-red-500 text-white rounded-full w-4 h-4">
+                {nonCompliantSegChecks.length}
               </span>
             )}
           </TabButton>
@@ -574,6 +660,228 @@ export default function SeedStorePage() {
             )}
           </div>
         )}
+
+        {tab === "segregation" && (
+          <div>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Seed Storage Segregation Checks</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Red Tractor CR.ST.19: treated seed must not contaminate stored grain — secure segregation via rigid barrier or 3m distance,
+                  and treated seed must never be stored loose in a grain store. Log a check for each storage location holding treated seed.
+                </p>
+              </div>
+              <Button size="sm" onClick={openSegAdd}><Plus className="w-3.5 h-3.5 mr-1" />Log Check</Button>
+            </div>
+
+            {nonCompliantSegChecks.length > 0 && (
+              <div className="flex items-center gap-1.5 text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-2.5 py-1.5 mb-4 w-fit">
+                <AlertCircle className="w-3.5 h-3.5" />
+                {nonCompliantSegChecks.length} check{nonCompliantSegChecks.length !== 1 ? "s" : ""} flagged non-compliant — resolve and re-check
+              </div>
+            )}
+
+            {segChecksQ.isLoading ? (
+              <p className="text-sm text-gray-400 py-8 text-center">Loading...</p>
+            ) : segChecks.length === 0 ? (
+              <EmptyState
+                icon={ShieldCheck}
+                title="No segregation checks recorded yet"
+                subtitle="Log a check to evidence CR.ST.19 compliance for each storage location holding treated seed"
+                action={<Button size="sm" onClick={openSegAdd}><Plus size={14} className="mr-1" />Log Check</Button>}
+              />
+            ) : (
+              <div className="border rounded-lg overflow-hidden overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {["Storage Location", "Check Date", "Method", "Compliant?", "Checked By", "Evidence", "Actions"].map(h => (
+                        <th key={h} className="text-left px-3 py-2 font-medium text-gray-600 whitespace-nowrap text-xs uppercase tracking-wide">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {segChecks.map((c: any) => {
+                      const nonCompliant = c.isCompliant === false || c.treatedSeedStoredLoose === true;
+                      return (
+                        <tr key={c.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-900">{c.storageLocationName || "—"}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-600">{fmt(c.checkDate)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-600">
+                            {c.segregationMethod === "rigid_barrier" ? "Rigid barrier" : c.segregationMethod === "distance_3m" ? "3m distance" : c.segregationMethod === "separate_store" ? "Separate store" : c.segregationMethod || "—"}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {nonCompliant ? (
+                              <Badge className="text-xs bg-red-100 text-red-700 border-none flex items-center gap-1 w-fit"><XCircle className="w-3 h-3" />Non-compliant</Badge>
+                            ) : (
+                              <Badge className="text-xs bg-green-100 text-green-700 border-none flex items-center gap-1 w-fit"><ShieldCheck className="w-3 h-3" />Compliant</Badge>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-600">{c.checkedBy || "—"}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-500 text-xs">{c.evidencePhotoName ? "Photo attached" : "—"}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="icon" onClick={() => setViewSeg(c)} title="View">
+                                <Eye className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => openSegEdit(c)} title="Edit">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => setDeleteSegTarget(c)} title="Delete" className="text-red-500 hover:text-red-600">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── VIEW SEGREGATION CHECK DIALOG ── */}
+        <Dialog open={viewSeg !== null} onOpenChange={o => { if (!o) setViewSeg(null); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>Segregation Check — {viewSeg?.storageLocationName || "—"}</DialogTitle></DialogHeader>
+            {viewSeg && (
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm pt-1">
+                <div><p className="text-xs text-gray-500">Storage Location</p><p className="font-medium">{viewSeg.storageLocationName || "—"}</p></div>
+                <div><p className="text-xs text-gray-500">Check Date</p><p className="font-medium">{fmt(viewSeg.checkDate)}</p></div>
+                <div><p className="text-xs text-gray-500">Segregation Method</p><p className="font-medium">
+                  {viewSeg.segregationMethod === "rigid_barrier" ? "Rigid barrier" : viewSeg.segregationMethod === "distance_3m" ? "3m distance" : viewSeg.segregationMethod === "separate_store" ? "Separate store" : viewSeg.segregationMethod || "—"}
+                </p></div>
+                <div><p className="text-xs text-gray-500">Compliant</p><p className="font-medium">{viewSeg.isCompliant === false ? "No" : "Yes"}</p></div>
+                <div><p className="text-xs text-gray-500">Treated Seed Stored Loose</p><p className="font-medium">{viewSeg.treatedSeedStoredLoose ? "Yes — non-compliant" : "No"}</p></div>
+                <div><p className="text-xs text-gray-500">Checked By</p><p className="font-medium">{viewSeg.checkedBy || "—"}</p></div>
+                {viewSeg.notes && (
+                  <div className="col-span-2"><p className="text-xs text-gray-500">Notes</p><p className="font-medium">{viewSeg.notes}</p></div>
+                )}
+              </div>
+            )}
+            {viewSeg && (
+              <div className="pt-2 border-t">
+                <RecordAttachments farmId={safeFarmId} recordType="seed_storage_segregation_check" recordId={viewSeg.id} />
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewSeg(null)}>Close</Button>
+              <Button onClick={() => { const it = viewSeg; setViewSeg(null); if (it) openSegEdit(it); }}>Edit</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── LOG / EDIT SEGREGATION CHECK DIALOG ── */}
+        <Dialog open={showSegDialog} onOpenChange={v => { setShowSegDialog(v); if (!v) { setEditSeg(null); setSegForm(emptySegForm); } }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{editSeg ? "Edit Segregation Check" : "Log Segregation Check"}</DialogTitle>
+              <DialogDescription>Evidence for Red Tractor CR.ST.19 — treated seed segregation from stored grain.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+              <div>
+                <Label className="text-xs mb-1 block">Storage Location</Label>
+                <Select value={segForm.storageLocationId ?? "__none__"} onValueChange={v => setSegForm((f: any) => ({ ...f, storageLocationId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select storage location..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Not linked to a location</SelectItem>
+                    {storageLocations.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs mb-1 block">Check Date *</Label>
+                  <Input type="date" value={segForm.checkDate ?? ""} onChange={e => setSegForm((f: any) => ({ ...f, checkDate: e.target.value }))} />
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">Segregation Method</Label>
+                  <Select value={segForm.segregationMethod ?? "rigid_barrier"} onValueChange={v => setSegForm((f: any) => ({ ...f, segregationMethod: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="rigid_barrier">Rigid barrier</SelectItem>
+                      <SelectItem value="distance_3m">3m distance</SelectItem>
+                      <SelectItem value="separate_store">Separate store</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs mb-1 block">Compliant?</Label>
+                  <Select value={segForm.isCompliant ? "yes" : "no"} onValueChange={v => setSegForm((f: any) => ({ ...f, isCompliant: v === "yes" }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yes">Yes — compliant</SelectItem>
+                      <SelectItem value="no">No — non-compliant</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">Treated Seed Stored Loose?</Label>
+                  <Select value={segForm.treatedSeedStoredLoose ? "yes" : "no"} onValueChange={v => setSegForm((f: any) => ({ ...f, treatedSeedStoredLoose: v === "yes" }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="no">No</SelectItem>
+                      <SelectItem value="yes">Yes — non-compliant</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block">Checked By</Label>
+                <Input value={segForm.checkedBy ?? ""} onChange={e => setSegForm((f: any) => ({ ...f, checkedBy: e.target.value }))} placeholder="Staff member name" />
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block">Notes</Label>
+                <Textarea value={segForm.notes ?? ""} onChange={e => setSegForm((f: any) => ({ ...f, notes: e.target.value }))} placeholder="e.g. Rigid steel bin used to separate treated seed from grain heap" rows={2} />
+              </div>
+              {editSeg && (
+                <div className="pt-2 border-t">
+                  <RecordAttachments farmId={safeFarmId} recordType="seed_storage_segregation_check" recordId={editSeg.id} />
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowSegDialog(false)}>Cancel</Button>
+              <Button
+                disabled={!segForm.checkDate || segMut.isPending}
+                onClick={() => {
+                  const data: any = {
+                    storageLocationId: segForm.storageLocationId && segForm.storageLocationId !== "__none__" ? Number(segForm.storageLocationId) : null,
+                    checkDate: segForm.checkDate,
+                    segregationMethod: segForm.segregationMethod || "rigid_barrier",
+                    isCompliant: !!segForm.isCompliant,
+                    treatedSeedStoredLoose: !!segForm.treatedSeedStoredLoose,
+                    notes: segForm.notes || null,
+                    checkedBy: segForm.checkedBy || null,
+                  };
+                  segMut.mutate(data);
+                }}
+              >
+                {segMut.isPending ? "Saving…" : editSeg ? "Save Changes" : "Log Check"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog open={!!deleteSegTarget} onOpenChange={(v) => !v && setDeleteSegTarget(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Segregation Check?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently remove this segregation check record. This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => deleteSegTarget && deleteSegMut.mutate(deleteSegTarget.id)}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* ── VIEW SEED BATCH DIALOG ── */}
         <Dialog open={viewItem !== null} onOpenChange={o => { if (!o) setViewItem(null); }}>
