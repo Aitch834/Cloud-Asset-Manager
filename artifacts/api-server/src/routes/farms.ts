@@ -19,6 +19,7 @@ import {
   cropDocumentsTable,
   fieldCropAssignmentsTable,
   seedBatchesTable,
+  seedPurchaseOrdersTable,
   fieldSeasonLandUseTable,
   fieldSeasonExpensesTable,
   harvestRecordsTable,
@@ -1250,12 +1251,17 @@ router.get("/farms/:farmId/seed-batches", requireAuth, requireTenant, requireMod
       varietyName: cropVarietiesTable.variety,
       supplierId: seedBatchesTable.supplierId,
       supplierName: suppliersTable.name,
+      poId: seedBatchesTable.poId,
       batchNumber: seedBatchesTable.batchNumber,
       tgwGrams: seedBatchesTable.tgwGrams,
       bagWeightKg: seedBatchesTable.bagWeightKg,
       quantityReceivedKg: seedBatchesTable.quantityReceivedKg,
       quantityRemainingKg: seedBatchesTable.quantityRemainingKg,
       dateReceived: seedBatchesTable.dateReceived,
+      deliveryNoteNumber: seedBatchesTable.deliveryNoteNumber,
+      invoiceReference: seedBatchesTable.invoiceReference,
+      costPence: seedBatchesTable.costPence,
+      receivedBy: seedBatchesTable.receivedBy,
       treatmentNotes: seedBatchesTable.treatmentNotes,
       certificateDocumentPath: seedBatchesTable.certificateDocumentPath,
       certificateDocumentName: seedBatchesTable.certificateDocumentName,
@@ -1274,7 +1280,7 @@ router.get("/farms/:farmId/seed-batches", requireAuth, requireTenant, requireMod
 router.post("/farms/:farmId/seed-batches", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { cropId, varietyId, supplierId, batchNumber, tgwGrams, bagWeightKg, quantityReceivedKg, dateReceived, treatmentNotes } = req.body as Record<string, unknown>;
+  const { cropId, varietyId, supplierId, poId, batchNumber, tgwGrams, bagWeightKg, quantityReceivedKg, dateReceived, deliveryNoteNumber, invoiceReference, costPence, receivedBy, treatmentNotes } = req.body as Record<string, unknown>;
   if (!cropId || !varietyId || !batchNumber || !tgwGrams || !quantityReceivedKg) {
     res.status(400).json({ error: "cropId, varietyId, batchNumber, tgwGrams and quantityReceivedKg are required" });
     return;
@@ -1283,19 +1289,33 @@ router.post("/farms/:farmId/seed-batches", requireAuth, requireTenant, requireMo
   if (!crop) { res.status(400).json({ error: "Crop not found on this farm" }); return; }
   const [variety] = await db.select({ id: cropVarietiesTable.id }).from(cropVarietiesTable).where(and(eq(cropVarietiesTable.id, Number(varietyId)), eq(cropVarietiesTable.farmId, farmId))).limit(1);
   if (!variety) { res.status(400).json({ error: "Crop variety not found on this farm" }); return; }
+  const resolvedPoId = poId ? Number(poId) : null;
   const [record] = await db.insert(seedBatchesTable).values({
     farmId,
     cropId: Number(cropId),
     varietyId: Number(varietyId),
     supplierId: supplierId ? Number(supplierId) : null,
+    poId: resolvedPoId,
     batchNumber: String(batchNumber),
     tgwGrams: String(tgwGrams),
     bagWeightKg: bagWeightKg ? String(bagWeightKg) : "25",
     quantityReceivedKg: String(quantityReceivedKg),
     quantityRemainingKg: String(quantityReceivedKg),
     dateReceived: dateReceived ? String(dateReceived) : null,
+    deliveryNoteNumber: deliveryNoteNumber ? String(deliveryNoteNumber) : null,
+    invoiceReference: invoiceReference ? String(invoiceReference) : null,
+    costPence: costPence !== undefined && costPence !== null && costPence !== "" ? Number(costPence) : null,
+    receivedBy: receivedBy ? String(receivedBy) : null,
     treatmentNotes: treatmentNotes ? String(treatmentNotes) : null,
   }).returning();
+
+  if (resolvedPoId) {
+    const [po] = await db.select({ id: seedPurchaseOrdersTable.id }).from(seedPurchaseOrdersTable).where(and(eq(seedPurchaseOrdersTable.id, resolvedPoId), eq(seedPurchaseOrdersTable.farmId, farmId))).limit(1);
+    if (po) {
+      await db.update(seedPurchaseOrdersTable).set({ status: "received", actualDeliveryDate: dateReceived ? String(dateReceived) : new Date().toISOString().slice(0, 10), updatedAt: new Date() }).where(eq(seedPurchaseOrdersTable.id, resolvedPoId));
+    }
+  }
+
   res.status(201).json({ record });
 });
 
@@ -1315,12 +1335,26 @@ router.patch("/farms/:farmId/seed-batches/:id", requireAuth, requireTenant, requ
   if (body.quantityReceivedKg !== undefined) allowed.quantityReceivedKg = String(body.quantityReceivedKg);
   if (body.quantityRemainingKg !== undefined) allowed.quantityRemainingKg = String(body.quantityRemainingKg);
   if (body.dateReceived !== undefined) allowed.dateReceived = body.dateReceived ? String(body.dateReceived) : null;
+  if (body.deliveryNoteNumber !== undefined) allowed.deliveryNoteNumber = body.deliveryNoteNumber ? String(body.deliveryNoteNumber) : null;
+  if (body.invoiceReference !== undefined) allowed.invoiceReference = body.invoiceReference ? String(body.invoiceReference) : null;
+  if (body.costPence !== undefined) allowed.costPence = body.costPence !== null && body.costPence !== "" ? Number(body.costPence) : null;
+  if (body.receivedBy !== undefined) allowed.receivedBy = body.receivedBy ? String(body.receivedBy) : null;
+  if (body.poId !== undefined) allowed.poId = body.poId ? Number(body.poId) : null;
   if (body.treatmentNotes !== undefined) allowed.treatmentNotes = body.treatmentNotes ? String(body.treatmentNotes) : null;
   if (body.certificateDocumentPath !== undefined) allowed.certificateDocumentPath = body.certificateDocumentPath || null;
   if (body.certificateDocumentName !== undefined) allowed.certificateDocumentName = body.certificateDocumentName || null;
   if (body.isActive !== undefined) allowed.isActive = !!body.isActive;
   if (Object.keys(allowed).length === 0) { res.status(400).json({ error: "No updatable fields provided" }); return; }
   const [record] = await db.update(seedBatchesTable).set(allowed).where(eq(seedBatchesTable.id, id)).returning();
+
+  const newPoId = allowed.poId as number | null | undefined;
+  if (newPoId) {
+    const [po] = await db.select({ id: seedPurchaseOrdersTable.id }).from(seedPurchaseOrdersTable).where(and(eq(seedPurchaseOrdersTable.id, newPoId), eq(seedPurchaseOrdersTable.farmId, farmId))).limit(1);
+    if (po) {
+      await db.update(seedPurchaseOrdersTable).set({ status: "received", actualDeliveryDate: (allowed.dateReceived as string | null) ?? new Date().toISOString().slice(0, 10), updatedAt: new Date() }).where(eq(seedPurchaseOrdersTable.id, newPoId));
+    }
+  }
+
   res.json({ record });
 });
 
@@ -1332,6 +1366,48 @@ router.delete("/farms/:farmId/seed-batches/:id", requireAuth, requireTenant, req
   const [existing] = await db.select({ id: seedBatchesTable.id }).from(seedBatchesTable).where(and(eq(seedBatchesTable.id, id), eq(seedBatchesTable.farmId, farmId))).limit(1);
   if (!existing) { res.status(404).json({ error: "Seed batch not found" }); return; }
   await db.delete(seedBatchesTable).where(eq(seedBatchesTable.id, id));
+  res.json({ success: true });
+});
+
+// ─── Seed Purchase Orders ─────────────────────────
+router.get("/farms/:farmId/seed-purchase-orders", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(seedPurchaseOrdersTable).where(eq(seedPurchaseOrdersTable.farmId, farmId)).orderBy(desc(seedPurchaseOrdersTable.createdAt));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/seed-purchase-orders", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const body = req.body as Record<string, unknown>;
+  if (!body.quantityKg || !body.orderDate) {
+    res.status(400).json({ error: "quantityKg and orderDate are required" });
+    return;
+  }
+  const year = new Date().getFullYear();
+  const [countRow] = await db.select({ count: sql<number>`count(*)` }).from(seedPurchaseOrdersTable).where(eq(seedPurchaseOrdersTable.farmId, farmId));
+  const seq = (Number(countRow?.count ?? 0) + 1).toString().padStart(4, "0");
+  const poNumber = `SPO-${year}-${seq}`;
+  const [record] = await db.insert(seedPurchaseOrdersTable).values({ ...sanitiseBody(body), farmId, poNumber }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/seed-purchase-orders/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(seedPurchaseOrdersTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), updatedAt: new Date() }).where(and(eq(seedPurchaseOrdersTable.id, recordId), eq(seedPurchaseOrdersTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/seed-purchase-orders/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(seedPurchaseOrdersTable).where(and(eq(seedPurchaseOrdersTable.id, recordId), eq(seedPurchaseOrdersTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -5897,7 +5973,7 @@ router.get("/farms/:farmId/financial-transactions", requireAuth, requireTenant, 
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
 
-  const [manual, grainSales, deadweightSales, martSales, milkStmts, feedDelivs, fuelDelivs] = await Promise.all([
+  const [manual, grainSales, deadweightSales, martSales, milkStmts, feedDelivs, fuelDelivs, seedDelivs] = await Promise.all([
     db.select({
       id: financialTransactionsTable.id,
       farmId: financialTransactionsTable.farmId,
@@ -5934,6 +6010,23 @@ router.get("/farms/:farmId/financial-transactions", requireAuth, requireTenant, 
     db.select().from(milkStatementsTable).where(and(eq(milkStatementsTable.farmId, farmId), isNotNull(milkStatementsTable.grossValuePence))),
     db.select().from(feedDeliveriesTable).where(and(eq(feedDeliveriesTable.farmId, farmId), isNotNull(feedDeliveriesTable.costPence))),
     db.select().from(fuelDeliveriesTable).where(and(eq(fuelDeliveriesTable.farmId, farmId), isNotNull(fuelDeliveriesTable.totalCostPence))),
+    db.select({
+      id: seedBatchesTable.id,
+      costPence: seedBatchesTable.costPence,
+      dateReceived: seedBatchesTable.dateReceived,
+      invoiceReference: seedBatchesTable.invoiceReference,
+      deliveryNoteNumber: seedBatchesTable.deliveryNoteNumber,
+      quantityReceivedKg: seedBatchesTable.quantityReceivedKg,
+      notes: seedBatchesTable.treatmentNotes,
+      createdAt: seedBatchesTable.createdAt,
+      cropName: cropsTable.name,
+      varietyName: cropVarietiesTable.variety,
+      supplierName: suppliersTable.name,
+    }).from(seedBatchesTable)
+      .leftJoin(cropsTable, eq(seedBatchesTable.cropId, cropsTable.id))
+      .leftJoin(cropVarietiesTable, eq(seedBatchesTable.varietyId, cropVarietiesTable.id))
+      .leftJoin(suppliersTable, eq(seedBatchesTable.supplierId, suppliersTable.id))
+      .where(and(eq(seedBatchesTable.farmId, farmId), isNotNull(seedBatchesTable.costPence))),
   ]);
 
   const manualRecords = manual.map(r => ({ ...r, isAutoGenerated: false, source: "manual", sourceId: null, sourceModule: null, sourceLabel: null }));
@@ -6069,6 +6162,27 @@ router.get("/farms/:farmId/financial-transactions", requireAuth, requireTenant, 
       notes: r.notes,
       createdAt: r.createdAt,
     })),
+    ...seedDelivs.filter(r => (r.costPence ?? 0) > 0).map(r => ({
+      id: `seed_delivery_${r.id}`,
+      isAutoGenerated: true,
+      source: "seed_delivery",
+      sourceModule: "/field-crop-management",
+      sourceLabel: "Seed Store",
+      sourceId: r.id,
+      transactionType: "expense",
+      category: "Seeds",
+      description: `Seed delivery — ${r.cropName ?? "Seed"}${r.varietyName ? ` ${r.varietyName}` : ""} (${r.quantityReceivedKg}kg)`,
+      amountPence: r.costPence,
+      currency: "GBP",
+      transactionDate: r.dateReceived,
+      reference: r.invoiceReference ?? r.deliveryNoteNumber ?? null,
+      vendorCustomer: r.supplierName ?? null,
+      paymentMethod: null,
+      vatAmountPence: null,
+      vatRate: null,
+      notes: r.notes,
+      createdAt: r.createdAt,
+    })),
   ];
 
   const all = [...manualRecords, ...derived].sort((a: any, b: any) => {
@@ -6119,7 +6233,7 @@ router.get("/farms/:farmId/financial-transactions/export", requireAuth, requireT
   const endDate    = endParam   ? new Date(endParam)   : null;
 
   // ── Fetch all transaction sources in parallel (same as GET /financial-transactions) ──
-  const [manual, grainSales, deadweightSales, martSales, milkStmts, feedDelivs, fuelDelivs] = await Promise.all([
+  const [manual, grainSales, deadweightSales, martSales, milkStmts, feedDelivs, fuelDelivs, seedDelivs] = await Promise.all([
     db.select({
       id: financialTransactionsTable.id,
       transactionType: financialTransactionsTable.transactionType,
@@ -6138,6 +6252,21 @@ router.get("/farms/:farmId/financial-transactions/export", requireAuth, requireT
     db.select().from(milkStatementsTable).where(and(eq(milkStatementsTable.farmId, farmId), isNotNull(milkStatementsTable.grossValuePence))),
     db.select().from(feedDeliveriesTable).where(and(eq(feedDeliveriesTable.farmId, farmId), isNotNull(feedDeliveriesTable.costPence))),
     db.select().from(fuelDeliveriesTable).where(and(eq(fuelDeliveriesTable.farmId, farmId), isNotNull(fuelDeliveriesTable.totalCostPence))),
+    db.select({
+      id: seedBatchesTable.id,
+      costPence: seedBatchesTable.costPence,
+      dateReceived: seedBatchesTable.dateReceived,
+      invoiceReference: seedBatchesTable.invoiceReference,
+      deliveryNoteNumber: seedBatchesTable.deliveryNoteNumber,
+      quantityReceivedKg: seedBatchesTable.quantityReceivedKg,
+      cropName: cropsTable.name,
+      varietyName: cropVarietiesTable.variety,
+      supplierName: suppliersTable.name,
+    }).from(seedBatchesTable)
+      .leftJoin(cropsTable, eq(seedBatchesTable.cropId, cropsTable.id))
+      .leftJoin(cropVarietiesTable, eq(seedBatchesTable.varietyId, cropVarietiesTable.id))
+      .leftJoin(suppliersTable, eq(seedBatchesTable.supplierId, suppliersTable.id))
+      .where(and(eq(seedBatchesTable.farmId, farmId), isNotNull(seedBatchesTable.costPence))),
   ]);
 
   type FlatTx = {
@@ -6229,6 +6358,17 @@ router.get("/farms/:farmId/financial-transactions/export", requireAuth, requireT
       description: `Fuel delivery — ${r.fuelType}${r.supplierName ? ` from ${r.supplierName}` : ""}`,
       amountPence: r.totalCostPence,
       transactionDate: r.deliveryDate,
+      reference: r.invoiceReference ?? r.deliveryNoteNumber ?? null,
+      vendorCustomer: r.supplierName ?? null,
+      vatAmountPence: null,
+      vatRate: null,
+    })),
+    ...seedDelivs.map(r => ({
+      transactionType: "expense",
+      category: "Seeds",
+      description: `Seed delivery — ${r.cropName ?? "Seed"}${r.varietyName ? ` ${r.varietyName}` : ""}${r.supplierName ? ` from ${r.supplierName}` : ""}`,
+      amountPence: r.costPence,
+      transactionDate: r.dateReceived,
       reference: r.invoiceReference ?? r.deliveryNoteNumber ?? null,
       vendorCustomer: r.supplierName ?? null,
       vatAmountPence: null,

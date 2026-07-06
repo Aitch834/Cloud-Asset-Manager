@@ -93,6 +93,7 @@ const SOURCE_CONFIG: Record<string, { label: string; bg: string; color: string; 
   milk_statement:        { label: "Milk Statement",     bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
   feed_delivery:         { label: "Feed Delivery",      bg: "#f0fdf4", color: "#166534", border: "#bbf7d0" },
   fuel_delivery:         { label: "Fuel Delivery",      bg: "#f5f3ff", color: "#6d28d9", border: "#ddd6fe" },
+  seed_delivery:         { label: "Seed Delivery",      bg: "#ecfdf5", color: "#047857", border: "#a7f3d0" },
 };
 
 const PAYMENT_METHODS = ["Bank Transfer", "Direct Debit", "Cheque", "Cash", "Card", "BACS", "Other"];

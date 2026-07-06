@@ -1,23 +1,17 @@
 import React, { useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useCrops } from "@/hooks/use-crops";
-import {
-  useListSeedBatches,
-  useCreateSeedBatch,
-  useUpdateSeedBatch,
-  useDeleteSeedBatch,
-  getListSeedBatchesQueryKey,
-} from "@workspace/api-client-react/src/generated/api";
+import { TabButton, TabBar } from "@/components/ui/tab-button";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
@@ -29,7 +23,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Package, Plus, Search, AlertTriangle, Pencil, Trash2, Loader2 } from "lucide-react";
+import {
+  Package,
+  Plus,
+  Search,
+  AlertTriangle,
+  Pencil,
+  Trash2,
+  Loader2,
+  Eye,
+  ShoppingCart,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+} from "lucide-react";
+
+type Tab = "stock" | "orders";
 
 function fmt(dateStr: string | null | undefined) {
   if (!dateStr) return "—";
@@ -42,14 +51,21 @@ function num(v: string | number | null | undefined): number {
   return isNaN(n) ? 0 : n;
 }
 
-function EmptyState({ icon: Icon, title, subtitle }: { icon: React.ElementType; title: string; subtitle: string }) {
+function fmtGBP(pence: string | number | null | undefined) {
+  if (pence === null || pence === undefined || pence === "") return "—";
+  const n = num(pence) / 100;
+  return `£${n.toFixed(2)}`;
+}
+
+function EmptyState({ icon: Icon, title, subtitle, action }: { icon: React.ElementType; title: string; subtitle: string; action?: React.ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <div style={{ background: "#f0fdf4", borderRadius: "50%", padding: "1.25rem", marginBottom: "1rem" }}>
         <Icon size={28} color="#166534" />
       </div>
       <p className="font-semibold text-gray-700 mb-1">{title}</p>
-      <p className="text-sm text-gray-400">{subtitle}</p>
+      <p className="text-sm text-gray-400 mb-4">{subtitle}</p>
+      {action}
     </div>
   );
 }
@@ -58,26 +74,32 @@ const emptyForm = {
   cropId: "",
   varietyId: "",
   supplierId: "",
+  poId: "__none__",
   batchNumber: "",
   tgwGrams: "",
   bagWeightKg: "25",
   quantityReceivedKg: "",
   dateReceived: new Date().toISOString().slice(0, 10),
+  deliveryNoteNumber: "",
+  invoiceReference: "",
+  costPounds: "",
+  receivedBy: "",
   treatmentNotes: "",
 };
+
+const INACTIVE_PO_STATUSES = ["received", "cancelled"];
 
 export default function SeedStorePage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [search, setSearch] = useState("");
-  const [showInactive, setShowInactive] = useState(false);
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<any>(null);
-  const [form, setForm] = useState<any>(emptyForm);
-  const [deleteTarget, setDeleteTarget] = useState<any>(null);
-
   const safeFarmId = farmId ?? 0;
+
+  const [tab, setTab] = useState<Tab>(() => {
+    const p = new URLSearchParams(window.location.search);
+    const t = p.get("tab") as Tab | null;
+    return t === "orders" ? "orders" : "stock";
+  });
 
   const { data: cropsData } = useCrops(safeFarmId);
   const cropRows: any[] = (cropsData as any)?.records ?? [];
@@ -88,34 +110,24 @@ export default function SeedStorePage() {
     enabled: !!safeFarmId,
   });
 
-  const batchesQ = useListSeedBatches(safeFarmId, undefined, { query: { enabled: !!safeFarmId } as any });
-  const batches: any[] = (batchesQ.data as any)?.records ?? [];
-
-  const invalidate = () => qc.invalidateQueries({ queryKey: getListSeedBatchesQueryKey(safeFarmId) });
-
-  const createMut = useCreateSeedBatch({
-    mutation: {
-      onSuccess: () => { toast({ title: "Seed batch added" }); invalidate(); setOpen(false); setForm(emptyForm); setEditing(null); },
-      onError: () => toast({ title: "Failed to save batch", variant: "destructive" }),
-    },
+  const batchesQ = useQuery({
+    queryKey: ["seed-batches", safeFarmId],
+    queryFn: () => fetch(`/api/farms/${safeFarmId}/seed-batches`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!safeFarmId,
   });
-  const updateMut = useUpdateSeedBatch({
-    mutation: {
-      onSuccess: () => { toast({ title: "Seed batch updated" }); invalidate(); setOpen(false); setForm(emptyForm); setEditing(null); },
-      onError: () => toast({ title: "Failed to update batch", variant: "destructive" }),
-    },
-  });
-  const deleteMut = useDeleteSeedBatch({
-    mutation: {
-      onSuccess: () => { toast({ title: "Seed batch deleted" }); invalidate(); setDeleteTarget(null); },
-      onError: () => toast({ title: "Failed to delete batch", variant: "destructive" }),
-    },
-  });
+  const batches: any[] = batchesQ.data ?? [];
 
-  const varietiesForCrop = useMemo(() => {
-    if (!form.cropId) return [];
-    return cropRows.filter(c => String(c.cropId) === String(form.cropId));
-  }, [cropRows, form.cropId]);
+  const posQ = useQuery({
+    queryKey: ["seed-purchase-orders", safeFarmId],
+    queryFn: () => fetch(`/api/farms/${safeFarmId}/seed-purchase-orders`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!safeFarmId,
+  });
+  const pos: any[] = posQ.data ?? [];
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["seed-batches", safeFarmId] });
+    qc.invalidateQueries({ queryKey: ["seed-purchase-orders", safeFarmId] });
+  };
 
   const uniqueCrops = useMemo(() => {
     const seen = new Map<number, { cropId: number; name: string }>();
@@ -125,10 +137,40 @@ export default function SeedStorePage() {
     return Array.from(seen.values());
   }, [cropRows]);
 
+  // ─── Stock (Seed Batch / GRN) ────────────────────────────────────────────
+  const [search, setSearch] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+  const [viewItem, setViewItem] = useState<any | null>(null);
+  const [form, setForm] = useState<any>(emptyForm);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+
+  const openPos = useMemo(() => pos.filter(p => !INACTIVE_PO_STATUSES.includes(String(p.status))), [pos]);
+
+  const varietiesForCrop = useMemo(() => {
+    if (!form.cropId) return [];
+    return cropRows.filter(c => String(c.cropId) === String(form.cropId));
+  }, [cropRows, form.cropId]);
+
   const openAdd = () => {
     setEditing(null);
     setForm(emptyForm);
     setOpen(true);
+  };
+
+  const applyPoToForm = (poId: string, base: any) => {
+    if (poId === "__none__") return base;
+    const po = pos.find(p => String(p.id) === poId);
+    if (!po) return base;
+    return {
+      ...base,
+      poId,
+      cropId: po.cropId ? String(po.cropId) : base.cropId,
+      varietyId: po.varietyId ? String(po.varietyId) : base.varietyId,
+      supplierId: po.supplierId ? String(po.supplierId) : base.supplierId,
+      quantityReceivedKg: base.quantityReceivedKg || (po.quantityKg ? String(po.quantityKg) : ""),
+    };
   };
 
   const openEdit = (b: any) => {
@@ -137,15 +179,43 @@ export default function SeedStorePage() {
       cropId: String(b.cropId),
       varietyId: String(b.varietyId),
       supplierId: b.supplierId ? String(b.supplierId) : "",
+      poId: b.poId ? String(b.poId) : "__none__",
       batchNumber: b.batchNumber ?? "",
       tgwGrams: String(b.tgwGrams ?? ""),
       bagWeightKg: String(b.bagWeightKg ?? "25"),
       quantityReceivedKg: String(b.quantityReceivedKg ?? ""),
       dateReceived: b.dateReceived ? String(b.dateReceived).slice(0, 10) : "",
+      deliveryNoteNumber: b.deliveryNoteNumber ?? "",
+      invoiceReference: b.invoiceReference ?? "",
+      costPounds: b.costPence ? String(num(b.costPence) / 100) : "",
+      receivedBy: b.receivedBy ?? "",
       treatmentNotes: b.treatmentNotes ?? "",
     });
     setOpen(true);
   };
+
+  const saveMut = useMutation({
+    mutationFn: async (body: any) => {
+      const url = editing ? `/api/farms/${safeFarmId}/seed-batches/${editing.id}` : `/api/farms/${safeFarmId}/seed-batches`;
+      const res = await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error("Failed to save");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: editing ? "Seed batch updated" : "Seed batch added" });
+      invalidate();
+      setOpen(false);
+      setForm(emptyForm);
+      setEditing(null);
+    },
+    onError: () => toast({ title: "Failed to save batch", variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${safeFarmId}/seed-batches/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Seed batch deleted" }); invalidate(); setDeleteTarget(null); },
+    onError: () => toast({ title: "Failed to delete batch", variant: "destructive" }),
+  });
 
   const handleSave = () => {
     if (!form.cropId || !form.varietyId || !form.batchNumber || !form.tgwGrams || !form.quantityReceivedKg) {
@@ -156,18 +226,19 @@ export default function SeedStorePage() {
       cropId: Number(form.cropId),
       varietyId: Number(form.varietyId),
       supplierId: form.supplierId ? Number(form.supplierId) : null,
+      poId: form.poId && form.poId !== "__none__" ? Number(form.poId) : null,
       batchNumber: form.batchNumber,
       tgwGrams: form.tgwGrams,
       bagWeightKg: form.bagWeightKg || "25",
       quantityReceivedKg: form.quantityReceivedKg,
       dateReceived: form.dateReceived || null,
+      deliveryNoteNumber: form.deliveryNoteNumber || null,
+      invoiceReference: form.invoiceReference || null,
+      costPence: form.costPounds ? Math.round(num(form.costPounds) * 100) : null,
+      receivedBy: form.receivedBy || null,
       treatmentNotes: form.treatmentNotes || null,
     };
-    if (editing) {
-      updateMut.mutate({ farmId: safeFarmId, recordId: editing.id, data: body });
-    } else {
-      createMut.mutate({ farmId: safeFarmId, data: body });
-    }
+    saveMut.mutate(body);
   };
 
   const filtered = batches.filter((b: any) => {
@@ -182,109 +253,377 @@ export default function SeedStorePage() {
     );
   });
 
-  const saving = createMut.isPending || updateMut.isPending;
+  // ─── Purchase Orders ─────────────────────────────────────────────────────
+  const [showPoDialog, setShowPoDialog] = useState(false);
+  const [editPo, setEditPo] = useState<any | null>(null);
+  const [viewPo, setViewPo] = useState<any | null>(null);
+  const [poForm, setPoForm] = useState<any>({});
+  const [poFilter, setPoFilter] = useState<"active" | "all">("active");
+  const [deletePoTarget, setDeletePoTarget] = useState<any>(null);
+
+  const activePos = useMemo(() => pos.filter(p => !INACTIVE_PO_STATUSES.includes(String(p.status))), [pos]);
+  const today = new Date().toISOString().slice(0, 10);
+  const overduePos = useMemo(
+    () => activePos.filter(p => p.expectedDeliveryDate && String(p.expectedDeliveryDate).slice(0, 10) < today),
+    [activePos, today]
+  );
+  const filteredPos = poFilter === "active" ? activePos : pos;
+
+  const poCropVarieties = useMemo(() => {
+    if (!poForm.cropId) return [];
+    return cropRows.filter(c => String(c.cropId) === String(poForm.cropId));
+  }, [cropRows, poForm.cropId]);
+
+  function openPoAdd() {
+    setEditPo(null);
+    setPoForm({
+      supplierId: "",
+      cropId: "",
+      varietyId: "",
+      quantityKg: "",
+      orderDate: new Date().toISOString().slice(0, 10),
+      expectedDeliveryDate: "",
+      status: "sent",
+      orderedBy: "",
+      notes: "",
+    });
+    setShowPoDialog(true);
+  }
+  function openPoEdit(po: any) {
+    setEditPo(po);
+    setPoForm({
+      supplierId: po.supplierId ? String(po.supplierId) : "",
+      cropId: po.cropId ? String(po.cropId) : "",
+      varietyId: po.varietyId ? String(po.varietyId) : "",
+      quantityKg: String(po.quantityKg ?? ""),
+      orderDate: po.orderDate ? String(po.orderDate).slice(0, 10) : "",
+      expectedDeliveryDate: po.expectedDeliveryDate ? String(po.expectedDeliveryDate).slice(0, 10) : "",
+      actualDeliveryDate: po.actualDeliveryDate ? String(po.actualDeliveryDate).slice(0, 10) : "",
+      status: po.status ?? "sent",
+      orderedBy: po.orderedBy ?? "",
+      notes: po.notes ?? "",
+    });
+    setShowPoDialog(true);
+  }
+
+  const poMut = useMutation({
+    mutationFn: async (data: any) => {
+      const url = editPo ? `/api/farms/${safeFarmId}/seed-purchase-orders/${editPo.id}` : `/api/farms/${safeFarmId}/seed-purchase-orders`;
+      const res = await fetch(url, { method: editPo ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error("Failed to save");
+      return res.json();
+    },
+    onSuccess: () => { invalidate(); setShowPoDialog(false); toast({ title: editPo ? "Order updated" : "Seed order raised" }); },
+    onError: () => toast({ title: "Error saving order", variant: "destructive" }),
+  });
+
+  const deletePoMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${safeFarmId}/seed-purchase-orders/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { invalidate(); setDeletePoTarget(null); toast({ title: "Order removed" }); },
+    onError: () => toast({ title: "Failed to delete order", variant: "destructive" }),
+  });
+
+  const [receivePoId, setReceivePoId] = useState<number | null>(null);
+  const [receivePoDate, setReceivePoDate] = useState(new Date().toISOString().slice(0, 10));
+  const receivePoMut = useMutation({
+    mutationFn: ({ id, date }: { id: number; date: string }) =>
+      fetch(`/api/farms/${safeFarmId}/seed-purchase-orders/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "received", actualDeliveryDate: date }),
+      }).then(r => r.json()),
+    onSuccess: () => { invalidate(); setReceivePoId(null); toast({ title: "Order marked as received — log the seed batch (GRN) in the Stock tab." }); },
+  });
+
+  const cancelPoMut = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`/api/farms/${safeFarmId}/seed-purchase-orders/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "cancelled" }),
+      }).then(r => r.json()),
+    onSuccess: () => { invalidate(); toast({ title: "Order cancelled" }); },
+  });
+
+  const savingBatch = saveMut.isPending;
 
   return (
     <AppLayout title="Seed Store">
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <div className="mb-4 flex items-center justify-between">
-          <p className="text-sm text-gray-500">Seed batches received from suppliers — used to auto-fill TGW when assigning crops and to generate bag labels.</p>
+        <div className="mb-4">
+          <p className="text-sm text-gray-500">Manage seed purchase orders, log deliveries (GRN) and track stock levels for crop varieties.</p>
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center" }}>
-          <div style={{ position: "relative", flex: 1 }}>
-            <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
-            <Input placeholder="Search by crop, variety, batch number or supplier..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8" />
-          </div>
-          <Button
-            variant={showInactive ? "default" : "outline"}
-            size="sm"
-            onClick={() => setShowInactive(s => !s)}
-          >
-            {showInactive ? "Hide" : "Show"} Used-Up Batches
-          </Button>
-          <Button size="sm" onClick={openAdd}>
-            <Plus size={14} className="mr-1" />Log Seed Batch
-          </Button>
-        </div>
+        <TabBar className="mb-6">
+          <TabButton active={tab === "stock"} onClick={() => setTab("stock")}>Seed Stock ({batches.length})</TabButton>
+          <TabButton active={tab === "orders"} onClick={() => setTab("orders")}>
+            <ShoppingCart className="w-3.5 h-3.5 mr-1 inline" />
+            Seed Orders
+            {overduePos.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center text-[10px] font-bold bg-red-500 text-white rounded-full w-4 h-4">
+                {overduePos.length}
+              </span>
+            )}
+          </TabButton>
+        </TabBar>
 
-        {batchesQ.isLoading ? (
-          <p className="text-sm text-gray-400 py-8 text-center">Loading...</p>
-        ) : filtered.length === 0 ? (
-          <EmptyState icon={Package} title="No seed batches recorded yet" subtitle="Log seed batches as they arrive from suppliers to track TGW, stock and generate bag labels" />
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 12 }}>
-            {filtered.map((b: any) => {
-              const received = num(b.quantityReceivedKg);
-              const remaining = num(b.quantityRemainingKg);
-              const bagWeight = num(b.bagWeightKg) || 25;
-              const bagsRemaining = bagWeight > 0 ? remaining / bagWeight : 0;
-              const pctRemaining = received > 0 ? Math.max(0, Math.min(100, (remaining / received) * 100)) : 0;
-              const isLow = received > 0 && pctRemaining <= 15 && remaining > 0;
-              const isDepleted = remaining <= 0;
-              return (
-                <div
-                  key={b.id}
-                  style={{
-                    background: "#fff",
-                    border: isDepleted ? "1px solid #e5e7eb" : isLow ? "1.5px solid #f59e0b" : "1px solid #e5e7eb",
-                    borderRadius: 10,
-                    padding: "1rem",
-                    opacity: b.isActive === false ? 0.65 : 1,
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-                    <div>
-                      <span style={{ fontWeight: 600, fontSize: "0.9rem", color: "#111827" }}>{b.cropName}</span>
-                      {b.varietyName && <span style={{ fontSize: "0.8rem", color: "#6b7280" }}> — {b.varietyName}</span>}
-                    </div>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      {isLow && <AlertTriangle size={14} color="#f59e0b" />}
-                      <button onClick={() => openEdit(b)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}>
-                        <Pencil size={14} />
-                      </button>
-                      <button onClick={() => setDeleteTarget(b)} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444" }}>
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                  <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 8 }}>
-                    Batch {b.batchNumber} {b.supplierName ? `· ${b.supplierName}` : ""}
-                  </p>
-                  <div style={{ display: "flex", gap: 16, marginBottom: 8 }}>
-                    <div>
-                      <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "#166534" }}>{num(b.tgwGrams).toFixed(1)}g</span>
-                      <p style={{ fontSize: "0.7rem", color: "#9ca3af" }}>TGW</p>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: "1.1rem", fontWeight: 700, color: isDepleted ? "#9ca3af" : isLow ? "#b45309" : "#111827" }}>{remaining % 1 === 0 ? remaining.toFixed(0) : remaining.toFixed(1)}kg</span>
-                      <p style={{ fontSize: "0.7rem", color: "#9ca3af" }}>of {received % 1 === 0 ? received.toFixed(0) : received.toFixed(1)}kg remaining</p>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "#111827" }}>{bagsRemaining.toFixed(1)}</span>
-                      <p style={{ fontSize: "0.7rem", color: "#9ca3af" }}>bags @ {bagWeight}kg</p>
-                    </div>
-                  </div>
-                  <div style={{ height: 6, borderRadius: 3, background: "#f3f4f6", overflow: "hidden", marginBottom: 8 }}>
-                    <div style={{ height: "100%", width: `${pctRemaining}%`, background: isDepleted ? "#d1d5db" : isLow ? "#f59e0b" : "#22c55e" }} />
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <p style={{ fontSize: "0.7rem", color: "#d1d5db" }}>Received {fmt(b.dateReceived)}</p>
-                    {isDepleted && <Badge style={{ background: "#f3f4f6", color: "#6b7280", border: "none" }} className="text-xs">Used up</Badge>}
-                  </div>
-                  {b.treatmentNotes && (
-                    <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: 8, borderTop: "1px solid #f3f4f6", paddingTop: 6 }}>{b.treatmentNotes}</p>
-                  )}
-                </div>
-              );
-            })}
+        {tab === "stock" && (
+          <div>
+            <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center" }}>
+              <div style={{ position: "relative", flex: 1 }}>
+                <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+                <Input placeholder="Search by crop, variety, batch number or supplier..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8" />
+              </div>
+              <Button
+                variant={showInactive ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowInactive(s => !s)}
+              >
+                {showInactive ? "Hide" : "Show"} Used-Up Batches
+              </Button>
+              <Button size="sm" onClick={openAdd}>
+                <Plus size={14} className="mr-1" />Log Seed Batch
+              </Button>
+            </div>
+
+            {batchesQ.isLoading ? (
+              <p className="text-sm text-gray-400 py-8 text-center">Loading...</p>
+            ) : filtered.length === 0 ? (
+              <EmptyState
+                icon={Package}
+                title="No seed batches recorded yet"
+                subtitle="Log seed batches as they arrive from suppliers to track TGW, stock and generate bag labels"
+                action={<Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" />Log Seed Batch</Button>}
+              />
+            ) : (
+              <div className="border rounded-lg overflow-hidden overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {["Crop / Variety", "Batch No.", "Supplier", "TGW", "Remaining / Received", "Bags", "Received", "Status", "Actions"].map(h => (
+                        <th key={h} className="text-left px-3 py-2 font-medium text-gray-600 whitespace-nowrap text-xs uppercase tracking-wide">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {filtered.map((b: any) => {
+                      const received = num(b.quantityReceivedKg);
+                      const remaining = num(b.quantityRemainingKg);
+                      const bagWeight = num(b.bagWeightKg) || 25;
+                      const bagsRemaining = bagWeight > 0 ? remaining / bagWeight : 0;
+                      const pctRemaining = received > 0 ? Math.max(0, Math.min(100, (remaining / received) * 100)) : 0;
+                      const isLow = received > 0 && pctRemaining <= 15 && remaining > 0;
+                      const isDepleted = remaining <= 0;
+                      return (
+                        <tr key={b.id} className={`hover:bg-gray-50 ${b.isActive === false ? "opacity-60" : ""}`}>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <span className="font-medium text-gray-900">{b.cropName}</span>
+                            {b.varietyName && <span className="text-gray-500"> — {b.varietyName}</span>}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">{b.batchNumber}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{b.supplierName || "—"}</td>
+                          <td className="px-3 py-2 whitespace-nowrap font-medium text-green-700">{num(b.tgwGrams).toFixed(1)}g</td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              {!!isLow && <AlertTriangle size={13} color="#f59e0b" />}
+                              <span className={`font-medium ${isDepleted ? "text-gray-400" : isLow ? "text-amber-700" : "text-gray-900"}`}>
+                                {remaining % 1 === 0 ? remaining.toFixed(0) : remaining.toFixed(1)}kg
+                              </span>
+                              <span className="text-gray-400">/ {received % 1 === 0 ? received.toFixed(0) : received.toFixed(1)}kg</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">{bagsRemaining.toFixed(1)} @ {bagWeight}kg</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-500 text-xs">{fmt(b.dateReceived)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {isDepleted ? (
+                              <Badge className="text-xs bg-gray-100 text-gray-600 border-none">Used up</Badge>
+                            ) : isLow ? (
+                              <Badge className="text-xs bg-amber-100 text-amber-700 border-none">Low stock</Badge>
+                            ) : (
+                              <Badge className="text-xs bg-green-100 text-green-700 border-none">In stock</Badge>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="icon" onClick={() => setViewItem(b)} title="View">
+                                <Eye className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => openEdit(b)} title="Edit">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(b)} title="Delete" className="text-red-500 hover:text-red-600">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
+        {tab === "orders" && (
+          <div>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Seed Orders Register</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Track seed orders raised with suppliers. When delivery arrives, mark as received and log the seed batch (GRN) in the Stock tab.</p>
+              </div>
+              <Button size="sm" onClick={openPoAdd}><Plus className="w-3.5 h-3.5 mr-1" />Raise Seed Order</Button>
+            </div>
+
+            {activePos.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1">
+                  <Clock className="w-3 h-3" />{activePos.length} active order{activePos.length !== 1 ? "s" : ""}
+                </div>
+                {overduePos.length > 0 && (
+                  <div className="flex items-center gap-1.5 text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-2.5 py-1">
+                    <AlertCircle className="w-3 h-3" />{overduePos.length} overdue — chase supplier
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-2 mb-4">
+              <button onClick={() => setPoFilter("active")} className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${poFilter === "active" ? "bg-green-700 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                Active ({activePos.length})
+              </button>
+              <button onClick={() => setPoFilter("all")} className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${poFilter === "all" ? "bg-green-700 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                All ({pos.length})
+              </button>
+            </div>
+
+            {filteredPos.length === 0 ? (
+              <div className="text-center py-16 text-gray-400">
+                <ShoppingCart className="w-10 h-10 mx-auto mb-3 opacity-20" />
+                <p className="font-medium text-gray-500">{poFilter === "active" ? "No active seed orders" : "No seed orders on record"}</p>
+                <p className="text-sm mt-1 mb-4">Raise a seed order when purchasing seed from a supplier.</p>
+                <Button size="sm" onClick={openPoAdd}><Plus className="w-3.5 h-3.5 mr-1" />Raise Seed Order</Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredPos.map(po => {
+                  const isOverdue = !INACTIVE_PO_STATUSES.includes(String(po.status)) && po.expectedDeliveryDate && String(po.expectedDeliveryDate).slice(0, 10) < today;
+                  const isReceived = po.status === "received";
+                  const isCancelled = po.status === "cancelled";
+                  return (
+                    <div key={String(po.id)} className={`rounded-lg border p-4 ${isOverdue ? "border-red-300 bg-red-50" : isReceived ? "border-green-200 bg-green-50/60" : isCancelled ? "border-gray-200 bg-gray-50/60" : "border-amber-200 bg-white"}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {!!isOverdue && <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />}
+                            {!!isReceived && <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />}
+                            <span className="font-mono text-sm font-semibold text-gray-800">{String(po.poNumber)}</span>
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isReceived ? "bg-green-100 text-green-700" : po.status === "confirmed" ? "bg-blue-100 text-blue-700" : po.status === "sent" ? "bg-amber-100 text-amber-700" : po.status === "draft" ? "bg-gray-100 text-gray-600" : isCancelled ? "bg-red-100 text-red-600" : "bg-gray-100 text-gray-600"}`}>
+                              {String(po.status).charAt(0).toUpperCase() + String(po.status).slice(1)}
+                            </span>
+                            {!!isOverdue && (
+                              <span className="text-xs text-red-600 font-medium">Overdue since {fmt(po.expectedDeliveryDate)}</span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-800 mt-0.5">
+                            {po.supplierName ? <><span className="font-medium">{String(po.supplierName)}</span> — </> : null}
+                            {String(po.cropName ?? "")}{po.varietyName ? ` (${po.varietyName})` : ""}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {num(po.quantityKg).toFixed(0)}kg
+                            {!!po.orderDate && <span> · Ordered {fmt(po.orderDate)}</span>}
+                            {!!po.expectedDeliveryDate && !isOverdue && !isReceived && <span> · Expected {fmt(po.expectedDeliveryDate)}</span>}
+                            {!!po.actualDeliveryDate && <span> · Delivered {fmt(po.actualDeliveryDate)}</span>}
+                            {!!po.orderedBy && <span> · Raised by {String(po.orderedBy)}</span>}
+                          </p>
+                          {!!po.notes && <p className="text-xs text-gray-400 mt-1 italic truncate max-w-md">{String(po.notes)}</p>}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <Button variant="ghost" size="icon" onClick={() => setViewPo(po)} title="View">
+                            <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                          {!isReceived && !isCancelled && (
+                            <button
+                              className="text-xs font-medium px-2.5 py-1 rounded border border-green-300 text-green-700 bg-white hover:bg-green-50 flex items-center gap-1 transition-colors"
+                              onClick={() => { setReceivePoId(Number(po.id)); setReceivePoDate(new Date().toISOString().slice(0, 10)); }}
+                            >
+                              <CheckCircle2 className="w-3 h-3" />Received
+                            </button>
+                          )}
+                          {!isCancelled && !isReceived && (
+                            <button
+                              className="text-xs px-2 py-1 rounded border border-gray-200 text-gray-600 bg-white hover:bg-gray-50 flex items-center gap-1 transition-colors"
+                              onClick={() => { if (confirm("Cancel this seed order?")) cancelPoMut.mutate(Number(po.id)); }}
+                            >
+                              Cancel
+                            </button>
+                          )}
+                          <button className="text-xs px-2 py-1 rounded border border-gray-200 text-gray-600 bg-white hover:bg-gray-50 flex items-center gap-1 transition-colors" onClick={() => openPoEdit(po)}>
+                            <Pencil className="w-3 h-3" />Edit
+                          </button>
+                          <button className="text-xs px-2 py-1 rounded border border-red-200 text-red-600 bg-white hover:bg-red-50 flex items-center transition-colors" onClick={() => setDeletePoTarget(po)}>
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── VIEW SEED BATCH DIALOG ── */}
+        <Dialog open={viewItem !== null} onOpenChange={o => { if (!o) setViewItem(null); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>Seed Batch — {viewItem?.batchNumber}</DialogTitle></DialogHeader>
+            {viewItem && (
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm pt-1">
+                <div><p className="text-xs text-gray-500">Crop</p><p className="font-medium">{viewItem.cropName || "—"}</p></div>
+                <div><p className="text-xs text-gray-500">Variety</p><p className="font-medium">{viewItem.varietyName || "—"}</p></div>
+                <div><p className="text-xs text-gray-500">Supplier</p><p className="font-medium">{viewItem.supplierName || "—"}</p></div>
+                <div><p className="text-xs text-gray-500">TGW</p><p className="font-medium">{num(viewItem.tgwGrams).toFixed(1)}g</p></div>
+                <div><p className="text-xs text-gray-500">Quantity Received</p><p className="font-medium">{num(viewItem.quantityReceivedKg).toFixed(1)}kg</p></div>
+                <div><p className="text-xs text-gray-500">Quantity Remaining</p><p className="font-medium">{num(viewItem.quantityRemainingKg).toFixed(1)}kg</p></div>
+                <div><p className="text-xs text-gray-500">Bag Weight</p><p className="font-medium">{num(viewItem.bagWeightKg) || 25}kg</p></div>
+                <div><p className="text-xs text-gray-500">Date Received</p><p className="font-medium">{fmt(viewItem.dateReceived)}</p></div>
+                <div><p className="text-xs text-gray-500">Delivery Note No.</p><p className="font-medium">{viewItem.deliveryNoteNumber || "—"}</p></div>
+                <div><p className="text-xs text-gray-500">Invoice Reference</p><p className="font-medium">{viewItem.invoiceReference || "—"}</p></div>
+                <div><p className="text-xs text-gray-500">Cost</p><p className="font-medium">{fmtGBP(viewItem.costPence)}</p></div>
+                <div><p className="text-xs text-gray-500">Received By</p><p className="font-medium">{viewItem.receivedBy || "—"}</p></div>
+                <div><p className="text-xs text-gray-500">Linked Order</p><p className="font-medium">{pos.find(p => p.id === viewItem.poId)?.poNumber || "—"}</p></div>
+                <div><p className="text-xs text-gray-500">Status</p><p className="font-medium">{viewItem.isActive === false ? "Used up" : "In stock"}</p></div>
+                {viewItem.treatmentNotes && (
+                  <div className="col-span-2"><p className="text-xs text-gray-500">Treatment / Notes</p><p className="font-medium">{viewItem.treatmentNotes}</p></div>
+                )}
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewItem(null)}>Close</Button>
+              <Button onClick={() => { const it = viewItem; setViewItem(null); if (it) openEdit(it); }}>Edit</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── LOG / EDIT SEED BATCH DIALOG ── */}
         <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); setForm(emptyForm); } }}>
-          <DialogContent style={{ maxWidth: 480 }}>
-            <DialogHeader><DialogTitle>{editing ? "Edit Seed Batch" : "Log Seed Batch"}</DialogTitle></DialogHeader>
+          <DialogContent style={{ maxWidth: 480 }} className="max-h-[85vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>{editing ? "Edit Seed Batch" : "Log Seed Batch (GRN)"}</DialogTitle></DialogHeader>
             <div className="space-y-3 py-2">
+              {!editing && (
+                <div>
+                  <Label>Link to Purchase Order</Label>
+                  <Select value={form.poId} onValueChange={v => setForm((f: any) => applyPoToForm(v, { ...f }))}>
+                    <SelectTrigger><SelectValue placeholder="No linked order..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">No linked order</SelectItem>
+                      {openPos.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.poNumber} — {p.cropName}{p.varietyName ? ` (${p.varietyName})` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 <div>
                   <Label>Crop *</Label>
@@ -335,6 +674,26 @@ export default function SeedStorePage() {
               {editing && (
                 <p style={{ fontSize: "0.7rem", color: "#9ca3af" }}>Quantity received is fixed once logged — stock is adjusted automatically as it's allocated to fields.</p>
               )}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div>
+                  <Label>Delivery Note No.</Label>
+                  <Input value={form.deliveryNoteNumber} onChange={e => setForm((f: any) => ({ ...f, deliveryNoteNumber: e.target.value }))} placeholder="e.g. DN-4471" />
+                </div>
+                <div>
+                  <Label>Invoice Reference</Label>
+                  <Input value={form.invoiceReference} onChange={e => setForm((f: any) => ({ ...f, invoiceReference: e.target.value }))} placeholder="e.g. INV-10234" />
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div>
+                  <Label>Cost (£)</Label>
+                  <Input type="number" step="0.01" value={form.costPounds} onChange={e => setForm((f: any) => ({ ...f, costPounds: e.target.value }))} placeholder="e.g. 850.00" />
+                </div>
+                <div>
+                  <Label>Received By</Label>
+                  <Input value={form.receivedBy} onChange={e => setForm((f: any) => ({ ...f, receivedBy: e.target.value }))} placeholder="Staff member name" />
+                </div>
+              </div>
               <div>
                 <Label>Treatment / Notes</Label>
                 <Textarea rows={2} value={form.treatmentNotes} onChange={e => setForm((f: any) => ({ ...f, treatmentNotes: e.target.value }))} placeholder="e.g. Redigo Deter treated" />
@@ -342,8 +701,8 @@ export default function SeedStorePage() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button onClick={handleSave} disabled={saving}>
-                {saving && <Loader2 size={14} className="mr-1 animate-spin" />}
+              <Button onClick={handleSave} disabled={savingBatch}>
+                {savingBatch && <Loader2 size={14} className="mr-1 animate-spin" />}
                 {editing ? "Save Changes" : "Log Batch"}
               </Button>
             </DialogFooter>
@@ -360,7 +719,175 @@ export default function SeedStorePage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => deleteTarget && deleteMut.mutate({ farmId: safeFarmId, recordId: deleteTarget.id })}>Delete</AlertDialogAction>
+              <AlertDialogAction onClick={() => deleteTarget && deleteMut.mutate(deleteTarget.id)}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* ── VIEW SEED ORDER DIALOG ── */}
+        <Dialog open={viewPo !== null} onOpenChange={o => { if (!o) setViewPo(null); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>Seed Order — {viewPo?.poNumber}</DialogTitle></DialogHeader>
+            {viewPo && (
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm pt-1">
+                <div><p className="text-xs text-gray-500">Supplier</p><p className="font-medium">{viewPo.supplierName || "—"}</p></div>
+                <div><p className="text-xs text-gray-500">Status</p><p className="font-medium">{String(viewPo.status).charAt(0).toUpperCase() + String(viewPo.status).slice(1)}</p></div>
+                <div><p className="text-xs text-gray-500">Crop</p><p className="font-medium">{viewPo.cropName || "—"}</p></div>
+                <div><p className="text-xs text-gray-500">Variety</p><p className="font-medium">{viewPo.varietyName || "—"}</p></div>
+                <div><p className="text-xs text-gray-500">Quantity</p><p className="font-medium">{num(viewPo.quantityKg).toFixed(0)}kg</p></div>
+                <div><p className="text-xs text-gray-500">Order Date</p><p className="font-medium">{fmt(viewPo.orderDate)}</p></div>
+                <div><p className="text-xs text-gray-500">Expected Delivery</p><p className="font-medium">{fmt(viewPo.expectedDeliveryDate)}</p></div>
+                <div><p className="text-xs text-gray-500">Actual Delivery</p><p className="font-medium">{fmt(viewPo.actualDeliveryDate)}</p></div>
+                <div><p className="text-xs text-gray-500">Raised By</p><p className="font-medium">{viewPo.orderedBy || "—"}</p></div>
+                {viewPo.notes && (
+                  <div className="col-span-2"><p className="text-xs text-gray-500">Notes</p><p className="font-medium">{viewPo.notes}</p></div>
+                )}
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewPo(null)}>Close</Button>
+              <Button onClick={() => { const it = viewPo; setViewPo(null); if (it) openPoEdit(it); }}>Edit</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── SEED ORDER DIALOG ── */}
+        <Dialog open={showPoDialog} onOpenChange={v => !v && setShowPoDialog(false)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{editPo ? "Edit Seed Order" : "Raise Seed Order"}</DialogTitle>
+              <DialogDescription>{editPo ? `Edit details for ${editPo.poNumber}` : "Record a seed purchase order raised with a supplier."}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+              <div>
+                <Label className="text-xs mb-1 block">Supplier</Label>
+                <Select value={poForm.supplierId ?? ""} onValueChange={v => setPoForm((f: any) => ({ ...f, supplierId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select supplier (optional)..." /></SelectTrigger>
+                  <SelectContent>{(suppliersQ.data ?? []).map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs mb-1 block">Crop *</Label>
+                  <Select value={poForm.cropId ?? ""} onValueChange={v => setPoForm((f: any) => ({ ...f, cropId: v, varietyId: "" }))}>
+                    <SelectTrigger><SelectValue placeholder="Select crop..." /></SelectTrigger>
+                    <SelectContent>{uniqueCrops.map(c => <SelectItem key={c.cropId} value={String(c.cropId)}>{c.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">Variety *</Label>
+                  <Select value={poForm.varietyId ?? ""} onValueChange={v => setPoForm((f: any) => ({ ...f, varietyId: v }))} disabled={!poForm.cropId}>
+                    <SelectTrigger><SelectValue placeholder="Select variety..." /></SelectTrigger>
+                    <SelectContent>{poCropVarieties.map((v: any) => <SelectItem key={v.id} value={String(v.id)}>{v.variety || "—"}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block">Quantity (kg) *</Label>
+                <Input type="number" value={poForm.quantityKg ?? ""} onChange={e => setPoForm((f: any) => ({ ...f, quantityKg: e.target.value }))} placeholder="e.g. 500" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs mb-1 block">Order Date *</Label>
+                  <Input type="date" value={poForm.orderDate ?? ""} onChange={e => setPoForm((f: any) => ({ ...f, orderDate: e.target.value }))} />
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">Expected Delivery</Label>
+                  <Input type="date" value={poForm.expectedDeliveryDate ?? ""} onChange={e => setPoForm((f: any) => ({ ...f, expectedDeliveryDate: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs mb-1 block">Status</Label>
+                  <Select value={poForm.status ?? "sent"} onValueChange={v => setPoForm((f: any) => ({ ...f, status: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="sent">Sent to Supplier</SelectItem>
+                      <SelectItem value="confirmed">Confirmed</SelectItem>
+                      <SelectItem value="received">Received</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">Raised By</Label>
+                  <Input value={poForm.orderedBy ?? ""} onChange={e => setPoForm((f: any) => ({ ...f, orderedBy: e.target.value }))} placeholder="Staff member name" />
+                </div>
+              </div>
+              {poForm.status === "received" && (
+                <div>
+                  <Label className="text-xs mb-1 block">Actual Delivery Date</Label>
+                  <Input type="date" value={poForm.actualDeliveryDate ?? ""} onChange={e => setPoForm((f: any) => ({ ...f, actualDeliveryDate: e.target.value }))} />
+                </div>
+              )}
+              <div>
+                <Label className="text-xs mb-1 block">Notes</Label>
+                <Textarea value={poForm.notes ?? ""} onChange={e => setPoForm((f: any) => ({ ...f, notes: e.target.value }))} placeholder="Any notes about this order…" rows={2} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowPoDialog(false)}>Cancel</Button>
+              <Button
+                disabled={!poForm.cropId || !poForm.varietyId || !poForm.quantityKg || !poForm.orderDate || poMut.isPending}
+                onClick={() => {
+                  const data: any = {
+                    supplierId: poForm.supplierId ? Number(poForm.supplierId) : null,
+                    cropId: Number(poForm.cropId),
+                    varietyId: Number(poForm.varietyId),
+                    quantityKg: poForm.quantityKg,
+                    orderDate: poForm.orderDate,
+                    expectedDeliveryDate: poForm.expectedDeliveryDate || null,
+                    actualDeliveryDate: poForm.actualDeliveryDate || null,
+                    status: poForm.status || "sent",
+                    orderedBy: poForm.orderedBy || null,
+                    notes: poForm.notes || null,
+                  };
+                  poMut.mutate(data);
+                }}
+              >
+                {poMut.isPending ? "Saving…" : editPo ? "Save Changes" : "Raise Order"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── MARK AS RECEIVED DIALOG ── */}
+        <Dialog open={receivePoId !== null} onOpenChange={v => !v && setReceivePoId(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Mark Order as Received</DialogTitle>
+              <DialogDescription>Confirm the actual delivery date. Then log the seed batch (GRN) in the Stock tab.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs mb-1 block">Actual Delivery Date</Label>
+                <Input type="date" value={receivePoDate} onChange={e => setReceivePoDate(e.target.value)} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setReceivePoId(null)}>Cancel</Button>
+              <Button
+                disabled={!receivePoDate || receivePoMut.isPending}
+                onClick={() => { if (receivePoId !== null) receivePoMut.mutate({ id: receivePoId, date: receivePoDate }); }}
+              >
+                {receivePoMut.isPending ? "Saving…" : "Mark Received"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog open={!!deletePoTarget} onOpenChange={(v) => !v && setDeletePoTarget(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Seed Order?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently remove order "{deletePoTarget?.poNumber}". This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => deletePoTarget && deletePoMut.mutate(deletePoTarget.id)}>Delete</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
