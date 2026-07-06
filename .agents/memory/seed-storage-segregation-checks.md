@@ -17,3 +17,12 @@ compliance checks (insurance, NMP, silage safety) already on the health panel.
 CR.ST.19 explicitly. If asked to extend seed segregation recording to mobile, that would
 be new scope, not a bug — check with the user first, per the project's "mobile kept
 simple" convention for this feature.
+
+**Known bug hit here:** importing the shared `RecordAttachments.tsx` component into
+`SeedStorePage.tsx` triggered the documented test-dashboard "child-component small-file
+trap" (see `test-dashboard-vite-cache.md`) — deterministic "Invalid hook call" on the
+segregation dialogs. Fixed by inlining it as `SeedStoreRecordAttachments` directly in
+`SeedStorePage.tsx` (uniquely renamed to avoid React Refresh collisions with the original
+file, which is still imported by many other pages). Any NEW page that imports
+`RecordAttachments` (or other small shared hook-using components) into the dashboard
+should inline it the same way if it starts showing this error on test-dashboard.
