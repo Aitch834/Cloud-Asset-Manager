@@ -102,7 +102,7 @@ export default function SeedStorePage() {
   const [tab, setTab] = useState<Tab>(() => {
     const p = new URLSearchParams(window.location.search);
     const t = p.get("tab") as Tab | null;
-    return t === "orders" ? "orders" : "stock";
+    return t === "orders" || t === "segregation" ? t : "stock";
   });
 
   const { data: cropsData } = useCrops(safeFarmId);
