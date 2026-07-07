@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
@@ -13,7 +13,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { useUpload } from "@workspace/object-storage-web";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -80,8 +79,7 @@ function seedStoreIsImage(mimeType: string | null, fileName: string): boolean {
 function SeedStoreRecordAttachments({ farmId, recordType, recordId, compact = false }: { farmId: number; recordType: string; recordId: number; compact?: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { uploadFile } = useUpload();
-  const inputRef = React.useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
@@ -99,8 +97,24 @@ function SeedStoreRecordAttachments({ farmId, recordType, recordId, compact = fa
   async function handleFile(file: File) {
     setUploading(true);
     try {
-      const response = await uploadFile(file);
-      if (!response?.objectPath) throw new Error("Upload failed");
+      const urlRes = await fetch(`/api/storage/uploads/request-url`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: file.name,
+          size: file.size,
+          contentType: file.type || "application/octet-stream",
+        }),
+      });
+      if (!urlRes.ok) throw new Error("Failed to get upload URL");
+      const { uploadURL, objectPath } = await urlRes.json();
+      const putRes = await fetch(uploadURL, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+      });
+      if (!putRes.ok) throw new Error("Failed to upload file");
       await fetch(`/api/farms/${farmId}/record-attachments`, {
         method: "POST",
         credentials: "include",
@@ -108,8 +122,8 @@ function SeedStoreRecordAttachments({ farmId, recordType, recordId, compact = fa
         body: JSON.stringify({
           recordType,
           recordId,
-          fileUrl: `/api/storage${response.objectPath}`,
-          fileKey: response.objectPath,
+          fileUrl: `/api/storage${objectPath}`,
+          fileKey: objectPath,
           fileName: file.name,
           fileSize: file.size,
           mimeType: file.type || null,

@@ -173,6 +173,31 @@ themselves use hooks, inline those child components with UNIQUE names. Only the 
 page files (500KB+ that escape proxy caching) can safely import small hook-using
 components as separate files.
 
+## Cross-root @fs/ hook import trap — lib/ workspace packages
+
+**Symptom:** "Invalid hook call" on a page that imports a hook from a workspace `lib/`
+package (e.g. `@workspace/object-storage-web` aliased to `lib/object-storage-web/src/use-upload.ts`).
+The page itself is large (>500KB, immune to proxy caching). No mid-session dep discoveries.
+Session token IS being embedded in URLs. Crash is deterministic.
+
+**Root cause:** `lib/object-storage-web/src/use-upload.ts` lives OUTSIDE `artifacts/dashboard/src/`.
+Although the session-token and no-store layers apply, the external lib file is a small @fs/
+module. In edge cases (timing, content-type detection, or Vite 7 serving order) the dep-chunk
+URL rewrite inside the external file can fail to apply, causing `useState`/`useCallback` inside
+the hook to load from a different React module identity than the rest of the component tree.
+
+**Fix:** Remove the external workspace lib import. Inline the hook logic directly inside the
+component that uses it. For `useUpload`, replace with a plain async function inside `handleFile()`
+that performs the two-step presigned-URL upload flow inline using vanilla `fetch()`.
+
+**Applied to:** `SeedStorePage.tsx` — removed `import { useUpload } from "@workspace/object-storage-web"`,
+removed `const { uploadFile } = useUpload()`, inlined the upload steps in `handleFile()`.
+Also replaced `React.useRef` namespace call with the named `useRef` import for clarity.
+
+**Rule:** Any hook from a `lib/` workspace package (outside `artifacts/dashboard/src/`) that is
+imported into a page file is at risk. Inline the hook's logic into the calling component rather
+than relying on the @fs/ chain for external lib files.
+
 ## What NOT to do
 - Do NOT look for a hooks violation in the component source — the component code is correct.
 - Do NOT add `optimizeDeps.force:true` — it re-hashes chunks on every restart, making
