@@ -108,16 +108,25 @@ name (e.g. both define `function JohnesTab`), React Refresh conflates their fami
 "Invalid hook call" on the component that renders second, even after the file renaming.
 
 **Detection:**
+  grep -rn "^function EmptyState\|^function XxxTab" artifacts/dashboard/src/pages/ --include="*.tsx"
+  # Any function name appearing in 2+ files is a collision candidate.
   grep -oP "^function \K[A-Z][a-zA-Z]+" DairyPage.tsx | sort > /tmp/a.txt
   grep -oP "^function \K[A-Z][a-zA-Z]+" OrganicDairyPage.tsx | sort > /tmp/b.txt
   comm -12 /tmp/a.txt /tmp/b.txt   # prints collisions
 
-**Fix:** use page-prefixed names (OrganicXxx, DairyXxx) for all local components.
+**IMPORTANT — generic utility names collide across MANY files:**
+Generic names like `EmptyState`, `EmptyRow`, `LoadingSpinner`, `ErrorBanner` are
+defined in 5–8 page files simultaneously. React Refresh family conflict from these
+causes the SAME "Invalid hook call" crash as the more subtle cache bugs. Always
+grep ALL page files for collisions before concluding the cause is a cache issue.
 
-Collisions fixed in OrganicDairyPage.tsx:
-- JohnesTab → OrganicJohnesTab (DairyPage has DairyJohnesTab)
-- AbrBadge → OrganicAbrBadge
-- LabResultsBadge → OrganicLabResultsBadge
+**Fix:** use page-prefixed names (OrganicXxx, DairyXxx, SeedStoreXxx) for ALL
+locally-defined components — even tiny utility components like EmptyState.
+
+Collisions fixed:
+- OrganicDairyPage.tsx: JohnesTab → OrganicJohnesTab, AbrBadge → OrganicAbrBadge,
+  LabResultsBadge → OrganicLabResultsBadge
+- SeedStorePage.tsx: EmptyState → SeedStoreEmptyState
 
 ## Radix Presence / TabsContent — locally-defined hook-heavy components
 

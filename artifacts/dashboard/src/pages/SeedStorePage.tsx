@@ -254,7 +254,7 @@ function fmtGBP(pence: string | number | null | undefined) {
   return `£${n.toFixed(2)}`;
 }
 
-function EmptyState({ icon: Icon, title, subtitle, action }: { icon: React.ElementType; title: string; subtitle: string; action?: React.ReactNode }) {
+function SeedStoreEmptyState({ icon: Icon, title, subtitle, action }: { icon: React.ElementType; title: string; subtitle: string; action?: React.ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <div style={{ background: "#f0fdf4", borderRadius: "50%", padding: "1.25rem", marginBottom: "1rem" }}>
@@ -668,7 +668,7 @@ export default function SeedStorePage() {
             {batchesQ.isLoading ? (
               <p className="text-sm text-gray-400 py-8 text-center">Loading...</p>
             ) : filtered.length === 0 ? (
-              <EmptyState
+              <SeedStoreEmptyState
                 icon={Package}
                 title="No seed batches recorded yet"
                 subtitle="Log seed batches as they arrive from suppliers to track TGW, stock and generate bag labels"
@@ -877,7 +877,7 @@ export default function SeedStorePage() {
             {segChecksQ.isLoading ? (
               <p className="text-sm text-gray-400 py-8 text-center">Loading...</p>
             ) : segChecks.length === 0 ? (
-              <EmptyState
+              <SeedStoreEmptyState
                 icon={ShieldCheck}
                 title="No segregation checks recorded yet"
                 subtitle="Log a check to evidence CR.ST.19 compliance for each storage location holding treated seed"
