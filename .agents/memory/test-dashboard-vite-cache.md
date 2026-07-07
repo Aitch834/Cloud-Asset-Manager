@@ -49,17 +49,36 @@ Every @fs/ source-file URL embedded in compiled JS is rewritten to include SESSI
 in the PATH:  `/base/@fs/path`  →  `/base/@td/TOKEN/@fs/path`
 Proxy sees a different path each session → cache miss → always fresh.
 
-### Layer 1b — path-based session token on dep chunks (.vite/deps/ URLs) — STRIP ?v=HASH
+### Layer 1b — FIXED (tokenless) dep-chunk URLs — STRIP ?v=HASH, NO session token
 Absolute dep-chunk URLs embedded in compiled source files are rewritten:
-  `/base/node_modules/.vite/deps/react.js?v=HASH`  →  `/base/@td/TOKEN/deps/react.js`
-CRITICAL: ?v=HASH is STRIPPED (not just the prefix replaced). Why: dep chunks use RELATIVE
-imports internally without ?v= (e.g. `import "./chunk-KC53NVYV.js"`), which the browser
-resolves to `/base/@td/TOKEN/deps/chunk-KC53NVYV.js` (no ?v=). If source files kept
-`?v=HASH`, the browser's ES module registry would see two DIFFERENT module identities for
-the same React → two React instances → "Invalid hook call".
-Stripping ?v= unifies module identity between source-file imports and dep-chunk relative imports.
+  `/base/node_modules/.vite/deps/react.js?v=HASH`  →  `/base/@td/deps/react.js`
+                                                         ↑ NO session token — by design
+
+WHY no token: Replit's external proxy (*.replit.dev) normalises the `@td/TOKEN/` segment
+when building its cache key:
+  `/base/@td/SESSION_A/@fs/.../SeedStorePage.tsx`  →  cache key: `/base/@fs/.../SeedStorePage.tsx`
+This means @fs/ source files CAN be served from proxy cache with an OLD session's dep-chunk
+URLs embedded (`@td/SESSION_A/deps/react.js`). If fresh source files embed SESSION_B dep URLs
+and cached ones embed SESSION_A dep URLs, the browser sees two react.js module identities →
+two React instances → "Invalid hook call".
+Fix: dep chunks are at a FIXED tokenless path `/base/@td/deps/react.js`. Every source file
+(proxy-cached or fresh) embeds the same URL → one React instance. ✓
+
+WHY strip ?v=HASH: dep chunks use RELATIVE imports internally without ?v=, so the browser
+resolves relative chunk refs to `.../dep.js` (no hash). Keeping ?v= would split the module
+registry between imports-with-hash and relative-without-hash.
+
 Regex: `"BASE/node_modules/.vite/deps/([^"?#]+)(?:\\?[^"]*)?"`  (group 1 = bare filename)
-Replacement: `"BASE/@td/TOKEN/deps/${filename}"`
+Replacement: `"BASE/@td/deps/${filename}"`  (no token)
+
+Incoming request handler (in order — MUST check fixed before tokenized):
+  1. `tdDepsFixedRe` (`^BASE@td/deps/`) → strip → serve from `.vite/deps/` with body rewriting
+  2. `tdDepsRe` (`^BASE@td/[^/]+/deps/`) → strip token+deps → serve from `.vite/deps/` (legacy fallback)
+  3. `tdPathRe` (`^BASE@td/[^/]+/`) → strip token → serve @fs/ source file
+
+When tokenized legacy dep-chunk URLs arrive (proxy-cached tabs with old scheme), the legacy
+`tdDepsRe` handler also serves the chunk with body rewriting active → cross-chunk refs inside
+that chunk are rewritten to `@td/deps/` (fixed) → dep chain unifies at chunk level. ✓
 
 ### Layer 2 — entry-script path token in index.html
 The `<script type="module" src="...">` entry point is also rewritten with the session token.

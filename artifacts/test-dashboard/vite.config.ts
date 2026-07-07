@@ -93,7 +93,7 @@ function reconnectReloadPlugin(sessionBase: string) {
   // Example match: "/test-dashboard/node_modules/.vite/deps/react.js?v=60f50dc8"
   // Group 1 captures the bare filename (e.g. "react.js") WITHOUT the ?v= hash.
   //
-  // ROOT CAUSE OF DUAL-REACT: previously only the path PREFIX was replaced,
+  // ROOT CAUSE OF DUAL-REACT (v1): previously only the path PREFIX was replaced,
   // leaving "?v=HASH" in the rewritten dep URL:
   //   "/test-dashboard/@td/TOKEN/deps/react.js?v=aeaed54b"
   // Dep chunks use RELATIVE imports WITHOUT ?v=, so they load at:
@@ -101,10 +101,21 @@ function reconnectReloadPlugin(sessionBase: string) {
   // The browser's ES module registry treats these as TWO DIFFERENT MODULES →
   // two separate React instances → "Invalid hook call".
   //
-  // FIX: capture and discard the ?v= hash so source-file imports land on
-  // the same URL as relative dep-chunk imports:
-  //   "/test-dashboard/@td/TOKEN/deps/react.js"  (no ?v=)
-  // Both source files and dep chunks now share the same module identity. ✓
+  // ROOT CAUSE OF DUAL-REACT (v2 — the persistent crash after v1 fix):
+  // Replit's EXTERNAL proxy (*.replit.dev) normalises the session-token path
+  // segment out of URLs when building its cache key:
+  //   "/test-dashboard/@td/SESSION1/@fs/.../SeedStorePage.tsx"
+  //   → cache key: "/test-dashboard/@fs/.../SeedStorePage.tsx"
+  // A cached source file from SESSION1 embeds "@td/SESSION1/deps/react.js".
+  // Other source files (too large to be cached, served fresh) embed
+  // "@td/SESSION2/deps/react.js".  Two different module URLs → two React
+  // instances → "Invalid hook call" on the first hook in SeedStorePage.
+  //
+  // FIX: do NOT embed the session token in dep-chunk URLs at all.  All source
+  // files (cached or fresh) embed the same FIXED dep-chunk URL:
+  //   "/test-dashboard/@td/deps/react.js"  (no token, no ?v=)
+  // Regardless of whether a source file is served from proxy cache or fresh,
+  // it always references the same dep-chunk URL → one React instance. ✓
   const depsUrlRe = new RegExp(
     `"${escapedBase}node_modules/\\.vite/deps/([^"?#]+)(?:\\?[^"]*)?"`
     , "g",
@@ -113,14 +124,16 @@ function reconnectReloadPlugin(sessionBase: string) {
   // Matches the <script type="module" src="…"> entry point in HTML responses.
   const scriptSrcRe = /(<script\b[^>]*type="module"[^>]*src=")([^"?#]+)(")/g;
 
-  // Strips /<base>@td/<token>/deps/ from incoming dep-chunk request URLs,
-  // remapping them to the real Vite-served path.
-  // Example: /test-dashboard/@td/TOKEN/deps/react.js?v=60f50dc8
-  //        → /test-dashboard/node_modules/.vite/deps/react.js?v=60f50dc8
-  // NOTE: dep chunks use only RELATIVE imports to other chunks, so once the
-  // first chunk is served at /@td/TOKEN/deps/, the browser resolves all its
-  // relative siblings to the same token sub-path, and each sibling request
-  // is remapped here too — no body rewriting is needed inside dep chunks.
+  // Strips /@td/deps/ from fixed dep-chunk URLs (new approach, no session token).
+  // Example: /test-dashboard/@td/deps/react.js
+  //        → /test-dashboard/node_modules/.vite/deps/react.js
+  const tdDepsFixedRe = new RegExp(`^${escapedBase}@td/deps/`);
+
+  // Strips /<base>@td/<token>/deps/ from incoming tokenised dep-chunk URLs.
+  // Legacy fallback: handles any old-token dep URLs that may still arrive
+  // (e.g. from a browser tab that has a pre-fix source file in its cache).
+  // Example: /test-dashboard/@td/TOKEN/deps/react.js
+  //        → /test-dashboard/node_modules/.vite/deps/react.js
   const tdDepsRe = new RegExp(`^${escapedBase}@td/[^/]+/deps/`);
   const depsBase = `${sessionBase}node_modules/.vite/deps/`;
 
@@ -320,12 +333,13 @@ function reconnectReloadPlugin(sessionBase: string) {
 
         // ── 1. Strip session token from incoming request URLs ──────────────
         if (rawUrl.includes("/@td/")) {
-          if (tdDepsRe.test(rawUrl)) {
-            // Dep-chunk URL: /base/@td/TOKEN/deps/chunk.js?v=HASH
-            //              → /base/node_modules/.vite/deps/chunk.js?v=HASH
-            // The dep chunk uses only RELATIVE imports; the browser resolves
-            // those relative to the /@td/TOKEN/deps/ base, so each sibling
-            // request also hits this branch and is remapped correctly.
+          if (tdDepsFixedRe.test(rawUrl)) {
+            // Fixed dep-chunk URL (new): /base/@td/deps/chunk.js
+            //                         → /base/node_modules/.vite/deps/chunk.js
+            req.url = rawUrl.replace(tdDepsFixedRe, depsBase);
+          } else if (tdDepsRe.test(rawUrl)) {
+            // Tokenised dep-chunk URL (legacy): /base/@td/TOKEN/deps/chunk.js
+            //                                → /base/node_modules/.vite/deps/chunk.js
             req.url = rawUrl.replace(tdDepsRe, depsBase);
           } else {
             // Source-file URL: /base/@td/TOKEN/@fs/path → /base/@fs/path
@@ -366,25 +380,26 @@ function reconnectReloadPlugin(sessionBase: string) {
           const ct = ((res.getHeader?.("content-type") as string) ?? "").toLowerCase();
 
           if (ct.includes("javascript") || ct.includes("typescript")) {
-            // Rewrite dep-chunk URLs to embed the session token AND strip ?v=HASH.
+            // Rewrite dep-chunk URLs to use a FIXED shared path (no session token)
+            // AND strip the ?v=HASH query param.
             //   "/base/node_modules/.vite/deps/react.js?v=HASH"
-            //   → "/base/@td/TOKEN/deps/react.js"  (no ?v=)
+            //   → "/base/@td/deps/react.js"  (no token, no ?v=)
             //
-            // WHY strip ?v=HASH: dep chunks use relative imports without ?v= so
-            // they load at "…/@td/TOKEN/deps/react.js" (no ?v=). If the source
-            // file kept "…/@td/TOKEN/deps/react.js?v=HASH", the browser's ES
-            // module registry would see two DIFFERENT module identities for the
-            // same file — one with ?v=, one without — loading React twice and
-            // triggering "Invalid hook call" on the first hook in any component.
-            // Stripping ?v= makes source-file imports land on the same URL as
-            // relative dep-chunk imports → single React instance. ✓
+            // WHY no ?v=HASH: dep chunks use relative imports without ?v= so
+            // they load at "…/@td/deps/react.js" (no ?v=). Keeping ?v= would
+            // create two different module identities for the same file.
             //
-            // Session-unique path (/base/@td/TOKEN/deps/) still prevents Replit's
-            // proxy (which caches by URL path) from serving a stale dep chunk.
+            // WHY no session token: Replit's external proxy (*.replit.dev)
+            // normalises the @td/TOKEN/ path segment away when building its
+            // cache key, so @fs/ source files can be served from proxy cache
+            // with a DIFFERENT token's dep-chunk URLs.  By using a token-free
+            // fixed path (/base/@td/deps/), both stale-cached and fresh source
+            // files always reference the same dep-chunk URL → one React
+            // instance regardless of which session the proxy cached. ✓
             let result = body.replace(
               depsUrlRe,
               (_m: string, filename: string) =>
-                `"${sessionBase}@td/${sessionToken}/deps/${filename}"`,
+                `"${sessionBase}@td/deps/${filename}"`,
             );
             // Rewrite every @fs/ source-file URL to embed the session token
             // in the path: BASE@fs/path → BASE@td/TOKEN/@fs/path.
