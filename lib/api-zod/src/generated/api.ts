@@ -64,6 +64,9 @@ export const CreateSupportTicketBody = zod.object({
       }),
     )
     .optional(),
+  source: zod.string().optional(),
+  farmId: zod.number().nullable().optional(),
+  tenantSlug: zod.string().nullable().optional(),
 });
 
 /**
