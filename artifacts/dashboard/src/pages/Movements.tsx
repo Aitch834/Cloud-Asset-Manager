@@ -1091,7 +1091,14 @@ export default function Movements() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [printRecord, setPrintRecord] = useState<Movement | null>(null);
   const [expandedAttachments, setExpandedAttachments] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<"movements" | "mortality" | "bcms-submissions" | "lis-submissions" | "lip-submissions">("movements");
+  const [activeTab, setActiveTab] = useState<"movements" | "mortality" | "bcms-submissions" | "lis-submissions" | "lip-submissions" | "lip-lost-found">("movements");
+  const [lipActionDialog, setLipActionDialog] = useState<{ type: "confirm" | "reject" | "cancel"; submissionId: number; lipReference: string } | null>(null);
+  const [lipActionReason, setLipActionReason] = useState("");
+  const [showLostFoundForm, setShowLostFoundForm] = useState(false);
+  const [lostFoundViewId, setLostFoundViewId] = useState<number | null>(null);
+  const [lostFoundEditId, setLostFoundEditId] = useState<number | null>(null);
+  const [lostFoundDeleteId, setLostFoundDeleteId] = useState<number | null>(null);
+  const [lostFoundForm, setLostFoundForm] = useState({ earTag: "", status: "lost", eventDate: "", crimeReferenceNumber: "", foundDead: false, notes: "" });
   const [bcmsFilter, setBcmsFilter] = useState<"all" | "pending" | "submitted">("all");
   const { toast } = useToast();
   const [submitConfirmId, setSubmitConfirmId] = useState<number | null>(null);
@@ -1253,6 +1260,14 @@ export default function Movements() {
   });
   const lipConfigured = !!lipCredsData?.configured;
 
+  const { data: lostFoundData, refetch: refetchLostFound } = useQuery({
+    queryKey: ["lip-lost-found", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/lip-lost-found`).then(r => r.json()),
+    enabled: !!farmId,
+    select: (d: any) => d.records ?? [],
+  });
+  const lostFoundRecords: any[] = lostFoundData ?? [];
+
   const submitLipMut = useMutation({
     mutationFn: (movementId: number) =>
       fetch(`/api/farms/${farmId}/lip-submit-movement/${movementId}`, { method: "POST" }).then(r => r.json()),
@@ -1269,6 +1284,69 @@ export default function Movements() {
       }
     },
     onError: () => { setLipSubmittingId(null); toast({ title: "LIP submission error", variant: "destructive" }); },
+  });
+
+  const confirmLipMut = useMutation({
+    mutationFn: (params: { lipReference: string; action: "accept" | "reject"; rejectionReason?: string; submissionId: number }) =>
+      fetch(`/api/farms/${farmId}/lip-confirm-movement`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lipReference: params.lipReference, action: params.action, rejectionReason: params.rejectionReason, submissionId: params.submissionId }),
+      }).then(r => r.json()),
+    onSuccess: (d) => {
+      setLipActionDialog(null);
+      setLipActionReason("");
+      refetchLipSubmissions();
+      if (d.success) {
+        toast({ title: d.sandbox ? "Confirmation sent (sandbox)" : "Movement confirmed", description: d.reference ? `Ref: ${d.reference}` : undefined });
+      } else {
+        toast({ title: "Confirmation failed", description: d.error, variant: "destructive" });
+      }
+    },
+    onError: () => toast({ title: "Confirmation error", variant: "destructive" }),
+  });
+
+  const cancelLipMut = useMutation({
+    mutationFn: (params: { lipReference: string; submissionId: number }) =>
+      fetch(`/api/farms/${farmId}/lip-cancel-movement`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lipReference: params.lipReference, submissionId: params.submissionId }),
+      }).then(r => r.json()),
+    onSuccess: (d) => {
+      setLipActionDialog(null);
+      refetchLipSubmissions();
+      if (d.success) {
+        toast({ title: d.sandbox ? "Cancellation sent (sandbox)" : "Movement cancelled", description: d.reference ? `Ref: ${d.reference}` : undefined });
+      } else {
+        toast({ title: "Cancellation failed", description: d.error, variant: "destructive" });
+      }
+    },
+    onError: () => toast({ title: "Cancellation error", variant: "destructive" }),
+  });
+
+  const saveLostFoundMut = useMutation({
+    mutationFn: (params: { id?: number; body: Record<string, unknown> }) =>
+      fetch(params.id ? `/api/farms/${farmId}/lip-lost-found/${params.id}` : `/api/farms/${farmId}/lip-lost-found`, {
+        method: params.id ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(params.body),
+      }).then(r => r.json()),
+    onSuccess: (d) => {
+      refetchLostFound();
+      setShowLostFoundForm(false);
+      setLostFoundEditId(null);
+      setLostFoundForm({ earTag: "", status: "lost", eventDate: "", crimeReferenceNumber: "", foundDead: false, notes: "" });
+      const rec = d.record;
+      if (rec?.lipStatus === "submitted" || rec?.lipStatus === "pending") {
+        toast({ title: "Lost & Found record saved", description: d.reference ? `LIP ref: ${d.reference}` : "Record saved locally" });
+      } else if (d.error) {
+        toast({ title: "LIP submission failed", description: d.error, variant: "destructive" });
+      } else {
+        toast({ title: "Lost & Found record saved" });
+      }
+    },
+    onError: () => toast({ title: "Failed to save record", variant: "destructive" }),
   });
 
   const submitLisMut = useMutation({
@@ -1499,6 +1577,12 @@ export default function Movements() {
           <span className="flex items-center gap-1.5">
             <Send className="w-3.5 h-3.5" />LIP Submissions
             {lipSubmissions.length > 0 && <span className="text-xs opacity-60">({lipSubmissions.length})</span>}
+          </span>
+        </TabButton>
+        <TabButton active={activeTab === "lip-lost-found"} onClick={() => setActiveTab("lip-lost-found")}>
+          <span className="flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5" />Lost &amp; Found
+            {lostFoundRecords.length > 0 && <span className="text-xs opacity-60">({lostFoundRecords.length})</span>}
           </span>
         </TabButton>
       </TabBar>
@@ -2172,7 +2256,8 @@ export default function Movements() {
                               </button>
                             ) : null;
 
-                            const lipBtn = isCattle && isSubmittableType && lipConfigured ? (
+                            const isLipSubmittable = isCattle && r.movementType !== "birth" && lipConfigured;
+                            const lipBtn = isLipSubmittable ? (
                               <button
                                 onClick={() => setLipSubmitConfirmId(r.id)}
                                 disabled={lipSubmittingId === r.id}
@@ -2574,7 +2659,7 @@ export default function Movements() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
                 <thead>
                   <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                    {["Date & Time", "Record", "Type", "Status", "Mode", "LIP Reference", "Error"].map(h => (
+                    {["Date & Time", "Record", "Type", "Status", "Mode", "LIP Reference", "Error", "Actions"].map(h => (
                       <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
@@ -2623,6 +2708,28 @@ export default function Movements() {
                         <td style={{ padding: "0.625rem 0.875rem", color: "#dc2626", fontSize: "0.75rem", maxWidth: 200 }}>
                           <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.errorMessage || "—"}</div>
                         </td>
+                        <td style={{ padding: "0.625rem 0.875rem" }}>
+                          {s.submissionType === "movement" && s.lipReference && s.status !== "cancelled" && (
+                            <div style={{ display: "flex", gap: 4, flexWrap: "nowrap" }}>
+                              {s.status !== "confirmed" && s.confirmedAction !== "accept" && (
+                                <button
+                                  onClick={() => setLipActionDialog({ type: "confirm", submissionId: s.id, lipReference: s.lipReference })}
+                                  style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: "0.68rem", padding: "2px 7px", borderRadius: 5, border: "1px solid #bbf7d0", background: "#f0fdf4", color: "#166534", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
+                                >Accept</button>
+                              )}
+                              {s.status !== "rejected" && s.confirmedAction !== "reject" && (
+                                <button
+                                  onClick={() => setLipActionDialog({ type: "reject", submissionId: s.id, lipReference: s.lipReference })}
+                                  style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: "0.68rem", padding: "2px 7px", borderRadius: 5, border: "1px solid #fecaca", background: "#fef2f2", color: "#991b1b", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
+                                >Reject</button>
+                              )}
+                              <button
+                                onClick={() => setLipActionDialog({ type: "cancel", submissionId: s.id, lipReference: s.lipReference })}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: "0.68rem", padding: "2px 7px", borderRadius: 5, border: "1px solid #e5e7eb", background: "#f9fafb", color: "#6b7280", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
+                              >Cancel</button>
+                            </div>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
@@ -2633,6 +2740,225 @@ export default function Movements() {
         </div>
       )}
 
+      {activeTab === "lip-lost-found" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
+            <div>
+              <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "#1f2937", marginBottom: 2 }}>Lost &amp; Found — LIP Notifications</h3>
+              <p style={{ fontSize: "0.82rem", color: "#6b7280" }}>Report lost, found or stolen cattle to the Livestock Information Platform. All reports are logged regardless of submission status.</p>
+            </div>
+            <Button
+              onClick={() => { setShowLostFoundForm(true); setLostFoundEditId(null); setLostFoundForm({ earTag: "", status: "lost", eventDate: "", crimeReferenceNumber: "", foundDead: false, notes: "" }); }}
+              style={{ background: "#6d28d9", color: "#fff", display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
+              <Plus size={14} /> Report Animal
+            </Button>
+          </div>
+
+          {showLostFoundForm && (
+            <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "1.25rem", marginBottom: "1rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                <h4 style={{ fontWeight: 600, color: "#1f2937" }}>{lostFoundEditId ? "Edit Record" : "Report Lost / Found Animal"}</h4>
+                <button onClick={() => { setShowLostFoundForm(false); setLostFoundEditId(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}><X size={16} /></button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                <div>
+                  <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Ear Tag *</label>
+                  <input
+                    value={lostFoundForm.earTag}
+                    onChange={e => setLostFoundForm(f => ({ ...f, earTag: e.target.value }))}
+                    placeholder="e.g. UK123456 789012"
+                    style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "6px 10px", fontSize: "0.875rem" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Status *</label>
+                  <select
+                    value={lostFoundForm.status}
+                    onChange={e => setLostFoundForm(f => ({ ...f, status: e.target.value }))}
+                    style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "6px 10px", fontSize: "0.875rem" }}
+                  >
+                    <option value="lost">Lost</option>
+                    <option value="found">Found</option>
+                    <option value="stolen">Stolen</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Event Date *</label>
+                  <input
+                    type="date"
+                    value={lostFoundForm.eventDate}
+                    onChange={e => setLostFoundForm(f => ({ ...f, eventDate: e.target.value }))}
+                    style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "6px 10px", fontSize: "0.875rem" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Crime Reference No. <span style={{ fontWeight: 400, color: "#9ca3af" }}>(theft only)</span></label>
+                  <input
+                    value={lostFoundForm.crimeReferenceNumber}
+                    onChange={e => setLostFoundForm(f => ({ ...f, crimeReferenceNumber: e.target.value }))}
+                    placeholder="Police crime reference"
+                    style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "6px 10px", fontSize: "0.875rem" }}
+                  />
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    id="foundDead"
+                    checked={lostFoundForm.foundDead}
+                    onChange={e => setLostFoundForm(f => ({ ...f, foundDead: e.target.checked }))}
+                    style={{ width: 16, height: 16 }}
+                  />
+                  <label htmlFor="foundDead" style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151" }}>Animal found dead</label>
+                </div>
+                <div style={{ gridColumn: "span 2" }}>
+                  <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Notes</label>
+                  <textarea
+                    value={lostFoundForm.notes}
+                    onChange={e => setLostFoundForm(f => ({ ...f, notes: e.target.value }))}
+                    placeholder="Additional details..."
+                    rows={2}
+                    style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "6px 10px", fontSize: "0.875rem" }}
+                  />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: "1rem", justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => { setShowLostFoundForm(false); setLostFoundEditId(null); }}
+                  style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 7, padding: "7px 16px", fontSize: "0.875rem", cursor: "pointer" }}
+                >Cancel</button>
+                <button
+                  disabled={saveLostFoundMut.isPending || !lostFoundForm.earTag || !lostFoundForm.status || !lostFoundForm.eventDate}
+                  onClick={() => saveLostFoundMut.mutate({
+                    id: lostFoundEditId ?? undefined,
+                    body: {
+                      earTag: lostFoundForm.earTag.trim(),
+                      status: lostFoundForm.status,
+                      eventDate: lostFoundForm.eventDate,
+                      crimeReferenceNumber: lostFoundForm.crimeReferenceNumber || undefined,
+                      foundDead: lostFoundForm.foundDead || undefined,
+                      notes: lostFoundForm.notes || undefined,
+                      submitToLip: lipConfigured && !lostFoundEditId,
+                    },
+                  })}
+                  style={{ background: "#6d28d9", color: "#fff", border: "none", borderRadius: 7, padding: "7px 16px", fontSize: "0.875rem", cursor: "pointer", fontWeight: 600 }}
+                >
+                  {saveLostFoundMut.isPending ? "Saving…" : (lipConfigured && !lostFoundEditId ? "Save & Submit to LIP" : "Save Record")}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {lostFoundRecords.length === 0 && !showLostFoundForm ? (
+            <div style={{ textAlign: "center", padding: "3rem", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10 }}>
+              <AlertTriangle size={32} style={{ margin: "0 auto 12px", opacity: 0.3, color: "#6b7280" }} />
+              <p style={{ fontWeight: 600, color: "#374151", marginBottom: 4 }}>No lost &amp; found reports</p>
+              <p style={{ fontSize: "0.875rem", color: "#9ca3af" }}>Use this section to report any cattle that are missing, found straying, or stolen. Reports are submitted to the LIP API.</p>
+            </div>
+          ) : lostFoundRecords.length > 0 ? (
+            <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                <thead>
+                  <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                    {["Date", "Ear Tag", "Status", "LIP Status", "Reference", "Notes", ""].map(h => (
+                      <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {lostFoundRecords.map((r: any, i: number) => {
+                    const statusColors: Record<string, { bg: string; color: string }> = {
+                      lost:    { bg: "#fef3c7", color: "#92400e" },
+                      found:   { bg: "#dcfce7", color: "#166534" },
+                      stolen:  { bg: "#fee2e2", color: "#991b1b" },
+                    };
+                    const lipStatusColors: Record<string, { bg: string; color: string }> = {
+                      submitted: { bg: "#dcfce7", color: "#166534" },
+                      pending:   { bg: "#f3f4f6", color: "#6b7280" },
+                      failed:    { bg: "#fee2e2", color: "#991b1b" },
+                    };
+                    const sc = statusColors[r.status] ?? { bg: "#f3f4f6", color: "#6b7280" };
+                    const lc = lipStatusColors[r.lipStatus] ?? { bg: "#f3f4f6", color: "#6b7280" };
+                    const isViewMode = lostFoundViewId === r.id;
+                    return (
+                      <React.Fragment key={r.id}>
+                        <tr style={{ borderBottom: "1px solid #f3f4f6", background: isViewMode ? "#faf5ff" : undefined }}>
+                          <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap", color: "#6b7280", fontSize: "0.8rem" }}>
+                            {r.eventDate ? new Date(r.eventDate).toLocaleDateString("en-GB") : "—"}
+                          </td>
+                          <td style={{ padding: "0.625rem 0.875rem", fontWeight: 600, fontFamily: "monospace", fontSize: "0.8rem" }}>{r.earTag}</td>
+                          <td style={{ padding: "0.625rem 0.875rem" }}>
+                            <span style={{ background: sc.bg, color: sc.color, borderRadius: 6, padding: "2px 8px", fontSize: "0.72rem", fontWeight: 600, textTransform: "capitalize" }}>{r.status}</span>
+                          </td>
+                          <td style={{ padding: "0.625rem 0.875rem" }}>
+                            <span style={{ background: lc.bg, color: lc.color, borderRadius: 6, padding: "2px 8px", fontSize: "0.72rem", fontWeight: 600, textTransform: "capitalize" }}>{r.lipStatus}</span>
+                          </td>
+                          <td style={{ padding: "0.625rem 0.875rem", fontFamily: "monospace", fontSize: "0.75rem", color: "#374151" }}>{r.lipReference || "—"}</td>
+                          <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontSize: "0.8rem", maxWidth: 200 }}>
+                            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.notes || "—"}</div>
+                          </td>
+                          <td style={{ padding: "0.625rem 0.875rem" }}>
+                            <div style={{ display: "flex", gap: 4 }}>
+                              <button
+                                onClick={() => setLostFoundViewId(isViewMode ? null : r.id)}
+                                title={isViewMode ? "Close" : "View"}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: "0.68rem", padding: "2px 7px", borderRadius: 5, border: "1px solid #e5e7eb", background: isViewMode ? "#f3f4f6" : "#f9fafb", color: "#374151", cursor: "pointer" }}
+                              ><Eye size={11} /></button>
+                              <button
+                                onClick={() => {
+                                  setLostFoundEditId(r.id);
+                                  setLostFoundForm({ earTag: r.earTag, status: r.status, eventDate: r.eventDate ?? "", crimeReferenceNumber: r.crimeReferenceNumber ?? "", foundDead: r.foundDead ?? false, notes: r.notes ?? "" });
+                                  setShowLostFoundForm(true);
+                                }}
+                                title="Edit"
+                                style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: "0.68rem", padding: "2px 7px", borderRadius: 5, border: "1px solid #e5e7eb", background: "#f9fafb", color: "#374151", cursor: "pointer" }}
+                              ><Pencil size={11} /></button>
+                            </div>
+                          </td>
+                        </tr>
+                        {isViewMode && (
+                          <tr>
+                            <td colSpan={7} style={{ padding: "0.875rem 1.25rem", background: "#faf5ff", borderBottom: "1px solid #e5e7eb" }}>
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.5rem 1.5rem", fontSize: "0.82rem" }}>
+                                {[
+                                  ["Ear Tag", r.earTag],
+                                  ["Status", r.status],
+                                  ["Event Date", r.eventDate ? new Date(r.eventDate).toLocaleDateString("en-GB") : "—"],
+                                  ["Crime Ref.", r.crimeReferenceNumber || "—"],
+                                  ["Found Dead", r.foundDead ? "Yes" : "No"],
+                                  ["LIP Reference", r.lipReference || "—"],
+                                  ["LIP Status", r.lipStatus],
+                                  ["Sandbox", r.sandboxMode ? "Yes" : "No"],
+                                  ["Reported", new Date(r.createdAt).toLocaleDateString("en-GB")],
+                                ].map(([k, v]) => (
+                                  <div key={k}><span style={{ color: "#6b7280", fontWeight: 500 }}>{k}: </span><span style={{ fontWeight: 600, color: "#1f2937" }}>{v}</span></div>
+                                ))}
+                                {r.notes && <div style={{ gridColumn: "span 3" }}><span style={{ color: "#6b7280", fontWeight: 500 }}>Notes: </span><span style={{ color: "#1f2937" }}>{r.notes}</span></div>}
+                                {r.errorMessage && <div style={{ gridColumn: "span 3" }}><span style={{ color: "#dc2626", fontWeight: 500 }}>Error: </span><span style={{ color: "#dc2626" }}>{r.errorMessage}</span></div>}
+                                {lipConfigured && r.lipStatus === "failed" && (
+                                  <div style={{ gridColumn: "span 3", marginTop: 4 }}>
+                                    <button
+                                      disabled={saveLostFoundMut.isPending}
+                                      onClick={() => saveLostFoundMut.mutate({ body: { earTag: r.earTag, status: r.status, eventDate: r.eventDate, crimeReferenceNumber: r.crimeReferenceNumber, foundDead: r.foundDead, notes: r.notes, submitToLip: true } })}
+                                      style={{ background: "#6d28d9", color: "#fff", border: "none", borderRadius: 6, padding: "5px 14px", fontSize: "0.8rem", cursor: "pointer", fontWeight: 600 }}
+                                    >Re-submit to LIP</button>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {/* LIP Submit Confirmation Dialog */}
       <Dialog open={lipSubmitConfirmId !== null} onOpenChange={o => { if (!o) setLipSubmitConfirmId(null); }}>
         <DialogContent>
           <DialogHeader>
@@ -2656,6 +2982,77 @@ export default function Movements() {
               style={{ background: "#6d28d9", color: "#fff" }}
             >
               {submitLipMut.isPending ? <><Loader2 size={14} className="animate-spin mr-1" />Submitting…</> : "Submit to LIP"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* LIP Accept / Reject Dialog */}
+      <Dialog open={lipActionDialog?.type === "confirm" || lipActionDialog?.type === "reject"} onOpenChange={o => { if (!o) { setLipActionDialog(null); setLipActionReason(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{lipActionDialog?.type === "confirm" ? "Accept Movement" : "Reject Movement"}</DialogTitle>
+            <DialogDescription>
+              {lipActionDialog?.type === "confirm"
+                ? `Accept movement ${lipActionDialog.lipReference} as confirmed at the receiving holding.`
+                : `Reject movement ${lipActionDialog?.lipReference}. Provide a reason if required.`}
+            </DialogDescription>
+          </DialogHeader>
+          {lipActionDialog?.type === "reject" && (
+            <div style={{ padding: "0 0 8px" }}>
+              <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Rejection Reason</label>
+              <textarea
+                value={lipActionReason}
+                onChange={e => setLipActionReason(e.target.value)}
+                placeholder="Optional — describe why this movement is being rejected"
+                rows={3}
+                style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "8px 10px", fontSize: "0.875rem" }}
+              />
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setLipActionDialog(null); setLipActionReason(""); }}>Cancel</Button>
+            <Button
+              disabled={confirmLipMut.isPending}
+              onClick={() => {
+                if (!lipActionDialog) return;
+                confirmLipMut.mutate({
+                  submissionId: lipActionDialog.submissionId,
+                  lipReference: lipActionDialog.lipReference,
+                  action: lipActionDialog.type === "confirm" ? "accept" : "reject",
+                  rejectionReason: lipActionReason || undefined,
+                });
+              }}
+              style={{ background: lipActionDialog?.type === "confirm" ? "#166534" : "#991b1b", color: "#fff" }}
+            >
+              {confirmLipMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+              {lipActionDialog?.type === "confirm" ? "Confirm Accept" : "Confirm Reject"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* LIP Cancel Movement Dialog */}
+      <Dialog open={lipActionDialog?.type === "cancel"} onOpenChange={o => { if (!o) setLipActionDialog(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel Movement Notification</DialogTitle>
+            <DialogDescription>
+              This will send a cancellation request to LIP for movement reference <strong>{lipActionDialog?.lipReference}</strong>. The original submission will be marked as cancelled. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLipActionDialog(null)}>Go Back</Button>
+            <Button
+              disabled={cancelLipMut.isPending}
+              onClick={() => {
+                if (!lipActionDialog) return;
+                cancelLipMut.mutate({ submissionId: lipActionDialog.submissionId, lipReference: lipActionDialog.lipReference });
+              }}
+              variant="destructive"
+            >
+              {cancelLipMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+              Cancel Notification
             </Button>
           </DialogFooter>
         </DialogContent>

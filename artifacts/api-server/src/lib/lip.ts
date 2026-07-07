@@ -454,12 +454,20 @@ export interface LipMovementParams {
   accessToken: string;
   holdingCph: string;
   movementDate: string;         // YYYY-MM-DD
-  movementType: "ON" | "OFF";   // relative to holdingCph
+  movementType: "ON" | "OFF" | "BETWEEN";   // BETWEEN = in-business move
   fromCph: string;
   toCph: string;
   earTagNumbers?: string;       // newline/comma-separated UK ear tags
   numberOfAnimals: number;
   licenceNumber?: string;
+  isInBusinessMove?: boolean;   // sets inBusinessMoveFlag on movement
+  haulierName?: string;
+  haulierVehicleReg?: string;
+  haulierAuthorisationNumber?: string;
+  haulierTrailerNumber?: string;
+  fciDeclarationFlag?: boolean;
+  fciDiseaseDetails?: string;
+  fciTreatmentDetails?: string;
 }
 
 /**
@@ -484,9 +492,27 @@ export async function submitLipMovement(params: LipMovementParams): Promise<LipS
 
   const now = new Date().toISOString();
 
+  const haulierBlock = (params.haulierName || params.haulierVehicleReg || params.haulierAuthorisationNumber)
+    ? {
+        name: params.haulierName,
+        vehicleRegistrationNumber: params.haulierVehicleReg,
+        authorisationNumber: params.haulierAuthorisationNumber,
+        trailerNumber: params.haulierTrailerNumber,
+      }
+    : undefined;
+
+  const fciBlock = (params.fciDeclarationFlag !== undefined)
+    ? {
+        declarationFlag: params.fciDeclarationFlag ?? false,
+        ...(params.fciDiseaseDetails   ? { diseaseDetails:   params.fciDiseaseDetails }   : {}),
+        ...(params.fciTreatmentDetails ? { treatmentDetails: params.fciTreatmentDetails } : {}),
+      }
+    : undefined;
+
   const movementData: Record<string, unknown> = {
     movementKind: "standard",
     state: "preNotified",
+    ...(params.isInBusinessMove ? { inBusinessMoveFlag: true } : {}),
     movementReports: [
       {
         departure: {
@@ -508,6 +534,8 @@ export async function submitLipMovement(params: LipMovementParams): Promise<LipS
         ],
       },
     ],
+    ...(haulierBlock ? { haulier: haulierBlock } : {}),
+    ...(fciBlock ? { fciInformation: fciBlock } : {}),
     createdDateTime: now,
     updatedDateTime: now,
   };
@@ -545,6 +573,9 @@ export interface LipBirthParams {
   calfSex?: string;             // "male" | "female"
   calfBreed?: string;
   damEarTag?: string;
+  assistanceRequired?: boolean; // → assistedBirthFlag
+  numberOfCalves?: number;      // > 1 → multipleBirthsFlag
+  conceptionMethod?: string;    // "embryo-transfer" → embryoTransferFlag
 }
 
 /**
@@ -559,6 +590,7 @@ export interface LipBirthParams {
  * Optional birth details carried in the `birth` object.
  */
 export async function submitLipBirth(params: LipBirthParams): Promise<LipSubmissionResult> {
+  const isEmbryoTransfer = params.conceptionMethod === "embryo-transfer";
   const payload: Record<string, unknown> = {
     animal: {
       identifier: params.calfEarTag ?? `UNKNOWN-${Date.now()}`,
@@ -569,9 +601,9 @@ export async function submitLipBirth(params: LipBirthParams): Promise<LipSubmiss
     birth: {
       site: { identifiers: [{ identifier: params.holdingCph }] },
       date: params.birthDate,
-      assistedBirthFlag: false,
-      multipleBirthsFlag: false,
-      embryoTransferFlag: false,
+      assistedBirthFlag: params.assistanceRequired ?? false,
+      multipleBirthsFlag: (params.numberOfCalves ?? 1) > 1,
+      embryoTransferFlag: isEmbryoTransfer,
     },
     registration: {
       site: { identifiers: [{ identifier: params.holdingCph }] },
@@ -612,6 +644,116 @@ export interface LipDeathParams {
   earTag?: string;              // UK ear tag — used as animal identifier in PUT /animals/{identifier}
   causeOfDeath?: string;
   disposalMethod?: string;
+  tseTestRequired?: boolean;    // → tseTestRequiredFlag on death record
+}
+
+// ── Lost & Found ──────────────────────────────────────────────────────────────
+
+export type LipLostFoundStatus = "lost" | "found" | "stolen";
+
+export interface LipLostFoundParams {
+  accessToken: string;
+  identifier: string;           // animal ear tag / identifier
+  holdingCph: string;
+  status: LipLostFoundStatus;
+  eventDate: string;            // YYYY-MM-DD
+  crimeReferenceNumber?: string;
+  foundDead?: boolean;
+}
+
+/**
+ * Report a lost, found or stolen animal to the LIS LIP API.
+ * Endpoint: POST /lostfounds  (application/json)
+ */
+export async function submitLipLostFound(params: LipLostFoundParams): Promise<LipSubmissionResult> {
+  const payload: Record<string, unknown> = {
+    identifier: params.identifier,
+    site: { identifiers: [{ identifier: params.holdingCph }] },
+    status: params.status,
+    eventDate: params.eventDate,
+    ...(params.crimeReferenceNumber ? { crimeReferenceNumber: params.crimeReferenceNumber } : {}),
+    ...(params.foundDead !== undefined ? { foundDead: params.foundDead } : {}),
+  };
+
+  const res = await callLipApi(params.accessToken, "POST", "/lostfounds", payload);
+
+  if (!res.ok) {
+    if (isSubscriptionPendingResponse(res)) {
+      const ref = `LIP-LOSTFOUND-SANDBOX-${Date.now()}`;
+      return { sandbox: true, success: true, lipReference: ref, requestPayload: payload, responsePayload: res.data, subscriptionPending: true };
+    }
+    return {
+      sandbox: false, success: false, requestPayload: payload, responsePayload: res.data,
+      errorMessage: `HTTP ${res.status}: ${typeof res.data === "string" ? res.data : JSON.stringify(res.data)}`,
+    };
+  }
+
+  const d = res.data as Record<string, unknown>;
+  const ref = String(d["id"] ?? d["reference"] ?? `LIP-LOSTFOUND-${Date.now()}`);
+  return { sandbox: false, success: true, lipReference: ref, requestPayload: payload, responsePayload: d };
+}
+
+// ── Movement confirmation / cancellation ──────────────────────────────────────
+
+export interface LipConfirmMovementParams {
+  accessToken: string;
+  movementNumber: number | string;
+  action: "accept" | "reject";
+  rejectionReasonId?: string;
+  rejectionReason?: string;
+}
+
+/**
+ * Confirm or reject a movement as the receiving counterparty.
+ * Endpoint: POST /movements/{movementNumber}/confirmations  (application/json)
+ */
+export async function confirmLipMovement(params: LipConfirmMovementParams): Promise<LipSubmissionResult> {
+  const payload: Record<string, unknown> = {
+    action: params.action,
+    ...(params.action === "reject" && params.rejectionReasonId ? { rejectionReasonId: params.rejectionReasonId } : {}),
+    ...(params.action === "reject" && params.rejectionReason ? { rejectionReason: params.rejectionReason } : {}),
+  };
+
+  const res = await callLipApi(params.accessToken, "POST", `/movements/${params.movementNumber}/confirmations`, payload);
+
+  if (!res.ok) {
+    if (isSubscriptionPendingResponse(res)) {
+      const ref = `LIP-CONFIRM-SANDBOX-${Date.now()}`;
+      return { sandbox: true, success: true, lipReference: ref, requestPayload: payload, responsePayload: res.data, subscriptionPending: true };
+    }
+    return {
+      sandbox: false, success: false, requestPayload: payload, responsePayload: res.data,
+      errorMessage: `HTTP ${res.status}: ${typeof res.data === "string" ? res.data : JSON.stringify(res.data)}`,
+    };
+  }
+
+  const d = res.data as Record<string, unknown>;
+  return { sandbox: false, success: true, lipReference: String(params.movementNumber), requestPayload: payload, responsePayload: d };
+}
+
+/**
+ * Cancel (delete) a previously submitted movement.
+ * Endpoint: DELETE /movements/{movementNumber}  (sync or async)
+ */
+export async function cancelLipMovement(
+  accessToken: string,
+  movementNumber: number | string,
+): Promise<LipSubmissionResult> {
+  const payload = { movementNumber };
+  const res = await callLipApi(accessToken, "DELETE", `/movements/${movementNumber}`);
+
+  if (!res.ok) {
+    if (isSubscriptionPendingResponse(res)) {
+      const ref = `LIP-CANCEL-SANDBOX-${Date.now()}`;
+      return { sandbox: true, success: true, lipReference: ref, requestPayload: payload, responsePayload: res.data, subscriptionPending: true };
+    }
+    return {
+      sandbox: false, success: false, requestPayload: payload, responsePayload: res.data,
+      errorMessage: `HTTP ${res.status}: ${typeof res.data === "string" ? res.data : JSON.stringify(res.data)}`,
+    };
+  }
+
+  return { sandbox: false, success: true, lipReference: String(movementNumber), requestPayload: payload, responsePayload: res.data };
 }
 
 /**
@@ -647,6 +789,7 @@ export async function submitLipDeath(params: LipDeathParams): Promise<LipSubmiss
       date: params.deathDate,
       site: { identifiers: [{ identifier: params.holdingCph }] },
       ...(params.causeOfDeath ? { reason: { name: params.causeOfDeath } } : {}),
+      ...(params.tseTestRequired !== undefined ? { tseTestRequiredFlag: params.tseTestRequired } : {}),
     },
   };
 

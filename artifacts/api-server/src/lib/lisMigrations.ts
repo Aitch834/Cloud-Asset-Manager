@@ -96,4 +96,34 @@ export async function runLisMigrations(): Promise<void> {
       updated_at timestamptz not null default now()
     )
   `);
+
+  // LIS LIP Lost & Found — report of lost, found or stolen cattle
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS lip_lost_found (
+      id serial primary key,
+      farm_id integer not null references farms(id),
+      ear_tag text not null,
+      site_identifier text,
+      status text not null,
+      event_date date not null,
+      crime_reference_number text,
+      found_dead boolean,
+      lip_reference text,
+      lip_status text not null default 'pending',
+      sandbox_mode boolean not null default true,
+      notes text,
+      request_payload jsonb,
+      response_payload jsonb,
+      error_message text,
+      submitted_at timestamptz,
+      submitted_by_user_id integer,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `);
+
+  // Additional action columns on lip_submissions — for confirm/reject/cancel flows
+  await db.execute(sql`ALTER TABLE lip_submissions ADD COLUMN IF NOT EXISTS confirmed_at timestamptz`);
+  await db.execute(sql`ALTER TABLE lip_submissions ADD COLUMN IF NOT EXISTS confirmed_action text`);
+  await db.execute(sql`ALTER TABLE lip_submissions ADD COLUMN IF NOT EXISTS cancelled_at timestamptz`);
 }

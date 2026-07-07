@@ -5837,6 +5837,7 @@ ${yearlyStats.length > 1 ? `<h3>Season-by-Season Perinatal Mortality Trend</h3>
                       <SelectItem value="__none__">Not recorded</SelectItem>
                       <SelectItem value="natural-service">Natural service</SelectItem>
                       <SelectItem value="ai">AI (artificial insemination)</SelectItem>
+                      <SelectItem value="embryo-transfer">Embryo Transfer (ET)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

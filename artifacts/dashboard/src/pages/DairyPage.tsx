@@ -1993,6 +1993,7 @@ export function CalvingTab({ farmId }: { farmId: number }) {
                         <SelectItem value="__none__">Not recorded</SelectItem>
                         <SelectItem value="natural">Natural Service (bull)</SelectItem>
                         <SelectItem value="ai">AI — Artificial Insemination</SelectItem>
+                        <SelectItem value="embryo-transfer">Embryo Transfer (ET)</SelectItem>
                         <SelectItem value="unknown">Unknown</SelectItem>
                       </SelectContent>
                     </Select>

@@ -67,6 +67,7 @@ import {
   expoPushTokensTable,
   lisSubmissionsTable,
   lipSubmissionsTable,
+  lipLostFoundTable,
   bcmsFarmCredentialsTable,
   bcmsSubmissionsTable,
   livestockMedicineRecordsTable,
@@ -430,7 +431,7 @@ import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/bio
 import { generateDispatchNoteHtml } from "../lib/dispatch-note-html";
 import { submitMovement, testConnection, isSandboxMode } from "../lib/ctws";
 import { submitLisMovement, testLisConnection, fetchLisToken, refreshLisToken, isLisSandboxMode, callLisApi, buildLisAuthUrl, exchangeLisCode } from "../lib/lis";
-import { buildLipAuthUrl, exchangeLipCode, getLipRedirectUri, signLipOAuthState, verifyLipOAuthState, probeLipApi, isLipSandboxMode, refreshLipToken, callLipApi, submitLipMovement, submitLipBirth, submitLipDeath } from "../lib/lip";
+import { buildLipAuthUrl, exchangeLipCode, getLipRedirectUri, signLipOAuthState, verifyLipOAuthState, probeLipApi, isLipSandboxMode, refreshLipToken, callLipApi, submitLipMovement, submitLipBirth, submitLipDeath, submitLipLostFound, confirmLipMovement, cancelLipMovement } from "../lib/lip";
 import { computeFieldFiveInFiveScore, computeFarmFiveInFiveSummary } from "../lib/blackgrassFiveInFive";
 
 const router: IRouter = Router();
@@ -25874,6 +25875,8 @@ router.post("/farms/:farmId/lip-submit-movement/:movementId", requireAuth, requi
       earTagNumbers: movement.earTagNumbers ?? undefined,
       numberOfAnimals: movement.numberOfAnimals ?? 1,
       licenceNumber: movement.licenceNumber ?? undefined,
+      isInBusinessMove: movement.movementType === "between",
+      haulierName: (movement as any).haulierCompany ?? undefined,
     });
 
     await db.update(lipSubmissionsTable).set({
@@ -26028,6 +26031,9 @@ router.post("/farms/:farmId/lip-submit-birth/:calvingId", requireAuth, requireTe
       calfSex: calving.calfSex ?? undefined,
       calfBreed: calving.calfBreed ?? undefined,
       damEarTag: calving.cowEarTag ?? undefined,
+      assistanceRequired: calving.assistanceRequired ?? undefined,
+      numberOfCalves: calving.numberOfCalves ?? undefined,
+      conceptionMethod: calving.conceptionMethod ?? undefined,
     });
 
     await db.update(lipSubmissionsTable).set({
@@ -26046,6 +26052,211 @@ router.post("/farms/:farmId/lip-submit-birth/:calvingId", requireAuth, requireTe
     await db.update(lipSubmissionsTable).set({ status: "failed", errorMessage: err?.message ?? "Unknown error", updatedAt: new Date() }).where(eq(lipSubmissionsTable.id, submission.id));
     res.status(500).json({ error: err?.message ?? "LIP birth submission failed" });
   }
+});
+
+// ─── LIP Lost & Found ────────────────────────────────────────────────────────
+
+/**
+ * GET /farms/:farmId/lip-lost-found
+ * List all lost & found records for this farm.
+ */
+router.get("/farms/:farmId/lip-lost-found", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(lipLostFoundTable).where(eq(lipLostFoundTable.farmId, farmId)).orderBy(desc(lipLostFoundTable.eventDate));
+  res.json({ records: rows });
+});
+
+/**
+ * POST /farms/:farmId/lip-lost-found
+ * Create a new lost/found/stolen animal record and (optionally) submit to LIP.
+ */
+router.post("/farms/:farmId/lip-lost-found", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+
+  const { earTag, siteIdentifier, status, eventDate, crimeReferenceNumber, foundDead, notes, submitToLip } = req.body as {
+    earTag: string; siteIdentifier?: string; status: string; eventDate: string;
+    crimeReferenceNumber?: string; foundDead?: boolean; notes?: string; submitToLip?: boolean;
+  };
+
+  if (!earTag || !status || !eventDate) { res.status(400).json({ error: "earTag, status and eventDate are required" }); return; }
+
+  const eventDateStr = new Date(eventDate).toISOString().slice(0, 10);
+  const [row] = await db.insert(lipLostFoundTable).values({
+    farmId, earTag, siteIdentifier: siteIdentifier ?? null,
+    status, eventDate: eventDateStr,
+    crimeReferenceNumber: crimeReferenceNumber ?? null,
+    foundDead: foundDead ?? null,
+    notes: notes ?? null,
+    lipStatus: "pending",
+    sandboxMode: isLipSandboxMode(),
+    createdAt: new Date(), updatedAt: new Date(),
+  }).returning();
+
+  if (!submitToLip) { res.json({ record: row }); return; }
+
+  const [tokenRow] = await db.select().from(lipFarmTokensTable).where(eq(lipFarmTokensTable.farmId, farmId));
+  const [farm] = await db.select().from(farmsTable).where(eq(farmsTable.id, farmId));
+  const holdingCph = (farm as any)?.bcmsHoldingNumber ?? siteIdentifier ?? "";
+  let accessToken: string = tokenRow?.platformAccessToken ?? "";
+
+  if (!isLipSandboxMode() && tokenRow?.isConfigured) {
+    const nowPlusBuffer = new Date(Date.now() + 120_000);
+    const isExpired = !accessToken || (tokenRow.tokenExpiresAt && new Date(tokenRow.tokenExpiresAt) < nowPlusBuffer);
+    if (isExpired && tokenRow.lipRefreshToken) {
+      const refreshResult = await refreshLipToken(tokenRow.lipRefreshToken);
+      if (refreshResult.success && refreshResult.accessToken) {
+        accessToken = refreshResult.accessToken;
+        await db.update(lipFarmTokensTable).set({ platformAccessToken: refreshResult.accessToken, updatedAt: new Date() }).where(eq(lipFarmTokensTable.farmId, farmId));
+      }
+    }
+  }
+
+  try {
+    const result = await submitLipLostFound({
+      accessToken, identifier: earTag, holdingCph,
+      status: status as "lost" | "found" | "stolen",
+      eventDate: new Date(eventDate).toISOString().slice(0, 10),
+      crimeReferenceNumber: crimeReferenceNumber ?? undefined,
+      foundDead: foundDead ?? undefined,
+    });
+
+    const [updated] = await db.update(lipLostFoundTable).set({
+      lipStatus: result.success ? "submitted" : "failed",
+      sandboxMode: result.sandbox,
+      lipReference: result.lipReference,
+      errorMessage: result.errorMessage,
+      requestPayload: result.requestPayload as any,
+      responsePayload: result.responsePayload as any,
+      submittedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(lipLostFoundTable.id, row.id)).returning();
+
+    res.json({ record: updated, success: result.success, sandbox: result.sandbox, reference: result.lipReference, error: result.errorMessage });
+  } catch (err: any) {
+    await db.update(lipLostFoundTable).set({ lipStatus: "failed", errorMessage: err?.message ?? "Unknown error", updatedAt: new Date() }).where(eq(lipLostFoundTable.id, row.id));
+    res.status(500).json({ error: err?.message ?? "LIP lost/found submission failed" });
+  }
+});
+
+/**
+ * PUT /farms/:farmId/lip-lost-found/:id
+ * Update a lost & found record (e.g. resubmit, update notes).
+ */
+router.put("/farms/:farmId/lip-lost-found/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+
+  const [existing] = await db.select().from(lipLostFoundTable).where(and(eq(lipLostFoundTable.id, id), eq(lipLostFoundTable.farmId, farmId)));
+  if (!existing) { res.status(404).json({ error: "Record not found" }); return; }
+
+  const { earTag, siteIdentifier, status, eventDate, crimeReferenceNumber, foundDead, notes } = req.body as {
+    earTag?: string; siteIdentifier?: string; status?: string; eventDate?: string;
+    crimeReferenceNumber?: string; foundDead?: boolean; notes?: string;
+  };
+
+  const updateData: Record<string, unknown> = { updatedAt: new Date() };
+  if (earTag !== undefined) updateData.earTag = earTag;
+  if (siteIdentifier !== undefined) updateData.siteIdentifier = siteIdentifier;
+  if (status !== undefined) updateData.status = status;
+  if (eventDate !== undefined) updateData.eventDate = new Date(eventDate).toISOString().slice(0, 10);
+  if (crimeReferenceNumber !== undefined) updateData.crimeReferenceNumber = crimeReferenceNumber;
+  if (foundDead !== undefined) updateData.foundDead = foundDead;
+  if (notes !== undefined) updateData.notes = notes;
+
+  const [updated] = await db.update(lipLostFoundTable).set(updateData as any).where(eq(lipLostFoundTable.id, id)).returning();
+
+  res.json({ record: updated });
+});
+
+// ─── LIP Movement Confirmation / Cancellation ─────────────────────────────
+
+/**
+ * POST /farms/:farmId/lip-confirm-movement
+ * Confirm or reject a movement as the receiving holding.
+ */
+router.post("/farms/:farmId/lip-confirm-movement", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+
+  const { lipReference, action, rejectionReasonId, rejectionReason, submissionId } = req.body as {
+    lipReference: string; action: "accept" | "reject";
+    rejectionReasonId?: string; rejectionReason?: string; submissionId?: number;
+  };
+
+  if (!lipReference || !action) { res.status(400).json({ error: "lipReference and action are required" }); return; }
+
+  const [tokenRow] = await db.select().from(lipFarmTokensTable).where(eq(lipFarmTokensTable.farmId, farmId));
+  let accessToken: string = tokenRow?.platformAccessToken ?? "";
+
+  if (!isLipSandboxMode() && tokenRow?.isConfigured) {
+    const nowPlusBuffer = new Date(Date.now() + 120_000);
+    const isExpired = !accessToken || (tokenRow.tokenExpiresAt && new Date(tokenRow.tokenExpiresAt) < nowPlusBuffer);
+    if (isExpired && tokenRow.lipRefreshToken) {
+      const refreshResult = await refreshLipToken(tokenRow.lipRefreshToken);
+      if (refreshResult.success && refreshResult.accessToken) {
+        accessToken = refreshResult.accessToken;
+        await db.update(lipFarmTokensTable).set({ platformAccessToken: refreshResult.accessToken, updatedAt: new Date() }).where(eq(lipFarmTokensTable.farmId, farmId));
+      }
+    }
+  }
+
+  const result = await confirmLipMovement({ accessToken, movementNumber: lipReference, action, rejectionReasonId, rejectionReason });
+
+  if (submissionId) {
+    await db.update(lipSubmissionsTable).set({
+      confirmedAt: new Date(),
+      confirmedAction: action,
+      status: result.success ? (action === "accept" ? "confirmed" : "rejected") : "failed",
+      errorMessage: result.errorMessage ?? undefined,
+      updatedAt: new Date(),
+    }).where(eq(lipSubmissionsTable.id, submissionId));
+  }
+
+  res.json({ success: result.success, sandbox: result.sandbox, reference: result.lipReference, subscriptionPending: result.subscriptionPending, error: result.errorMessage });
+});
+
+/**
+ * POST /farms/:farmId/lip-cancel-movement
+ * Cancel (delete) a previously submitted movement.
+ */
+router.post("/farms/:farmId/lip-cancel-movement", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+
+  const { lipReference, submissionId } = req.body as { lipReference: string; submissionId?: number };
+
+  if (!lipReference) { res.status(400).json({ error: "lipReference is required" }); return; }
+
+  const [tokenRow] = await db.select().from(lipFarmTokensTable).where(eq(lipFarmTokensTable.farmId, farmId));
+  let accessToken: string = tokenRow?.platformAccessToken ?? "";
+
+  if (!isLipSandboxMode() && tokenRow?.isConfigured) {
+    const nowPlusBuffer = new Date(Date.now() + 120_000);
+    const isExpired = !accessToken || (tokenRow.tokenExpiresAt && new Date(tokenRow.tokenExpiresAt) < nowPlusBuffer);
+    if (isExpired && tokenRow.lipRefreshToken) {
+      const refreshResult = await refreshLipToken(tokenRow.lipRefreshToken);
+      if (refreshResult.success && refreshResult.accessToken) {
+        accessToken = refreshResult.accessToken;
+        await db.update(lipFarmTokensTable).set({ platformAccessToken: refreshResult.accessToken, updatedAt: new Date() }).where(eq(lipFarmTokensTable.farmId, farmId));
+      }
+    }
+  }
+
+  const result = await cancelLipMovement(accessToken, lipReference);
+
+  if (submissionId) {
+    await db.update(lipSubmissionsTable).set({
+      cancelledAt: new Date(),
+      status: result.success ? "cancelled" : "cancel-failed",
+      errorMessage: result.errorMessage ?? undefined,
+      updatedAt: new Date(),
+    }).where(eq(lipSubmissionsTable.id, submissionId));
+  }
+
+  res.json({ success: result.success, sandbox: result.sandbox, reference: result.lipReference, subscriptionPending: result.subscriptionPending, error: result.errorMessage });
 });
 
 // ─── LIS Herd Sync ──────────────────────────────────────────────────────────

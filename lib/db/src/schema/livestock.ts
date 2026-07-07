@@ -933,12 +933,40 @@ export const lipSubmissionsTable = pgTable("lip_submissions", {
   responsePayload: jsonb("response_payload"),
   retryCount: integer("retry_count").notNull().default(0),
   submittedByUserId: integer("submitted_by_user_id"),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  confirmedAction: text("confirmed_action"),              // "accept" | "reject"
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
 export type LipSubmission = typeof lipSubmissionsTable.$inferSelect;
 export type NewLipSubmission = typeof lipSubmissionsTable.$inferInsert;
+
+export const lipLostFoundTable = pgTable("lip_lost_found", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  earTag: text("ear_tag").notNull(),
+  siteIdentifier: text("site_identifier"),
+  status: text("status").notNull(),                       // "lost" | "found" | "stolen"
+  eventDate: date("event_date").notNull(),
+  crimeReferenceNumber: text("crime_reference_number"),
+  foundDead: boolean("found_dead"),
+  lipReference: text("lip_reference"),
+  lipStatus: text("lip_status").notNull().default("pending"),
+  sandboxMode: boolean("sandbox_mode").notNull().default(true),
+  notes: text("notes"),
+  requestPayload: jsonb("request_payload"),
+  responsePayload: jsonb("response_payload"),
+  errorMessage: text("error_message"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  submittedByUserId: integer("submitted_by_user_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export type LipLostFound = typeof lipLostFoundTable.$inferSelect;
+export type NewLipLostFound = typeof lipLostFoundTable.$inferInsert;
 
 export const bcmsFarmCredentialsTable = pgTable("bcms_farm_credentials", {
   id: serial("id").primaryKey(),
