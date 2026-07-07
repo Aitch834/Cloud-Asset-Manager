@@ -371,6 +371,52 @@ export async function callLipApi(
   return primary;
 }
 
+/**
+ * POST /movements requires multipart/form-data with a `movementData` part
+ * (JSON-encoded movement object) and an optional `document` binary part.
+ * Sending application/json causes a 415 Unsupported Media Type error.
+ * Confirmed by LIS support reply 07/07/2026 and the published OpenAPI spec.
+ */
+async function callLipApiMultipartWithKey(
+  accessToken: string,
+  subscriptionKey: string,
+  path: string,
+  movementData: unknown,
+): Promise<LipApiResponse> {
+  const url = `${LIP_API_BASE}${path}`;
+  const form = new FormData();
+  form.append(
+    "movementData",
+    new Blob([JSON.stringify(movementData)], { type: "application/json" }),
+    "movementData",
+  );
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${accessToken}`,
+      "Ocp-Apim-Subscription-Key": subscriptionKey,
+      "Accept": "application/json",
+    },
+    body: form,
+  });
+  let data: unknown;
+  const text = await res.text();
+  try { data = JSON.parse(text); } catch { data = text; }
+  return { ok: res.ok, status: res.status, data };
+}
+
+async function callLipApiMultipart(
+  accessToken: string,
+  path: string,
+  movementData: unknown,
+): Promise<LipApiResponse> {
+  const primary = await callLipApiMultipartWithKey(accessToken, LIP_SUBSCRIPTION_KEY, path, movementData);
+  if (isInvalidSubscriptionKeyResponse(primary) && LIP_SUBSCRIPTION_KEY_FALLBACK) {
+    return callLipApiMultipartWithKey(accessToken, LIP_SUBSCRIPTION_KEY_FALLBACK, path, movementData);
+  }
+  return primary;
+}
+
 // ── Submission types ──────────────────────────────────────────────────────────
 
 export interface LipSubmissionResult {
@@ -419,52 +465,74 @@ export interface LipMovementParams {
 /**
  * Submit a cattle movement notification to the LIS LIP movement API.
  *
- * IMPORTANT — provisional: endpoint path (/movements) and payload format are
- * based on the LIS LIP developer portal and standard UK cattle movement reporting
- * conventions. Verify and update against the LIP Alpha API swagger/OpenAPI spec
- * when subscription access is granted.
+ * POST /movements requires multipart/form-data (not application/json).
+ * The `movementData` part carries the JSON-encoded movement object.
+ * Source: LIS published OpenAPI spec + LIS support reply 07/07/2026.
  *
- * When the subscription returns 403 (pending approval), the payload is logged
- * and a provisional LIP-SANDBOX reference is returned so the full farm workflow
- * can be tested immediately without waiting on LIS approval.
+ * Payload structure follows the published spec:
+ *   movementKind  — "standard" for normal on/off movements (enum not published)
+ *   state         — "preNotified" when originator is lodging the movement
+ *   movementReports[].departure.site.identifiers — from CPH
+ *   movementReports[].arrival.site.identifiers   — to CPH
+ *   movementReports[].batches[].species           — "cattle"
+ *   movementReports[].batches[].animals           — ear tags or quantity mark
  */
 export async function submitLipMovement(params: LipMovementParams): Promise<LipSubmissionResult> {
   const tagList = params.earTagNumbers
-    ? params.earTagNumbers.split(/[\s,\n]+/).filter(Boolean).map(t => ({ earTag: t.trim(), species: "bovine" }))
+    ? params.earTagNumbers.split(/[\s,\n]+/).filter(Boolean).map(t => t.trim())
     : [];
 
-  const payload: Record<string, unknown> = {
-    movementDate: params.movementDate,
-    movementType: params.movementType,
-    fromCph: params.fromCph,
-    toCph: params.toCph,
-    numberOfAnimals: params.numberOfAnimals,
-    ...(tagList.length > 0 ? { animals: tagList } : {}),
-    ...(params.licenceNumber ? { licenceNumber: params.licenceNumber } : {}),
+  const now = new Date().toISOString();
+
+  const movementData: Record<string, unknown> = {
+    movementKind: "standard",
+    state: "preNotified",
+    movementReports: [
+      {
+        departure: {
+          site: { identifiers: [{ identifier: params.fromCph }] },
+          date: params.movementDate,
+        },
+        arrival: {
+          site: { identifiers: [{ identifier: params.toCph }] },
+          date: params.movementDate,
+        },
+        batches: [
+          {
+            species: "cattle",
+            animals:
+              tagList.length > 0
+                ? tagList.map(tag => ({ animalIdentifier: tag }))
+                : [{ quantity: params.numberOfAnimals }],
+          },
+        ],
+      },
+    ],
+    createdDateTime: now,
+    updatedDateTime: now,
   };
 
-  // NOTE: sandbox mode uses the real LIS sandbox environment (LIP_API_BASE points
-  // to the sandbox URL). We always attempt the real call so we can detect the
-  // moment LIS approves the pending subscriptions — the fake local reference is
-  // only used as a fallback when the API actively reports the subscription is
-  // not yet active (403), not as a default for "sandbox".
-  const res = await callLipApi(params.accessToken, "POST", "/movements", payload);
+  // POST /movements uses multipart/form-data — see callLipApiMultipart.
+  // Always attempt the real sandbox call so we detect when subscriptions are approved;
+  // fall back to a provisional reference only when the API reports the subscription is
+  // not yet active (403), not as a general "sandbox" default.
+  const res = await callLipApiMultipart(params.accessToken, "/movements", movementData);
 
   if (!res.ok) {
     if (isSubscriptionPendingResponse(res)) {
       const ref = `LIP-SANDBOX-${Date.now()}`;
-      console.log(`[LIP] ${res.status} — subscription pending; sandbox movement:`, JSON.stringify(payload, null, 2));
-      return { sandbox: true, success: true, lipReference: ref, requestPayload: payload, responsePayload: res.data, subscriptionPending: true };
+      console.log(`[LIP] ${res.status} — subscription pending; sandbox movement:`, JSON.stringify(movementData, null, 2));
+      return { sandbox: true, success: true, lipReference: ref, requestPayload: movementData, responsePayload: res.data, subscriptionPending: true };
     }
     return {
-      sandbox: false, success: false, requestPayload: payload, responsePayload: res.data,
+      sandbox: false, success: false, requestPayload: movementData, responsePayload: res.data,
       errorMessage: `HTTP ${res.status}: ${typeof res.data === "string" ? res.data : JSON.stringify(res.data)}`,
     };
   }
 
   const d = res.data as Record<string, unknown>;
-  const ref = String(d["reference"] ?? d["notificationRef"] ?? d["id"] ?? `LIP-${Date.now()}`);
-  return { sandbox: false, success: true, lipReference: ref, requestPayload: payload, responsePayload: d };
+  const ref = String(d["movementNumber"] ?? d["reference"] ?? d["notificationRef"] ?? d["id"] ?? `LIP-${Date.now()}`);
+  return { sandbox: false, success: true, lipReference: ref, requestPayload: movementData, responsePayload: d };
 }
 
 // ── Birth registration ────────────────────────────────────────────────────────
@@ -473,33 +541,51 @@ export interface LipBirthParams {
   accessToken: string;
   holdingCph: string;
   birthDate: string;            // YYYY-MM-DD
-  calfEarTag?: string;
+  calfEarTag?: string;          // UK ear tag, used as animal.identifier
   calfSex?: string;             // "male" | "female"
   calfBreed?: string;
   damEarTag?: string;
 }
 
 /**
- * Register a cattle birth with the LIS LIP API.
- * NOTE — provisional: endpoint path (/births) and payload format need verification
- * against the LIP Alpha API spec.
+ * Register a cattle birth with the LIS LIP Animals API.
+ *
+ * Endpoint: POST /animals  (application/json)
+ * Source: LIS published OpenAPI spec + LIS support reply 07/07/2026.
+ *   "Births will be under registering a new Animal"
+ *
+ * Required fields per spec:
+ *   animal.identifier, registration.site, registration.date, registration.category
+ * Optional birth details carried in the `birth` object.
  */
 export async function submitLipBirth(params: LipBirthParams): Promise<LipSubmissionResult> {
   const payload: Record<string, unknown> = {
-    birthDate: params.birthDate,
-    holdingCph: params.holdingCph,
     animal: {
-      earTag: params.calfEarTag ?? null,
-      sex: params.calfSex ?? null,
-      breed: params.calfBreed ?? null,
-      ...(params.damEarTag ? { damEarTag: params.damEarTag } : {}),
+      identifier: params.calfEarTag ?? `UNKNOWN-${Date.now()}`,
+      species: "cattle",
+      ...(params.calfSex ? { sex: params.calfSex } : {}),
     },
+    ...(params.calfBreed ? { breed: { name: params.calfBreed } } : {}),
+    birth: {
+      site: { identifiers: [{ identifier: params.holdingCph }] },
+      date: params.birthDate,
+      assistedBirthFlag: false,
+      multipleBirthsFlag: false,
+      embryoTransferFlag: false,
+    },
+    registration: {
+      site: { identifiers: [{ identifier: params.holdingCph }] },
+      date: params.birthDate,
+      category: "bovine",
+    },
+    ...(params.damEarTag ? {
+      importParents: {
+        birthDam: { identifier: params.damEarTag, species: "cattle" },
+      },
+    } : {}),
   };
 
-  // See submitLipMovement note — always attempt the real call so we can detect
-  // when LIS approves the pending subscription; fall back to a fake reference
-  // only when the API actively reports the subscription as not yet active.
-  const res = await callLipApi(params.accessToken, "POST", "/births", payload);
+  const res = await callLipApi(params.accessToken, "POST", "/animals", payload);
 
   if (!res.ok) {
     if (isSubscriptionPendingResponse(res)) {
@@ -513,7 +599,7 @@ export async function submitLipBirth(params: LipBirthParams): Promise<LipSubmiss
   }
 
   const d = res.data as Record<string, unknown>;
-  const ref = String(d["reference"] ?? d["birthRef"] ?? d["id"] ?? `LIP-BIRTH-${Date.now()}`);
+  const ref = String(d["identifier"] ?? d["reference"] ?? d["id"] ?? `LIP-BIRTH-${Date.now()}`);
   return { sandbox: false, success: true, lipReference: ref, requestPayload: payload, responsePayload: d };
 }
 
@@ -523,29 +609,49 @@ export interface LipDeathParams {
   accessToken: string;
   holdingCph: string;
   deathDate: string;            // YYYY-MM-DD
-  earTag?: string;
+  earTag?: string;              // UK ear tag — used as animal identifier in PUT /animals/{identifier}
   causeOfDeath?: string;
   disposalMethod?: string;
 }
 
 /**
- * Register a cattle death with the LIS LIP API.
- * NOTE — provisional: endpoint path (/deaths) and payload format need verification
- * against the LIP Alpha API spec.
+ * Register a cattle death with the LIS LIP Animals API.
+ *
+ * Endpoint: PUT /animals/{identifier}  (application/json)
+ * Source: LIS published OpenAPI spec + LIS support reply 07/07/2026.
+ *   "Death are covered under Updating an animal"
+ *
+ * The `death` object is set in the PUT body. The animal is identified by
+ * the UK ear tag number in the URL path.
+ * If no ear tag is known, falls back to a sandbox reference without calling the API.
  */
 export async function submitLipDeath(params: LipDeathParams): Promise<LipSubmissionResult> {
+  if (!params.earTag) {
+    const ref = `LIP-DEATH-SANDBOX-${Date.now()}`;
+    const payload = { note: "No ear tag — cannot call PUT /animals/{identifier}", deathDate: params.deathDate, holdingCph: params.holdingCph };
+    console.log("[LIP] Death submission skipped — no ear tag provided");
+    return { sandbox: true, success: false, requestPayload: payload, errorMessage: "No ear tag provided for death submission — PUT /animals/{identifier} requires a valid animal identifier" };
+  }
+
   const payload: Record<string, unknown> = {
-    deathDate: params.deathDate,
-    holdingCph: params.holdingCph,
-    animal: { earTag: params.earTag ?? null },
-    ...(params.causeOfDeath ? { causeOfDeath: params.causeOfDeath } : {}),
-    ...(params.disposalMethod ? { disposalMethod: params.disposalMethod } : {}),
+    animal: {
+      identifier: params.earTag,
+      species: "cattle",
+    },
+    registration: {
+      site: { identifiers: [{ identifier: params.holdingCph }] },
+      date: params.deathDate,
+      category: "bovine",
+    },
+    death: {
+      date: params.deathDate,
+      site: { identifiers: [{ identifier: params.holdingCph }] },
+      ...(params.causeOfDeath ? { reason: { name: params.causeOfDeath } } : {}),
+    },
   };
 
-  // See submitLipMovement note — always attempt the real call so we can detect
-  // when LIS approves the pending subscription; fall back to a fake reference
-  // only when the API actively reports the subscription as not yet active.
-  const res = await callLipApi(params.accessToken, "POST", "/deaths", payload);
+  const identifier = encodeURIComponent(params.earTag);
+  const res = await callLipApi(params.accessToken, "PUT", `/animals/${identifier}`, payload);
 
   if (!res.ok) {
     if (isSubscriptionPendingResponse(res)) {
@@ -559,6 +665,6 @@ export async function submitLipDeath(params: LipDeathParams): Promise<LipSubmiss
   }
 
   const d = res.data as Record<string, unknown>;
-  const ref = String(d["reference"] ?? d["deathRef"] ?? d["id"] ?? `LIP-DEATH-${Date.now()}`);
+  const ref = String(d["identifier"] ?? d["reference"] ?? d["id"] ?? `LIP-DEATH-${Date.now()}`);
   return { sandbox: false, success: true, lipReference: ref, requestPayload: payload, responsePayload: d };
 }
