@@ -80,6 +80,25 @@ When tokenized legacy dep-chunk URLs arrive (proxy-cached tabs with old scheme),
 `tdDepsRe` handler also serves the chunk with body rewriting active → cross-chunk refs inside
 that chunk are rewritten to `@td/deps/` (fixed) → dep chain unifies at chunk level. ✓
 
+### Layer 1c — relative cross-chunk imports in dep chunks rewritten to absolute fixed-path URLs
+Vite pre-bundled dep chunks reference sibling chunks with RELATIVE imports, e.g.:
+  `import { require_react } from "./chunk-KC53NVYV.js";`
+The browser resolves relative imports relative to the SERVING URL base:
+  @td/deps/react.js          → @td/deps/chunk-KC53NVYV.js           ✓ (fixed)
+  @td/OLD_TOKEN/deps/react.js → @td/OLD_TOKEN/deps/chunk-KC53NVYV.js ✗ (old-token)
+Old-token dep chains propagate the token through every relative import in the chain →
+two separate require_react_development factories → two React objects → crash.
+
+FIX: in interceptText body transformer, when `url.includes("/.vite/deps/")` (we're serving
+a dep chunk), also rewrite every `"./CHUNK.js"` to `"/base/@td/deps/CHUNK.js"` (absolute,
+fixed). Applied AFTER the depsUrlRe pass so ALL cross-chunk references in dep chunks are
+fixed regardless of which URL prefix the dep chunk was requested at.
+Regex: `/"\.\/([^"?#]+\.js)(?:\?[^"]*)?"/g`  → `"${sessionBase}@td/deps/${filename}"`
+
+Combined effect: any dep chunk served at ANY prefix (fixed or old-token legacy) has ALL its
+sibling chunk refs pointing to the same absolute fixed-path URLs → single dep chain → one
+React instance even after a hard refresh that hits stale proxy-cached source files. ✓
+
 ### Layer 2 — entry-script path token in index.html
 The `<script type="module" src="...">` entry point is also rewritten with the session token.
 

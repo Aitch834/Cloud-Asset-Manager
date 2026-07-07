@@ -401,6 +401,32 @@ function reconnectReloadPlugin(sessionBase: string) {
               (_m: string, filename: string) =>
                 `"${sessionBase}@td/deps/${filename}"`,
             );
+            // When the body IS a dep chunk (url contains /.vite/deps/), also
+            // rewrite RELATIVE cross-chunk imports to absolute fixed-path URLs.
+            //
+            // WHY: Vite pre-bundled dep chunks reference sibling chunks with
+            // bare relative paths, e.g. `import { x } from "./chunk-KC53NVYV.js"`.
+            // The browser resolves relative imports relative to the SERVING URL:
+            //   @td/deps/react.js           → @td/deps/chunk-KC53NVYV.js  ✓ (fixed)
+            //   @td/OLD_TOKEN/deps/react.js → @td/OLD_TOKEN/deps/chunk-KC53NVYV.js  ✗
+            // Old-token dep chains remain fully token-specific because relative
+            // imports propagate the base throughout the entire chain.  Two
+            // separate chunk-KC53NVYV.js URLs → two separate require_react_development
+            // factories → two React objects → "Invalid hook call".
+            //
+            // FIX: when serving any dep chunk (stripped URL has /.vite/deps/),
+            // rewrite every `"./CHUNK.js"` to `"/base/@td/deps/CHUNK.js"` so that
+            // dep chunks served at ANY prefix (fixed or old-token) all reference
+            // the same absolute chunk URLs → single dep chain → one React. ✓
+            if (url.includes("/.vite/deps/")) {
+              // Matches relative sibling dep-chunk imports (with or without ?v=).
+              // Example: "./chunk-KC53NVYV.js" → "/base/@td/deps/chunk-KC53NVYV.js"
+              result = result.replace(
+                /"\.\/([^"?#]+\.js)(?:\?[^"]*)?"/g,
+                (_m: string, filename: string) =>
+                  `"${sessionBase}@td/deps/${filename}"`,
+              );
+            }
             // Rewrite every @fs/ source-file URL to embed the session token
             // in the path: BASE@fs/path → BASE@td/TOKEN/@fs/path.
             result = result.replace(fsUrlRe, (_match, p1: string) => {
