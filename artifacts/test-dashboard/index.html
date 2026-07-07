@@ -8,6 +8,29 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Register SW that normalises old-session dep-chunk URLs to canonical
+         @td/deps/ prefix, preventing split React instances from proxy-cached
+         source files.  Plain script (not module) so it runs before ES modules. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/test-dashboard/sw-v2.js', { scope: '/test-dashboard/' })
+          .then(reg => {
+            // If a new SW is waiting (updated sw.js deployed), activate it
+            // immediately so the fix takes effect without requiring a second reload.
+            if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+            reg.addEventListener('updatefound', () => {
+              const nw = reg.installing;
+              if (nw) {
+                nw.addEventListener('statechange', () => {
+                  if (nw.state === 'installed' && reg.active) {
+                    nw.postMessage({ type: 'SKIP_WAITING' });
+                  }
+                });
+              }
+            });
+          });
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import fs from "fs";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 const rawPort = process.env.PORT;
@@ -362,7 +363,26 @@ function reconnectReloadPlugin(sessionBase: string) {
           return;
         }
 
-        // ── 3. Intercept JS module and HTML responses ──────────────────────
+        // ── 3. Service Worker static file ──────────────────────────────────
+        // sw.js is NOT a JS module URL (no /@fs/, /.vite/deps/, etc.) and NOT
+        // HTML, so it would fall through to next() → Vite's SPA fallback →
+        // served as text/html.  Serve it explicitly here before that check.
+        if (rawUrl === `${sessionBase}sw-v2.js`) {
+          const swFilePath = path.resolve(__dirname, "public/sw-v2.js");
+          try {
+            const swContent = fs.readFileSync(swFilePath, "utf-8");
+            res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+            res.setHeader("Cache-Control", "no-store");
+            res.setHeader("Service-Worker-Allowed", sessionBase);
+            res.end(swContent);
+          } catch {
+            res.statusCode = 404;
+            res.end("Not found");
+          }
+          return;
+        }
+
+        // ── 4. Intercept JS module and HTML responses ──────────────────────
         const url = req.url as string;
         const isJsModule =
           url.includes("/.vite/deps/") ||

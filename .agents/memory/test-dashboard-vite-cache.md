@@ -236,6 +236,63 @@ Also replaced `React.useRef` namespace call with the named `useRef` import for c
 imported into a page file is at risk. Inline the hook's logic into the calling component rather
 than relying on the @fs/ chain for external lib files.
 
+### Layer 5 — Service Worker: redirect old-token dep-chunk URLs to canonical @td/deps/ (THE DEFINITIVE FIX)
+
+**Problem layers 1b/1c don't fully solve:** Replit's proxy caches ALL responses by URL path.
+When the proxy caches a source file from an OLD session, it has `@td/OLD_TOKEN/deps/react.js`
+embedded. Layers 1b/1c ensure our SERVER rewrites relative imports in dep chunks to absolute
+fixed-path URLs. But if the proxy serves the OLD `@td/OLD_TOKEN/deps/react.js` content
+DIRECTLY to the browser (bypassing our server), the browser gets the dep chunk with old
+relative imports (`"./chunk-KC53NVYV.js"`). These resolve relative to `@td/OLD_TOKEN/deps/`
+→ separate `chunk-KC53NVYV.js` identity → separate `require_react_development` factory →
+second React instance → "Invalid hook call". No server-side fix can help once the proxy
+serves stale content directly.
+
+**The fix:** A Service Worker intercepts ALL fetch requests BEFORE the proxy can return
+stale content. It redirects `@td/TOKEN/deps/FILE` → 302 → `@td/deps/FILE` (canonical).
+The browser follows the 302 and registers the module at `@td/deps/FILE`. Relative imports
+in that module resolve relative to `@td/deps/` → ALL dep chunks stay in one canonical
+namespace → one `chunk-KC53NVYV.js` → one `require_react_development` → one React. ✓
+
+Even if the proxy serves OLD content for `@td/deps/react.js` (with relative `"./chunk-X.js"`),
+those relative refs still resolve to `@td/deps/chunk-X.js` (same namespace) → self-consistent
+chain → one React.
+
+**Files:**
+- `artifacts/test-dashboard/public/sw-v2.js` — the SW script
+- `artifacts/test-dashboard/index.html` — inline `<script>` to register SW (NOT type=module)
+- `artifacts/test-dashboard/vite.config.ts` — explicit middleware route serving `sw-v2.js`
+
+**Critical implementation notes:**
+1. **Serve SW via explicit middleware route, NOT from `public/` directory.**
+   `public/sw.js` is NOT served by Vite dev server because Vite's SPA fallback intercepts
+   the URL and returns `text/html`. Must add explicit handler in `configureServer` middleware
+   BEFORE the `!isJsModule && !isHtml → next()` check. Handler reads `public/sw-v2.js` from
+   disk, sets `Content-Type: application/javascript`, `Cache-Control: no-store`,
+   `Service-Worker-Allowed: /test-dashboard/`.
+
+2. **Version the SW filename to avoid proxy cache poisoning.**
+   If `sw.js` was ever requested BEFORE the explicit middleware route was in place, the proxy
+   cached `text/html` for that URL. Since the proxy ignores `Cache-Control: no-store` (it
+   caches anyway), the proxy will keep serving HTML for `sw.js` until its TTL expires (hours).
+   Fix: rename to `sw-v2.js` (or `sw-v3.js` if v2 gets poisoned). The new name has no proxy
+   cache entry → 200 JS on first request → SW registers successfully.
+
+3. **Response.redirect(canonical, 302) from SW for ES module imports.**
+   When a SW returns `Response.redirect()` for an ES module import, the browser follows the
+   redirect and registers the module under the FINAL URL (the redirect target). Relative imports
+   in the module content resolve relative to the final URL. This is the key mechanism that forces
+   all dep chunks into the `@td/deps/` namespace. Tested: works in Chrome, Edge, Firefox.
+
+4. **SW scope and import filter.**
+   Scope = `/test-dashboard/`. SW ONLY intercepts URLs matching `@td/(?!deps/)TOKEN/deps/FILE`
+   (negative lookahead ensures canonical `@td/deps/` URLs are NOT redirected — that would loop).
+   Source file URLs (`@td/TOKEN/@fs/...`) are NOT intercepted — source files should be loaded
+   normally (session-token URL ensures proxy cache miss each session).
+
+5. **skipWaiting() + clients.claim()** ensure the SW takes control of the current page
+   immediately after installation, not just on next navigation.
+
 ## What NOT to do
 - Do NOT look for a hooks violation in the component source — the component code is correct.
 - Do NOT add `optimizeDeps.force:true` — it re-hashes chunks on every restart, making
