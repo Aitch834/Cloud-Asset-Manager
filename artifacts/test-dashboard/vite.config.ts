@@ -364,11 +364,12 @@ function reconnectReloadPlugin(sessionBase: string) {
         }
 
         // ── 3. Service Worker static file ──────────────────────────────────
-        // sw.js is NOT a JS module URL (no /@fs/, /.vite/deps/, etc.) and NOT
-        // HTML, so it would fall through to next() → Vite's SPA fallback →
-        // served as text/html.  Serve it explicitly here before that check.
-        if (rawUrl === `${sessionBase}sw-v2.js`) {
-          const swFilePath = path.resolve(__dirname, "public/sw-v2.js");
+        // sw-v*.js files are NOT JS module URLs (no /@fs/, /.vite/deps/, etc.)
+        // and NOT HTML, so they fall through to Vite's SPA fallback and get
+        // served as text/html.  Serve them explicitly here before that check.
+        const swMatch = rawUrl.match(/^.+\/(sw(?:-v\d+)?\.js)(?:\?.*)?$/);
+        if (swMatch) {
+          const swFilePath = path.resolve(__dirname, "public", swMatch[1]);
           try {
             const swContent = fs.readFileSync(swFilePath, "utf-8");
             res.setHeader("Content-Type", "application/javascript; charset=utf-8");
@@ -458,7 +459,7 @@ function reconnectReloadPlugin(sessionBase: string) {
           }
           if (ct.includes("text/html")) {
             // Rewrite the entry-script src with a path-based session token.
-            return body.replace(
+            let htmlResult = body.replace(
               scriptSrcRe,
               (_m, pre, src: string, post) => {
                 const pathAfterBase = src.startsWith(sessionBase)
@@ -467,6 +468,15 @@ function reconnectReloadPlugin(sessionBase: string) {
                 return `${pre}${sessionBase}@td/${sessionToken}/${pathAfterBase}${post}`;
               },
             );
+            // Append the session token as a query param to the SW registration
+            // URL so the proxy sees a fresh URL each session (proxy caches by
+            // URL; different ?v= value = cache miss = correct JS served).
+            htmlResult = htmlResult.replace(
+              /(register\s*\(\s*['"](?:[^'"]*\/))(sw[^'"]*\.js)(['"])/g,
+              (_m: string, pre: string, file: string, post: string) =>
+                `${pre}${file}?v=${sessionToken}${post}`,
+            );
+            return htmlResult;
           }
           return body;
         });

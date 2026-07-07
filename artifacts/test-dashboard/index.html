@@ -8,27 +8,33 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Register SW that normalises old-session dep-chunk URLs to canonical
-         @td/deps/ prefix, preventing split React instances from proxy-cached
-         source files.  Plain script (not module) so it runs before ES modules. -->
+    <!--
+      Service Worker guard — runs synchronously before any module scripts.
+
+      sw-v3.js proxies old-session dep-chunk URLs (@td/TOKEN/deps/X) by fetching
+      the canonical content from @td/deps/X and returning it directly. This is
+      necessary because browsers do NOT follow Response.redirect() from a SW for
+      ES module imports — they treat it as a network error. fetch-and-return
+      ensures all dep chunks converge on the same canonical @td/deps/ imports
+      regardless of which session-token URL the stale source file referenced.
+
+      KEY ISSUE: on hard refresh (Ctrl+Shift+R) and on the very first page load,
+      navigator.serviceWorker.controller is null — the SW is bypassed and dep-chunk
+      requests are NOT intercepted → split chain → "Invalid hook call".
+
+      FIX: if controller is null, register the SW and call .ready.then(reload).
+      For an ALREADY-ACTIVE SW (hard refresh bypass), .ready resolves as a
+      microtask — before any <script type="module"> executes — so the reload fires
+      before React renders. Zero visible crash. For a FIRST-EVER visit (SW not yet
+      installed), the reload fires once the SW activates, giving a brief auto-recover.
+      Subsequent normal loads (controller is non-null) skip the reload entirely.
+    -->
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/test-dashboard/sw-v2.js', { scope: '/test-dashboard/' })
-          .then(reg => {
-            // If a new SW is waiting (updated sw.js deployed), activate it
-            // immediately so the fix takes effect without requiring a second reload.
-            if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-            reg.addEventListener('updatefound', () => {
-              const nw = reg.installing;
-              if (nw) {
-                nw.addEventListener('statechange', () => {
-                  if (nw.state === 'installed' && reg.active) {
-                    nw.postMessage({ type: 'SKIP_WAITING' });
-                  }
-                });
-              }
-            });
-          });
+        navigator.serviceWorker.register('/test-dashboard/sw-v3.js', { scope: '/test-dashboard/' });
+        if (!navigator.serviceWorker.controller) {
+          navigator.serviceWorker.ready.then(function() { window.location.reload(); });
+        }
       }
     </script>
   </head>
