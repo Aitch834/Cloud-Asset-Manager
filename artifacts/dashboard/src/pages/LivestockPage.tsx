@@ -1715,6 +1715,10 @@ export function VetHealthPlansSection({ farmId }: { farmId: number }) {
 
   const records: VetHealthPlan[] = data?.records ?? [];
 
+  const [yearFilterVhp, setYearFilterVhp] = useState("all");
+  const yearsVhp = useMemo(() => Array.from(new Set(records.map(r => String(r.planYear ?? "")).filter(Boolean))).sort().reverse(), [records]);
+  const filteredVhpRecords = yearFilterVhp === "all" ? records : records.filter(r => String(r.planYear ?? "") === yearFilterVhp);
+
   function openEdit(p: VetHealthPlan) {
     setEditingPlan(p);
     setFormData({
@@ -1760,9 +1764,18 @@ export function VetHealthPlansSection({ farmId }: { farmId: number }) {
         <div>
           <p className="text-sm text-foreground/60">Annual veterinary health plans signed by your vet — required for Red Tractor livestock standards.</p>
         </div>
-        <Button onClick={() => { setEditingPlan(null); setFormData(EMPTY_PLAN); setShowForm(true); }} className="gap-2 shrink-0">
-          <Plus className="w-4 h-4" /> Add Health Plan
-        </Button>
+        <div className="flex items-center gap-2">
+          <Select value={yearFilterVhp} onValueChange={setYearFilterVhp}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {yearsVhp.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button onClick={() => { setEditingPlan(null); setFormData(EMPTY_PLAN); setShowForm(true); }} className="gap-2 shrink-0">
+            <Plus className="w-4 h-4" /> Add Health Plan
+          </Button>
+        </div>
       </div>
 
       {showForm && (
@@ -1863,7 +1876,7 @@ export function VetHealthPlansSection({ farmId }: { farmId: number }) {
       <div className="space-y-4">
         {isLoading ? (
           <div className="text-center py-12 text-foreground/50"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading...</div>
-        ) : records.length === 0 ? (
+        ) : filteredVhpRecords.length === 0 ? (
           <Card>
             <div className="text-center py-16 px-6">
               <div className="w-16 h-16 mx-auto rounded-full bg-primary/5 flex items-center justify-center mb-4">
@@ -1873,7 +1886,7 @@ export function VetHealthPlansSection({ farmId }: { farmId: number }) {
               <p className="text-foreground/50 text-sm">Add your annual veterinary health plan. Red Tractor requires a current signed plan from your vet.</p>
             </div>
           </Card>
-        ) : records.map(p => (
+        ) : filteredVhpRecords.map(p => (
           <Card key={p.id} className="overflow-hidden">
             <div className="px-5 py-4 flex items-start justify-between gap-4">
               <div className="flex items-start gap-4">
@@ -2227,6 +2240,8 @@ export function FeedSection({ farmId }: { farmId: number }) {
   const allDeliveries: any[] = deliveriesData?.records ?? [];
 
   const [search, setSearch] = useState("");
+  const [yearFilterFeed, setYearFilterFeed] = useState("all");
+  const yearsFeed = useMemo(() => Array.from(new Set(records.map(r => String(r.feedDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [records]);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<FeedRecord | null>(null);
   const [form, setForm] = useState(EMPTY_FEED);
@@ -2314,21 +2329,31 @@ export function FeedSection({ farmId }: { farmId: number }) {
   }
 
   const filtered = records.filter(r =>
-    r.feedType.toLowerCase().includes(search.toLowerCase()) ||
+    (r.feedType.toLowerCase().includes(search.toLowerCase()) ||
     (r.supplier ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    (r.batchNumber ?? "").toLowerCase().includes(search.toLowerCase()),
+    (r.batchNumber ?? "").toLowerCase().includes(search.toLowerCase())) &&
+    (yearFilterFeed === "all" || String(r.feedDate ?? "").startsWith(yearFilterFeed))
   );
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4 gap-4">
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search by feed type, supplier or batch…" className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <Button onClick={() => { setEditing(null); setForm(EMPTY_FEED); setShowForm(true); }}>
-          <Plus className="h-4 w-4 mr-1" /> Add Feed Record
-        </Button>
+        <div className="flex items-center gap-2">
+          <Select value={yearFilterFeed} onValueChange={setYearFilterFeed}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {yearsFeed.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button onClick={() => { setEditing(null); setForm(EMPTY_FEED); setShowForm(true); }}>
+            <Plus className="h-4 w-4 mr-1" /> Add Feed Record
+          </Button>
+        </div>
       </div>
 
       <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
@@ -2717,6 +2742,8 @@ export function WaterSection({ farmId }: { farmId: number }) {
   const records = data?.records ?? [];
 
   const [search, setSearch] = useState("");
+  const [yearFilterWater, setYearFilterWater] = useState("all");
+  const yearsWater = useMemo(() => Array.from(new Set(records.map(r => String(r.testDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [records]);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<WaterRecord | null>(null);
   const [form, setForm] = useState(EMPTY_WATER);
@@ -2775,20 +2802,30 @@ export function WaterSection({ farmId }: { farmId: number }) {
   }
 
   const filtered = records.filter(r =>
-    (WATER_SOURCE_LABELS[r.waterSource] ?? r.waterSource).toLowerCase().includes(search.toLowerCase()) ||
-    (r.testResult ?? "").toLowerCase().includes(search.toLowerCase()),
+    ((WATER_SOURCE_LABELS[r.waterSource] ?? r.waterSource).toLowerCase().includes(search.toLowerCase()) ||
+    (r.testResult ?? "").toLowerCase().includes(search.toLowerCase())) &&
+    (yearFilterWater === "all" || String(r.testDate ?? "").startsWith(yearFilterWater))
   );
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4 gap-4">
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search by source or result…" className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <Button onClick={() => { setEditing(null); setForm(EMPTY_WATER); setMode("log"); setShowForm(true); }}>
-          <Plus className="h-4 w-4 mr-1" /> Log Sample
-        </Button>
+        <div className="flex items-center gap-2">
+          <Select value={yearFilterWater} onValueChange={setYearFilterWater}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {yearsWater.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button onClick={() => { setEditing(null); setForm(EMPTY_WATER); setMode("log"); setShowForm(true); }}>
+            <Plus className="h-4 w-4 mr-1" /> Log Sample
+          </Button>
+        </div>
       </div>
 
       <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 flex items-start gap-2">
@@ -4465,18 +4502,30 @@ export function AIReproductionSection({ farmId }: { farmId: number }) {
     }
   };
 
-  const rows = (records as Record<string, unknown>[]);
+  const allAIRows = (records as Record<string, unknown>[]);
+  const [yearFilterAI, setYearFilterAI] = useState("all");
+  const yearsAI = useMemo(() => Array.from(new Set(allAIRows.map(r => String(r.eventDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allAIRows]);
+  const rows = yearFilterAI === "all" ? allAIRows : allAIRows.filter(r => String(r.eventDate ?? "").startsWith(yearFilterAI));
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <div>
           <h3 className="font-semibold">AI & Reproduction Records</h3>
           <p className="text-sm text-muted-foreground">Log AI, natural service, RVI confirmation and expected calving / lambing dates.</p>
         </div>
-        <Button onClick={() => { setEditing(null); setForm({ servicingMethod: "AI", conceptionConfirmed: false }); setOpen(true); }}>
-          <Plus className="w-4 h-4 mr-2" /> Add Record
-        </Button>
+        <div className="flex items-center gap-2">
+          <Select value={yearFilterAI} onValueChange={setYearFilterAI}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {yearsAI.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button onClick={() => { setEditing(null); setForm({ servicingMethod: "AI", conceptionConfirmed: false }); setOpen(true); }}>
+            <Plus className="w-4 h-4 mr-2" /> Add Record
+          </Button>
+        </div>
       </div>
 
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
@@ -4725,18 +4774,30 @@ export function VetPrescriptionsSection({ farmId }: { farmId: number }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["vet-prescriptions", farmId] }),
   });
 
-  const rows = (records as Record<string, unknown>[]);
+  const allRxRows = (records as Record<string, unknown>[]);
+  const [yearFilterRx, setYearFilterRx] = useState("all");
+  const yearsRx = useMemo(() => Array.from(new Set(allRxRows.map(r => String(r.prescriptionDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allRxRows]);
+  const rows = yearFilterRx === "all" ? allRxRows : allRxRows.filter(r => String(r.prescriptionDate ?? "").startsWith(yearFilterRx));
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <div>
           <h3 className="font-semibold">Prescription Register</h3>
           <p className="text-sm text-muted-foreground">Record the written prescription or SIC issued by your vet authorising use of each product. Treatment administration is recorded separately in the Medicine module.</p>
         </div>
-        <Button onClick={() => { setEditing(null); setForm({ signedByVet: true, farmRegistered: true }); setOpen(true); }}>
-          <Plus className="w-4 h-4 mr-2" /> Add Record
-        </Button>
+        <div className="flex items-center gap-2">
+          <Select value={yearFilterRx} onValueChange={setYearFilterRx}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {yearsRx.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button onClick={() => { setEditing(null); setForm({ signedByVet: true, farmRegistered: true }); setOpen(true); }}>
+            <Plus className="w-4 h-4 mr-2" /> Add Record
+          </Button>
+        </div>
       </div>
 
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
@@ -4937,6 +4998,9 @@ export function StrawInventorySection({ farmId }: { farmId: number }) {
     queryFn: () => fetch(`/api/farms/${farmId}/straws`, { credentials: "include" }).then(r => r.json()) as Promise<{ records: StrawInventory[] }>,
   });
   const straws: StrawInventory[] = data?.records ?? [];
+  const [yearFilterStraws, setYearFilterStraws] = useState("all");
+  const yearsStraws = useMemo(() => Array.from(new Set(straws.map(r => String(r.deliveryDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [straws]);
+  const filteredStraws = yearFilterStraws === "all" ? straws : straws.filter(r => String(r.deliveryDate ?? "").startsWith(yearFilterStraws));
 
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => {
@@ -4991,15 +5055,24 @@ export function StrawInventorySection({ farmId }: { farmId: number }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <div>
           <h2 className="text-lg font-semibold">Straw Inventory</h2>
           <p className="text-sm text-muted-foreground">Track AI straw deliveries by batch number — straws used are counted automatically from AI records.</p>
         </div>
-        <Button onClick={openAdd}><Plus className="h-4 w-4 mr-1" /> Add Delivery</Button>
+        <div className="flex items-center gap-2">
+          <Select value={yearFilterStraws} onValueChange={setYearFilterStraws}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {yearsStraws.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button onClick={openAdd}><Plus className="h-4 w-4 mr-1" /> Add Delivery</Button>
+        </div>
       </div>
 
-      {isLoading ? <p className="text-muted-foreground">Loading…</p> : straws.length === 0 ? (
+      {isLoading ? <p className="text-muted-foreground">Loading…</p> : filteredStraws.length === 0 ? (
         <div className="border rounded-xl p-8 text-center text-muted-foreground">
           <FlaskConical className="h-8 w-8 mx-auto mb-2 opacity-40" />
           <p className="font-medium">No straw deliveries logged yet</p>
@@ -5055,7 +5128,7 @@ export function StrawInventorySection({ farmId }: { farmId: number }) {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {straws.map(s => (
+              {filteredStraws.map(s => (
                 <tr key={s.id} className="hover:bg-muted/20">
                   <td className="px-4 py-3">
                     <p className="font-medium">{s.sireName}</p>
@@ -5990,6 +6063,9 @@ export function TbTestsSection({ farmId }: { farmId: number }) {
   const base = `/api/farms/${farmId}/tb-tests`;
   const { data, isLoading } = useQuery<{ records: TbTest[] }>({ queryKey: ["tb-tests", farmId], queryFn: () => fetch(base).then(r => r.json()) });
   const records = data?.records ?? [];
+  const [yearFilterTb, setYearFilterTb] = useState("all");
+  const yearsTb = useMemo(() => Array.from(new Set(records.map(r => String(r.testDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [records]);
+  const filteredTbRecords = yearFilterTb === "all" ? records : records.filter(r => String(r.testDate ?? "").startsWith(yearFilterTb));
 
   const { data: herdsData } = useQuery<{ records: { id: number; name: string; type: string; herdNumber: string | null }[] }>({ queryKey: ["herds", farmId], queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()) });
   const herds = herdsData?.records ?? [];
@@ -6029,7 +6105,14 @@ export function TbTestsSection({ farmId }: { farmId: number }) {
           <h3 className="font-semibold text-gray-900">TB Test Register</h3>
           <p className="text-sm text-gray-500 mt-0.5">Official bovine tuberculosis test records as required under TB (England) Order 2021 and Red Tractor standards.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <Select value={yearFilterTb} onValueChange={setYearFilterTb}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {yearsTb.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Button variant="outline" size="sm" onClick={printReport}><Printer className="h-3.5 w-3.5 mr-1" />Print Report</Button>
           <Button onClick={() => { setEditing(null); setForm({ ...EMPTY_TB }); setShowForm(true); }}><Plus className="h-4 w-4 mr-1" />Log TB Test</Button>
         </div>
@@ -6040,7 +6123,7 @@ export function TbTestsSection({ farmId }: { farmId: number }) {
       </div>
 
       {isLoading ? <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
-        : records.length === 0 ? <Card><CardContent className="py-16 text-center"><AlertTriangle className="h-10 w-10 mx-auto text-muted-foreground mb-3" /><p className="font-medium text-gray-700 mb-1">No TB tests recorded</p><p className="text-sm text-muted-foreground">Log your first bovine TB test result to start your register.</p></CardContent></Card>
+        : filteredTbRecords.length === 0 ? <Card><CardContent className="py-16 text-center"><AlertTriangle className="h-10 w-10 mx-auto text-muted-foreground mb-3" /><p className="font-medium text-gray-700 mb-1">No TB tests recorded</p><p className="text-sm text-muted-foreground">Log your first bovine TB test result to start your register.</p></CardContent></Card>
         : <div className="border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-muted/50"><tr>
@@ -6055,7 +6138,7 @@ export function TbTestsSection({ farmId }: { farmId: number }) {
                 <th className="px-4 py-3" />
               </tr></thead>
               <tbody className="divide-y">
-                {records.map(r => (
+                {filteredTbRecords.map(r => (
                   <tr key={r.id} className="hover:bg-muted/30">
                     <td className="px-4 py-3">
                       <div className="font-medium">{formatDate(r.testDate)}</div>
@@ -6422,6 +6505,9 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
   const base = `/api/farms/${farmId}/welfare-outcome-assessments`;
   const { data, isLoading } = useQuery<{ records: WelfareOutcomeRecord[] }>({ queryKey: ["welfare-outcomes", farmId], queryFn: () => fetch(base).then(r => r.json()) });
   const records = data?.records ?? [];
+  const [yearFilterWoa, setYearFilterWoa] = useState("all");
+  const yearsWoa = useMemo(() => Array.from(new Set(records.map(r => String(r.assessmentDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [records]);
+  const filteredWoaRecords = yearFilterWoa === "all" ? records : records.filter(r => String(r.assessmentDate ?? "").startsWith(yearFilterWoa));
 
   const { data: herdsData } = useQuery<{ records: { id: number; name: string; type: string; productionType: string | null; herdNumber: string | null }[] }>({ queryKey: ["herds", farmId], queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()) });
   const herds = herdsData?.records ?? [];
@@ -6597,7 +6683,14 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
           <h3 className="font-semibold text-gray-900">Welfare Outcome Assessments</h3>
           <p className="text-sm text-gray-500 mt-0.5">Animal welfare outcome measures (WOA) as required by Red Tractor Beef & Lamb, Dairy, and Cross Compliance standards.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <Select value={yearFilterWoa} onValueChange={setYearFilterWoa}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {yearsWoa.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Button variant="outline" size="sm" onClick={printReport}><Printer className="h-3.5 w-3.5 mr-1" />Print Report</Button>
           <Button onClick={() => { setEditing(null); setForm({ ...EMPTY_WOA }); setFeeInputStr(""); setShowForm(true); }}><Plus className="h-4 w-4 mr-1" />Record Assessment</Button>
         </div>
@@ -6608,7 +6701,7 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
       </div>
 
       {isLoading ? <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
-        : records.length === 0 ? <Card><CardContent className="py-16 text-center"><AlertTriangle className="h-10 w-10 mx-auto text-muted-foreground mb-3" /><p className="font-medium text-gray-700 mb-1">No welfare assessments recorded</p><p className="text-sm text-muted-foreground">Record your first welfare outcome assessment to satisfy Red Tractor requirements.</p></CardContent></Card>
+        : filteredWoaRecords.length === 0 ? <Card><CardContent className="py-16 text-center"><AlertTriangle className="h-10 w-10 mx-auto text-muted-foreground mb-3" /><p className="font-medium text-gray-700 mb-1">No welfare assessments recorded</p><p className="text-sm text-muted-foreground">Record your first welfare outcome assessment to satisfy Red Tractor requirements.</p></CardContent></Card>
         : <div className="border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-muted/50"><tr>
@@ -6622,7 +6715,7 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
                 <th className="px-4 py-3" />
               </tr></thead>
               <tbody className="divide-y">
-                {records.map(r => (
+                {filteredWoaRecords.map(r => (
                   <tr key={r.id} className="hover:bg-muted/30">
                     <td className="px-4 py-3 font-medium">{formatDate(r.assessmentDate)}</td>
                     <td className="px-4 py-3 text-xs capitalize">{r.species}</td>
@@ -7085,6 +7178,9 @@ export function SheepDippingSection({ farmId }: { farmId: number }) {
   const base = `/api/farms/${farmId}/sheep-dipping-records`;
   const { data, isLoading } = useQuery<{ records: SheepDippingRecord[] }>({ queryKey: ["sheep-dipping", farmId], queryFn: () => fetch(base).then(r => r.json()) });
   const records = data?.records ?? [];
+  const [yearFilterDip, setYearFilterDip] = useState("all");
+  const yearsDip = useMemo(() => Array.from(new Set(records.map(r => String(r.dipDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [records]);
+  const filteredDipRecords = yearFilterDip === "all" ? records : records.filter(r => String(r.dipDate ?? "").startsWith(yearFilterDip));
 
   const { data: stockData } = useQuery<{ records: DipStockItem[] }>({ queryKey: ["stock-items", farmId], queryFn: () => fetch(`/api/farms/${farmId}/stock-items`).then(r => r.json()) });
   const chemicalItems = (stockData?.records ?? []).filter(s => s.isActive);
@@ -7143,7 +7239,14 @@ export function SheepDippingSection({ farmId }: { farmId: number }) {
           <h3 className="font-semibold text-gray-900">Sheep Dipping Records</h3>
           <p className="text-sm text-gray-500 mt-0.5">Organophosphate and synthetic pyrethroid dipping records as required by the Control of Pesticides Regulations and Red Tractor Sheep Assurance Scheme.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <Select value={yearFilterDip} onValueChange={setYearFilterDip}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {yearsDip.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Button variant="outline" size="sm" onClick={printReport}><Printer className="h-3.5 w-3.5 mr-1" />Print Report</Button>
           <Button onClick={() => { setEditing(null); setForm({ ...EMPTY_DIP }); setShowForm(true); }}><Plus className="h-4 w-4 mr-1" />Log Dipping</Button>
         </div>
@@ -7154,7 +7257,7 @@ export function SheepDippingSection({ farmId }: { farmId: number }) {
       </div>
 
       {isLoading ? <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
-        : records.length === 0 ? <Card><CardContent className="py-16 text-center"><AlertTriangle className="h-10 w-10 mx-auto text-muted-foreground mb-3" /><p className="font-medium text-gray-700 mb-1">No dipping records logged</p><p className="text-sm text-muted-foreground">Log your sheep dipping treatments to maintain compliance with pesticide regulations.</p></CardContent></Card>
+        : filteredDipRecords.length === 0 ? <Card><CardContent className="py-16 text-center"><AlertTriangle className="h-10 w-10 mx-auto text-muted-foreground mb-3" /><p className="font-medium text-gray-700 mb-1">No dipping records logged</p><p className="text-sm text-muted-foreground">Log your sheep dipping treatments to maintain compliance with pesticide regulations.</p></CardContent></Card>
         : <div className="border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-muted/50"><tr>
@@ -7168,7 +7271,7 @@ export function SheepDippingSection({ farmId }: { farmId: number }) {
                 <th className="px-4 py-3" />
               </tr></thead>
               <tbody className="divide-y">
-                {records.map(r => (
+                {filteredDipRecords.map(r => (
                   <tr key={r.id} className="hover:bg-muted/30">
                     <td className="px-4 py-3 font-medium">{formatDate(r.dipDate)}</td>
                     <td className="px-4 py-3"><div className="font-medium text-gray-900 text-xs">{r.productName}</div>{r.mappNumber && <div className="text-xs text-muted-foreground">MAPP: {r.mappNumber}</div>}</td>
@@ -7677,6 +7780,9 @@ function BvdTestingSection({ farmId }: { farmId: number }) {
     queryFn: () => fetch(`/api/farms/${farmId}/bvd-tests`).then(r => r.json()).then(d => d.records ?? []),
     enabled: !!farmId,
   });
+  const [yearFilterBvd, setYearFilterBvd] = useState("all");
+  const yearsBvd = useMemo(() => Array.from(new Set((records as any[]).map((r: any) => String(r.testDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [records]);
+  const filteredBvdRecords = yearFilterBvd === "all" ? (records as any[]) : (records as any[]).filter((r: any) => String(r.testDate ?? "").startsWith(yearFilterBvd));
 
   const { data: herdsRaw } = useQuery<{ records: any[] } | any[] | null>({
     queryKey: ["herds", farmId],
@@ -7745,13 +7851,20 @@ function BvdTestingSection({ farmId }: { farmId: number }) {
           <h3 className="font-semibold text-gray-900">BVD Testing Register</h3>
           <p className="text-xs text-gray-500 mt-0.5">Red Tractor Beef &amp; Dairy requires documented BVD monitoring. Record individual tests, PI findings, and herd accreditation status.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <Select value={yearFilterBvd} onValueChange={setYearFilterBvd}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {yearsBvd.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
           {records.length > 0 && <Button size="sm" variant="outline" onClick={printBvdRegister}><Printer className="w-3.5 h-3.5 mr-1" />Print Register</Button>}
           <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Test</Button>
         </div>
       </div>
 
-      {isLoading ? <div className="text-center py-8 text-gray-400 text-sm">Loading…</div> : records.length === 0 ? (
+      {isLoading ? <div className="text-center py-8 text-gray-400 text-sm">Loading…</div> : filteredBvdRecords.length === 0 ? (
         <div className="text-center py-12 border-2 border-dashed rounded-lg">
           <p className="font-medium text-gray-600">No BVD test records yet</p>
           <p className="text-sm text-gray-400 mt-1">Add test results including ear notch, blood ELISA, or bulk milk PCR tests.</p>
@@ -7763,7 +7876,7 @@ function BvdTestingSection({ farmId }: { farmId: number }) {
               <tr>{["Test Date","Test Type","Herd","Result","Animals Tested","PI Found","Accreditation Status","Next Test Due",""].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y">
-              {records.map((r: any) => (
+              {filteredBvdRecords.map((r: any) => (
                 <tr key={r.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2">{fmtDate(r.testDate)}</td>
                   <td className="px-3 py-2">{BVD_TEST_TYPES.find(t => t.value === r.testType)?.label ?? r.testType}</td>
@@ -7869,6 +7982,9 @@ function CasualtySlaughterSection({ farmId }: { farmId: number }) {
     queryFn: () => fetch(`/api/farms/${farmId}/casualty-slaughter`).then(r => r.json()).then(d => d.records ?? []),
     enabled: !!farmId,
   });
+  const [yearFilterCasualty, setYearFilterCasualty] = useState("all");
+  const yearsCasualty = useMemo(() => Array.from(new Set((records as any[]).map((r: any) => String(r.eventDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [records]);
+  const filteredCasualtyRecords = yearFilterCasualty === "all" ? (records as any[]) : (records as any[]).filter((r: any) => String(r.eventDate ?? "").startsWith(yearFilterCasualty));
 
   const { data: fallenContractors = [] } = useQuery({
     queryKey: ["fallen-stock-contractors", farmId],
@@ -7967,13 +8083,20 @@ function CasualtySlaughterSection({ farmId }: { farmId: number }) {
           <h3 className="font-semibold text-gray-900">Casualty / Emergency Slaughter Register</h3>
           <p className="text-xs text-gray-500 mt-0.5">Red Tractor requires a record of every on-farm emergency killing. The person carrying out the slaughter must hold a valid WASK/WATOK certificate.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <Select value={yearFilterCasualty} onValueChange={setYearFilterCasualty}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {yearsCasualty.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
           {records.length > 0 && <Button size="sm" variant="outline" onClick={printCasualtyRegister}><Printer className="w-3.5 h-3.5 mr-1" />Print Register</Button>}
           <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Event</Button>
         </div>
       </div>
 
-      {isLoading ? <div className="text-center py-8 text-gray-400 text-sm">Loading…</div> : records.length === 0 ? (
+      {isLoading ? <div className="text-center py-8 text-gray-400 text-sm">Loading…</div> : filteredCasualtyRecords.length === 0 ? (
         <div className="text-center py-12 border-2 border-dashed rounded-lg">
           <p className="font-medium text-gray-600">No casualty slaughter events recorded</p>
           <p className="text-sm text-gray-400 mt-1">Record emergency on-farm killings here, separate from natural mortality.</p>
@@ -7985,7 +8108,7 @@ function CasualtySlaughterSection({ farmId }: { farmId: number }) {
               <tr>{["Date","Ear Tag","Species","Reason","Method","Performed By","WASK/WATOK / RCVS","Disposal",""].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y">
-              {records.map((r: any) => (
+              {filteredCasualtyRecords.map((r: any) => (
                 <tr key={r.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2">{fmtDate(r.eventDate)}</td>
                   <td className="px-3 py-2 font-mono text-xs">{r.animalEarTag || "—"}</td>

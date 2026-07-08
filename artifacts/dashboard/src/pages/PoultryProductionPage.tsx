@@ -1084,9 +1084,12 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
 
   const [flockFilterTx, setFlockFilterTx] = useState("all");
   const [inWithdrawalOnly, setInWithdrawalOnly] = useState(false);
+  const [yearFilterTx, setYearFilterTx] = useState("all");
+  const yearsTx = useMemo(() => Array.from(new Set(records.map(r => String(r.treatmentDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [records]);
   const filteredTreatments = records.filter(r =>
     (flockFilterTx === "all" || String(r.flockId ?? "") === flockFilterTx) &&
-    (!inWithdrawalOnly || (r.withdrawalClearDate && String(r.withdrawalClearDate) >= todayStr))
+    (!inWithdrawalOnly || (r.withdrawalClearDate && String(r.withdrawalClearDate) >= todayStr)) &&
+    (yearFilterTx === "all" || String(r.treatmentDate ?? "").startsWith(yearFilterTx))
   );
   const inWithdrawal = records.filter(r => r.withdrawalClearDate && String(r.withdrawalClearDate) >= todayStr);
   const pomvCount = records.filter(r => r.prescriptionObtained).length;
@@ -1133,6 +1136,7 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
         >
           {inWithdrawalOnly ? "⚠ In withdrawal only" : "In withdrawal only"}
         </button>
+        <Select value={yearFilterTx} onValueChange={setYearFilterTx}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsTx.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select>
       </div>
       {records.length > 0 && (
         <div className="space-y-3">
@@ -1891,7 +1895,9 @@ function FciTab({ farmId }: { farmId: number }) {
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-fci-documents", "poultry-fci");
   const fciList = (records ?? []) as Record<string, unknown>[];
   const [flockFilterFci, setFlockFilterFci] = useState("all");
-  const filteredFciList = flockFilterFci === "all" ? fciList : fciList.filter(r => String(r.flockId) === flockFilterFci);
+  const [yearFilterFci, setYearFilterFci] = useState("all");
+  const yearsFci = useMemo(() => Array.from(new Set(fciList.map(r => String(r.documentDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [fciList]);
+  const filteredFciList = fciList.filter(r => (flockFilterFci === "all" || String(r.flockId) === flockFilterFci) && (yearFilterFci === "all" || String(r.documentDate ?? "").startsWith(yearFilterFci)));
   const notWithdrawalClear = filteredFciList.filter(r => !r.withdrawalPeriodClear).length;
   const withMeds = filteredFciList.filter(r => r.medicationsLast7Days).length;
   const withDisease = filteredFciList.filter(r => r.anyDiseaseOrCondition).length;
@@ -1924,6 +1930,7 @@ function FciTab({ farmId }: { farmId: number }) {
             {flocks.map(f => <SelectItem key={String(f.id)} value={String(f.id)}>{String(f.flockNumber ?? f.id)}{f.houseName ? ` · ${f.houseName}` : ""}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={yearFilterFci} onValueChange={setYearFilterFci}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsFci.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select>
       </div>
       {!isLoading && fciList.length > 0 && (
         <div className="space-y-3">
@@ -1999,9 +2006,12 @@ function BroilerWelfareTab({ farmId }: { farmId: number }) {
   const bwiList = (records ?? []) as Record<string, unknown>[];
   const [flockFilterBwi, setFlockFilterBwi] = useState("all");
   const [outcomeFilterBwi, setOutcomeFilterBwi] = useState("all");
+  const [yearFilterBwi, setYearFilterBwi] = useState("all");
+  const yearsBwi = useMemo(() => Array.from(new Set(bwiList.map(r => String(r.assessmentDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [bwiList]);
   const filteredBwiList = bwiList.filter(r =>
     (flockFilterBwi === "all" || String(r.flockId) === flockFilterBwi) &&
-    (outcomeFilterBwi === "all" || String(r.overallOutcome ?? "").startsWith(outcomeFilterBwi))
+    (outcomeFilterBwi === "all" || String(r.overallOutcome ?? "").startsWith(outcomeFilterBwi)) &&
+    (yearFilterBwi === "all" || String(r.assessmentDate ?? "").startsWith(yearFilterBwi))
   );
   const passCount = filteredBwiList.filter(r => String(r.overallOutcome ?? "").startsWith("Pass")).length;
   const advisoryCount = filteredBwiList.filter(r => String(r.overallOutcome ?? "").startsWith("Advisory")).length;
@@ -2048,6 +2058,7 @@ function BroilerWelfareTab({ farmId }: { farmId: number }) {
             <SelectItem value="Fail">Fail</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={yearFilterBwi} onValueChange={setYearFilterBwi}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsBwi.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select>
       </div>
       {!isLoading && bwiList.length > 0 && (
         <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
@@ -2363,9 +2374,12 @@ function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
   const bioList = records as Record<string, unknown>[];
   const [houseFilterBio, setHouseFilterBio] = useState("all");
   const [statusFilterBio, setStatusFilterBio] = useState("all");
+  const [yearFilterBio, setYearFilterBio] = useState("all");
+  const yearsBio = useMemo(() => Array.from(new Set(bioList.map(r => String(r.cleanoutStartDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [bioList]);
   const filteredBioList = bioList.filter(r =>
     (houseFilterBio === "all" || String(r.houseId) === houseFilterBio) &&
-    (statusFilterBio === "all" || r.overallComplianceStatus === statusFilterBio)
+    (statusFilterBio === "all" || r.overallComplianceStatus === statusFilterBio) &&
+    (yearFilterBio === "all" || String(r.cleanoutStartDate ?? "").startsWith(yearFilterBio))
   );
   const compliant = filteredBioList.filter(r => r.overallComplianceStatus === "compliant").length;
   const nonCompliant = filteredBioList.filter(r => r.overallComplianceStatus === "non-compliant").length;
@@ -2407,6 +2421,7 @@ function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
             <SelectItem value="in-progress">In Progress</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={yearFilterBio} onValueChange={setYearFilterBio}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsBio.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select>
       </div>
       {!isLoading && bioList.length > 0 && (
         <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
@@ -2608,7 +2623,9 @@ function SchemeRecordsTab({ farmId }: { farmId: number }) {
   const OUTCOMES = ["Pass", "Conditional Pass", "Fail", "Pending", "Under Review"];
   const schList = records as Record<string, unknown>[];
   const [schemeNameFilter, setSchemeNameFilter] = useState("all");
-  const filteredSchList = schemeNameFilter === "all" ? schList : schList.filter(r => String(r.schemeName ?? "") === schemeNameFilter);
+  const [yearFilterSch, setYearFilterSch] = useState("all");
+  const yearsSch = useMemo(() => Array.from(new Set(schList.map(r => String(r.assessmentYear ?? "")).filter(Boolean))).sort().reverse(), [schList]);
+  const filteredSchList = schList.filter(r => (schemeNameFilter === "all" || String(r.schemeName ?? "") === schemeNameFilter) && (yearFilterSch === "all" || String(r.assessmentYear ?? "") === yearFilterSch));
   const today = new Date();
   const in60Days = new Date(today); in60Days.setDate(today.getDate() + 60);
   const expiringSoon = filteredSchList.filter(r => { if (!r.certificateExpiryDate) return false; const d = new Date(String(r.certificateExpiryDate)); return d >= today && d <= in60Days; });
@@ -2643,6 +2660,7 @@ function SchemeRecordsTab({ farmId }: { farmId: number }) {
             {SCHEMES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={yearFilterSch} onValueChange={setYearFilterSch}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsSch.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select>
       </div>
       {!isLoading && schList.length > 0 && (
         <div className="space-y-3">

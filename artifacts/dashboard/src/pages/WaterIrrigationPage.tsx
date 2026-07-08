@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, Loader2, ScrollText, BarChart3, Drill, Droplets, Tractor, CloudRain, AlertTriangle, FileCheck, Eye, ClipboardList, Play, Upload, FileText, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -181,10 +181,14 @@ function MeterReadingsTab({ farmId }: { farmId: number }) {
   const { data: readings = [], isLoading } = useQuery({ queryKey: ["water-readings", farmId], queryFn: () => fetch(api(`farms/${farmId}/water-meter-readings`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/water-meter-readings`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["water-readings", farmId] }); setOpen(false); setForm({}); } });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/water-meter-readings/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["water-readings", farmId] }) });
+  const allReadings = readings as Record<string, unknown>[];
+  const [yearFilter, setYearFilter] = useState("all");
+  const years = useMemo(() => Array.from(new Set(allReadings.map(r => String(r.readingDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allReadings]);
+  const filteredReadings = yearFilter === "all" ? allReadings : allReadings.filter(r => String(r.readingDate ?? "").startsWith(yearFilter));
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Abstraction Meter Readings</h3><Button size="sm" onClick={() => { setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Log Reading</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "readingDate", label: "Date", fmt: r => fmtDate(r.readingDate) }, { key: "meterReading", label: "Meter Reading" }, { key: "volumeAbstractedM3", label: "Abstracted (m³)" }, { key: "cumulativeYtdM3", label: "YTD (m³)" }, { key: "percentOfAnnualAllocation", label: "% of Allocation" }, { key: "readBy", label: "Read By" }]} rows={readings as Record<string, unknown>[]} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} />}
+      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold text-sm">Abstraction Meter Readings</h3><div className="flex items-center gap-2"><Select value={yearFilter} onValueChange={setYearFilter}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={() => { setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Log Reading</Button></div></div>
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "readingDate", label: "Date", fmt: r => fmtDate(r.readingDate) }, { key: "meterReading", label: "Meter Reading" }, { key: "volumeAbstractedM3", label: "Abstracted (m³)" }, { key: "cumulativeYtdM3", label: "YTD (m³)" }, { key: "percentOfAnnualAllocation", label: "% of Allocation" }, { key: "readBy", label: "Read By" }]} rows={filteredReadings} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} />}
       
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
@@ -251,12 +255,15 @@ function BoreholeTestsTab({ farmId }: { farmId: number }) {
   function openEdit(r: Record<string, unknown>) { setEditing(r); setMode("edit"); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }
   function openEnterResult(r: Record<string, unknown>) { setEditing(r); setMode("result"); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }
 
-  const rows = tests as Record<string, unknown>[];
+  const allBoreRows = tests as Record<string, unknown>[];
+  const [yearFilterBore, setYearFilterBore] = useState("all");
+  const yearsBore = useMemo(() => Array.from(new Set(allBoreRows.map(r => String(r.testDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allBoreRows]);
+  const rows = yearFilterBore === "all" ? allBoreRows : allBoreRows.filter(r => String(r.testDate ?? "").startsWith(yearFilterBore));
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-semibold text-sm">Borehole &amp; Well Tests</h3>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Log Sample</Button>
+        <div className="flex items-center gap-2"><Select value={yearFilterBore} onValueChange={setYearFilterBore}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsBore.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Log Sample</Button></div>
       </div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : rows.length === 0 ? (
         <p className="text-sm text-muted-foreground italic py-6 text-center">No borehole test records yet.</p>
@@ -492,16 +499,20 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
     : (selectedLicence?.costPerM3 ? parseFloat(String(selectedLicence.costPerM3)) : null);
   const estimatedCost = effectiveVolume && costPerM3 ? (effectiveVolume * costPerM3).toFixed(2) : null;
 
-  const openCount = (records as Record<string, unknown>[]).filter(r => r.status === "open").length;
+  const allIrrigRecords = records as Record<string, unknown>[];
+  const [yearFilterIrrig, setYearFilterIrrig] = useState("all");
+  const yearsIrrig = useMemo(() => Array.from(new Set(allIrrigRecords.map(r => String(r.irrigationDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allIrrigRecords]);
+  const filteredIrrigRecords = yearFilterIrrig === "all" ? allIrrigRecords : allIrrigRecords.filter(r => String(r.irrigationDate ?? "").startsWith(yearFilterIrrig));
+  const openCount = filteredIrrigRecords.filter(r => r.status === "open").length;
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="font-semibold text-sm">Irrigation Application Records</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Log each irrigation event — track start/end operators, equipment and volume applied.</p>
         </div>
-        <Button size="sm" onClick={openAdd}><Play className="w-4 h-4 mr-1" />Log Application</Button>
+        <div className="flex items-center gap-2"><Select value={yearFilterIrrig} onValueChange={setYearFilterIrrig}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsIrrig.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={openAdd}><Play className="w-4 h-4 mr-1" />Log Application</Button></div>
       </div>
 
       {openCount > 0 && (
@@ -512,8 +523,8 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
       )}
 
       {/* Summary strip */}
-      {!isLoading && (records as Record<string, unknown>[]).length > 0 && (() => {
-        const recs = records as Record<string, unknown>[];
+      {!isLoading && filteredIrrigRecords.length > 0 && (() => {
+        const recs = filteredIrrigRecords;
         const totalVol = recs.reduce((s, r) => s + (r.volumeAppliedM3 ? parseFloat(String(r.volumeAppliedM3)) : 0), 0);
         const totalArea = recs.reduce((s, r) => s + (r.areaIrrigatedHa ? parseFloat(String(r.areaIrrigatedHa)) : 0), 0);
         const openN = recs.filter(r => r.status === "open").length;
@@ -547,7 +558,7 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
 
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
         <div className="overflow-x-auto">
-          {!(records as Record<string, unknown>[]).length ? (
+          {!filteredIrrigRecords.length ? (
             <Empty msg="No irrigation records yet." />
           ) : (
             <table className="w-full text-sm">
@@ -560,7 +571,7 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
                 <th />
               </tr></thead>
               <tbody>
-                {(records as Record<string, unknown>[]).map((r, i) => (
+                {filteredIrrigRecords.map((r, i) => (
                   <tr key={i} className="border-b last:border-0">
                     <td className="py-2 pr-3">{fmtDate(r.irrigationDate)}</td>
                     <td className="py-2 pr-3">{fieldLabel(r)}</td>
@@ -925,16 +936,20 @@ function SoilMoistureTab({ farmId }: { farmId: number }) {
     setOpen(true);
   };
 
+  const allSoilRecords = records as Record<string, unknown>[];
+  const [yearFilterSoil, setYearFilterSoil] = useState("all");
+  const yearsSoil = useMemo(() => Array.from(new Set(allSoilRecords.map(r => String(r.readingDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allSoilRecords]);
+  const filteredSoilRecords = yearFilterSoil === "all" ? allSoilRecords : allSoilRecords.filter(r => String(r.readingDate ?? "").startsWith(yearFilterSoil));
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="font-semibold text-sm">Soil Moisture Monitoring</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Log soil moisture readings to optimise irrigation scheduling and evidence good water management. Compatible sensor data can be entered manually or imported from Sentek, METER Group (TEROS) or AquaSpy platforms.</p>
         </div>
-        <Button size="sm" onClick={() => { setEditing(null); setForm({ readingMethod: "manual" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Reading</Button>
+        <div className="flex items-center gap-2"><Select value={yearFilterSoil} onValueChange={setYearFilterSoil}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsSoil.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={() => { setEditing(null); setForm({ readingMethod: "manual" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Reading</Button></div>
       </div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "readingDate", label: "Date", fmt: r => fmtDate(r.readingDate) }, { key: "fieldOrBlockDescription", label: "Field / Block" }, { key: "sensorType", label: "Sensor Type" }, { key: "depthCm", label: "Depth (cm)" }, { key: "moisturePercent", label: "Moisture %" }, { key: "soilMoistureDeficitMm", label: "SMD (mm)" }, { key: "readingMethod", label: "Method" }, { key: "recordedBy", label: "Recorded By" }]} rows={records as Record<string, unknown>[]} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "readingDate", label: "Date", fmt: r => fmtDate(r.readingDate) }, { key: "fieldOrBlockDescription", label: "Field / Block" }, { key: "sensorType", label: "Sensor Type" }, { key: "depthCm", label: "Depth (cm)" }, { key: "moisturePercent", label: "Moisture %" }, { key: "soilMoistureDeficitMm", label: "SMD (mm)" }, { key: "readingMethod", label: "Method" }, { key: "recordedBy", label: "Recorded By" }]} rows={filteredSoilRecords} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
       
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
@@ -1012,16 +1027,20 @@ function DroughtManagementTab({ farmId }: { farmId: number }) {
 
   const STAGES = ["normal", "prolonged dry spell", "drought", "severe drought", "exceptional drought"];
   const RESTRICTIONS = ["none", "voluntary reduction", "stage 1 restriction", "stage 2 restriction", "temporary use ban", "drought permit needed"];
+  const allDroughtRecords = records as Record<string, unknown>[];
+  const [yearFilterDrought, setYearFilterDrought] = useState("all");
+  const yearsDrought = useMemo(() => Array.from(new Set(allDroughtRecords.map(r => String(r.planYear ?? "")).filter(Boolean))).sort().reverse(), [allDroughtRecords]);
+  const filteredDroughtRecords = yearFilterDrought === "all" ? allDroughtRecords : allDroughtRecords.filter(r => String(r.planYear ?? "") === yearFilterDrought);
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="font-semibold text-sm">Drought Management Plans</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Record drought stages and restriction levels aligned to EA Drought Management Plans. Log actions taken and alternative water sources to demonstrate responsible management.</p>
         </div>
-        <Button size="sm" onClick={() => { setEditing(null); setForm({ droughtStage: "normal", restrictionLevel: "none", isActive: true }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Plan</Button>
+        <div className="flex items-center gap-2"><Select value={yearFilterDrought} onValueChange={setYearFilterDrought}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsDrought.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={() => { setEditing(null); setForm({ droughtStage: "normal", restrictionLevel: "none", isActive: true }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Plan</Button></div>
       </div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "planYear", label: "Year" }, { key: "planTitle", label: "Plan Title" }, { key: "droughtStage", label: "Drought Stage" }, { key: "restrictionLevel", label: "Restriction Level" }, { key: "isActive", label: "Active", fmt: r => r.isActive ? "Yes" : "No" }, { key: "reviewDate", label: "Review Date", fmt: r => fmtDate(r.reviewDate) }]} rows={records as Record<string, unknown>[]} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "planYear", label: "Year" }, { key: "planTitle", label: "Plan Title" }, { key: "droughtStage", label: "Drought Stage" }, { key: "restrictionLevel", label: "Restriction Level" }, { key: "isActive", label: "Active", fmt: r => r.isActive ? "Yes" : "No" }, { key: "reviewDate", label: "Review Date", fmt: r => fmtDate(r.reviewDate) }]} rows={filteredDroughtRecords} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
       
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
@@ -1107,16 +1126,20 @@ function CamsReturnsTab({ farmId }: { farmId: number }) {
     setOpen(true);
   };
 
+  const allCamsRecords = records as Record<string, unknown>[];
+  const [yearFilterCams, setYearFilterCams] = useState("all");
+  const yearsCams = useMemo(() => Array.from(new Set(allCamsRecords.map(r => String(r.returnYear ?? "")).filter(Boolean))).sort().reverse(), [allCamsRecords]);
+  const filteredCamsRecords = yearFilterCams === "all" ? allCamsRecords : allCamsRecords.filter(r => String(r.returnYear ?? "") === yearFilterCams);
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="font-semibold text-sm">CAMS Annual Returns — EA Abstraction Compliance</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Record annual abstraction returns submitted to the Environment Agency under Catchment Abstraction Management Strategies (CAMS). Annual returns must be submitted by the deadline stated on your licence.</p>
         </div>
-        <Button size="sm" onClick={() => { setEditing(null); setForm({ submittedToEa: false, complianceStatus: "compliant", returnYear: String(new Date().getFullYear()) }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Return</Button>
+        <div className="flex items-center gap-2"><Select value={yearFilterCams} onValueChange={setYearFilterCams}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsCams.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={() => { setEditing(null); setForm({ submittedToEa: false, complianceStatus: "compliant", returnYear: String(new Date().getFullYear()) }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Return</Button></div>
       </div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "returnYear", label: "Year" }, { key: "licenceId", label: "Licence", fmt: r => { const l = (licences as Record<string, unknown>[]).find(x => String(x.id) === String(r.licenceId)); return l ? String(l.licenceNumber) : fmt(r.licenceId); } }, { key: "totalAbstractedM3", label: "Total (m³)" }, { key: "submittedToEa", label: "Submitted", fmt: r => r.submittedToEa ? "Yes" : "No" }, { key: "submissionDate", label: "Submission Date", fmt: r => fmtDate(r.submissionDate) }, { key: "eaReturnReference", label: "EA Ref" }, { key: "complianceStatus", label: "Compliance" }]} rows={records as Record<string, unknown>[]} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "returnYear", label: "Year" }, { key: "licenceId", label: "Licence", fmt: r => { const l = (licences as Record<string, unknown>[]).find(x => String(x.id) === String(r.licenceId)); return l ? String(l.licenceNumber) : fmt(r.licenceId); } }, { key: "totalAbstractedM3", label: "Total (m³)" }, { key: "submittedToEa", label: "Submitted", fmt: r => r.submittedToEa ? "Yes" : "No" }, { key: "submissionDate", label: "Submission Date", fmt: r => fmtDate(r.submissionDate) }, { key: "eaReturnReference", label: "EA Ref" }, { key: "complianceStatus", label: "Compliance" }]} rows={filteredCamsRecords} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
       
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>

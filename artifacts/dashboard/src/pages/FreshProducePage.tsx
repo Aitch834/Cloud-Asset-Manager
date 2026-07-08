@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { LabSelector } from "@/components/ui/LabSelector";
 import { BlockBoundaryMapDialog } from "@/components/fields/BlockBoundaryMapDialog";
@@ -513,12 +513,15 @@ export function WaterTestsTab({ farmId }: { farmId: number }) {
   function openAdd() { setEditing(null); setMode("log"); setForm({}); setLabSupplierId(null); setOpen(true); }
   const openEdit = (r: Record<string, unknown>) => { setEditing(r); setMode("edit"); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setLabSupplierId((r.labSupplierId as number | null) ?? null); setOpen(true); };
   const openEnterResult = (r: Record<string, unknown>) => { setEditing(r); setMode("result"); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setLabSupplierId((r.labSupplierId as number | null) ?? null); setOpen(true); };
-  const rows = tests as Record<string, unknown>[];
+  const allWaterRows = tests as Record<string, unknown>[];
+  const [yearFilterWater, setYearFilterWater] = useState("all");
+  const yearsWater = useMemo(() => Array.from(new Set(allWaterRows.map(r => String(r.testDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allWaterRows]);
+  const rows = yearFilterWater === "all" ? allWaterRows : allWaterRows.filter(r => String(r.testDate ?? "").startsWith(yearFilterWater));
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-semibold text-sm">Irrigation Water Quality Tests</h3>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Log Sample</Button>
+        <div className="flex items-center gap-2"><Select value={yearFilterWater} onValueChange={setYearFilterWater}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsWater.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Log Sample</Button></div>
       </div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : rows.length === 0 ? (
         <p className="text-sm text-muted-foreground italic py-6 text-center">No water test records yet.</p>
@@ -638,10 +641,14 @@ export function HarvestTab({ farmId }: { farmId: number }) {
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/horticulture-harvest-records/${editing.id}`) : api(`farms/${farmId}/horticulture-harvest-records`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["horti-harvest", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/horticulture-harvest-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["horti-harvest", farmId] }) });
   const openEdit = (r: Record<string, unknown>) => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
+  const allHarvestRecords = records as Record<string, unknown>[];
+  const [yearFilterHarvest, setYearFilterHarvest] = useState("all");
+  const yearsHarvest = useMemo(() => Array.from(new Set(allHarvestRecords.map(r => String(r.harvestDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allHarvestRecords]);
+  const filteredHarvestRecords = yearFilterHarvest === "all" ? allHarvestRecords : allHarvestRecords.filter(r => String(r.harvestDate ?? "").startsWith(yearFilterHarvest));
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Harvest Records</h3><Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Harvest</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "harvestDate", label: "Date", fmt: r => fmtDate(r.harvestDate) }, { key: "harvestBatchRef", label: "Batch Ref" }, { key: "quantityKg", label: "Total (kg)" }, { key: "gradeA", label: "Grade A (kg)" }, { key: "gradeB", label: "Grade B (kg)" }, { key: "preHarvestInterval", label: "PHI (days)" }, { key: "destination", label: "Destination" }]} rows={records as Record<string, unknown>[]} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
+      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold text-sm">Harvest Records</h3><div className="flex items-center gap-2"><Select value={yearFilterHarvest} onValueChange={setYearFilterHarvest}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsHarvest.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Harvest</Button></div></div>
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "harvestDate", label: "Date", fmt: r => fmtDate(r.harvestDate) }, { key: "harvestBatchRef", label: "Batch Ref" }, { key: "quantityKg", label: "Total (kg)" }, { key: "gradeA", label: "Grade A (kg)" }, { key: "gradeB", label: "Grade B (kg)" }, { key: "preHarvestInterval", label: "PHI (days)" }, { key: "destination", label: "Destination" }]} rows={filteredHarvestRecords} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>
@@ -790,14 +797,19 @@ export function IntakeTab({ farmId }: { farmId: number }) {
   const batchRejected = form.accepted === false;
 
   const today = new Date().toISOString().slice(0, 10);
+  const allIntakeRecords = records;
+  const [yearFilterIntake, setYearFilterIntake] = useState("all");
+  const yearsIntake = useMemo(() => Array.from(new Set(allIntakeRecords.map(r => String(r.intakeDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allIntakeRecords]);
+  const filteredIntakeRecords = yearFilterIntake === "all" ? allIntakeRecords : allIntakeRecords.filter(r => String(r.intakeDate ?? "").startsWith(yearFilterIntake));
 
   return (
     <div className="space-y-4">
 
       {/* ── Toolbar ── */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-semibold text-sm">Pre-Cooling / Intake Records</h3>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <Select value={yearFilterIntake} onValueChange={setYearFilterIntake}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsIntake.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select>
           <Button size="sm" variant="outline" onClick={() => setManageLocOpen(true)}>
             <Warehouse className="w-3.5 h-3.5 mr-1" />Locations
           </Button>
@@ -808,7 +820,7 @@ export function IntakeTab({ farmId }: { farmId: number }) {
       </div>
 
       {/* ── Intake list ── */}
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : records.length === 0 ? (
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : filteredIntakeRecords.length === 0 ? (
         <p className="text-sm text-muted-foreground italic py-6 text-center">No intake records yet.</p>
       ) : (
         <div className="overflow-x-auto">
@@ -821,7 +833,7 @@ export function IntakeTab({ farmId }: { farmId: number }) {
               </tr>
             </thead>
             <tbody>
-              {records.map(r => {
+              {filteredIntakeRecords.map(r => {
                 const condBad    = r.conditionOnArrival === "Poor" || r.conditionOnArrival === "Rejected";
                 const notAccepted = r.accepted === false || r.accepted === "false";
                 const fbMissing  = !r.foreignBodyCheck || r.foreignBodyCheck === "false";
@@ -1138,13 +1150,17 @@ export function PackhouseTab({ farmId }: { farmId: number }) {
     if (ir) setForm(f => ({ ...f, intakeRecordId: String(ir.id), harvestBatchRef: String(ir.harvestBatchRef ?? f.harvestBatchRef), productName: String(ir.productName ?? f.productName) }));
   }
 
+  const allPackhouseRecords = records as Record<string, unknown>[];
+  const [yearFilterPackhouse, setYearFilterPackhouse] = useState("all");
+  const yearsPackhouse = useMemo(() => Array.from(new Set(allPackhouseRecords.map(r => String(r.packingDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allPackhouseRecords]);
+  const filteredPackhouseRecords = yearFilterPackhouse === "all" ? allPackhouseRecords : allPackhouseRecords.filter(r => String(r.packingDate ?? "").startsWith(yearFilterPackhouse));
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-semibold text-sm">Packhouse & Despatch Records</h3>
-        <Button size="sm" onClick={() => { setForm({ labelChecked: false, metalDetectorCheck: false, allergenCheck: false }); setOpen(true); }}>
+        <div className="flex items-center gap-2"><Select value={yearFilterPackhouse} onValueChange={setYearFilterPackhouse}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsPackhouse.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={() => { setForm({ labelChecked: false, metalDetectorCheck: false, allergenCheck: false }); setOpen(true); }}>
           <Plus className="w-4 h-4 mr-1" />Add Record
-        </Button>
+        </Button></div>
       </div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
         <DataTable
@@ -1156,7 +1172,7 @@ export function PackhouseTab({ farmId }: { farmId: number }) {
             { key: "quantityPackedKg", label: "Qty (kg)" },
             { key: "customerName", label: "Customer" },
           ]}
-          rows={records as Record<string, unknown>[]}
+          rows={filteredPackhouseRecords}
           onView={setViewRecord}
           onDelete={r => del.mutate(r.id as number)}
         />
@@ -1253,10 +1269,14 @@ export function AllergenTab({ farmId }: { farmId: number }) {
   const { data: records = [], isLoading } = useQuery({ queryKey: ["horti-allergen", farmId], queryFn: () => fetch(api(`farms/${farmId}/allergen-management`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/allergen-management`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["horti-allergen", farmId] }); setOpen(false); setForm({}); } });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/allergen-management/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["horti-allergen", farmId] }) });
+  const allAllergenRecords = records as Record<string, unknown>[];
+  const [yearFilterAllergen, setYearFilterAllergen] = useState("all");
+  const yearsAllergen = useMemo(() => Array.from(new Set(allAllergenRecords.map(r => String(r.reviewDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allAllergenRecords]);
+  const filteredAllergenRecords = yearFilterAllergen === "all" ? allAllergenRecords : allAllergenRecords.filter(r => String(r.reviewDate ?? "").startsWith(yearFilterAllergen));
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Allergen Management Reviews</h3><Button size="sm" onClick={() => { setForm({ labellingVerified: false }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Review</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "reviewDate", label: "Review Date", fmt: r => fmtDate(r.reviewDate) }, { key: "reviewedBy", label: "Reviewed By" }, { key: "crossContaminationRisk", label: "Cross-Contamination Risk" }, { key: "nextReviewDate", label: "Next Review", fmt: r => fmtDate(r.nextReviewDate) }, { key: "labellingVerified", label: "Labelling Verified", fmt: r => r.labellingVerified ? "Yes" : "No" }]} rows={records as Record<string, unknown>[]} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} />}
+      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold text-sm">Allergen Management Reviews</h3><div className="flex items-center gap-2"><Select value={yearFilterAllergen} onValueChange={setYearFilterAllergen}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsAllergen.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={() => { setForm({ labellingVerified: false }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Review</Button></div></div>
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "reviewDate", label: "Review Date", fmt: r => fmtDate(r.reviewDate) }, { key: "reviewedBy", label: "Reviewed By" }, { key: "crossContaminationRisk", label: "Cross-Contamination Risk" }, { key: "nextReviewDate", label: "Next Review", fmt: r => fmtDate(r.nextReviewDate) }, { key: "labellingVerified", label: "Labelling Verified", fmt: r => r.labellingVerified ? "Yes" : "No" }]} rows={filteredAllergenRecords} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} />}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>

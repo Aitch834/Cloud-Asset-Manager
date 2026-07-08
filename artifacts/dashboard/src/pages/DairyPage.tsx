@@ -4197,6 +4197,9 @@ export function DctTab({ farmId }: { farmId: number }) {
   const [dctYear, setDctYear] = useState<number>(new Date().getFullYear());
   const allDctRecords = data?.records ?? [];
   const dctYearRecords = allDctRecords.filter(r => r.dryOffDate && new Date(r.dryOffDate).getFullYear() === dctYear);
+  const [dctListYear, setDctListYear] = useState("all");
+  const dctListYears = React.useMemo(() => Array.from(new Set(allDctRecords.map(r => String(r.dryOffDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allDctRecords]);
+  const filteredDctList = dctListYear === "all" ? allDctRecords : allDctRecords.filter(r => String(r.dryOffDate ?? "").startsWith(dctListYear));
 
   const dctStats = React.useMemo(() => {
     const recs = dctYearRecords;
@@ -4275,6 +4278,7 @@ ${productRows ? `<h3>Antibiotic Products Used</h3><table><tr><th>Product</th><th
           <p className="text-sm text-gray-500">Dry Cow Therapy (DCT) — record treatment decisions at dry-off. Antibiotic stewardship requires documented justification for each cow treated.</p>
         </div>
         <div className="flex gap-2 items-center">
+          <Select value={dctListYear} onValueChange={setDctListYear}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{dctListYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select>
           <Button variant="outline" size="sm" onClick={generateDctReport} disabled={dctYearRecords.length === 0}>
             <FileDown className="h-3.5 w-3.5 mr-1" />Print Report
           </Button>
@@ -4362,8 +4366,8 @@ ${productRows ? `<h3>Antibiotic Products Used</h3><table><tr><th>Product</th><th
       )}
       {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" /> : (
         <div className="space-y-2">
-          {(!data?.records?.length) && <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No DCT records yet. Record dry-off treatments for each cow at the end of lactation.</CardContent></Card>}
-          {data?.records?.map(r => (
+          {(!filteredDctList.length) && <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No DCT records yet. Record dry-off treatments for each cow at the end of lactation.</CardContent></Card>}
+          {filteredDctList.map(r => (
             <Card key={r.id}>
               <CardContent className="py-3 px-4">
                 <div className="flex items-center justify-between">
@@ -4680,6 +4684,9 @@ export function RecordingVisitsTab({ farmId }: { farmId: number }) {
   const allAnimals = (animalsQ.data as any)?.animals ?? [];
 
   const visits = data?.visits ?? [];
+  const [yearFilterVisits, setYearFilterVisits] = useState("all");
+  const yearsVisits = React.useMemo(() => Array.from(new Set(visits.map(v => String(v.visitDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [visits]);
+  const filteredVisits = yearFilterVisits === "all" ? visits : visits.filter(v => String(v.visitDate ?? "").startsWith(yearFilterVisits));
 
   const save = useMutation({
     mutationFn: async (body: Partial<RecordingVisit>) => {
@@ -4719,11 +4726,12 @@ export function RecordingVisitsTab({ farmId }: { farmId: number }) {
   return (
     <div>
       {/* Header */}
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div>
           <p className="text-sm text-gray-500 mt-0.5">Log monthly NMR recording visits — herd average SCC, fat%, protein%, and Fat:Protein Ratio analysis.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <Select value={yearFilterVisits} onValueChange={setYearFilterVisits}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsVisits.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select>
           {hasTrend && (
             <Button variant="outline" size="sm" onClick={() => setShowChart(v => !v)}>
               <BarChart2 className="h-4 w-4 mr-1" />{showChart ? "Hide" : "Trend"} Chart
@@ -4779,7 +4787,7 @@ export function RecordingVisitsTab({ farmId }: { farmId: number }) {
       {/* Register */}
       {isLoading ? (
         <div className="flex items-center gap-2 text-gray-500 text-sm"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
-      ) : visits.length === 0 ? (
+      ) : filteredVisits.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           <ClipboardList className="h-10 w-10 mx-auto mb-3 opacity-40" />
           <p className="font-medium">No recording visits logged yet</p>
@@ -4802,7 +4810,7 @@ export function RecordingVisitsTab({ farmId }: { farmId: number }) {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {visits.map(v => (
+              {filteredVisits.map(v => (
                 <tr key={v.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setViewRec(v)}>
                   <td className="px-3 py-2 font-medium">{formatDate(v.visitDate)}</td>
                   <td className="px-3 py-2 text-gray-600">{v.recorderName || "—"}</td>

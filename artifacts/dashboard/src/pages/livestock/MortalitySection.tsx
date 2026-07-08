@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -588,13 +588,17 @@ export function MortalitySection({ farmId }: { farmId: number }) {
   const awaitingCollection = records.filter(r => r.status === "disposal_arranged").length;
   const awaitingCloseOut = records.filter(r => r.status === "disposed").length;
 
+  const [yearFilterMort, setYearFilterMort] = useState("all");
+  const yearsMort = useMemo(() => Array.from(new Set(records.map(r => String(r.dateOfDeath ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [records]);
+
   const filtered = records.filter(r => {
     const matchesSearch =
       (r.tagNumber ?? "").toLowerCase().includes(search.toLowerCase()) ||
       r.species.toLowerCase().includes(search.toLowerCase()) ||
       r.causeOfDeath.toLowerCase().includes(search.toLowerCase());
     if (!matchesSearch) return false;
-    if (statusFilter !== "all") return r.status === statusFilter;
+    if (statusFilter !== "all" && r.status !== statusFilter) return false;
+    if (yearFilterMort !== "all" && !String(r.dateOfDeath ?? "").startsWith(yearFilterMort)) return false;
     return true;
   });
 
@@ -631,14 +635,23 @@ export function MortalitySection({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-4 gap-4">
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search by tag, species or cause…" className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <Button onClick={openNewRecord}>
-          <Plus className="h-4 w-4 mr-1" /> Report Death
-        </Button>
+        <div className="flex items-center gap-2">
+          <Select value={yearFilterMort} onValueChange={setYearFilterMort}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {yearsMort.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button onClick={openNewRecord}>
+            <Plus className="h-4 w-4 mr-1" /> Report Death
+          </Button>
+        </div>
       </div>
 
       <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
