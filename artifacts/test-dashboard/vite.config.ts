@@ -455,6 +455,37 @@ function reconnectReloadPlugin(sessionBase: string) {
               const pathAfterBase = p1.slice(sessionBase.length); // "@fs/..."
               return `"${sessionBase}@td/${sessionToken}/${pathAfterBase}"`;
             });
+            // Anti-proxy-cache padding for source files in the 256KB–490KB
+            // compiled-size range.
+            //
+            // WHY: Replit's external proxy caches source files ignoring
+            // Cache-Control headers, using the URL path (minus the @td/TOKEN/
+            // segment) as the cache key.  A cached response from session A is
+            // served to session B with session-A's @td/TOKEN/ embedded in all
+            // @fs/ import paths.  When the same file is also loaded at
+            // session-B's @td/TOKEN/ URL, the browser's ES module registry
+            // creates TWO separate module identities for the same file.
+            // React Refresh detects two registrations of the same component
+            // family key and calls performReactRefresh() while the component
+            // is still being rendered for the first time → the React dispatcher
+            // is in the wrong state → "Invalid hook call".
+            //
+            // SOLUTION: files that exceed ~500 KB are NOT cached by the proxy
+            // (confirmed empirically — CompliancePage at 500 KB+ never crashes).
+            // For source files in the dangerous 256 KB–490 KB range we append a
+            // JS comment large enough to push the total past the threshold.
+            // Dep chunks (which use fixed canonical URLs) are exempt.
+            if (!url.includes("/.vite/deps/") && !url.includes("/@td/deps/")) {
+              const PROXY_CACHE_THRESHOLD = 512 * 1024; // 512 KB
+              const LOW_WATER = 256 * 1024;             // 256 KB (skip tiny files)
+              const byteLen = Buffer.byteLength(result, "utf-8");
+              if (byteLen >= LOW_WATER && byteLen < PROXY_CACHE_THRESHOLD) {
+                const needed = PROXY_CACHE_THRESHOLD - byteLen;
+                // Use a valid JS comment so the padding is invisible to the
+                // engine.  The 4 bytes are for "/*" and "*/" delimiters.
+                result += "\n/*" + " ".repeat(Math.max(0, needed - 4)) + "*/";
+              }
+            }
             return result;
           }
           if (ct.includes("text/html")) {

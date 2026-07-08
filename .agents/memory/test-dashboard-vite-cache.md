@@ -236,7 +236,34 @@ Also replaced `React.useRef` namespace call with the named `useRef` import for c
 imported into a page file is at risk. Inline the hook's logic into the calling component rather
 than relying on the @fs/ chain for external lib files.
 
-### Layer 5 — Service Worker: normalize old-token dep-chunk AND source-file URLs (sw-v4.js)
+### Layer 5 — Anti-proxy-cache padding for medium-sized source files (vite.config.ts interceptText)
+
+**Problem:** Source files in the 256KB–490KB compiled-size range are proxy-cached AND embed
+session tokens in their @fs/ imports. When the proxy serves a stale-session version, the browser
+creates TWO module registry entries for the same file (one at old-token URL, one at current-token
+URL). React Refresh detects both entries registering the same family key and calls
+`performReactRefresh()` WHILE the component is being rendered for the first time. At that instant
+the React dispatcher is in the wrong state → "Invalid hook call" at the first hook call (line 388
+of compiled SeedStorePage: `const { farmId } = useAppStore()`).
+
+**Fix:** At the end of the JS body transform in `interceptText`, after all URL rewrites:
+- If the result is a source file (not a dep chunk — excludes `/.vite/deps/` and `/@td/deps/`)
+- AND the compiled byte length is ≥ 256KB and < 512KB
+- Append a `/* [spaces] */` comment to pad the file to exactly 512KB
+
+Files above ~500KB are NOT cached by Replit's proxy (confirmed empirically: CompliancePage
+at 500KB+ never crashes; SeedStorePage at 378KB consistently crashes). The padding makes the
+proxy issue a cache miss → always-fresh content → consistent single session token → one module
+per file → no React Refresh family conflict → hooks work correctly.
+
+**Scope:** Only source files in the dangerous 256KB–490KB zone. Tiny files (<256KB) are excluded
+because they only import from canonical dep chunks (no @fs/ sub-imports) so their proxy-cached
+content never causes dual-module issues. Dep chunks are excluded because they already use
+fixed canonical URLs.
+
+**Applied:** SeedStorePage.tsx (378KB → 512KB padded). No source file changes needed.
+
+### Layer 6 — Service Worker: normalize old-token dep-chunk AND source-file URLs (sw-v4.js)
 
 **Two distinct proxy-cache problems addressed by the SW:**
 
