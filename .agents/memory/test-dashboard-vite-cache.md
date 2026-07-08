@@ -284,8 +284,8 @@ doesn't recognize it → "Invalid hook call".
 
 **The SW reads its CURRENT_TOKEN from its own registration URL (`?v=SESSION_TOKEN`), then:**
 1. Intercepts `@td/OLD_TOKEN/deps/FILE` → fetches `@td/deps/FILE` (Part A fix)
-2. Intercepts `@td/OLD_TOKEN/@fs/FILE` where OLD_TOKEN ≠ CURRENT_TOKEN
-   → fetches `@td/CURRENT_TOKEN/@fs/FILE` (Part B fix — NEW in sw-v4.js)
+2. Intercepts `@td/OLD_TOKEN/@[x]fs/FILE` where OLD_TOKEN ≠ CURRENT_TOKEN
+   → fetches `@td/CURRENT_TOKEN/@xfs/FILE` (Part B fix; regex `@x?fs` handles both schemes)
 
 Negative lookahead on CURRENT_TOKEN in the regex prevents matching current-session URLs,
 avoiding infinite intercept loops. All source files converge on CURRENT_TOKEN URLs. ✓

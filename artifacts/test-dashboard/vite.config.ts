@@ -343,8 +343,10 @@ function reconnectReloadPlugin(sessionBase: string) {
             //                                → /base/node_modules/.vite/deps/chunk.js
             req.url = rawUrl.replace(tdDepsRe, depsBase);
           } else {
-            // Source-file URL: /base/@td/TOKEN/@fs/path → /base/@fs/path
-            req.url = rawUrl.replace(tdPathRe, sessionBase);
+            // Source-file URL: /base/@td/TOKEN/@xfs/path → /base/@fs/path
+            // (also handles legacy @fs/ scheme from old proxy-cached content)
+            const stripped = rawUrl.replace(tdPathRe, sessionBase);
+            req.url = stripped.replace("/@xfs/", "/@fs/");
           }
         }
         // Query-based (legacy fallback): strip ?td=TOKEN
@@ -449,11 +451,24 @@ function reconnectReloadPlugin(sessionBase: string) {
               );
             }
             // Rewrite every @fs/ source-file URL to embed the session token
-            // in the path: BASE@fs/path → BASE@td/TOKEN/@fs/path.
+            // in the path: BASE@fs/path → BASE@td/TOKEN/@xfs/path.
+            //
+            // WHY @xfs/ instead of @fs/:
+            // The proxy had old content cached at key "@fs/path".  By changing
+            // the marker to "@xfs/" we guarantee a proxy cache MISS for every
+            // source file URL (the proxy has never seen "@xfs/" keys), so the
+            // server always serves the fresh padded version.  SeedStorePage at
+            // 512 KB exceeds the proxy cache threshold → never cached going
+            // forward → correct session token every time → one module identity
+            // per file → no React Refresh family conflict → no hook crash. ✓
             result = result.replace(fsUrlRe, (_match, p1: string) => {
               // p1 = "/<base>@fs/home/runner/.../File.tsx"
               const pathAfterBase = p1.slice(sessionBase.length); // "@fs/..."
-              return `"${sessionBase}@td/${sessionToken}/${pathAfterBase}"`;
+              // Change "@fs/" → "@xfs/" so the browser requests the new-scheme
+              // URL (proxy cache miss) while the server middleware maps it back
+              // to Vite's native @fs/ path for serving.
+              const xfsPath = pathAfterBase.replace("@fs/", "@xfs/");
+              return `"${sessionBase}@td/${sessionToken}/${xfsPath}"`;
             });
             // Anti-proxy-cache padding for source files in the 256KB–490KB
             // compiled-size range.

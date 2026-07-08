@@ -72,20 +72,26 @@ const OLD_DEP_RE = new RegExp(
 );
 
 /**
- * Matches: /test-dashboard/@td/TOKEN/@fs/FILE
+ * Matches: /test-dashboard/@td/TOKEN/@fs/FILE   (legacy scheme)
+ *       OR /test-dashboard/@td/TOKEN/@xfs/FILE  (current scheme)
  * where TOKEN differs from currentToken (already normalized — skip).
- * Groups: [1]=TOKEN  [2]=FILE (everything after @fs/)
+ * Groups: [1]=TOKEN  [2]=FILE (everything after the @[x]fs/ marker)
  *
  * The negative lookahead `(?!CURRENT_TOKEN\/)` prevents matching (and
  * re-fetching) URLs that are already at the current session token, which
  * would cause an infinite intercept loop.
+ *
+ * WHY @xfs/: the server now generates "@xfs/" URLs (not "@fs/") so that
+ * existing proxy cache entries (keyed on "@fs/path") are never hit.  The
+ * SW must handle both schemes for backward compatibility with any legacy
+ * proxy-cached content that still embeds "@fs/" markers.
  */
 const OLD_FS_RE = currentToken
   ? new RegExp(
       '^' + BASE +
       '@td\\/(?!' +
       currentToken.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
-      '\\/)([^\\/]+)\\/@fs\\/(.+)$'
+      '\\/)([^\\/]+)\\/@x?fs\\/(.+)$'
     )
   : null;
 
@@ -123,7 +129,7 @@ self.addEventListener('fetch', event => {
     const fsMatch = url.pathname.match(OLD_FS_RE);
     if (fsMatch) {
       const canonicalUrl = new URL(event.request.url);
-      canonicalUrl.pathname = BASE + '@td/' + currentToken + '/@fs/' + fsMatch[2];
+      canonicalUrl.pathname = BASE + '@td/' + currentToken + '/@xfs/' + fsMatch[2];
       canonicalUrl.search = '';
       event.respondWith(
         fetch(canonicalUrl.href, {
