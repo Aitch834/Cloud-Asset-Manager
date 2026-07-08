@@ -236,30 +236,40 @@ Also replaced `React.useRef` namespace call with the named `useRef` import for c
 imported into a page file is at risk. Inline the hook's logic into the calling component rather
 than relying on the @fs/ chain for external lib files.
 
-### Layer 5 — Service Worker: proxy old-token dep-chunk URLs to canonical @td/deps/ content
+### Layer 5 — Service Worker: normalize old-token dep-chunk AND source-file URLs (sw-v4.js)
 
-**Problem layers 1b/1c don't fully solve:** Replit's proxy caches ALL responses by URL path.
-When the proxy caches a source file from an OLD session, it has `@td/OLD_TOKEN/deps/react.js`
-embedded. If the proxy serves the OLD dep chunk DIRECTLY (bypassing our server), the browser
-gets old relative imports (`"./chunk-KC53NVYV.js"`) resolving to `@td/OLD_TOKEN/deps/chunk-*`
-— a separate React chain → "Invalid hook call". No server-side fix can help once the proxy
-serves stale content directly.
+**Two distinct proxy-cache problems addressed by the SW:**
 
-**The fix (sw-v3.js — fetch-and-return, NOT redirect):**
-A Service Worker intercepts `@td/TOKEN/deps/FILE` requests, fetches the canonical
-`@td/deps/FILE` URL, and returns that response body directly. The canonical dep chunks
-have absolute imports (`/test-dashboard/@td/deps/chunk-KC53NVYV.js`) so all sub-imports
-in the served content resolve to the same canonical module map entries → single dep chain
-→ one React. ✓
+**Part A — dep-chunk identity split (fixed by dep-chunk normalization):**
+Replit's proxy caches ALL responses by URL path. When a source file is served from proxy
+cache it may embed `@td/OLD_TOKEN/deps/react.js`. The browser loads react.js at an old-token
+URL → separate module identity from the canonical `@td/deps/react.js` → two React instances.
+SW intercepts `@td/TOKEN/deps/FILE`, fetches canonical `@td/deps/FILE`, returns it directly.
+
+**Part B — source-file identity split (fixed by source-file normalization in sw-v4.js):**
+The proxy caches source files with cache key stripped of `@td/TOKEN/`:
+  `/test-dashboard/@td/SESSION1/@fs/.../SeedStorePage.tsx`  → key: `@fs/.../SeedStorePage.tsx`
+SeedStorePage cached from SESSION1 embeds `@td/SESSION1/@fs/.../use-app-store.ts` (old token).
+App.tsx (served fresh) imports `use-app-store.ts` at `@td/SESSION2/@fs/.../use-app-store.ts`.
+Browser sees TWO different `use-app-store.ts` module URLs → two Zustand stores → `useAppStore()`
+from SeedStorePage's chain calls `useSyncExternalStore` in a context where the React dispatcher
+doesn't recognize it → "Invalid hook call".
+
+**The SW reads its CURRENT_TOKEN from its own registration URL (`?v=SESSION_TOKEN`), then:**
+1. Intercepts `@td/OLD_TOKEN/deps/FILE` → fetches `@td/deps/FILE` (Part A fix)
+2. Intercepts `@td/OLD_TOKEN/@fs/FILE` where OLD_TOKEN ≠ CURRENT_TOKEN
+   → fetches `@td/CURRENT_TOKEN/@fs/FILE` (Part B fix — NEW in sw-v4.js)
+
+Negative lookahead on CURRENT_TOKEN in the regex prevents matching current-session URLs,
+avoiding infinite intercept loops. All source files converge on CURRENT_TOKEN URLs. ✓
 
 **CRITICAL: Do NOT use Response.redirect() for ES module imports.**
 Browsers do NOT follow SW-returned redirects (`Response.redirect(302)`) for ES module
-`import` statements. The browser treats it as a network error or falls back to the original
-URL — bypassing the SW entirely. Use `fetch(canonicalUrl, { cache: 'no-store' })` instead.
+`import` statements. Use `fetch(canonicalUrl, { cache: 'no-store' })` instead.
 
 **Files:**
-- `artifacts/test-dashboard/public/sw-v3.js` — the SW script (fetch-based, not redirect)
-- `artifacts/test-dashboard/index.html` — inline `<script>` to register SW (NOT type=module)
+- `artifacts/test-dashboard/public/sw-v4.js` — current SW (dep + source-file normalization)
+- `artifacts/test-dashboard/index.html` — registers sw-v4.js (NOT type=module script)
 - `artifacts/test-dashboard/vite.config.ts` — middleware serving sw-v*.js + HTML rewriter
 
 **Critical implementation notes:**
@@ -278,18 +288,16 @@ URL — bypassing the SW entirely. Use `fetch(canonicalUrl, { cache: 'no-store' 
    with a browser-like tool that sends Origin headers, not just curl.
 
 3. **Inject session token into SW registration URL to bust proxy cache per session.**
-   The HTML body rewriter now replaces `sw-v3.js` in the `register()` call with
-   `sw-v3.js?v=SESSION_TOKEN`. Each new Vite session → new token → new URL → proxy cache
-   miss for browser requests → server serves fresh `application/javascript`. The middleware
-   SW handler strips query params when matching (`/sw-v*.js(?:.*)?$/`).
-   **Never hardcode the SW filename in index.html** — it must receive the session token
-   query param from the server-side HTML rewriter.
+   The HTML body rewriter replaces `sw-v4.js` in the `register()` call with
+   `sw-v4.js?v=SESSION_TOKEN`. Each new Vite session → new token → new URL → proxy cache
+   miss → server serves fresh `application/javascript`. Middleware strips query params when
+   matching. **Never hardcode the SW filename in index.html** — it must receive the session
+   token query param from the server-side HTML rewriter. The SW reads its current token from
+   `self.location.search` (i.e. from the `?v=` param of its own registration URL).
 
-4. **SW scope and import filter.**
-   Scope = `/test-dashboard/`. SW ONLY intercepts `@td/(?!deps/)TOKEN/deps/FILE`
-   (negative lookahead skips canonical `@td/deps/` URLs — not intercepted). Source file
-   URLs (`@td/TOKEN/@fs/...`) also NOT intercepted — session-token URL ensures proxy cache
-   miss for source files each session.
+4. **SW scope and URL filters.**
+   Scope = `/test-dashboard/`. Only intercepts same-origin requests. CURRENT_TOKEN-matching
+   source-file URLs are excluded by negative lookahead to prevent infinite fetch loops.
 
 5. **Auto-reload when controller is null (hard refresh + first visit recovery).**
    index.html inline script: register SW, then if `!navigator.serviceWorker.controller`,
@@ -299,6 +307,10 @@ URL — bypassing the SW entirely. Use `fetch(canonicalUrl, { cache: 'no-store' 
    (SW installing), reload fires after SW activates → brief flash, then auto-recovers.
 
 6. **skipWaiting() + clients.claim()** ensure the SW takes control immediately after activation.
+
+7. **Bump SW filename when changing SW behaviour** (sw-v3.js → sw-v4.js). This forces
+   browsers that have the old SW installed to register the new one and call skipWaiting().
+   The vite.config.ts regex `/sw(?:-v\d+)?\.js/` matches any version suffix automatically.
 
 ## What NOT to do
 - Do NOT look for a hooks violation in the component source — the component code is correct.

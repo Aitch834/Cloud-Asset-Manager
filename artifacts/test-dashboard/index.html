@@ -11,16 +11,24 @@
     <!--
       Service Worker guard — runs synchronously before any module scripts.
 
-      sw-v3.js proxies old-session dep-chunk URLs (@td/TOKEN/deps/X) by fetching
-      the canonical content from @td/deps/X and returning it directly. This is
-      necessary because browsers do NOT follow Response.redirect() from a SW for
-      ES module imports — they treat it as a network error. fetch-and-return
-      ensures all dep chunks converge on the same canonical @td/deps/ imports
-      regardless of which session-token URL the stale source file referenced.
+      sw-v4.js (registered with ?v=SESSION_TOKEN appended by vite.config.ts)
+      normalises TWO categories of stale proxy-cached URLs:
+
+      1. Dep-chunk URLs: @td/OLD_TOKEN/deps/FILE → @td/deps/FILE
+         Ensures all dep imports (react, zustand, etc.) converge on the same
+         canonical path regardless of which session token the proxy cached.
+
+      2. Source-file URLs: @td/OLD_TOKEN/@fs/FILE → @td/CURRENT_TOKEN/@fs/FILE
+         Replit's proxy strips @td/TOKEN/ from cache keys, so source files
+         cached from old sessions embed old-token @fs/ imports. This creates
+         duplicate module instances for hook-containing files (e.g.
+         use-app-store.ts) → "Invalid hook call" in SeedStorePage and similar.
+         The SW reads CURRENT_TOKEN from its own ?v= registration URL and
+         normalises every stale @fs/ import to the current session token.
 
       KEY ISSUE: on hard refresh (Ctrl+Shift+R) and on the very first page load,
-      navigator.serviceWorker.controller is null — the SW is bypassed and dep-chunk
-      requests are NOT intercepted → split chain → "Invalid hook call".
+      navigator.serviceWorker.controller is null — the SW is bypassed and
+      requests are NOT intercepted → split module graph → "Invalid hook call".
 
       FIX: if controller is null, register the SW and call .ready.then(reload).
       For an ALREADY-ACTIVE SW (hard refresh bypass), .ready resolves as a
@@ -31,7 +39,7 @@
     -->
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/test-dashboard/sw-v3.js', { scope: '/test-dashboard/' });
+        navigator.serviceWorker.register('/test-dashboard/sw-v4.js', { scope: '/test-dashboard/' });
         if (!navigator.serviceWorker.controller) {
           navigator.serviceWorker.ready.then(function() { window.location.reload(); });
         }
