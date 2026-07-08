@@ -265,7 +265,7 @@ fixed canonical URLs.
 
 ### Layer 6 — Service Worker: normalize old-token dep-chunk AND source-file URLs (sw-v4.js)
 
-**Two distinct proxy-cache problems addressed by the SW:**
+**Four distinct proxy-cache problems addressed by the SW:**
 
 **Part A — dep-chunk identity split (fixed by dep-chunk normalization):**
 Replit's proxy caches ALL responses by URL path. When a source file is served from proxy
@@ -282,10 +282,34 @@ Browser sees TWO different `use-app-store.ts` module URLs → two Zustand stores
 from SeedStorePage's chain calls `useSyncExternalStore` in a context where the React dispatcher
 doesn't recognize it → "Invalid hook call".
 
+**Part C — raw Vite dep URLs from pre-interceptText proxy cache (sw-v4.js Case 0):**
+Source files proxy-cached BEFORE interceptText was added embed raw Vite pre-bundle URLs:
+  `import { create } from "/test-dashboard/node_modules/.vite/deps/zustand.js?v=OLD_HASH"`
+Those dep files contain RELATIVE chunk imports (`./chunk-KC53NVYV.js`) which the browser
+resolves to `node_modules/.vite/deps/chunk-KC53NVYV.js` — a DIFFERENT URL from the canonical
+`@td/deps/chunk-KC53NVYV.js` used by `react.js` and `react-dom_client.js` → two React instances
+→ "Invalid hook call". OLD_FS_RE only rewrites old-token source file URLS, not their dep imports.
+SW Case 0 intercepts `node_modules/.vite/deps/FILE` → redirects to canonical `@td/deps/FILE`.
+
+**Part D — current-token @xfs/ source files bypass OLD_FS_RE (sw-v4.js Case 3):**
+OLD_FS_RE has a negative lookahead excluding CURRENT_TOKEN URLs — it only rewrites old-token
+source file requests. But when SeedStorePage (proxy-cached, with current-token @xfs/ imports)
+imports `use-app-store.ts` at the current token, the SW does NOT intercept it. The proxy serves
+its cached `@xfs/use-app-store.ts` entry, which may be stale (from before interceptText). The
+stale `use-app-store.ts` has raw dep URLs → Part C cascade. Fix: Case 3 intercepts ALL
+current-token `@xfs/FILE` requests and fetches with `?_t=TOKEN` nonce, guaranteeing a proxy
+cache miss (unique URL per session) → Vite always serves fresh canonically-URL'd content. ✓
+
 **The SW reads its CURRENT_TOKEN from its own registration URL (`?v=SESSION_TOKEN`), then:**
+0. Intercepts `node_modules/.vite/deps/FILE[?v=*]` → fetches canonical `@td/deps/FILE` (Part C)
 1. Intercepts `@td/OLD_TOKEN/deps/FILE` → fetches `@td/deps/FILE` (Part A fix)
 2. Intercepts `@td/OLD_TOKEN/@[x]fs/FILE` where OLD_TOKEN ≠ CURRENT_TOKEN
-   → fetches `@td/CURRENT_TOKEN/@xfs/FILE` (Part B fix; regex `@x?fs` handles both schemes)
+   → fetches `@td/CURRENT_TOKEN/@xfs/FILE?_t=TOKEN` (Part B fix with nonce; `@x?fs` handles both)
+3. Intercepts `@td/CURRENT_TOKEN/@xfs/FILE` → fetches same URL + `?_t=TOKEN` (Part D fix)
+
+**WHY ?_t=TOKEN bypasses the proxy:** The proxy strips `@td/TOKEN/` from the path for cache
+keys, but PRESERVES query strings. So `@xfs/FILE?_t=TOKEN` is a cache key never seen before
+each session → guaranteed cache miss → Vite serves fresh content. ✓
 
 Negative lookahead on CURRENT_TOKEN in the regex prevents matching current-session URLs,
 avoiding infinite intercept loops. All source files converge on CURRENT_TOKEN URLs. ✓
