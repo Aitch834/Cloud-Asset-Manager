@@ -291,6 +291,7 @@ const TITLES: [string, string][] = [
   ["Silage & Haylage Recording — Additives, Quality Tests and Clamp Safety Checks", "Environmental"],
   ["Crop Rotation Reason Tags and the Field Map Year Selector", "Fields & Crops"],
   ["Enterprise Cost-of-Production Reports — Dairy, Beef, Sheep, Pig, Poultry, Labour and Fleet", "Dashboards"],
+  ["IPM Plan — Integrated Pest Management Recording and SFI CIPM Evidence", "Fields & Crops"],
 ];
 
 const CONTENT: [string, string][] = [
@@ -5440,7 +5441,25 @@ const CONTENT: [string, string][] = [
 <h3>Linking batches to crop assignments</h3>
 <p>When assigning a crop to a field in <strong>Fields</strong>, selecting a seed batch auto-fills the TGW for the seed rate calculator and deducts the drilled quantity from that batch's remaining stock. If a field-crop assignment referencing a batch is later deleted, the allocated stock is automatically restored to the batch.</p>
 <h3>Printing bag labels</h3>
-<p>From a crop assignment, use <strong>Print Bag Labels</strong> to generate an A4 sheet of Avery-compatible 63.5mm × 38.1mm labels (21 per sheet, 3 columns × 7 rows — the standard "L7160"-style layout). Each label shows the crop, variety, batch number, supplier, TGW, germination % (if recorded), destination field, and planting date, with your farm name and CPH number printed at the bottom for full batch-to-field traceability on the bag or seed box.</p>`,
+<p>From a crop assignment, use <strong>Print Bag Labels</strong> to generate an A4 sheet of Avery-compatible 63.5mm × 38.1mm labels (21 per sheet, 3 columns × 7 rows — the standard "L7160"-style layout). Each label shows the crop, variety, batch number, supplier, TGW, germination % (if recorded), destination field, and planting date, with your farm name and CPH number printed at the bottom for full batch-to-field traceability on the bag or seed box.</p>
+<h3>Purchase Orders</h3>
+<p>The <strong>Orders</strong> tab provides a purchase-order log for seed procurement. Click <strong>Raise Order</strong> to create an order for a specific crop and variety, recording the supplier, quantity ordered (kg), unit price, and expected delivery date. Each order passes through three stages:</p>
+<ul>
+<li><strong>Ordered</strong> — the order has been placed with the supplier but no stock has arrived</li>
+<li><strong>Part-delivered</strong> — one or more deliveries have been recorded against the order but the full quantity has not yet been received</li>
+<li><strong>Delivered</strong> — the full ordered quantity has been received; the order is marked complete</li>
+</ul>
+<p>When a delivery arrives, record it against the open order with the actual quantity delivered and the batch/lot number from the seed bag. The system checks whether the delivered quantity closes the order or leaves it partially open, and updates the order status accordingly. Recorded deliveries can automatically create the corresponding seed batch record so you don't need to enter the variety, supplier, and batch number twice.</p>
+<p>The Orders tab supports filtering by supplier, crop, and status so you can quickly see all outstanding orders waiting for delivery. This is particularly useful when managing large volumes of seed across multiple varieties ahead of drilling.</p>
+<h3>Segregation Checks (Red Tractor CR.ST.19)</h3>
+<p>The <strong>Segregation Checks</strong> tab provides a dated log of inspections carried out to confirm that treated seed is physically separated from stored grain and other feed, as required by the Red Tractor Combinable Crops standard at criterion <strong>CR.ST.19</strong>. Treated seed (seed dressed with fungicide, insecticide, or nematicide treatments) must never be stored loose in a grain store, and must be separated from stored grain by one of the following methods:</p>
+<ul>
+<li><strong>Rigid barrier</strong> — a solid physical divider (bay board, wall, or separate bay) between the treated seed and any grain</li>
+<li><strong>3 m distance</strong> — a minimum separation of three metres between the treated seed and stored grain in the same space</li>
+<li><strong>Separate store</strong> — the treated seed is held in an entirely separate building or room away from grain stores</li>
+</ul>
+<p>Click <strong>Log Check</strong> to record an inspection: select the storage location, the date of the check, the segregation method in use, and the name of the person who carried out the check. There is a specific field for confirming whether any treated seed is stored loose — if this is answered Yes, the check is marked non-compliant. Use the Notes field to record any remedial action taken or planned.</p>
+<p>Non-compliant checks are highlighted in red on the register. The <strong>Print Register</strong> button generates a formatted PDF-ready register of all checks, showing the compliance status of each, suitable for use as evidence during a Red Tractor inspection. The summary at the top of the printout shows the total number of checks and the compliant/non-compliant count at a glance.</p>`,
   ],
   // 269 — Seed Rate Calculator — Establishment-Adjusted Sowing Rates
   [
@@ -5480,7 +5499,58 @@ const CONTENT: [string, string][] = [
 <h3>Field map year selector</h3>
 <p>The Field Map now has a year selector so you can step back through previous seasons and see exactly what was planted in each field historically — useful for checking OSR break intervals, reviewing rotation diversity for Black-grass Five-in-Five scoring, or confirming what was cropped in a field before a new tenancy or contract-farming arrangement began. Selecting a past year redraws the map with that season's crop assignments and land use records; switching back to the current year returns to live planning.</p>`,
   ],
-  // 272 — Enterprise Cost-of-Production Reports — Dairy, Beef, Sheep, Pig, Poultry, Labour and Fleet
+  // 272 — IPM Plan — Integrated Pest Management Recording and SFI CIPM Evidence
+  [
+    "How to create an IPM plan in BDE Farm Trac, record pest-monitoring observations against action thresholds, and generate evidence for Red Tractor and SFI CIPM actions.",
+    `<h2>IPM Plan — Integrated Pest Management Recording and SFI CIPM Evidence</h2>
+<p>Integrated Pest Management (IPM) is a systematic approach to controlling crop pests, diseases and weeds that prioritises non-chemical controls and targets chemical applications only when pest populations exceed an established economic threshold. Recording IPM activity in BDE Farm Trac satisfies the evidence requirements for Red Tractor Combinable Crops (CR.CP — Crop Protection section), supports SFI action <strong>IPM1</strong> (having an IPM plan) and <strong>IPM2</strong> (pest monitoring), and provides an auditable record for any farm assurance body that requires written evidence of an IPM approach.</p>
+<h3>Creating an IPM Plan</h3>
+<p>Navigate to <strong>Sprays &amp; Inputs → IPM</strong> and click <strong>New Plan</strong>. Each plan covers a named crop or rotation phase and includes:</p>
+<ul>
+<li><strong>Plan name</strong> — e.g. "Winter Wheat 2025/26" or "Oilseed Rape 2025/26"</li>
+<li><strong>Plan year</strong> — the crop year the plan applies to; this links the plan to the Season Report for that year</li>
+<li><strong>Agronomist</strong> — name of the BASIS-qualified agronomist who developed or approved the plan</li>
+<li><strong>Status</strong> — Active, Review Due, or Expired; updating status to Review Due prompts a review task in the farm's planning view</li>
+<li><strong>Valid from / Valid to</strong> — the date range the plan covers</li>
+<li><strong>Review date</strong> — when the plan is next due for formal agronomist review</li>
+<li><strong>Strategy summary</strong> — free-text description of the overall IPM strategy for this crop, including cultural controls (varietal resistance, rotation, cultivation timing) before any chemical controls are considered</li>
+</ul>
+<h3>Threshold Entries</h3>
+<p>Once a plan is created, add <strong>Threshold Entries</strong> — the economic action thresholds that trigger a spray decision for each key pest, disease or weed. For each threshold entry, record:</p>
+<ul>
+<li><strong>Pest / disease / weed</strong> — the target organism (e.g. "Aphids — BYDV vector", "Septoria tritici", "Black-grass")</li>
+<li><strong>Threshold type</strong> — Economic threshold (population count), Incidence threshold (% of plants affected), or Disease risk threshold (numeric risk score)</li>
+<li><strong>Threshold value</strong> — the numeric level at which a spray response is triggered (e.g. "10 aphids per plant", "75% plants with Septoria on leaf 3")</li>
+<li><strong>Monitoring method</strong> — how the population is assessed (e.g. visual assessment, suction trap, sticky trap, AHDB Disease Risk Calculator)</li>
+<li><strong>Reference</strong> — the source of the threshold value (AHDB, BASF, agronomist recommendation, etc.)</li>
+<li><strong>Notes</strong> — any additional context, such as growth-stage dependency of the threshold</li>
+</ul>
+<p>Threshold entries are the foundation of IPM compliance evidence — they demonstrate that spray decisions are made on the basis of monitoring data and established thresholds rather than calendar-based prophylactic applications.</p>
+<h3>Monitoring Log</h3>
+<p>The <strong>Monitoring Log</strong> records the actual field observations made during the season. Each monitoring entry links to a threshold and records:</p>
+<ul>
+<li><strong>Observation date</strong> — when the field was scouted</li>
+<li><strong>Field(s) assessed</strong> — which fields the observation relates to</li>
+<li><strong>Observed level</strong> — the count, incidence, or score recorded (e.g. "5 aphids per plant", "20% plants affected")</li>
+<li><strong>Threshold breached?</strong> — whether the observed level exceeded the plan's action threshold; this field is critical for audit evidence</li>
+<li><strong>Action taken</strong> — if the threshold was breached, what was done: spray product, timing, or justification for delaying treatment (e.g. awaiting natural enemy populations to build, adverse weather)</li>
+<li><strong>Observer</strong> — the person who carried out the scout; for BASIS-qualified advisers, this is the agronomist</li>
+</ul>
+<p>When the threshold is breached and a spray is applied, linking the monitoring log entry to the corresponding spray record in the Spray &amp; Applications tab creates a direct audit trail from pest observation to spray decision — a key requirement for Sustainable Farming Incentive (SFI) action <strong>IPM2</strong>.</p>
+<h3>SFI CIPM Actions</h3>
+<p>The Sustainable Farming Incentive offers payment under the Countryside IPM (CIPM) actions for farms that can demonstrate an active IPM approach. BDE Farm Trac's IPM module generates the evidence base required for these actions:</p>
+<ul>
+<li><strong>IPM1 — Annual IPM Plan:</strong> The plan record (with agronomist name, strategy summary, review date, and threshold entries) constitutes the written IPM plan required for IPM1. Export or print the plan directly from the module.</li>
+<li><strong>IPM2 — Crop Monitoring:</strong> The monitoring log provides the dated, field-specific observation records that demonstrate regular scouting and threshold-based decisions for IPM2. The "Threshold breached?" and "Action taken" fields directly satisfy the evidence requirement for recorded spray decisions.</li>
+<li><strong>IPM3 — Soil Assessment:</strong> Not covered by this module; see Field Records → Soil Tests.</li>
+<li><strong>IPM4 — Nutrient Management Plan:</strong> Not covered by this module; see Nutrient Management.</li>
+</ul>
+<h3>Season Reports — IPM Summary</h3>
+<p>The <strong>Season Reports</strong> page includes an <strong>IPM Plans</strong> tab that lists all plans for the selected crop year, showing their status, agronomist, and validity dates. This gives a season-level overview of IPM coverage without navigating back to the Sprays &amp; Inputs section, and provides a convenient single-screen summary for inspections or annual reviews.</p>
+<h3>Red Tractor Evidence</h3>
+<p>Red Tractor Combinable Crops requires evidence of a written crop protection strategy and that spray decisions are made on the basis of monitoring and threshold assessments. The printed plan and monitoring log together constitute this evidence. Click <strong>Print Plan</strong> from the plan detail view, or export the monitoring log as a CSV file, to produce documentation suitable for a physical audit folder or digital submission.</p>`,
+  ],
+  // 273 — Enterprise Cost-of-Production Reports — Dairy, Beef, Sheep, Pig, Poultry, Labour and Fleet
   [
     "How to use BDE Farm Trac's seven enterprise cost-of-production reports to see cost per litre, per head or per bird across dairy, beef, sheep, pig, poultry, labour and fleet.",
     `<h2>Enterprise Cost-of-Production Reports</h2>

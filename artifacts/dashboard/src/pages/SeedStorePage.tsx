@@ -45,7 +45,66 @@ import {
   FileText,
   Image as ImageIcon,
   Download,
+  Printer,
 } from "lucide-react";
+
+function printSegregationRegister(checks: any[], farmId: number) {
+  const win = window.open("", "_blank");
+  if (!win) return;
+  const fmtDate = (d: string) => {
+    if (!d) return "—";
+    try { return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }); } catch { return d; }
+  };
+  const fmtMethod = (m: string) =>
+    m === "rigid_barrier" ? "Rigid barrier" :
+    m === "distance_3m" ? "3 m distance" :
+    m === "separate_store" ? "Separate store" : (m || "—");
+  const compliantCount = checks.filter(c => c.isCompliant !== false && !c.treatedSeedStoredLoose).length;
+  const rows = checks.map((c, i) => {
+    const nonComp = c.isCompliant === false || c.treatedSeedStoredLoose === true;
+    return `<tr style="background:${i % 2 === 0 ? "#fff" : "#f9fafb"}">
+      <td>${c.storageLocationName || "—"}</td>
+      <td>${fmtDate(c.checkDate)}</td>
+      <td>${fmtMethod(c.segregationMethod)}</td>
+      <td style="font-weight:600;color:${nonComp ? "#991b1b" : "#166534"}">${nonComp ? "✗ Non-compliant" : "✓ Compliant"}</td>
+      <td>${c.treatedSeedStoredLoose ? "Yes ⚠" : "No"}</td>
+      <td>${c.checkedBy || "—"}</td>
+      <td style="max-width:200px;white-space:pre-wrap">${c.notes || "—"}</td>
+    </tr>`;
+  }).join("");
+  win.document.write(`<!DOCTYPE html><html><head>
+    <title>Seed Store Segregation Register — Red Tractor CR.ST.19</title>
+    <style>
+      body{font-family:Arial,sans-serif;font-size:11px;margin:24px;color:#111}
+      h1{font-size:15px;margin:0 0 4px}
+      .meta{color:#6b7280;font-size:10px;margin:0 0 6px}
+      .summary{display:flex;gap:24px;margin-bottom:16px;padding:8px 12px;background:#f3f4f6;border-radius:6px}
+      .summary span{font-weight:600}
+      table{width:100%;border-collapse:collapse;margin-top:0}
+      th{background:#1a3a1a;color:#fff;text-align:left;padding:6px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+      td{padding:5px 10px;border-bottom:1px solid #e5e7eb;vertical-align:top}
+      @media print{body{margin:12px}button{display:none!important}}
+    </style>
+  </head><body>
+    <h1>Seed Storage Segregation Register — Red Tractor CR.ST.19</h1>
+    <p class="meta">Farm ID: ${farmId} &nbsp;·&nbsp; Printed: ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}</p>
+    <div class="summary">
+      Total checks: <span>${checks.length}</span>&nbsp;&nbsp;
+      Compliant: <span style="color:#166534">${compliantCount}</span>&nbsp;&nbsp;
+      Non-compliant: <span style="color:${checks.length - compliantCount > 0 ? "#991b1b" : "#6b7280"}">${checks.length - compliantCount}</span>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Storage Location</th><th>Check Date</th><th>Segregation Method</th>
+        <th>Compliant?</th><th>Treated Loose?</th><th>Checked By</th><th>Notes</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p style="margin-top:16px;font-size:10px;color:#6b7280">Red Tractor Combinable Crops Standard — CR.ST.19: treated seed must be physically separated from stored grain by a rigid barrier, a minimum of 3 m distance, or held in a separate store. Treated seed must never be stored loose in a grain store.</p>
+    <script>window.onload=function(){window.print()}</script>
+  </body></html>`);
+  win.document.close();
+}
 
 type Tab = "stock" | "orders" | "segregation";
 
@@ -878,7 +937,12 @@ export default function SeedStorePage() {
                   and treated seed must never be stored loose in a grain store. Log a check for each storage location holding treated seed.
                 </p>
               </div>
-              <Button size="sm" onClick={openSegAdd}><Plus className="w-3.5 h-3.5 mr-1" />Log Check</Button>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => printSegregationRegister(segChecks, safeFarmId)} disabled={segChecks.length === 0}>
+                  <Printer className="w-3.5 h-3.5 mr-1" />Print Register
+                </Button>
+                <Button size="sm" onClick={openSegAdd}><Plus className="w-3.5 h-3.5 mr-1" />Log Check</Button>
+              </div>
             </div>
 
             {nonCompliantSegChecks.length > 0 && (

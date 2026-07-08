@@ -1392,6 +1392,17 @@ export default function Movements() {
     return !exempt && !r.legalNotificationSubmitted && daysSince(r.movementDate) > 3;
   });
 
+  const LIS_SPECIES_LIST = ["sheep", "goat", "deer"];
+  const lisUnreported = records.filter(r =>
+    LIS_SPECIES_LIST.includes((r.species ?? "").toLowerCase()) &&
+    !r.legalNotificationSubmitted && !r.lisMovementRef
+  );
+  const lipUnreported = records.filter(r =>
+    (r.species ?? "").toLowerCase() === "cattle" &&
+    (r.movementType === "on" || r.movementType === "off") &&
+    !r.legalNotificationSubmitted && !(r as any).bcmsSubmissionRef
+  );
+
   const requiresBcms = (r: Movement) => r.movementType !== "birth" && r.movementType !== "between";
 
   const bcmsFiltered = records.filter(r => {
@@ -2557,6 +2568,44 @@ export default function Movements() {
             </div>
           )}
 
+          {lisUnreported.length > 0 && (
+            <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 10, padding: "1rem 1.25rem", marginBottom: "1rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <AlertTriangle size={15} style={{ color: "#92400e", flexShrink: 0 }} />
+                <p style={{ fontSize: "0.85rem", fontWeight: 700, color: "#92400e", margin: 0 }}>
+                  {lisUnreported.length} movement{lisUnreported.length !== 1 ? "s" : ""} not yet reported to LIS
+                </p>
+              </div>
+              <p style={{ fontSize: "0.78rem", color: "#78350f", marginBottom: 10 }}>
+                These sheep, goat or deer movements have no LIS submission reference and have not been marked as notified. UK law requires notification within 3 days for most movements.
+              </p>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
+                <thead>
+                  <tr style={{ background: "rgba(0,0,0,0.05)" }}>
+                    {["Date", "Type", "Species", "Animals", "From → To", "Days Old"].map(h => (
+                      <th key={h} style={{ padding: "4px 8px", textAlign: "left", fontWeight: 600, color: "#78350f", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {lisUnreported.map((m, i) => {
+                    const age = daysSince(m.movementDate);
+                    return (
+                      <tr key={m.id} style={{ borderTop: i > 0 ? "1px solid rgba(0,0,0,0.07)" : "none" }}>
+                        <td style={{ padding: "3px 8px", color: "#78350f", whiteSpace: "nowrap" }}>{formatDate(m.movementDate)}</td>
+                        <td style={{ padding: "3px 8px", color: "#78350f", textTransform: "capitalize" }}>{m.movementType}</td>
+                        <td style={{ padding: "3px 8px", color: "#78350f", textTransform: "capitalize" }}>{m.species}</td>
+                        <td style={{ padding: "3px 8px", color: "#78350f" }}>{m.numberOfAnimals ?? "—"}</td>
+                        <td style={{ padding: "3px 8px", color: "#78350f" }}>{[m.fromLocation, m.toLocation].filter(Boolean).join(" → ") || "—"}</td>
+                        <td style={{ padding: "3px 8px", fontWeight: 700, color: age > 3 ? "#dc2626" : "#92400e" }}>{age}d{age > 3 ? " ⚠" : ""}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {lisSubmissions.length === 0 ? (
             <div style={{ textAlign: "center", padding: "3rem", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10 }}>
               <Send size={32} style={{ margin: "0 auto 12px", opacity: 0.3, color: "#6b7280" }} />
@@ -2645,6 +2694,43 @@ export default function Movements() {
                 <p style={{ fontSize: "0.85rem", fontWeight: 600, color: "#6d28d9", marginBottom: 4 }}>LIP account not connected</p>
                 <p style={{ fontSize: "0.8rem", color: "#5b21b6" }}>To enable one-click submissions for cattle movements, births and deaths, go to <strong>Farm Settings → LIS LIP Integration</strong> and sign in with your LIS account. The "Test Submit (LIP)" button will then appear on each cattle movement row.</p>
               </div>
+            </div>
+          )}
+
+          {lipUnreported.length > 0 && (
+            <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 10, padding: "1rem 1.25rem", marginBottom: "1rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <AlertTriangle size={15} style={{ color: "#92400e", flexShrink: 0 }} />
+                <p style={{ fontSize: "0.85rem", fontWeight: 700, color: "#92400e", margin: 0 }}>
+                  {lipUnreported.length} cattle movement{lipUnreported.length !== 1 ? "s" : ""} not yet reported to BCMS / LIP
+                </p>
+              </div>
+              <p style={{ fontSize: "0.78rem", color: "#78350f", marginBottom: 10 }}>
+                These on/off-farm cattle movements have no submission reference and have not been marked as notified. BCMS requires cattle movement notification within 3 days of the move (or within 3 days of the animal arriving on your holding for births/acquisitions).
+              </p>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
+                <thead>
+                  <tr style={{ background: "rgba(0,0,0,0.05)" }}>
+                    {["Date", "Type", "Animals", "From → To", "Days Old"].map(h => (
+                      <th key={h} style={{ padding: "4px 8px", textAlign: "left", fontWeight: 600, color: "#78350f", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {lipUnreported.map((m, i) => {
+                    const age = daysSince(m.movementDate);
+                    return (
+                      <tr key={m.id} style={{ borderTop: i > 0 ? "1px solid rgba(0,0,0,0.07)" : "none" }}>
+                        <td style={{ padding: "3px 8px", color: "#78350f", whiteSpace: "nowrap" }}>{formatDate(m.movementDate)}</td>
+                        <td style={{ padding: "3px 8px", color: "#78350f", textTransform: "capitalize" }}>{m.movementType}</td>
+                        <td style={{ padding: "3px 8px", color: "#78350f" }}>{m.numberOfAnimals ?? "—"}</td>
+                        <td style={{ padding: "3px 8px", color: "#78350f" }}>{[m.fromLocation, m.toLocation].filter(Boolean).join(" → ") || "—"}</td>
+                        <td style={{ padding: "3px 8px", fontWeight: 700, color: age > 3 ? "#dc2626" : "#92400e" }}>{age}d{age > 3 ? " ⚠" : ""}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
 

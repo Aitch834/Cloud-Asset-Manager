@@ -10,10 +10,11 @@ import { TabBar, TabButton } from "@/components/ui/tab-button";
 import {
   Printer, ChevronDown, ChevronRight, Wheat, Tractor, Sprout, FlaskConical,
   BarChart3, Beef, Milk, AlertCircle, AlertTriangle, Loader2, FileBarChart2,
+  Bug, Leaf, CheckCircle2,
 } from "lucide-react";
 import { buildProReport, printProReport } from "@/lib/print-report";
 
-type Tab = "arable" | "livestock";
+type Tab = "arable" | "livestock" | "ipm" | "organic";
 
 const fmt2 = (n: number | null | undefined, dp = 2) => {
   if (n == null || isNaN(n)) return "—";
@@ -443,6 +444,33 @@ export default function SeasonReportsPage() {
     enabled: !!farmId,
   });
 
+  const { data: ipmPlansRaw } = useQuery<any[]>({
+    queryKey: ["ipm-plans-season", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/ipm-plans`).then(r => r.json()).then(d => d.plans ?? d.records ?? []),
+    enabled: !!farmId,
+  });
+
+  const { data: oaCertRaw } = useQuery<any[]>({
+    queryKey: ["oa-cert-season", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/organic-arable/certification`).then(r => r.ok ? r.json().then((d: any) => d.records ?? []) : []),
+    enabled: !!farmId,
+  });
+  const { data: oaConvRaw } = useQuery<any[]>({
+    queryKey: ["oa-conv-season", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/organic-arable/field-conversion`).then(r => r.ok ? r.json().then((d: any) => d.records ?? []) : []),
+    enabled: !!farmId,
+  });
+  const { data: oaHarvestRaw } = useQuery<any[]>({
+    queryKey: ["oa-harvest-season", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/organic-arable/harvest-declarations`).then(r => r.ok ? r.json().then((d: any) => d.records ?? []) : []),
+    enabled: !!farmId,
+  });
+  const { data: oaInputRaw } = useQuery<any[]>({
+    queryKey: ["oa-input-season", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/organic-arable/input-records`).then(r => r.ok ? r.json().then((d: any) => d.records ?? []) : []),
+    enabled: !!farmId,
+  });
+
   const availableYears = useMemo(() => {
     if (!yearsData?.years?.length) return [new Date().getFullYear()];
     return yearsData.years;
@@ -454,6 +482,26 @@ export default function SeasonReportsPage() {
   const avgYield = farmSummary?.arable?.totalAreaHarvestedHa > 0
     ? farmSummary.arable.totalYieldTonnes / farmSummary.arable.totalAreaHarvestedHa
     : 0;
+
+  const ipmPlans: any[] = ipmPlansRaw ?? [];
+  const ipmPlansForYear = ipmPlans.filter(p => p.planYear === year || String(p.planYear) === String(year));
+  const ipmAllPlansWithYear = ipmPlans.filter(p => p.planYear != null);
+
+  const oaCert: any[] = oaCertRaw ?? [];
+  const oaConv: any[] = oaConvRaw ?? [];
+  const oaHarvest: any[] = oaHarvestRaw ?? [];
+  const oaInput: any[] = oaInputRaw ?? [];
+  const oaHarvestForYear = oaHarvest.filter(h => {
+    const d = h.harvestDate || h.declarationDate || h.date || "";
+    return d && new Date(d).getFullYear() === year;
+  });
+  const oaInputForYear = oaInput.filter(i => {
+    const d = i.applicationDate || i.recordDate || i.date || "";
+    return d && new Date(d).getFullYear() === year;
+  });
+  const certifiedCount = oaConv.filter(c => c.status === "certified" || c.conversionStatus === "certified").length;
+  const inConversionCount = oaConv.filter(c => c.status === "in_conversion" || c.conversionStatus === "in_conversion").length;
+  const latestCert = oaCert.length > 0 ? oaCert[oaCert.length - 1] : null;
 
   function handlePrint() {
     if (!data) return;
@@ -504,11 +552,11 @@ export default function SeasonReportsPage() {
           </div>
         )}
 
-        {!isLoading && !isError && data && (
+        {!isLoading && !isError && (data || tab === "ipm" || tab === "organic") && (
           <>
-            {farmSummary && (
+            {(farmSummary != null || tab === "ipm" || tab === "organic") && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: "1.25rem" }}>
-                {tab === "arable" ? (
+                {tab === "arable" && farmSummary ? (
                   <>
                     <StatCard label="Fields in Crop" value={String(farmSummary.arable.fieldCount)} sub={`${fmt2(farmSummary.arable.totalCroppedAreaHa, 1)} ha total`} />
                     <StatCard label="Total Harvested" value={farmSummary.arable.totalYieldTonnes > 0 ? `${fmt2(farmSummary.arable.totalYieldTonnes, 1)} t` : "—"} sub={farmSummary.arable.totalAreaHarvestedHa > 0 ? `from ${fmt2(farmSummary.arable.totalAreaHarvestedHa, 1)} ha` : undefined} />
@@ -517,14 +565,28 @@ export default function SeasonReportsPage() {
                     <StatCard label="Operations Cost" value={farmSummary.arable.totalMachCostPence > 0 ? fmtPence(farmSummary.arable.totalMachCostPence) : "—"} color="#7c3aed" bg="#f5f3ff" border="#ddd6fe" />
                     <StatCard label="Spray Applications" value={String(farmSummary.arable.totalSprayApps)} color="#0f766e" bg="#f0fdfa" border="#99f6e4" />
                   </>
-                ) : (
+                ) : tab === "livestock" && farmSummary ? (
                   <>
                     <StatCard label="Enterprises" value={String(farmSummary.livestock.herdCount)} color="#92400e" bg="#fffbeb" border="#fde68a" />
                     <StatCard label="Total Movements" value={String(farmSummary.livestock.totalMovements)} color="#166534" bg="#f0fdf4" border="#bbf7d0" />
                     <StatCard label="Medicine Records" value={String(farmSummary.livestock.totalMedicineRecords)} color="#7c3aed" bg="#f5f3ff" border="#ddd6fe" />
                     <StatCard label="Total Milk (L)" value={farmSummary.livestock.totalMilkLitres > 0 ? Math.round(farmSummary.livestock.totalMilkLitres).toLocaleString("en-GB") : "—"} color="#3b82f6" bg="#eff6ff" border="#bfdbfe" />
                   </>
-                )}
+                ) : tab === "ipm" ? (
+                  <>
+                    <StatCard label={`Plans — ${year}`} value={String(ipmPlansForYear.length)} sub={ipmPlans.length > ipmPlansForYear.length ? `${ipmPlans.length} total` : undefined} />
+                    <StatCard label="Active" value={String(ipmPlansForYear.filter((p: any) => p.status === "active").length)} color="#166534" bg="#f0fdf4" border="#bbf7d0" />
+                    <StatCard label="Review Due" value={String(ipmPlansForYear.filter((p: any) => p.status === "review_due" || p.status === "review").length)} color="#d97706" bg="#fffbeb" border="#fde68a" />
+                    <StatCard label="All Years" value={String(ipmAllPlansWithYear.length)} sub="plans on file" color="#6b7280" bg="#f9fafb" border="#e5e7eb" />
+                  </>
+                ) : tab === "organic" ? (
+                  <>
+                    <StatCard label="Certified Fields" value={String(certifiedCount)} color="#166534" bg="#f0fdf4" border="#bbf7d0" />
+                    <StatCard label="In Conversion" value={String(inConversionCount)} color="#d97706" bg="#fffbeb" border="#fde68a" />
+                    <StatCard label={`Harvests ${year}`} value={String(oaHarvestForYear.length)} color="#0f766e" bg="#f0fdfa" border="#99f6e4" />
+                    <StatCard label={`Inputs ${year}`} value={String(oaInputForYear.length)} color="#7c3aed" bg="#f5f3ff" border="#ddd6fe" />
+                  </>
+                ) : null}
               </div>
             )}
 
@@ -536,6 +598,14 @@ export default function SeasonReportsPage() {
               <TabButton active={tab === "livestock"} onClick={() => setTab("livestock")}>
                 <Beef className="w-4 h-4 mr-1.5" />Livestock &amp; Dairy
                 {farmSummary && <span style={{ marginLeft: 6, fontSize: "0.72rem", background: tab === "livestock" ? "#fff" : "#e5e7eb", color: tab === "livestock" ? "#1a3a1a" : "#6b7280", padding: "1px 6px", borderRadius: 4 }}>{farmSummary.livestock.herdCount}</span>}
+              </TabButton>
+              <TabButton active={tab === "ipm"} onClick={() => setTab("ipm")}>
+                <Bug className="w-4 h-4 mr-1.5" />IPM Plans
+                {ipmPlansForYear.length > 0 && <span style={{ marginLeft: 6, fontSize: "0.72rem", background: tab === "ipm" ? "#fff" : "#e5e7eb", color: tab === "ipm" ? "#1a3a1a" : "#6b7280", padding: "1px 6px", borderRadius: 4 }}>{ipmPlansForYear.length}</span>}
+              </TabButton>
+              <TabButton active={tab === "organic"} onClick={() => setTab("organic")}>
+                <Leaf className="w-4 h-4 mr-1.5" />Organic Arable
+                {oaConv.length > 0 && <span style={{ marginLeft: 6, fontSize: "0.72rem", background: tab === "organic" ? "#fff" : "#e5e7eb", color: tab === "organic" ? "#1a3a1a" : "#6b7280", padding: "1px 6px", borderRadius: 4 }}>{oaConv.length}</span>}
               </TabButton>
             </TabBar>
 
@@ -610,6 +680,216 @@ export default function SeasonReportsPage() {
                   </div>
                 ) : (
                   livestockHerds.map((h: any) => <HerdCard key={h.herd.id} herdData={h} />)
+                )}
+              </div>
+            )}
+
+            {tab === "ipm" && (
+              <div style={{ marginTop: "1rem" }}>
+                {ipmPlans.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#9ca3af" }}>
+                    <Bug className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <p style={{ fontWeight: 500, color: "#374151", marginBottom: 4 }}>No IPM plans found</p>
+                    <p style={{ fontSize: "0.82rem" }}>Create an IPM plan under <strong>Sprays &amp; Inputs → IPM</strong> to start recording monitoring observations and threshold breaches.</p>
+                  </div>
+                ) : (
+                  <>
+                    {ipmPlansForYear.length === 0 && ipmPlans.length > 0 && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.75rem 1rem", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, marginBottom: "1rem", fontSize: "0.85rem", color: "#92400e" }}>
+                        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                        No IPM plans recorded for {year}. Showing all plans below.
+                      </div>
+                    )}
+                    <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+                      <div style={{ padding: "0.75rem 1rem", background: "#1a3a1a", display: "flex", alignItems: "center", gap: 8 }}>
+                        <Bug className="w-4 h-4 text-green-300" />
+                        <span style={{ color: "#fff", fontWeight: 600, fontSize: "0.9rem" }}>
+                          IPM Plans {ipmPlansForYear.length > 0 ? `— ${year}` : "— All Years"}
+                        </span>
+                      </div>
+                      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                        <thead>
+                          <tr style={{ background: "#f9fafb" }}>
+                            {["Plan Name", "Year", "Status", "Agronomist", "Valid From", "Valid To", "Review Date"].map(h => (
+                              <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: "0.75rem", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(ipmPlansForYear.length > 0 ? ipmPlansForYear : ipmPlans).map((p: any, i: number) => {
+                            const statusColor = p.status === "active" ? { color: "#166534", bg: "#dcfce7" } :
+                              p.status === "review_due" || p.status === "review" ? { color: "#92400e", bg: "#fef3c7" } :
+                              p.status === "expired" ? { color: "#991b1b", bg: "#fee2e2" } :
+                              { color: "#6b7280", bg: "#f3f4f6" };
+                            const fmtD = (d: string) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+                            return (
+                              <tr key={p.id} style={{ borderTop: i > 0 ? "1px solid #f3f4f6" : "none" }}>
+                                <td style={{ padding: "10px 12px", fontWeight: 600, color: "#1f2937", fontSize: "0.85rem" }}>
+                                  {p.name || p.planName || p.cropType || `Plan #${p.id}`}
+                                </td>
+                                <td style={{ padding: "10px 12px", color: "#6b7280", fontSize: "0.82rem" }}>{p.planYear ?? "—"}</td>
+                                <td style={{ padding: "10px 12px" }}>
+                                  {p.status ? (
+                                    <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: "0.75rem", fontWeight: 600, background: statusColor.bg, color: statusColor.color }}>
+                                      {p.status.replace(/_/g, " ")}
+                                    </span>
+                                  ) : "—"}
+                                </td>
+                                <td style={{ padding: "10px 12px", color: "#374151", fontSize: "0.82rem" }}>{p.agronomist || p.agronomistName || "—"}</td>
+                                <td style={{ padding: "10px 12px", color: "#6b7280", fontSize: "0.82rem", whiteSpace: "nowrap" }}>{fmtD(p.validFrom || p.startDate)}</td>
+                                <td style={{ padding: "10px 12px", color: "#6b7280", fontSize: "0.82rem", whiteSpace: "nowrap" }}>{fmtD(p.validTo || p.endDate)}</td>
+                                <td style={{ padding: "10px 12px", color: "#6b7280", fontSize: "0.82rem", whiteSpace: "nowrap" }}>{fmtD(p.reviewDate)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: "1rem", padding: "0.75rem 1rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, fontSize: "0.82rem", color: "#166534" }}>
+                      <FlaskConical className="w-4 h-4 flex-shrink-0" />
+                      <span>Pest threshold entries and monitoring log observations are recorded under <strong>Sprays &amp; Inputs → IPM</strong>. Use the monitoring log as evidence for SFI CIPM actions.</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {tab === "organic" && (
+              <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+                {latestCert && (
+                  <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "1rem 1.25rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      <CheckCircle2 className="w-4 h-4 text-green-700" />
+                      <span style={{ fontWeight: 600, color: "#14532d", fontSize: "0.9rem" }}>Organic Certification</span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8, fontSize: "0.82rem" }}>
+                      {[
+                        ["Certification Body", latestCert.certificationBody || latestCert.body || "—"],
+                        ["Certificate Number", latestCert.certificationNumber || latestCert.certNumber || "—"],
+                        ["Standard", latestCert.standard || latestCert.certificationStandard || "—"],
+                        ["Expiry", latestCert.expiryDate ? new Date(latestCert.expiryDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"],
+                      ].map(([label, val]) => (
+                        <div key={label as string}>
+                          <p style={{ color: "#6b7280", fontSize: "0.72rem", margin: "0 0 2px" }}>{label}</p>
+                          <p style={{ fontWeight: 600, color: "#15803d", margin: 0 }}>{val}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {oaConv.length > 0 && (
+                  <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+                    <div style={{ padding: "0.65rem 1rem", background: "#166534", display: "flex", alignItems: "center", gap: 8 }}>
+                      <Leaf className="w-4 h-4 text-green-200" />
+                      <span style={{ color: "#fff", fontWeight: 600, fontSize: "0.875rem" }}>Field Conversion Status</span>
+                    </div>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ background: "#f9fafb" }}>
+                          {["Field / Parcel", "Area (ha)", "Status", "Conversion Start", "Certified From", "Notes"].map(h => (
+                            <th key={h} style={{ padding: "7px 12px", textAlign: "left", fontSize: "0.72rem", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {oaConv.map((c: any, i: number) => {
+                          const st = c.status || c.conversionStatus || "";
+                          const stColor = st.includes("certified") ? "#166534" : st.includes("conversion") ? "#92400e" : "#6b7280";
+                          const stBg = st.includes("certified") ? "#dcfce7" : st.includes("conversion") ? "#fef3c7" : "#f3f4f6";
+                          const fmtD = (d: string) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+                          return (
+                            <tr key={c.id ?? i} style={{ borderTop: i > 0 ? "1px solid #f3f4f6" : "none" }}>
+                              <td style={{ padding: "8px 12px", fontWeight: 600, color: "#1f2937", fontSize: "0.82rem" }}>{c.fieldName || c.parcelRef || c.field || `Field ${i + 1}`}</td>
+                              <td style={{ padding: "8px 12px", color: "#374151", fontSize: "0.82rem" }}>{c.areaHa != null ? fmt2(c.areaHa, 2) : "—"}</td>
+                              <td style={{ padding: "8px 12px" }}>
+                                <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: "0.72rem", fontWeight: 600, background: stBg, color: stColor }}>{st ? st.replace(/_/g, " ") : "—"}</span>
+                              </td>
+                              <td style={{ padding: "8px 12px", color: "#6b7280", fontSize: "0.82rem" }}>{fmtD(c.conversionStartDate || c.startDate)}</td>
+                              <td style={{ padding: "8px 12px", color: "#6b7280", fontSize: "0.82rem" }}>{fmtD(c.certifiedFromDate || c.certifiedFrom)}</td>
+                              <td style={{ padding: "8px 12px", color: "#6b7280", fontSize: "0.82rem", maxWidth: 200 }}>{c.notes || "—"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {oaHarvestForYear.length > 0 && (
+                  <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+                    <div style={{ padding: "0.65rem 1rem", background: "#0f766e", display: "flex", alignItems: "center", gap: 8 }}>
+                      <Tractor className="w-4 h-4 text-teal-200" />
+                      <span style={{ color: "#fff", fontWeight: 600, fontSize: "0.875rem" }}>Harvest Declarations — {year}</span>
+                      <span style={{ marginLeft: "auto", fontSize: "0.78rem", color: "#99f6e4" }}>{oaHarvestForYear.length} record{oaHarvestForYear.length !== 1 ? "s" : ""}</span>
+                    </div>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ background: "#f9fafb" }}>
+                          {["Harvest Date", "Crop", "Field / Parcel", "Yield (t)", "Buyer / Destination", "Declaration Ref"].map(h => (
+                            <th key={h} style={{ padding: "7px 12px", textAlign: "left", fontSize: "0.72rem", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {oaHarvestForYear.map((h: any, i: number) => {
+                          const d = h.harvestDate || h.declarationDate || h.date || "";
+                          return (
+                            <tr key={h.id ?? i} style={{ borderTop: i > 0 ? "1px solid #f3f4f6" : "none" }}>
+                              <td style={{ padding: "8px 12px", color: "#374151", fontSize: "0.82rem", whiteSpace: "nowrap" }}>{d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "—"}</td>
+                              <td style={{ padding: "8px 12px", fontWeight: 600, color: "#1f2937", fontSize: "0.82rem" }}>{h.cropType || h.crop || "—"}</td>
+                              <td style={{ padding: "8px 12px", color: "#374151", fontSize: "0.82rem" }}>{h.fieldName || h.parcelRef || "—"}</td>
+                              <td style={{ padding: "8px 12px", color: "#374151", fontSize: "0.82rem" }}>{h.yieldTonnes != null ? fmt2(h.yieldTonnes, 2) : "—"}</td>
+                              <td style={{ padding: "8px 12px", color: "#6b7280", fontSize: "0.82rem" }}>{h.buyerName || h.buyer || h.destination || "—"}</td>
+                              <td style={{ padding: "8px 12px", color: "#6b7280", fontSize: "0.82rem" }}>{h.declarationRef || h.reference || "—"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {oaInputForYear.length > 0 && (
+                  <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+                    <div style={{ padding: "0.65rem 1rem", background: "#7c3aed", display: "flex", alignItems: "center", gap: 8 }}>
+                      <FlaskConical className="w-4 h-4 text-purple-200" />
+                      <span style={{ color: "#fff", fontWeight: 600, fontSize: "0.875rem" }}>Input Records — {year}</span>
+                      <span style={{ marginLeft: "auto", fontSize: "0.78rem", color: "#ddd6fe" }}>{oaInputForYear.length} record{oaInputForYear.length !== 1 ? "s" : ""}</span>
+                    </div>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ background: "#f9fafb" }}>
+                          {["Date", "Product", "Active Substance", "MAPP / PCS No.", "Quantity", "Field / Crop"].map(h => (
+                            <th key={h} style={{ padding: "7px 12px", textAlign: "left", fontSize: "0.72rem", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {oaInputForYear.map((inp: any, i: number) => {
+                          const d = inp.applicationDate || inp.recordDate || inp.date || "";
+                          return (
+                            <tr key={inp.id ?? i} style={{ borderTop: i > 0 ? "1px solid #f3f4f6" : "none" }}>
+                              <td style={{ padding: "8px 12px", color: "#374151", fontSize: "0.82rem", whiteSpace: "nowrap" }}>{d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "—"}</td>
+                              <td style={{ padding: "8px 12px", fontWeight: 600, color: "#1f2937", fontSize: "0.82rem" }}>{inp.productName || inp.product || "—"}</td>
+                              <td style={{ padding: "8px 12px", color: "#374151", fontSize: "0.82rem" }}>{inp.activeSubstance || inp.activeName || "—"}</td>
+                              <td style={{ padding: "8px 12px", color: "#6b7280", fontSize: "0.82rem" }}>{inp.mappNumber || inp.pcsNumber || "—"}</td>
+                              <td style={{ padding: "8px 12px", color: "#374151", fontSize: "0.82rem" }}>{inp.quantity != null ? `${inp.quantity} ${inp.unit || inp.uom || ""}`.trim() : "—"}</td>
+                              <td style={{ padding: "8px 12px", color: "#6b7280", fontSize: "0.82rem" }}>{inp.fieldName || inp.cropType || "—"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {oaConv.length === 0 && oaHarvestForYear.length === 0 && oaInputForYear.length === 0 && !latestCert && (
+                  <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#9ca3af" }}>
+                    <Leaf className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <p style={{ fontWeight: 500, color: "#374151", marginBottom: 4 }}>No organic arable records found</p>
+                    <p style={{ fontSize: "0.82rem" }}>Add field conversion status, harvest declarations and approved input records under <strong>Organic Arable</strong> in the main menu.</p>
+                  </div>
                 )}
               </div>
             )}
