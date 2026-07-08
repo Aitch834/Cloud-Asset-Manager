@@ -233,16 +233,75 @@ function MeterReadingsTab({ farmId }: { farmId: number }) {
 function BoreholeTestsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [mode, setMode] = useState<"log" | "result" | "edit">("log");
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const { data: tests = [], isLoading } = useQuery({ queryKey: ["borehole-tests", farmId], queryFn: () => fetch(api(`farms/${farmId}/borehole-tests`), { credentials: "include" }).then(r => r.json()) });
-  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/borehole-tests`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["borehole-tests", farmId] }); setOpen(false); setForm({}); } });
+  const save = useMutation({
+    mutationFn: (b: Record<string, unknown>) => {
+      const url = editing ? api(`farms/${farmId}/borehole-tests/${editing.id}`) : api(`farms/${farmId}/borehole-tests`);
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["borehole-tests", farmId] }); setOpen(false); setEditing(null); setForm({}); },
+  });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/borehole-tests/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["borehole-tests", farmId] }) });
+
+  function openAdd() { setEditing(null); setMode("log"); setForm({}); setOpen(true); }
+  function openEdit(r: Record<string, unknown>) { setEditing(r); setMode("edit"); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }
+  function openEnterResult(r: Record<string, unknown>) { setEditing(r); setMode("result"); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }
+
+  const rows = tests as Record<string, unknown>[];
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Borehole & Well Tests</h3><Button size="sm" onClick={() => { setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Test</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "testDate", label: "Date", fmt: r => fmtDate(r.testDate) }, { key: "testingCompany", label: "Testing Company" }, { key: "bacteriologicalResult", label: "Bacteriological" }, { key: "chemicalResult", label: "Chemical" }, { key: "overallResult", label: "Overall Result" }, { key: "nextTestDueDate", label: "Next Test", fmt: r => fmtDate(r.nextTestDueDate) }]} rows={tests as Record<string, unknown>[]} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} />}
-      
+      <div className="flex justify-between items-center">
+        <h3 className="font-semibold text-sm">Borehole &amp; Well Tests</h3>
+        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Log Sample</Button>
+      </div>
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground italic py-6 text-center">No borehole test records yet.</p>
+      ) : (
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                {["Test Date", "Testing Company", "Bacteriological", "Chemical", "Overall Result", "Next Test Due", ""].map(h => (
+                  <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {rows.map(r => (
+                <tr key={String(r.id)} className="hover:bg-muted/30">
+                  <td className="px-4 py-3 font-mono text-xs">{fmtDate(r.testDate)}</td>
+                  <td className="px-4 py-3 text-xs">{fmt(r.testingCompany)}</td>
+                  <td className="px-4 py-3 text-xs">{r.bacteriologicalResult ? String(r.bacteriologicalResult) : <span className="text-amber-600 font-medium">Awaiting results</span>}</td>
+                  <td className="px-4 py-3 text-xs">{r.chemicalResult ? String(r.chemicalResult) : "—"}</td>
+                  <td className="px-4 py-3">
+                    {!r.overallResult ? (
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Awaiting results</span>
+                    ) : (
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${String(r.overallResult).startsWith("Pass") ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>{String(r.overallResult)}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs">{fmtDate(r.nextTestDueDate)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1 flex-wrap">
+                      {!r.overallResult && (
+                        <Button size="sm" variant="outline" className="h-7 px-2 text-xs text-amber-700 border-amber-300 hover:bg-amber-50" onClick={() => openEnterResult(r)}>Enter results</Button>
+                      )}
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setViewRecord(r)}><Eye className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-destructive" onClick={() => del.mutate(r.id as number)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>
@@ -259,42 +318,54 @@ function BoreholeTestsTab({ farmId }: { farmId: number }) {
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Corrective Action</p><p className="font-medium">{fmt(viewRecord.correctiveAction)}</p></div>
             </div>
             <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
               <Button onClick={() => setViewRecord(null)}>Close</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setEditing(null); } }}>
         <DialogContent style={{ maxWidth: "40rem" }}>
-          <DialogHeader><DialogTitle>Borehole Test</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{mode === "log" ? "Log Borehole Test Sample" : mode === "result" ? "Enter Borehole Test Results" : "Edit Borehole Test Record"}</DialogTitle>
+          </DialogHeader>
+          {mode === "log" && <p className="text-xs text-muted-foreground -mt-1">Record the sampling visit now. Return to enter laboratory results once the report arrives.</p>}
+          {mode === "result" && editing && <p className="text-xs text-muted-foreground -mt-1">Sample from <strong>{fmtDate(editing.testDate)}</strong>{editing.testingCompany ? ` · ${editing.testingCompany}` : ""}. Enter results from your lab report.</p>}
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Test Date *</Label><Input type="date" value={form.testDate ?? ""} onChange={e => setForm(f => ({ ...f, testDate: e.target.value }))} /></div>
-            <div><Label>Testing Company</Label><Input value={form.testingCompany ?? ""} onChange={e => setForm(f => ({ ...f, testingCompany: e.target.value }))} /></div>
-            <div><Label>Static Water Level (m)</Label><Input type="number" step="0.01" value={form.staticWaterLevelM ?? ""} onChange={e => setForm(f => ({ ...f, staticWaterLevelM: e.target.value }))} /></div>
-            <div><Label>Pumping Water Level (m)</Label><Input type="number" step="0.01" value={form.pumpingWaterLevelM ?? ""} onChange={e => setForm(f => ({ ...f, pumpingWaterLevelM: e.target.value }))} /></div>
-            <div><Label>Bacteriological Result</Label>
-              <Select value={form.bacteriologicalResult ?? ""} onValueChange={v => setForm(f => ({ ...f, bacteriologicalResult: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{["Pass", "Pass with treatment", "Fail", "Retest required"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>Chemical Result</Label>
-              <Select value={form.chemicalResult ?? ""} onValueChange={v => setForm(f => ({ ...f, chemicalResult: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{["Pass", "Pass with treatment", "Fail", "Retest required"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>Overall Result *</Label>
-              <Select value={form.overallResult ?? ""} onValueChange={v => setForm(f => ({ ...f, overallResult: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{["Pass", "Pass with treatment", "Fail", "Retest required"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>Next Test Due</Label><Input type="date" value={form.nextTestDueDate ?? ""} onChange={e => setForm(f => ({ ...f, nextTestDueDate: e.target.value }))} /></div>
-            <div className="col-span-2"><Label>Corrective Action</Label><Textarea value={form.correctiveAction ?? ""} onChange={e => setForm(f => ({ ...f, correctiveAction: e.target.value }))} rows={2} /></div>
+            {mode !== "result" && <>
+              <div><Label>Test Date *</Label><Input type="date" value={form.testDate ?? ""} onChange={e => setForm(f => ({ ...f, testDate: e.target.value }))} /></div>
+              <div><Label>Testing Company</Label><Input value={form.testingCompany ?? ""} onChange={e => setForm(f => ({ ...f, testingCompany: e.target.value }))} /></div>
+              <div><Label>Static Water Level (m)</Label><Input type="number" step="0.01" value={form.staticWaterLevelM ?? ""} onChange={e => setForm(f => ({ ...f, staticWaterLevelM: e.target.value }))} /></div>
+              <div><Label>Pumping Water Level (m)</Label><Input type="number" step="0.01" value={form.pumpingWaterLevelM ?? ""} onChange={e => setForm(f => ({ ...f, pumpingWaterLevelM: e.target.value }))} /></div>
+            </>}
+            {mode !== "log" && <>
+              <div><Label>Bacteriological Result</Label>
+                <Select value={form.bacteriologicalResult ?? ""} onValueChange={v => setForm(f => ({ ...f, bacteriologicalResult: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>{["Pass", "Pass with treatment", "Fail", "Retest required"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>Chemical Result</Label>
+                <Select value={form.chemicalResult ?? ""} onValueChange={v => setForm(f => ({ ...f, chemicalResult: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>{["Pass", "Pass with treatment", "Fail", "Retest required"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>Overall Result *</Label>
+                <Select value={form.overallResult ?? ""} onValueChange={v => setForm(f => ({ ...f, overallResult: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>{["Pass", "Pass with treatment", "Fail", "Retest required"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>Next Test Due</Label><Input type="date" value={form.nextTestDueDate ?? ""} onChange={e => setForm(f => ({ ...f, nextTestDueDate: e.target.value }))} /></div>
+              <div className="col-span-2"><Label>Corrective Action</Label><Textarea value={form.correctiveAction ?? ""} onChange={e => setForm(f => ({ ...f, correctiveAction: e.target.value }))} rows={2} /></div>
+            </>}
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setOpen(false); setEditing(null); }}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>{mode === "log" ? "Log Sample" : mode === "result" ? "Save Results" : "Save Changes"}</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

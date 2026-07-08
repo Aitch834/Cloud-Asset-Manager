@@ -4403,6 +4403,7 @@ function SilageTab({ farmId }: { farmId: number }) {
   const [deleteAdditiveId, setDeleteAdditiveId] = useState<number | null>(null);
 
   const [qualityOpen, setQualityOpen] = useState(false);
+  const [qualityMode, setQualityMode] = useState<"log" | "result" | "edit">("log");
   const [editingQuality, setEditingQuality] = useState<Row | null>(null);
   const [qualityForm, setQualityForm] = useState<Form>({});
   const [deleteQualityId, setDeleteQualityId] = useState<number | null>(null);
@@ -4625,11 +4626,12 @@ function SilageTab({ farmId }: { farmId: number }) {
             size="sm"
             onClick={() => {
               setEditingQuality(null);
+              setQualityMode("log");
               setQualityForm({ testDate: today });
               setQualityOpen(true);
             }}
           >
-            <Plus className="w-4 h-4 mr-2" /> Add Test
+            <Plus className="w-4 h-4 mr-2" /> Log Sample
           </Button>
         </div>
         <div className="bg-white rounded-xl border border-border/50 shadow-sm overflow-x-auto">
@@ -4655,17 +4657,37 @@ function SilageTab({ farmId }: { farmId: number }) {
                   <tr key={Number(r.id)} className="hover:bg-black/5">
                     <td className="px-4 py-3">{fmt(r.testDate as string)}</td>
                     <td className="px-4 py-3">{String(r.storeName ?? storeName(r.storeId))}</td>
-                    <td className="px-4 py-3">{String(r.dryMatterPct ?? "—")}</td>
+                    <td className="px-4 py-3">
+                      {!r.dryMatterPct ? (
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Awaiting results</span>
+                      ) : String(r.dryMatterPct)}
+                    </td>
                     <td className="px-4 py-3">{String(r.ph ?? "—")}</td>
                     <td className="px-4 py-3">{String(r.metabolisableEnergy ?? "—")}</td>
                     <td className="px-4 py-3">{String(r.crudeProteinPct ?? "—")}</td>
                     <td className="px-4 py-3">{String(r.labName ?? "—")}</td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
+                      {!r.dryMatterPct && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mr-1 h-7 px-2 text-xs text-amber-700 border-amber-300 hover:bg-amber-50"
+                          onClick={() => {
+                            setEditingQuality(r);
+                            setQualityMode("result");
+                            setQualityForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
+                            setQualityOpen(true);
+                          }}
+                        >
+                          Enter results
+                        </Button>
+                      )}
                       <Button
                         size="icon"
                         variant="ghost"
                         onClick={() => {
                           setEditingQuality(r);
+                          setQualityMode("edit");
                           setQualityForm(
                             Object.fromEntries(
                               Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])
@@ -4835,90 +4857,96 @@ function SilageTab({ farmId }: { farmId: number }) {
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader>
             <DialogTitle>
-              {editingQuality ? "Edit Quality Test" : "Add Silage Quality / DM% Test"}
+              {qualityMode === "log" ? "Log Silage Quality Sample" : qualityMode === "result" ? "Enter Silage Quality Results" : "Edit Silage Quality Test"}
             </DialogTitle>
           </DialogHeader>
+          {qualityMode === "log" && <p className="text-xs text-muted-foreground -mt-1">Record the sampling event now. Return to enter laboratory results once the report arrives.</p>}
+          {qualityMode === "result" && editingQuality && <p className="text-xs text-muted-foreground -mt-1">Sample from <strong>{fmt(editingQuality.testDate as string)}</strong> · {String(editingQuality.storeName ?? storeName(editingQuality.storeId))}. Enter results from your lab report.</p>}
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Test Date *</Label>
-              <Input
-                type="date"
-                max={today}
-                value={qualityForm.testDate ?? ""}
-                onChange={(e) => setQualityForm((f) => ({ ...f, testDate: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label>Store / Clamp</Label>
-              <Select
-                value={qualityForm.storeId ?? ""}
-                onValueChange={(v) => setQualityForm((f) => ({ ...f, storeId: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select clamp…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {stores.map((s: any) => (
-                    <SelectItem key={String(s.id)} value={String(s.id)}>
-                      {String(s.storeName)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Dry Matter %</Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={qualityForm.dryMatterPct ?? ""}
-                onChange={(e) => setQualityForm((f) => ({ ...f, dryMatterPct: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label>pH</Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={qualityForm.ph ?? ""}
-                onChange={(e) => setQualityForm((f) => ({ ...f, ph: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label>Metabolisable Energy (MJ/kg DM)</Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={qualityForm.metabolisableEnergy ?? ""}
-                onChange={(e) => setQualityForm((f) => ({ ...f, metabolisableEnergy: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label>Crude Protein %</Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={qualityForm.crudeProteinPct ?? ""}
-                onChange={(e) => setQualityForm((f) => ({ ...f, crudeProteinPct: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label>Ammonia-N (% of total N)</Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={qualityForm.ammoniaN ?? ""}
-                onChange={(e) => setQualityForm((f) => ({ ...f, ammoniaN: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label>Lab / Analyser</Label>
-              <Input
-                value={qualityForm.labName ?? ""}
-                onChange={(e) => setQualityForm((f) => ({ ...f, labName: e.target.value }))}
-                placeholder="e.g. Trouw Nutrition, NIRS on-farm"
-              />
-            </div>
+            {qualityMode !== "result" && <>
+              <div>
+                <Label>Test Date *</Label>
+                <Input
+                  type="date"
+                  max={today}
+                  value={qualityForm.testDate ?? ""}
+                  onChange={(e) => setQualityForm((f) => ({ ...f, testDate: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Store / Clamp</Label>
+                <Select
+                  value={qualityForm.storeId ?? ""}
+                  onValueChange={(v) => setQualityForm((f) => ({ ...f, storeId: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select clamp…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stores.map((s: any) => (
+                      <SelectItem key={String(s.id)} value={String(s.id)}>
+                        {String(s.storeName)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Lab / Analyser</Label>
+                <Input
+                  value={qualityForm.labName ?? ""}
+                  onChange={(e) => setQualityForm((f) => ({ ...f, labName: e.target.value }))}
+                  placeholder="e.g. Trouw Nutrition, NIRS on-farm"
+                />
+              </div>
+            </>}
+            {qualityMode !== "log" && <>
+              <div>
+                <Label>Dry Matter %</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={qualityForm.dryMatterPct ?? ""}
+                  onChange={(e) => setQualityForm((f) => ({ ...f, dryMatterPct: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>pH</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={qualityForm.ph ?? ""}
+                  onChange={(e) => setQualityForm((f) => ({ ...f, ph: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Metabolisable Energy (MJ/kg DM)</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={qualityForm.metabolisableEnergy ?? ""}
+                  onChange={(e) => setQualityForm((f) => ({ ...f, metabolisableEnergy: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Crude Protein %</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={qualityForm.crudeProteinPct ?? ""}
+                  onChange={(e) => setQualityForm((f) => ({ ...f, crudeProteinPct: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Ammonia-N (% of total N)</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={qualityForm.ammoniaN ?? ""}
+                  onChange={(e) => setQualityForm((f) => ({ ...f, ammoniaN: e.target.value }))}
+                />
+              </div>
+            </>}
             <div className="col-span-2">
               <Label>Notes</Label>
               <Textarea
@@ -4927,7 +4955,7 @@ function SilageTab({ farmId }: { farmId: number }) {
                 rows={2}
               />
             </div>
-            {(() => {
+            {qualityMode !== "log" && (() => {
               const ph = qualityForm.ph ? parseFloat(String(qualityForm.ph)) : null;
               const ammoniaN = qualityForm.ammoniaN ? parseFloat(String(qualityForm.ammoniaN)) : null;
               const dryMatterPct = qualityForm.dryMatterPct ? parseFloat(String(qualityForm.dryMatterPct)) : null;
@@ -4956,7 +4984,7 @@ function SilageTab({ farmId }: { farmId: number }) {
               disabled={!qualityForm.testDate || saveQualityMut.isPending}
               onClick={() => saveQualityMut.mutate(qualityForm)}
             >
-              {editingQuality ? "Save Changes" : "Save Test"}
+              {qualityMode === "log" ? "Log Sample" : qualityMode === "result" ? "Save Results" : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>

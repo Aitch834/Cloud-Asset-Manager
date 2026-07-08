@@ -6061,6 +6061,7 @@ function DairyJohnesTab({ farmId }: { farmId: number }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [viewRec, setViewRec] = useState<any>(null);
+  const [mode, setMode] = useState<"log" | "result" | "edit">("log");
   const [form, setForm] = useState<any>({});
   const [yearFilter, setYearFilter] = useState("all");
 
@@ -6106,12 +6107,21 @@ function DairyJohnesTab({ farmId }: { farmId: number }) {
   function openAdd() {
     setEditing(null);
     setForm({ testType: "bulk_milk_elisa", jmmEnrolled: false, vetSignOff: false });
+    setMode("log");
     setOpen(true);
   }
 
   function openEdit(r: any) {
     setEditing(r);
     setForm({ ...r });
+    setMode("edit");
+    setOpen(true);
+  }
+
+  function openEnterResult(r: any) {
+    setEditing(r);
+    setForm({ ...r });
+    setMode("result");
     setOpen(true);
   }
 
@@ -6231,7 +6241,7 @@ function DairyJohnesTab({ farmId }: { farmId: number }) {
             <Printer className="w-3.5 h-3.5 mr-1" />Print
           </Button>
           <Button size="sm" onClick={openAdd}>
-            <Plus className="w-3.5 h-3.5 mr-1" />Add Test
+            <Plus className="w-3.5 h-3.5 mr-1" />Log Sample
           </Button>
         </div>
       </div>
@@ -6275,7 +6285,7 @@ function DairyJohnesTab({ farmId }: { farmId: number }) {
             No Johne's monitoring records{yearFilter !== "all" ? ` for ${yearFilter}` : ""} yet
           </p>
           <p className="text-sm text-gray-400 mt-1">
-            Add your first test result to start tracking your herd's Johne's status.
+            Log your first sample to start tracking your herd's Johne's status.
           </p>
         </div>
       ) : (
@@ -6299,7 +6309,9 @@ function DairyJohnesTab({ farmId }: { farmId: number }) {
                       : "—"}
                   </td>
                   <td className="px-3 py-2">
-                    {r.riskLevel ? (
+                    {!r.riskLevel ? (
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Awaiting results</span>
+                    ) : (
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
                         r.riskLevel.startsWith("4")
                           ? "bg-red-100 text-red-800"
@@ -6309,7 +6321,7 @@ function DairyJohnesTab({ farmId }: { farmId: number }) {
                       }`}>
                         {johnesRiskLabel(r.riskLevel)}
                       </span>
-                    ) : "—"}
+                    )}
                   </td>
                   <td className="px-3 py-2">{r.animalsTestedCount ?? "—"}</td>
                   <td className="px-3 py-2">{r.positiveAnimalsCount ?? 0}</td>
@@ -6327,7 +6339,12 @@ function DairyJohnesTab({ farmId }: { farmId: number }) {
                     />
                   </td>
                   <td className="px-3 py-2">
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 flex-wrap">
+                      {!r.riskLevel && (
+                        <Button size="sm" variant="outline" className="h-7 px-2 text-xs text-amber-700 border-amber-300 hover:bg-amber-50" onClick={() => openEnterResult(r)}>
+                          Enter results
+                        </Button>
+                      )}
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setViewRec(r)}>
                         <Eye className="w-3.5 h-3.5" />
                       </Button>
@@ -6398,118 +6415,118 @@ function DairyJohnesTab({ farmId }: { farmId: number }) {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit" : "Add"} Johne's Monitoring Record</DialogTitle>
+            <DialogTitle>
+              {mode === "log" ? "Log Johne\u2019s Test Sample" : mode === "result" ? "Enter Johne\u2019s Test Results" : "Edit Johne\u2019s Monitoring Record"}
+            </DialogTitle>
           </DialogHeader>
+          {mode === "log" && (
+            <p className="text-xs text-muted-foreground -mt-1">Record the sampling event now. Return to enter laboratory results once the report arrives.</p>
+          )}
+          {mode === "result" && editing && (
+            <p className="text-xs text-muted-foreground -mt-1">Sample from <strong>{johnesFmtDate(editing.testDate)}</strong> · {johnesTypeLabel(editing.testType)}{editing.labName ? ` · ${editing.labName}` : ""}. Enter results from your lab report.</p>
+          )}
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Test Date *</Label>
-              <Input type="date" value={form.testDate || ""} onChange={e => set("testDate", e.target.value)} />
-            </div>
-            <div>
-              <Label>Test Type *</Label>
-              <Select value={form.testType || ""} onValueChange={v => set("testType", v)}>
-                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                <SelectContent>
-                  {JOHNES_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Herd</Label>
-              <Select
-                value={String(form.herdId || "__none__")}
-                onValueChange={v => set("herdId", v === "__none__" ? null : Number(v))}
-              >
-                <SelectTrigger><SelectValue placeholder="Select herd (optional)" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— All herds</SelectItem>
-                  {herds.map((h: any) => <SelectItem key={h.id} value={String(h.id)}>{h.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Risk Level</Label>
-              <Select
-                value={form.riskLevel || "__none__"}
-                onValueChange={v => set("riskLevel", v === "__none__" ? null : v)}
-              >
-                <SelectTrigger><SelectValue placeholder="Select risk level" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— Not classified</SelectItem>
-                  {JOHNES_RISK.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Lab Name</Label>
-              <Input value={form.labName || ""} onChange={e => set("labName", e.target.value)} placeholder="e.g. SRUC, APHA Starcross" />
-            </div>
-            <div>
-              <Label>Lab Reference</Label>
-              <Input value={form.labRef || ""} onChange={e => set("labRef", e.target.value)} placeholder="Lab submission reference" />
-            </div>
-            <div>
-              <Label>Animals Tested</Label>
-              <Input type="number" min="0" value={form.animalsTestedCount ?? ""} onChange={e => set("animalsTestedCount", e.target.value)} />
-            </div>
-            <div>
-              <Label>Positive Animals</Label>
-              <Input type="number" min="0" value={form.positiveAnimalsCount ?? 0} onChange={e => set("positiveAnimalsCount", e.target.value)} />
-            </div>
-            <div>
-              <Label>Bulk Milk OD</Label>
-              <Input type="number" step="0.001" value={form.bulkMilkOd ?? ""} onChange={e => set("bulkMilkOd", e.target.value)} placeholder="Optical density reading" />
-            </div>
-            <div>
-              <Label>Monitoring Scheme</Label>
-              <Select
-                value={form.scheme || "__none__"}
-                onValueChange={v => set("scheme", v === "__none__" ? null : v)}
-              >
-                <SelectTrigger><SelectValue placeholder="Select scheme" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— None</SelectItem>
-                  {JOHNES_SCHEMES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Vet Name</Label>
-              <Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} />
-            </div>
-            <div>
-              <Label>Next Test Due</Label>
-              <Input type="date" value={form.nextTestDue || ""} onChange={e => set("nextTestDue", e.target.value)} />
-            </div>
-            <div className="flex items-center gap-2 pt-5">
-              <input
-                type="checkbox"
-                id="jmm"
-                checked={!!form.jmmEnrolled}
-                onChange={e => set("jmmEnrolled", e.target.checked)}
-                className="rounded"
-              />
-              <Label htmlFor="jmm">Enrolled in JMM Scheme</Label>
-            </div>
-            <div className="flex items-center gap-2 pt-5">
-              <input
-                type="checkbox"
-                id="vetso"
-                checked={!!form.vetSignOff}
-                onChange={e => set("vetSignOff", e.target.checked)}
-                className="rounded"
-              />
-              <Label htmlFor="vetso">Vet sign-off obtained</Label>
-            </div>
-            <div className="col-span-2">
-              <Label>Actions Taken</Label>
-              <Textarea
-                rows={2}
-                value={form.actionsTaken || ""}
-                onChange={e => set("actionsTaken", e.target.value)}
-                placeholder="Management actions, culling decisions, biosecurity changes…"
-              />
-            </div>
+            {mode !== "result" && <>
+              <div>
+                <Label>Test Date *</Label>
+                <Input type="date" value={form.testDate || ""} onChange={e => set("testDate", e.target.value)} />
+              </div>
+              <div>
+                <Label>Test Type *</Label>
+                <Select value={form.testType || ""} onValueChange={v => set("testType", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                  <SelectContent>
+                    {JOHNES_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Herd</Label>
+                <Select
+                  value={String(form.herdId || "__none__")}
+                  onValueChange={v => set("herdId", v === "__none__" ? null : Number(v))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select herd (optional)" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— All herds</SelectItem>
+                    {herds.map((h: any) => <SelectItem key={h.id} value={String(h.id)}>{h.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Lab Name</Label>
+                <Input value={form.labName || ""} onChange={e => set("labName", e.target.value)} placeholder="e.g. SRUC, APHA Starcross" />
+              </div>
+              <div>
+                <Label>Lab Reference</Label>
+                <Input value={form.labRef || ""} onChange={e => set("labRef", e.target.value)} placeholder="Lab submission reference (if known)" />
+              </div>
+              <div>
+                <Label>Monitoring Scheme</Label>
+                <Select
+                  value={form.scheme || "__none__"}
+                  onValueChange={v => set("scheme", v === "__none__" ? null : v)}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select scheme" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— None</SelectItem>
+                    {JOHNES_SCHEMES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Vet Name</Label>
+                <Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} />
+              </div>
+              <div className="flex items-center gap-2 pt-5">
+                <input type="checkbox" id="jmm" checked={!!form.jmmEnrolled} onChange={e => set("jmmEnrolled", e.target.checked)} className="rounded" />
+                <Label htmlFor="jmm">Enrolled in JMM Scheme</Label>
+              </div>
+            </>}
+            {mode !== "log" && <>
+              <div>
+                <Label>Risk Level</Label>
+                <Select
+                  value={form.riskLevel || "__none__"}
+                  onValueChange={v => set("riskLevel", v === "__none__" ? null : v)}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select risk level" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Not classified</SelectItem>
+                    {JOHNES_RISK.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Animals Tested</Label>
+                <Input type="number" min="0" value={form.animalsTestedCount ?? ""} onChange={e => set("animalsTestedCount", e.target.value)} />
+              </div>
+              <div>
+                <Label>Positive Animals</Label>
+                <Input type="number" min="0" value={form.positiveAnimalsCount ?? 0} onChange={e => set("positiveAnimalsCount", e.target.value)} />
+              </div>
+              <div>
+                <Label>Bulk Milk OD</Label>
+                <Input type="number" step="0.001" value={form.bulkMilkOd ?? ""} onChange={e => set("bulkMilkOd", e.target.value)} placeholder="Optical density reading" />
+              </div>
+              <div>
+                <Label>Next Test Due</Label>
+                <Input type="date" value={form.nextTestDue || ""} onChange={e => set("nextTestDue", e.target.value)} />
+              </div>
+              <div className="flex items-center gap-2 pt-5">
+                <input type="checkbox" id="vetso" checked={!!form.vetSignOff} onChange={e => set("vetSignOff", e.target.checked)} className="rounded" />
+                <Label htmlFor="vetso">Vet sign-off obtained</Label>
+              </div>
+              <div className="col-span-2">
+                <Label>Actions Taken</Label>
+                <Textarea
+                  rows={2}
+                  value={form.actionsTaken || ""}
+                  onChange={e => set("actionsTaken", e.target.value)}
+                  placeholder="Management actions, culling decisions, biosecurity changes…"
+                />
+              </div>
+            </>}
             <div className="col-span-2">
               <Label>Notes</Label>
               <Textarea rows={2} value={form.notes || ""} onChange={e => set("notes", e.target.value)} />
@@ -6517,7 +6534,7 @@ function DairyJohnesTab({ farmId }: { farmId: number }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={save}>{editing ? "Save Changes" : "Add Record"}</Button>
+            <Button onClick={save}>{mode === "log" ? "Log Sample" : mode === "result" ? "Save Results" : "Save Changes"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

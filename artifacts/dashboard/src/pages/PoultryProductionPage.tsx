@@ -3252,8 +3252,10 @@ function CampylobacterMonitoringTab({ farmId }: { farmId: number }) {
   });
   const houses: any[] = housesData?.records ?? housesData ?? [];
 
-  function openAdd() { setEditing(null); setForm({ sampleType: "boot_swab", result: "pending", zapTriggered: false }); setOpen(true); }
-  function openEdit(r: any) { setEditing(r); setForm({ ...r }); setOpen(true); }
+  const [mode, setMode] = useState<"log" | "result" | "edit">("log");
+  function openAdd() { setEditing(null); setForm({ sampleType: "boot_swab", result: "pending", zapTriggered: false }); setMode("log"); setOpen(true); }
+  function openEdit(r: any) { setEditing(r); setForm({ ...r }); setMode("edit"); setOpen(true); }
+  function openEnterResult(r: any) { setEditing(r); setForm({ ...r }); setMode("result"); setOpen(true); }
 
   async function save() {
     const url = editing ? api(`farms/${farmId}/campylobacter-monitoring/${editing.id}`) : api(`farms/${farmId}/campylobacter-monitoring`);
@@ -3360,7 +3362,10 @@ function CampylobacterMonitoringTab({ farmId }: { farmId: number }) {
                   <td className="px-3 py-2">{fmtDate(r.nextSampleDue)}</td>
                   <td className="px-3 py-2"><DocAttach farmId={farmId} endpoint="campylobacter-monitoring" recordId={r.id as number} documentPath={(r as any).documentPath ?? null} documentName={(r as any).documentName ?? null} queryKey={["campylobacter-monitoring", farmId]} compact /></td>
                   <td className="px-3 py-2">
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 flex-wrap">
+                      {r.result === "pending" && (
+                        <Button size="sm" variant="outline" className="h-7 px-2 text-xs text-amber-700 border-amber-300 hover:bg-amber-50" onClick={() => openEnterResult(r)}>Enter results</Button>
+                      )}
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setViewRec(r)}><Eye className="w-3.5 h-3.5" /></Button>
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
                       <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
@@ -3405,61 +3410,69 @@ function CampylobacterMonitoringTab({ farmId }: { farmId: number }) {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Campylobacter Sample Record</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{mode === "log" ? "Log Campylobacter Sample" : mode === "result" ? "Enter Campylobacter Results" : "Edit Campylobacter Sample Record"}</DialogTitle>
+          </DialogHeader>
+          {mode === "log" && <p className="text-xs text-muted-foreground -mt-1">Record the sampling event now. Return to enter laboratory results once the report arrives.</p>}
+          {mode === "result" && editing && <p className="text-xs text-muted-foreground -mt-1">Sample from <strong>{fmtDate(editing.sampleDate)}</strong> · {CAMPY_SAMPLE_TYPES.find((t: any) => t.value === editing.sampleType)?.label ?? editing.sampleType}{editing.labName ? ` · ${editing.labName}` : ""}. Enter results from your lab report.</p>}
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Sample Date *</Label><Input type="date" value={form.sampleDate || ""} onChange={e => set("sampleDate", e.target.value)} /></div>
-            <div><Label>Sample Type *</Label>
-              <Select value={form.sampleType || "boot_swab"} onValueChange={v => set("sampleType", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{CAMPY_SAMPLE_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>House</Label>
-              <Select value={String(form.houseId || "__none__")} onValueChange={v => set("houseId", v === "__none__" ? null : Number(v))}>
-                <SelectTrigger><SelectValue placeholder="Select house" /></SelectTrigger>
-                <SelectContent><SelectItem value="__none__">— Not specified</SelectItem>{houses.map((h: any) => <SelectItem key={h.id} value={String(h.id)}>{h.houseName}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>Flock</Label>
-              <Select value={String(form.flockId || "__none__")} onValueChange={v => set("flockId", v === "__none__" ? null : Number(v))}>
-                <SelectTrigger><SelectValue placeholder="Select flock" /></SelectTrigger>
-                <SelectContent><SelectItem value="__none__">— Not specified</SelectItem>{flocks.map((f: any) => <SelectItem key={f.id} value={String(f.id)}>{f.flockNumber}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>Samples Taken</Label><Input type="number" min="0" value={form.samplesTaken ?? ""} onChange={e => set("samplesTaken", e.target.value)} /></div>
-            <div><Label>Lab Name</Label><Input value={form.labName || ""} onChange={e => set("labName", e.target.value)} /></div>
-            <div><Label>Lab Reference</Label><Input value={form.labRef || ""} onChange={e => set("labRef", e.target.value)} /></div>
-            <div><Label>Result *</Label>
-              <Select value={form.result || "pending"} onValueChange={v => set("result", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{CAMPY_RESULTS.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>CEU Count (cfu/g)</Label><Input type="number" step="any" value={form.ceuCount ?? ""} onChange={e => set("ceuCount", e.target.value)} /></div>
-            <div><Label>Result Category</Label>
-              <Select value={form.resultCategory || "__none__"} onValueChange={v => set("resultCategory", v === "__none__" ? null : v)}>
-                <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                <SelectContent><SelectItem value="__none__">— N/A</SelectItem>{CAMPY_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>FSA Band</Label>
-              <Select value={form.fsa_band || "__none__"} onValueChange={v => set("fsa_band", v === "__none__" ? null : v)}>
-                <SelectTrigger><SelectValue placeholder="Select band" /></SelectTrigger>
-                <SelectContent><SelectItem value="__none__">— Not banded</SelectItem>{FSA_BANDS.map(b => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2 pt-5">
-              <input type="checkbox" id="zap" checked={!!form.zapTriggered} onChange={e => set("zapTriggered", e.target.checked)} className="rounded" />
-              <Label htmlFor="zap">ZAP Triggered</Label>
-            </div>
-            {form.zapTriggered && <div><Label>ZAP Reference</Label><Input value={form.zapReference || ""} onChange={e => set("zapReference", e.target.value)} /></div>}
-            <div><Label>Next Sample Due</Label><Input type="date" value={form.nextSampleDue || ""} onChange={e => set("nextSampleDue", e.target.value)} /></div>
-            <div className="col-span-2"><Label>Actions Taken</Label><Textarea rows={2} value={form.actionsTaken || ""} onChange={e => set("actionsTaken", e.target.value)} placeholder="Biosecurity, litter management, competitive exclusion…" /></div>
+            {mode !== "result" && <>
+              <div><Label>Sample Date *</Label><Input type="date" value={form.sampleDate || ""} onChange={e => set("sampleDate", e.target.value)} /></div>
+              <div><Label>Sample Type *</Label>
+                <Select value={form.sampleType || "boot_swab"} onValueChange={v => set("sampleType", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{CAMPY_SAMPLE_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>House</Label>
+                <Select value={String(form.houseId || "__none__")} onValueChange={v => set("houseId", v === "__none__" ? null : Number(v))}>
+                  <SelectTrigger><SelectValue placeholder="Select house" /></SelectTrigger>
+                  <SelectContent><SelectItem value="__none__">— Not specified</SelectItem>{houses.map((h: any) => <SelectItem key={h.id} value={String(h.id)}>{h.houseName}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>Flock</Label>
+                <Select value={String(form.flockId || "__none__")} onValueChange={v => set("flockId", v === "__none__" ? null : Number(v))}>
+                  <SelectTrigger><SelectValue placeholder="Select flock" /></SelectTrigger>
+                  <SelectContent><SelectItem value="__none__">— Not specified</SelectItem>{flocks.map((f: any) => <SelectItem key={f.id} value={String(f.id)}>{f.flockNumber}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>Samples Taken</Label><Input type="number" min="0" value={form.samplesTaken ?? ""} onChange={e => set("samplesTaken", e.target.value)} /></div>
+              <div><Label>Lab Name</Label><Input value={form.labName || ""} onChange={e => set("labName", e.target.value)} /></div>
+              <div><Label>Lab Reference</Label><Input value={form.labRef || ""} onChange={e => set("labRef", e.target.value)} placeholder="Submission ref (if known)" /></div>
+            </>}
+            {mode !== "log" && <>
+              <div><Label>Result *</Label>
+                <Select value={form.result || "pending"} onValueChange={v => set("result", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{CAMPY_RESULTS.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>CFU Count (cfu/g)</Label><Input type="number" step="any" value={form.cfuCount ?? ""} onChange={e => set("cfuCount", e.target.value)} /></div>
+              <div><Label>Result Category</Label>
+                <Select value={form.resultCategory || "__none__"} onValueChange={v => set("resultCategory", v === "__none__" ? null : v)}>
+                  <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                  <SelectContent><SelectItem value="__none__">— N/A</SelectItem>{CAMPY_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>FSA Band</Label>
+                <Select value={form.fsa_band || "__none__"} onValueChange={v => set("fsa_band", v === "__none__" ? null : v)}>
+                  <SelectTrigger><SelectValue placeholder="Select band" /></SelectTrigger>
+                  <SelectContent><SelectItem value="__none__">— Not banded</SelectItem>{FSA_BANDS.map(b => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2 pt-5">
+                <input type="checkbox" id="zap" checked={!!form.zapTriggered} onChange={e => set("zapTriggered", e.target.checked)} className="rounded" />
+                <Label htmlFor="zap">ZAP Triggered</Label>
+              </div>
+              {form.zapTriggered && <div><Label>ZAP Reference</Label><Input value={form.zapReference || ""} onChange={e => set("zapReference", e.target.value)} /></div>}
+              <div><Label>Next Sample Due</Label><Input type="date" value={form.nextSampleDue || ""} onChange={e => set("nextSampleDue", e.target.value)} /></div>
+              <div className="col-span-2"><Label>Actions Taken</Label><Textarea rows={2} value={form.actionsTaken || ""} onChange={e => set("actionsTaken", e.target.value)} placeholder="Biosecurity, litter management, competitive exclusion…" /></div>
+            </>}
             <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes || ""} onChange={e => set("notes", e.target.value)} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={save}>{editing ? "Save Changes" : "Add Record"}</Button>
+            <Button onClick={save}>{mode === "log" ? "Log Sample" : mode === "result" ? "Save Results" : "Save Changes"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

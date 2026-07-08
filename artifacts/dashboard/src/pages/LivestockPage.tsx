@@ -2724,6 +2724,7 @@ export function WaterSection({ farmId }: { farmId: number }) {
   const [certRecord, setCertRecord] = useState<WaterRecord | null>(null);
   const [waterLabId, setWaterLabId] = useState<number | null>(null);
   const [waterLabName, setWaterLabName] = useState<string | null>(null);
+  const [mode, setMode] = useState<"log" | "result" | "edit">("log");
 
   function setField(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -2749,6 +2750,20 @@ export function WaterSection({ farmId }: { farmId: number }) {
     });
     setWaterLabId(r.labSupplierId ?? null);
     setWaterLabName(null);
+    setMode("edit");
+    setShowForm(true);
+  }
+
+  function openEnterResult(r: WaterRecord) {
+    setEditing(r);
+    setForm({
+      waterSource: r.waterSource, sourceDescription: r.sourceDescription ?? "",
+      testDate: r.testDate?.slice(0, 10) ?? "",
+      testResult: r.testResult ?? "", testPass: r.testPass === false ? "false" : "true", notes: r.notes ?? "",
+    });
+    setWaterLabId(r.labSupplierId ?? null);
+    setWaterLabName(null);
+    setMode("result");
     setShowForm(true);
   }
 
@@ -2771,8 +2786,8 @@ export function WaterSection({ farmId }: { farmId: number }) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search by source or result…" className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <Button onClick={() => { setEditing(null); setForm(EMPTY_WATER); setShowForm(true); }}>
-          <Plus className="h-4 w-4 mr-1" /> Add Water Record
+        <Button onClick={() => { setEditing(null); setForm(EMPTY_WATER); setMode("log"); setShowForm(true); }}>
+          <Plus className="h-4 w-4 mr-1" /> Log Sample
         </Button>
       </div>
 
@@ -2813,14 +2828,21 @@ export function WaterSection({ farmId }: { farmId: number }) {
                   <td className="px-4 py-3 text-xs text-muted-foreground max-w-[160px] truncate">{r.sourceDescription || "—"}</td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">{r.testResult || "—"}</td>
                   <td className="px-4 py-3">
-                    {r.testPass === null ? <span className="text-muted-foreground text-xs">—</span>
+                    {!r.testResult ? (
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Awaiting results</span>
+                    ) : r.testPass === null ? <span className="text-muted-foreground text-xs">—</span>
                       : r.testPass
                         ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full"><CheckCircle2 className="h-3 w-3" /> Pass</span>
                         : <span className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-50 px-2 py-0.5 rounded-full"><XCircle className="h-3 w-3" /> Fail</span>}
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground max-w-[200px] truncate">{r.notes || "—"}</td>
                   <td className="px-4 py-3">
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 flex-wrap">
+                      {!r.testResult && (
+                        <Button size="sm" variant="outline" className="text-xs h-7 gap-1 text-amber-700 border-amber-300 hover:bg-amber-50" onClick={() => openEnterResult(r)}>
+                          Enter results
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="outline"
@@ -2845,56 +2867,72 @@ export function WaterSection({ farmId }: { farmId: number }) {
         <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
           <DialogContent style={{ maxWidth: "36rem" }}>
             <DialogHeader>
-              <DialogTitle>{editing ? "Edit Water Record" : "Add Water Quality Record"}</DialogTitle>
-              <DialogDescription>Log water source and annual test results for Red Tractor compliance.</DialogDescription>
+              <DialogTitle>
+                {mode === "log" ? "Log Water Quality Sample" : mode === "result" ? "Enter Water Test Results" : "Edit Water Record"}
+              </DialogTitle>
+              <DialogDescription>
+                {mode === "log"
+                  ? "Record the sampling event now. Return to enter laboratory results once the report arrives."
+                  : mode === "result" && editing
+                  ? `Sample from ${formatDate(editing.testDate ?? "")}. Enter results from your lab report.`
+                  : "Log water source and annual test results for Red Tractor compliance."}
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 mt-2">
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                <div><Label>Water Source *</Label>
-                  <Select value={form.waterSource || undefined} onValueChange={v => setField("waterSource", v)}>
-                    <SelectTrigger><SelectValue placeholder="Select source" /></SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(WATER_SOURCE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+              {mode !== "result" && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                  <div><Label>Water Source *</Label>
+                    <Select value={form.waterSource || undefined} onValueChange={v => setField("waterSource", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select source" /></SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(WATER_SOURCE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Test Date</Label><Input type="date" value={form.testDate} onChange={e => setField("testDate", e.target.value)} /></div>
                 </div>
-                <div><Label>Test Date</Label><Input type="date" value={form.testDate} onChange={e => setField("testDate", e.target.value)} /></div>
-              </div>
-              <div>
-                <Label>Source Location / Description</Label>
-                <Input value={form.sourceDescription} onChange={e => setField("sourceDescription", e.target.value)}
-                  placeholder={
-                    form.waterSource === "borehole" ? "Name, depth (m), grid reference" :
-                    form.waterSource === "stream" ? "River / stream name and location" :
-                    form.waterSource === "reservoir" ? "Reservoir name and location" :
-                    form.waterSource === "bowser" ? "Vehicle registration and supplier" :
-                    form.waterSource === "mains" ? "Meter/supply point reference (optional)" :
-                    "Specific location or description of this source"
-                  }
-                />
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              )}
+              {mode !== "result" && (
+                <div>
+                  <Label>Source Location / Description</Label>
+                  <Input value={form.sourceDescription} onChange={e => setField("sourceDescription", e.target.value)}
+                    placeholder={
+                      form.waterSource === "borehole" ? "Name, depth (m), grid reference" :
+                      form.waterSource === "stream" ? "River / stream name and location" :
+                      form.waterSource === "reservoir" ? "Reservoir name and location" :
+                      form.waterSource === "bowser" ? "Vehicle registration and supplier" :
+                      form.waterSource === "mains" ? "Meter/supply point reference (optional)" :
+                      "Specific location or description of this source"
+                    }
+                  />
+                </div>
+              )}
+              {mode !== "result" && (
                 <div>
                   <Label>Testing Laboratory</Label>
                   <LabSelector farmId={farmId} value={waterLabId ?? undefined} labName={waterLabName ?? undefined}
                     onChange={(id, name) => { setWaterLabId(id ?? null); setWaterLabName(name ?? null); }} />
                 </div>
-                <div><Label>Test Result / Lab Reference</Label><Input value={form.testResult} onChange={e => setField("testResult", e.target.value)} placeholder="e.g. Pass — E. coli &lt;1 CFU/100ml" /></div>
-                <div><Label>Overall Outcome</Label>
-                  <Select value={form.testPass} onValueChange={v => setField("testPass", v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="true">Pass — Suitable for livestock</SelectItem>
-                      <SelectItem value="false">Fail — Action required</SelectItem>
-                    </SelectContent>
-                  </Select>
+              )}
+              {mode !== "log" && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                  <div><Label>Test Result / Lab Reference</Label><Input value={form.testResult} onChange={e => setField("testResult", e.target.value)} placeholder="e.g. Pass — E. coli &lt;1 CFU/100ml" /></div>
+                  <div><Label>Overall Outcome</Label>
+                    <Select value={form.testPass} onValueChange={v => setField("testPass", v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="true">Pass — Suitable for livestock</SelectItem>
+                        <SelectItem value="false">Fail — Action required</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              </div>
+              )}
               <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setField("notes", e.target.value)} placeholder="Lab reference, remedial actions, retest date, etc." rows={2} /></div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
                 <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>
-                  {(createMut.isPending || updateMut.isPending) ? <><Loader2 className="animate-spin h-4 w-4 mr-1" /> Saving…</> : editing ? "Update" : "Save Record"}
+                  {(createMut.isPending || updateMut.isPending) ? <><Loader2 className="animate-spin h-4 w-4 mr-1" /> Saving…</> : mode === "log" ? "Log Sample" : mode === "result" ? "Save Results" : "Update"}
                 </Button>
               </DialogFooter>
             </form>
