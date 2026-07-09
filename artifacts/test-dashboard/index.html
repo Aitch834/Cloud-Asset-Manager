@@ -39,8 +39,13 @@
     -->
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/test-dashboard/sw-v5.js', { scope: '/test-dashboard/' });
-        if (!navigator.serviceWorker.controller) {
+        navigator.serviceWorker.register('/test-dashboard/sw-v6.js', { scope: '/test-dashboard/' });
+        var ctrl = navigator.serviceWorker.controller;
+        // Reload if: (a) no SW is in control, OR (b) the controlling SW is an old
+        // version that lacks Case 4 (@react-refresh inline stub).  This ensures
+        // sw-v6.js is ALWAYS fully in control before any module scripts execute.
+        var needsReload = !ctrl || !ctrl.scriptURL.includes('sw-v6');
+        if (needsReload) {
           navigator.serviceWorker.ready.then(function() { window.location.reload(); });
         }
       }

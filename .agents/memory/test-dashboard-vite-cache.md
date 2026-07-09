@@ -523,7 +523,14 @@ correctly shows our stub (localhost bypasses the proxy).
 **Symptom:** Crash persists after stub was added; stub verified server-side via curl; crash
 still deterministic at SeedStorePage:447; delay is ~40-170s (Clerk init + first heavy render).
 
-**Fix (vite.config.ts interceptText):** Rewrite the `@react-refresh` import URL in every
+**Why crash is delayed ~60s (not immediate):** The real `@react-refresh`'s `injectIntoGlobalHook()`
+wraps `window.__REACT_DEVTOOLS_GLOBAL_HOOK__` to intercept ALL React commits and call
+`performReactRefresh()` after each. This includes re-renders triggered by Clerk's session
+verification completing (~60s after load). When ClerkProvider context updates → React commit →
+`performReactRefresh()` fires → corrupts React's concurrent fiber state → next render of
+SeedStorePage throws "Invalid hook call" at the first hook call (`useAppStore()`).
+
+**Fix A (vite.config.ts interceptText):** Rewrite the `@react-refresh` import URL in every
 compiled source file from a bare path to a session-tokenized `@xfs/` path:
 ```
 "/test-dashboard/@react-refresh"
@@ -538,15 +545,29 @@ result = result.replace(
 ```
 Proxy strips `@td/TOKEN/` → cache key `@xfs/@react-refresh` — never seen before → proxy MISS
 → reaches Vite → Step 4 intercept fires → stub returned → proxy caches STUB for all future
-sessions. After `@td/TOKEN/@xfs/` is stripped by Step 1, `req.url` ends with `/@react-refresh`
-→ existing `includes("/@react-refresh")` check at Step 4 fires correctly. ✓
+sessions. ✓ This handles NEWLY served source files.
+
+**Fix B (sw-v6.js Case 4 — the decisive fix):** SW Case 4 intercepts ANY URL containing
+`@react-refresh` and returns the no-op stub **inline** (no network, no proxy). This handles:
+- Bare URLs: `/test-dashboard/@react-refresh` (proxy-cached old source files)
+- Tokenized URLs: `/test-dashboard/@td/TOKEN/@xfs/@react-refresh` (fresh files via interceptText)
+
+Case 4 is placed FIRST (before Cases 0-3) so it fires immediately without any network round-trip.
+The inline `REACT_REFRESH_STUB` string constant is returned as `new Response(stub, { 'Content-Type':
+'application/javascript' })`. ✓
+
+**Fix C (index.html version-aware reload):** The SW controller check was upgraded from
+`!ctrl` to `!ctrl || !ctrl.scriptURL.includes('sw-v6')`. This forces a reload whenever an OLD
+SW version (sw-v5.js etc.) is controlling the page, ensuring sw-v6.js (with Case 4) is always
+fully in control before any module scripts execute.
 
 **Why curl vs browser behaves differently:** curl hits `localhost:18652` directly (bypasses
 proxy → stub served). Browser hits `*.replit.dev` (goes through proxy → cached real module
 served). Always verify proxy behaviour from the browser perspective, not curl.
 
-**Rule:** Any URL that our middleware serves a special response for (stub, custom content) MUST
-use a session-tokenized path (via `@td/TOKEN/`) so the proxy has never cached it before.
+**Rule:** SW inline response (no network) is the ONLY reliable way to intercept a URL when the
+proxy may have the real module cached. A server-side stub is insufficient if the proxy serves
+the cached real module before the request reaches the server.
 
 ## What NOT to do
 - Do NOT look for a hooks violation in the component source — the component code is correct.

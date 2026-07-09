@@ -437,6 +437,7 @@ function reconnectReloadPlugin(sessionBase: string) {
         if ((req.url as string)?.includes("/@react-refresh")) {
           const noopRefresh = `
 // @react-refresh no-op stub (test-dashboard: HMR disabled to prevent crashes)
+console.log('[TD server] @react-refresh no-op stub loaded (server-side)');
 export function injectIntoGlobalHook(globalObj) {
   globalObj.$RefreshReg$ = function() {};
   globalObj.$RefreshSig$ = function() { return function(type) { return type; }; };
