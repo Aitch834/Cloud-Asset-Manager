@@ -544,6 +544,24 @@ function reconnectReloadPlugin(sessionBase: string) {
 const td = (pkg: string) =>
   path.resolve(import.meta.dirname, "node_modules", pkg);
 
+// Helper: resolve use-sync-external-store from zustand's pnpm virtual-store
+// sibling.  The package lives only as a peer dep of zustand; pnpm places it
+// alongside zustand in the same node_modules/ directory inside the store.
+// We follow the zustand symlink to find its real pnpm-store path, then
+// navigate to the sibling use-sync-external-store entry.
+//
+// WHY an alias is necessary: use-sync-external-store is not hoisted to
+// test-dashboard/node_modules or dashboard/node_modules.  Without an alias
+// Vite cannot resolve it at all, so adding it to optimizeDeps.include would
+// fail silently, and the first runtime import would trigger a mid-render
+// dep-discovery cycle that changes the global browserHash and creates two
+// React instances → "Invalid hook call".
+const _zustandReal = fs.realpathSync(
+  path.resolve(import.meta.dirname, "../dashboard/node_modules/zustand")
+);
+const _sesRoot = path.resolve(_zustandReal, "../use-sync-external-store");
+const ses = (sub: string) => path.resolve(_sesRoot, sub);
+
 export default defineConfig({
   base: basePath,
   plugins: [
@@ -736,6 +754,23 @@ export default defineConfig({
       { find: "zustand/traditional", replacement: path.resolve(import.meta.dirname, "../dashboard/node_modules/zustand/esm/traditional.mjs") },
       { find: "zustand/shallow",     replacement: path.resolve(import.meta.dirname, "../dashboard/node_modules/zustand/esm/shallow.mjs") },
       { find: "zustand",             replacement: path.resolve(import.meta.dirname, "../dashboard/node_modules/zustand/esm/index.mjs") },
+
+      // ── use-sync-external-store (peer dep of zustand/traditional + @uppy/react) ──
+      // zustand/traditional.mjs imports use-sync-external-store/shim/with-selector.
+      // @uppy/react imports use-sync-external-store/with-selector.js (with .js ext).
+      // The package is NOT hoisted to test-dashboard or dashboard node_modules.
+      //
+      // IMPORTANT: must use REGEX find (not string) for all entries.
+      // String aliases use startsWith() matching, so `"use-sync-external-store"`
+      // would incorrectly match `"use-sync-external-store/with-selector.js"` and
+      // produce `.../index.js/with-selector.js` (a bad path).  Regex aliases use
+      // id.replace(regex, replacement) and match the full import string only.
+      //
+      // Most specific sub-paths first; the bare-name regex is last.
+      { find: /^use-sync-external-store\/shim\/with-selector(?:\.js)?$/, replacement: ses("shim/with-selector.js") },
+      { find: /^use-sync-external-store\/shim(?:\/index(?:\.js)?)?$/,    replacement: ses("shim/index.js") },
+      { find: /^use-sync-external-store\/with-selector(?:\.js)?$/,       replacement: ses("with-selector.js") },
+      { find: /^use-sync-external-store(?:\/index(?:\.js)?)?$/,          replacement: ses("index.js") },
     ],
     dedupe: [
       "react",
@@ -789,6 +824,9 @@ export default defineConfig({
       "recharts",
       "cmdk",
       "qrcode.react",
+      // use-sync-external-store: peer dep of zustand/traditional; deduped so
+      // its internal React import shares the single canonical React instance.
+      "use-sync-external-store",
     ],
   },
   optimizeDeps: {
@@ -889,6 +927,21 @@ export default defineConfig({
       "class-variance-authority",
       "clsx",
       "tailwind-merge",
+      // use-sync-external-store is imported by zustand/traditional.mjs.
+      // Without pre-bundling, a stale proxy-cached source file can trigger
+      // discovery mid-render → Vite re-optimises ALL deps → browserHash changes
+      // → old proxy-cached files reference chunk names that no longer exist →
+      // React fails to load → "Invalid hook call" on every hard refresh.
+      // Pre-bundling here ensures the file always exists in .vite/deps/ and
+      // the browserHash stays stable throughout the session.
+      "use-sync-external-store",
+      "use-sync-external-store/shim",
+      "use-sync-external-store/with-selector",
+      "use-sync-external-store/shim/with-selector",
+      // zustand/traditional is the only zustand sub-path that imports
+      // use-sync-external-store; pre-bundling it here keeps it out of the
+      // lazy-discovery pool and prevents the same mid-render rehash.
+      "zustand/traditional",
     ],
   },
   root: path.resolve(import.meta.dirname),

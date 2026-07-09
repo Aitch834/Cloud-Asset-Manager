@@ -404,6 +404,37 @@ immediately bust any existing bad cached entry for the tokenless URL.
 **Rule:** Whenever the SW filename is bumped, ALSO ensure `isModuleUrl` covers HTML
 so the new tokenless URL never accumulates a bad proxy-cache entry.
 
+## Mid-render dep discovery via missing use-sync-external-store dep chunks
+
+**Root cause (2026-07-09):** `zustand/traditional.mjs` and `@uppy/react` both import
+`use-sync-external-store/shim/with-selector` and `use-sync-external-store/with-selector.js`.
+This package is NOT hoisted to `artifacts/test-dashboard/node_modules/` or
+`artifacts/dashboard/node_modules/`. Without it in `optimizeDeps.include`:
+1. A stale proxy-cached source file requests `@td/deps/use-sync-external-store_shim_with-selector.js`
+2. Vite: "file does not exist" → triggers dep re-optimisation → browserHash changes → chunk names change
+3. `vite:beforeFullReload` → `regenToken()` → split module graph → two React instances → "Invalid hook call"
+
+**Fix:**
+- Add regex aliases for all `use-sync-external-store` sub-paths pointing to the pnpm
+  virtual-store path (dynamically resolved via `fs.realpathSync` from zustand's real path):
+  ```ts
+  { find: /^use-sync-external-store\/shim\/with-selector(?:\.js)?$/, replacement: ses("shim/with-selector.js") },
+  { find: /^use-sync-external-store\/shim(?:\/index(?:\.js)?)?$/,    replacement: ses("shim/index.js") },
+  { find: /^use-sync-external-store\/with-selector(?:\.js)?$/,       replacement: ses("with-selector.js") },
+  { find: /^use-sync-external-store(?:\/index(?:\.js)?)?$/,          replacement: ses("index.js") },
+  ```
+- Add all four variants + `zustand/traditional` to `optimizeDeps.include` and `dedupe`
+
+**CRITICAL: must use REGEX aliases, NOT string aliases.**
+String aliases use `startsWith()` matching: `"use-sync-external-store"` also matches
+`"use-sync-external-store/with-selector.js"` → replacement becomes `.../index.js/with-selector.js`
+(path does not exist → same crash). Regex aliases use `id.replace(regex, replacement)` which
+matches the FULL string exactly.
+
+**Result:** All four dep chunks (`use-sync-external-store.js`, `_shim.js`, `_with-selector.js`,
+`_shim_with-selector.js`) pre-bundled at startup. No mid-render dep discovery possible.
+React factory chunk (`chunk-KC53NVYV.js`) name is STABLE after adding these new includes.
+
 ## What NOT to do
 - Do NOT look for a hooks violation in the component source — the component code is correct.
 - Do NOT add `optimizeDeps.force:true` — it re-hashes chunks on every restart, making
