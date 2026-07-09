@@ -9196,7 +9196,10 @@ A Nutrient Management Plan (NMP) is a written record of how you intend to manage
 <h3>Harvest Dashboard</h3>
 <p>The Harvest Dashboard provides an at-a-glance summary of total yield, yield per hectare by crop type, and a comparison against the previous season. Use this to identify underperforming fields and to update your agronomic plan for the following season. Moisture content at harvest is important not just for grain quality but because it affects the dry-matter yield figure used in NMP calculations — the system applies a standard conversion factor when calculating dry-matter tonnes from the as-harvested moisture figure.</p>
 
-<p>For Red Tractor traceability purposes, each harvest record generates a unique batch reference that can be quoted on grain movement documents. This enables the system to build a chain of custody from field to store to dispatch, which is particularly important for assured combinable crops sold into the milling or malting market.</p>`,
+<p>For Red Tractor traceability purposes, each harvest record generates a unique batch reference that can be quoted on grain movement documents. This enables the system to build a chain of custody from field to store to dispatch, which is particularly important for assured combinable crops sold into the milling or malting market.</p>
+
+<h3>Automatic Crop Stock Sync</h3>
+<p>When you save a harvest record, BDE Farm Trac <strong>automatically updates your Crop Stock Levels</strong> for the relevant farm, commodity, and crop year — no separate stock entry is required. If a storage bin or location is specified on the harvest record, the tonnage is credited to that bin; otherwise the farm-wide running balance for that commodity is updated. A stock movement entry is created at the same time, providing a complete audit trail from field to store without any double-entry. The <strong>Grain Position</strong> page (under Haulage &amp; Grain Management) reflects these movements in real time, so your stock balance is always current the moment a harvest is logged.</p>`,
     },
     {
       id: 20,
@@ -9221,7 +9224,10 @@ A Nutrient Management Plan (NMP) is a written record of how you intend to manage
 <p>The system tracks withdrawal period end dates for all treated animals. Animals with active withdrawal periods are flagged with a yellow warning banner on the Medicine Records page. This is a safety net — you remain legally responsible for ensuring no animal enters the food chain within its withdrawal period.</p>
 
 <h3>Adding a Medicine Record</h3>
-<p>Go to <strong>Livestock</strong> and open the <strong>Medicine Records</strong> section. Click <strong>Add Medicine Record</strong>. For cattle, select individual animals by ear tag from your current herd list. For sheep or pigs, select the group or pen. The system pre-fills the standard withdrawal period from the product database — always verify against the product label, as your vet may prescribe an extended withdrawal period under a cascade arrangement. Where a prescription-only medicine (POM-V) is used, attach the vet prescription using the document attachment function.</p>`,
+<p>Go to <strong>Livestock</strong> and open the <strong>Medicine Records</strong> section. Click <strong>Add Medicine Record</strong>. For cattle, select individual animals by ear tag from your current herd list. For sheep or pigs, select the group or pen. The system pre-fills the standard withdrawal period from the product database — always verify against the product label, as your vet may prescribe an extended withdrawal period under a cascade arrangement. Where a prescription-only medicine (POM-V) is used, attach the vet prescription using the document attachment function.</p>
+
+<h3>Automatic Stock Deduction</h3>
+<p>If your farm uses the <strong>Veterinary Medicine Stock</strong> register, you can link a medicine record directly to a stock item when logging a treatment. Select the stock item from the picker on the Add Medicine Record form, and enter the quantity used. BDE Farm Trac will <strong>automatically deduct that quantity from the stock level</strong> and record a corresponding stock movement — keeping your medicine store register accurate without requiring a separate manual adjustment. The stock movement links directly back to the treatment record, giving a clear audit trail from treatment event to stock drawdown for any inspection.</p>`,
     },
     {
       id: 21,
@@ -9339,7 +9345,13 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>The field operations log can be filtered by operation type using the dropdown above the table, and searched by field name, implement, or operator name using the search bar. This makes it straightforward to find all rolling events for a specific field, or all operations carried out by a specific contractor, without scrolling through the full log.</p>
 
 <h3>Red Tractor and Soil Management</h3>
-<p>Red Tractor's Combinable Crops standard requires evidence of soil management practices. Keeping a complete cultivation log — with dates, depths, and implements — demonstrates that you are actively managing soil structure. The time and cost data is for your own management use and does not form part of the compliance record, but the operation type, date, field, depth, and implement fields are the core evidence an assessor will look for. This is particularly relevant if your farm is in a Soil Health Stewardship agreement or if you are asked to evidence minimum tillage commitments under an agri-environment scheme.</p>`,
+<p>Red Tractor's Combinable Crops standard requires evidence of soil management practices. Keeping a complete cultivation log — with dates, depths, and implements — demonstrates that you are actively managing soil structure. The time and cost data is for your own management use and does not form part of the compliance record, but the operation type, date, field, depth, and implement fields are the core evidence an assessor will look for. This is particularly relevant if your farm is in a Soil Health Stewardship agreement or if you are asked to evidence minimum tillage commitments under an agri-environment scheme.</p>
+
+<h3>Contractor Costs in Enterprise Reports</h3>
+<p>Contractor operation costs are included automatically in the <strong>Beef Enterprise Report</strong> and <strong>Sheep Enterprise Report</strong> (available in Business Reports). The system totals all contractor costs from field operations within the report date range and includes them as a <strong>Contractor costs (field ops)</strong> line in the variable costs breakdown — feeding directly into the gross margin calculation. No separate entry is required; any contractor field operation logged with a cost figure will be picked up automatically.</p>
+
+<h3>Quick Navigation from Field History</h3>
+<p>Inside the <strong>Fields</strong> page, each field's <strong>History</strong> tab now includes two quick-link buttons at the top: <strong>Field operations →</strong> and <strong>Spray records →</strong>. Clicking either button navigates directly to the relevant log page, pre-filtered to show only records for that field — saving you from manually searching or scrolling when you want to review the full history of operations or spray applications for a specific parcel.</p>`,
     },
     {
       id: 28,
@@ -9565,6 +9577,16 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 </ol>
 <p>The inspection status updates to <strong>Resolved</strong> with a green badge, the resolution date and name are recorded, and the Open Actions count on the dashboard decreases accordingly. Resolved inspections remain on record and can be viewed at any time for audit purposes.</p>
 
+<h3>Farm Map Overlay</h3>
+<p>Field inspections that have GPS coordinates recorded (either captured automatically by the mobile app or entered manually) appear as a visual overlay on the <strong>Farm Map</strong>. Open the Farm Map from the sidebar and toggle on <strong>Field inspections overlay</strong> in the sidebar panel. Each geo-tagged inspection appears as a coloured marker on the map:</p>
+<ul>
+<li><strong>Red</strong> — Urgent action required</li>
+<li><strong>Orange</strong> — Treatment recommended</li>
+<li><strong>Amber</strong> — Monitor</li>
+<li><strong>Grey</strong> — No action needed</li>
+</ul>
+<p>Click any marker to see a popup with the field name, inspection date, inspector, action status, and a short summary of observations. A legend in the sidebar explains the colour coding. This overlay is useful during farm walks or when briefing a contractor — you can see at a glance which fields have open action flags and where they sit on the farm.</p>
+
 <h3>Red Tractor Context</h3>
 <p>Regular field inspections are a core requirement of the Red Tractor Combinable Crops and Fresh Produce standards. Inspectors will expect to see evidence that crop conditions are being monitored throughout the season, that pest and disease pressures are being assessed by a qualified person, and that any treatments applied follow from a documented recommendation. The Field Inspections log provides that audit trail: each record is datestamped, attributed to a named inspector, and links directly to any resulting spray applications through the Spray Records module.</p>
 <p>For farms employing BASIS-qualified agronomists, the recommendation records within each inspection serve as a lightweight version of the agronomist's written advice — though they do not replace a full written spray recommendation where one is required by the scheme.</p>`,
@@ -9631,6 +9653,8 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <li><strong>Field Analysis</strong> — yield per hectare by field and crop type, with year-on-year comparison.</li>
 <li><strong>Audit Trail</strong> — a log of all record edits, creations, and deletions across the account for the selected period.</li>
 <li><strong>Custom Report</strong> — build your own report by selecting any combination of data fields and date range.</li>
+<li><strong>Beef Enterprise Report</strong> — a full enterprise gross margin report for your beef herd, covering livestock purchase costs, variable costs (feed, medicine, contractor field operations), and sale values; <strong>contractor costs from field operations are included automatically</strong> in the variable cost breakdown.</li>
+<li><strong>Sheep Enterprise Report</strong> — the same enterprise gross margin structure for sheep production, with contractor field operation costs drawn automatically from the Field Operations log for the report period.</li>
 </ul>
 
 <h3>Exporting Reports</h3>
