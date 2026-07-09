@@ -363,6 +363,23 @@ Browsers do NOT follow SW-returned redirects (`Response.redirect(302)`) for ES m
    browsers that have the old SW installed to register the new one and call skipWaiting().
    The vite.config.ts regex `/sw(?:-v\d+)?\.js/` matches any version suffix automatically.
 
+## HTML response must also have no-store (CRITICAL — fixed 2026-07-09)
+
+The `isModuleUrl` guard that overrides `Cache-Control: no-store` was missing HTML
+URL patterns (`rawUrl === "/"`, `rawUrl.endsWith("/")`, `/.html?/`). This meant the
+index.html response could be proxy-cached by Replit's proxy WITH the old tokenless SW
+registration URL baked in (`sw-v4.js` without `?v=TOKEN`). On the next session:
+1. Proxy serves old HTML → SW registered at tokenless `/test-dashboard/sw-v4.js`
+2. Proxy has a stale/bad cached response for that tokenless URL → 502
+3. SW fails to install → no intercept → SeedStorePage crashes ("Invalid hook call")
+
+**Fix:** Add HTML patterns to `isModuleUrl` in `vite.config.ts` so HTML also gets
+`Cache-Control: no-store`. Also bump the SW filename (sw-v4.js → sw-v5.js) to
+immediately bust any existing bad cached entry for the tokenless URL.
+
+**Rule:** Whenever the SW filename is bumped, ALSO ensure `isModuleUrl` covers HTML
+so the new tokenless URL never accumulates a bad proxy-cache entry.
+
 ## What NOT to do
 - Do NOT look for a hooks violation in the component source — the component code is correct.
 - Do NOT add `optimizeDeps.force:true` — it re-hashes chunks on every restart, making

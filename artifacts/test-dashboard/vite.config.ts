@@ -291,7 +291,10 @@ function reconnectReloadPlugin(sessionBase: string) {
           rawUrl.includes("/node_modules/") ||
           rawUrl.includes("/@react-refresh") ||
           rawUrl.includes("/@vite/") ||
-          /\/src\/[^?]+\.(tsx?|jsx?|js)/.test(rawUrl);
+          /\/src\/[^?]+\.(tsx?|jsx?|js)/.test(rawUrl) ||
+          rawUrl === "/" ||
+          rawUrl.endsWith("/") ||
+          /\.html?(\?|$)/.test(rawUrl);
 
         if (isModuleUrl) {
           const origSet = (res.setHeader as Function).bind(res);

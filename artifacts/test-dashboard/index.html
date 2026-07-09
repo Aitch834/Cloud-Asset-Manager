@@ -39,7 +39,7 @@
     -->
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/test-dashboard/sw-v4.js', { scope: '/test-dashboard/' });
+        navigator.serviceWorker.register('/test-dashboard/sw-v5.js', { scope: '/test-dashboard/' });
         if (!navigator.serviceWorker.controller) {
           navigator.serviceWorker.ready.then(function() { window.location.reload(); });
         }
