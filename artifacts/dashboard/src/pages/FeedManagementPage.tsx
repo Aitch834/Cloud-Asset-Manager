@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Badge } from "@/components/ui/badge";
+import { StaffSelect } from "@/components/ui/staff-select";
 import {
   Plus, AlertTriangle, Package, Truck, ShieldCheck, Info, Trash2,
   Edit2, MapPin, Clock, CheckCircle2, XCircle, AlertCircle,
@@ -145,6 +146,7 @@ export default function FeedManagementPage() {
     queryFn: () => fetch(`/api/farms/${farmId}/members`).then(r => r.json()).then(d => d.members ?? []),
     enabled: !!farmId,
   });
+  const staffNames = ((membersQ.data ?? []) as any[]).filter(m => (m as any).isActive).map(m => `${(m as any).firstName} ${(m as any).lastName}`);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["feed-deliveries", farmId] });
@@ -856,7 +858,7 @@ export default function FeedManagementPage() {
             {deliveryForm.medicatedFeed === "true" && (
               <div><Label>Medication details</Label><Input value={deliveryForm.medicationDetails ?? ""} onChange={e => setDeliveryForm(f => ({ ...f, medicationDetails: e.target.value }))} placeholder="Active ingredient, dose, veterinary authorisation" /></div>
             )}
-            <div><Label>Received by</Label><Input value={deliveryForm.receivedBy ?? ""} onChange={e => setDeliveryForm(f => ({ ...f, receivedBy: e.target.value }))} /></div>
+            <div><Label>Received by</Label><StaffSelect value={deliveryForm.receivedBy ?? ""} onChange={v => setDeliveryForm(f => ({ ...f, receivedBy: v }))} staffNames={staffNames} loading={membersQ.isLoading} /></div>
             <div><Label>Notes</Label><Textarea value={deliveryForm.notes ?? ""} onChange={e => setDeliveryForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
             {/* Organic compliance section */}
             <div className="col-span-full border-t pt-3 mt-1">

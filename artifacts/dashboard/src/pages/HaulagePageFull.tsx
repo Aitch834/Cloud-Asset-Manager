@@ -15,6 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Plus, Trash2, Truck, Building2, Wheat, BarChart3, Pencil, Eye, CheckCircle2, ArrowLeftRight, ArrowUpRight, Paperclip, X, FileText, Image, FileDown, Receipt, ChevronDown, ChevronUp, ClipboardList, ArrowRight } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
+import { useFarmMembers } from "@/hooks/use-farm-members";
+import { StaffSelect } from "@/components/ui/staff-select";
 
 type Tab = "plans" | "dispatches" | "transfers" | "grain-position" | "invoices" | "directory";
 
@@ -214,6 +216,8 @@ function DispatchesTab({ farmId }: { farmId: number }) {
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["haulage", farmId] });
+  const { data: dispMembersData, isLoading: dispMembersLoading } = useFarmMembers(farmId);
+  const dispStaffNames = (dispMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
 
   const saveMut = useMutation({
     mutationFn: (body: any) => {
@@ -686,7 +690,7 @@ function DispatchesTab({ farmId }: { farmId: number }) {
               <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>Transport</p>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>Vehicle Registration</Label><Input placeholder="e.g. AB12 CDE" value={form.vehicleRegistration} onChange={e => setForm((f: any) => ({ ...f, vehicleRegistration: e.target.value }))} /></div>
-                <div><Label>Driver Name</Label><Input value={form.driverName} onChange={e => setForm((f: any) => ({ ...f, driverName: e.target.value }))} /></div>
+                <div><Label>Driver Name</Label><StaffSelect value={form.driverName} onChange={v => setForm((f: any) => ({ ...f, driverName: v }))} staffNames={dispStaffNames} loading={dispMembersLoading} /></div>
               </div>
               <div className="grid grid-cols-2 gap-3" style={{ marginTop: "0.75rem" }}>
                 <div><Label>Haulier Company</Label>
@@ -748,6 +752,8 @@ function TransfersTab({ farmId }: { farmId: number }) {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [confirmId, setConfirmId] = useState<number | null>(null);
   const [confirmForm, setConfirmForm] = useState({ confirmedBy: "", notes: "" });
+  const { data: transMembersData, isLoading: transMembersLoading } = useFarmMembers(farmId);
+  const transStaffNames = (transMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
 
   const emptyForm = {
     movementType: "on_farm_transfer",
@@ -948,7 +954,7 @@ function TransfersTab({ farmId }: { farmId: number }) {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Vehicle Reg (if applicable)</Label><Input placeholder="e.g. AB12 CDE" value={form.vehicleRegistration} onChange={e => setForm((f: any) => ({ ...f, vehicleRegistration: e.target.value }))} /></div>
-              <div><Label>Driver / Operator</Label><Input value={form.driverName} onChange={e => setForm((f: any) => ({ ...f, driverName: e.target.value }))} /></div>
+              <div><Label>Driver / Operator</Label><StaffSelect value={form.driverName} onChange={v => setForm((f: any) => ({ ...f, driverName: v }))} staffNames={transStaffNames} loading={transMembersLoading} /></div>
             </div>
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>

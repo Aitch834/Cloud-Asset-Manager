@@ -6,6 +6,8 @@ import { useToast } from "@/hooks/use-toast";
 
 import { useAppStore } from "@/hooks/use-app-store";
 import { useUserRole } from "@/hooks/use-user-role";
+import { useFarmMembers } from "@/hooks/use-farm-members";
+import { StaffSelect } from "@/components/ui/staff-select";
 import { AppLayout } from "@/components/layout/AppLayout";
 
 import { Button } from "@/components/ui/button";
@@ -429,6 +431,8 @@ function GoodsReceivedTab({ deliveries, products, suppliers, purchaseOrders, loa
   const [form, setForm] = useState<any>(emptyForm);
   const [invoiceDelivery, setInvoiceDelivery] = useState<any>(null);
   const [invoiceForm, setInvoiceForm] = useState<any>({});
+  const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
+  const staffNames = (membersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
 
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/stock-deliveries`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, costPence: body.costPence ? Math.round(parseFloat(body.costPence) * 100) : null }) }),
@@ -685,7 +689,7 @@ function GoodsReceivedTab({ deliveries, products, suppliers, purchaseOrders, loa
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Received By</Label>
-                <Input placeholder="Name" value={form.receivedBy} onChange={e => setForm((f: any) => ({ ...f, receivedBy: e.target.value }))} />
+                <StaffSelect value={form.receivedBy} onChange={v => setForm((f: any) => ({ ...f, receivedBy: v }))} staffNames={staffNames} loading={membersLoading} />
               </div>
             </div>
             <div>

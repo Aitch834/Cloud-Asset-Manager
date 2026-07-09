@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -26,6 +26,8 @@ import { useSync } from "@/lib/context/SyncContext";
 import { useApiPigFlocks } from "@/lib/hooks/useApiPigFlocks";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { PigTailBitingRisk } from "@/lib/types";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 const RISK_LEVELS = [
   { key: "low", label: "Low Risk", color: colors.success },
@@ -50,6 +52,13 @@ export default function PigTailBitingScreen() {
   const [groupName, setGroupName] = useState("");
   const [assessmentDate, setAssessmentDate] = useState(new Date().toISOString().split("T")[0]);
   const [assessedBy, setAssessedBy] = useState(user?.name || "");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) => {
+      setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
+    });
+  }, [currentFarm?.id]);
   const [riskLevel, setRiskLevel] = useState("low");
   const [tailsDockedAtBirth, setTailsDockedAtBirth] = useState(false);
   const [tailLengthAdequate, setTailLengthAdequate] = useState(true);
@@ -141,7 +150,7 @@ export default function PigTailBitingScreen() {
           <PigPenPicker label="Select Group (optional)" value={groupName} onChange={setGroupName} onChangeFlock={(f) => setFlockId(f.id)} flocks={flocks} loading={flocksLoading} fromCache={fromCache} error={flocksError} />
           <View style={styles.row}>
             <Input label="Assessment Date *" placeholder="YYYY-MM-DD" value={assessmentDate} onChangeText={setAssessmentDate} containerStyle={styles.flex} required />
-            <Input label="Assessed By *" placeholder="Name" value={assessedBy} onChangeText={setAssessedBy} containerStyle={styles.flex} required />
+            <View style={styles.flex}><LookupPicker label="Assessed By" options={staffOptions} value={assessedBy} onSelect={(_id, l) => setAssessedBy(l)} allowFreeText /></View>
           </View>
 
           <View style={styles.sectionLabel}>

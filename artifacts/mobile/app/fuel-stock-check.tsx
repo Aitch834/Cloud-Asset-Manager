@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -22,6 +22,8 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 type MeasurementMethod = "dip_stick" | "sight_gauge" | "flow_meter" | "weighbridge" | "other";
 
@@ -48,6 +50,13 @@ export default function FuelStockCheckScreen() {
   const [calculatedLitres, setCalculatedLitres] = useState("");
   const [method, setMethod] = useState<MeasurementMethod>("dip_stick");
   const [checkedBy, setCheckedBy] = useState(user?.name || "");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) => {
+      setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
+    });
+  }, [currentFarm?.id]);
   const [notes, setNotes] = useState("");
 
   const variance =
@@ -139,13 +148,7 @@ export default function FuelStockCheckScreen() {
               placeholder="e.g. Main Red Diesel, Heating Oil Bunded, LPG Bulk"
               autoCapitalize="words"
             />
-            <Input
-              label="Checked By"
-              value={checkedBy}
-              onChangeText={setCheckedBy}
-              placeholder="Your name"
-              autoCapitalize="words"
-            />
+            <LookupPicker label="Checked By" options={staffOptions} value={checkedBy} onSelect={(_id, l) => setCheckedBy(l)} allowFreeText />
             <Input
               label="Check Date"
               value={today}

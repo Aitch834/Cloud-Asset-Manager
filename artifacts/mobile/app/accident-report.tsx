@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   Image,
@@ -28,6 +28,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { AccidentReport } from "@/lib/types";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 type IncidentType = AccidentReport["incidentType"];
 type SeverityLevel = AccidentReport["severityLevel"];
@@ -68,6 +70,13 @@ export default function AccidentReportScreen() {
   const [firstAidGiven, setFirstAidGiven] = useState(false);
   const [firstAidDetails, setFirstAidDetails] = useState("");
   const [witnessNames, setWitnessNames] = useState("");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) => {
+      setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
+    });
+  }, [currentFarm?.id]);
   const [reportableRiddor, setReportableRiddor] = useState(false);
   const [immediateActionsTaken, setImmediateActionsTaken] = useState("");
   const [reportedBy, setReportedBy] = useState(user?.name || "");
@@ -351,12 +360,7 @@ export default function AccidentReportScreen() {
             <Feather name="users" size={14} color={colors.textSecondary} />
             <Text style={styles.sectionTitle}>Witnesses & Actions</Text>
           </View>
-          <Input
-            label="Witness Names"
-            placeholder="Names of anyone who witnessed the incident"
-            value={witnessNames}
-            onChangeText={setWitnessNames}
-          />
+          <LookupPicker label="Witness Names" options={staffOptions} value={witnessNames} onSelect={(_id, l) => setWitnessNames(l)} allowFreeText />
           <Input
             label="Immediate Actions Taken"
             placeholder="e.g. Area cordoned off, machinery isolated, management notified, ambulance called"

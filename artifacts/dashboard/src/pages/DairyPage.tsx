@@ -17,6 +17,8 @@ import { Redirect } from "wouter";
 import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Eye, Droplets, Thermometer, FileDown, Paperclip, BarChart2, QrCode, Download, MapPin, ChevronsUpDown, Search, X, Sparkles, ClipboardList, Printer, Building2, ShoppingCart, PackageCheck, Receipt, Clock, BadgeCheck, XCircle, TrendingUp, TrendingDown, Package, Check, FlaskConical } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { QRCodeSVG } from "qrcode.react";
+import { useFarmMembers } from "@/hooks/use-farm-members";
+import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -2177,6 +2179,8 @@ export function BcsTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<BcsRecord | null>(null);
   const [viewRecord, setViewRecord] = useState<BcsRecord | null>(null);
   const [form, setForm] = useState<Partial<BcsRecord>>({});
+  const { data: bcsMembersData, isLoading: bcsMembersLoading } = useFarmMembers(farmId);
+  const bcsStaffNames = (bcsMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
 
   const { data, isLoading } = useQuery<{ records: BcsRecord[] }>({
     queryKey: ["dairy-bcs", farmId],
@@ -2443,7 +2447,7 @@ export function BcsTab({ farmId }: { farmId: number }) {
                 </SelectContent>
               </Select>
             </div>
-            <div><Label>Assessed By</Label><Input value={form.assessedBy || ""} onChange={e => set("assessedBy", e.target.value)} /></div>
+            <div><Label>Assessed By</Label><StaffSelect value={form.assessedBy || ""} onChange={v => set("assessedBy", v)} staffNames={bcsStaffNames} loading={bcsMembersLoading} /></div>
             <div className="flex items-center gap-2 pt-5">
               <input type="checkbox" id="acreq" checked={!!form.actionRequired} onChange={e => set("actionRequired", e.target.checked)} className="rounded" />
               <Label htmlFor="acreq">Management action required</Label>
@@ -2894,11 +2898,11 @@ export function MobilityTab({ farmId }: { farmId: number }) {
                 </div>
                 <div>
                   <Label>Assessed By</Label>
-                  <Input
-                    list={staffListId}
+                  <StaffSelect
                     value={form.assessedBy || ""}
-                    onChange={e => set("assessedBy", e.target.value)}
-                    placeholder="Select or type name…"
+                    onChange={v => set("assessedBy", v)}
+                    staffNames={staffNames}
+                    loading={false}
                   />
                 </div>
               </div>
@@ -5123,7 +5127,6 @@ export function AbrProcurementSection({ farmId }: { farmId: number }) {
     queryKey: ["abr-invoices", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/dairy/abr-invoices`), { credentials: "include" }).then(r => r.json()),
   });
-
   const suppliers = suppliersQ.data?.suppliers ?? [];
   const orders = ordersQ.data?.orders ?? [];
   const grns = grnsQ.data?.grns ?? [];
@@ -5520,6 +5523,8 @@ function GrnSubsection({ farmId, grns, orders, loading, qc, poRef }: {
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["abr-grns", farmId] }); setDlgOpen(false); setEditing(null); setForm({}); },
   });
+  const { data: abrMembersData, isLoading: abrMembersLoading } = useFarmMembers(farmId);
+  const abrStaffNames = (abrMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/dairy/abr-grns/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["abr-grns", farmId] }),
@@ -5587,7 +5592,7 @@ function GrnSubsection({ farmId, grns, orders, loading, qc, poRef }: {
                 </SelectContent>
               </Select>
             </div>
-            <div><Label>Received By</Label><Input placeholder="Name of person who received" value={form.receivedBy || ""} onChange={e => set("receivedBy", e.target.value)} /></div>
+            <div><Label>Received By</Label><StaffSelect value={form.receivedBy || ""} onChange={v => set("receivedBy", v)} staffNames={abrStaffNames} loading={abrMembersLoading} /></div>
             <div className="col-span-2">
               <Label>Condition on Arrival</Label>
               <Select value={form.conditionOnArrival || ""} onValueChange={v => set("conditionOnArrival", v)}>

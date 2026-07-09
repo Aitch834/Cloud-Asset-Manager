@@ -22,6 +22,8 @@ import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
 import { Redirect } from "wouter";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useFarmMembers } from "@/hooks/use-farm-members";
+import { StaffSelect } from "@/components/ui/staff-select";
 import { FlocksTab } from "./poultry/FlocksTab";
 import { PoultryFlockReport } from "@/components/PoultryFlockReport";
 
@@ -1378,6 +1380,8 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
   const houses = rawHouses as Record<string, unknown>[];
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const { data: records, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd: _openAdd, openEdit: _openEdit } = useCrud(farmId, "poultry-house-cleanouts", "poultry-cleanouts");
+  const { data: coMembersData, isLoading: coMembersLoading } = useFarmMembers(farmId);
+  const coStaffNames = (coMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
 
   const { data: rawStock = [] } = useQuery({ queryKey: ["stock-items", farmId], queryFn: () => fetch(api(`farms/${farmId}/stock-items`), { credentials: "include" }).then(r => r.json()).catch(() => []) });
   const stockItems = (Array.isArray(rawStock) ? rawStock : (rawStock as Record<string, unknown>)?.records ?? []) as { id: number; name: string; unit: string | null; category: string | null }[];
@@ -1609,8 +1613,8 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Completed By</Label><Input placeholder="Name of staff member" value={String(form.completedBy ?? "")} onChange={e => setForm(f => ({ ...f, completedBy: e.target.value }))} /></div>
-                  <div><Label>Verified By</Label><Input placeholder="Supervisor / farm manager" value={String(form.verifiedBy ?? "")} onChange={e => setForm(f => ({ ...f, verifiedBy: e.target.value }))} /></div>
+                  <div><Label>Completed By</Label><StaffSelect value={String(form.completedBy ?? "")} onChange={v => setForm(f => ({ ...f, completedBy: v }))} staffNames={coStaffNames} loading={coMembersLoading} /></div>
+                  <div><Label>Verified By</Label><StaffSelect value={String(form.verifiedBy ?? "")} onChange={v => setForm(f => ({ ...f, verifiedBy: v }))} staffNames={coStaffNames} loading={coMembersLoading} /></div>
                 </div>
               )}
             </div>
@@ -1693,7 +1697,7 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
                     </div>
                   </div>
                   <div><Label>Invoice / PO Reference</Label><Input placeholder="e.g. INV-2024-001" value={String(form.invoiceRef ?? "")} onChange={e => setForm(f => ({ ...f, invoiceRef: e.target.value }))} /></div>
-                  <div><Label>Verified By</Label><Input placeholder="Supervisor / farm manager" value={String(form.verifiedBy ?? "")} onChange={e => setForm(f => ({ ...f, verifiedBy: e.target.value }))} /></div>
+                  <div><Label>Verified By</Label><StaffSelect value={String(form.verifiedBy ?? "")} onChange={v => setForm(f => ({ ...f, verifiedBy: v }))} staffNames={coStaffNames} loading={coMembersLoading} /></div>
                 </div>
               </div>
             )}
@@ -2003,6 +2007,8 @@ function BroilerWelfareTab({ farmId }: { farmId: number }) {
   const flocks = useFlocks(farmId);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-broiler-welfare", "poultry-broiler-welfare");
+  const { data: bwiMembersData, isLoading: bwiMembersLoading } = useFarmMembers(farmId);
+  const bwiStaffNames = (bwiMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
   const bwiList = (records ?? []) as Record<string, unknown>[];
   const [flockFilterBwi, setFlockFilterBwi] = useState("all");
   const [outcomeFilterBwi, setOutcomeFilterBwi] = useState("all");
@@ -2121,7 +2127,7 @@ function BroilerWelfareTab({ farmId }: { farmId: number }) {
           <div className="grid grid-cols-3 gap-3 max-h-[70vh] overflow-y-auto pr-1">
             <div><Label>Assessment Date *</Label><Input type="date" value={String(form.assessmentDate ?? "")} onChange={e => setForm(f => ({ ...f, assessmentDate: e.target.value }))} /></div>
             <div><Label>Flock *</Label><FlockSelect flocks={flocks} value={String(form.flockId ?? "")} onChange={v => setForm(f => ({ ...f, flockId: v }))} /></div>
-            <div><Label>Assessed By *</Label><Input value={String(form.assessedBy ?? "")} onChange={e => setForm(f => ({ ...f, assessedBy: e.target.value }))} /></div>
+            <div><Label>Assessed By *</Label><StaffSelect value={String(form.assessedBy ?? "")} onChange={v => setForm(f => ({ ...f, assessedBy: v }))} staffNames={bwiStaffNames} loading={bwiMembersLoading} /></div>
             <div><Label>Bird Age (days)</Label><Input type="number" value={String(form.ageAtAssessmentDays ?? "")} onChange={e => setForm(f => ({ ...f, ageAtAssessmentDays: e.target.value }))} /></div>
             <div><Label>Sample Size (birds)</Label><Input type="number" value={String(form.sampleSize ?? "")} onChange={e => setForm(f => ({ ...f, sampleSize: e.target.value }))} /></div>
             <div>
@@ -3517,6 +3523,8 @@ function PlacementQualityTab({ farmId }: { farmId: number }) {
   const flocksQ = useQuery({ queryKey: ["poultry-flocks", farmId], queryFn: () => fetch(`/api/farms/${farmId}/poultry-flocks`).then(r => r.json()), enabled: !!farmId, select: (d: any) => d.flocks ?? [] });
   const assessments: any[] = assessQ.data ?? [];
   const flocks: any[] = flocksQ.data ?? [];
+  const { data: pqMembersData, isLoading: pqMembersLoading } = useFarmMembers(farmId);
+  const pqStaffNames = (pqMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
 
   const createMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/poultry-placement-quality`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Quality assessment saved" }); qc.invalidateQueries({ queryKey: ["placement-quality", farmId] }); setAddOpen(false); setForm({ ...empty }); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
   const updateMut = useMutation({ mutationFn: ({ id, b }: any) => fetch(`/api/farms/${farmId}/poultry-placement-quality/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Assessment updated" }); qc.invalidateQueries({ queryKey: ["placement-quality", farmId] }); setEditRec(null); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
@@ -3609,7 +3617,7 @@ function PlacementQualityTab({ farmId }: { farmId: number }) {
               <div><Label className="text-xs">Assessment Date *</Label><Input type="date" value={form.assessmentDate} onChange={e => setForm(f => ({ ...f, assessmentDate: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label className="text-xs">Assessed By</Label><Input value={form.assessedBy} onChange={e => setForm(f => ({ ...f, assessedBy: e.target.value }))} /></div>
+              <div><Label className="text-xs">Assessed By</Label><StaffSelect value={form.assessedBy} onChange={v => setForm(f => ({ ...f, assessedBy: v }))} staffNames={pqStaffNames} loading={pqMembersLoading} /></div>
               <div><Label className="text-xs">Overall Quality Score</Label>
                 <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background" value={form.overallQualityScore} onChange={e => setForm(f => ({ ...f, overallQualityScore: e.target.value }))}>
                   <option value="">— Select —</option>

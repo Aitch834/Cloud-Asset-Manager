@@ -23,6 +23,8 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { getItem, STORAGE_KEYS } from "@/lib/storage";
 import { getApiBase } from "@/lib/uploadPhoto";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 type QualityScore = "excellent" | "good" | "acceptable" | "poor" | "fail";
 
@@ -52,6 +54,13 @@ export default function PlacementQualityScreen() {
 
   const [assessmentDate, setAssessmentDate] = useState(new Date().toISOString().slice(0, 10));
   const [assessedBy, setAssessedBy] = useState(user?.name || "");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) => {
+      setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
+    });
+  }, [currentFarm?.id]);
   const [qualityScore, setQualityScore] = useState<QualityScore | "">("");
   const [uniformityPercent, setUniformityPercent] = useState("");
   const [cullCount, setCullCount] = useState("");
@@ -152,8 +161,7 @@ export default function PlacementQualityScreen() {
             <Text style={styles.fieldLabel}>Assessment Date *</Text>
             <Input value={assessmentDate} onChangeText={setAssessmentDate} placeholder="YYYY-MM-DD" />
 
-            <Text style={[styles.fieldLabel, { marginTop: spacing.md }]}>Assessed By</Text>
-            <Input value={assessedBy} onChangeText={setAssessedBy} placeholder="Name" />
+            <LookupPicker label="Assessed By" options={staffOptions} value={assessedBy} onSelect={(_id, l) => setAssessedBy(l)} allowFreeText />
 
             <Text style={[styles.fieldLabel, { marginTop: spacing.md }]}>Overall Quality Score</Text>
             <View style={styles.scoreRow}>

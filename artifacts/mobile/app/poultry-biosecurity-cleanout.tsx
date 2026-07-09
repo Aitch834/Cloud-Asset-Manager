@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -23,6 +23,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { PoultryBiosecurityCleanout } from "@/lib/types";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 interface CheckItem {
   key: keyof PoultryBiosecurityCleanout;
@@ -131,6 +133,13 @@ export default function PoultryBiosecurityCleanoutScreen() {
   const [contractorName, setContractorName] = useState("");
   const [contractorOwnSupplies, setContractorOwnSupplies] = useState(false);
   const [completedBy, setCompletedBy] = useState(user?.name || "");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) => {
+      setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
+    });
+  }, [currentFarm?.id]);
   const [verifiedBy, setVerifiedBy] = useState("");
   const [primaryDisinfectant, setPrimaryDisinfectant] = useState("");
   const [disinfectantApprovalNumber, setDisinfectantApprovalNumber] = useState("");
@@ -316,13 +325,9 @@ export default function PoultryBiosecurityCleanoutScreen() {
                 </View>
               </Pressable>
               <View style={styles.row}>
-                <Input
-                  label="Verified By"
-                  placeholder="Farm supervisor name"
-                  value={verifiedBy}
-                  onChangeText={setVerifiedBy}
-                  containerStyle={styles.flex}
-                />
+                <View style={styles.flex}>
+                  <LookupPicker label="Verified By" options={staffOptions} value={verifiedBy} onSelect={(_id, l) => setVerifiedBy(l)} allowFreeText />
+                </View>
                 <Input
                   label="Downtime (days)"
                   placeholder="e.g. 14"
@@ -335,20 +340,12 @@ export default function PoultryBiosecurityCleanoutScreen() {
             </>
           ) : (
             <View style={styles.row}>
-              <Input
-                label="Completed By"
-                value={completedBy}
-                onChangeText={setCompletedBy}
-                placeholder="Name"
-                containerStyle={styles.flex}
-              />
-              <Input
-                label="Verified By"
-                placeholder="Supervisor name"
-                value={verifiedBy}
-                onChangeText={setVerifiedBy}
-                containerStyle={styles.flex}
-              />
+              <View style={styles.flex}>
+                <LookupPicker label="Completed By" options={staffOptions} value={completedBy} onSelect={(_id, l) => setCompletedBy(l)} allowFreeText />
+              </View>
+              <View style={styles.flex}>
+                <LookupPicker label="Verified By" options={staffOptions} value={verifiedBy} onSelect={(_id, l) => setVerifiedBy(l)} allowFreeText />
+              </View>
             </View>
           )}
 

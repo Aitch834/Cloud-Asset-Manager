@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -27,6 +27,8 @@ import { grainIntakeDocketHtml } from "@/lib/printTemplates";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { ThirdPartyGrainIntakeMobile } from "@/lib/types";
 import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 const COMMODITIES_FALLBACK = [
   "Winter Wheat", "Spring Wheat", "Winter Barley", "Spring Barley",
@@ -65,6 +67,13 @@ export default function ThirdPartyGrainIntakeScreen() {
   const [bayOrBin, setBayOrBin] = useState("");
   const [notes, setNotes] = useState("");
   const [recordedBy, setRecordedBy] = useState(user?.name ?? "");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) => {
+      setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
+    });
+  }, [currentFarm?.id]);
   const [customerSignature, setCustomerSignature] = useState<string | null>(null);
 
   const handleSave = async () => {
@@ -301,12 +310,7 @@ export default function ThirdPartyGrainIntakeScreen() {
           </View>
 
           <Text style={styles.sectionTitle}>Sign-off</Text>
-          <Input
-            label="Recorded By"
-            value={recordedBy}
-            onChangeText={setRecordedBy}
-            placeholder="Your name"
-          />
+          <LookupPicker label="Recorded By" options={staffOptions} value={recordedBy} onSelect={(_id, l) => setRecordedBy(l)} allowFreeText />
           <Input
             label="Notes"
             value={notes}

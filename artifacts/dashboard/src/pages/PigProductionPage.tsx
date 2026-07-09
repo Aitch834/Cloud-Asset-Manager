@@ -19,6 +19,8 @@ import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
 import { Redirect } from "wouter";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useFarmMembers } from "@/hooks/use-farm-members";
+import { StaffSelect } from "@/components/ui/staff-select";
 
 const api = (path: string) => `/api/${path}`;
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
@@ -759,6 +761,8 @@ function StockmanshipChecksTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string | boolean>>({});
 
   const { data: allChecks = [], isLoading } = useQuery({ queryKey: ["pig-stockmanship", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-stockmanship-checks`), { credentials: "include" }).then(r => r.json()) });
+  const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
+  const staffNames = (membersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
 
   const stockYears = useMemo(() => {
     const s = new Set<string>((allChecks as Record<string,unknown>[]).map(r => String(r.checkDate || "").slice(0, 4)).filter(Boolean));
@@ -840,7 +844,7 @@ function StockmanshipChecksTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>Stockmanship Check</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Check Date *</Label><Input type="date" value={String(form.checkDate ?? "")} onChange={e => setForm(f => ({ ...f, checkDate: e.target.value }))} /></div>
-            <div><Label>Checked By *</Label><Input value={String(form.checkedBy ?? "")} onChange={e => setForm(f => ({ ...f, checkedBy: e.target.value }))} /></div>
+            <div><Label>Checked By *</Label><StaffSelect value={String(form.checkedBy ?? "")} onChange={v => setForm(f => ({ ...f, checkedBy: v }))} staffNames={staffNames} loading={membersLoading} /></div>
             <div><Label>Mortalities Found</Label><Input type="number" min="0" step="1" value={String(form.mortalitiesFound ?? "0")} onChange={e => setForm(f => ({ ...f, mortalitiesFound: e.target.value }))} /></div>
             <div><Label>Injured Found</Label><Input type="number" min="0" step="1" value={String(form.injuredFound ?? "0")} onChange={e => setForm(f => ({ ...f, injuredFound: e.target.value }))} /></div>
             <div><Label>Overall Welfare</Label>
@@ -879,6 +883,8 @@ function TailBitingRisksTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const { data: allRecords = [], isLoading } = useQuery({ queryKey: ["pig-tail-biting", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-tail-biting-risks`), { credentials: "include" }).then(r => r.json()) });
+  const { data: tbMembersData, isLoading: tbMembersLoading } = useFarmMembers(farmId);
+  const tbStaffNames = (tbMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
 
   const tbYears = useMemo(() => {
     const s = new Set<string>((allRecords as Record<string,unknown>[]).map(r => String(r.assessmentDate || "").slice(0, 4)).filter(Boolean));
@@ -961,7 +967,7 @@ function TailBitingRisksTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>Tail Biting Risk Assessment</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 max-h-[70vh] overflow-y-auto pr-1">
             <div><Label>Assessment Date *</Label><Input type="date" value={String(form.assessmentDate ?? "")} onChange={e => setForm(f => ({ ...f, assessmentDate: e.target.value }))} /></div>
-            <div><Label>Assessed By *</Label><Input value={String(form.assessedBy ?? "")} onChange={e => setForm(f => ({ ...f, assessedBy: e.target.value }))} /></div>
+            <div><Label>Assessed By *</Label><StaffSelect value={String(form.assessedBy ?? "")} onChange={v => setForm(f => ({ ...f, assessedBy: v }))} staffNames={tbStaffNames} loading={tbMembersLoading} /></div>
             <div>
               <Label>Risk Level *</Label>
               <Select value={String(form.riskLevel ?? "")} onValueChange={v => setForm(f => ({ ...f, riskLevel: v }))}>

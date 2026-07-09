@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -25,6 +25,8 @@ import { useSync } from "@/lib/context/SyncContext";
 import { useApiPoultryFlocks } from "@/lib/hooks/useApiPoultryFlocks";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { PoultryBroilerWelfare } from "@/lib/types";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 const SCORES_03 = ["0", "1", "2", "3"];
 const GAIT_SCORES = ["0 — Normal", "1 — Slight", "2 — Moderate", "3 — Severe"];
@@ -71,6 +73,13 @@ export default function PoultryBroilerWelfareScreen() {
   const [flockNumber, setFlockNumber] = useState("");
   const [assessmentDate, setAssessmentDate] = useState(new Date().toISOString().split("T")[0]);
   const [assessedBy, setAssessedBy] = useState(user?.name || "");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) => {
+      setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
+    });
+  }, [currentFarm?.id]);
   const [ageAtAssessmentDays, setAgeAtAssessmentDays] = useState("");
   const [sampleSize, setSampleSize] = useState("");
   const [footpadDermatitisScore, setFootpadDermatitisScore] = useState("");
@@ -142,7 +151,7 @@ export default function PoultryBroilerWelfareScreen() {
           </View>
           <FlockPicker label="Select Flock *" value={flockNumber} onChange={setFlockNumber} onChangeFlock={(f) => setFlockId(f.id)} flocks={flocks} loading={flocksLoading} fromCache={fromCache} error={flocksError} />
           <Input label="Assessment Date *" placeholder="YYYY-MM-DD" maxDate="today" value={assessmentDate} onChangeText={setAssessmentDate} required />
-          <Input label="Assessed By *" placeholder="Assessor name" value={assessedBy} onChangeText={setAssessedBy} required />
+          <LookupPicker label="Assessed By" options={staffOptions} value={assessedBy} onSelect={(_id, l) => setAssessedBy(l)} allowFreeText />
           <View style={styles.row}>
             <Input label="Bird Age (days)" placeholder="e.g. 35" value={ageAtAssessmentDays} onChangeText={setAgeAtAssessmentDays} keyboardType="number-pad" containerStyle={styles.flex} />
             <Input label="Sample Size (birds)" placeholder="e.g. 100" value={sampleSize} onChangeText={setSampleSize} keyboardType="number-pad" containerStyle={styles.flex} />

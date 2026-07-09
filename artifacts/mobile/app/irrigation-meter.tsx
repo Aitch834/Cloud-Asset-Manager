@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -24,6 +24,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { IrrigationMeterReading } from "@/lib/types";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 type PumpCondition = IrrigationMeterReading["pumpCondition"];
 
@@ -48,6 +50,13 @@ export default function IrrigationMeterScreen() {
   const [readingM3, setReadingM3] = useState("");
   const [previousReadingM3, setPreviousReadingM3] = useState("");
   const [recordedBy, setRecordedBy] = useState(user?.name || "");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) => {
+      setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
+    });
+  }, [currentFarm?.id]);
   const [pumpCondition, setPumpCondition] = useState<PumpCondition>("ok");
   const [notes, setNotes] = useState("");
   const [latitude, setLatitude] = useState<number | undefined>();
@@ -150,13 +159,7 @@ export default function IrrigationMeterScreen() {
               onChangeText={setMeterReference}
               placeholder="Meter ID or abstraction licence number"
             />
-            <Input
-              label="Recorded By"
-              value={recordedBy}
-              onChangeText={setRecordedBy}
-              placeholder="Your name"
-              autoCapitalize="words"
-            />
+            <LookupPicker label="Recorded By" options={staffOptions} value={recordedBy} onSelect={(_id, l) => setRecordedBy(l)} allowFreeText />
           </View>
 
           <View style={styles.section}>

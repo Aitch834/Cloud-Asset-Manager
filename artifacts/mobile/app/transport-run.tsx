@@ -28,6 +28,8 @@ import { useApiStorageLocations } from "@/lib/hooks/useApiStorageLocations";
 import { kvGet, kvSet } from "@/lib/database";
 import { appendToList, generateId, getList, STORAGE_KEYS } from "@/lib/storage";
 import type { HarvestRecord, HarvestTransportRecord } from "@/lib/types";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 const VEHICLE_PREF_KEY = "bde_driver_vehicle_pref";
 
@@ -61,6 +63,13 @@ export default function TransportRunScreen() {
   const [rememberVehicle, setRememberVehicle] = useState(true);
   const [storageDestination, setStorageDestination] = useState("");
   const [driverName, setDriverName] = useState(user?.name || "");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) => {
+      setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
+    });
+  }, [currentFarm?.id]);
   const [loadNotes, setLoadNotes] = useState("");
 
   useEffect(() => {
@@ -285,12 +294,7 @@ export default function TransportRunScreen() {
             <Feather name="user" size={14} color={colors.textSecondary} />
             <Text style={styles.sectionTitle}>Driver & Notes</Text>
           </View>
-          <Input
-            label="Driver Name"
-            placeholder="Driver"
-            value={driverName}
-            onChangeText={setDriverName}
-          />
+          <LookupPicker label="Driver Name" options={staffOptions} value={driverName} onSelect={(_id, l) => setDriverName(l)} allowFreeText />
           <Text style={styles.hintText}>Pre-filled from your login. Tap to change if using someone else's device.</Text>
           <Input
             label="Load Notes (optional)"

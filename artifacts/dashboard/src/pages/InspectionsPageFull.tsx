@@ -16,6 +16,8 @@ import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Plus, Trash2, AlertTriangle, CheckCircle2, ClipboardList, Wrench, Award, Pencil, Eye, Paperclip, File as FileIcon, Loader2, ExternalLink, ChevronDown, ChevronRight, ChevronUp, Printer, RefreshCw } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
+import { useFarmMembers } from "@/hooks/use-farm-members";
+import { StaffSelect } from "@/components/ui/staff-select";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -615,6 +617,8 @@ function PipelineBar({ step }: { step: number }) {
 function IssuesRegisterTab({ farmId, openCaId }: { farmId: number; openCaId?: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { data: issMembersData, isLoading: issMembersLoading } = useFarmMembers(farmId);
+  const issStaffNames = (issMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
 
   // ── State ──
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -1073,7 +1077,7 @@ function IssuesRegisterTab({ farmId, openCaId }: { farmId: number; openCaId?: nu
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Verified By</Label><Input placeholder="Name" value={caForm.verifiedBy} onChange={e => setCaForm((f: any) => ({ ...f, verifiedBy: e.target.value }))} /></div>
+                <div><Label>Verified By</Label><StaffSelect value={caForm.verifiedBy} onChange={v => setCaForm((f: any) => ({ ...f, verifiedBy: v }))} staffNames={issStaffNames} loading={issMembersLoading} /></div>
               </div>
             )}
             <div><Label>Notes</Label><Textarea placeholder="Additional notes..." value={caForm.notes} onChange={e => setCaForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>

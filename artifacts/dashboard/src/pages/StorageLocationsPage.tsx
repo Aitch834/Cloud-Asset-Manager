@@ -23,6 +23,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@clerk/react";
 import { StorageLocationMapPicker } from "@/components/storage/StorageLocationMapPicker";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
+import { useFarmMembers } from "@/hooks/use-farm-members";
+import { StaffSelect } from "@/components/ui/staff-select";
 
 interface LatLng { lat: number; lng: number; }
 
@@ -1231,6 +1233,8 @@ function GrainDryingTab({ farmId, locationId }: { farmId: number; locationId: nu
   const { toast } = useToast();
   const { user: clerkUser } = useUser();
   const myName = clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") : "";
+  const { data: dryMembersData, isLoading: dryMembersLoading } = useFarmMembers(farmId);
+  const dryStaffNames = (dryMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
   const [open, setOpen] = useState(false);
   const [editItem, setEditItem] = useState<any | null>(null);
   const [viewItem, setViewItem] = useState<any | null>(null);
@@ -1328,7 +1332,7 @@ function GrainDryingTab({ farmId, locationId }: { farmId: number; locationId: nu
             <div><Label>Drying Temp (°C)</Label><Input type="number" step="0.5" value={form.tempC} onChange={e => f("tempC")(e.target.value)} /></div>
             <div><Label>Duration (hours)</Label><Input type="number" step="0.5" value={form.durationHours} onChange={e => f("durationHours")(e.target.value)} /></div>
             <div><Label>Fuel Used (litres)</Label><Input type="number" step="0.1" value={form.fuelLitres} onChange={e => f("fuelLitres")(e.target.value)} /></div>
-            <div><Label>Operator</Label><Input value={form.operatorName} onChange={e => f("operatorName")(e.target.value)} /></div>
+            <div><Label>Operator</Label><StaffSelect value={form.operatorName} onChange={f("operatorName")} staffNames={dryStaffNames} loading={dryMembersLoading} /></div>
             <div className="col-span-2"><Label>Notes</Label><Input value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
           </div>
           <DialogFooter>
@@ -1383,6 +1387,8 @@ function GrainConditioningTab({ farmId, locationId }: { farmId: number; location
   const { toast } = useToast();
   const { user: clerkUser } = useUser();
   const myName = clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") : "";
+  const { data: condMembersData, isLoading: condMembersLoading } = useFarmMembers(farmId);
+  const condStaffNames = (condMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
   const [open, setOpen] = useState(false);
   const [editItem, setEditItem] = useState<any | null>(null);
   const [viewItem, setViewItem] = useState<any | null>(null);
@@ -1482,7 +1488,7 @@ function GrainConditioningTab({ farmId, locationId }: { farmId: number; location
             <div><Label>Rate (kg/t)</Label><Input type="number" step="0.001" value={form.rateKgT} onChange={e => f("rateKgT")(e.target.value)} /></div>
             <div><Label>Total Applied (kg)</Label><Input type="number" step="0.1" value={form.totalKg} onChange={e => f("totalKg")(e.target.value)} /></div>
             <div><Label>Target Moisture (%)</Label><Input type="number" step="0.1" value={form.targetMoisture} onChange={e => f("targetMoisture")(e.target.value)} /></div>
-            <div><Label>Operator</Label><Input value={form.operatorName} onChange={e => f("operatorName")(e.target.value)} /></div>
+            <div><Label>Operator</Label><StaffSelect value={form.operatorName} onChange={f("operatorName")} staffNames={condStaffNames} loading={condMembersLoading} /></div>
             <div className="col-span-2"><Label>Notes</Label><Input value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
           </div>
           <DialogFooter>
@@ -1536,6 +1542,8 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
   const { toast } = useToast();
   const { user: clerkUser } = useUser();
   const myName = clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") : "";
+  const { data: monMembersData, isLoading: monMembersLoading } = useFarmMembers(farmId);
+  const monStaffNames = (monMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
   const [tab, setTab] = useState<"stock" | "quality" | "temperature" | "drying" | "conditioning">("stock");
 
   const [testOpen, setTestOpen] = useState(false);
@@ -1977,7 +1985,7 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
               </div>
               <div className="space-y-1">
                 <Label>Recorded By</Label>
-                <Input placeholder="Name" value={tempForm.recordedBy} onChange={(e) => setTempForm((f) => ({ ...f, recordedBy: e.target.value }))} />
+                <StaffSelect value={tempForm.recordedBy} onChange={(v) => setTempForm((f) => ({ ...f, recordedBy: v }))} staffNames={monStaffNames} loading={monMembersLoading} />
               </div>
               <div className="flex items-center gap-2 col-span-2">
                 <input id={`tmp-aer-${locationId}`} type="checkbox" checked={tempForm.aerationRunning} onChange={(e) => setTempForm((f) => ({ ...f, aerationRunning: e.target.checked }))} className="h-4 w-4" />

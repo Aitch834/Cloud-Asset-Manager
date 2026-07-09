@@ -27,6 +27,8 @@ import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { ThirdPartyGrainOutloadingMobile } from "@/lib/types";
 import { usePrint } from "@/lib/hooks/usePrint";
 import { grainOutloadingDocketHtml } from "@/lib/printTemplates";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 async function getAuthToken(): Promise<string | null> {
   try {
@@ -96,6 +98,13 @@ export default function ThirdPartyGrainOutloadingScreen() {
   const [deliveryNoteRef, setDeliveryNoteRef] = useState("");
   const [notes, setNotes] = useState("");
   const [recordedBy, setRecordedBy] = useState(user?.name ?? "");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) => {
+      setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
+    });
+  }, [currentFarm?.id]);
 
   useEffect(() => {
     if (!currentFarm?.id) return;
@@ -380,12 +389,7 @@ export default function ThirdPartyGrainOutloadingScreen() {
           </View>
 
           <Text style={styles.sectionTitle}>Sign-off</Text>
-          <Input
-            label="Recorded By"
-            value={recordedBy}
-            onChangeText={setRecordedBy}
-            placeholder="Your name"
-          />
+          <LookupPicker label="Recorded By" options={staffOptions} value={recordedBy} onSelect={(_id, l) => setRecordedBy(l)} allowFreeText />
           <Input
             label="Notes"
             value={notes}

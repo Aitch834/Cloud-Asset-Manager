@@ -16,6 +16,8 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { Redirect } from "wouter";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
+import { useFarmMembers } from "@/hooks/use-farm-members";
+import { StaffSelect } from "@/components/ui/staff-select";
 
 const api = (path: string) => `/api/${path}`;
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
@@ -922,6 +924,8 @@ function IrrigationEquipmentTab({ farmId }: { farmId: number }) {
 
 function SoilMoistureTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { data: soilMembersData, isLoading: soilMembersLoading } = useFarmMembers(farmId);
+  const soilStaffNames = (soilMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
   const [open, setOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
@@ -998,7 +1002,7 @@ function SoilMoistureTab({ farmId }: { farmId: number }) {
                 <SelectContent>{["manual", "sensor-auto", "sensor-manual-import"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Recorded By</Label><Input value={form.recordedBy ?? ""} onChange={e => setForm(f => ({ ...f, recordedBy: e.target.value }))} /></div>
+            <div><Label>Recorded By</Label><StaffSelect value={form.recordedBy ?? ""} onChange={v => setForm(f => ({ ...f, recordedBy: v }))} staffNames={soilStaffNames} loading={soilMembersLoading} /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>

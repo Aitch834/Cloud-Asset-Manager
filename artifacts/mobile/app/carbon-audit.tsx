@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -23,6 +23,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { CarbonAuditRecord } from "@/lib/types";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 const AUDIT_TOOLS = [
   "Agrecalc", "Cool Farm Tool", "Farm Carbon Toolkit",
@@ -66,6 +68,13 @@ export default function CarbonAuditScreen() {
   const [auditDate, setAuditDate] = useState("");
   const [auditorType, setAuditorType] = useState("");
   const [conductedBy, setConductedBy] = useState("");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) => {
+      setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
+    });
+  }, [currentFarm?.id]);
   const [auditorCompany, setAuditorCompany] = useState("");
   const [auditTool, setAuditTool] = useState("");
   const [verificationStatus, setVerificationStatus] = useState("");
@@ -199,7 +208,7 @@ export default function CarbonAuditScreen() {
             ))}
           </View>
 
-          <Input label="Conducted By *" value={conductedBy} onChangeText={setConductedBy} placeholder="Name of auditor" />
+          <LookupPicker label="Conducted By" options={staffOptions} value={conductedBy} onSelect={(_id, l) => setConductedBy(l)} allowFreeText />
 
           {isExternal && (
             <Input label="Auditor Company / Organisation" value={auditorCompany} onChangeText={setAuditorCompany} placeholder="Company name" />

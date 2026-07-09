@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -22,6 +22,8 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 type QualifyingActivity =
   | "agriculture"
@@ -53,6 +55,13 @@ export default function FuelDrawdownScreen() {
   const [purpose, setPurpose] = useState("");
   const [qualifyingActivity, setQualifyingActivity] = useState<QualifyingActivity>("agriculture");
   const [recordedBy, setRecordedBy] = useState(user?.name || "");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) => {
+      setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
+    });
+  }, [currentFarm?.id]);
   const [notes, setNotes] = useState("");
 
   const handleSave = async () => {
@@ -139,13 +148,7 @@ export default function FuelDrawdownScreen() {
               placeholder="e.g. Case IH Puma 165, JD 6R, Massey 6S, Grain Drier"
               autoCapitalize="words"
             />
-            <Input
-              label="Recorded By"
-              value={recordedBy}
-              onChangeText={setRecordedBy}
-              placeholder="Your name"
-              autoCapitalize="words"
-            />
+            <LookupPicker label="Recorded By" options={staffOptions} value={recordedBy} onSelect={(_id, l) => setRecordedBy(l)} allowFreeText />
             <Input
               label="Date"
               value={today}

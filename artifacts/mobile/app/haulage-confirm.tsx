@@ -31,6 +31,8 @@ import type { HaulageConfirmation } from "@/lib/types";
 import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
 import { cropDispatchDocketHtml } from "@/lib/printTemplates";
 import { usePrint } from "@/lib/hooks/usePrint";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 interface Haulier { id: number; companyName: string; }
 
@@ -150,6 +152,13 @@ export default function HaulageConfirmScreen() {
   const [haulierName, setHaulierName] = useState(params.planHaulierName ?? "");
   const [vehicleReg, setVehicleReg] = useState("");
   const [driverName, setDriverName] = useState("");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) => {
+      setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
+    });
+  }, [currentFarm?.id]);
   const [cropType, setCropType] = useState(params.planCommodity ?? "");
   const [quantityTonnes, setQuantityTonnes] = useState("");
   const [destination, setDestination] = useState(params.planDestination ?? "");
@@ -336,13 +345,9 @@ export default function HaulageConfirmScreen() {
               onChangeText={setVehicleReg}
               containerStyle={styles.flex}
             />
-            <Input
-              label="Driver Name"
-              placeholder="Driver's name"
-              value={driverName}
-              onChangeText={setDriverName}
-              containerStyle={styles.flex}
-            />
+            <View style={styles.flex}>
+              <LookupPicker label="Driver Name" options={staffOptions} value={driverName} onSelect={(_id, l) => setDriverName(l)} allowFreeText />
+            </View>
           </View>
 
           <View style={styles.sectionLabel}>

@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -27,6 +27,8 @@ import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { PoultryWelfareCheck } from "@/lib/types";
 import { usePrint } from "@/lib/hooks/usePrint";
 import { poultryWelfareCheckHtml } from "@/lib/printTemplates";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 type LitterCondition = PoultryWelfareCheck["litterCondition"];
 type BirdBehaviour = PoultryWelfareCheck["birdBehaviour"];
@@ -69,6 +71,13 @@ export default function PoultryWelfareCheckScreen() {
   const [houseName, setHouseName] = useState("");
   const [flockId, setFlockId] = useState("");
   const [checkedBy, setCheckedBy] = useState(user?.name || "");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) => {
+      setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
+    });
+  }, [currentFarm?.id]);
   const [ambientTempC, setAmbientTempC] = useState("");
   const [ventilationOk, setVentilationOk] = useState(true);
   const [lightingOk, setLightingOk] = useState(true);
@@ -172,12 +181,7 @@ export default function PoultryWelfareCheckScreen() {
             value={flockId}
             onChangeText={setFlockId}
           />
-          <Input
-            label="Checked By"
-            placeholder="Operator name"
-            value={checkedBy}
-            onChangeText={setCheckedBy}
-          />
+          <LookupPicker label="Checked By" options={staffOptions} value={checkedBy} onSelect={(_id, l) => setCheckedBy(l)} allowFreeText />
 
           <View style={styles.sectionLabel}>
             <Feather name="thermometer" size={14} color={colors.info} />

@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -24,6 +24,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { ColdStoreTempReading } from "@/lib/types";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 const STORE_TYPES = ["Cold Room", "Blast Chiller", "CA Store", "Refrigerated Container", "Walk-in Freezer", "Other"];
 
@@ -45,6 +47,13 @@ export default function ColdStoreTempScreen() {
   const [targetMinC, setTargetMinC] = useState("");
   const [targetMaxC, setTargetMaxC] = useState("");
   const [recordedBy, setRecordedBy] = useState(user?.name || "");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) => {
+      setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
+    });
+  }, [currentFarm?.id]);
   const [alertTriggered, setAlertTriggered] = useState(false);
   const [actionTaken, setActionTaken] = useState("");
   const [notes, setNotes] = useState("");
@@ -150,7 +159,7 @@ export default function ColdStoreTempScreen() {
             </View>
           )}
 
-          <Input label="Recorded By" value={recordedBy} onChangeText={setRecordedBy} placeholder="Name" />
+          <LookupPicker label="Recorded By" options={staffOptions} value={recordedBy} onSelect={(_id, l) => setRecordedBy(l)} allowFreeText />
 
           <Text style={styles.sectionTitle}>Alert & Action</Text>
           <View style={[styles.switchRow, alertTriggered && { borderColor: colors.error }]}>

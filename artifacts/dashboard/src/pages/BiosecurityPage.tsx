@@ -25,6 +25,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { useToast } from "@/hooks/use-toast";
+import { useFarmMembers } from "@/hooks/use-farm-members";
+import { StaffSelect } from "@/components/ui/staff-select";
 
 type MainTab = "visitors" | "pest-control" | "cleaning" | "coshh" | "biosecurity-plan";
 
@@ -1093,6 +1095,8 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
   const ramsRecords: RiskAssessment[] = ramsData?.records ?? [];
   const schedules: CleaningSchedule[] = schedulesData?.schedules ?? [];
 
+  const { data: cleanMembersData, isLoading: cleanMembersLoading } = useFarmMembers(farmId);
+  const cleanStaffNames = (cleanMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
   const knownStaff: string[] = [...new Set([
     ...records.map(r => r.cleanedBy).filter(Boolean) as string[],
     ...records.map(r => r.verifiedBy).filter(Boolean) as string[],
@@ -1587,8 +1591,7 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Verified By</label>
-                  <Input list="verified-staff-list" placeholder="Supervisor / farm manager" value={form.verifiedBy} onChange={e => setForm(f => ({ ...f, verifiedBy: e.target.value }))} />
-                  <datalist id="verified-staff-list">{knownStaff.map(n => <option key={n} value={n} />)}</datalist>
+                  <StaffSelect value={form.verifiedBy} onChange={v => setForm(f => ({ ...f, verifiedBy: v }))} staffNames={cleanStaffNames} loading={cleanMembersLoading} />
                 </div>
               </div>
 
@@ -1852,6 +1855,8 @@ function CoshhTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const [viewCoshh, setViewCoshh] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState<any>({ substanceName: "", manufacturer: "", hazardClassification: "", usageArea: "", storageLocation: "", controlMeasures: "", ppe: "", emergencyProcedures: "", assessedBy: "", assessmentDate: "", reviewDate: "", notes: "" });
+  const { data: coshhMembersData, isLoading: coshhMembersLoading } = useFarmMembers(farmId);
+  const coshhStaffNames = (coshhMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
 
   const q = useQuery({
     queryKey: ["coshh", farmId],
@@ -1979,7 +1984,7 @@ function CoshhTab({ farmId, farmName }: { farmId: number; farmName: string }) {
             <div><Label>Control Measures / PPE Required</Label><Textarea placeholder="Describe PPE, handling precautions, ventilation requirements..." value={form.controlMeasures} onChange={e => setForm((f: any) => ({ ...f, controlMeasures: e.target.value }))} rows={2} /></div>
             <div><Label>Emergency Procedures</Label><Textarea placeholder="Spill response, first aid, emergency contacts..." value={form.emergencyProcedures} onChange={e => setForm((f: any) => ({ ...f, emergencyProcedures: e.target.value }))} rows={2} /></div>
             <div className="grid grid-cols-3 gap-3">
-              <div><Label>Assessed By</Label><Input value={form.assessedBy} onChange={e => setForm((f: any) => ({ ...f, assessedBy: e.target.value }))} /></div>
+              <div><Label>Assessed By</Label><StaffSelect value={form.assessedBy} onChange={v => setForm((f: any) => ({ ...f, assessedBy: v }))} staffNames={coshhStaffNames} loading={coshhMembersLoading} /></div>
               <div><Label>Assessment Date <span style={{ color: "#ef4444" }}>*</span></Label><Input type="date" value={form.assessmentDate} onChange={e => setForm((f: any) => ({ ...f, assessmentDate: e.target.value }))} /></div>
               <div><Label>Review Date</Label><Input type="date" value={form.reviewDate} onChange={e => setForm((f: any) => ({ ...f, reviewDate: e.target.value }))} /></div>
             </div>

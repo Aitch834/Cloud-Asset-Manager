@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   Image,
@@ -30,6 +30,8 @@ import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { CleaningRecord, CleaningStockConsumption } from "@/lib/types";
 import { usePrint } from "@/lib/hooks/usePrint";
 import { cleaningRecordHtml } from "@/lib/printTemplates";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 const CLEANING_TYPES = [
   { key: "routine-clean", label: "Routine clean", icon: "wind" as const },
@@ -103,6 +105,13 @@ export default function CleaningRecordScreen() {
   const [dilutionRate, setDilutionRate] = useState("");
   const [contactTime, setContactTime] = useState("");
   const [cleanedBy, setCleanedBy] = useState(user?.name || "");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) => {
+      setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
+    });
+  }, [currentFarm?.id]);
   const [cleanedDate, setCleanedDate] = useState(today);
   const [nextDueDate, setNextDueDate] = useState("");
   const [verifiedBy, setVerifiedBy] = useState("");
@@ -453,19 +462,8 @@ export default function CleaningRecordScreen() {
             <Feather name="user" size={14} color={colors.textSecondary} />
             <Text style={styles.sectionTitle}>People</Text>
           </View>
-          <Text style={styles.fieldLabel}>Cleaned by</Text>
-          <Input
-            placeholder="Name of person who carried out the clean"
-            value={cleanedBy}
-            onChangeText={setCleanedBy}
-            style={{ marginBottom: spacing.sm }}
-          />
-          <Text style={styles.fieldLabel}>Verified by</Text>
-          <Input
-            placeholder="Supervisor or checker (optional)"
-            value={verifiedBy}
-            onChangeText={setVerifiedBy}
-          />
+          <LookupPicker label="Cleaned By" options={staffOptions} value={cleanedBy} onSelect={(_id, l) => setCleanedBy(l)} allowFreeText />
+          <LookupPicker label="Verified By" options={staffOptions} value={verifiedBy} onSelect={(_id, l) => setVerifiedBy(l)} allowFreeText />
 
           {/* Dates */}
           <View style={[styles.sectionLabel, { marginTop: spacing.lg }]}>

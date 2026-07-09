@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -23,6 +23,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { STORAGE_KEYS, appendToList } from "@/lib/storage";
 import type { DairyBcsRecord } from "@/lib/types";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 const BCS_SCORES = ["1.0", "1.5", "2.0", "2.5", "3.0", "3.5", "4.0", "4.5", "5.0"];
 const LIFE_STAGES = [
@@ -95,6 +97,13 @@ export default function BodyConditionScoreScreen() {
   const [bcsScore, setBcsScore] = useState("");
   const [targetScore, setTargetScore] = useState("");
   const [assessedBy, setAssessedBy] = useState(user?.name || "");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) => {
+      setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
+    });
+  }, [currentFarm?.id]);
   const [actionRequired, setActionRequired] = useState(false);
   const [actionTaken, setActionTaken] = useState("");
   const [notes, setNotes] = useState("");
@@ -236,8 +245,7 @@ export default function BodyConditionScoreScreen() {
         </Section>
 
         <Section title="Assessor">
-          <Text style={styles.label}>Assessed By</Text>
-          <Input placeholder="e.g. John Smith" value={assessedBy} onChangeText={setAssessedBy} />
+          <LookupPicker label="Assessed By" options={staffOptions} value={assessedBy} onSelect={(_id, l) => setAssessedBy(l)} allowFreeText />
         </Section>
 
         <Section title="Action">

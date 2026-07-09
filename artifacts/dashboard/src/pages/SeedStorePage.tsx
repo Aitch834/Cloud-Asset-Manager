@@ -4,7 +4,9 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useCrops } from "@/hooks/use-crops";
+import { useFarmMembers } from "@/hooks/use-farm-members";
 import { TabButton, TabBar } from "@/components/ui/tab-button";
+import { StaffSelect } from "@/components/ui/staff-select";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -370,6 +372,9 @@ export default function SeedStorePage() {
     const t = p.get("tab") as Tab | null;
     return t === "orders" || t === "segregation" ? t : "stock";
   });
+
+  const { data: membersData, isLoading: membersLoading } = useFarmMembers(safeFarmId);
+  const staffNames = (membersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
 
   const { data: cropsData } = useCrops(safeFarmId);
   const cropRows: any[] = (cropsData as any)?.records ?? [];
@@ -1104,7 +1109,7 @@ export default function SeedStorePage() {
               </div>
               <div>
                 <Label className="text-xs mb-1 block">Checked By</Label>
-                <Input value={segForm.checkedBy ?? ""} onChange={e => setSegForm((f: any) => ({ ...f, checkedBy: e.target.value }))} placeholder="Staff member name" />
+                <StaffSelect value={segForm.checkedBy ?? ""} onChange={v => setSegForm((f: any) => ({ ...f, checkedBy: v }))} staffNames={staffNames} loading={membersLoading} />
               </div>
               <div>
                 <Label className="text-xs mb-1 block">Notes</Label>
@@ -1270,7 +1275,7 @@ export default function SeedStorePage() {
                 </div>
                 <div>
                   <Label>Received By</Label>
-                  <Input value={form.receivedBy} onChange={e => setForm((f: any) => ({ ...f, receivedBy: e.target.value }))} placeholder="Staff member name" />
+                  <StaffSelect value={form.receivedBy} onChange={v => setForm((f: any) => ({ ...f, receivedBy: v }))} staffNames={staffNames} loading={membersLoading} />
                 </div>
               </div>
               <div>

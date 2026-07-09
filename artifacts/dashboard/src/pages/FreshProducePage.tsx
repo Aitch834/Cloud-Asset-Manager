@@ -16,6 +16,8 @@ import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
 import { Redirect } from "wouter";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useFarmMembers } from "@/hooks/use-farm-members";
+import { StaffSelect } from "@/components/ui/staff-select";
 
 const api = (path: string) => `/api/${path}`;
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
@@ -741,6 +743,8 @@ export function IntakeTab({ farmId }: { farmId: number }) {
     queryFn: () => fetch(api(`farms/${farmId}/fresh-produce-storage-locations`), { credentials: "include" }).then(r => r.json()),
   });
 
+  const { data: fpMembersData, isLoading: fpMembersLoading } = useFarmMembers(farmId);
+  const fpStaffNames = (fpMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
   const knownStaff = [...new Set(records.map(r => r.receivedBy as string).filter(Boolean))].sort() as string[];
 
   // Fire a toast when pre-cooling end time is reached (and no achieved temp recorded yet)
@@ -1007,18 +1011,10 @@ export function IntakeTab({ farmId }: { farmId: number }) {
               </Select>
             </div>
 
-            {/* Received By — datalist from previous records */}
+            {/* Received By */}
             <div>
               <Label>Received By</Label>
-              <Input
-                list="fp-staff-names"
-                value={String(form.receivedBy ?? "")}
-                onChange={e => setForm(f => ({ ...f, receivedBy: e.target.value }))}
-                placeholder="Name of receiver…"
-              />
-              <datalist id="fp-staff-names">
-                {knownStaff.map(s => <option key={s} value={s} />)}
-              </datalist>
+              <StaffSelect value={String(form.receivedBy ?? "")} onChange={v => setForm(f => ({ ...f, receivedBy: v }))} staffNames={fpStaffNames} loading={fpMembersLoading} />
             </div>
 
             {/* Condition warning */}

@@ -16,6 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useFarmMembers } from "@/hooks/use-farm-members";
+import { StaffSelect } from "@/components/ui/staff-select";
 
 const api = (path: string) => `/api/${path}`;
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
@@ -461,6 +463,8 @@ function RTChecklistTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [yearFilter, setYearFilter] = useState("all");
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["beef-rt", farmId], queryFn: () => fetch(api(`farms/${farmId}/beef-rt-checklists`), { credentials: "include" }).then(r => r.json()) });
+  const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
+  const staffNames = (membersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
   const save = useMutation({ mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/beef-rt-checklists/${editing.id}`) : api(`farms/${farmId}/beef-rt-checklists`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); }, onSuccess: () => { qc.invalidateQueries({ queryKey: ["beef-rt", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/beef-rt-checklists/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["beef-rt", farmId] }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
@@ -523,7 +527,7 @@ function RTChecklistTab({ farmId }: { farmId: number }) {
         <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{editing ? "Edit" : "New"} RT Beef & Cattle Checklist</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Check Date *"><Input type="date" value={form.checkDate ?? ""} onChange={e => sf("checkDate", e.target.value)} /></Field>
-            <Field label="Checked By"><Input value={form.checkedBy ?? ""} onChange={e => sf("checkedBy", e.target.value)} /></Field>
+            <Field label="Checked By"><StaffSelect value={form.checkedBy ?? ""} onChange={v => sf("checkedBy", v)} staffNames={staffNames} loading={membersLoading} /></Field>
             <div className="col-span-2 grid grid-cols-1 gap-2 border rounded p-3">
               {boolFields.map(k => (
                 <div key={k} className="flex items-center gap-2">

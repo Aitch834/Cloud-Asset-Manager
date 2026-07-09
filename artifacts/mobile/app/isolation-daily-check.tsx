@@ -22,6 +22,8 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { getItem, STORAGE_KEYS } from "@/lib/storage";
 import { getApiBase } from "@/lib/uploadPhoto";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 type HealthStatus = "satisfactory" | "monitoring" | "poor" | "clear";
 
@@ -51,6 +53,13 @@ export default function IsolationDailyCheckScreen() {
 
   const [checkDate, setCheckDate] = useState(new Date().toISOString().slice(0, 10));
   const [checkedBy, setCheckedBy] = useState(user?.name || "");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) => {
+      setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
+    });
+  }, [currentFarm?.id]);
   const [healthStatus, setHealthStatus] = useState<HealthStatus>("satisfactory");
   const [temperatureCelsius, setTemperatureCelsius] = useState("");
   const [notes, setNotes] = useState("");
@@ -153,8 +162,7 @@ export default function IsolationDailyCheckScreen() {
               <Text style={styles.fieldLabel}>Check Date *</Text>
               <Input value={checkDate} onChangeText={setCheckDate} placeholder="YYYY-MM-DD" />
 
-              <Text style={[styles.fieldLabel, { marginTop: spacing.md }]}>Checked By</Text>
-              <Input value={checkedBy} onChangeText={setCheckedBy} placeholder="Your name" />
+              <LookupPicker label="Checked By" options={staffOptions} value={checkedBy} onSelect={(_id, l) => setCheckedBy(l)} allowFreeText />
 
               <Text style={[styles.fieldLabel, { marginTop: spacing.md }]}>Health Status</Text>
               <View style={styles.statusRow}>
