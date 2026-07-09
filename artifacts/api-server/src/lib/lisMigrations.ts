@@ -126,4 +126,6 @@ export async function runLisMigrations(): Promise<void> {
   await db.execute(sql`ALTER TABLE lip_submissions ADD COLUMN IF NOT EXISTS confirmed_at timestamptz`);
   await db.execute(sql`ALTER TABLE lip_submissions ADD COLUMN IF NOT EXISTS confirmed_action text`);
   await db.execute(sql`ALTER TABLE lip_submissions ADD COLUMN IF NOT EXISTS cancelled_at timestamptz`);
+  // Async processing — stores the UUID returned by 202 AsyncAcceptedResponse so we can poll GET /requeststatus/{id}
+  await db.execute(sql`ALTER TABLE lip_submissions ADD COLUMN IF NOT EXISTS async_request_id text`);
 }

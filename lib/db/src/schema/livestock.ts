@@ -936,6 +936,7 @@ export const lipSubmissionsTable = pgTable("lip_submissions", {
   confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
   confirmedAction: text("confirmed_action"),              // "accept" | "reject"
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  asyncRequestId: text("async_request_id"),               // LIS async request UUID (from 202 AsyncAcceptedResponse.id)
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

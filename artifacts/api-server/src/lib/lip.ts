@@ -427,6 +427,22 @@ export interface LipSubmissionResult {
   responsePayload?: unknown;
   errorMessage?: string;
   subscriptionPending?: boolean;
+  /** Set when LIS returns 202 Accepted — the UUID to poll via GET /requeststatus/{id} */
+  asyncRequestId?: string;
+  /** True when the submission was accepted async (202) and outcome is not yet known */
+  asyncPending?: boolean;
+}
+
+/**
+ * When LIS returns 202 (Accepted) the request is processed asynchronously.
+ * Response body follows AsyncAcceptedResponse: { id, requestStatus, requestDate }.
+ * The `id` UUID is used to poll GET /requeststatus/{requestId} for the final outcome.
+ */
+function handle202Async(requestPayload: unknown, responseData: unknown): LipSubmissionResult {
+  const d = responseData as { id?: string; requestStatus?: string } | null;
+  const asyncRequestId = d?.id;
+  const ref = asyncRequestId ?? `LIP-ASYNC-${Date.now()}`;
+  return { sandbox: false, success: true, asyncPending: true, asyncRequestId, lipReference: ref, requestPayload, responsePayload: responseData };
 }
 
 /**
@@ -558,6 +574,7 @@ export async function submitLipMovement(params: LipMovementParams): Promise<LipS
     };
   }
 
+  if (res.status === 202) return handle202Async(movementData, res.data);
   const d = res.data as Record<string, unknown>;
   const ref = String(d["movementNumber"] ?? d["reference"] ?? d["notificationRef"] ?? d["id"] ?? `LIP-${Date.now()}`);
   return { sandbox: false, success: true, lipReference: ref, requestPayload: movementData, responsePayload: d };
@@ -630,6 +647,7 @@ export async function submitLipBirth(params: LipBirthParams): Promise<LipSubmiss
     };
   }
 
+  if (res.status === 202) return handle202Async(payload, res.data);
   const d = res.data as Record<string, unknown>;
   const ref = String(d["identifier"] ?? d["reference"] ?? d["id"] ?? `LIP-BIRTH-${Date.now()}`);
   return { sandbox: false, success: true, lipReference: ref, requestPayload: payload, responsePayload: d };
@@ -688,6 +706,7 @@ export async function submitLipLostFound(params: LipLostFoundParams): Promise<Li
     };
   }
 
+  if (res.status === 202) return handle202Async(payload, res.data);
   const d = res.data as Record<string, unknown>;
   const ref = String(d["id"] ?? d["reference"] ?? `LIP-LOSTFOUND-${Date.now()}`);
   return { sandbox: false, success: true, lipReference: ref, requestPayload: payload, responsePayload: d };
@@ -807,7 +826,64 @@ export async function submitLipDeath(params: LipDeathParams): Promise<LipSubmiss
     };
   }
 
+  if (res.status === 202) return handle202Async(payload, res.data);
   const d = res.data as Record<string, unknown>;
   const ref = String(d["identifier"] ?? d["reference"] ?? d["id"] ?? `LIP-DEATH-${Date.now()}`);
   return { sandbox: false, success: true, lipReference: ref, requestPayload: payload, responsePayload: d };
+}
+
+// ── Rejection reason lookup ───────────────────────────────────────────────────
+
+export interface LipRejectionReason {
+  rejectionReasonId: string;
+  rejectionReason: string;
+}
+
+/**
+ * Fetch all movement rejection reasons from the LIS LIP API.
+ * Endpoint: GET /rejectionreasons
+ * Used to populate the reject-movement dialog dropdown.
+ * Returns an empty array on any error so the UI gracefully falls back to free text.
+ */
+export async function getLipRejectionReasons(accessToken: string): Promise<LipRejectionReason[]> {
+  const res = await callLipApi(accessToken, "GET", "/rejectionreasons");
+  if (!res.ok) return [];
+  const data = res.data as { count?: number; values?: LipRejectionReason[] } | null;
+  return data?.values ?? [];
+}
+
+// ── Async request status polling ──────────────────────────────────────────────
+
+export interface LipRequestStatusResult {
+  /** "Pending" | "Completed" | "Failed" (LIS-defined enum values) */
+  status: string;
+  /** Resolved reference once Completed — movementNumber for movements, identifier for animals */
+  lipReference?: string;
+  /** Raw result payload from LIS */
+  result?: Record<string, unknown>;
+  errorMessage?: string;
+}
+
+/**
+ * Check the status of an async LIS LIP request submitted with a 202 response.
+ * Endpoint: GET /requeststatus/{requestId}
+ * Response: RequestStatus { status: AsyncRequestStatus, result: MovementResponse1 | AnimalResponse }
+ */
+export async function checkLipRequestStatus(accessToken: string, requestId: string): Promise<LipRequestStatusResult> {
+  const res = await callLipApi(accessToken, "GET", `/requeststatus/${encodeURIComponent(requestId)}`);
+  if (!res.ok) {
+    return {
+      status: "Unknown",
+      errorMessage: `HTTP ${res.status}: ${typeof res.data === "string" ? res.data : JSON.stringify(res.data)}`,
+    };
+  }
+  const data = res.data as { status?: string; result?: Record<string, unknown> } | null;
+  const result = data?.result ?? {};
+  const movementNumber = result["movementNumber"] != null ? String(result["movementNumber"]) : undefined;
+  const identifier    = result["identifier"]    != null ? String(result["identifier"])    : undefined;
+  return {
+    status: data?.status ?? "Unknown",
+    lipReference: movementNumber ?? identifier,
+    result,
+  };
 }

@@ -1094,6 +1094,7 @@ export default function Movements() {
   const [activeTab, setActiveTab] = useState<"movements" | "mortality" | "bcms-submissions" | "lis-submissions" | "lip-submissions" | "lip-lost-found">("movements");
   const [lipActionDialog, setLipActionDialog] = useState<{ type: "confirm" | "reject" | "cancel"; submissionId: number; lipReference: string } | null>(null);
   const [lipActionReason, setLipActionReason] = useState("");
+  const [lipRejectionReasonId, setLipRejectionReasonId] = useState("");
   const [showLostFoundForm, setShowLostFoundForm] = useState(false);
   const [lostFoundViewId, setLostFoundViewId] = useState<number | null>(null);
   const [lostFoundEditId, setLostFoundEditId] = useState<number | null>(null);
@@ -1260,6 +1261,14 @@ export default function Movements() {
   });
   const lipConfigured = !!lipCredsData?.configured;
 
+  const { data: lipRejectionReasonsData } = useQuery({
+    queryKey: ["lip-rejection-reasons", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/lip-rejection-reasons`).then(r => r.json()),
+    enabled: lipConfigured,
+    staleTime: 10 * 60 * 1000,
+  });
+  const lipRejectionReasons: Array<{ rejectionReasonId: string; rejectionReason: string }> = lipRejectionReasonsData?.reasons ?? [];
+
   const { data: lostFoundData, refetch: refetchLostFound } = useQuery({
     queryKey: ["lip-lost-found", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/lip-lost-found`).then(r => r.json()),
@@ -1287,15 +1296,16 @@ export default function Movements() {
   });
 
   const confirmLipMut = useMutation({
-    mutationFn: (params: { lipReference: string; action: "accept" | "reject"; rejectionReason?: string; submissionId: number }) =>
+    mutationFn: (params: { lipReference: string; action: "accept" | "reject"; rejectionReason?: string; rejectionReasonId?: string; submissionId: number }) =>
       fetch(`/api/farms/${farmId}/lip-confirm-movement`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lipReference: params.lipReference, action: params.action, rejectionReason: params.rejectionReason, submissionId: params.submissionId }),
+        body: JSON.stringify({ lipReference: params.lipReference, action: params.action, rejectionReason: params.rejectionReason, rejectionReasonId: params.rejectionReasonId, submissionId: params.submissionId }),
       }).then(r => r.json()),
     onSuccess: (d) => {
       setLipActionDialog(null);
       setLipActionReason("");
+      setLipRejectionReasonId("");
       refetchLipSubmissions();
       if (d.success) {
         toast({ title: d.sandbox ? "Confirmation sent (sandbox)" : "Movement confirmed", description: d.reference ? `Ref: ${d.reference}` : undefined });
@@ -1304,6 +1314,21 @@ export default function Movements() {
       }
     },
     onError: () => toast({ title: "Confirmation error", variant: "destructive" }),
+  });
+
+  const checkAsyncMut = useMutation({
+    mutationFn: (submissionId: number) =>
+      fetch(`/api/farms/${farmId}/lip-check-async/${submissionId}`, { method: "POST" }).then(r => r.json()),
+    onSuccess: (d, submissionId) => {
+      refetchLipSubmissions();
+      if (d.resolved) {
+        const ok = /completed/i.test(d.status ?? "");
+        toast({ title: ok ? "Submission confirmed" : "Submission failed", description: ok ? (d.reference ? `Ref: ${d.reference}` : "Completed") : `Status: ${d.status}`, variant: ok ? "default" : "destructive" });
+      } else {
+        toast({ title: "Still pending", description: `LIS status: ${d.status ?? "Pending"}` });
+      }
+    },
+    onError: () => toast({ title: "Status check failed", variant: "destructive" }),
   });
 
   const cancelLipMut = useMutation({
@@ -2756,8 +2781,9 @@ export default function Movements() {
                     const statusCfg: Record<string, { bg: string; color: string }> = {
                       submitted:    { bg: "#dcfce7", color: "#166534" },
                       acknowledged: { bg: "#dcfce7", color: "#166534" },
-                      pending:      { bg: "#fef3c7", color: "#92400e" },
-                      failed:       { bg: "#fee2e2", color: "#991b1b" },
+                      pending:         { bg: "#fef3c7", color: "#92400e" },
+                      "async-pending": { bg: "#ede9fe", color: "#5b21b6" },
+                      failed:          { bg: "#fee2e2", color: "#991b1b" },
                     };
                     const sc = statusCfg[s.status] ?? { bg: "#f3f4f6", color: "#6b7280" };
                     return (
@@ -2814,6 +2840,16 @@ export default function Movements() {
                                 style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: "0.68rem", padding: "2px 7px", borderRadius: 5, border: "1px solid #e5e7eb", background: "#f9fafb", color: "#6b7280", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
                               >Cancel</button>
                             </div>
+                          )}
+                          {s.status === "async-pending" && (
+                            <button
+                              disabled={checkAsyncMut.isPending && checkAsyncMut.variables === s.id}
+                              onClick={() => checkAsyncMut.mutate(s.id)}
+                              style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: "0.68rem", padding: "2px 7px", borderRadius: 5, border: "1px solid #ddd6fe", background: "#f5f3ff", color: "#5b21b6", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
+                            >
+                              {checkAsyncMut.isPending && checkAsyncMut.variables === s.id ? <Loader2 size={10} className="animate-spin" /> : null}
+                              Check Status
+                            </button>
                           )}
                         </td>
                       </tr>
@@ -3074,30 +3110,60 @@ export default function Movements() {
       </Dialog>
 
       {/* LIP Accept / Reject Dialog */}
-      <Dialog open={lipActionDialog?.type === "confirm" || lipActionDialog?.type === "reject"} onOpenChange={o => { if (!o) { setLipActionDialog(null); setLipActionReason(""); } }}>
+      <Dialog open={lipActionDialog?.type === "confirm" || lipActionDialog?.type === "reject"} onOpenChange={o => { if (!o) { setLipActionDialog(null); setLipActionReason(""); setLipRejectionReasonId(""); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{lipActionDialog?.type === "confirm" ? "Accept Movement" : "Reject Movement"}</DialogTitle>
             <DialogDescription>
               {lipActionDialog?.type === "confirm"
                 ? `Accept movement ${lipActionDialog.lipReference} as confirmed at the receiving holding.`
-                : `Reject movement ${lipActionDialog?.lipReference}. Provide a reason if required.`}
+                : `Reject movement ${lipActionDialog?.lipReference}. Select a reason from the list.`}
             </DialogDescription>
           </DialogHeader>
           {lipActionDialog?.type === "reject" && (
-            <div style={{ padding: "0 0 8px" }}>
-              <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Rejection Reason</label>
-              <textarea
-                value={lipActionReason}
-                onChange={e => setLipActionReason(e.target.value)}
-                placeholder="Optional — describe why this movement is being rejected"
-                rows={3}
-                style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "8px 10px", fontSize: "0.875rem" }}
-              />
+            <div style={{ padding: "0 0 8px", display: "flex", flexDirection: "column", gap: 10 }}>
+              {lipRejectionReasons.length > 0 ? (
+                <div>
+                  <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Rejection Reason</label>
+                  <select
+                    value={lipRejectionReasonId}
+                    onChange={e => setLipRejectionReasonId(e.target.value)}
+                    style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "8px 10px", fontSize: "0.875rem", background: "#fff" }}
+                  >
+                    <option value="">— Select a reason —</option>
+                    {lipRejectionReasons.map(r => (
+                      <option key={r.rejectionReasonId} value={r.rejectionReasonId}>{r.rejectionReason}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Rejection Reason</label>
+                  <textarea
+                    value={lipActionReason}
+                    onChange={e => setLipActionReason(e.target.value)}
+                    placeholder="Describe why this movement is being rejected"
+                    rows={3}
+                    style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "8px 10px", fontSize: "0.875rem" }}
+                  />
+                </div>
+              )}
+              {lipRejectionReasonId && (
+                <div>
+                  <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Additional Notes (optional)</label>
+                  <textarea
+                    value={lipActionReason}
+                    onChange={e => setLipActionReason(e.target.value)}
+                    placeholder="Any additional notes"
+                    rows={2}
+                    style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "8px 10px", fontSize: "0.875rem" }}
+                  />
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setLipActionDialog(null); setLipActionReason(""); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setLipActionDialog(null); setLipActionReason(""); setLipRejectionReasonId(""); }}>Cancel</Button>
             <Button
               disabled={confirmLipMut.isPending}
               onClick={() => {
@@ -3107,6 +3173,7 @@ export default function Movements() {
                   lipReference: lipActionDialog.lipReference,
                   action: lipActionDialog.type === "confirm" ? "accept" : "reject",
                   rejectionReason: lipActionReason || undefined,
+                  rejectionReasonId: lipRejectionReasonId || undefined,
                 });
               }}
               style={{ background: lipActionDialog?.type === "confirm" ? "#166534" : "#991b1b", color: "#fff" }}
