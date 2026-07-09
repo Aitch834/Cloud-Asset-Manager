@@ -363,6 +363,30 @@ Browsers do NOT follow SW-returned redirects (`Response.redirect(302)`) for ES m
    browsers that have the old SW installed to register the new one and call skipWaiting().
    The vite.config.ts regex `/sw(?:-v\d+)?\.js/` matches any version suffix automatically.
 
+## React Refresh collision — ALL pages loaded eagerly (CRITICAL — found 2026-07-09)
+
+Dashboard App.tsx imports ALL pages statically (not lazy, except FlyTippingPage).
+React Refresh registers component families for EVERY page simultaneously. When two
+pages define a component with the SAME function name (e.g. `TabBar`, `EmptyState`,
+`ConfirmDialog`), React Refresh conflates their families → `performReactRefresh()`
+fires during the initial render → "Invalid hook call" on whichever component's first
+hook runs at that moment.
+
+**How to detect:** `grep -rn "^function X\|^export function X" .../pages/ --include="*.tsx"` for any name appearing in 2+ files → collision.
+
+**Fix:** Rename the local functions with a 2-4 char page prefix so each name is unique across the entire pages/ tree. For OrganicVenisonPage use `OV` prefix, VenisonProductionPage use `VP` prefix, etc.
+
+**Applied (2026-07-09):**
+- OrganicVenisonPage.tsx: TabBar→OVTabBar, TabButton→OVTabButton, SectionHeader→OVSectionHeader, EmptyState→OVEmptyState, FieldView→OVFieldView
+- VenisonProductionPage.tsx: TabBar→VPTabBar, TabButton→VPTabButton, SectionHeader→VPSectionHeader, EmptyState→VPEmptyState, KpiCard→VPKpiCard, FieldView→VPFieldView
+
+**Outstanding collisions (not yet renamed — may cause other page crashes):**
+- `ConfirmDialog` — 16 files (LivestockPage, FarmSettings, BeefProductionPage, SheepProductionPage, PigProductionPage, PoultryProductionPage, GoatProductionPage, ViticulturePage, BiofuelPage, CarbonPage, DiversificationPage, EnvironmentalPageFull, WaterIrrigationPage, FreshProducePage, SoilSensorsTab, FlocksTab)
+- `EmptyState` — still in BusinessReportsPage, OrganicArablePage, OrganicVenisonPage*, VenisonProductionPage*, SuppliersStock, HarvestPage, SprayPage
+- `DataTable` — 11 files; `StatusBadge` — 13 files; `StatCard` — 6 files; etc.
+
+**Rule:** When a new page is crashing with "Invalid hook call" and the SW is active and the file is large (>512KB), check for name collisions FIRST before investigating proxy cache issues.
+
 ## HTML response must also have no-store (CRITICAL — fixed 2026-07-09)
 
 The `isModuleUrl` guard that overrides `Cache-Control: no-store` was missing HTML

@@ -44,10 +44,10 @@ const CERT_TYPES = [
 ];
 
 // ─── SHARED UI HELPERS ────────────────────────────────────────────────────────
-function TabBar({ children }: { children: ReactNode }) {
+function VPTabBar({ children }: { children: ReactNode }) {
   return <div className="flex gap-1 flex-wrap border-b border-border mb-4 pb-2">{children}</div>;
 }
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+function VPTabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <button
       onClick={onClick}
@@ -57,7 +57,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
     </button>
   );
 }
-function SectionHeader({ title, onAdd, addLabel }: { title: string; onAdd: () => void; addLabel: string }) {
+function VPSectionHeader({ title, onAdd, addLabel }: { title: string; onAdd: () => void; addLabel: string }) {
   return (
     <div className="flex items-center justify-between mb-4">
       <h2 className="text-lg font-semibold">{title}</h2>
@@ -65,7 +65,7 @@ function SectionHeader({ title, onAdd, addLabel }: { title: string; onAdd: () =>
     </div>
   );
 }
-function EmptyState({ icon: Icon, message }: { icon: any; message: string }) {
+function VPEmptyState({ icon: Icon, message }: { icon: any; message: string }) {
   return (
     <div className="text-center py-12 text-muted-foreground text-sm">
       <Icon className="w-8 h-8 mx-auto mb-3 opacity-30" />
@@ -73,7 +73,7 @@ function EmptyState({ icon: Icon, message }: { icon: any; message: string }) {
     </div>
   );
 }
-function KpiCard({ label, value, bg, text, sub }: { label: string; value: any; bg: string; text: string; sub: string }) {
+function VPKpiCard({ label, value, bg, text, sub }: { label: string; value: any; bg: string; text: string; sub: string }) {
   return (
     <div className={`${bg} rounded-xl border p-4 text-center`}>
       <p className={`text-xl font-bold ${text}`}>{value}</p>
@@ -90,7 +90,7 @@ const fmtGbp = (val: unknown) => {
   if (!val) return "—";
   return `£${Number(val).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
-function FieldView({ label, value }: { label: string; value: ReactNode }) {
+function VPFieldView({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <p className="text-xs text-muted-foreground">{label}</p>
@@ -117,7 +117,7 @@ function HerdsTab({ farmId }: { farmId: number }) {
         <p>Deer herds are registered in <strong>Livestock → Herds & Animals</strong>. Set the species to <em>Deer</em> (or a specific deer species) when creating a herd. All records in this Venison Production module link back to herds from that register.</p>
       </div>
       {deerHerds.length === 0 ? (
-        <EmptyState icon={Crosshair} message="No deer herds found. Add a deer herd in Livestock → Herds & Animals first." />
+        <VPEmptyState icon={Crosshair} message="No deer herds found. Add a deer herd in Livestock → Herds & Animals first." />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {deerHerds.map((h: any) => (
@@ -195,10 +195,10 @@ function CullRecordsTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <KpiCard label="Cull Records" value={filtered.length} bg="bg-green-50 border-green-100" text="text-green-800" sub="text-green-700" />
-        <KpiCard label="Total Carcass Wt (kg)" value={totalCarcassKg > 0 ? `${totalCarcassKg.toFixed(1)} kg` : "—"} bg="bg-amber-50 border-amber-100" text="text-amber-800" sub="text-amber-700" />
-        <KpiCard label="Food Safety Issues" value={foodSafetyIssues || "None"} bg={foodSafetyIssues > 0 ? "bg-red-50 border-red-100" : "bg-gray-50 border-gray-100"} text={foodSafetyIssues > 0 ? "text-red-800" : "text-gray-700"} sub={foodSafetyIssues > 0 ? "text-red-600" : "text-gray-500"} />
-        <KpiCard label="Notifiable Suspect" value={notifiable || "None"} bg={notifiable > 0 ? "bg-red-50 border-red-100" : "bg-gray-50 border-gray-100"} text={notifiable > 0 ? "text-red-800" : "text-gray-700"} sub={notifiable > 0 ? "text-red-600" : "text-gray-500"} />
+        <VPKpiCard label="Cull Records" value={filtered.length} bg="bg-green-50 border-green-100" text="text-green-800" sub="text-green-700" />
+        <VPKpiCard label="Total Carcass Wt (kg)" value={totalCarcassKg > 0 ? `${totalCarcassKg.toFixed(1)} kg` : "—"} bg="bg-amber-50 border-amber-100" text="text-amber-800" sub="text-amber-700" />
+        <VPKpiCard label="Food Safety Issues" value={foodSafetyIssues || "None"} bg={foodSafetyIssues > 0 ? "bg-red-50 border-red-100" : "bg-gray-50 border-gray-100"} text={foodSafetyIssues > 0 ? "text-red-800" : "text-gray-700"} sub={foodSafetyIssues > 0 ? "text-red-600" : "text-gray-500"} />
+        <VPKpiCard label="Notifiable Suspect" value={notifiable || "None"} bg={notifiable > 0 ? "bg-red-50 border-red-100" : "bg-gray-50 border-gray-100"} text={notifiable > 0 ? "text-red-800" : "text-gray-700"} sub={notifiable > 0 ? "text-red-600" : "text-gray-500"} />
       </div>
       <div className="flex flex-wrap justify-between items-center gap-2">
         <h2 className="text-lg font-semibold">Stalking & Cull Records</h2>
@@ -215,7 +215,7 @@ function CullRecordsTab({ farmId }: { farmId: number }) {
         </div>
       </div>
       {filtered.length === 0 ? (
-        <EmptyState icon={Crosshair} message="No cull records yet. Add your first stalking or cull record above." />
+        <VPEmptyState icon={Crosshair} message="No cull records yet. Add your first stalking or cull record above." />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
@@ -270,23 +270,23 @@ function CullRecordsTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>{dlg.mode === "view" ? "Cull Record" : dlg.mode === "edit" ? "Edit Cull Record" : "Add Cull Record"}</DialogTitle></DialogHeader>
           {dlg.mode === "view" ? (
             <div className="grid grid-cols-2 gap-4 py-2">
-              <FieldView label="Cull Date" value={fmtDate(dlg.row.cullDate)} />
-              <FieldView label="Stalker Name" value={fmt(dlg.row.stalkerName)} />
-              <FieldView label="Species" value={fmt(dlg.row.species)} />
-              <FieldView label="Sex" value={fmt(dlg.row.sex)} />
-              <FieldView label="Age Class" value={fmt(dlg.row.ageClass)} />
-              <FieldView label="Location / Beat" value={fmt(dlg.row.locationBeat)} />
-              <FieldView label="Larder No." value={fmt(dlg.row.larderNumber)} />
-              <FieldView label="Carcass No." value={fmt(dlg.row.carcassNumber)} />
-              <FieldView label="Liveweight (kg)" value={fmt(dlg.row.liveweightKg)} />
-              <FieldView label="Gralloch Wt (kg)" value={fmt(dlg.row.grallochWeightKg)} />
-              <FieldView label="Carcass Wt (kg)" value={fmt(dlg.row.carcassWeightKg)} />
-              <FieldView label="Kill-out %" value={dlg.row.killoutPercent ? `${dlg.row.killoutPercent}%` : "—"} />
-              <FieldView label="Cull Method" value={fmt(dlg.row.cullMethod)} />
-              <FieldView label="Cull Reason" value={fmt(dlg.row.cullReason)} />
-              <FieldView label="Food Safety Inspection" value={fmt(dlg.row.foodSafetyInspectionResult)} />
-              <FieldView label="Notifiable Disease Suspect" value={dlg.row.notifiableDiseaseSupect ? "Yes — APHA notified" : "No"} />
-              {dlg.row.notes && <div className="col-span-2"><FieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
+              <VPFieldView label="Cull Date" value={fmtDate(dlg.row.cullDate)} />
+              <VPFieldView label="Stalker Name" value={fmt(dlg.row.stalkerName)} />
+              <VPFieldView label="Species" value={fmt(dlg.row.species)} />
+              <VPFieldView label="Sex" value={fmt(dlg.row.sex)} />
+              <VPFieldView label="Age Class" value={fmt(dlg.row.ageClass)} />
+              <VPFieldView label="Location / Beat" value={fmt(dlg.row.locationBeat)} />
+              <VPFieldView label="Larder No." value={fmt(dlg.row.larderNumber)} />
+              <VPFieldView label="Carcass No." value={fmt(dlg.row.carcassNumber)} />
+              <VPFieldView label="Liveweight (kg)" value={fmt(dlg.row.liveweightKg)} />
+              <VPFieldView label="Gralloch Wt (kg)" value={fmt(dlg.row.grallochWeightKg)} />
+              <VPFieldView label="Carcass Wt (kg)" value={fmt(dlg.row.carcassWeightKg)} />
+              <VPFieldView label="Kill-out %" value={dlg.row.killoutPercent ? `${dlg.row.killoutPercent}%` : "—"} />
+              <VPFieldView label="Cull Method" value={fmt(dlg.row.cullMethod)} />
+              <VPFieldView label="Cull Reason" value={fmt(dlg.row.cullReason)} />
+              <VPFieldView label="Food Safety Inspection" value={fmt(dlg.row.foodSafetyInspectionResult)} />
+              <VPFieldView label="Notifiable Disease Suspect" value={dlg.row.notifiableDiseaseSupect ? "Yes — APHA notified" : "No"} />
+              {dlg.row.notes && <div className="col-span-2"><VPFieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
               {dlg.row.id && <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="venison-cull" recordId={dlg.row.id as number} /></div>}
             </div>
           ) : (
@@ -429,9 +429,9 @@ function CarcassSalesTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <KpiCard label="Sale Records" value={filteredSales.length} bg="bg-green-50 border-green-100" text="text-green-800" sub="text-green-700" />
-        <KpiCard label="Total Carcasses Sold" value={totalCarcasses || "—"} bg="bg-amber-50 border-amber-100" text="text-amber-800" sub="text-amber-700" />
-        <KpiCard label="Total Sales Value" value={totalValue > 0 ? fmtGbp(totalValue) : "—"} bg="bg-blue-50 border-blue-100" text="text-blue-800" sub="text-blue-700" />
+        <VPKpiCard label="Sale Records" value={filteredSales.length} bg="bg-green-50 border-green-100" text="text-green-800" sub="text-green-700" />
+        <VPKpiCard label="Total Carcasses Sold" value={totalCarcasses || "—"} bg="bg-amber-50 border-amber-100" text="text-amber-800" sub="text-amber-700" />
+        <VPKpiCard label="Total Sales Value" value={totalValue > 0 ? fmtGbp(totalValue) : "—"} bg="bg-blue-50 border-blue-100" text="text-blue-800" sub="text-blue-700" />
       </div>
       <div className="flex flex-wrap justify-between items-center gap-2">
         <h2 className="text-lg font-semibold">Carcass Processing & Venison Sales</h2>
@@ -448,7 +448,7 @@ function CarcassSalesTab({ farmId }: { farmId: number }) {
         </div>
       </div>
       {filteredSales.length === 0 ? (
-        <EmptyState icon={ShoppingCart} message="No sale records yet. Record your first venison sale or carcass processing event above." />
+        <VPEmptyState icon={ShoppingCart} message="No sale records yet. Record your first venison sale or carcass processing event above." />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
@@ -492,20 +492,20 @@ function CarcassSalesTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>{dlg.mode === "view" ? "Carcass Sale Record" : dlg.mode === "edit" ? "Edit Sale Record" : "Add Sale Record"}</DialogTitle></DialogHeader>
           {dlg.mode === "view" ? (
             <div className="grid grid-cols-2 gap-4 py-2">
-              <FieldView label="Sale Date" value={fmtDate(dlg.row.saleDate)} />
-              <FieldView label="Facility Type" value={fmt(dlg.row.facilityType)} />
-              <FieldView label="Species" value={fmt(dlg.row.species)} />
-              <FieldView label="Number of Carcasses" value={fmt(dlg.row.numberCarcasses)} />
-              <FieldView label="Carcass Numbers" value={fmt(dlg.row.carcassNumbers)} />
-              <FieldView label="Grade / Quality" value={fmt(dlg.row.gradeOrQuality)} />
-              <FieldView label="Destination" value={fmt(dlg.row.destinationType)} />
-              <FieldView label="Buyer / Game Dealer" value={fmt(dlg.row.buyerName)} />
-              <FieldView label="Price per kg (£)" value={dlg.row.pricePerKgGbp ? `£${dlg.row.pricePerKgGbp}/kg` : "—"} />
-              <FieldView label="Total Weight (kg)" value={fmt(dlg.row.totalWeightKg)} />
-              <FieldView label="Total Value" value={fmtGbp(dlg.row.totalValueGbp)} />
-              <FieldView label="Invoice Reference" value={fmt(dlg.row.invoiceReference)} />
-              <FieldView label="Wild Game Declaration No." value={fmt(dlg.row.wildGameDeclarationNumber)} />
-              {dlg.row.notes && <div className="col-span-2"><FieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
+              <VPFieldView label="Sale Date" value={fmtDate(dlg.row.saleDate)} />
+              <VPFieldView label="Facility Type" value={fmt(dlg.row.facilityType)} />
+              <VPFieldView label="Species" value={fmt(dlg.row.species)} />
+              <VPFieldView label="Number of Carcasses" value={fmt(dlg.row.numberCarcasses)} />
+              <VPFieldView label="Carcass Numbers" value={fmt(dlg.row.carcassNumbers)} />
+              <VPFieldView label="Grade / Quality" value={fmt(dlg.row.gradeOrQuality)} />
+              <VPFieldView label="Destination" value={fmt(dlg.row.destinationType)} />
+              <VPFieldView label="Buyer / Game Dealer" value={fmt(dlg.row.buyerName)} />
+              <VPFieldView label="Price per kg (£)" value={dlg.row.pricePerKgGbp ? `£${dlg.row.pricePerKgGbp}/kg` : "—"} />
+              <VPFieldView label="Total Weight (kg)" value={fmt(dlg.row.totalWeightKg)} />
+              <VPFieldView label="Total Value" value={fmtGbp(dlg.row.totalValueGbp)} />
+              <VPFieldView label="Invoice Reference" value={fmt(dlg.row.invoiceReference)} />
+              <VPFieldView label="Wild Game Declaration No." value={fmt(dlg.row.wildGameDeclarationNumber)} />
+              {dlg.row.notes && <div className="col-span-2"><VPFieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
               {dlg.row.id && <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="venison-carcass-sales" recordId={dlg.row.id as number} /></div>}
             </div>
           ) : (
@@ -632,7 +632,7 @@ function HerdMonitoringTab({ farmId }: { farmId: number }) {
         </div>
       </div>
       {filteredMon.length === 0 ? (
-        <EmptyState icon={Users} message="No monitoring surveys yet. Record your first population count or herd survey above." />
+        <VPEmptyState icon={Users} message="No monitoring surveys yet. Record your first population count or herd survey above." />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
@@ -676,18 +676,18 @@ function HerdMonitoringTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>{dlg.mode === "view" ? "Herd Survey" : dlg.mode === "edit" ? "Edit Survey" : "Add Herd Survey"}</DialogTitle></DialogHeader>
           {dlg.mode === "view" ? (
             <div className="grid grid-cols-2 gap-4 py-2">
-              <FieldView label="Survey Date" value={fmtDate(dlg.row.surveyDate)} />
-              <FieldView label="Survey Method" value={fmt(dlg.row.surveyMethod)} />
-              <FieldView label="Species" value={fmt(dlg.row.species)} />
-              <FieldView label="Male Count (stags/bucks)" value={fmt(dlg.row.maleCount)} />
-              <FieldView label="Female Count (hinds/does)" value={fmt(dlg.row.femaleCount)} />
-              <FieldView label="Young Count (calves/fawns)" value={fmt(dlg.row.youngCount)} />
-              <FieldView label="Total Count" value={fmt(dlg.row.totalCount)} />
-              <FieldView label="Male:Female Ratio" value={fmt(dlg.row.maleFemaleRatio)} />
-              <FieldView label="Recruitment Rate %" value={dlg.row.recruitmentRatePercent ? `${dlg.row.recruitmentRatePercent}%` : "—"} />
-              <FieldView label="Observed By" value={fmt(dlg.row.observedBy)} />
-              <FieldView label="Weather Conditions" value={fmt(dlg.row.weatherConditions)} />
-              {dlg.row.notes && <div className="col-span-2"><FieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
+              <VPFieldView label="Survey Date" value={fmtDate(dlg.row.surveyDate)} />
+              <VPFieldView label="Survey Method" value={fmt(dlg.row.surveyMethod)} />
+              <VPFieldView label="Species" value={fmt(dlg.row.species)} />
+              <VPFieldView label="Male Count (stags/bucks)" value={fmt(dlg.row.maleCount)} />
+              <VPFieldView label="Female Count (hinds/does)" value={fmt(dlg.row.femaleCount)} />
+              <VPFieldView label="Young Count (calves/fawns)" value={fmt(dlg.row.youngCount)} />
+              <VPFieldView label="Total Count" value={fmt(dlg.row.totalCount)} />
+              <VPFieldView label="Male:Female Ratio" value={fmt(dlg.row.maleFemaleRatio)} />
+              <VPFieldView label="Recruitment Rate %" value={dlg.row.recruitmentRatePercent ? `${dlg.row.recruitmentRatePercent}%` : "—"} />
+              <VPFieldView label="Observed By" value={fmt(dlg.row.observedBy)} />
+              <VPFieldView label="Weather Conditions" value={fmt(dlg.row.weatherConditions)} />
+              {dlg.row.notes && <div className="col-span-2"><VPFieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
               {dlg.row.id && <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="venison-herd-monitoring" recordId={dlg.row.id as number} /></div>}
             </div>
           ) : (
@@ -804,7 +804,7 @@ function HealthRecordsTab({ farmId }: { farmId: number }) {
         </div>
       </div>
       {filteredHr.length === 0 ? (
-        <EmptyState icon={HeartPulse} message="No health records yet. Add vaccination, bTB test, or vet visit records above." />
+        <VPEmptyState icon={HeartPulse} message="No health records yet. Add vaccination, bTB test, or vet visit records above." />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
@@ -856,18 +856,18 @@ function HealthRecordsTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>{dlg.mode === "view" ? "Health Record" : dlg.mode === "edit" ? "Edit Health Record" : "Add Health Record"}</DialogTitle></DialogHeader>
           {dlg.mode === "view" ? (
             <div className="grid grid-cols-2 gap-4 py-2">
-              <FieldView label="Event Date" value={fmtDate(dlg.row.eventDate)} />
-              <FieldView label="Event Type" value={fmt(dlg.row.healthEventType)} />
-              <FieldView label="Product / Description" value={fmt(dlg.row.productOrDescription)} />
-              <FieldView label="Batch Number" value={fmt(dlg.row.batchNumber)} />
-              <FieldView label="Number Treated" value={fmt(dlg.row.numberTreated)} />
-              <FieldView label="Withdrawal Period (days)" value={dlg.row.withdrawalPeriodDays ? `${dlg.row.withdrawalPeriodDays} days` : "—"} />
-              <FieldView label="bTB Test Result" value={fmt(dlg.row.btbTestResult)} />
-              <FieldView label="APHA Reference" value={fmt(dlg.row.aphaReference)} />
-              <FieldView label="Vet Name" value={fmt(dlg.row.vetName)} />
-              <FieldView label="Vet Prescribed" value={dlg.row.vetPrescribed ? "Yes (POM-V)" : "No"} />
-              <FieldView label="Notifiable Disease Suspect" value={dlg.row.notifiableDiseaseSupect ? "Yes — APHA notified" : "No"} />
-              {dlg.row.notes && <div className="col-span-2"><FieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
+              <VPFieldView label="Event Date" value={fmtDate(dlg.row.eventDate)} />
+              <VPFieldView label="Event Type" value={fmt(dlg.row.healthEventType)} />
+              <VPFieldView label="Product / Description" value={fmt(dlg.row.productOrDescription)} />
+              <VPFieldView label="Batch Number" value={fmt(dlg.row.batchNumber)} />
+              <VPFieldView label="Number Treated" value={fmt(dlg.row.numberTreated)} />
+              <VPFieldView label="Withdrawal Period (days)" value={dlg.row.withdrawalPeriodDays ? `${dlg.row.withdrawalPeriodDays} days` : "—"} />
+              <VPFieldView label="bTB Test Result" value={fmt(dlg.row.btbTestResult)} />
+              <VPFieldView label="APHA Reference" value={fmt(dlg.row.aphaReference)} />
+              <VPFieldView label="Vet Name" value={fmt(dlg.row.vetName)} />
+              <VPFieldView label="Vet Prescribed" value={dlg.row.vetPrescribed ? "Yes (POM-V)" : "No"} />
+              <VPFieldView label="Notifiable Disease Suspect" value={dlg.row.notifiableDiseaseSupect ? "Yes — APHA notified" : "No"} />
+              {dlg.row.notes && <div className="col-span-2"><VPFieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
               {dlg.row.id && <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="venison-health-records" recordId={dlg.row.id as number} /></div>}
             </div>
           ) : (
@@ -1010,7 +1010,7 @@ function FirearmsRegisterTab({ farmId }: { farmId: number }) {
         </div>
       </div>
       {filteredFirearms.length === 0 ? (
-        <EmptyState icon={ShieldCheck} message="No certificates registered yet. Add firearms certificates and stalking qualifications for all stalkers above." />
+        <VPEmptyState icon={ShieldCheck} message="No certificates registered yet. Add firearms certificates and stalking qualifications for all stalkers above." />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
@@ -1063,15 +1063,15 @@ function FirearmsRegisterTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>{dlg.mode === "view" ? "Certificate Record" : dlg.mode === "edit" ? "Edit Certificate" : "Add Certificate"}</DialogTitle></DialogHeader>
           {dlg.mode === "view" ? (
             <div className="grid grid-cols-2 gap-4 py-2">
-              <FieldView label="Holder Name" value={fmt(dlg.row.holderName)} />
-              <FieldView label="Certificate Type" value={fmt(dlg.row.certificateType)} />
-              <FieldView label="Certificate Number" value={fmt(dlg.row.certificateNumber)} />
-              <FieldView label="Issuing Authority" value={fmt(dlg.row.issuingAuthority)} />
-              <FieldView label="Issue Date" value={fmtDate(dlg.row.issueDate)} />
-              <FieldView label="Expiry Date" value={fmtDate(dlg.row.expiryDate)} />
-              <FieldView label="Calibre / Description" value={fmt(dlg.row.calibreOrDescription)} />
-              <FieldView label="Status" value={fmt(dlg.row.status)} />
-              {dlg.row.notes && <div className="col-span-2"><FieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
+              <VPFieldView label="Holder Name" value={fmt(dlg.row.holderName)} />
+              <VPFieldView label="Certificate Type" value={fmt(dlg.row.certificateType)} />
+              <VPFieldView label="Certificate Number" value={fmt(dlg.row.certificateNumber)} />
+              <VPFieldView label="Issuing Authority" value={fmt(dlg.row.issuingAuthority)} />
+              <VPFieldView label="Issue Date" value={fmtDate(dlg.row.issueDate)} />
+              <VPFieldView label="Expiry Date" value={fmtDate(dlg.row.expiryDate)} />
+              <VPFieldView label="Calibre / Description" value={fmt(dlg.row.calibreOrDescription)} />
+              <VPFieldView label="Status" value={fmt(dlg.row.status)} />
+              {dlg.row.notes && <div className="col-span-2"><VPFieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 py-2">
@@ -1157,10 +1157,10 @@ function VenisonAnalyticsTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <KpiCard label="Total Culls" value={cull.length} bg="bg-green-50 border-green-100" text="text-green-800" sub="text-green-700" />
-        <KpiCard label="Total Carcass Wt (kg)" value={totalCarcassKg > 0 ? `${totalCarcassKg.toFixed(1)} kg` : "—"} bg="bg-amber-50 border-amber-100" text="text-amber-800" sub="text-amber-700" />
-        <KpiCard label="Total Sales Value" value={totalSalesValue > 0 ? fmtGbp(totalSalesValue) : "—"} bg="bg-blue-50 border-blue-100" text="text-blue-800" sub="text-blue-700" />
-        <KpiCard label="Avg Herd Count" value={avgMonitoringCount ?? "—"} bg="bg-purple-50 border-purple-100" text="text-purple-800" sub="text-purple-700" />
+        <VPKpiCard label="Total Culls" value={cull.length} bg="bg-green-50 border-green-100" text="text-green-800" sub="text-green-700" />
+        <VPKpiCard label="Total Carcass Wt (kg)" value={totalCarcassKg > 0 ? `${totalCarcassKg.toFixed(1)} kg` : "—"} bg="bg-amber-50 border-amber-100" text="text-amber-800" sub="text-amber-700" />
+        <VPKpiCard label="Total Sales Value" value={totalSalesValue > 0 ? fmtGbp(totalSalesValue) : "—"} bg="bg-blue-50 border-blue-100" text="text-blue-800" sub="text-blue-700" />
+        <VPKpiCard label="Avg Herd Count" value={avgMonitoringCount ?? "—"} bg="bg-purple-50 border-purple-100" text="text-purple-800" sub="text-purple-700" />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {speciesData.length > 0 && (
@@ -1230,15 +1230,15 @@ export default function VenisonProductionPage() {
           <h1 className="text-2xl font-bold">Venison Production</h1>
           <p className="text-sm text-muted-foreground mt-1">Stalking & cull records, carcass processing & sales, herd monitoring, health records, and firearms register</p>
         </div>
-        <TabBar>
-          <TabButton active={tab === "herds"} onClick={() => setTab("herds")}>Herds</TabButton>
-          <TabButton active={tab === "cull"} onClick={() => setTab("cull")}><Crosshair className="w-3.5 h-3.5" />Cull Records</TabButton>
-          <TabButton active={tab === "sales"} onClick={() => setTab("sales")}><ShoppingCart className="w-3.5 h-3.5" />Carcass Sales</TabButton>
-          <TabButton active={tab === "monitoring"} onClick={() => setTab("monitoring")}><Users className="w-3.5 h-3.5" />Herd Monitoring</TabButton>
-          <TabButton active={tab === "health"} onClick={() => setTab("health")}><HeartPulse className="w-3.5 h-3.5" />Health</TabButton>
-          <TabButton active={tab === "firearms"} onClick={() => setTab("firearms")}><ShieldCheck className="w-3.5 h-3.5" />Firearms & Licences</TabButton>
-          <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}><BarChart3 className="w-3.5 h-3.5" />Analytics</TabButton>
-        </TabBar>
+        <VPTabBar>
+          <VPTabButton active={tab === "herds"} onClick={() => setTab("herds")}>Herds</VPTabButton>
+          <VPTabButton active={tab === "cull"} onClick={() => setTab("cull")}><Crosshair className="w-3.5 h-3.5" />Cull Records</VPTabButton>
+          <VPTabButton active={tab === "sales"} onClick={() => setTab("sales")}><ShoppingCart className="w-3.5 h-3.5" />Carcass Sales</VPTabButton>
+          <VPTabButton active={tab === "monitoring"} onClick={() => setTab("monitoring")}><Users className="w-3.5 h-3.5" />Herd Monitoring</VPTabButton>
+          <VPTabButton active={tab === "health"} onClick={() => setTab("health")}><HeartPulse className="w-3.5 h-3.5" />Health</VPTabButton>
+          <VPTabButton active={tab === "firearms"} onClick={() => setTab("firearms")}><ShieldCheck className="w-3.5 h-3.5" />Firearms & Licences</VPTabButton>
+          <VPTabButton active={tab === "analytics"} onClick={() => setTab("analytics")}><BarChart3 className="w-3.5 h-3.5" />Analytics</VPTabButton>
+        </VPTabBar>
         <div className="rounded-md border p-4 bg-card">
           {tab === "herds" && <HerdsTab farmId={farmId} />}
           {tab === "cull" && <CullRecordsTab farmId={farmId} />}

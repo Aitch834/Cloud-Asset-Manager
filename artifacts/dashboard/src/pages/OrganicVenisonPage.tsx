@@ -25,17 +25,17 @@ const ORGANIC_APPROVAL_STATUSES = ["Certified organic", "Approved for organic us
 const DEROGATION_STATUSES = ["pending", "approved", "refused", "withdrawn", "expired"];
 
 // ─── SHARED UI HELPERS ────────────────────────────────────────────────────────
-function TabBar({ children }: { children: ReactNode }) {
+function OVTabBar({ children }: { children: ReactNode }) {
   return <div className="flex gap-1 flex-wrap border-b border-border mb-4 pb-2">{children}</div>;
 }
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+function OVTabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <button onClick={onClick} className={`px-3 py-1.5 text-sm rounded-md transition-colors flex items-center gap-1 ${active ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}>
       {children}
     </button>
   );
 }
-function SectionHeader({ title, onAdd, addLabel }: { title: string; onAdd: () => void; addLabel: string }) {
+function OVSectionHeader({ title, onAdd, addLabel }: { title: string; onAdd: () => void; addLabel: string }) {
   return (
     <div className="flex items-center justify-between mb-4">
       <h2 className="text-lg font-semibold">{title}</h2>
@@ -43,7 +43,7 @@ function SectionHeader({ title, onAdd, addLabel }: { title: string; onAdd: () =>
     </div>
   );
 }
-function EmptyState({ icon: Icon, message }: { icon: any; message: string }) {
+function OVEmptyState({ icon: Icon, message }: { icon: any; message: string }) {
   return (
     <div className="text-center py-12 text-muted-foreground text-sm">
       <Icon className="w-8 h-8 mx-auto mb-3 opacity-30" />
@@ -56,7 +56,7 @@ const fmtDate = (val: unknown) => {
   if (!val) return "—";
   try { return new Date(String(val)).toLocaleDateString("en-GB"); } catch { return String(val); }
 };
-function FieldView({ label, value }: { label: string; value: ReactNode }) {
+function OVFieldView({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <p className="text-xs text-muted-foreground">{label}</p>
@@ -132,9 +132,9 @@ function CertificationTab({ farmId }: { farmId: number }) {
           ))}
         </div>
       )}
-      <SectionHeader title="Certificate Register" onAdd={() => open("add")} addLabel="Add Certificate" />
+      <OVSectionHeader title="Certificate Register" onAdd={() => open("add")} addLabel="Add Certificate" />
       {records.length === 0 ? (
-        <EmptyState icon={Award} message="No organic certificates recorded yet. Add your first certifying body record above." />
+        <OVEmptyState icon={Award} message="No organic certificates recorded yet. Add your first certifying body record above." />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
@@ -173,14 +173,14 @@ function CertificationTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>{dlg.mode === "view" ? "Organic Certificate" : dlg.mode === "edit" ? "Edit Certificate" : "Add Certificate"}</DialogTitle></DialogHeader>
           {dlg.mode === "view" ? (
             <div className="grid grid-cols-2 gap-4 py-2">
-              <FieldView label="Certifying Body" value={fmt(dlg.row.certifyingBody)} />
-              <FieldView label="Certificate Type" value={fmt(dlg.row.certificateType)} />
-              <FieldView label="Certificate Number" value={fmt(dlg.row.certificateNumber)} />
-              <FieldView label="Status" value={fmt(dlg.row.status)} />
-              <FieldView label="Issue Date" value={fmtDate(dlg.row.issueDate)} />
-              <FieldView label="Expiry Date" value={fmtDate(dlg.row.expiryDate)} />
-              {dlg.row.scope && <div className="col-span-2"><FieldView label="Scope" value={fmt(dlg.row.scope)} /></div>}
-              {dlg.row.notes && <div className="col-span-2"><FieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
+              <OVFieldView label="Certifying Body" value={fmt(dlg.row.certifyingBody)} />
+              <OVFieldView label="Certificate Type" value={fmt(dlg.row.certificateType)} />
+              <OVFieldView label="Certificate Number" value={fmt(dlg.row.certificateNumber)} />
+              <OVFieldView label="Status" value={fmt(dlg.row.status)} />
+              <OVFieldView label="Issue Date" value={fmtDate(dlg.row.issueDate)} />
+              <OVFieldView label="Expiry Date" value={fmtDate(dlg.row.expiryDate)} />
+              {dlg.row.scope && <div className="col-span-2"><OVFieldView label="Scope" value={fmt(dlg.row.scope)} /></div>}
+              {dlg.row.notes && <div className="col-span-2"><OVFieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 py-2">
@@ -280,9 +280,9 @@ function LandRegisterTab({ farmId }: { farmId: number }) {
           </div>
         </div>
       )}
-      <SectionHeader title="Deer Grazing Compartment Register" onAdd={() => open("add")} addLabel="Add Compartment" />
+      <OVSectionHeader title="Deer Grazing Compartment Register" onAdd={() => open("add")} addLabel="Add Compartment" />
       {records.length === 0 ? (
-        <EmptyState icon={Map} message="No compartments registered yet. Add your first grazing compartment or deer park block above." />
+        <OVEmptyState icon={Map} message="No compartments registered yet. Add your first grazing compartment or deer park block above." />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
@@ -321,15 +321,15 @@ function LandRegisterTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>{dlg.mode === "view" ? "Compartment" : dlg.mode === "edit" ? "Edit Compartment" : "Add Compartment"}</DialogTitle></DialogHeader>
           {dlg.mode === "view" ? (
             <div className="grid grid-cols-2 gap-4 py-2">
-              <FieldView label="Compartment Name" value={fmt(dlg.row.compartmentName)} />
-              <FieldView label="Area (ha)" value={dlg.row.areaHa ? `${dlg.row.areaHa} ha` : "—"} />
-              <FieldView label="Conversion Status" value={fmt(dlg.row.conversionStatus)} />
-              <FieldView label="Conversion Start Date" value={fmtDate(dlg.row.conversionStartDate)} />
-              <FieldView label="Certified Organic Date" value={fmtDate(dlg.row.certifiedOrganicDate)} />
-              <FieldView label="Certifying Body" value={fmt(dlg.row.certifyingBody)} />
-              <FieldView label="Certifier Reference" value={fmt(dlg.row.certifierReference)} />
-              <FieldView label="Previous Land Use" value={fmt(dlg.row.previousLandUse)} />
-              {dlg.row.notes && <div className="col-span-2"><FieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
+              <OVFieldView label="Compartment Name" value={fmt(dlg.row.compartmentName)} />
+              <OVFieldView label="Area (ha)" value={dlg.row.areaHa ? `${dlg.row.areaHa} ha` : "—"} />
+              <OVFieldView label="Conversion Status" value={fmt(dlg.row.conversionStatus)} />
+              <OVFieldView label="Conversion Start Date" value={fmtDate(dlg.row.conversionStartDate)} />
+              <OVFieldView label="Certified Organic Date" value={fmtDate(dlg.row.certifiedOrganicDate)} />
+              <OVFieldView label="Certifying Body" value={fmt(dlg.row.certifyingBody)} />
+              <OVFieldView label="Certifier Reference" value={fmt(dlg.row.certifierReference)} />
+              <OVFieldView label="Previous Land Use" value={fmt(dlg.row.previousLandUse)} />
+              {dlg.row.notes && <div className="col-span-2"><OVFieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 py-2">
@@ -412,9 +412,9 @@ function FeedSupplementsTab({ farmId }: { farmId: number }) {
           <strong>{derogationRequired}</strong> feed or supplement record{derogationRequired > 1 ? "s" : ""} marked as requiring a derogation. Raise a formal derogation request in the Derogations tab.
         </div>
       )}
-      <SectionHeader title="Feed & Supplement Records" onAdd={() => open("add")} addLabel="Add Record" />
+      <OVSectionHeader title="Feed & Supplement Records" onAdd={() => open("add")} addLabel="Add Record" />
       {records.length === 0 ? (
-        <EmptyState icon={Package} message="No feed or supplement records yet. Log all supplementary feed inputs including mineral licks and concentrates." />
+        <OVEmptyState icon={Package} message="No feed or supplement records yet. Log all supplementary feed inputs including mineral licks and concentrates." />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
@@ -458,15 +458,15 @@ function FeedSupplementsTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>{dlg.mode === "view" ? "Feed / Supplement Record" : dlg.mode === "edit" ? "Edit Record" : "Add Feed / Supplement"}</DialogTitle></DialogHeader>
           {dlg.mode === "view" ? (
             <div className="grid grid-cols-2 gap-4 py-2">
-              <FieldView label="Application Date" value={fmtDate(dlg.row.applicationDate)} />
-              <FieldView label="Product Name" value={fmt(dlg.row.productName)} />
-              <FieldView label="Product Type" value={fmt(dlg.row.productType)} />
-              <FieldView label="Organic Approval Status" value={fmt(dlg.row.organicApprovalStatus)} />
-              <FieldView label="Certifier Approval Reference" value={fmt(dlg.row.certifierApprovalReference)} />
-              <FieldView label="Quantity (kg)" value={dlg.row.quantityKg ? `${dlg.row.quantityKg} kg` : "—"} />
-              <FieldView label="Area / Herd" value={fmt(dlg.row.areaOrHerd)} />
-              <FieldView label="Supplier" value={fmt(dlg.row.supplierName)} />
-              {dlg.row.notes && <div className="col-span-2"><FieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
+              <OVFieldView label="Application Date" value={fmtDate(dlg.row.applicationDate)} />
+              <OVFieldView label="Product Name" value={fmt(dlg.row.productName)} />
+              <OVFieldView label="Product Type" value={fmt(dlg.row.productType)} />
+              <OVFieldView label="Organic Approval Status" value={fmt(dlg.row.organicApprovalStatus)} />
+              <OVFieldView label="Certifier Approval Reference" value={fmt(dlg.row.certifierApprovalReference)} />
+              <OVFieldView label="Quantity (kg)" value={dlg.row.quantityKg ? `${dlg.row.quantityKg} kg` : "—"} />
+              <OVFieldView label="Area / Herd" value={fmt(dlg.row.areaOrHerd)} />
+              <OVFieldView label="Supplier" value={fmt(dlg.row.supplierName)} />
+              {dlg.row.notes && <div className="col-span-2"><OVFieldView label="Notes" value={fmt(dlg.row.notes)} /></div>}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 py-2">
@@ -949,12 +949,12 @@ export default function OrganicVenisonPage() {
           <h1 className="text-2xl font-bold">Organic Venison</h1>
           <p className="text-sm text-muted-foreground mt-1">Certification records, grazing compartment conversion register, feed & supplement log, and derogation case management</p>
         </div>
-        <TabBar>
-          <TabButton active={tab === "certification"} onClick={() => setTab("certification")}><Award className="w-3.5 h-3.5" />Certification</TabButton>
-          <TabButton active={tab === "land"} onClick={() => setTab("land")}><Map className="w-3.5 h-3.5" />Land Register</TabButton>
-          <TabButton active={tab === "feed"} onClick={() => setTab("feed")}><Package className="w-3.5 h-3.5" />Feed & Supplements</TabButton>
-          <TabButton active={tab === "derogations"} onClick={() => setTab("derogations")}><FileQuestion className="w-3.5 h-3.5" />Derogations</TabButton>
-        </TabBar>
+        <OVTabBar>
+          <OVTabButton active={tab === "certification"} onClick={() => setTab("certification")}><Award className="w-3.5 h-3.5" />Certification</OVTabButton>
+          <OVTabButton active={tab === "land"} onClick={() => setTab("land")}><Map className="w-3.5 h-3.5" />Land Register</OVTabButton>
+          <OVTabButton active={tab === "feed"} onClick={() => setTab("feed")}><Package className="w-3.5 h-3.5" />Feed & Supplements</OVTabButton>
+          <OVTabButton active={tab === "derogations"} onClick={() => setTab("derogations")}><FileQuestion className="w-3.5 h-3.5" />Derogations</OVTabButton>
+        </OVTabBar>
         <div className="rounded-md border p-4 bg-card">
           {tab === "certification" && <CertificationTab farmId={farmId} />}
           {tab === "land" && <LandRegisterTab farmId={farmId} />}
