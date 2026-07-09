@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
   statusBadge: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.sm },
   statusText: { fontFamily: fonts.medium, fontSize: fontSize.xs },
   cardTitle: { fontFamily: fonts.semiBold, fontSize: fontSize.md, color: colors.text, marginBottom: 2 },
-  tagText: { fontFamily: fonts.mono ?? fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, marginBottom: 2 },
+  tagText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, marginBottom: 2 },
   causeText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.text, marginBottom: spacing.sm },
   cardRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.xs },
   chip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.background, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 3 },
