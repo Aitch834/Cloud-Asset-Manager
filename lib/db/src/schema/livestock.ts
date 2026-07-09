@@ -1162,3 +1162,48 @@ export const casualtySlaughterRecordsTable = pgTable("casualty_slaughter_records
 
 export type CasualtySlaughterRecord = typeof casualtySlaughterRecordsTable.$inferSelect;
 export type NewCasualtySlaughterRecord = typeof casualtySlaughterRecordsTable.$inferInsert;
+
+// ─── Incoming Stock Isolation / Quarantine Register ─────────────────────────
+export const livestockIsolationRecordsTable = pgTable("livestock_isolation_records", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  herdId: integer("herd_id").references(() => herdFlockRegisterTable.id),
+  species: text("species").notNull(),              // "Cattle" | "Sheep" | "Pigs" | "Goats" | "Deer" | "Other"
+  animalCount: integer("animal_count"),
+  earTagsRange: text("ear_tags_range"),            // free-text e.g. "UK123456 000001–000010"
+  sourceHoldingCph: text("source_holding_cph"),
+  sourceName: text("source_name"),
+  purchasedFrom: text("purchased_from"),
+  isolationLocation: text("isolation_location").notNull(),
+  isolationStartDate: date("isolation_start_date").notNull(),
+  minimumIsolationDays: integer("minimum_isolation_days").notNull().default(21),
+  targetClearanceDate: date("target_clearance_date"),
+  status: text("status").notNull().default("active"), // "active" | "cleared" | "extended" | "failed"
+  clearedDate: date("cleared_date"),
+  clearedBy: text("cleared_by"),
+  clearanceNotes: text("clearance_notes"),
+  veterinarianName: text("veterinarian_name"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const livestockIsolationHealthChecksTable = pgTable("livestock_isolation_health_checks", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  isolationRecordId: integer("isolation_record_id").notNull().references(() => livestockIsolationRecordsTable.id),
+  checkDate: date("check_date").notNull(),
+  checkedBy: text("checked_by").notNull(),
+  overallStatus: text("overall_status").notNull(),  // "ok" | "concern" | "alert"
+  temperatureCelsius: numeric("temperature_celsius", { precision: 4, scale: 1 }),
+  bodyConditionScore: numeric("body_condition_score", { precision: 3, scale: 1 }),
+  observations: text("observations"),
+  actionTaken: text("action_taken"),
+  vetContactedName: text("vet_contacted_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type LivestockIsolationRecord = typeof livestockIsolationRecordsTable.$inferSelect;
+export type NewLivestockIsolationRecord = typeof livestockIsolationRecordsTable.$inferInsert;
+export type LivestockIsolationHealthCheck = typeof livestockIsolationHealthChecksTable.$inferSelect;
+export type NewLivestockIsolationHealthCheck = typeof livestockIsolationHealthChecksTable.$inferInsert;

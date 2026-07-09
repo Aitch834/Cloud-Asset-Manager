@@ -317,3 +317,28 @@ export const campylobacterMonitoringTable = pgTable("campylobacter_monitoring", 
 
 export type CampylobacterMonitoringRecord = typeof campylobacterMonitoringTable.$inferSelect;
 export type NewCampylobacterMonitoringRecord = typeof campylobacterMonitoringTable.$inferInsert;
+
+// ─── Chick / Poult Quality Assessment at Placement ──────────────────────────
+export const poultryPlacementQualityAssessmentsTable = pgTable("poultry_placement_quality_assessments", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  flockId: integer("flock_id").notNull().references(() => poultryFlocksTable.id),
+  assessmentDate: date("assessment_date").notNull(),
+  assessedBy: text("assessed_by").notNull(),
+  arrivalTemperatureCelsius: numeric("arrival_temperature_celsius", { precision: 4, scale: 1 }),
+  navelCondition: text("navel_condition").notNull(),          // "healed" | "slight" | "unhealed"
+  legCondition: text("leg_condition").notNull(),              // "normal" | "weak" | "severe"
+  activityLevel: text("activity_level").notNull(),            // "lively" | "moderate" | "lethargic"
+  uniformityPercent: numeric("uniformity_percent", { precision: 5, scale: 1 }),
+  cullCountAtPlacement: integer("cull_count_at_placement"),
+  cullPercentAtPlacement: numeric("cull_percent_at_placement", { precision: 5, scale: 2 }),
+  overallQualityScore: text("overall_quality_score").notNull(), // "acceptable" | "substandard" | "rejected"
+  actionTaken: text("action_taken"),
+  hatcheryNotified: boolean("hatchery_notified").default(false),
+  hatcheryResponseNotes: text("hatchery_response_notes"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type PoultryPlacementQualityAssessment = typeof poultryPlacementQualityAssessmentsTable.$inferSelect;
+export type NewPoultryPlacementQualityAssessment = typeof poultryPlacementQualityAssessmentsTable.$inferInsert;

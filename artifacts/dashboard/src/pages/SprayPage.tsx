@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer, Pencil, ShieldAlert, Link2, ExternalLink, Loader2, MapPin, Truck, AlertTriangle, CheckCircle, History } from "lucide-react";
+import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, ChevronUp, Printer, Pencil, ShieldAlert, Link2, ExternalLink, Loader2, MapPin, Truck, AlertTriangle, CheckCircle, History } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, LabelList, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
 
 const SPRAY_PIE_COLOURS = ["#7c3aed","#16a34a","#f59e0b","#ef4444","#3b82f6","#14b8a6","#f97316","#84cc16"];
@@ -283,7 +283,7 @@ export default function SprayPage() {
   const productCategories = useLookupStrings("spray_product_categories", PRODUCT_CATEGORIES_FALLBACK);
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"applications" | "dayview" | "products" | "print" | "analytics" | "ipm" | "lerap">("applications");
+  const [tab, setTab] = useState<"applications" | "dayview" | "products" | "print" | "analytics" | "ipm" | "lerap" | "notifications">("applications");
 
   const [cropYear, setCropYear] = useState<number>(currentCropYear());
   const applicationsQ = useQuery({ queryKey: ["spray-applications", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-applications`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
@@ -328,6 +328,7 @@ export default function SprayPage() {
           <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}>Analytics</TabButton>
           <TabButton active={tab === "ipm"} onClick={() => setTab("ipm")}>IPM Plan</TabButton>
           <TabButton active={tab === "lerap"} onClick={() => setTab("lerap")}>LERAP</TabButton>
+          <TabButton active={tab === "notifications"} onClick={() => setTab("notifications")}>Notifications Log</TabButton>
         </TabBar>
         {tab === "applications" && <ApplicationsTab applications={applications} products={products} fields={fields} farmId={farmId} loading={applicationsQ.isLoading} onRefresh={() => qc.invalidateQueries({ queryKey: ["spray-applications", farmId] })} toast={toast} initialSearch={initialFieldSearch} cropYear={cropYear} setCropYear={setCropYear} />}
         {tab === "dayview" && <SprayDayViewTab applications={applications} loading={applicationsQ.isLoading} />}
@@ -336,6 +337,7 @@ export default function SprayPage() {
         {tab === "analytics" && <SprayAnalyticsTab applications={applications} products={products} fields={fields} cropYear={cropYear} setCropYear={setCropYear} />}
         {tab === "ipm" && <IpmPlanTab farmId={farmId!} />}
         {tab === "lerap" && <LerapTab farmId={farmId!} products={products} fields={fields} />}
+        {tab === "notifications" && <SprayNotificationsTab farmId={farmId!} applications={applications} fields={fields} />}
       </div>
     </AppLayout>
   );
@@ -3341,6 +3343,159 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
             >
               {reviewMut.isPending ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving…</> : <><CheckCircle className="w-3.5 h-3.5 mr-1.5" />Mark as Reviewed</>}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Spray Beekeeper & Neighbour Notifications Log ────────────────────────────
+function SprayNotificationsTab({ farmId, applications, fields }: { farmId: number; applications: any[]; fields: any[] }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [addOpen, setAddOpen] = useState(false);
+  const [editRec, setEditRec] = useState<any>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const empty = { sprayApplicationId: "", notificationDate: new Date().toISOString().slice(0, 10), recipientType: "beekeeper", recipientName: "", recipientContact: "", notificationMethod: "phone", confirmationReceived: false, confirmationDate: "", notes: "" };
+  const [form, setForm] = useState({ ...empty });
+
+  const notifQ = useQuery({ queryKey: ["spray-notifications", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-notifications`).then(r => r.json()), enabled: !!farmId, select: (d: any) => d.notifications ?? [] });
+  const notifications: any[] = notifQ.data ?? [];
+
+  const createMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/spray-notifications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Notification logged" }); qc.invalidateQueries({ queryKey: ["spray-notifications", farmId] }); setAddOpen(false); setForm({ ...empty }); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
+  const updateMut = useMutation({ mutationFn: ({ id, b }: any) => fetch(`/api/farms/${farmId}/spray-notifications/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Notification updated" }); qc.invalidateQueries({ queryKey: ["spray-notifications", farmId] }); setEditRec(null); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
+  const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`/api/farms/${farmId}/spray-notifications/${id}`, { method: "DELETE" }), onSuccess: () => { toast({ title: "Notification deleted" }); qc.invalidateQueries({ queryKey: ["spray-notifications", farmId] }); setDeleteId(null); }, onError: () => toast({ title: "Failed to delete", variant: "destructive" }) });
+
+  const fmtD = (d: any) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+  const fldName = (id: any) => fields.find(f => String(f.id) === String(id))?.name || `Field #${id}`;
+  const appLabel = (id: any) => { const a = applications.find(a => String(a.id) === String(id)); if (!a) return id ? `Application #${id}` : "—"; return `${a.productName || "Spray"} · ${fmtD(a.applicationDate)}${a.fieldId ? ` · ${fldName(a.fieldId)}` : ""}`; };
+  const beekeepers = notifications.filter((n: any) => n.recipientType === "beekeeper");
+  const confirmed = notifications.filter((n: any) => n.confirmationReceived);
+  const rTypeLabel: Record<string, string> = { beekeeper: "Beekeeper", neighbour: "Neighbour", other: "Other" };
+  const methodLabel: Record<string, string> = { phone: "Phone", email: "Email", letter: "Letter", "in-person": "In Person" };
+
+  function openEdit(n: any) {
+    setEditRec(n);
+    setForm({ sprayApplicationId: String(n.sprayApplicationId ?? ""), notificationDate: n.notificationDate?.slice(0, 10) ?? "", recipientType: n.recipientType ?? "beekeeper", recipientName: n.recipientName ?? "", recipientContact: n.recipientContact ?? "", notificationMethod: n.notificationMethod ?? "phone", confirmationReceived: n.confirmationReceived ?? false, confirmationDate: n.confirmationDate?.slice(0, 10) ?? "", notes: n.notes ?? "" });
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold">Spray Beekeeper &amp; Neighbour Notifications</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Red Tractor requirement: log all pre-spray notifications to beekeepers and neighbours before applying bee-toxic products.</p>
+        </div>
+        <button className="inline-flex items-center gap-1.5 text-sm font-medium bg-primary text-primary-foreground rounded-md px-3 py-1.5 hover:opacity-90" onClick={() => setAddOpen(true)}><Plus className="w-4 h-4" />Log Notification</button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div className="border rounded-lg p-3 bg-blue-50"><p className="text-xs text-blue-700 font-medium">Total Notifications</p><p className="text-2xl font-bold text-blue-800 mt-1">{notifications.length}</p></div>
+        <div className="border rounded-lg p-3 bg-amber-50"><p className="text-xs text-amber-700 font-medium">Beekeeper Notices</p><p className="text-2xl font-bold text-amber-800 mt-1">{beekeepers.length}</p></div>
+        <div className="border rounded-lg p-3 bg-green-50"><p className="text-xs text-green-700 font-medium">Confirmed</p><p className="text-2xl font-bold text-green-800 mt-1">{confirmed.length}</p></div>
+      </div>
+
+      {notifQ.isLoading && <div className="flex justify-center py-8 text-sm text-muted-foreground gap-2"><Loader2 className="w-4 h-4 animate-spin" />Loading…</div>}
+      {!notifQ.isLoading && notifications.length === 0 && (
+        <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-lg">
+          <AlertTriangle className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-500">No notifications logged</p>
+          <p className="text-xs text-gray-400 mt-1">Log when you notify beekeepers or neighbours before spraying.</p>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {notifications.map((n: any) => {
+          const isExp = expandedId === n.id;
+          return (
+            <div key={n.id} className="border rounded-lg overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50" onClick={() => setExpandedId(isExp ? null : n.id)}>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{n.recipientName || "Unnamed"} <span className="text-muted-foreground font-normal">({rTypeLabel[n.recipientType] || n.recipientType})</span></p>
+                  <p className="text-xs text-muted-foreground">{fmtD(n.notificationDate)} · {methodLabel[n.notificationMethod] || n.notificationMethod}{n.sprayApplicationId ? ` · ${appLabel(n.sprayApplicationId)}` : ""}</p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {n.confirmationReceived && <span className="text-xs bg-green-100 text-green-700 border border-green-200 rounded px-1.5 py-0.5">Confirmed</span>}
+                  <button className="p-1 rounded hover:bg-gray-200" onClick={e => { e.stopPropagation(); openEdit(n); }}><Pencil className="w-3.5 h-3.5 text-gray-500" /></button>
+                  <button className="p-1 rounded hover:bg-red-100" onClick={e => { e.stopPropagation(); setDeleteId(n.id); }}><Trash2 className="w-3.5 h-3.5 text-red-400" /></button>
+                  {isExp ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                </div>
+              </div>
+              {isExp && (
+                <div className="border-t bg-gray-50 px-4 py-3 grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2 text-sm">
+                  <div><p className="text-xs text-muted-foreground">Recipient Contact</p><p>{n.recipientContact || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Method</p><p>{methodLabel[n.notificationMethod] || n.notificationMethod}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Spray Application</p><p>{appLabel(n.sprayApplicationId)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Confirmation Received</p><p>{n.confirmationReceived ? "Yes" : "No"}</p></div>
+                  {n.confirmationDate && <div><p className="text-xs text-muted-foreground">Confirmation Date</p><p>{fmtD(n.confirmationDate)}</p></div>}
+                  {n.notes && <div className="col-span-full"><p className="text-xs text-muted-foreground">Notes</p><p className="whitespace-pre-line">{n.notes}</p></div>}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <Dialog open={addOpen || !!editRec} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRec(null); setForm({ ...empty }); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>{editRec ? "Edit Notification" : "Log Spray Notification"}</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="text-xs font-medium">Notification Date *</label><Input type="date" value={form.notificationDate} onChange={e => setForm(f => ({ ...f, notificationDate: e.target.value }))} /></div>
+              <div><label className="text-xs font-medium">Recipient Type</label>
+                <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background" value={form.recipientType} onChange={e => setForm(f => ({ ...f, recipientType: e.target.value }))}>
+                  <option value="beekeeper">Beekeeper</option>
+                  <option value="neighbour">Neighbour</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="text-xs font-medium">Recipient Name</label><Input value={form.recipientName} onChange={e => setForm(f => ({ ...f, recipientName: e.target.value }))} /></div>
+              <div><label className="text-xs font-medium">Contact (phone/email)</label><Input value={form.recipientContact} onChange={e => setForm(f => ({ ...f, recipientContact: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="text-xs font-medium">Notification Method</label>
+                <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background" value={form.notificationMethod} onChange={e => setForm(f => ({ ...f, notificationMethod: e.target.value }))}>
+                  <option value="phone">Phone</option>
+                  <option value="email">Email</option>
+                  <option value="letter">Letter</option>
+                  <option value="in-person">In Person</option>
+                </select>
+              </div>
+              <div><label className="text-xs font-medium">Linked Spray Application</label>
+                <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background" value={form.sprayApplicationId} onChange={e => setForm(f => ({ ...f, sprayApplicationId: e.target.value }))}>
+                  <option value="">— None —</option>
+                  {applications.slice(0, 50).map((a: any) => <option key={a.id} value={String(a.id)}>{a.productName || "Spray"} — {fmtD(a.applicationDate)} — {fldName(a.fieldId)}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="checkbox" id="spn-confirmed" checked={form.confirmationReceived} onChange={e => setForm(f => ({ ...f, confirmationReceived: e.target.checked }))} />
+              <label htmlFor="spn-confirmed" className="text-sm cursor-pointer">Confirmation received from recipient</label>
+            </div>
+            {form.confirmationReceived && <div><label className="text-xs font-medium">Confirmation Date</label><Input type="date" value={form.confirmationDate} onChange={e => setForm(f => ({ ...f, confirmationDate: e.target.value }))} /></div>}
+            <div><label className="text-xs font-medium">Notes</label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <button className="border rounded-md px-4 py-2 text-sm hover:bg-gray-50" onClick={() => { setAddOpen(false); setEditRec(null); setForm({ ...empty }); }}>Cancel</button>
+            <button className="bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50" disabled={!form.notificationDate || createMut.isPending || updateMut.isPending} onClick={() => editRec ? updateMut.mutate({ id: editRec.id, b: form }) : createMut.mutate(form)}>
+              {createMut.isPending || updateMut.isPending ? "Saving…" : editRec ? "Save Changes" : "Log Notification"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: 360 }}>
+          <DialogHeader><DialogTitle>Delete Notification</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">Permanently delete this notification record?</p>
+          <DialogFooter>
+            <button className="border rounded-md px-4 py-2 text-sm hover:bg-gray-50" onClick={() => setDeleteId(null)}>Cancel</button>
+            <button className="bg-red-600 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-red-700 disabled:opacity-50" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>Delete</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

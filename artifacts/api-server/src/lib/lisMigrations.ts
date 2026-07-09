@@ -128,4 +128,130 @@ export async function runLisMigrations(): Promise<void> {
   await db.execute(sql`ALTER TABLE lip_submissions ADD COLUMN IF NOT EXISTS cancelled_at timestamptz`);
   // Async processing — stores the UUID returned by 202 AsyncAcceptedResponse so we can poll GET /requeststatus/{id}
   await db.execute(sql`ALTER TABLE lip_submissions ADD COLUMN IF NOT EXISTS async_request_id text`);
+
+  // ── Red Tractor Gap 1: Incoming livestock isolation / quarantine register ──
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS livestock_isolation_records (
+      id serial primary key,
+      farm_id integer not null references farms(id),
+      herd_id integer references herd_flock_register(id),
+      species text not null,
+      animal_count integer,
+      ear_tags_range text,
+      source_holding_cph text,
+      source_name text,
+      purchased_from text,
+      isolation_location text not null,
+      isolation_start_date date not null,
+      minimum_isolation_days integer not null default 21,
+      target_clearance_date date,
+      status text not null default 'active',
+      cleared_date date,
+      cleared_by text,
+      clearance_notes text,
+      veterinarian_name text,
+      notes text,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS livestock_isolation_health_checks (
+      id serial primary key,
+      farm_id integer not null references farms(id),
+      isolation_record_id integer not null references livestock_isolation_records(id),
+      check_date date not null,
+      checked_by text not null,
+      overall_status text not null,
+      temperature_celsius numeric(4,1),
+      body_condition_score numeric(3,1),
+      observations text,
+      action_taken text,
+      vet_contacted_name text,
+      created_at timestamptz not null default now()
+    )
+  `);
+
+  // ── Red Tractor Gap 2: Grassland & pasture management ─────────────────────
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS grassland_grazing_events (
+      id serial primary key,
+      farm_id integer not null references farms(id),
+      field_id integer not null references fields(id),
+      herd_id integer,
+      entry_date date not null,
+      exit_date date,
+      grazing_system text,
+      species text,
+      animal_count integer,
+      pre_grazing_cover_mm integer,
+      post_grazing_residual_mm integer,
+      manure_applied_before_entry boolean default false,
+      notes text,
+      created_at timestamptz not null default now()
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS grassland_reseeding_records (
+      id serial primary key,
+      farm_id integer not null references farms(id),
+      field_id integer not null references fields(id),
+      reseeding_date date not null,
+      reason text not null,
+      seed_mix text,
+      seed_rate_kg_ha numeric(6,2),
+      method text,
+      area_ha numeric(10,4),
+      target_establishment_date date,
+      actual_establishment_date date,
+      establishment_success text,
+      notes text,
+      created_at timestamptz not null default now()
+    )
+  `);
+
+  // ── Red Tractor Gap 3: Poultry chick/poult quality assessment at placement ─
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS poultry_placement_quality_assessments (
+      id serial primary key,
+      farm_id integer not null references farms(id),
+      flock_id integer not null references poultry_flocks(id),
+      assessment_date date not null,
+      assessed_by text not null,
+      arrival_temperature_celsius numeric(4,1),
+      navel_condition text not null,
+      leg_condition text not null,
+      activity_level text not null,
+      uniformity_percent numeric(5,1),
+      cull_count_at_placement integer,
+      cull_percent_at_placement numeric(5,2),
+      overall_quality_score text not null,
+      action_taken text,
+      hatchery_notified boolean default false,
+      hatchery_response_notes text,
+      notes text,
+      created_at timestamptz not null default now()
+    )
+  `);
+
+  // ── Red Tractor Gap 4: Beekeeper / neighbour spray notification log ────────
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS spray_notifications (
+      id serial primary key,
+      farm_id integer not null references farms(id),
+      spray_application_id integer references spray_applications(id),
+      notification_date date not null,
+      planned_spray_date date,
+      recipient_type text not null,
+      recipient_name text not null,
+      contact_method text not null,
+      products_notified text,
+      field_refs text,
+      confirmed boolean not null default false,
+      confirmation_method text,
+      confirmation_reference text,
+      notes text,
+      created_at timestamptz not null default now()
+    )
+  `);
 }

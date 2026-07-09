@@ -274,14 +274,29 @@ function HarvestLogTab({ harvests, transports, storages, farmRecord, equipment, 
   }
   function closeForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }
 
+  const [phiViolations, setPhiViolations] = useState<any[] | null>(null);
+  const [pendingPhiBody, setPendingPhiBody] = useState<any>(null);
+
   const createMut = useMutation({
-    mutationFn: (body: any) =>
-      fetch(`/api/farms/${farmId}/harvests`, {
+    mutationFn: async (body: any) => {
+      const resp = await fetch(`/api/farms/${farmId}/harvests`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
-    onSuccess: () => {
+      });
+      const data = await resp.json();
+      if (resp.status === 422 && data.error === "phi_violation") {
+        return { __phiViolation: true, violations: data.activePhiViolations, pendingBody: body };
+      }
+      if (!resp.ok) throw new Error("Failed to save");
+      return data;
+    },
+    onSuccess: (data: any) => {
+      if (data?.__phiViolation) {
+        setPhiViolations(data.violations);
+        setPendingPhiBody(data.pendingBody);
+        return;
+      }
       toast({ title: "Harvest record saved" });
       onRefresh();
       closeForm();
@@ -844,6 +859,47 @@ function HarvestLogTab({ harvests, transports, storages, farmRecord, equipment, 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── PHI Harvest Interval Warning ── */}
+      <Dialog open={phiViolations !== null} onOpenChange={o => { if (!o) { setPhiViolations(null); setPendingPhiBody(null); } }}>
+        <DialogContent style={{ maxWidth: 540 }}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle size={18} />Pre-Harvest Interval (PHI) Warning
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2 space-y-3">
+            <p className="text-sm text-gray-700">The harvest date falls within the PHI of the following spray applications. Harvesting before the interval expires may breach food safety regulations.</p>
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500">Product</th>
+                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500">Applied</th>
+                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500">PHI (days)</th>
+                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500">Safe From</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {(phiViolations ?? []).map((v: any, i: number) => (
+                    <tr key={i} className="bg-red-50">
+                      <td className="px-3 py-2 font-medium text-red-800">{v.productName}</td>
+                      <td className="px-3 py-2 text-red-700">{v.applicationDate}</td>
+                      <td className="px-3 py-2 text-red-700">{v.phiDays}</td>
+                      <td className="px-3 py-2 font-semibold text-red-900">{v.phiExpiry}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-gray-500">If you are certain this harvest is safe (e.g. different crop part, testing done), you may override and save. This will be flagged in your records.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setPhiViolations(null); setPendingPhiBody(null); }}>Go Back</Button>
+            <Button variant="destructive" onClick={() => { if (pendingPhiBody) { createMut.mutate({ ...pendingPhiBody, phiOverrideAcknowledged: true }); setPhiViolations(null); setPendingPhiBody(null); } }}>Override &amp; Save Anyway</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

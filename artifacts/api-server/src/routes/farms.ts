@@ -422,6 +422,12 @@ import {
   dairyAbrPoItemsTable,
   dairyAbrGrnsTable,
   dairyAbrInvoicesTable,
+  livestockIsolationRecordsTable,
+  livestockIsolationHealthChecksTable,
+  grasslandGrazingEventsTable,
+  grasslandReseedingRecordsTable,
+  poultryPlacementQualityAssessmentsTable,
+  sprayNotificationsTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createDairyAbrBorderlineNotification, createDairyAbrInvalidNotification, resolveAbrNotificationsForRecord, createMobilityLamenessAlert, createMobilityScore2Advisory, createBngComplianceNotification, createFpIntakeRejectionNotification, createFpPoorConditionNotification, createFpCheckMissingNotification, createFpPreCoolingPendingNotification, createRiddorNotification, createBcmsMortalityPendingNotification, createBiosecurityDeclarationMissingNotification, createHerdHealthFollowUpNotification, createIpmThresholdBreachedNotification, createReportableDiseaseNotification } from "../lib/alertingJob";
@@ -1843,16 +1849,60 @@ router.get("/farms/:farmId/harvests/:recordId", requireAuth, requireTenant, requ
 router.post("/farms/:farmId/harvests", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
+  let resolvedFieldId: number | null = null;
   if (req.body.fieldCropAssignmentId) {
     const [fca] = await db
-      .select({ id: fieldCropAssignmentsTable.id })
+      .select({ id: fieldCropAssignmentsTable.id, fieldId: fieldCropAssignmentsTable.fieldId })
       .from(fieldCropAssignmentsTable)
       .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
       .where(and(eq(fieldCropAssignmentsTable.id, req.body.fieldCropAssignmentId), eq(fieldsTable.farmId, farmId)))
       .limit(1);
     if (!fca) { res.status(400).json({ error: "Field crop assignment not found on this farm" }); return; }
+    resolvedFieldId = fca.fieldId;
   }
-  const { equipmentId, operatorName, areaHarvestedHa, startTime, endTime, ...rest } = req.body;
+  // ── PHI (Pre-Harvest Interval) compliance check ──────────────────────────
+  if (resolvedFieldId && req.body.harvestDate && !req.body.phiOverrideAcknowledged) {
+    const harvestDate = new Date(req.body.harvestDate);
+    const violations = await db
+      .select({
+        id: sprayApplicationsTable.id,
+        applicationDate: sprayApplicationsTable.applicationDate,
+        productName: sprayProductsTable.productName,
+        harvestInterval: sprayProductsTable.harvestInterval,
+      })
+      .from(sprayApplicationsTable)
+      .innerJoin(sprayProductsTable, eq(sprayApplicationsTable.productId, sprayProductsTable.id))
+      .where(and(
+        eq(sprayApplicationsTable.farmId, farmId),
+        eq(sprayApplicationsTable.fieldId, resolvedFieldId),
+        isNotNull(sprayProductsTable.harvestInterval),
+      ));
+    const activeViolations = violations.filter(v => {
+      if (!v.harvestInterval) return false;
+      const phiExpiry = new Date(v.applicationDate);
+      phiExpiry.setDate(phiExpiry.getDate() + Number(v.harvestInterval));
+      return phiExpiry > harvestDate;
+    }).map(v => {
+      const phiExpiry = new Date(v.applicationDate);
+      phiExpiry.setDate(phiExpiry.getDate() + Number(v.harvestInterval));
+      return {
+        sprayId: v.id,
+        productName: v.productName,
+        applicationDate: v.applicationDate.toISOString().slice(0, 10),
+        phiDays: Number(v.harvestInterval),
+        phiExpiry: phiExpiry.toISOString().slice(0, 10),
+      };
+    });
+    if (activeViolations.length > 0) {
+      res.status(422).json({
+        error: "phi_violation",
+        message: `The harvest date falls within the Pre-Harvest Interval (PHI) of ${activeViolations.length} spray application${activeViolations.length > 1 ? "s" : ""} on this field.`,
+        activePhiViolations: activeViolations,
+      });
+      return;
+    }
+  }
+  const { equipmentId, operatorName, areaHarvestedHa, startTime, endTime, phiOverrideAcknowledged: _phi, ...rest } = req.body;
   if (!(await checkFieldAreaLimit(farmId, rest.fieldId ? Number(rest.fieldId) : null, areaHarvestedHa ? Number(areaHarvestedHa) : null, res, "Area harvested"))) return;
   const [record] = await db.insert(harvestRecordsTable).values({
     ...rest,
@@ -2379,6 +2429,103 @@ router.delete("/farms/:farmId/field-season-expenses/:id", requireAuth, requireTe
   if (!farmId) return;
   const id = parseInt(String(req.params.id), 10);
   await db.delete(fieldSeasonExpensesTable).where(and(eq(fieldSeasonExpensesTable.id, id), eq(fieldSeasonExpensesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Grassland & Pasture Management ──────────────────────────────────────────
+router.get("/farms/:farmId/grassland-grazing-events", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const events = await db.select().from(grasslandGrazingEventsTable).where(eq(grasslandGrazingEventsTable.farmId, farmId)).orderBy(desc(grasslandGrazingEventsTable.entryDate));
+  res.json({ events });
+});
+
+router.post("/farms/:farmId/grassland-grazing-events", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { fieldId, herdId, animalCount, preGrazingCoverMm, postGrazingResidualMm, manureAppliedBeforeEntry, ...rest } = req.body;
+  if (!fieldId) { res.status(400).json({ error: "fieldId is required" }); return; }
+  const [field] = await db.select({ id: fieldsTable.id }).from(fieldsTable).where(and(eq(fieldsTable.id, Number(fieldId)), eq(fieldsTable.farmId, farmId))).limit(1);
+  if (!field) { res.status(400).json({ error: "Field not found on this farm" }); return; }
+  const [event] = await db.insert(grasslandGrazingEventsTable).values({
+    ...rest, farmId, fieldId: Number(fieldId),
+    herdId: herdId ? Number(herdId) : null,
+    animalCount: animalCount ? Number(animalCount) : null,
+    preGrazingCoverMm: preGrazingCoverMm ? Number(preGrazingCoverMm) : null,
+    postGrazingResidualMm: postGrazingResidualMm ? Number(postGrazingResidualMm) : null,
+    manureAppliedBeforeEntry: manureAppliedBeforeEntry === true || manureAppliedBeforeEntry === "true",
+  }).returning();
+  res.status(201).json({ event });
+});
+
+router.put("/farms/:farmId/grassland-grazing-events/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const { fieldId, herdId, animalCount, preGrazingCoverMm, postGrazingResidualMm, manureAppliedBeforeEntry, ...rest } = req.body;
+  const [event] = await db.update(grasslandGrazingEventsTable).set({
+    ...rest,
+    fieldId: fieldId ? Number(fieldId) : undefined,
+    herdId: herdId ? Number(herdId) : null,
+    animalCount: animalCount ? Number(animalCount) : null,
+    preGrazingCoverMm: preGrazingCoverMm ? Number(preGrazingCoverMm) : null,
+    postGrazingResidualMm: postGrazingResidualMm ? Number(postGrazingResidualMm) : null,
+    manureAppliedBeforeEntry: manureAppliedBeforeEntry === true || manureAppliedBeforeEntry === "true",
+  }).where(and(eq(grasslandGrazingEventsTable.id, id), eq(grasslandGrazingEventsTable.farmId, farmId))).returning();
+  if (!event) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ event });
+});
+
+router.delete("/farms/:farmId/grassland-grazing-events/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  await db.delete(grasslandGrazingEventsTable).where(and(eq(grasslandGrazingEventsTable.id, id), eq(grasslandGrazingEventsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/grassland-reseeding-records", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(grasslandReseedingRecordsTable).where(eq(grasslandReseedingRecordsTable.farmId, farmId)).orderBy(desc(grasslandReseedingRecordsTable.reseedingDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/grassland-reseeding-records", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { fieldId, seedRateKgHa, areaHa, ...rest } = req.body;
+  if (!fieldId) { res.status(400).json({ error: "fieldId is required" }); return; }
+  const [field] = await db.select({ id: fieldsTable.id }).from(fieldsTable).where(and(eq(fieldsTable.id, Number(fieldId)), eq(fieldsTable.farmId, farmId))).limit(1);
+  if (!field) { res.status(400).json({ error: "Field not found on this farm" }); return; }
+  const [record] = await db.insert(grasslandReseedingRecordsTable).values({
+    ...rest, farmId, fieldId: Number(fieldId),
+    seedRateKgHa: seedRateKgHa || null,
+    areaHa: areaHa || null,
+  }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/grassland-reseeding-records/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const { fieldId, seedRateKgHa, areaHa, ...rest } = req.body;
+  const [record] = await db.update(grasslandReseedingRecordsTable).set({
+    ...rest,
+    fieldId: fieldId ? Number(fieldId) : undefined,
+    seedRateKgHa: seedRateKgHa || null,
+    areaHa: areaHa || null,
+  }).where(and(eq(grasslandReseedingRecordsTable.id, id), eq(grasslandReseedingRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/grassland-reseeding-records/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  await db.delete(grasslandReseedingRecordsTable).where(and(eq(grasslandReseedingRecordsTable.id, id), eq(grasslandReseedingRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -24251,6 +24398,61 @@ router.delete("/farms/:farmId/poultry-chick-purchases/:id", requireAuth, require
   res.json({ ok: true });
 });
 
+// ─── Poultry Chick / Poult Quality Assessment at Placement ───────────────────
+router.get("/farms/:farmId/poultry-placement-quality", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const flockId = req.query.flockId ? parseInt(req.query.flockId as string) : null;
+  const assessments = flockId
+    ? await db.select().from(poultryPlacementQualityAssessmentsTable).where(and(eq(poultryPlacementQualityAssessmentsTable.farmId, farmId), eq(poultryPlacementQualityAssessmentsTable.flockId, flockId))).orderBy(desc(poultryPlacementQualityAssessmentsTable.assessmentDate))
+    : await db.select().from(poultryPlacementQualityAssessmentsTable).where(eq(poultryPlacementQualityAssessmentsTable.farmId, farmId)).orderBy(desc(poultryPlacementQualityAssessmentsTable.assessmentDate));
+  res.json({ assessments });
+});
+
+router.post("/farms/:farmId/poultry-placement-quality", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { flockId, uniformityPercent, cullCountAtPlacement, cullPercentAtPlacement, arrivalTemperatureCelsius, hatcheryNotified, ...rest } = req.body;
+  if (!flockId) { res.status(400).json({ error: "flockId is required" }); return; }
+  const [flock] = await db.select({ id: poultryFlocksTable.id }).from(poultryFlocksTable).where(and(eq(poultryFlocksTable.id, Number(flockId)), eq(poultryFlocksTable.farmId, farmId))).limit(1);
+  if (!flock) { res.status(400).json({ error: "Flock not found on this farm" }); return; }
+  const [assessment] = await db.insert(poultryPlacementQualityAssessmentsTable).values({
+    ...rest, farmId, flockId: Number(flockId),
+    uniformityPercent: uniformityPercent || null,
+    cullCountAtPlacement: cullCountAtPlacement ? Number(cullCountAtPlacement) : null,
+    cullPercentAtPlacement: cullPercentAtPlacement || null,
+    arrivalTemperatureCelsius: arrivalTemperatureCelsius || null,
+    hatcheryNotified: hatcheryNotified === true || hatcheryNotified === "true",
+  }).returning();
+  res.status(201).json({ assessment });
+});
+
+router.put("/farms/:farmId/poultry-placement-quality/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const { flockId, uniformityPercent, cullCountAtPlacement, cullPercentAtPlacement, arrivalTemperatureCelsius, hatcheryNotified, ...rest } = req.body;
+  const [assessment] = await db.update(poultryPlacementQualityAssessmentsTable).set({
+    ...rest,
+    flockId: flockId ? Number(flockId) : undefined,
+    uniformityPercent: uniformityPercent || null,
+    cullCountAtPlacement: cullCountAtPlacement ? Number(cullCountAtPlacement) : null,
+    cullPercentAtPlacement: cullPercentAtPlacement || null,
+    arrivalTemperatureCelsius: arrivalTemperatureCelsius || null,
+    hatcheryNotified: hatcheryNotified === true || hatcheryNotified === "true",
+  }).where(and(eq(poultryPlacementQualityAssessmentsTable.id, id), eq(poultryPlacementQualityAssessmentsTable.farmId, farmId))).returning();
+  if (!assessment) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ assessment });
+});
+
+router.delete("/farms/:farmId/poultry-placement-quality/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  await db.delete(poultryPlacementQualityAssessmentsTable).where(and(eq(poultryPlacementQualityAssessmentsTable.id, id), eq(poultryPlacementQualityAssessmentsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
 // Pig
 router.patch("/farms/:farmId/pig-movements/:id/document", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), (req, res) => handleDocPatch(req, res, pigMovementsTable));
 router.patch("/farms/:farmId/pig-fci-documents/:id/document", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), (req, res) => handleDocPatch(req, res, pigFciDocumentsTable));
@@ -30845,6 +31047,87 @@ router.patch("/farms/:farmId/pig-salmonella-monitoring/:id/document", requireAut
   res.json({ record });
 });
 
+// ─── Incoming Stock Isolation / Quarantine Register ─────────────────────────
+router.get("/farms/:farmId/isolation-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(livestockIsolationRecordsTable).where(eq(livestockIsolationRecordsTable.farmId, farmId)).orderBy(desc(livestockIsolationRecordsTable.isolationStartDate));
+  const recordIds = records.map(r => r.id);
+  const checks = recordIds.length > 0 ? await db.select().from(livestockIsolationHealthChecksTable).where(and(eq(livestockIsolationHealthChecksTable.farmId, farmId), inArray(livestockIsolationHealthChecksTable.isolationRecordId, recordIds))).orderBy(asc(livestockIsolationHealthChecksTable.checkDate)) : [];
+  res.json({ records, checks });
+});
+
+router.post("/farms/:farmId/isolation-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { herdId, animalCount, minimumIsolationDays, ...rest } = req.body;
+  const [record] = await db.insert(livestockIsolationRecordsTable).values({
+    ...rest, farmId,
+    herdId: herdId ? Number(herdId) : null,
+    animalCount: animalCount ? Number(animalCount) : null,
+    minimumIsolationDays: minimumIsolationDays ? Number(minimumIsolationDays) : 21,
+  }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/isolation-records/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const { herdId, animalCount, minimumIsolationDays, ...rest } = req.body;
+  const [record] = await db.update(livestockIsolationRecordsTable).set({
+    ...rest,
+    herdId: herdId ? Number(herdId) : null,
+    animalCount: animalCount ? Number(animalCount) : null,
+    minimumIsolationDays: minimumIsolationDays ? Number(minimumIsolationDays) : 21,
+  }).where(and(eq(livestockIsolationRecordsTable.id, id), eq(livestockIsolationRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/isolation-records/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  await db.delete(livestockIsolationHealthChecksTable).where(and(eq(livestockIsolationHealthChecksTable.isolationRecordId, id), eq(livestockIsolationHealthChecksTable.farmId, farmId)));
+  await db.delete(livestockIsolationRecordsTable).where(and(eq(livestockIsolationRecordsTable.id, id), eq(livestockIsolationRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Isolation health checks
+router.post("/farms/:farmId/isolation-records/:isolationId/health-checks", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const isolationRecordId = parseInt(req.params.isolationId as string);
+  const [iso] = await db.select({ id: livestockIsolationRecordsTable.id }).from(livestockIsolationRecordsTable).where(and(eq(livestockIsolationRecordsTable.id, isolationRecordId), eq(livestockIsolationRecordsTable.farmId, farmId))).limit(1);
+  if (!iso) { res.status(404).json({ error: "Isolation record not found" }); return; }
+  const { temperatureCelsius, bodyConditionScore, ...rest } = req.body;
+  const [check] = await db.insert(livestockIsolationHealthChecksTable).values({
+    ...rest, farmId, isolationRecordId,
+    temperatureCelsius: temperatureCelsius || null,
+    bodyConditionScore: bodyConditionScore || null,
+  }).returning();
+  res.status(201).json({ check });
+});
+
+router.put("/farms/:farmId/isolation-health-checks/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const { temperatureCelsius, bodyConditionScore, ...rest } = req.body;
+  const [check] = await db.update(livestockIsolationHealthChecksTable).set({ ...rest, temperatureCelsius: temperatureCelsius || null, bodyConditionScore: bodyConditionScore || null }).where(and(eq(livestockIsolationHealthChecksTable.id, id), eq(livestockIsolationHealthChecksTable.farmId, farmId))).returning();
+  if (!check) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ check });
+});
+
+router.delete("/farms/:farmId/isolation-health-checks/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  await db.delete(livestockIsolationHealthChecksTable).where(and(eq(livestockIsolationHealthChecksTable.id, id), eq(livestockIsolationHealthChecksTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
 // ─── IPM Plans ────────────────────────────────────────────────────────────────
 router.get("/farms/:farmId/ipm-plans", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
@@ -31219,6 +31502,49 @@ router.patch("/farms/:farmId/lerap-assessments/:id/document", requireAuth, requi
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
+
+// ─── Spray Beekeeper / Neighbour Notification Log ────────────────────────────
+router.get("/farms/:farmId/spray-notifications", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const notifications = await db.select().from(sprayNotificationsTable).where(eq(sprayNotificationsTable.farmId, farmId)).orderBy(desc(sprayNotificationsTable.notificationDate));
+  res.json({ notifications });
+});
+
+router.post("/farms/:farmId/spray-notifications", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { sprayApplicationId, confirmed, ...rest } = req.body;
+  const [notification] = await db.insert(sprayNotificationsTable).values({
+    ...rest, farmId,
+    sprayApplicationId: sprayApplicationId ? Number(sprayApplicationId) : null,
+    confirmed: confirmed === true || confirmed === "true",
+  }).returning();
+  res.status(201).json({ notification });
+});
+
+router.put("/farms/:farmId/spray-notifications/:id", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const { sprayApplicationId, confirmed, ...rest } = req.body;
+  const [notification] = await db.update(sprayNotificationsTable).set({
+    ...rest,
+    sprayApplicationId: sprayApplicationId ? Number(sprayApplicationId) : null,
+    confirmed: confirmed === true || confirmed === "true",
+  }).where(and(eq(sprayNotificationsTable.id, id), eq(sprayNotificationsTable.farmId, farmId))).returning();
+  if (!notification) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ notification });
+});
+
+router.delete("/farms/:farmId/spray-notifications/:id", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  await db.delete(sprayNotificationsTable).where(and(eq(sprayNotificationsTable.id, id), eq(sprayNotificationsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
 // ── Organic Arable ───────────────────────────────────────────────────────────
 
 router.get("/farms/:farmId/organic-arable/certification", requireAuth, requireTenant, requireModuleByKey("organic-arable", "read"), async (req: Request, res: Response): Promise<void> => {

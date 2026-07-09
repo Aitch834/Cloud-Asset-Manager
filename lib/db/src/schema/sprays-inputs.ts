@@ -213,3 +213,25 @@ export const lerapAssessmentsTable = pgTable("lerap_assessments", {
 
 export type LerapAssessment = typeof lerapAssessmentsTable.$inferSelect;
 export type NewLerapAssessment = typeof lerapAssessmentsTable.$inferInsert;
+
+// ─── Beekeeper / Neighbour Spray Notification Log ───────────────────────────
+export const sprayNotificationsTable = pgTable("spray_notifications", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  sprayApplicationId: integer("spray_application_id").references(() => sprayApplicationsTable.id),
+  notificationDate: date("notification_date").notNull(),
+  plannedSprayDate: date("planned_spray_date"),
+  recipientType: text("recipient_type").notNull(),   // "beekeeper" | "neighbour" | "local_authority" | "other"
+  recipientName: text("recipient_name").notNull(),
+  contactMethod: text("contact_method").notNull(),   // "phone" | "email" | "letter" | "in_person" | "text_message"
+  productsNotified: text("products_notified"),
+  fieldRefs: text("field_refs"),
+  confirmed: boolean("confirmed").notNull().default(false),
+  confirmationMethod: text("confirmation_method"),
+  confirmationReference: text("confirmation_reference"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type SprayNotification = typeof sprayNotificationsTable.$inferSelect;
+export type NewSprayNotification = typeof sprayNotificationsTable.$inferInsert;

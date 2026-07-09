@@ -444,3 +444,43 @@ export const nvzRiskAssessmentsTable = pgTable("nvz_risk_assessments", {
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ─── Grassland & Pasture Management ─────────────────────────────────────────
+export const grasslandGrazingEventsTable = pgTable("grassland_grazing_events", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  fieldId: integer("field_id").notNull().references(() => fieldsTable.id),
+  herdId: integer("herd_id"),                          // soft-ref to herd_flock_register.id
+  entryDate: date("entry_date").notNull(),
+  exitDate: date("exit_date"),
+  grazingSystem: text("grazing_system"),               // "Rotational" | "Strip" | "Set stocking" | "Leader-follower" | "Mob" | "Other"
+  species: text("species"),                            // "Cattle" | "Sheep" | "Mixed" | "Other"
+  animalCount: integer("animal_count"),
+  preGrazingCoverMm: integer("pre_grazing_cover_mm"),
+  postGrazingResidualMm: integer("post_grazing_residual_mm"),
+  manureAppliedBeforeEntry: boolean("manure_applied_before_entry").default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const grasslandReseedingRecordsTable = pgTable("grassland_reseeding_records", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  fieldId: integer("field_id").notNull().references(() => fieldsTable.id),
+  reseedingDate: date("reseeding_date").notNull(),
+  reason: text("reason").notNull(),                    // "Renovation" | "Full reseed" | "Overseeding" | "Poaching recovery" | "Disease/weed control" | "Other"
+  seedMix: text("seed_mix"),
+  seedRateKgHa: numeric("seed_rate_kg_ha", { precision: 6, scale: 2 }),
+  method: text("method"),                              // "Plough & reseed" | "Min-till" | "Disc & reseed" | "Slot seeding" | "Surface broadcast"
+  areaHa: numeric("area_ha", { precision: 10, scale: 4 }),
+  targetEstablishmentDate: date("target_establishment_date"),
+  actualEstablishmentDate: date("actual_establishment_date"),
+  establishmentSuccess: text("establishment_success"), // "Good" | "Partial" | "Poor" | "Failed"
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type GrasslandGrazingEvent = typeof grasslandGrazingEventsTable.$inferSelect;
+export type NewGrasslandGrazingEvent = typeof grasslandGrazingEventsTable.$inferInsert;
+export type GrasslandReseedingRecord = typeof grasslandReseedingRecordsTable.$inferSelect;
+export type NewGrasslandReseedingRecord = typeof grasslandReseedingRecordsTable.$inferInsert;
