@@ -400,7 +400,65 @@ function reconnectReloadPlugin(sessionBase: string) {
           return;
         }
 
-        // ── 4. Intercept JS module and HTML responses ──────────────────────
+        // ── 4. Intercept /@react-refresh — serve no-op stub ───────────────
+        // The real @react-refresh module's registerExportsForReactRefresh()
+        // calls performReactRefresh() every time a compiled module is evaluated
+        // (both on first load AND whenever Vite serves an already-cached module
+        // to a new session URL).  If performReactRefresh() fires while ANOTHER
+        // component is mid-render, React's dispatcher is in the wrong state →
+        // "Invalid hook call" at the first hook in that component.
+        //
+        // The test-dashboard is a demo viewer, not a development environment.
+        // HMR / React Refresh is not needed.  Replacing @react-refresh with a
+        // no-op stub permanently eliminates performReactRefresh() → no dispatcher
+        // corruption → no "Invalid hook call" crashes on any page. ✓
+        //
+        // The stub exports every symbol the compiled preamble code expects:
+        //   injectIntoGlobalHook, register, createSignatureFunctionForTransform,
+        //   registerExportsForReactRefresh, validateRefreshBoundaryAndEnqueueUpdate
+        // All are safe no-ops — components render normally, just without HMR.
+        if ((req.url as string)?.includes("/@react-refresh")) {
+          const noopRefresh = `
+// @react-refresh no-op stub (test-dashboard: HMR disabled to prevent crashes)
+export function injectIntoGlobalHook(globalObj) {
+  globalObj.$RefreshReg$ = function() {};
+  globalObj.$RefreshSig$ = function() { return function(type) { return type; }; };
+}
+export function register(type, id) {}
+export function createSignatureFunctionForTransform() {
+  // Must return a function matching the signature: (type, key?, forceReset?, getCustomHooks?) => type
+  return function(type, key, forceReset, getCustomHooks) { return type; };
+}
+export function __hmr_import(moduleId) {
+  // Called by the compiled HMR preamble: __hmr_import(import.meta.url).then(currentExports => ...)
+  // Must return a Promise.  We resolve with {} so registerExportsForReactRefresh
+  // receives an empty object — fine because our registerExportsForReactRefresh is also a no-op.
+  return Promise.resolve({});
+}
+export function registerExportsForReactRefresh(filename, moduleExports) {
+  // Intentionally NO performReactRefresh() call — that is the entire purpose
+  // of this stub.  Calling performReactRefresh() mid-render corrupts React's
+  // hook dispatcher, causing "Invalid hook call" crashes.
+}
+export function validateRefreshBoundaryAndEnqueueUpdate(prevExports, nextExports) {
+  return null; // null = update is safe (no forced full-reload needed)
+}
+export default {
+  injectIntoGlobalHook,
+  register,
+  createSignatureFunctionForTransform,
+  __hmr_import,
+  registerExportsForReactRefresh,
+  validateRefreshBoundaryAndEnqueueUpdate,
+};
+`;
+          res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+          res.setHeader("Cache-Control", "no-store");
+          res.end(noopRefresh);
+          return;
+        }
+
+        // ── 5. Intercept JS module and HTML responses ──────────────────────
         const url = req.url as string;
         const isJsModule =
           url.includes("/.vite/deps/") ||

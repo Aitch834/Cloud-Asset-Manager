@@ -448,6 +448,37 @@ React Refresh family IDs are stable across sessions. ✓
 `server.warmup.clientFiles` list in `artifacts/test-dashboard/vite.config.ts`. The list is
 maintained manually (not glob-generated) because the config is a static file.
 
+## @react-refresh no-op stub — definitive fix for performReactRefresh() crashes
+
+**Root cause of all `performReactRefresh()` triggered crashes:**
+`registerExportsForReactRefresh(filename, currentExports)` (line 604 of the real `@react-refresh`)
+calls `performReactRefresh()` every time ANY compiled module is evaluated by the browser.
+This fires both at startup (warmup) AND when the browser fetches each source file URL.
+If a component is mid-render when this fires, React's dispatcher is corrupted → "Invalid hook call".
+
+**Definitive fix:** Intercept `/@react-refresh` in the configureServer middleware and return a
+no-op ES module stub instead of the real React Refresh runtime. The test-dashboard is a demo/test
+viewer — not a development environment — so HMR is not needed.
+
+**The stub must export ALL these symbols (v5 @vitejs/plugin-react):**
+- `injectIntoGlobalHook(globalObj)` — sets `$RefreshReg$` and `$RefreshSig$` as no-ops
+- `register(type, id)` — no-op
+- `createSignatureFunctionForTransform()` — returns `(type) => type`
+- `__hmr_import(moduleId)` — **MUST return `Promise.resolve({})`** — called by compiled preamble
+  as `RefreshRuntime.__hmr_import(import.meta.url).then(currentExports => ...)`. Missing this
+  export causes `RefreshRuntime.__hmr_import is not a function` crash.
+- `registerExportsForReactRefresh(filename, moduleExports)` — no-op, intentionally NO
+  `performReactRefresh()` call
+- `validateRefreshBoundaryAndEnqueueUpdate(prevExports, nextExports)` — returns `null`
+- `default` export: object with all of the above
+
+**Location in vite.config.ts:** Step 4 (before the interceptText step, after the SW file step).
+Intercept: `if ((req.url as string)?.includes("/@react-refresh"))`.
+
+**Interaction with warmup:** warmup pre-compiles pages at startup (before browser requests).
+The no-op stub means those compilations don't call `performReactRefresh()`. Both fixes are
+kept in place for defence-in-depth.
+
 ## Mid-render dep discovery via missing use-sync-external-store dep chunks
 
 **Root cause (2026-07-09):** `zustand/traditional.mjs` and `@uppy/react` both import
