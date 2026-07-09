@@ -601,3 +601,69 @@ export async function testLisConnection(username: string, password: string): Pro
     responsePayload: JSON.stringify({ status: "CONNECTED" }),
   };
 }
+
+// ─── CLA OData — Review / Undo ────────────────────────────────────────────
+
+/**
+ * POST /ReviewHoldingMovementRequests
+ * Accept or reject an inbound movement that another keeper submitted to our holding.
+ * `isAccepted=true`  → accept the whole movement.
+ * `isAccepted=false` → reject the whole movement.
+ */
+export async function reviewHoldingMovement(
+  accessToken: string,
+  params: {
+    requestId: number;
+    holding: string;
+    isAccepted: boolean;
+    arrivalDate: string;
+    animalTotal: number;
+  },
+): Promise<{ ok: boolean; errorMessage?: string }> {
+  if (isLisSandboxMode()) {
+    return { ok: true };
+  }
+  const payload = {
+    content: {
+      holding: params.holding,
+      reviewMovement: {
+        requestId: params.requestId,
+        isAccepted: params.isAccepted,
+        arrivalDate: params.arrivalDate,
+        animalTotal: params.animalTotal,
+        acceptedDevices: [],
+        rejectedDevices: [],
+        acceptedBatches: [],
+        rejectedBatches: [],
+      },
+    },
+  };
+  const res = await callLisApi(accessToken, "/ReviewHoldingMovementRequests", "POST", payload);
+  if (!res.ok) {
+    const msg = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
+    return { ok: false, errorMessage: `HTTP ${res.status}: ${msg}` };
+  }
+  return { ok: true };
+}
+
+/**
+ * POST /UndoRequests
+ * Withdraw (undo) a previously submitted TransferRequest.
+ * `requestId` must be the integer OData requestId of the original submission.
+ */
+export async function undoLisRequest(
+  accessToken: string,
+  requestId: number,
+): Promise<{ ok: boolean; errorMessage?: string }> {
+  if (isLisSandboxMode()) {
+    return { ok: true };
+  }
+  const res = await callLisApi(accessToken, "/UndoRequests", "POST", {
+    content: { requestToBeUndone_ID: requestId },
+  });
+  if (!res.ok) {
+    const msg = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
+    return { ok: false, errorMessage: `HTTP ${res.status}: ${msg}` };
+  }
+  return { ok: true };
+}

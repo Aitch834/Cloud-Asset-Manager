@@ -48,13 +48,19 @@ export default function MoreScreen() {
 
   const [lisStatus, setLisStatus] = useState<LisStatus>(null);
   const [lisSyncing, setLisSyncing] = useState(false);
+  const [lisInboundCount, setLisInboundCount] = useState(0);
 
   useEffect(() => {
     if (!currentFarm?.id) return;
     setLisStatus(null);
+    setLisInboundCount(0);
     lisApiFetch(`/api/farms/${currentFarm.id}/lis-credentials`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setLisStatus(data as LisStatus); })
+      .catch(() => {});
+    lisApiFetch(`/api/farms/${currentFarm.id}/lis-inbound-movements`)
+      .then(r => r.ok ? r.json() : null)
+      .then((data: any) => { if (Array.isArray(data)) setLisInboundCount(data.length); })
       .catch(() => {});
   }, [currentFarm?.id]);
 
@@ -246,6 +252,19 @@ export default function MoreScreen() {
               <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: "#2563eb", borderTopColor: "transparent" }} />
             ) : undefined}
           />
+          {lisInboundCount > 0 && (
+            <>
+              <View style={styles.divider} />
+              <ListItem
+                title={`${lisInboundCount} Inbound Movement${lisInboundCount !== 1 ? "s" : ""} Pending Review`}
+                subtitle="Tap to view in Livestock Movements history — use the Review button on each item"
+                icon="inbox"
+                iconColor="#92400e"
+                iconBgColor="#fef3c7"
+                onPress={() => router.push("/history-movements")}
+              />
+            </>
+          )}
         </View>
 
         <SectionHeader title="Tasks" />

@@ -430,7 +430,7 @@ import { farmRlsMiddleware } from "../middlewares/farmRlsMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
 import { generateDispatchNoteHtml } from "../lib/dispatch-note-html";
 import { submitMovement, testConnection, isSandboxMode } from "../lib/ctws";
-import { submitLisMovement, testLisConnection, fetchLisToken, refreshLisToken, isLisSandboxMode, callLisApi, buildLisAuthUrl, exchangeLisCode } from "../lib/lis";
+import { submitLisMovement, testLisConnection, fetchLisToken, refreshLisToken, isLisSandboxMode, callLisApi, buildLisAuthUrl, exchangeLisCode, reviewHoldingMovement, undoLisRequest } from "../lib/lis";
 import { buildLipAuthUrl, exchangeLipCode, getLipRedirectUri, signLipOAuthState, verifyLipOAuthState, probeLipApi, isLipSandboxMode, refreshLipToken, callLipApi, submitLipMovement, submitLipBirth, submitLipDeath, submitLipLostFound, confirmLipMovement, cancelLipMovement, getLipRejectionReasons, checkLipRequestStatus } from "../lib/lip";
 import { computeFieldFiveInFiveScore, computeFarmFiveInFiveSummary } from "../lib/blackgrassFiveInFive";
 
@@ -26617,6 +26617,187 @@ router.post("/farms/:farmId/lis/sync-herds", requireAuth, requireTenant, async (
       "GET /ApprovedMovements": { status: approvedResult.status, ok: approvedResult.ok, data: approvedResult.data },
     },
   });
+});
+
+// ─── LIS Inbound Movements (pending reviews from other keepers) ───────────
+
+/**
+ * GET /api/farms/:farmId/lis-inbound-movements
+ * Returns livestock_movements rows that were synced from LIS with
+ * lisSource = "movement_review" and have not yet been reviewed.
+ */
+router.get("/farms/:farmId/lis-inbound-movements", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+
+  const rows = await db
+    .select()
+    .from(livestockMovementsTable)
+    .where(
+      and(
+        eq(livestockMovementsTable.farmId, farmId),
+        eq(livestockMovementsTable.lisSource, "movement_review"),
+      ),
+    )
+    .orderBy(desc(livestockMovementsTable.movementDate));
+
+  res.json(rows);
+});
+
+// ─── LIS Review Movement (accept/reject an inbound movement) ─────────────
+
+/**
+ * POST /api/farms/:farmId/lis-review-movement
+ * Body: { movId: number; isAccepted: boolean; arrivalDate: string }
+ * Calls POST /ReviewHoldingMovementRequests on the CLA OData API, then
+ * marks the movement in the DB as reviewed (lisSource → "reviewed").
+ */
+router.post("/farms/:farmId/lis-review-movement", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+
+  const { movId, isAccepted, arrivalDate } = req.body as { movId: number; isAccepted: boolean; arrivalDate: string };
+  if (!movId) { res.status(400).json({ success: false, error: "movId is required" }); return; }
+
+  const [mov] = await db.select().from(livestockMovementsTable)
+    .where(and(eq(livestockMovementsTable.id, movId), eq(livestockMovementsTable.farmId, farmId)));
+  if (!mov) { res.status(404).json({ success: false, error: "Movement not found" }); return; }
+
+  // Extract requestId and holding from the raw LIS data stored during sync
+  const raw = mov.lisRawData as any;
+  const requestId: number = Number(raw?.requestId ?? raw?.id ?? raw?.reviewId ?? 0);
+  const holding: string = mov.toLocation ?? "";
+  const animalTotal: number = mov.numberOfAnimals ?? raw?.animalTotal ?? 1;
+
+  if (!requestId) {
+    res.status(400).json({ success: false, error: "Cannot determine LIS requestId for this movement — try syncing again." });
+    return;
+  }
+
+  // ── Token retrieval ─────────────────────────────────────────────────────
+  const [creds] = await db.select().from(lisFarmTokensTable).where(eq(lisFarmTokensTable.farmId, farmId));
+
+  if (isLisSandboxMode()) {
+    // Simulate success in sandbox
+    await db.update(livestockMovementsTable).set({
+      lisSource: isAccepted ? "reviewed_accepted" : "reviewed_rejected",
+    }).where(eq(livestockMovementsTable.id, movId));
+    res.json({ success: true, sandbox: true, isAccepted });
+    return;
+  }
+
+  if (!creds?.isConfigured) {
+    res.status(400).json({ success: false, error: "LIS not configured for this farm." });
+    return;
+  }
+
+  let accessToken = creds.accessToken ?? undefined;
+  if (!accessToken || (creds.tokenExpiresAt && new Date(creds.tokenExpiresAt) < new Date(Date.now() + 60_000))) {
+    if (creds.refreshToken) {
+      const r = await refreshLisToken(creds.refreshToken);
+      if (r.success && r.accessToken) {
+        accessToken = r.accessToken;
+        await db.update(lisFarmTokensTable).set({ accessToken, refreshToken: r.refreshToken ?? undefined, tokenExpiresAt: r.expiresIn ? new Date(Date.now() + r.expiresIn * 1000) : undefined, updatedAt: new Date() }).where(eq(lisFarmTokensTable.farmId, farmId));
+      }
+    }
+    if (!accessToken && creds.lisPasswordEncrypted) {
+      const pw = decryptCredential(creds.lisPasswordEncrypted);
+      const t = await fetchLisToken(creds.lisUsername!, pw);
+      if (t.success && t.accessToken) {
+        accessToken = t.accessToken;
+        await db.update(lisFarmTokensTable).set({ accessToken, refreshToken: t.refreshToken ?? undefined, tokenExpiresAt: t.expiresIn ? new Date(Date.now() + t.expiresIn * 1000) : undefined, updatedAt: new Date() }).where(eq(lisFarmTokensTable.farmId, farmId));
+      }
+    }
+  }
+  if (!accessToken) { res.status(401).json({ success: false, error: "LIS token expired — please reconnect via Farm Settings." }); return; }
+
+  const result = await reviewHoldingMovement(accessToken, {
+    requestId,
+    holding,
+    isAccepted,
+    arrivalDate: arrivalDate || new Date().toISOString().slice(0, 10),
+    animalTotal,
+  });
+
+  if (result.ok) {
+    await db.update(livestockMovementsTable).set({
+      lisSource: isAccepted ? "reviewed_accepted" : "reviewed_rejected",
+      legalNotificationSubmitted: isAccepted,
+    }).where(eq(livestockMovementsTable.id, movId));
+  }
+
+  res.json({ success: result.ok, sandbox: false, isAccepted, error: result.errorMessage });
+});
+
+// ─── LIS Undo Movement (withdraw a synced transfer request) ──────────────
+
+/**
+ * POST /api/farms/:farmId/lis-undo-movement
+ * Body: { movId: number }
+ * Extracts the OData requestId from lisMovementRef ("transfer_request:<id>")
+ * and calls POST /UndoRequests to withdraw the movement from LIS.
+ */
+router.post("/farms/:farmId/lis-undo-movement", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+
+  const { movId } = req.body as { movId: number };
+  if (!movId) { res.status(400).json({ success: false, error: "movId is required" }); return; }
+
+  const [mov] = await db.select().from(livestockMovementsTable)
+    .where(and(eq(livestockMovementsTable.id, movId), eq(livestockMovementsTable.farmId, farmId)));
+  if (!mov) { res.status(404).json({ success: false, error: "Movement not found" }); return; }
+
+  // Extract numeric requestId from "transfer_request:12345" or from raw data
+  const ref = mov.lisMovementRef ?? "";
+  const raw = mov.lisRawData as any;
+  const idFromRef = ref.startsWith("transfer_request:") ? parseInt(ref.replace("transfer_request:", "")) : NaN;
+  const idFromRaw = Number(raw?.requestId ?? raw?.id ?? raw?.transferId ?? NaN);
+  const requestId = isNaN(idFromRef) ? idFromRaw : idFromRef;
+
+  if (!requestId || isNaN(requestId)) {
+    res.status(400).json({ success: false, error: "Cannot determine LIS requestId — this movement may not support undo." });
+    return;
+  }
+
+  // ── Token retrieval ─────────────────────────────────────────────────────
+  const [creds] = await db.select().from(lisFarmTokensTable).where(eq(lisFarmTokensTable.farmId, farmId));
+
+  if (isLisSandboxMode()) {
+    await db.update(livestockMovementsTable).set({ lisSource: "undone" }).where(eq(livestockMovementsTable.id, movId));
+    res.json({ success: true, sandbox: true });
+    return;
+  }
+
+  if (!creds?.isConfigured) { res.status(400).json({ success: false, error: "LIS not configured." }); return; }
+
+  let accessToken = creds.accessToken ?? undefined;
+  if (!accessToken || (creds.tokenExpiresAt && new Date(creds.tokenExpiresAt) < new Date(Date.now() + 60_000))) {
+    if (creds.refreshToken) {
+      const r = await refreshLisToken(creds.refreshToken);
+      if (r.success && r.accessToken) {
+        accessToken = r.accessToken;
+        await db.update(lisFarmTokensTable).set({ accessToken, refreshToken: r.refreshToken ?? undefined, tokenExpiresAt: r.expiresIn ? new Date(Date.now() + r.expiresIn * 1000) : undefined, updatedAt: new Date() }).where(eq(lisFarmTokensTable.farmId, farmId));
+      }
+    }
+    if (!accessToken && creds.lisPasswordEncrypted) {
+      const pw = decryptCredential(creds.lisPasswordEncrypted);
+      const t = await fetchLisToken(creds.lisUsername!, pw);
+      if (t.success && t.accessToken) {
+        accessToken = t.accessToken;
+        await db.update(lisFarmTokensTable).set({ accessToken, refreshToken: t.refreshToken ?? undefined, tokenExpiresAt: t.expiresIn ? new Date(Date.now() + t.expiresIn * 1000) : undefined, updatedAt: new Date() }).where(eq(lisFarmTokensTable.farmId, farmId));
+      }
+    }
+  }
+  if (!accessToken) { res.status(401).json({ success: false, error: "LIS token expired — please reconnect." }); return; }
+
+  const result = await undoLisRequest(accessToken, requestId);
+
+  if (result.ok) {
+    await db.update(livestockMovementsTable).set({ lisSource: "undone" }).where(eq(livestockMovementsTable.id, movId));
+  }
+
+  res.json({ success: result.ok, sandbox: false, error: result.errorMessage });
 });
 
 // ─── LIS OAuth Authorization Code Flow ────────────────────────────────────

@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -19,6 +20,8 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
+import { getItem, STORAGE_KEYS } from "@/lib/storage";
+import { getApiBase } from "@/lib/uploadPhoto";
 
 interface MovementRecord {
   id: number;
@@ -33,6 +36,7 @@ interface MovementRecord {
   earTagNumbers: string | null;
   licenceNumber: string | null;
   lisSource: string | null;
+  lisMovementRef: string | null;
 }
 
 function formatDate(d: string | null | undefined): string {
@@ -183,7 +187,19 @@ export default function HistoryMovementsScreen() {
                       {MOVE_TYPE_LABELS[item.movementType] ?? item.movementType}
                     </Text>
                   </View>
-                  {item.lisSource ? (
+                  {item.lisSource === "movement_review" ? (
+                    <View style={[styles.typeBadge, { backgroundColor: "#fef3c7" }]}>
+                      <Text style={[styles.typeBadgeText, { color: "#92400e" }]}>⏳ Pending Review</Text>
+                    </View>
+                  ) : item.lisSource === "reviewed_accepted" ? (
+                    <View style={[styles.typeBadge, { backgroundColor: "#dcfce7" }]}>
+                      <Text style={[styles.typeBadgeText, { color: "#166534" }]}>✓ LIS Accepted</Text>
+                    </View>
+                  ) : item.lisSource === "reviewed_rejected" ? (
+                    <View style={[styles.typeBadge, { backgroundColor: "#fee2e2" }]}>
+                      <Text style={[styles.typeBadgeText, { color: "#991b1b" }]}>✗ LIS Rejected</Text>
+                    </View>
+                  ) : item.lisSource ? (
                     <View style={[styles.typeBadge, { backgroundColor: "#eff6ff" }]}>
                       <Text style={[styles.typeBadgeText, { color: "#2563eb" }]}>LIS</Text>
                     </View>
@@ -221,6 +237,62 @@ export default function HistoryMovementsScreen() {
                   ) : null}
                 </View>
                 {item.reason ? <Text style={styles.cardNote} numberOfLines={2}>{item.reason}</Text> : null}
+                {item.lisSource === "movement_review" && (() => {
+                  const rawRef = item.lisMovementRef ?? "";
+                  const requestId = Number(rawRef.replace("movement_review:", "").trim()) || 0;
+                  const handleReview = () => {
+                    if (!currentFarm?.id) return;
+                    const arrivalDate = item.movementDate ? new Date(item.movementDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+                    Alert.alert(
+                      "Review Inbound Movement",
+                      `From: ${item.fromLocation ?? "—"}\nTo: ${item.toLocation ?? "—"}\nAnimals: ${item.numberOfAnimals ?? "—"}\nDate: ${formatDate(item.movementDate)}\n\nAccept to confirm animals arrived, or reject if this movement did not happen.`,
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Reject",
+                          style: "destructive",
+                          onPress: async () => {
+                            try {
+                              const token = await getItem<string>(STORAGE_KEYS.AUTH_TOKEN);
+                              const headers: Record<string, string> = { "Content-Type": "application/json" };
+                              if (token) headers["Authorization"] = `Bearer ${token}`;
+                              const res = await fetch(`${getApiBase()}/api/farms/${currentFarm.id}/lis/review-movement`, {
+                                method: "POST",
+                                headers,
+                                body: JSON.stringify({ movId: item.id, isAccepted: false, arrivalDate }),
+                              });
+                              if (res.ok) { Alert.alert("Done", "Movement marked as rejected."); refresh(); }
+                              else Alert.alert("Error", "Could not submit review. Try again from the dashboard.");
+                            } catch { Alert.alert("Error", "Network error. Please try again."); }
+                          },
+                        },
+                        {
+                          text: "Accept",
+                          onPress: async () => {
+                            try {
+                              const token = await getItem<string>(STORAGE_KEYS.AUTH_TOKEN);
+                              const headers: Record<string, string> = { "Content-Type": "application/json" };
+                              if (token) headers["Authorization"] = `Bearer ${token}`;
+                              const res = await fetch(`${getApiBase()}/api/farms/${currentFarm.id}/lis/review-movement`, {
+                                method: "POST",
+                                headers,
+                                body: JSON.stringify({ movId: item.id, isAccepted: true, arrivalDate }),
+                              });
+                              if (res.ok) { Alert.alert("Done", "Movement accepted and recorded."); refresh(); }
+                              else Alert.alert("Error", "Could not submit review. Try again from the dashboard.");
+                            } catch { Alert.alert("Error", "Network error. Please try again."); }
+                          },
+                        },
+                      ],
+                    );
+                  };
+                  return requestId ? (
+                    <Pressable onPress={handleReview} style={styles.reviewBtn}>
+                      <Feather name="check-circle" size={13} color="#1d4ed8" />
+                      <Text style={styles.reviewBtnText}>Review this movement</Text>
+                    </Pressable>
+                  ) : null;
+                })()}
               </View>
             );
           }}
@@ -268,4 +340,6 @@ const styles = StyleSheet.create({
   chip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.background, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 3 },
   chipText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },
   cardNote: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textTertiary, marginTop: spacing.xs, fontStyle: "italic" },
+  reviewBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.sm, backgroundColor: "#eff6ff", borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, alignSelf: "flex-start" },
+  reviewBtnText: { fontFamily: fonts.semiBold, fontSize: fontSize.xs, color: "#1d4ed8" },
 });

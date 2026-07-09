@@ -11,6 +11,7 @@ import {
   Plus, Search, RefreshCw, Loader2, Pencil, Eye, Trash2, X, Printer,
   ArrowRight, Paperclip, CheckCircle2, AlertTriangle, Upload, File, Skull, Download, ExternalLink,
   Send, ShieldCheck, Shield, WifiOff, Clock, ClipboardCheck, Truck,
+  RotateCcw, Inbox,
 } from "lucide-react";
 import { LivestockDispatchChecklist } from "@/components/livestock/LivestockDispatchChecklist";
 import { useToast } from "@/hooks/use-toast";
@@ -1106,6 +1107,11 @@ export default function Movements() {
   const [submittingId, setSubmittingId] = useState<number | null>(null);
   const [lisSubmitConfirmId, setLisSubmitConfirmId] = useState<number | null>(null);
   const [lisSubmittingId, setLisSubmittingId] = useState<number | null>(null);
+  const [lisSubTab, setLisSubTab] = useState<"outbound" | "inbound">("outbound");
+  const [lisReviewDialog, setLisReviewDialog] = useState<{ movId: number; requestId: number; holding: string; animalTotal: number; fromCph: string | null; toCph: string | null; date: string } | null>(null);
+  const [lisReviewArrivalDate, setLisReviewArrivalDate] = useState("");
+  const [lisReviewAccepting, setLisReviewAccepting] = useState(true);
+  const [lisUndoConfirmId, setLisUndoConfirmId] = useState<number | null>(null);
   const [lipSubmitConfirmId, setLipSubmitConfirmId] = useState<number | null>(null);
   const [lipSubmittingId, setLipSubmittingId] = useState<number | null>(null);
   const [linkedAnimalIds, setLinkedAnimalIds] = useState<number[]>([]);
@@ -1238,6 +1244,13 @@ export default function Movements() {
     select: (d: any) => d.submissions ?? [],
   });
   const lisSubmissions: any[] = lisSubmissionsData ?? [];
+
+  const { data: lisInboundData, refetch: refetchLisInbound } = useQuery({
+    queryKey: ["lis-inbound-movements", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/lis-inbound-movements`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const lisInbound: any[] = Array.isArray(lisInboundData) ? lisInboundData : [];
 
   const { data: lisCredsData } = useQuery({
     queryKey: ["lis-credentials", farmId],
@@ -1390,6 +1403,57 @@ export default function Movements() {
       }
     },
     onError: () => { setLisSubmittingId(null); toast({ title: "LIS submission error", variant: "destructive" }); },
+  });
+
+  const lisSyncMut = useMutation({
+    mutationFn: () => fetch(`/api/farms/${farmId}/lis/sync-herds`, { method: "POST" }).then(r => r.json()),
+    onSuccess: (d) => {
+      refetchLisSubmissions();
+      refetchLisInbound();
+      queryClient.invalidateQueries({ queryKey: ["movements", farmId] });
+      toast({ title: "LIS sync complete", description: d.message ?? "Synced with LIS successfully" });
+    },
+    onError: () => toast({ title: "LIS sync failed", variant: "destructive" }),
+  });
+
+  const lisReviewMut = useMutation({
+    mutationFn: (vars: { movId: number; isAccepted: boolean; arrivalDate: string }) =>
+      fetch(`/api/farms/${farmId}/lis-review-movement`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(vars),
+      }).then(r => r.json()),
+    onSuccess: (d) => {
+      setLisReviewDialog(null);
+      refetchLisInbound();
+      queryClient.invalidateQueries({ queryKey: ["movements", farmId] });
+      if (d.success) {
+        toast({ title: d.isAccepted ? "Movement accepted" : "Movement rejected", description: d.sandbox ? "Simulated in sandbox" : "LIS has been notified." });
+      } else {
+        toast({ title: "Review failed", description: d.error, variant: "destructive" });
+      }
+    },
+    onError: () => toast({ title: "Review error", variant: "destructive" }),
+  });
+
+  const lisUndoMut = useMutation({
+    mutationFn: (movId: number) =>
+      fetch(`/api/farms/${farmId}/lis-undo-movement`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ movId }),
+      }).then(r => r.json()),
+    onSuccess: (d) => {
+      setLisUndoConfirmId(null);
+      refetchLisInbound();
+      queryClient.invalidateQueries({ queryKey: ["movements", farmId] });
+      if (d.success) {
+        toast({ title: "Movement withdrawn", description: d.sandbox ? "Simulated in sandbox" : "LIS has been notified of the withdrawal." });
+      } else {
+        toast({ title: "Undo failed", description: d.error, variant: "destructive" });
+      }
+    },
+    onError: () => toast({ title: "Undo error", variant: "destructive" }),
   });
 
   const submitBcmsMut = useMutation({
@@ -2463,6 +2527,89 @@ export default function Movements() {
         </DialogContent>
       </Dialog>
 
+      {/* LIS Inbound Review Dialog */}
+      <Dialog open={lisReviewDialog !== null} onOpenChange={o => { if (!o) setLisReviewDialog(null); }}>
+        <DialogContent style={{ maxWidth: 460 }}>
+          <DialogHeader><DialogTitle>Review Inbound Movement</DialogTitle></DialogHeader>
+          {lisReviewDialog && (
+            <div className="space-y-4 py-1">
+              <div style={{ background: "#f9fafb", borderRadius: 8, padding: "10px 14px", fontSize: "0.82rem" }}>
+                <div className="grid grid-cols-2 gap-y-1.5">
+                  {[
+                    ["LIS Request ID", String(lisReviewDialog.requestId)],
+                    ["From CPH", lisReviewDialog.fromCph ?? "—"],
+                    ["To CPH", lisReviewDialog.toCph ?? "—"],
+                    ["Animals", String(lisReviewDialog.animalTotal)],
+                  ].map(([k, v]) => (
+                    <React.Fragment key={k}><span style={{ color: "#6b7280", fontWeight: 500 }}>{k}</span><span style={{ fontWeight: 600 }}>{v}</span></React.Fragment>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Arrival date</label>
+                <input
+                  type="date"
+                  value={lisReviewArrivalDate}
+                  onChange={e => setLisReviewArrivalDate(e.target.value)}
+                  style={{ width: "100%", padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: "0.875rem" }}
+                />
+              </div>
+              <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>
+                <strong>Accept</strong> to confirm these animals arrived at your holding. <strong>Reject</strong> if this movement did not happen at your holding.
+              </p>
+            </div>
+          )}
+          <DialogFooter style={{ gap: 8 }}>
+            <Button variant="outline" onClick={() => setLisReviewDialog(null)} disabled={lisReviewMut.isPending}>Cancel</Button>
+            <Button
+              variant="outline"
+              style={{ borderColor: "#fca5a5", color: "#dc2626" }}
+              disabled={lisReviewMut.isPending || !lisReviewDialog}
+              onClick={() => lisReviewDialog && lisReviewMut.mutate({ movId: lisReviewDialog.movId, isAccepted: false, arrivalDate: lisReviewArrivalDate })}
+            >
+              {lisReviewMut.isPending && !lisReviewAccepting ? <Loader2 size={13} className="animate-spin mr-1" /> : <X size={13} className="mr-1" />}
+              Reject
+            </Button>
+            <Button
+              className="bg-green-700 hover:bg-green-800 text-white"
+              disabled={lisReviewMut.isPending || !lisReviewDialog || !lisReviewArrivalDate}
+              onClick={() => { setLisReviewAccepting(true); lisReviewDialog && lisReviewMut.mutate({ movId: lisReviewDialog.movId, isAccepted: true, arrivalDate: lisReviewArrivalDate }); }}
+            >
+              {lisReviewMut.isPending && lisReviewAccepting ? <Loader2 size={13} className="animate-spin mr-1" /> : <CheckCircle2 size={13} className="mr-1" />}
+              Accept
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* LIS Undo Confirm Dialog */}
+      <Dialog open={lisUndoConfirmId !== null} onOpenChange={o => { if (!o) setLisUndoConfirmId(null); }}>
+        <DialogContent style={{ maxWidth: 420 }}>
+          <DialogHeader><DialogTitle>Withdraw LIS Transfer Request</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-1">
+            <p style={{ fontSize: "0.875rem", color: "#374151" }}>
+              This will send an <strong>UndoRequest</strong> to LIS to withdraw this transfer. The movement will be removed from the holding register.
+            </p>
+            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "10px 14px" }}>
+              <p style={{ fontSize: "0.8rem", color: "#dc2626" }}>
+                ⚠ This cannot be undone once confirmed. Only proceed if this movement was submitted in error.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLisUndoConfirmId(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={lisUndoMut.isPending}
+              onClick={() => lisUndoConfirmId !== null && lisUndoMut.mutate(lisUndoConfirmId)}
+            >
+              {lisUndoMut.isPending ? <Loader2 size={13} className="animate-spin mr-1" /> : <RotateCcw size={13} className="mr-1" />}
+              Withdraw from LIS
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {activeTab === "mortality" && <MortalitySection farmId={farmId} />}
 
       {activeTab === "bcms-submissions" && (
@@ -2573,7 +2720,17 @@ export default function Movements() {
               <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "#1f2937", marginBottom: 2 }}>LIS Submission History</h3>
               <p style={{ fontSize: "0.82rem", color: "#6b7280" }}>All sheep, goat and deer movement submissions sent (or simulated) via the Livestock Information Service CLA API from this farm.</p>
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {lisConfigured && (
+                <button
+                  onClick={() => lisSyncMut.mutate()}
+                  disabled={lisSyncMut.isPending}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "6px 12px", fontSize: "0.75rem", fontWeight: 600, color: "#15803d", cursor: "pointer" }}
+                >
+                  {lisSyncMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                  Sync from LIS
+                </button>
+              )}
               {lisCredsData && (
                 <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: lisCredsData.configured ? "#eff6ff" : "#f9fafb", border: `1px solid ${lisCredsData.configured ? "#bfdbfe" : "#e5e7eb"}`, borderRadius: 8, padding: "6px 12px", fontSize: "0.75rem", fontWeight: 600, color: lisCredsData.configured ? "#1d4ed8" : "#6b7280" }}>
                   {lisCredsData.configured ? <ShieldCheck size={13} /> : <WifiOff size={13} />}
@@ -2583,6 +2740,18 @@ export default function Movements() {
             </div>
           </div>
 
+          {/* Sub-tab selector */}
+          <div style={{ display: "flex", borderBottom: "2px solid #e5e7eb", marginBottom: "1rem" }}>
+            <button onClick={() => setLisSubTab("outbound")} style={{ padding: "8px 16px", fontSize: "0.82rem", fontWeight: 600, border: "none", background: "none", cursor: "pointer", borderBottom: lisSubTab === "outbound" ? "2px solid #1d4ed8" : "2px solid transparent", color: lisSubTab === "outbound" ? "#1d4ed8" : "#6b7280", marginBottom: -2 }}>
+              Outbound ({lisSubmissions.length})
+            </button>
+            <button onClick={() => setLisSubTab("inbound")} style={{ padding: "8px 16px", fontSize: "0.82rem", fontWeight: 600, border: "none", background: "none", cursor: "pointer", borderBottom: lisSubTab === "inbound" ? "2px solid #1d4ed8" : "2px solid transparent", color: lisSubTab === "inbound" ? "#1d4ed8" : "#6b7280", marginBottom: -2, display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <Inbox size={13} />
+              Inbound{lisInbound.length > 0 ? ` (${lisInbound.length})` : ""}
+            </button>
+          </div>
+
+          {lisSubTab === "outbound" && (<>
           {!lisConfigured && (
             <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "1rem 1.25rem", marginBottom: "1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
               <Shield size={16} style={{ color: "#1d4ed8", flexShrink: 0, marginTop: 2 }} />
@@ -2690,6 +2859,110 @@ export default function Movements() {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+          </>)}
+
+          {lisSubTab === "inbound" && (
+            <div>
+              {lisInbound.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "3rem", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10 }}>
+                  <Inbox size={32} style={{ margin: "0 auto 12px", opacity: 0.3, color: "#6b7280" }} />
+                  <p style={{ fontWeight: 600, color: "#374151", marginBottom: 4 }}>No inbound movements pending review</p>
+                  <p style={{ fontSize: "0.875rem", color: "#9ca3af" }}>
+                    {lisConfigured ? "Use \"Sync from LIS\" to fetch movements that other keepers have submitted to your holding." : "Configure LIS credentials in Farm Settings, then sync to see inbound movements from other keepers."}
+                  </p>
+                </div>
+              ) : (
+                <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+                  <div style={{ background: "#eff6ff", borderBottom: "1px solid #bfdbfe", padding: "10px 16px" }}>
+                    <p style={{ fontSize: "0.8rem", color: "#1e40af", margin: 0 }}>
+                      <strong>{lisInbound.length} movement{lisInbound.length !== 1 ? "s" : ""}</strong> submitted by other keepers are waiting for your review. Accept to confirm animals arrived, or reject if the movement didn't happen.
+                    </p>
+                  </div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                    <thead>
+                      <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                        {["Movement Date", "Species", "Animals", "From CPH", "To CPH", "LIS Ref", "Action"].map(h => (
+                          <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lisInbound.map((m: any, i: number) => {
+                        const raw = m.lisRawData as any;
+                        const requestId = Number(raw?.requestId ?? raw?.id ?? raw?.reviewId ?? 0);
+                        return (
+                          <tr key={m.id} style={{ borderBottom: i < lisInbound.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                            <td style={{ padding: "0.625rem 0.875rem", color: "#374151", whiteSpace: "nowrap" }}>{formatDate(m.movementDate)}</td>
+                            <td style={{ padding: "0.625rem 0.875rem", color: "#374151", textTransform: "capitalize" }}>{m.species ?? "—"}</td>
+                            <td style={{ padding: "0.625rem 0.875rem", color: "#374151" }}>{m.numberOfAnimals ?? "—"}</td>
+                            <td style={{ padding: "0.625rem 0.875rem", fontFamily: "monospace", fontSize: "0.78rem", color: "#6b7280" }}>{m.fromLocation ?? "—"}</td>
+                            <td style={{ padding: "0.625rem 0.875rem", fontFamily: "monospace", fontSize: "0.78rem", color: "#6b7280" }}>{m.toLocation ?? "—"}</td>
+                            <td style={{ padding: "0.625rem 0.875rem", fontFamily: "monospace", fontSize: "0.75rem", color: "#374151" }}>{m.lisMovementRef?.replace("movement_review:", "") ?? "—"}</td>
+                            <td style={{ padding: "0.625rem 0.875rem" }}>
+                              {requestId ? (
+                                <button
+                                  onClick={() => {
+                                    setLisReviewArrivalDate(m.movementDate ? new Date(m.movementDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10));
+                                    setLisReviewDialog({ movId: m.id, requestId, holding: m.toLocation ?? "", animalTotal: m.numberOfAnimals ?? 1, fromCph: m.fromLocation, toCph: m.toLocation, date: m.movementDate ?? "" });
+                                  }}
+                                  style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#1d4ed8", color: "#fff", border: "none", borderRadius: 7, padding: "5px 12px", fontSize: "0.76rem", fontWeight: 600, cursor: "pointer" }}
+                                >
+                                  <ClipboardCheck size={12} /> Review
+                                </button>
+                              ) : (
+                                <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Sync to review</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Transfer requests with undo option */}
+              {(() => {
+                const undoable = records.filter(r => (r as any).lisSource === "transfer_request" && (r as any).lisMovementRef);
+                if (undoable.length === 0) return null;
+                return (
+                  <div style={{ marginTop: "1.5rem" }}>
+                    <h4 style={{ fontSize: "0.875rem", fontWeight: 600, color: "#374151", marginBottom: "0.5rem" }}>Synced outbound transfers (undo available)</h4>
+                    <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                        <thead>
+                          <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                            {["Date", "Species", "Animals", "From → To", "LIS Ref", "Action"].map(h => (
+                              <th key={h} style={{ padding: "0.5rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem" }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {undoable.map((m: any, i: number) => (
+                            <tr key={m.id} style={{ borderBottom: i < undoable.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                              <td style={{ padding: "0.5rem 0.875rem", color: "#374151", whiteSpace: "nowrap" }}>{formatDate(m.movementDate)}</td>
+                              <td style={{ padding: "0.5rem 0.875rem", color: "#374151", textTransform: "capitalize" }}>{m.species ?? "—"}</td>
+                              <td style={{ padding: "0.5rem 0.875rem", color: "#374151" }}>{m.numberOfAnimals ?? "—"}</td>
+                              <td style={{ padding: "0.5rem 0.875rem", color: "#6b7280", fontSize: "0.8rem" }}>{[m.fromLocation, m.toLocation].filter(Boolean).join(" → ") || "—"}</td>
+                              <td style={{ padding: "0.5rem 0.875rem", fontFamily: "monospace", fontSize: "0.74rem", color: "#374151" }}>{(m as any).lisMovementRef?.replace("transfer_request:", "") ?? "—"}</td>
+                              <td style={{ padding: "0.5rem 0.875rem" }}>
+                                <button
+                                  onClick={() => setLisUndoConfirmId(m.id)}
+                                  style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#fff", border: "1px solid #fca5a5", borderRadius: 7, padding: "4px 10px", fontSize: "0.75rem", fontWeight: 600, color: "#dc2626", cursor: "pointer" }}
+                                >
+                                  <RotateCcw size={11} /> Undo
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
