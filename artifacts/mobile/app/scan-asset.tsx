@@ -48,7 +48,7 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
-type EntityType = "equipment" | "field" | "animal" | "storage" | "tank" | "pat" | "poultry-house";
+type EntityType = "equipment" | "field" | "animal" | "storage" | "tank" | "pat" | "poultry-house" | "seed-batch";
 
 interface ScanResult {
   type: EntityType;
@@ -64,6 +64,7 @@ const ENTITY_META: Record<EntityType, { label: string; colour: string; icon: key
   tank:            { label: "Bulk Milk Tank",    colour: "#0369a1", icon: "droplet" },
   pat:             { label: "PAT Equipment",     colour: "#7c3aed", icon: "zap" },
   "poultry-house": { label: "Poultry House",     colour: "#d97706", icon: "home" },
+  "seed-batch":    { label: "Seed Batch",        colour: "#065f46", icon: "package" },
 };
 
 const QUICK_ACTIONS: Record<EntityType, { label: string; sub: string; icon: keyof typeof Feather.glyphMap; colour: string; bg: string; route: string; paramKey: string; nameKey?: string; extraParams?: Record<string, string> }[]> = {
@@ -102,6 +103,9 @@ const QUICK_ACTIONS: Record<EntityType, { label: string; sub: string; icon: keyo
     { label: "Welfare Check",             sub: "Log a welfare inspection observation for this house",            icon: "shield",        colour: "#7c3aed", bg: "#EDE9FE", route: "/poultry-welfare-check",         paramKey: "houseId", nameKey: "houseName" },
     { label: "Log Treatment",             sub: "Record a medicine or treatment event for this house",            icon: "activity",      colour: "#be123c", bg: "#FFE4E6", route: "/poultry-treatment",             paramKey: "houseId", nameKey: "houseName" },
   ],
+  "seed-batch": [
+    { label: "Log Seed Drilling",         sub: "Create a drilling record linked to this batch",                  icon: "feather",       colour: "#065f46", bg: "#D1FAE5", route: "/seed-drilling",                 paramKey: "batchId" },
+  ],
 };
 
 function normaliseBdeCode(raw: string): string {
@@ -118,6 +122,7 @@ function detectEntityType(raw: string): EntityType | null {
   if (code.startsWith("TNK-"))      return "tank";
   if (code.startsWith("BDE-PAT-"))  return "pat";
   if (code.startsWith("PH-"))       return "poultry-house";
+  if (code.startsWith("SB-"))       return "seed-batch";
   return null;
 }
 
@@ -133,6 +138,7 @@ async function lookupEntity(rawCode: string, type: EntityType, farmId: number, h
     tank:            `${base}/dairy/tanks/by-code/${code}`,
     pat:             `${base}/workshop/pat-equipment/by-asset/${code}`,
     "poultry-house": `${base}/poultry-houses/by-code/${code}`,
+    "seed-batch":    `${base}/seed-batches/by-code/${code}`,
   };
   const res = await fetch(endpoints[type], { headers });
   if (!res.ok) return null;
@@ -148,6 +154,7 @@ function entityDisplayName(type: EntityType, data: Record<string, unknown>): str
     case "tank":          return (data.name as string) || `Tank #${data.id}`;
     case "pat":           return (data.itemName as string) || `PAT #${data.id}`;
     case "poultry-house": return (data.houseName as string) || `House #${data.id}`;
+    case "seed-batch":    return (data.cropName as string) || `Batch #${data.id}`;
   }
 }
 
@@ -160,6 +167,7 @@ function entitySubtitle(type: EntityType, data: Record<string, unknown>): string
     case "tank":          return (data.location as string) || (data.capacityLitres ? `Capacity: ${Number(data.capacityLitres).toLocaleString()} L` : null);
     case "pat":           return [(data.make as string), (data.model as string)].filter(Boolean).join(" ") || (data.location as string) || null;
     case "poultry-house": return [(data.species as string), (data.productionSystem as string)].filter(Boolean).join(" · ") || (data.houseType as string) || null;
+    case "seed-batch":    return [(data.varietyName as string), (data.batchNumber as string)].filter(Boolean).join(" · ") || null;
   }
 }
 
@@ -185,6 +193,15 @@ function entityStatus(type: EntityType, data: Record<string, unknown>): { label:
     const nextDue = data.nextTestDue ? new Date(data.nextTestDue as string) : null;
     if (nextDue && nextDue < new Date()) return { label: "Test Overdue", colour: "#dc2626" };
     return { label: "Active — In Test Register", colour: "#7c3aed" };
+  }
+  if (type === "seed-batch") {
+    const remaining = Number(data.quantityRemainingKg ?? 0);
+    const received = Number(data.quantityReceivedKg ?? 1);
+    const pct = received > 0 ? remaining / received : 0;
+    if (!data.isActive) return { label: "Inactive", colour: "#6b7280" };
+    if (pct <= 0)    return { label: "Empty — no stock remaining", colour: "#dc2626" };
+    if (pct < 0.15) return { label: `Low stock — ${remaining.toFixed(0)} kg left`, colour: "#d97706" };
+    return { label: `${remaining.toFixed(0)} kg remaining`, colour: "#065f46" };
   }
   return null;
 }
@@ -335,7 +352,7 @@ export default function ScanQRScreen() {
               <View style={[styles.corner, styles.br]} />
             </View>
             <Text style={styles.scanHint}>Point at a BDE Farm Trac QR label</Text>
-            <Text style={styles.scanSub}>Fields · Animals · Equipment · Storage · Poultry Houses</Text>
+            <Text style={styles.scanSub}>Fields · Animals · Equipment · Storage · Seed Batches · Poultry Houses</Text>
           </View>
         </View>
       ) : (

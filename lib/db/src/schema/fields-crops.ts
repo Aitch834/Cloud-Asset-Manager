@@ -322,6 +322,9 @@ export const seedDrillingRecordsTable = pgTable("seed_drilling_records", {
   stockItemId: integer("stock_item_id"),
   stockDeliveryId: integer("stock_delivery_id"),
   batchNumber: text("batch_number"),
+  // ── Seed-batch traceability FK ───────────────────────────────────────────────
+  seedBatchId: integer("seed_batch_id").references(() => seedBatchesTable.id, { onDelete: "set null" }),
+  stockConsumedKg: numeric("stock_consumed_kg", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

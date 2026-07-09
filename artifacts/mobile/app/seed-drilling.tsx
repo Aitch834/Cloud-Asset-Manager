@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -58,15 +58,67 @@ export default function SeedDrillingScreen() {
   const [weatherSource, setWeatherSource] = useState<"manual" | "open_meteo" | "davis_station" | "vehicle_station" | "third_party">("manual");
   const [notes, setNotes] = useState("");
   const [seedCostPencePerKg, setSeedCostPencePerKg] = useState("");
+  const [seedBatches, setSeedBatches] = useState<Array<{
+    id: number; batchNumber: string; cropName: string;
+    varietyName?: string | null; tgwGrams?: string | number;
+    quantityRemainingKg?: string | number; treatmentNotes?: string | null;
+    costPence?: number | null;
+  }>>([]);
+  const [selectedBatchId, setSelectedBatchId] = useState<number | null>(null);
+  const [loadingBatches, setLoadingBatches] = useState(false);
+
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    let cancelled = false;
+    async function fetchBatches() {
+      setLoadingBatches(true);
+      try {
+        const { Platform } = await import("react-native");
+        const SecureStore = Platform.OS !== "web" ? await import("expo-secure-store") : null;
+        let token: string | null = null;
+        if (SecureStore) {
+          token = await SecureStore.getItemAsync("auth_session_token");
+        } else {
+          try { token = localStorage.getItem("auth_session_token"); } catch {}
+        }
+        const { kvGet } = await import("@/lib/database");
+        const farmRaw = await kvGet("bde_current_farm");
+        const slug = farmRaw ? (JSON.parse(farmRaw).tenantSlug || "") : "";
+        const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
+        const headers: Record<string, string> = { "Content-Type": "application/json", "x-tenant-slug": slug };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        const res = await fetch(`https://${apiDomain}/api/farms/${currentFarm!.id}/seed-batches`, { headers });
+        if (!cancelled && res.ok) {
+          const data = await res.json();
+          setSeedBatches(data.records ?? []);
+        }
+      } catch {}
+      finally { if (!cancelled) setLoadingBatches(false); }
+    }
+    fetchBatches();
+    return () => { cancelled = true; };
+  }, [currentFarm?.id]);
 
   const handleCropSelect = (name: string) => {
     setCropName(name);
+    setSelectedBatchId(null);
     const matched = crops.find(
       (c) => c.name.toLowerCase() === name.toLowerCase()
     );
     if (matched?.variety) {
       setVariety(matched.variety);
     }
+  };
+
+  const handleBatchSelect = (batchId: number | null) => {
+    setSelectedBatchId(batchId);
+    if (batchId === null) return;
+    const batch = seedBatches.find(b => b.id === batchId);
+    if (!batch) return;
+    if (batch.varietyName && !variety) setVariety(batch.varietyName);
+    if (batch.batchNumber) setSeedLotNumber(batch.batchNumber);
+    if (batch.treatmentNotes) { setIsTreated(true); setTreatmentProduct(batch.treatmentNotes); }
+    if (batch.costPence) setSeedCostPencePerKg(String((batch.costPence as number / 1000).toFixed(2)));
   };
 
   const handleFieldChange = (field: import("@/lib/hooks/useApiFields").ApiField) => {
@@ -142,6 +194,7 @@ export default function SeedDrillingScreen() {
       weatherSource: weatherNotes.trim() ? weatherSource : undefined,
       notes: notes.trim(),
       seedCostPencePerKg: seedCostPencePerKg ? Math.round(parseFloat(seedCostPencePerKg) * 100) : undefined,
+      seedBatchId: selectedBatchId ?? undefined,
       latitude,
       longitude,
       createdAt: new Date().toISOString(),
@@ -288,6 +341,45 @@ export default function SeedDrillingScreen() {
                 </Text>
               ) : null}
             </View>
+
+            {cropName ? (() => {
+              const batchesForCrop = seedBatches.filter(b =>
+                b.cropName.toLowerCase() === cropName.toLowerCase() && Number(b.quantityRemainingKg ?? 0) > 0
+              );
+              return batchesForCrop.length > 0 ? (
+                <View style={styles.field}>
+                  <Text style={styles.label}>Seed Batch from Store {loadingBatches ? "(loading…)" : ""}</Text>
+                  <View style={styles.chipWrap}>
+                    <Pressable
+                      style={[styles.chip, selectedBatchId === null && styles.chipSelected]}
+                      onPress={() => handleBatchSelect(null)}
+                    >
+                      <Text style={[styles.chipText, selectedBatchId === null && styles.chipTextSelected]}>No batch</Text>
+                    </Pressable>
+                    {batchesForCrop.map(b => (
+                      <Pressable
+                        key={b.id}
+                        style={[styles.chip, selectedBatchId === b.id && styles.chipSelected]}
+                        onPress={() => handleBatchSelect(b.id)}
+                      >
+                        <Text style={[styles.chipText, selectedBatchId === b.id && styles.chipTextSelected]}>
+                          {b.batchNumber}
+                          {b.quantityRemainingKg ? ` (${Number(b.quantityRemainingKg).toFixed(0)}kg)` : ""}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  {selectedBatchId !== null && (() => {
+                    const sb = seedBatches.find(b => b.id === selectedBatchId);
+                    return sb ? (
+                      <Text style={styles.hint}>
+                        TGW {sb.tgwGrams}g · {Number(sb.quantityRemainingKg ?? 0).toFixed(0)}kg remaining — stock will be deducted automatically
+                      </Text>
+                    ) : null;
+                  })()}
+                </View>
+              ) : null;
+            })() : null}
 
             <View style={styles.field}>
               <Text style={styles.label}>Seed Lot Number</Text>

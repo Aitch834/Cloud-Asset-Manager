@@ -120,6 +120,9 @@ export default function SeedStoreScreen() {
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [consumingBatch, setConsumingBatch] = useState<SeedBatch | null>(null);
+  const [consumeKg, setConsumeKg] = useState("");
+  const [consuming, setConsuming] = useState(false);
 
   const load = useCallback(async () => {
     if (!farmId) return;
@@ -143,6 +146,44 @@ export default function SeedStoreScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     load();
+  };
+
+  const openConsume = (batch: SeedBatch) => {
+    setConsumingBatch(batch);
+    setConsumeKg("");
+  };
+
+  const handleConsume = async () => {
+    if (!farmId || !consumingBatch) return;
+    const kg = parseFloat(consumeKg);
+    if (!consumeKg || isNaN(kg) || kg <= 0) {
+      Alert.alert("Invalid amount", "Please enter a positive number of kg to log as used.");
+      return;
+    }
+    const remaining = Number(consumingBatch.quantityRemainingKg ?? 0);
+    if (kg > remaining) {
+      Alert.alert("Too much", `Only ${remaining.toFixed(0)} kg remaining in this batch.`);
+      return;
+    }
+    setConsuming(true);
+    try {
+      const res = await authedFetch(`/api/farms/${farmId}/seed-batches/${consumingBatch.id}/consume`, farmId, {
+        method: "POST",
+        body: JSON.stringify({ amountKg: kg }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`);
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setConsumingBatch(null);
+      setConsumeKg("");
+      await load();
+    } catch (e) {
+      Alert.alert("Failed", e instanceof Error ? e.message : "Could not log usage. Try again.");
+    } finally {
+      setConsuming(false);
+    }
   };
 
   const uniqueCrops = crops.filter((c, i, arr) => arr.findIndex(x => x.name === c.name) === i);
@@ -245,7 +286,17 @@ export default function SeedStoreScreen() {
                   <Text style={styles.cardCrop}>
                     {b.cropName}{b.varietyName ? ` — ${b.varietyName}` : ""}
                   </Text>
-                  {isLow && <Feather name="alert-triangle" size={14} color="#f59e0b" />}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+                    {isLow && <Feather name="alert-triangle" size={14} color="#f59e0b" />}
+                    {!isDepleted && (
+                      <Pressable
+                        onPress={() => openConsume(b)}
+                        style={{ backgroundColor: "#D1FAE5", borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 3 }}
+                      >
+                        <Text style={{ fontFamily: fonts.medium, fontSize: 10, color: "#065f46" }}>Log Use</Text>
+                      </Pressable>
+                    )}
+                  </View>
                 </View>
                 <Text style={styles.cardBatch}>
                   Batch {b.batchNumber}{b.supplierName ? ` · ${b.supplierName}` : ""}
@@ -338,6 +389,39 @@ export default function SeedStoreScreen() {
 
               <Button title="Log Batch" onPress={handleSave} loading={saving} style={{ marginTop: spacing.sm }} />
             </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      <Modal visible={!!consumingBatch} animationType="slide" transparent onRequestClose={() => setConsumingBatch(null)}>
+        <View style={styles.modalBackdrop}>
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Log Stock Used</Text>
+              <Pressable onPress={() => setConsumingBatch(null)}>
+                <Feather name="x" size={20} color={colors.text} />
+              </Pressable>
+            </View>
+            {consumingBatch && (
+              <ScrollView contentContainerStyle={{ gap: spacing.sm, paddingBottom: spacing.lg }} keyboardShouldPersistTaps="handled">
+                <View style={{ backgroundColor: "#F0FDF4", borderRadius: radius.md, padding: spacing.sm }}>
+                  <Text style={{ fontFamily: fonts.semiBold, fontSize: fontSize.sm, color: "#065f46" }}>
+                    {consumingBatch.cropName}{consumingBatch.varietyName ? ` — ${consumingBatch.varietyName}` : ""}
+                  </Text>
+                  <Text style={{ fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 2 }}>
+                    Batch {consumingBatch.batchNumber} · {Number(consumingBatch.quantityRemainingKg ?? 0).toFixed(0)} kg remaining
+                  </Text>
+                </View>
+                <Input
+                  label="Amount Used (kg) *"
+                  placeholder="e.g. 25"
+                  value={consumeKg}
+                  onChangeText={setConsumeKg}
+                  keyboardType="decimal-pad"
+                />
+                <Button title="Confirm Stock Used" onPress={handleConsume} loading={consuming} style={{ marginTop: spacing.xs }} />
+              </ScrollView>
+            )}
           </KeyboardAvoidingView>
         </View>
       </Modal>

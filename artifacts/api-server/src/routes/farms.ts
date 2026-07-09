@@ -1371,6 +1371,62 @@ router.delete("/farms/:farmId/seed-batches/:id", requireAuth, requireTenant, req
   res.json({ success: true });
 });
 
+router.get("/farms/:farmId/seed-batches/by-code/:code", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const code = String(req.params.code);
+  const match = code.match(/^SB-(\d+)$/i);
+  if (!match) { res.status(400).json({ error: "Invalid seed batch code. Expected SB-{id}" }); return; }
+  const id = Number(match[1]);
+  const [batch] = await db
+    .select({
+      id: seedBatchesTable.id,
+      farmId: seedBatchesTable.farmId,
+      cropId: seedBatchesTable.cropId,
+      cropName: cropsTable.name,
+      varietyId: seedBatchesTable.varietyId,
+      varietyName: cropVarietiesTable.variety,
+      supplierId: seedBatchesTable.supplierId,
+      supplierName: suppliersTable.name,
+      batchNumber: seedBatchesTable.batchNumber,
+      tgwGrams: seedBatchesTable.tgwGrams,
+      bagWeightKg: seedBatchesTable.bagWeightKg,
+      quantityReceivedKg: seedBatchesTable.quantityReceivedKg,
+      quantityRemainingKg: seedBatchesTable.quantityRemainingKg,
+      dateReceived: seedBatchesTable.dateReceived,
+      treatmentNotes: seedBatchesTable.treatmentNotes,
+      costPence: seedBatchesTable.costPence,
+      isActive: seedBatchesTable.isActive,
+    })
+    .from(seedBatchesTable)
+    .innerJoin(cropsTable, eq(seedBatchesTable.cropId, cropsTable.id))
+    .innerJoin(cropVarietiesTable, eq(seedBatchesTable.varietyId, cropVarietiesTable.id))
+    .leftJoin(suppliersTable, eq(seedBatchesTable.supplierId, suppliersTable.id))
+    .where(and(eq(seedBatchesTable.id, id), eq(seedBatchesTable.farmId, farmId)))
+    .limit(1);
+  if (!batch) { res.status(404).json({ error: "Seed batch not found" }); return; }
+  res.json(batch);
+});
+
+router.post("/farms/:farmId/seed-batches/:id/consume", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const { amountKg } = req.body as { amountKg?: unknown };
+  const deduction = amountKg !== undefined ? Number(amountKg) : NaN;
+  if (isNaN(deduction) || deduction <= 0) { res.status(400).json({ error: "amountKg must be a positive number" }); return; }
+  const [batch] = await db.select().from(seedBatchesTable).where(and(eq(seedBatchesTable.id, id), eq(seedBatchesTable.farmId, farmId))).limit(1);
+  if (!batch) { res.status(404).json({ error: "Seed batch not found" }); return; }
+  const currentRemaining = Number(batch.quantityRemainingKg);
+  if (deduction > currentRemaining) {
+    res.status(400).json({ error: `Cannot consume ${deduction} kg — only ${currentRemaining} kg remaining` }); return;
+  }
+  const newRemaining = Math.max(0, currentRemaining - deduction);
+  const [updated] = await db.update(seedBatchesTable).set({ quantityRemainingKg: String(newRemaining) }).where(eq(seedBatchesTable.id, id)).returning();
+  res.json({ record: updated, consumed: deduction, remaining: newRemaining });
+});
+
 // ─── Seed Purchase Orders ─────────────────────────
 router.get("/farms/:farmId/seed-purchase-orders", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
@@ -14051,6 +14107,22 @@ router.post("/farms/:farmId/seed-drilling", requireAuth, requireTenant, requireM
     }
     if (!body.stockItemId && del?.stockItemId) body.stockItemId = del.stockItemId;
   }
+  // Handle seed batch FK — auto-fill lot number and deduct stock for kg/ha rate
+  if (body.seedBatchId) {
+    const seedBatchId = Number(body.seedBatchId);
+    body.seedBatchId = seedBatchId;
+    const [batch] = await db.select().from(seedBatchesTable).where(and(eq(seedBatchesTable.id, seedBatchId), eq(seedBatchesTable.farmId, farmId))).limit(1);
+    if (batch) {
+      if (!body.seedLotNumber) body.seedLotNumber = batch.batchNumber;
+      if (!body.isTreated && batch.treatmentNotes) { body.isTreated = true; if (!body.treatmentProduct) body.treatmentProduct = batch.treatmentNotes; }
+      if (areaSeededHa && body.seedRate && String(body.seedRateUnit) === "kg/ha") {
+        const consumed = Math.round(areaSeededHa * Number(body.seedRate) * 100) / 100;
+        body.stockConsumedKg = String(consumed);
+        const newRemaining = Math.max(0, Number(batch.quantityRemainingKg) - consumed);
+        await db.update(seedBatchesTable).set({ quantityRemainingKg: String(newRemaining) }).where(eq(seedBatchesTable.id, seedBatchId));
+      }
+    }
+  }
   const [record] = await db.insert(seedDrillingRecordsTable).values({ ...body, farmId }).returning();
   res.json({ record });
 });
@@ -14064,6 +14136,7 @@ router.put("/farms/:farmId/seed-drilling/:recordId", requireAuth, requireTenant,
   const fieldId = body.fieldId ? Number(body.fieldId) : null;
   const areaSeededHa = body.areaSeededHa ? Number(body.areaSeededHa) : null;
   if (!(await checkFieldAreaLimit(farmId, fieldId, areaSeededHa, res, "Area drilled"))) return;
+  if (body.seedBatchId !== undefined) body.seedBatchId = body.seedBatchId ? Number(body.seedBatchId) : null;
   const [record] = await db.update(seedDrillingRecordsTable).set(body).where(and(eq(seedDrillingRecordsTable.id, recordId), eq(seedDrillingRecordsTable.farmId, farmId))).returning();
   res.json({ record });
 });

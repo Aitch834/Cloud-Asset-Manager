@@ -396,6 +396,7 @@ export interface SeedDrillingRecord {
   drillingDate: string;
   cropName: string;
   variety: string;
+  seedBatchId?: number | null;
   seedLotNumber: string;
   seedRate: string;
   seedRateUnit: string;

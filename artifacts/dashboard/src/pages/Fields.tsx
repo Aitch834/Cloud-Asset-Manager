@@ -27,7 +27,7 @@ import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 import {
   Plus, PlusCircle, Search, Map as MapIcon, MoreVertical, Pencil, Trash2, AlertTriangle,
-  Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical, Loader2, QrCode, StickyNote,
+  Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical, Loader2, QrCode, StickyNote, ShoppingCart,
   Landmark, Phone, MapPin, BadgePoundSterling, RefreshCw, FileText, CheckCircle2, XCircle, Paperclip, Download, Key,
   TreePine, Layers3, TrendingUp, TrendingDown, Minus, Scale, CloudRain, BarChart2, Trophy, Medal, ChevronUp, Eye,
 } from "lucide-react";
@@ -36,7 +36,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { FieldBoundaryMapDialog } from "@/components/fields/FieldBoundaryMapDialog";
 import { FieldSchematicMap } from "@/components/fields/FieldSchematicMap";
 import { useForm } from "react-hook-form";
-import { Redirect } from "wouter";
+import { Redirect, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { printProReport } from "@/lib/print-report";
 import { printSeedBagLabels } from "@/lib/print-labels";
@@ -1746,20 +1746,23 @@ export default function FieldsPage() {
   const { mutate: generateLabels, isPending: generatingLabelsForId } = useGenerateFieldCropLabels();
   const [labelCountDraft, setLabelCountDraft] = useState<Record<number, string>>({});
 
-  const handleGenerateLabels = (a: FieldCropAssignment) => {
+  const handleGenerateLabels = async (a: FieldCropAssignment) => {
     const batch = allSeedBatches.find(b => b.id === a.seedBatchId);
     if (!batch) return;
     const defaultCount = a.bagsAllocated ?? 1;
     const raw = labelCountDraft[a.id];
     const count = raw !== undefined && raw !== "" ? Math.max(1, parseInt(raw, 10) || defaultCount) : defaultCount;
     const field = fields.find(f => f.id === a.fieldId);
-    printSeedBagLabels(
+    await printSeedBagLabels(
       {
+        batchId: (batch as unknown as { id: number }).id,
         cropName: a.cropName,
         varietyName: a.variety,
         batchNumber: batch.batchNumber,
         supplierName: batch.supplierName ?? null,
         tgwGrams: batch.tgwGrams,
+        quantityReceivedKg: (batch as unknown as { quantityReceivedKg?: string | number }).quantityReceivedKg ?? null,
+        treatmentNotes: (batch as unknown as { treatmentNotes?: string | null }).treatmentNotes ?? null,
         fieldName: field?.name ?? null,
         fieldReference: field?.fieldReference ?? null,
         plantingDate: a.plantingDate ? formatDate(a.plantingDate) : null,
@@ -2519,7 +2522,7 @@ export default function FieldsPage() {
                                                   size="sm"
                                                   variant="outline"
                                                   className="h-6 text-[11px] px-2 gap-1"
-                                                  onClick={() => handleGenerateLabels(a)}
+                                                  onClick={() => void handleGenerateLabels(a)}
                                                 >
                                                   <Printer className="w-3 h-3" />
                                                   {a.labelsGeneratedAt ? "Reprint labels" : "Print bag labels"}
@@ -4603,6 +4606,7 @@ function getCropColor(name: string): string {
 function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number; fields: { id: number; name?: string; areaHectares?: string | number | null; isActive?: boolean | null }[]; fieldsLoading?: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
 
   const currentYear = new Date().getFullYear();
   const YEARS = useMemo(() => Array.from({ length: 9 }, (_, i) => currentYear - 4 + i), [currentYear]);
@@ -5121,6 +5125,15 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
                                     className="w-full text-[10px] text-gray-300 hover:text-green-500 text-left pl-1 leading-tight transition-colors"
                                   >
                                     + catch crop
+                                  </button>
+                                )}
+                                {cropName && y >= currentYear && (
+                                  <button
+                                    title={`Raise seed purchase order for ${cropName}`}
+                                    onClick={() => navigate(`/seed-store?openPO=1&cropName=${encodeURIComponent(cropName.split(" — ")[0] ?? cropName)}`)}
+                                    className="w-full text-[10px] text-amber-400 hover:text-amber-600 text-left pl-1 leading-tight transition-colors flex items-center gap-0.5 mt-0.5"
+                                  >
+                                    <ShoppingCart className="w-2 h-2" /> order seed
                                   </button>
                                 )}
                                 {/* Inline catch crop select */}
