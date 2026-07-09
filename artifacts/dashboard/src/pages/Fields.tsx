@@ -36,7 +36,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { FieldBoundaryMapDialog } from "@/components/fields/FieldBoundaryMapDialog";
 import { FieldSchematicMap } from "@/components/fields/FieldSchematicMap";
 import { useForm } from "react-hook-form";
-import { Redirect, useLocation } from "wouter";
+import { Redirect, useLocation, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { printProReport } from "@/lib/print-report";
 import { printSeedBagLabels } from "@/lib/print-labels";
@@ -3319,9 +3319,21 @@ export default function FieldsPage() {
                   ].sort((a, b) => b.year - a.year);
                   return (
                   <div>
-                    <p className="text-sm text-foreground/50 mb-5">
+                    <p className="text-sm text-foreground/50 mb-4">
                       All recorded crop and non-crop land use entries for this field across all seasons.
                     </p>
+                    <div className="flex flex-wrap gap-2 mb-5">
+                      <Link href={`/field-operations?fieldName=${encodeURIComponent(f?.name ?? "")}`}>
+                        <span className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-border/60 bg-muted/30 hover:bg-primary/10 hover:border-primary/40 text-foreground/65 hover:text-primary cursor-pointer transition-colors">
+                          Field operations →
+                        </span>
+                      </Link>
+                      <Link href={`/spray?fieldName=${encodeURIComponent(f?.name ?? "")}`}>
+                        <span className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-border/60 bg-muted/30 hover:bg-primary/10 hover:border-primary/40 text-foreground/65 hover:text-primary cursor-pointer transition-colors">
+                          Spray records →
+                        </span>
+                      </Link>
+                    </div>
                     {(f as any).blackgrassRiskField && (() => {
                       if (fiveInFiveQ.isLoading) {
                         return (

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -220,6 +220,13 @@ export default function FieldOperationsPage() {
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("__all__");
   const [filterField, setFilterField] = useState("__all__");
+
+  // Pre-filter by fieldName URL param (e.g. from Fields.tsx quick-link)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const fn = params.get("fieldName");
+    if (fn) setFilterField(fn);
+  }, []);
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [showDialog, setShowDialog] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);

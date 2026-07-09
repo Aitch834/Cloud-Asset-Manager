@@ -362,6 +362,7 @@ export const fieldInspectionsTable = pgTable("field_inspections", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   mobileId: text("mobile_id"),
+  fieldId: integer("field_id").references(() => fieldsTable.id),
   fieldName: text("field_name").notNull(),
   inspectionDate: timestamp("inspection_date", { withTimezone: true }).notNull(),
   cropType: text("crop_type"),

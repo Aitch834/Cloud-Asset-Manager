@@ -8,6 +8,7 @@ interface SheepReportData {
   totalHeadSold: number; totalWoolKg: number;
   totalCullRevenuePence: number; totalWoolRevenuePence: number; totalRevenuePence: number;
   totalFeedCostPence: number; totalFeedKg: number; totalPurchaseCostPence: number; totalHeadPurchased: number; totalVetCostPence: number;
+  totalContractorCostPence?: number;
   totalVariableCostPence: number; grossMarginPence: number; grossMarginPerHeadSoldPence: number | null;
   avgWoolPricePerKgGbp: number | null;
   cullRecords: { id: number; cullDate: string; numberOfHead: number; pricePerHeadGbp: string; totalValueGbp: string; reason: string }[];
@@ -193,6 +194,7 @@ export function SheepEnterpriseReport({ farmId }: { farmId: number }) {
                   { label: `Feed cost (${d!.feedDeliveries.length} deliveries · ${d!.totalFeedKg.toLocaleString("en-GB")} kg)`, value: -d!.totalFeedCostPence },
                   { label: `Livestock purchases (${d!.totalHeadPurchased} head)`, value: -d!.totalPurchaseCostPence },
                   ...(d!.totalVetCostPence > 0 ? [{ label: "Vet & medicine (invoiced)", value: -d!.totalVetCostPence, bold: false }] : []),
+                  ...((d!.totalContractorCostPence ?? 0) > 0 ? [{ label: "Contractor costs (field ops)", value: -(d!.totalContractorCostPence!), bold: false }] : []),
                   { label: "Total variable costs", value: -d!.totalVariableCostPence, bold: true, divider: true },
                   { label: "Gross margin", value: d!.grossMarginPence, bold: true, highlight: marginPositive ? "emerald" as const : "red" as const },
                 ].map((row, i) => (

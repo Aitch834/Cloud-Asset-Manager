@@ -1862,6 +1862,67 @@ router.post("/farms/:farmId/harvests", requireAuth, requireTenant, requireModule
     startTime: startTime || null,
     endTime: endTime || null,
   }).returning();
+
+  // Auto-sync harvest yield → crop stock levels
+  if (record.yieldTonnes && parseFloat(String(record.yieldTonnes)) > 0) {
+    try {
+      let commodity: string | null = (req.body.commodity as string) || null;
+      let variety: string | null = (req.body.variety as string) || null;
+      if (!commodity && record.fieldCropAssignmentId) {
+        const [fca] = await db
+          .select({ cropName: cropsTable.name, variety: cropVarietiesTable.variety })
+          .from(fieldCropAssignmentsTable)
+          .leftJoin(cropVarietiesTable, eq(fieldCropAssignmentsTable.varietyId, cropVarietiesTable.id))
+          .leftJoin(cropsTable, eq(cropVarietiesTable.cropId, cropsTable.id))
+          .where(eq(fieldCropAssignmentsTable.id, record.fieldCropAssignmentId))
+          .limit(1);
+        commodity = fca?.cropName ?? null;
+        if (!variety) variety = fca?.variety ?? null;
+      }
+      if (commodity) {
+        const harvestYear = new Date((record as any).harvestDate ?? Date.now()).getFullYear();
+        const cropYear = `${harvestYear} Harvest`;
+        const binId = req.body.binId ? Number(req.body.binId) : null;
+        const yieldTonnes = parseFloat(String(record.yieldTonnes));
+        const conditions = [
+          eq(cropStockLevelsTable.farmId, farmId),
+          eq(cropStockLevelsTable.commodity, commodity),
+          eq(cropStockLevelsTable.cropYear, cropYear),
+        ];
+        if (binId !== null) {
+          conditions.push(eq(cropStockLevelsTable.binId, binId));
+        } else {
+          conditions.push(isNull(cropStockLevelsTable.binId));
+          if (variety) conditions.push(eq(cropStockLevelsTable.variety, variety));
+        }
+        const [existing] = await db.select().from(cropStockLevelsTable).where(and(...conditions)).limit(1);
+        let stockLevelId: number;
+        if (existing) {
+          const newQty = parseFloat(String(existing.quantityTonnes)) + yieldTonnes;
+          await db.update(cropStockLevelsTable)
+            .set({ quantityTonnes: String(newQty), variety: variety ?? existing.variety, lastUpdated: new Date() })
+            .where(eq(cropStockLevelsTable.id, existing.id));
+          stockLevelId = existing.id;
+        } else {
+          const [newLevel] = await db.insert(cropStockLevelsTable)
+            .values({ farmId, binId, commodity, variety, cropYear, quantityTonnes: String(yieldTonnes) })
+            .returning();
+          stockLevelId = newLevel.id;
+        }
+        await db.insert(cropStockMovementsTable).values({
+          farmId, cropStockLevelId: stockLevelId, binId,
+          movementType: "harvest_in", direction: "in",
+          commodity, variety, cropYear,
+          quantityTonnes: String(yieldTonnes),
+          referenceType: "harvest_record", referenceId: record.id,
+          performedBy: operatorName || null,
+        });
+      }
+    } catch (e) {
+      console.error("[harvest-stock-sync]", e);
+    }
+  }
+
   res.status(201).json({ record });
 });
 
@@ -3947,6 +4008,37 @@ router.post("/farms/:farmId/medicine-records", requireAuth, requireTenant, requi
   const medicineRef = req.body.medicineRef || `MED-${year}-${seq}`;
   const administeredDate = req.body.administeredDate ? new Date(req.body.administeredDate) : new Date();
   const [record] = await db.insert(livestockMedicineRecordsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId, medicineRef, administeredDate } as any).returning();
+
+  // Auto-deduct medicine from stock_levels when stockItemId + stockQuantityUsed provided
+  const stockItemIdRaw = req.body.stockItemId;
+  const stockQtyRaw = req.body.stockQuantityUsed;
+  if (stockItemIdRaw && stockQtyRaw) {
+    try {
+      const stockItemId = Number(stockItemIdRaw);
+      const qty = parseFloat(String(stockQtyRaw));
+      if (!isNaN(stockItemId) && qty > 0) {
+        const [level] = await db.select().from(stockLevelsTable)
+          .where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, stockItemId))).limit(1);
+        if (level) {
+          const newQty = Math.max(0, parseFloat(String(level.currentQuantity)) - qty);
+          await db.update(stockLevelsTable)
+            .set({ currentQuantity: String(newQty), lastUpdated: new Date() })
+            .where(eq(stockLevelsTable.id, level.id));
+        }
+        await db.insert(stockMovementsTable).values({
+          farmId, stockItemId,
+          movementType: "medicine_use",
+          quantityChange: String(-qty),
+          referenceType: "medicine_record",
+          referenceId: record.id,
+          performedBy: String(req.body.administeredBy || ""),
+        });
+      }
+    } catch (e) {
+      console.error("[medicine-stock-deduct]", e);
+    }
+  }
+
   res.status(201).json({ record });
 });
 
@@ -14124,6 +14216,36 @@ router.post("/farms/:farmId/seed-drilling", requireAuth, requireTenant, requireM
     }
   }
   const [record] = await db.insert(seedDrillingRecordsTable).values({ ...body, farmId }).returning();
+
+  // Auto-sync seed drilling → crop rotation planner (field_season_land_use)
+  if (record.fieldId && record.cropName) {
+    try {
+      const drillingYear = new Date((record.drillingDate as Date | string | null) ?? Date.now()).getFullYear();
+      const [existing] = await db.select({ id: fieldSeasonLandUseTable.id })
+        .from(fieldSeasonLandUseTable)
+        .where(and(
+          eq(fieldSeasonLandUseTable.farmId, farmId),
+          eq(fieldSeasonLandUseTable.fieldId, record.fieldId),
+          eq(fieldSeasonLandUseTable.year, drillingYear),
+          eq(fieldSeasonLandUseTable.season, "main"),
+        )).limit(1);
+      if (!existing) {
+        await db.insert(fieldSeasonLandUseTable).values({
+          farmId,
+          fieldId: record.fieldId,
+          year: drillingYear,
+          season: "main",
+          landUse: record.cropName,
+          areaHectares: record.areaSeededHa ? String(record.areaSeededHa) : null,
+          startDate: new Date((record.drillingDate as Date | string | null) ?? Date.now()).toISOString().slice(0, 10),
+          managementNotes: `Auto-created from seed drilling record #${record.id}`,
+        });
+      }
+    } catch (e) {
+      console.error("[drilling-landuse-sync]", e);
+    }
+  }
+
   res.json({ record });
 });
 
@@ -15748,7 +15870,8 @@ router.post("/farms/:farmId/field-inspections", requireAuth, requireTenant, requ
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
 
-  const { mobileId, fieldName, inspectionDate, cropType, growthStage, pestDiseaseObservations, actionRequired, recommendedAction, inspector, notes, latitude, longitude } = req.body;
+  const { mobileId, fieldId: rawFieldId, fieldName, inspectionDate, cropType, growthStage, pestDiseaseObservations, actionRequired, recommendedAction, inspector, notes, latitude, longitude } = req.body;
+  const fieldIdNum = rawFieldId ? Number(rawFieldId) : null;
 
   if (mobileId) {
     const [existing] = await db.select({ id: fieldInspectionsTable.id }).from(fieldInspectionsTable)
@@ -15756,9 +15879,18 @@ router.post("/farms/:farmId/field-inspections", requireAuth, requireTenant, requ
     if (existing) { res.json({ record: existing, duplicate: true }); return; }
   }
 
+  // Resolve fieldId from fieldName when not directly provided
+  let resolvedFieldId: number | null = fieldIdNum;
+  if (!resolvedFieldId && fieldName && fieldName !== "Unknown Field") {
+    const [f] = await db.select({ id: fieldsTable.id }).from(fieldsTable)
+      .where(and(eq(fieldsTable.farmId, farmId), eq(fieldsTable.name, fieldName))).limit(1);
+    if (f) resolvedFieldId = f.id;
+  }
+
   const [record] = await db.insert(fieldInspectionsTable).values({
     farmId,
     mobileId: mobileId || null,
+    fieldId: resolvedFieldId,
     fieldName: fieldName || "Unknown Field",
     inspectionDate: inspectionDate ? new Date(inspectionDate) : new Date(),
     cropType: cropType || null,
@@ -32998,7 +33130,7 @@ router.get("/farms/:farmId/beef-enterprise-report", requireAuth, requireTenant, 
   const from = new Date(`${year}-01-01T00:00:00Z`);
   const to = new Date(`${year + 1}-01-01T00:00:00Z`);
 
-  const [settlements, allFeedDeliveries, allPurchases, vetInvoices] = await Promise.all([
+  const [settlements, allFeedDeliveries, allPurchases, vetInvoices, contractorOps] = await Promise.all([
     db.select().from(beefDeadweightSettlementsTable)
       .where(and(eq(beefDeadweightSettlementsTable.farmId, farmId), gte(beefDeadweightSettlementsTable.killDate as any, from as any), lt(beefDeadweightSettlementsTable.killDate as any, to as any))),
     db.select().from(feedDeliveriesTable)
@@ -33007,6 +33139,9 @@ router.get("/farms/:farmId/beef-enterprise-report", requireAuth, requireTenant, 
       .where(and(eq(livestockPurchasesTable.farmId, farmId), isNotNull(livestockPurchasesTable.totalAmountPence), gte(livestockPurchasesTable.invoiceDate as any, from as any), lt(livestockPurchasesTable.invoiceDate as any, to as any))),
     db.select().from(vetInvoicesTable)
       .where(and(eq(vetInvoicesTable.farmId, farmId), gte(vetInvoicesTable.invoiceDate as any, from as any), lt(vetInvoicesTable.invoiceDate as any, to as any))),
+    db.select({ contractorCostPence: fieldOperationsTable.contractorCostPence, operationDate: fieldOperationsTable.operationDate })
+      .from(fieldOperationsTable)
+      .where(and(eq(fieldOperationsTable.farmId, farmId), eq(fieldOperationsTable.isContractor, true), isNotNull(fieldOperationsTable.contractorCostPence), gte(fieldOperationsTable.operationDate as any, from as any), lt(fieldOperationsTable.operationDate as any, to as any))),
   ]);
 
   const beefKeywords = ["beef", "cattle", "bull", "steer", "heifer", "store", "suckler"];
@@ -33021,7 +33156,8 @@ router.get("/farms/:farmId/beef-enterprise-report", requireAuth, requireTenant, 
   const totalPurchaseCostPence = purchases.reduce((s, r) => s + (r.totalAmountPence ?? 0), 0);
   const totalHeadPurchased = purchases.reduce((s, r) => s + (r.numberOfHead ?? 0), 0);
   const totalVetCostPence = vetInvoices.reduce((s, r) => s + Math.round((parseFloat(String(r.totalAmountGbp ?? 0)) || 0) * 100), 0);
-  const totalVariableCostPence = totalFeedCostPence + totalPurchaseCostPence + totalVetCostPence;
+  const totalContractorCostPence = contractorOps.reduce((s, r) => s + (r.contractorCostPence ?? 0), 0);
+  const totalVariableCostPence = totalFeedCostPence + totalPurchaseCostPence + totalVetCostPence + totalContractorCostPence;
   const grossMarginPence = totalRevenuePence - totalVariableCostPence;
 
   res.json({
@@ -33029,6 +33165,7 @@ router.get("/farms/:farmId/beef-enterprise-report", requireAuth, requireTenant, 
     totalHeadSold, totalCarcassKg: Math.round(totalCarcassKg * 10) / 10,
     totalRevenuePence, totalFeedCostPence, totalFeedKg: Math.round(totalFeedKg),
     totalPurchaseCostPence, totalHeadPurchased, totalVetCostPence,
+    totalContractorCostPence,
     totalVariableCostPence, grossMarginPence,
     grossMarginPerHeadPence: totalHeadSold > 0 ? Math.round(grossMarginPence / totalHeadSold) : null,
     revenuePerKgDwtPence: totalCarcassKg > 0 ? Math.round((totalRevenuePence / totalCarcassKg) * 10) / 10 : null,
@@ -33043,6 +33180,7 @@ router.get("/farms/:farmId/beef-enterprise-report", requireAuth, requireTenant, 
     })),
     feedDeliveries: feedDeliveries.map(r => ({ id: r.id, deliveryDate: r.deliveryDate, productName: r.productName, quantityKg: r.quantityKg, costPence: r.costPence })),
     purchases: purchases.map(r => ({ id: r.id, invoiceDate: r.invoiceDate, species: r.species, numberOfHead: r.numberOfHead, totalAmountPence: r.totalAmountPence, pricePerHeadPence: r.pricePerHeadPence })),
+    contractorOps: contractorOps.map(r => ({ operationDate: r.operationDate, contractorCostPence: r.contractorCostPence })),
   });
 });
 
@@ -33053,7 +33191,7 @@ router.get("/farms/:farmId/sheep-enterprise-report", requireAuth, requireTenant,
   const from = new Date(`${year}-08-01T00:00:00Z`);
   const to = new Date(`${year + 1}-08-01T00:00:00Z`);
 
-  const [cullRecords, shearingRecords, allFeedDeliveries, allPurchases, vetInvoices] = await Promise.all([
+  const [cullRecords, shearingRecords, allFeedDeliveries, allPurchases, vetInvoices, contractorOps] = await Promise.all([
     db.select().from(sheepCullRecordsTable)
       .where(and(eq(sheepCullRecordsTable.farmId, farmId), gte(sheepCullRecordsTable.cullDate as any, from as any), lt(sheepCullRecordsTable.cullDate as any, to as any))),
     db.select().from(sheepShearingRecordsTable)
@@ -33064,6 +33202,9 @@ router.get("/farms/:farmId/sheep-enterprise-report", requireAuth, requireTenant,
       .where(and(eq(livestockPurchasesTable.farmId, farmId), isNotNull(livestockPurchasesTable.totalAmountPence), gte(livestockPurchasesTable.invoiceDate as any, from as any), lt(livestockPurchasesTable.invoiceDate as any, to as any))),
     db.select().from(vetInvoicesTable)
       .where(and(eq(vetInvoicesTable.farmId, farmId), gte(vetInvoicesTable.invoiceDate as any, from as any), lt(vetInvoicesTable.invoiceDate as any, to as any))),
+    db.select({ contractorCostPence: fieldOperationsTable.contractorCostPence, operationDate: fieldOperationsTable.operationDate })
+      .from(fieldOperationsTable)
+      .where(and(eq(fieldOperationsTable.farmId, farmId), eq(fieldOperationsTable.isContractor, true), isNotNull(fieldOperationsTable.contractorCostPence), gte(fieldOperationsTable.operationDate as any, from as any), lt(fieldOperationsTable.operationDate as any, to as any))),
   ]);
 
   const sheepKeywords = ["sheep", "ewe", "lamb", "ram", "ovine", "hogget", "shearling"];
@@ -33080,7 +33221,8 @@ router.get("/farms/:farmId/sheep-enterprise-report", requireAuth, requireTenant,
   const totalPurchaseCostPence = purchases.reduce((s, r) => s + (r.totalAmountPence ?? 0), 0);
   const totalHeadPurchased = purchases.reduce((s, r) => s + (r.numberOfHead ?? 0), 0);
   const totalVetCostPence = vetInvoices.reduce((s, r) => s + Math.round((parseFloat(String(r.totalAmountGbp ?? 0)) || 0) * 100), 0);
-  const totalVariableCostPence = totalFeedCostPence + totalPurchaseCostPence + totalVetCostPence;
+  const totalContractorCostPence = contractorOps.reduce((s, r) => s + (r.contractorCostPence ?? 0), 0);
+  const totalVariableCostPence = totalFeedCostPence + totalPurchaseCostPence + totalVetCostPence + totalContractorCostPence;
   const grossMarginPence = totalRevenuePence - totalVariableCostPence;
 
   res.json({
@@ -33089,6 +33231,7 @@ router.get("/farms/:farmId/sheep-enterprise-report", requireAuth, requireTenant,
     totalCullRevenuePence, totalWoolRevenuePence, totalRevenuePence,
     totalFeedCostPence, totalFeedKg: Math.round(totalFeedKg),
     totalPurchaseCostPence, totalHeadPurchased, totalVetCostPence,
+    totalContractorCostPence,
     totalVariableCostPence, grossMarginPence,
     grossMarginPerHeadSoldPence: totalHeadSold > 0 ? Math.round(grossMarginPence / totalHeadSold) : null,
     avgWoolPricePerKgGbp: totalWoolKg > 0 && totalWoolRevenuePence > 0 ? Math.round((totalWoolRevenuePence / totalWoolKg) / 100 * 100) / 100 : null,
@@ -33096,6 +33239,7 @@ router.get("/farms/:farmId/sheep-enterprise-report", requireAuth, requireTenant,
     shearingRecords: shearingRecords.map(r => ({ id: r.id, shearingDate: r.shearingDate, headSheared: r.numberOfAnimalsSheared, totalWoolWeightKg: r.totalFleecesKg, pricePerKgGbp: r.pricePerKgGbp, totalValueGbp: r.totalValueGbp })),
     feedDeliveries: feedDeliveries.map(r => ({ id: r.id, deliveryDate: r.deliveryDate, productName: r.productName, quantityKg: r.quantityKg, costPence: r.costPence })),
     purchases: purchases.map(r => ({ id: r.id, invoiceDate: r.invoiceDate, numberOfHead: r.numberOfHead, totalAmountPence: r.totalAmountPence, pricePerHeadPence: r.pricePerHeadPence })),
+    contractorOps: contractorOps.map(r => ({ operationDate: r.operationDate, contractorCostPence: r.contractorCostPence })),
   });
 });
 

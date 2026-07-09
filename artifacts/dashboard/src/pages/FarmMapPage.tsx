@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 import {
   Map as MapIcon, MapPin, Building2, Warehouse, FlaskConical, Tractor, TreePine, Users, LayoutGrid,
-  Search, Settings,
+  Search, Settings, Eye, EyeOff,
 } from "lucide-react";
 
 interface FarmLocation {
@@ -21,6 +21,18 @@ interface FarmLocation {
   isActive: boolean;
   latitude: number | null;
   longitude: number | null;
+}
+
+interface FieldInspection {
+  id: number;
+  fieldName: string;
+  inspectionDate: string;
+  cropType: string | null;
+  actionRequired: string;
+  pestDiseaseObservations: string | null;
+  inspector: string | null;
+  latitude: string | null;
+  longitude: string | null;
 }
 
 const LOCATION_TYPES = [
@@ -37,6 +49,13 @@ const LOCATION_TYPES = [
 
 const typeMap = Object.fromEntries(LOCATION_TYPES.map(t => [t.value, t]));
 
+const INSPECTION_COLOURS: Record<string, string> = {
+  urgent: "#ef4444",
+  treat: "#f97316",
+  monitor: "#eab308",
+  none: "#6b7280",
+};
+
 declare global {
   interface Window {
     _L?: typeof import("leaflet");
@@ -48,6 +67,14 @@ function makeSvgIcon(colour: string): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
     <path d="M14 0C6.268 0 0 6.268 0 14c0 9.333 14 22 14 22S28 23.333 28 14C28 6.268 21.732 0 14 0z" fill="${colour}" stroke="white" stroke-width="2"/>
     <circle cx="14" cy="14" r="5" fill="white"/>
+  </svg>`;
+  return "data:image/svg+xml;base64," + btoa(svg);
+}
+
+function makeInspectionSvgIcon(colour: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="32" viewBox="0 0 24 32">
+    <path d="M12 0C5.373 0 0 5.373 0 12c0 8 12 20 12 20S24 20 24 12C24 5.373 18.627 0 12 0z" fill="${colour}" stroke="white" stroke-width="2" opacity="0.9"/>
+    <text x="12" y="16" text-anchor="middle" fill="white" font-size="10" font-family="sans-serif" font-weight="bold">!</text>
   </svg>`;
   return "data:image/svg+xml;base64," + btoa(svg);
 }
@@ -146,7 +173,7 @@ function useFarmMap(
     }
   }
 
-  return { panTo };
+  return { panTo, mapRef };
 }
 
 export default function FarmMapPage() {
@@ -155,6 +182,8 @@ export default function FarmMapPage() {
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [filterType, setFilterType] = useState("");
+  const [showInspections, setShowInspections] = useState(false);
+  const inspectionMarkersRef = useRef<import("leaflet").Marker[]>([]);
 
   const { data: locations = [], isLoading } = useQuery<FarmLocation[]>({
     queryKey: ["farm-locations", farmId],
@@ -162,10 +191,72 @@ export default function FarmMapPage() {
     enabled: !!farmId,
   });
 
+  const { data: inspectionsData } = useQuery<{ records: FieldInspection[] }>({
+    queryKey: ["field-inspections-map", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/field-inspections`).then(r => r.json()),
+    enabled: !!farmId && showInspections,
+  });
+
+  const inspectionsWithGeo = (inspectionsData?.records ?? []).filter(
+    r => r.latitude && r.longitude && parseFloat(r.latitude) !== 0 && parseFloat(r.longitude) !== 0
+  );
+
   const pinned = locations.filter(l => l.isActive && l.latitude != null);
   const unpinned = locations.filter(l => l.isActive && l.latitude == null);
 
-  const { panTo } = useFarmMap(containerRef, pinned, setSelectedId);
+  const { panTo, mapRef } = useFarmMap(containerRef, pinned, setSelectedId);
+
+  // Add/remove field inspection markers when toggle or data changes
+  useEffect(() => {
+    const L = window._L;
+    const map = mapRef.current;
+    if (!L || !map) return;
+
+    // Remove old inspection markers
+    for (const m of inspectionMarkersRef.current) {
+      try { m.remove(); } catch {}
+    }
+    inspectionMarkersRef.current = [];
+
+    if (!showInspections) return;
+
+    for (const insp of inspectionsWithGeo) {
+      const lat = parseFloat(insp.latitude!);
+      const lng = parseFloat(insp.longitude!);
+      if (isNaN(lat) || isNaN(lng)) continue;
+
+      const colour = INSPECTION_COLOURS[insp.actionRequired] ?? INSPECTION_COLOURS.none;
+      const icon = L.icon({
+        iconUrl: makeInspectionSvgIcon(colour),
+        iconSize: [24, 32],
+        iconAnchor: [12, 32],
+        popupAnchor: [0, -32],
+      });
+
+      const dateStr = insp.inspectionDate
+        ? new Date(insp.inspectionDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+        : "—";
+
+      const actionLabel = insp.actionRequired === "urgent" ? "Urgent action" :
+        insp.actionRequired === "treat" ? "Treatment needed" :
+        insp.actionRequired === "monitor" ? "Monitor" : "No action";
+
+      const marker = L.marker([lat, lng], { icon })
+        .addTo(map)
+        .bindPopup(
+          `<div style="min-width:160px">
+            <p style="font-weight:600;margin:0 0 2px;font-size:13px">Field Inspection</p>
+            <p style="margin:0 0 2px;font-size:12px;color:#374151">${insp.fieldName}</p>
+            <p style="margin:0 0 4px;font-size:11px;color:#64748b">${dateStr}${insp.inspector ? ` · ${insp.inspector}` : ""}</p>
+            <p style="margin:0;font-size:11px;font-weight:600;color:${colour}">${actionLabel}</p>
+            ${insp.pestDiseaseObservations ? `<p style="margin:4px 0 0;font-size:11px;color:#6b7280">${insp.pestDiseaseObservations.slice(0, 80)}${insp.pestDiseaseObservations.length > 80 ? "…" : ""}</p>` : ""}
+          </div>`
+        );
+
+      inspectionMarkersRef.current.push(marker);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showInspections, inspectionsWithGeo.length]);
 
   const filteredPinned = pinned.filter(l => {
     if (filterType && l.locationType !== filterType) return false;
@@ -247,9 +338,28 @@ export default function FarmMapPage() {
                   <option key={t.value} value={t.value}>{t.label}</option>
                 ))}
               </select>
+
+              {/* Field inspections overlay toggle */}
+              <button
+                type="button"
+                onClick={() => setShowInspections(v => !v)}
+                className={`w-full h-8 flex items-center gap-2 px-2 rounded-md border text-xs transition-colors ${
+                  showInspections
+                    ? "border-amber-400 bg-amber-50 text-amber-800"
+                    : "border-input bg-background text-foreground/60 hover:bg-muted/30"
+                }`}
+              >
+                {showInspections ? <Eye className="w-3.5 h-3.5 flex-shrink-0" /> : <EyeOff className="w-3.5 h-3.5 flex-shrink-0" />}
+                <span>Field inspections overlay</span>
+                {showInspections && inspectionsWithGeo.length > 0 && (
+                  <span className="ml-auto bg-amber-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-semibold">
+                    {inspectionsWithGeo.length}
+                  </span>
+                )}
+              </button>
             </div>
 
-            <div className="overflow-y-auto max-h-[calc(100vh-280px)]">
+            <div className="overflow-y-auto max-h-[calc(100vh-320px)]">
               {filteredPinned.length === 0 && (
                 <div className="p-4 text-center text-xs text-foreground/40">No matching locations</div>
               )}
@@ -302,6 +412,27 @@ export default function FarmMapPage() {
                       Add pins →
                     </span>
                   </Link>
+                </div>
+              )}
+
+              {/* Inspection legend when overlay is active */}
+              {showInspections && (
+                <div className="px-3 py-2 bg-amber-50/50 border-t border-amber-100">
+                  <p className="text-[10px] font-semibold text-amber-800 mb-1.5">Field Inspection Markers</p>
+                  {[
+                    { key: "urgent", label: "Urgent action" },
+                    { key: "treat", label: "Treatment needed" },
+                    { key: "monitor", label: "Monitor" },
+                    { key: "none", label: "No action" },
+                  ].map(({ key, label }) => (
+                    <div key={key} className="flex items-center gap-1.5 text-[10px] text-foreground/60 mb-0.5">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: INSPECTION_COLOURS[key] }} />
+                      {label}
+                    </div>
+                  ))}
+                  {inspectionsWithGeo.length === 0 && (
+                    <p className="text-[10px] text-foreground/40 mt-1">No geo-tagged inspections found.</p>
+                  )}
                 </div>
               )}
             </div>
