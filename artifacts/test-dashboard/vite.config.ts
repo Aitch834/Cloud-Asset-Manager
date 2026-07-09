@@ -352,6 +352,18 @@ function reconnectReloadPlugin(sessionBase: string) {
             req.url = stripped.replace("/@xfs/", "/@fs/");
           }
         }
+        // Strip ?_t=NONCE (added by SW Case 3 to bust proxy cache).
+        // Must happen BEFORE Vite sees the URL so the warmed-up module in
+        // Vite's transform cache is reused — not recompiled as a new module.
+        // Recompiling a large page (LivestockPage 500KB+) mid-session causes
+        // @react-refresh to call performReactRefresh() while another component
+        // is rendering → "Invalid hook call".
+        if ((req.url as string)?.includes("_t=")) {
+          req.url = (req.url as string)
+            .replace(/[?&]_t=[^&]*/g, "")
+            .replace(/\?&/g, "?")
+            .replace(/[?&]$/g, "") || "/";
+        }
         // Query-based (legacy fallback): strip ?td=TOKEN
         if ((req.url as string)?.includes("td=")) {
           req.url = (req.url as string)

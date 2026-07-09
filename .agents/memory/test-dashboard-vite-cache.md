@@ -404,6 +404,50 @@ immediately bust any existing bad cached entry for the tokenless URL.
 **Rule:** Whenever the SW filename is bumped, ALSO ensure `isModuleUrl` covers HTML
 so the new tokenless URL never accumulates a bad proxy-cache entry.
 
+## Mid-render performReactRefresh() from lazy page compilation (CRITICAL — 2026-07-09)
+
+**Root cause:** Vite compiles source files LAZILY on first browser request. The test-dashboard
+has 98 pages all statically imported in App.tsx. Large pages (LivestockPage 500KB+) take 40–60
+seconds to compile on their first fetch. When Vite finishes compiling any file mid-session,
+`@react-refresh` calls `performReactRefresh()`. If ANOTHER component (e.g. `SeedStorePage`) is
+in the middle of its first render at that exact moment, the React dispatcher is in the wrong
+state → "Invalid hook call" at the first hook call in that component.
+
+**Symptom:** Crash ~44 seconds after page load, even with fresh session token, fresh source
+files, correct dep chunks, no dep re-optimisation. Babel deoptimise log in the workflow log
+fires ~44 seconds after the session starts (mid-session, not at startup).
+
+**Fix — two parts (both required in `vite.config.ts`):**
+
+1. **`server.warmup.clientFiles`**: list ALL page files from `artifacts/dashboard/src/pages/*.tsx`.
+   Vite pre-compiles them all at server startup, before the browser makes any requests.
+   → No more mid-session compilations → no spurious `performReactRefresh()`.
+
+2. **Strip `?_t=NONCE` from `req.url` before Vite sees it:**
+   The SW Case 3 appends `?_t=TOKEN` to source-file URLs to bust the proxy cache.
+   When the browser fetches `LivestockPage.tsx?_t=TOKEN`, Vite sees a new URL not in
+   its transform cache → recompiles the file → triggers `performReactRefresh()` again,
+   undoing the warmup benefit. Strip `?_t=` in the middleware (after the `/@td/` strip
+   but before the URL reaches Vite's pipeline) → Vite reuses the warmed-up module. ✓
+
+   Added before the existing `?td=TOKEN` strip block:
+   ```ts
+   if ((req.url as string)?.includes("_t=")) {
+     req.url = (req.url as string)
+       .replace(/[?&]_t=[^&]*/g, "")
+       .replace(/\?&/g, "?")
+       .replace(/[?&]$/g, "") || "/";
+   }
+   ```
+
+**Side effect of _t strip:** `createHotContext` module IDs are now clean paths without the
+nonce (e.g. `"/@fs/.../SeedStorePage.tsx"` not `"/@fs/.../SeedStorePage.tsx?_t=TOKEN"`).
+React Refresh family IDs are stable across sessions. ✓
+
+**Rule:** Whenever a new page is added to `artifacts/dashboard/src/pages/`, add it to the
+`server.warmup.clientFiles` list in `artifacts/test-dashboard/vite.config.ts`. The list is
+maintained manually (not glob-generated) because the config is a static file.
+
 ## Mid-render dep discovery via missing use-sync-external-store dep chunks
 
 **Root cause (2026-07-09):** `zustand/traditional.mjs` and `@uppy/react` both import
