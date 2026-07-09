@@ -510,6 +510,44 @@ matches the FULL string exactly.
 `_shim_with-selector.js`) pre-bundled at startup. No mid-render dep discovery possible.
 React factory chunk (`chunk-KC53NVYV.js`) name is STABLE after adding these new includes.
 
+## Proxy-cached real @react-refresh bypasses server-side stub (CRITICAL — Layer 7)
+
+**Root cause:** The Replit proxy caches the **real** `@react-refresh` module under the cache
+key `/test-dashboard/@react-refresh` from a session that predated our no-op stub.
+When the browser requests the bare `/test-dashboard/@react-refresh` URL, the proxy serves
+the cached real module — our server-side stub intercept at Step 4 is **never reached**.
+The real module calls `performReactRefresh()` mid-render → "Invalid hook call" at
+`useAppStore()` in SeedStorePage, even though `curl localhost:18652/.../test-dashboard/@react-refresh`
+correctly shows our stub (localhost bypasses the proxy).
+
+**Symptom:** Crash persists after stub was added; stub verified server-side via curl; crash
+still deterministic at SeedStorePage:447; delay is ~40-170s (Clerk init + first heavy render).
+
+**Fix (vite.config.ts interceptText):** Rewrite the `@react-refresh` import URL in every
+compiled source file from a bare path to a session-tokenized `@xfs/` path:
+```
+"/test-dashboard/@react-refresh"
+  →  "/test-dashboard/@td/TOKEN/@xfs/@react-refresh"
+```
+Code added after the `fsUrlRe` rewrite block:
+```ts
+result = result.replace(
+  `"${sessionBase}@react-refresh"`,
+  `"${sessionBase}@td/${sessionToken}/@xfs/@react-refresh"`,
+);
+```
+Proxy strips `@td/TOKEN/` → cache key `@xfs/@react-refresh` — never seen before → proxy MISS
+→ reaches Vite → Step 4 intercept fires → stub returned → proxy caches STUB for all future
+sessions. After `@td/TOKEN/@xfs/` is stripped by Step 1, `req.url` ends with `/@react-refresh`
+→ existing `includes("/@react-refresh")` check at Step 4 fires correctly. ✓
+
+**Why curl vs browser behaves differently:** curl hits `localhost:18652` directly (bypasses
+proxy → stub served). Browser hits `*.replit.dev` (goes through proxy → cached real module
+served). Always verify proxy behaviour from the browser perspective, not curl.
+
+**Rule:** Any URL that our middleware serves a special response for (stub, custom content) MUST
+use a session-tokenized path (via `@td/TOKEN/`) so the proxy has never cached it before.
+
 ## What NOT to do
 - Do NOT look for a hooks violation in the component source — the component code is correct.
 - Do NOT add `optimizeDeps.force:true` — it re-hashes chunks on every restart, making

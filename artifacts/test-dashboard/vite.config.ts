@@ -417,6 +417,23 @@ function reconnectReloadPlugin(sessionBase: string) {
         //   injectIntoGlobalHook, register, createSignatureFunctionForTransform,
         //   registerExportsForReactRefresh, validateRefreshBoundaryAndEnqueueUpdate
         // All are safe no-ops — components render normally, just without HMR.
+        //
+        // ROOT CAUSE OF PERSISTENT CRASH after stub was added:
+        // The Replit proxy caches /@react-refresh from an OLD session (before the
+        // stub existed) under the cache key "@react-refresh".  When the browser
+        // requests "/test-dashboard/@react-refresh", the proxy serves the REAL
+        // (cached) module — our server-side stub is never reached.  The real module
+        // calls performReactRefresh() → "Invalid hook call" crash still occurs.
+        //
+        // FIX: compiled source files now import @react-refresh at a session-
+        // tokenized @xfs/ URL:
+        //   "/test-dashboard/@td/TOKEN/@xfs/@react-refresh"
+        // The proxy strips @td/TOKEN/ → cache key "@xfs/@react-refresh" — the
+        // proxy has NEVER seen this key before → always a cache MISS → request
+        // reaches our server → stub served.  The proxy then caches the STUB under
+        // "@xfs/@react-refresh" for all future sessions.  Step 1 strips the
+        // @td/TOKEN/@xfs/ prefix → req.url ends with "/@react-refresh" → this
+        // check fires and the stub is returned. ✓
         if ((req.url as string)?.includes("/@react-refresh")) {
           const noopRefresh = `
 // @react-refresh no-op stub (test-dashboard: HMR disabled to prevent crashes)
@@ -543,6 +560,27 @@ export default {
               const xfsPath = pathAfterBase.replace("@fs/", "@xfs/");
               return `"${sessionBase}@td/${sessionToken}/${xfsPath}"`;
             });
+            // Rewrite the @react-refresh import URL to include the session
+            // token via the @xfs/ scheme, guaranteeing a proxy cache MISS.
+            //
+            // WHY: Vite compiles preamble code with a bare /@react-refresh URL.
+            // The Replit proxy may have the REAL @react-refresh module cached
+            // under the key "@react-refresh" from a session predating our stub.
+            // Every browser request for "/base/@react-refresh" hits the proxy
+            // cache → the real module is served → performReactRefresh() fires
+            // mid-render → "Invalid hook call" crash persists even though our
+            // server-side stub is in place.
+            //
+            // By rewriting the URL to "@td/TOKEN/@xfs/@react-refresh":
+            //   proxy key after stripping @td/TOKEN/ → "@xfs/@react-refresh"
+            //   never seen before → proxy MISS → request reaches Vite server
+            //   step 4 in configureServer intercepts → no-op stub returned
+            //   proxy caches the STUB under "@xfs/@react-refresh" for all
+            //   future sessions.  ✓
+            result = result.replace(
+              `"${sessionBase}@react-refresh"`,
+              `"${sessionBase}@td/${sessionToken}/@xfs/@react-refresh"`,
+            );
             // Anti-proxy-cache padding for source files in the 256KB–490KB
             // compiled-size range.
             //
