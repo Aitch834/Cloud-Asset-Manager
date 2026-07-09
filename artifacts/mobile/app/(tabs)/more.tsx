@@ -260,6 +260,66 @@ export default function MoreScreen() {
           />
         </View>
 
+        {(activeModuleKeys.includes("livestock-management") || activeModuleKeys.includes("sprays-inputs")) && (
+          <>
+            <SectionHeader title="Records History" />
+            <View style={styles.section}>
+              {activeModuleKeys.includes("sprays-inputs") && (
+                <>
+                  <ListItem
+                    title="Spray Applications"
+                    subtitle="Full spray diary — filter by year, search by product or field"
+                    icon="droplet"
+                    iconColor="#0891b2"
+                    iconBgColor="#e0f2fe"
+                    onPress={() => router.push("/history-spray")}
+                  />
+                  {activeModuleKeys.includes("livestock-management") && <View style={styles.divider} />}
+                </>
+              )}
+              {activeModuleKeys.includes("livestock-management") && (
+                <>
+                  <ListItem
+                    title="Medicine Records"
+                    subtitle="Treatment history with withdrawal period status"
+                    icon="thermometer"
+                    iconColor="#dc2626"
+                    iconBgColor="#fee2e2"
+                    onPress={() => router.push("/history-medicine")}
+                  />
+                  <View style={styles.divider} />
+                  <ListItem
+                    title="Livestock Movements"
+                    subtitle="On/off movements — filter by year or movement type"
+                    icon="shuffle"
+                    iconColor="#7c3aed"
+                    iconBgColor="#ede9fe"
+                    onPress={() => router.push("/history-movements")}
+                  />
+                  <View style={styles.divider} />
+                  <ListItem
+                    title="TB Test Records"
+                    subtitle="Test results, reactor counts and restriction status"
+                    icon="activity"
+                    iconColor="#d97706"
+                    iconBgColor="#fef3c7"
+                    onPress={() => router.push("/history-tb-tests")}
+                  />
+                  <View style={styles.divider} />
+                  <ListItem
+                    title="Mortality Records"
+                    subtitle="3-year legal register — BCMS notification status"
+                    icon="file-text"
+                    iconColor="#374151"
+                    iconBgColor="#f3f4f6"
+                    onPress={() => router.push("/history-mortality")}
+                  />
+                </>
+              )}
+            </View>
+          </>
+        )}
+
         {activeModuleKeys.includes("stock-suppliers") && (
           <>
             <SectionHeader title="Trade Contacts & Stock" />
