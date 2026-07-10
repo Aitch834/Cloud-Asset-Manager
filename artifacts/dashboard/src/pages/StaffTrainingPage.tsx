@@ -1742,10 +1742,12 @@ function CompetencyMatrixTab({ farmId, members, certificates, certsLoading }: {
     trainingByUser.get(key)!.push(t);
   }
 
-  // All userId keys for a member: numeric id + linkedUserId (covers both storage conventions)
+  // All userId keys for a member: numeric id + linkedUserId + display name.
+  // Records can be stored under any of these conventions depending on how they were created.
   function memberKeys(m: FarmMember): string[] {
     const keys: string[] = [String(m.id)];
     if (m.linkedUserId) keys.push(m.linkedUserId);
+    keys.push(memberFullName(m)); // UI-entered records store the display name
     return keys;
   }
 
