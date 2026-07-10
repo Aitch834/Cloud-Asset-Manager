@@ -5,8 +5,41 @@ import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useCrops } from "@/hooks/use-crops";
 import { useFarmMembers } from "@/hooks/use-farm-members";
-import { TabButton, TabBar } from "@/components/ui/tab-button";
-import { StaffSelect } from "@/components/ui/staff-select";
+import { cn } from "@/lib/utils";
+import { Link } from "wouter";
+
+// ── Inlined to avoid proxy-cache stale-hash issues in test-dashboard ──────────
+function TabBar({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn("flex items-center w-fit flex-wrap", className)} style={{ gap: 6, padding: 6, background: "rgba(0,0,0,0.07)", borderRadius: 12 }}>
+      {children}
+    </div>
+  );
+}
+function TabButton({ active, onClick, children, size = "md" }: { active: boolean; onClick: () => void; children: React.ReactNode; size?: "sm" | "md" }) {
+  const pad = size === "md" ? "10px 20px" : "6px 16px";
+  return (
+    <button onClick={onClick} style={{ padding: pad, fontSize: "0.875rem", fontWeight: 600, borderRadius: 8, cursor: "pointer", whiteSpace: "nowrap", transition: "background 0.15s, color 0.15s", background: active ? "#fff" : "transparent", boxShadow: active ? "0 1px 2px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.06)" : "none", border: "none", color: active ? "hsl(var(--foreground))" : "hsl(var(--foreground) / 0.6)" }} className={cn("hover:text-foreground", !active && "hover:bg-black/[0.05]")}>
+      {children}
+    </button>
+  );
+}
+function StaffSelect({ value, onChange, staffNames, loading }: { value: string; onChange: (v: string) => void; staffNames: string[]; loading?: boolean }) {
+  if (loading) return <Input value={value} onChange={e => onChange(e.target.value)} placeholder="Loading staff…" disabled />;
+  if (staffNames.length === 0) return (
+    <div>
+      <Input value={value} onChange={e => onChange(e.target.value)} placeholder="Type staff member name…" />
+      <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: 4 }}>No staff registered. <Link href="/staff" style={{ color: "#16a34a", textDecoration: "underline" }}>Add staff members</Link> to enable the lookup.</p>
+    </div>
+  );
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger><SelectValue placeholder="Select staff member…" /></SelectTrigger>
+      <SelectContent>{staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
+    </Select>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
