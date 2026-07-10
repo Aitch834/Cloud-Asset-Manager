@@ -1643,23 +1643,32 @@ function certStatus(cert: CertificateRecord | undefined): "valid" | "expiring" |
   return "valid";
 }
 
-function CompetencyMatrixTab({ farmId, staffNames, certificates, certsLoading }: {
+function CompetencyMatrixTab({ farmId, members, certificates, certsLoading }: {
   farmId: number;
-  staffNames: string[];
+  members: FarmMember[];
   certificates: CertificateRecord[];
   certsLoading: boolean;
 }) {
   const [filterStaff, setFilterStaff] = useState("");
   const [showAll, setShowAll] = useState(false);
 
-  const visibleStaff = staffNames.filter(n => !filterStaff || n.toLowerCase().includes(filterStaff.toLowerCase()));
+  const activeMembers = members.filter(m => m.isActive !== false);
+  const visibleMembers = activeMembers.filter(m =>
+    !filterStaff || memberFullName(m).toLowerCase().includes(filterStaff.toLowerCase())
+  );
   const certsToShow = showAll ? ALL_CERT_TYPES : KEY_CERTS;
 
+  // Key certMap by String(userId) — matches what the API stores in c.userId
   const certMap = new Map<string, Map<string, CertificateRecord>>();
   for (const c of certificates) {
-    if (!certMap.has(c.userId)) certMap.set(c.userId, new Map());
-    certMap.get(c.userId)!.set(c.certificateType, c);
+    const key = String(c.userId);
+    if (!certMap.has(key)) certMap.set(key, new Map());
+    certMap.get(key)!.set(c.certificateType, c);
   }
+
+  // Helper: look up a member's cert map, trying numeric id then linkedUserId as fallback
+  const memberCertMap = (m: FarmMember): Map<string, CertificateRecord> | undefined =>
+    certMap.get(String(m.id)) ?? (m.linkedUserId ? certMap.get(m.linkedUserId) : undefined);
 
   const statusCell = (status: "valid" | "expiring" | "expired" | "none") => {
     if (status === "valid") return (
@@ -1717,7 +1726,7 @@ function CompetencyMatrixTab({ farmId, staffNames, certificates, certsLoading }:
         <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded-full bg-gray-200 inline-block" /> Not held</span>
       </div>
 
-      {visibleStaff.length === 0 ? (
+      {visibleMembers.length === 0 ? (
         <div className="text-center py-10 text-gray-400 text-sm">No staff found. Add staff members first.</div>
       ) : (
         <div className="overflow-auto border rounded-lg">
@@ -1727,19 +1736,21 @@ function CompetencyMatrixTab({ farmId, staffNames, certificates, certsLoading }:
                 <th className="text-left px-3 py-2.5 font-semibold text-gray-700 sticky left-0 bg-gray-50 min-w-[220px] w-[220px] border-r">
                   Certificate
                 </th>
-                {visibleStaff.map(s => (
-                  <th key={s} className="px-2 py-2.5 font-medium text-gray-600 text-center min-w-[100px] border-l">
-                    <div className="max-w-[96px] truncate" title={s}>{s.split(" ")[0]}</div>
-                    <div className="text-[10px] text-gray-400 font-normal truncate max-w-[96px]">{s.split(" ").slice(1).join(" ")}</div>
-                  </th>
-                ))}
+                {visibleMembers.map(m => {
+                  const name = memberFullName(m);
+                  return (
+                    <th key={m.id} className="px-2 py-2.5 font-medium text-gray-600 text-center min-w-[100px] border-l">
+                      <div className="max-w-[96px] truncate" title={name}>{m.firstName}</div>
+                      <div className="text-[10px] text-gray-400 font-normal truncate max-w-[96px]">{m.lastName}</div>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {certsToShow.map(certType => {
-                const rowStatuses = visibleStaff.map(staffName => {
-                  const staffCerts = certMap.get(staffName);
-                  const cert = staffCerts?.get(certType);
+                const rowStatuses = visibleMembers.map(m => {
+                  const cert = memberCertMap(m)?.get(certType);
                   return certStatus(cert);
                 });
                 const anyIssue = rowStatuses.some(s => s === "expired" || s === "expiring");
@@ -1749,7 +1760,7 @@ function CompetencyMatrixTab({ farmId, staffNames, certificates, certsLoading }:
                       <div className="whitespace-normal leading-snug">{certType}</div>
                     </td>
                     {rowStatuses.map((status, i) => (
-                      <td key={visibleStaff[i]} className="px-2 py-2 text-center border-l">
+                      <td key={visibleMembers[i]!.id} className="px-2 py-2 text-center border-l">
                         {statusCell(status)}
                       </td>
                     ))}
@@ -2228,7 +2239,7 @@ export default function StaffTrainingPage() {
         ) : tab === "analytics" ? (
           <StaffTrainingAnalyticsTab trainingRecords={trainingRecords} certificates={certificates} />
         ) : tab === "matrix" ? (
-          <CompetencyMatrixTab farmId={farmId} staffNames={staffNames} certificates={certificates} certsLoading={certsQ.isLoading} />
+          <CompetencyMatrixTab farmId={farmId} members={membersQ.data?.members ?? []} certificates={certificates} certsLoading={certsQ.isLoading} />
         ) : (
           <CoursesTab farmId={farmId} />
         )}
