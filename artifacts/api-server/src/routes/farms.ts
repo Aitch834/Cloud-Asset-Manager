@@ -2959,9 +2959,9 @@ router.post("/farms/:farmId/spray-applications", requireAuth, requireTenant, req
       sprayBody.productCostPencePerUnit = Math.round(Number(del.costPence) / parseFloat(String(del.quantity)));
     }
   }
-  // ── Season application count check ──────────────────────────────────────────
+  // ── Season application count check (per field) ──────────────────────────────
   let seasonWarning: string | null = null;
-  if (req.body.productId) {
+  if (req.body.productId && req.body.fieldId) {
     const [prod] = await db.select({ maxApps: sprayProductsTable.maxApplicationsPerSeason, productName: sprayProductsTable.productName })
       .from(sprayProductsTable).where(eq(sprayProductsTable.id, Number(req.body.productId))).limit(1);
     if (prod?.maxApps) {
@@ -2970,10 +2970,16 @@ router.post("/farms/:farmId/spray-applications", requireAuth, requireTenant, req
       const seasonStart = new Date(yr, 7, 1);
       const seasonEnd = new Date(yr + 1, 6, 31, 23, 59, 59);
       const [countRow] = await db.select({ cnt: sql<number>`count(*)::int` }).from(sprayApplicationsTable)
-        .where(and(eq(sprayApplicationsTable.farmId, farmId), eq(sprayApplicationsTable.productId, Number(req.body.productId)), gte(sprayApplicationsTable.applicationDate, seasonStart), lte(sprayApplicationsTable.applicationDate, seasonEnd)));
+        .where(and(
+          eq(sprayApplicationsTable.farmId, farmId),
+          eq(sprayApplicationsTable.productId, Number(req.body.productId)),
+          eq(sprayApplicationsTable.fieldId, Number(req.body.fieldId)),
+          gte(sprayApplicationsTable.applicationDate, seasonStart),
+          lte(sprayApplicationsTable.applicationDate, seasonEnd)
+        ));
       const currentCount = countRow?.cnt ?? 0;
       if (currentCount >= prod.maxApps) {
-        seasonWarning = `${prod.productName} has a maximum of ${prod.maxApps} application${prod.maxApps !== 1 ? "s" : ""} per season. This is application ${currentCount + 1}.`;
+        seasonWarning = `${prod.productName} has a maximum of ${prod.maxApps} application${prod.maxApps !== 1 ? "s" : ""} per season per field. This field has already received ${currentCount} application${currentCount !== 1 ? "s" : ""} this season.`;
       }
     }
   }

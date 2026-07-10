@@ -1019,9 +1019,11 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
             })()}
             {(() => {
               const selectedProduct = form.productId ? products.find((p: any) => String(p.id) === String(form.productId)) : null;
-              if (!selectedProduct?.maxApplicationsPerSeason || !form.productId) return null;
+              if (!selectedProduct?.maxApplicationsPerSeason || !form.productId || !form.fieldId) return null;
+              const selectedField = fields.find((f: any) => String(f.id) === String(form.fieldId));
               const seasonCount = (applications as any[]).filter((a: any) => {
                 if (String(a.productId) !== String(form.productId)) return false;
+                if (String(a.fieldId) !== String(form.fieldId)) return false;
                 if (editRecord && a.id === editRecord.id) return false;
                 return isInCropYear(a.applicationDate, cropYear);
               }).length;
@@ -1030,10 +1032,11 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                 <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "0.75rem 1rem" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.3rem" }}>
                     <AlertTriangle size={14} style={{ color: "#dc2626", flexShrink: 0 }} />
-                    <span style={{ fontWeight: 700, fontSize: "0.8rem", color: "#991b1b" }}>Season Limit Reached</span>
+                    <span style={{ fontWeight: 700, fontSize: "0.8rem", color: "#991b1b" }}>Field Season Limit Reached</span>
                   </div>
                   <p style={{ fontSize: "0.78rem", color: "#7f1d1d", margin: 0 }}>
-                    {selectedProduct.productName} has a maximum of {selectedProduct.maxApplicationsPerSeason} application{Number(selectedProduct.maxApplicationsPerSeason) !== 1 ? "s" : ""} per season. You have already recorded {seasonCount} this season.
+                    {selectedProduct.productName} has a maximum of {selectedProduct.maxApplicationsPerSeason} application{Number(selectedProduct.maxApplicationsPerSeason) !== 1 ? "s" : ""} per season per field.
+                    {selectedField ? ` ${selectedField.name} has` : " This field has"} already received {seasonCount} application{seasonCount !== 1 ? "s" : ""} this season.
                   </p>
                 </div>
               );
