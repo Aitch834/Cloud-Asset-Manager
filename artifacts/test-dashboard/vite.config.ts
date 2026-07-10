@@ -347,9 +347,11 @@ function reconnectReloadPlugin(sessionBase: string) {
             req.url = rawUrl.replace(tdDepsRe, depsBase);
           } else {
             // Source-file URL: /base/@td/TOKEN/@xfs/path → /base/@fs/path
-            // (also handles legacy @fs/ scheme from old proxy-cached content)
+            // Also handles @xfs-TOKEN/ (v7 path-nonce scheme: SW fetches
+            // @td/TOKEN/@xfs-TOKEN/FILE so the proxy cache key is unique per
+            // session → always a miss → server always serves fresh content).
             const stripped = rawUrl.replace(tdPathRe, sessionBase);
-            req.url = stripped.replace("/@xfs/", "/@fs/");
+            req.url = stripped.replace(/\/@xfs(?:-[^/]+)?\//, "/@fs/");
           }
         }
         // Strip ?_t=NONCE (added by SW Case 3 to bust proxy cache).

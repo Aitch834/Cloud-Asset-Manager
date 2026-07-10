@@ -307,9 +307,16 @@ cache miss (unique URL per session) → Vite always serves fresh canonically-URL
    → fetches `@td/CURRENT_TOKEN/@xfs/FILE?_t=TOKEN` (Part B fix with nonce; `@x?fs` handles both)
 3. Intercepts `@td/CURRENT_TOKEN/@xfs/FILE` → fetches same URL + `?_t=TOKEN` (Part D fix)
 
-**WHY ?_t=TOKEN bypasses the proxy:** The proxy strips `@td/TOKEN/` from the path for cache
-keys, but PRESERVES query strings. So `@xfs/FILE?_t=TOKEN` is a cache key never seen before
-each session → guaranteed cache miss → Vite serves fresh content. ✓
+**CRITICAL — ?_t=TOKEN query-string nonce does NOT work (v6 bug, fixed in v7):**
+The Replit proxy STRIPS query strings from cache keys for @xfs/ paths. So `@xfs/FILE?_t=TOKEN`
+has the SAME cache key as `@xfs/FILE` every session → always a proxy HIT → always stale.
+
+**v7 fix — path-based nonce (@xfs-TOKEN/ scheme):**
+SW fetches `@td/TOKEN/@xfs-TOKEN/FILE` instead of `@td/TOKEN/@xfs/FILE?_t=TOKEN`.
+Proxy strips `@td/TOKEN/` → cache key `@xfs-TOKEN/FILE`. TOKEN is unique per session →
+guaranteed proxy cache MISS → Vite serves fresh padded content → proxy cannot cache (512KB+). ✓
+Server middleware strips `/@xfs(?:-[^/]+)?\/` → `/@fs/` (regex handles both old and new scheme).
+SW Cases 2 AND 3 both use `@xfs-TOKEN/` fetch scheme. index.html registers sw-v7.js.
 
 Negative lookahead on CURRENT_TOKEN in the regex prevents matching current-session URLs,
 avoiding infinite intercept loops. All source files converge on CURRENT_TOKEN URLs. ✓
