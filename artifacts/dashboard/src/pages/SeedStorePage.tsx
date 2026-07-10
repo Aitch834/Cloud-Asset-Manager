@@ -1396,7 +1396,7 @@ export default function SeedStorePage() {
                 </div>
                 <div>
                   <Label className="text-xs mb-1 block">Raised By</Label>
-                  <Input value={poForm.orderedBy ?? ""} onChange={e => setPoForm((f: any) => ({ ...f, orderedBy: e.target.value }))} placeholder="Staff member name" />
+                  <StaffSelect value={poForm.orderedBy ?? ""} onChange={v => setPoForm((f: any) => ({ ...f, orderedBy: v }))} staffNames={staffNames} loading={membersLoading} />
                 </div>
               </div>
               {poForm.status === "received" && (

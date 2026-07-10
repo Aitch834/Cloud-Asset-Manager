@@ -8211,6 +8211,8 @@ function CasualtySlaughterSection({ farmId }: { farmId: number }) {
 function IsolationRegisterSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { data: isoMembersData, isLoading: isoMembersLoading } = useFarmMembers(farmId);
+  const isoStaffNames = (isoMembersData?.members ?? []).filter((m: any) => m.isActive !== false).map((m: any) => memberFullName(m));
   const [addOpen, setAddOpen] = useState(false);
   const [editRec, setEditRec] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -8376,7 +8378,7 @@ function IsolationRegisterSection({ farmId }: { farmId: number }) {
           <div className="space-y-3 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div><Label className="text-xs">Check Date *</Label><Input type="date" value={hcForm.checkDate} onChange={e => setHcForm(f => ({ ...f, checkDate: e.target.value }))} /></div>
-              <div><Label className="text-xs">Checked By</Label><Input value={hcForm.checkedBy} onChange={e => setHcForm(f => ({ ...f, checkedBy: e.target.value }))} /></div>
+              <div><Label className="text-xs">Checked By</Label><StaffSelect value={hcForm.checkedBy} onChange={v => setHcForm(f => ({ ...f, checkedBy: v }))} staffNames={isoStaffNames} loading={isoMembersLoading} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label className="text-xs">Health Status</Label>

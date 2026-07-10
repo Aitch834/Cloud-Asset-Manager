@@ -1637,7 +1637,7 @@ export default function FeedManagementPage() {
               </div>
               <div>
                 <Label className="text-xs mb-1 block">Raised By</Label>
-                <Input value={fpoForm.orderedBy ?? ""} onChange={e => setFpoForm(f => ({ ...f, orderedBy: e.target.value }))} placeholder="Staff member name" />
+                <StaffSelect value={fpoForm.orderedBy ?? ""} onChange={v => setFpoForm(f => ({ ...f, orderedBy: v }))} staffNames={staffNames} loading={membersQ.isLoading} />
               </div>
             </div>
             {fpoForm.status === "received" && (

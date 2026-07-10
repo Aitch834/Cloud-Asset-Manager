@@ -1591,7 +1591,7 @@ interface GoodsReturn {
   notes: string | null;
 }
 
-function GoodsReturnsView({ farmId, parts }: { farmId: number; parts: Part[] }) {
+function GoodsReturnsView({ farmId, parts, staffNames, membersLoading }: { farmId: number; parts: Part[]; staffNames: string[]; membersLoading: boolean }) {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState("all");
   const [newOpen, setNewOpen] = useState(false);
@@ -1794,7 +1794,7 @@ function GoodsReturnsView({ farmId, parts }: { farmId: number; parts: Part[] }) 
             </div>
             <div>
               <Label>Raised By</Label>
-              <Input value={form.raisedBy} onChange={e => setF("raisedBy", e.target.value)} />
+              <StaffSelect value={form.raisedBy ?? ""} onChange={v => setF("raisedBy", v)} staffNames={staffNames} loading={membersLoading} />
             </div>
             <div>
               <Label>Notes</Label>
@@ -2471,6 +2471,8 @@ function PartPanel({ farmId, part, onClose, onEdit }: {
 
 function PartsStoreTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
+  const staffNames = (membersData?.members ?? []).map((m: any) => memberFullName(m));
 
   const [view, setView] = useState<"catalogue" | "history" | "returns" | "stocktake">("catalogue");
   const [search, setSearch] = useState("");
@@ -2786,7 +2788,7 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
       )}
 
       {/* Goods Returns View */}
-      {view === "returns" && <GoodsReturnsView farmId={farmId} parts={parts} />}
+      {view === "returns" && <GoodsReturnsView farmId={farmId} parts={parts} staffNames={staffNames} membersLoading={membersLoading} />}
 
       {/* Workshop Parts Stocktake View */}
       {view === "stocktake" && <WorkshopStocktakeView farmId={farmId} />}
@@ -2986,7 +2988,7 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="col-span-2"><Label>Issued By</Label><Input value={useForm.performedBy} onChange={e => setUseForm(f => ({ ...f, performedBy: e.target.value }))} placeholder="Name of person" /></div>
+              <div className="col-span-2"><Label>Issued By</Label><StaffSelect value={useForm.performedBy} onChange={v => setUseForm(f => ({ ...f, performedBy: v }))} staffNames={staffNames} loading={membersLoading} /></div>
               <div className="col-span-2"><Label>Notes</Label><Textarea value={useForm.notes} onChange={e => setUseForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
             </div>
             <DialogFooter>

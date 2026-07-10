@@ -17,6 +17,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
+import { useFarmMembers } from "@/hooks/use-farm-members";
+import { StaffSelect } from "@/components/ui/staff-select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { printHtml } from "@/lib/utils";
 
@@ -2879,6 +2881,8 @@ function FuelIssueForm({
   farmId, bookingId, onSaved,
 }: { farmId: number; bookingId: number; onSaved: () => void }) {
   const { toast } = useToast();
+  const { data: fuelMembersData, isLoading: fuelMembersLoading } = useFarmMembers(farmId);
+  const fuelStaffNames = (fuelMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
   const today = new Date().toISOString().split("T")[0];
   const [form, setForm] = useState({ issueDate: today, litres: "", pricePerLitrePence: "", billedToCustomer: true, issuedBy: "", notes: "" });
   const mut = useMutation({
@@ -2903,7 +2907,7 @@ function FuelIssueForm({
         <div className="space-y-1"><Label className="text-xs">Date</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.issueDate} onChange={(e) => setForm((f) => ({ ...f, issueDate: e.target.value }))} /></div>
         <div className="space-y-1"><Label className="text-xs">Litres Issued</Label><Input type="number" step="0.1" min="0" value={form.litres} onChange={(e) => setForm((f) => ({ ...f, litres: e.target.value }))} placeholder="0.0" /></div>
         <div className="space-y-1"><Label className="text-xs">Price per Litre (£)</Label><Input type="number" step="0.001" min="0" value={form.pricePerLitrePence} onChange={(e) => setForm((f) => ({ ...f, pricePerLitrePence: e.target.value }))} placeholder="0.000" /></div>
-        <div className="space-y-1"><Label className="text-xs">Issued By</Label><Input value={form.issuedBy} onChange={(e) => setForm((f) => ({ ...f, issuedBy: e.target.value }))} placeholder="Name" /></div>
+        <div className="space-y-1"><Label className="text-xs">Issued By</Label><StaffSelect value={form.issuedBy} onChange={v => setForm(f => ({ ...f, issuedBy: v }))} staffNames={fuelStaffNames} loading={fuelMembersLoading} /></div>
       </div>
       <div className="flex items-center gap-4">
         <label className="flex items-center gap-2 text-sm cursor-pointer">

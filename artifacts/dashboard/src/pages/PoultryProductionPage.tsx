@@ -2357,6 +2357,8 @@ function BioBoolField({ label, field, form, setForm }: { label: string; field: s
 
 function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { data: bioMembersData, isLoading: bioMembersLoading } = useFarmMembers(farmId);
+  const bioStaffNames = (bioMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
@@ -2596,7 +2598,7 @@ function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
                 </SelectContent>
               </Select>
             </div>
-            <div><Label>Completed By</Label><Input value={String(form.completedBy ?? "")} onChange={e => setForm(f => ({ ...f, completedBy: e.target.value }))} /></div>
+            <div><Label>Completed By</Label><StaffSelect value={String(form.completedBy ?? "")} onChange={v => setForm(f => ({ ...f, completedBy: v }))} staffNames={bioStaffNames} loading={bioMembersLoading} /></div>
             <div>
               <Label>Scheme / Certification</Label>
               <Select value={String(form.schemeCertificationScheme ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, schemeCertificationScheme: v === "__none__" ? "" : v }))}>
