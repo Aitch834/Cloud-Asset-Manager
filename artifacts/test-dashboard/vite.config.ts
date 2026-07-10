@@ -605,8 +605,16 @@ export default {
             if (!url.includes("/.vite/deps/") && !url.includes("/@td/deps/")) {
               const PROXY_CACHE_THRESHOLD = 512 * 1024; // 512 KB
               const LOW_WATER = 256 * 1024;             // 256 KB (skip tiny files)
+              // Pages that compile below 256 KB but must never be proxy-cached
+              // because they import React hooks directly and a stale cache entry
+              // would embed an old session-token dep URL → dual React instance →
+              // "Invalid hook call".  Add any page that exhibits the crash here.
+              const FORCE_PAD_PAGES = [
+                "SeedStorePage.tsx",
+              ];
               const byteLen = Buffer.byteLength(result, "utf-8");
-              if (byteLen >= LOW_WATER && byteLen < PROXY_CACHE_THRESHOLD) {
+              const mustPad = FORCE_PAD_PAGES.some(p => url.includes(p));
+              if (mustPad || (byteLen >= LOW_WATER && byteLen < PROXY_CACHE_THRESHOLD)) {
                 const needed = PROXY_CACHE_THRESHOLD - byteLen;
                 // Use a valid JS comment so the padding is invisible to the
                 // engine.  The 4 bytes are for "/*" and "*/" delimiters.
