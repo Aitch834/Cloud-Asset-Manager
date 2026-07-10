@@ -596,24 +596,25 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
     if (!member) return;
     const fullName = memberFullName(member);
     let certNumber = "";
-    if (member.linkedUserId) {
-      const paTypes = ["PA1", "PA2", "PA6", "PA4", "PA3"];
-      const now = new Date();
-      for (const paType of paTypes) {
-        const cert = allCerts.find((c: any) =>
-          c.userId === member.linkedUserId &&
-          (c.certificateType ?? "").toUpperCase().includes(paType) &&
-          (!c.expiryDate || new Date(c.expiryDate) > now)
-        );
-        if (cert) { certNumber = cert.certificateNumber ?? ""; break; }
-      }
-      if (!certNumber) {
-        const anyCert = allCerts.find((c: any) =>
-          c.userId === member.linkedUserId &&
-          (!c.expiryDate || new Date(c.expiryDate) > now)
-        );
-        if (anyCert) certNumber = anyCert.certificateNumber ?? "";
-      }
+    // Certs can be stored under linkedUserId, numeric id, or display name — check all three
+    const memberUserKeys = new Set<string>([String(member.id), fullName]);
+    if (member.linkedUserId) memberUserKeys.add(member.linkedUserId);
+    const paTypes = ["PA1", "PA2", "PA6", "PA4", "PA3"];
+    const now = new Date();
+    for (const paType of paTypes) {
+      const cert = allCerts.find((c: any) =>
+        memberUserKeys.has(String(c.userId)) &&
+        (c.certificateType ?? "").toUpperCase().includes(paType) &&
+        (!c.expiryDate || new Date(c.expiryDate) > now)
+      );
+      if (cert) { certNumber = cert.certificateNumber ?? ""; break; }
+    }
+    if (!certNumber) {
+      const anyCert = allCerts.find((c: any) =>
+        memberUserKeys.has(String(c.userId)) &&
+        (!c.expiryDate || new Date(c.expiryDate) > now)
+      );
+      if (anyCert) certNumber = anyCert.certificateNumber ?? "";
     }
     setForm((f: any) => ({ ...f, operatorMemberId: memberId, operatorName: fullName, certificateNumber: certNumber }));
   };

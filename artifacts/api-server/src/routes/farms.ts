@@ -2865,6 +2865,18 @@ router.post("/farms/:farmId/spray-applications", requireAuth, requireTenant, req
   if (!farmId) return;
   if (!(await checkFieldAreaLimit(farmId, req.body.fieldId ? Number(req.body.fieldId) : null, req.body.areaSprayedHa ? Number(req.body.areaSprayedHa) : null, res, "Area sprayed"))) return;
   const sprayBody = sanitiseBody(req.body as Record<string, unknown>);
+  // When a linked member ID is provided, derive operatorName from the member record so the
+  // two fields never diverge (e.g. after a name change or when records are created via API).
+  if (sprayBody.operatorMemberId) {
+    const [member] = await db
+      .select({ firstName: farmMembersTable.firstName, lastName: farmMembersTable.lastName })
+      .from(farmMembersTable)
+      .where(and(eq(farmMembersTable.id, Number(sprayBody.operatorMemberId)), eq(farmMembersTable.farmId, farmId)))
+      .limit(1);
+    if (member) {
+      sprayBody.operatorName = [member.firstName, member.lastName].filter(Boolean).join(" ").trim() || sprayBody.operatorName;
+    }
+  }
   // Auto-populate productCostPencePerUnit from delivery when not explicitly provided
   if (sprayBody.stockDeliveryId && !sprayBody.productCostPencePerUnit) {
     const [del] = await db.select().from(stockDeliveriesTable).where(eq(stockDeliveriesTable.id, Number(sprayBody.stockDeliveryId))).limit(1);
@@ -2918,7 +2930,20 @@ router.put("/farms/:farmId/spray-applications/:recordId", requireAuth, requireTe
   const putSprayAreaHa = req.body.areaSprayedHa ? Number(req.body.areaSprayedHa) : (existing.areaSprayedHa ? Number(existing.areaSprayedHa) : null);
   if (!(await checkFieldAreaLimit(farmId, putSprayFieldId, putSprayAreaHa, res, "Area sprayed"))) return;
 
-  const [record] = await db.update(sprayApplicationsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(sprayApplicationsTable.id, recordId), eq(sprayApplicationsTable.farmId, farmId))).returning();
+  const putSprayBody = sanitiseBody(req.body as Record<string, unknown>);
+  // When a linked member ID is provided, derive operatorName from the member record so the
+  // two fields never diverge (e.g. after a name change or when records are edited via API).
+  if (putSprayBody.operatorMemberId) {
+    const [member] = await db
+      .select({ firstName: farmMembersTable.firstName, lastName: farmMembersTable.lastName })
+      .from(farmMembersTable)
+      .where(and(eq(farmMembersTable.id, Number(putSprayBody.operatorMemberId)), eq(farmMembersTable.farmId, farmId)))
+      .limit(1);
+    if (member) {
+      putSprayBody.operatorName = [member.firstName, member.lastName].filter(Boolean).join(" ").trim() || putSprayBody.operatorName;
+    }
+  }
+  const [record] = await db.update(sprayApplicationsTable).set(putSprayBody).where(and(eq(sprayApplicationsTable.id, recordId), eq(sprayApplicationsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
 
   // Reconcile stock if productId, applicationRate, or areaSprayedHa changed
