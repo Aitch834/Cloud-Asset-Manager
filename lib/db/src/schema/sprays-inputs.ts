@@ -21,6 +21,7 @@ export const sprayProductsTable = pgTable("spray_products", {
   lerapCategory: text("lerap_category"),                                             // null = none, "A" = fixed buffer, "B" = reducible via LERAP
   lerapStandardBufferM: numeric("lerap_standard_buffer_m", { precision: 6, scale: 1 }), // buffer distance printed on product label
   herbicideMoaGroup: text("herbicide_moa_group"),                                    // HRAC mode-of-action group code (e.g. "Group 1 / A"), herbicides only
+  expiryDate: date("expiry_date"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -235,3 +236,58 @@ export const sprayNotificationsTable = pgTable("spray_notifications", {
 
 export type SprayNotification = typeof sprayNotificationsTable.$inferSelect;
 export type NewSprayNotification = typeof sprayNotificationsTable.$inferInsert;
+
+// ─── Container Disposal Log ───────────────────────────────────────────────────
+export const sprayContainerDisposalLogsTable = pgTable("spray_container_disposal_logs", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  disposalDate: date("disposal_date").notNull(),
+  productId: integer("product_id").references(() => sprayProductsTable.id),
+  productName: text("product_name"),
+  containerCount: integer("container_count"),
+  containerSizeL: numeric("container_size_l", { precision: 8, scale: 2 }),
+  disposalMethod: text("disposal_method"),        // triple_rinsed_return | waste_contractor | crushing | incineration | other
+  wasteContractorName: text("waste_contractor_name"),
+  wasteTransferRef: text("waste_transfer_ref"),
+  rinsedOnSite: boolean("rinsed_on_site"),
+  operatorName: text("operator_name"),
+  operatorMemberId: integer("operator_member_id").references(() => farmMembersTable.id),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type SprayContainerDisposalLog = typeof sprayContainerDisposalLogsTable.$inferSelect;
+export type NewSprayContainerDisposalLog = typeof sprayContainerDisposalLogsTable.$inferInsert;
+
+// ─── Pesticide Store Inspection Record ───────────────────────────────────────
+export const sprayStoreInspectionsTable = pgTable("spray_store_inspections", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  inspectionDate: date("inspection_date").notNull(),
+  inspectedByName: text("inspected_by_name"),
+  inspectedById: integer("inspected_by_id").references(() => farmMembersTable.id),
+  inspectionType: text("inspection_type").notNull().default("routine"),  // routine | pre_season | post_season | ad_hoc
+  storeLocation: text("store_location"),
+  locked: boolean("locked"),
+  bunded: boolean("bunded"),
+  emergencyCardPosted: boolean("emergency_card_posted"),
+  coshhAssessed: boolean("coshh_assessed"),
+  signagePresent: boolean("signage_present"),
+  ventilationAdequate: boolean("ventilation_adequate"),
+  separateFromSeed: boolean("separate_from_seed"),
+  noObviousLeaks: boolean("no_obvious_leaks"),
+  passed: boolean("passed"),
+  conditionNotes: text("condition_notes"),
+  actionRequired: text("action_required"),
+  actionDueDate: date("action_due_date"),
+  nextInspectionDue: date("next_inspection_due"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type SprayStoreInspection = typeof sprayStoreInspectionsTable.$inferSelect;
+export type NewSprayStoreInspection = typeof sprayStoreInspectionsTable.$inferInsert;

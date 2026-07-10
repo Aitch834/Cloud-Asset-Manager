@@ -254,4 +254,60 @@ export async function runLisMigrations(): Promise<void> {
       created_at timestamptz not null default now()
     )
   `);
+
+  // ── Spray compliance: product expiry date ─────────────────────────────────
+  await db.execute(sql`ALTER TABLE spray_products ADD COLUMN IF NOT EXISTS expiry_date date`);
+
+  // ── Spray compliance: container disposal log ──────────────────────────────
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS spray_container_disposal_logs (
+      id serial primary key,
+      farm_id integer not null references farms(id),
+      disposal_date date not null,
+      product_id integer references spray_products(id),
+      product_name text,
+      container_count integer,
+      container_size_l numeric(8,2),
+      disposal_method text,
+      waste_contractor_name text,
+      waste_transfer_ref text,
+      rinsed_on_site boolean,
+      operator_name text,
+      operator_member_id integer references farm_members(id),
+      document_path text,
+      document_name text,
+      notes text,
+      created_at timestamptz not null default now()
+    )
+  `);
+
+  // ── Spray compliance: pesticide store inspection record ───────────────────
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS spray_store_inspections (
+      id serial primary key,
+      farm_id integer not null references farms(id),
+      inspection_date date not null,
+      inspected_by_name text,
+      inspected_by_id integer references farm_members(id),
+      inspection_type text not null default 'routine',
+      store_location text,
+      locked boolean,
+      bunded boolean,
+      emergency_card_posted boolean,
+      coshh_assessed boolean,
+      signage_present boolean,
+      ventilation_adequate boolean,
+      separate_from_seed boolean,
+      no_obvious_leaks boolean,
+      passed boolean,
+      condition_notes text,
+      action_required text,
+      action_due_date date,
+      next_inspection_due date,
+      document_path text,
+      document_name text,
+      notes text,
+      created_at timestamptz not null default now()
+    )
+  `);
 }

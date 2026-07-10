@@ -283,7 +283,7 @@ export default function SprayPage() {
   const productCategories = useLookupStrings("spray_product_categories", PRODUCT_CATEGORIES_FALLBACK);
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"applications" | "dayview" | "products" | "print" | "analytics" | "ipm" | "lerap" | "notifications">("applications");
+  const [tab, setTab] = useState<"applications" | "dayview" | "products" | "print" | "analytics" | "ipm" | "lerap" | "notifications" | "disposal" | "store">("applications");
 
   const [cropYear, setCropYear] = useState<number>(currentCropYear());
   const applicationsQ = useQuery({ queryKey: ["spray-applications", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-applications`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
@@ -329,6 +329,8 @@ export default function SprayPage() {
           <TabButton active={tab === "ipm"} onClick={() => setTab("ipm")}>IPM Plan</TabButton>
           <TabButton active={tab === "lerap"} onClick={() => setTab("lerap")}>LERAP</TabButton>
           <TabButton active={tab === "notifications"} onClick={() => setTab("notifications")}>Notifications Log</TabButton>
+          <TabButton active={tab === "disposal"} onClick={() => setTab("disposal")}>Container Disposal</TabButton>
+          <TabButton active={tab === "store"} onClick={() => setTab("store")}>Store Inspections</TabButton>
         </TabBar>
         {tab === "applications" && <ApplicationsTab applications={applications} products={products} fields={fields} farmId={farmId} loading={applicationsQ.isLoading} onRefresh={() => qc.invalidateQueries({ queryKey: ["spray-applications", farmId] })} toast={toast} initialSearch={initialFieldSearch} cropYear={cropYear} setCropYear={setCropYear} />}
         {tab === "dayview" && <SprayDayViewTab applications={applications} loading={applicationsQ.isLoading} />}
@@ -338,6 +340,8 @@ export default function SprayPage() {
         {tab === "ipm" && <IpmPlanTab farmId={farmId!} />}
         {tab === "lerap" && <LerapTab farmId={farmId!} products={products} fields={fields} />}
         {tab === "notifications" && <SprayNotificationsTab farmId={farmId!} applications={applications} fields={fields} />}
+        {tab === "disposal" && <ContainerDisposalTab farmId={farmId!} products={products} />}
+        {tab === "store" && <StoreInspectionTab farmId={farmId!} />}
       </div>
     </AppLayout>
   );
@@ -994,6 +998,48 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
             </div>
             {(() => {
               const selectedProduct = form.productId ? products.find((p: any) => String(p.id) === String(form.productId)) : null;
+              if (!selectedProduct?.stockItemId) return null;
+              const qty = selectedProduct.currentStockQuantity;
+              const unit = (selectedProduct.stockUnit || "").trim();
+              const isOut = qty !== null && qty <= 0;
+              const isLow = qty !== null && qty > 0 && qty < 10;
+              const bg = isOut ? "#fef2f2" : isLow ? "#fffbeb" : "#f0fdf4";
+              const border = isOut ? "#fecaca" : isLow ? "#fcd34d" : "#bbf7d0";
+              const textColor = isOut ? "#991b1b" : isLow ? "#92400e" : "#166534";
+              return (
+                <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: 8, padding: "0.6rem 0.9rem", display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: "0.8rem", color: textColor, fontWeight: 600 }}>Current stock:</span>
+                  <span style={{ fontSize: "0.9rem", fontWeight: 700, color: textColor }}>
+                    {qty !== null ? `${qty % 1 === 0 ? qty : qty.toFixed(2)}${unit ? ` ${unit}` : ""}` : "Not tracked"}
+                  </span>
+                  {isOut && <span style={{ marginLeft: "auto", fontSize: "0.72rem", color: "#dc2626", fontWeight: 700 }}>⚠ OUT OF STOCK</span>}
+                  {isLow && <span style={{ marginLeft: "auto", fontSize: "0.72rem", color: "#b45309", fontWeight: 700 }}>⚠ LOW STOCK</span>}
+                </div>
+              );
+            })()}
+            {(() => {
+              const selectedProduct = form.productId ? products.find((p: any) => String(p.id) === String(form.productId)) : null;
+              if (!selectedProduct?.maxApplicationsPerSeason || !form.productId) return null;
+              const seasonCount = (applications as any[]).filter((a: any) => {
+                if (String(a.productId) !== String(form.productId)) return false;
+                if (editRecord && a.id === editRecord.id) return false;
+                return isInCropYear(a.applicationDate, cropYear);
+              }).length;
+              if (seasonCount < Number(selectedProduct.maxApplicationsPerSeason)) return null;
+              return (
+                <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "0.75rem 1rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.3rem" }}>
+                    <AlertTriangle size={14} style={{ color: "#dc2626", flexShrink: 0 }} />
+                    <span style={{ fontWeight: 700, fontSize: "0.8rem", color: "#991b1b" }}>Season Limit Reached</span>
+                  </div>
+                  <p style={{ fontSize: "0.78rem", color: "#7f1d1d", margin: 0 }}>
+                    {selectedProduct.productName} has a maximum of {selectedProduct.maxApplicationsPerSeason} application{Number(selectedProduct.maxApplicationsPerSeason) !== 1 ? "s" : ""} per season. You have already recorded {seasonCount} this season.
+                  </p>
+                </div>
+              );
+            })()}
+            {(() => {
+              const selectedProduct = form.productId ? products.find((p: any) => String(p.id) === String(form.productId)) : null;
               const coshh = selectedProduct?.coshhRecord;
               if (!coshh) return null;
               const ppeList = coshh.ppe ? coshh.ppe.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
@@ -1425,7 +1471,7 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
   const [editRecord, setEditRecord] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [viewRecord, setViewRecord] = useState<any>(null);
-  const emptyForm = { productName: "", activeIngredient: "", mappaNumber: "", manufacturer: "", category: "", harvestInterval: "", maxApplicationsPerSeason: "", storageRequirements: "", coshhRecordId: "__none__", lerapCategory: "__none__", lerapStandardBufferM: "", herbicideMoaGroup: "" };
+  const emptyForm = { productName: "", activeIngredient: "", mappaNumber: "", manufacturer: "", category: "", harvestInterval: "", maxApplicationsPerSeason: "", storageRequirements: "", coshhRecordId: "__none__", lerapCategory: "__none__", lerapStandardBufferM: "", herbicideMoaGroup: "", expiryDate: "" };
   const [form, setForm] = useState<any>(emptyForm);
 
   function openAdd() { setEditRecord(null); setForm(emptyForm); setDialogOpen(true); }
@@ -1444,6 +1490,7 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
       lerapCategory: p.lerapCategory ?? "__none__",
       lerapStandardBufferM: p.lerapStandardBufferM != null ? String(p.lerapStandardBufferM) : "",
       herbicideMoaGroup: p.herbicideMoaGroup ?? "",
+      expiryDate: p.expiryDate ? String(p.expiryDate).slice(0, 10) : "",
     });
     setDialogOpen(true);
   }
@@ -1514,7 +1561,7 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["Product Name", "Active Ingredient", "MAPP No.", "Category", "LERAP", "Manufacturer", "Harvest Interval", "Max Apps/Season", ""].map((h, i) => (
+                {["Product Name", "Active Ingredient", "MAPP No.", "Category", "LERAP", "Manufacturer", "Harvest Interval", "Max Apps/Season", "Expiry Date", ""].map((h, i) => (
                   <th key={i} style={{ padding: "0.625rem 0.75rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -1536,6 +1583,16 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
                   <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{p.manufacturer || "—"}</td>
                   <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{p.harvestInterval ? `${p.harvestInterval} days` : "—"}</td>
                   <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{p.maxApplicationsPerSeason || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.75rem" }}>
+                    {p.expiryDate ? (() => {
+                      const exp = new Date(p.expiryDate);
+                      const now = new Date();
+                      const daysLeft = Math.ceil((exp.getTime() - now.getTime()) / 86400000);
+                      const isExpired = daysLeft < 0;
+                      const isSoon = daysLeft >= 0 && daysLeft <= 90;
+                      return <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: isExpired ? "#fee2e2" : isSoon ? "#fef3c7" : "#f0fdf4", color: isExpired ? "#991b1b" : isSoon ? "#92400e" : "#166534", fontSize: "0.72rem", fontWeight: 600, borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>{isExpired ? "⚠ Expired" : isSoon ? "⚠ " : ""}{exp.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>;
+                    })() : <span style={{ color: "#d1d5db" }}>—</span>}
+                  </td>
                   <td style={{ padding: "0.5rem" }} onClick={e => e.stopPropagation()}>
                     <button onClick={() => openEdit(p)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Edit"><Pencil size={13} /></button>
                     <button onClick={() => setDeleteId(p.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
@@ -1722,6 +1779,11 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
             <div>
               <Label>Max Applications per Season</Label>
               <Input type="number" placeholder="e.g. 2" value={form.maxApplicationsPerSeason} onChange={e => setForm((f: any) => ({ ...f, maxApplicationsPerSeason: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Expiry Date</Label>
+              <Input type="date" value={form.expiryDate} onChange={e => setForm((f: any) => ({ ...f, expiryDate: e.target.value }))} />
+              <p style={{ fontSize: "0.72rem", color: "#9ca3af", marginTop: 3 }}>Leave blank if not applicable. Expired products are flagged with a red badge in the product list.</p>
             </div>
             <div>
               <Label>Storage Requirements</Label>
@@ -3494,6 +3556,511 @@ function SprayNotificationsTab({ farmId, applications, fields }: { farmId: numbe
         <DialogContent style={{ maxWidth: 360 }}>
           <DialogHeader><DialogTitle>Delete Notification</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Permanently delete this notification record?</p>
+          <DialogFooter>
+            <button className="border rounded-md px-4 py-2 text-sm hover:bg-gray-50" onClick={() => setDeleteId(null)}>Cancel</button>
+            <button className="bg-red-600 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-red-700 disabled:opacity-50" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>Delete</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Container Disposal Tab ───────────────────────────────────────────────────
+const DISPOSAL_METHODS = [
+  { value: "triple_rinsed_return", label: "Triple-rinsed & returned to supplier" },
+  { value: "waste_contractor", label: "Waste contractor collection" },
+  { value: "crushing", label: "On-site crushing / compaction" },
+  { value: "incineration", label: "Incineration" },
+  { value: "other", label: "Other" },
+];
+
+function ContainerDisposalTab({ farmId, products }: { farmId: number; products: any[] }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const { data: membersData } = useFarmMembers(farmId);
+  const members: any[] = membersData?.members ?? [];
+  const key = [`/api/farms/${farmId}/spray-container-disposals`];
+  const dataQ = useQuery({ queryKey: key, queryFn: () => fetch(`/api/farms/${farmId}/spray-container-disposals`).then(r => r.json()) });
+  const records: any[] = dataQ.data?.records ?? [];
+
+  const emptyDisposal = { disposalDate: new Date().toISOString().slice(0, 10), productId: "__none__", productName: "", containerCount: "", containerSizeL: "", disposalMethod: "__none__", wasteContractorName: "", wasteTransferRef: "", rinsedOnSite: false, operatorMemberId: "__none__", notes: "" };
+  const [form, setForm] = useState<any>(emptyDisposal);
+  const [addOpen, setAddOpen] = useState(false);
+  const [editRec, setEditRec] = useState<any>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  function openAdd() { setEditRec(null); setForm(emptyDisposal); setAddOpen(true); }
+  function openEdit(r: any) {
+    setEditRec(r);
+    setForm({
+      disposalDate: r.disposalDate ? String(r.disposalDate).slice(0, 10) : "",
+      productId: r.productId ? String(r.productId) : "__none__",
+      productName: r.productName ?? "",
+      containerCount: r.containerCount ?? "",
+      containerSizeL: r.containerSizeL ?? "",
+      disposalMethod: r.disposalMethod ?? "__none__",
+      wasteContractorName: r.wasteContractorName ?? "",
+      wasteTransferRef: r.wasteTransferRef ?? "",
+      rinsedOnSite: !!r.rinsedOnSite,
+      operatorMemberId: r.operatorMemberId ? String(r.operatorMemberId) : "__none__",
+      notes: r.notes ?? "",
+    });
+    setAddOpen(true);
+  }
+
+  function buildBody() {
+    const { productId, disposalMethod, operatorMemberId, ...rest } = form;
+    return {
+      ...rest,
+      productId: productId && productId !== "__none__" ? Number(productId) : null,
+      disposalMethod: disposalMethod && disposalMethod !== "__none__" ? disposalMethod : null,
+      operatorMemberId: operatorMemberId && operatorMemberId !== "__none__" ? Number(operatorMemberId) : null,
+      containerCount: rest.containerCount ? Number(rest.containerCount) : null,
+      containerSizeL: rest.containerSizeL ? rest.containerSizeL : null,
+    };
+  }
+
+  const createMut = useMutation({
+    mutationFn: (b: any) => fetch(`/api/farms/${farmId}/spray-container-disposals`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }),
+    onSuccess: () => { toast({ title: "Disposal log saved" }); qc.invalidateQueries({ queryKey: key }); setAddOpen(false); },
+    onError: () => toast({ title: "Error saving disposal log", variant: "destructive" }),
+  });
+  const updateMut = useMutation({
+    mutationFn: ({ id, b }: { id: number; b: any }) => fetch(`/api/farms/${farmId}/spray-container-disposals/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }),
+    onSuccess: () => { toast({ title: "Disposal log updated" }); qc.invalidateQueries({ queryKey: key }); setAddOpen(false); },
+    onError: () => toast({ title: "Error updating disposal log", variant: "destructive" }),
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/spray-container-disposals/${id}`, { method: "DELETE" }),
+    onSuccess: () => { toast({ title: "Deleted" }); qc.invalidateQueries({ queryKey: key }); setDeleteId(null); },
+    onError: () => toast({ title: "Error deleting", variant: "destructive" }),
+  });
+
+  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  return (
+    <div className="space-y-4">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <h3 style={{ fontWeight: 700, fontSize: "1rem", color: "#1e293b" }}>Container Disposal Log</h3>
+          <p style={{ fontSize: "0.78rem", color: "#64748b", marginTop: 2 }}>Record disposal of used pesticide containers, as required by UK waste regulations.</p>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" />Log Disposal</Button>
+      </div>
+
+      {records.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#94a3b8" }}>
+          <p style={{ fontWeight: 600, marginBottom: 4 }}>No disposals recorded</p>
+          <p style={{ fontSize: "0.8rem" }}>Log container disposals to demonstrate regulatory compliance.</p>
+        </div>
+      ) : (
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+            <thead>
+              <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                {["Date", "Product", "Containers", "Method", "Waste Transfer Ref", "Rinsed", "Operator", ""].map((h, i) => (
+                  <th key={i} style={{ padding: "0.625rem 0.75rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {records.map((r: any, i: number) => {
+                const prod = products.find((p: any) => p.id === r.productId);
+                const method = DISPOSAL_METHODS.find(m => m.value === r.disposalMethod);
+                return (
+                  <tr key={r.id} style={{ borderBottom: i < records.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                    <td style={{ padding: "0.625rem 0.75rem", whiteSpace: "nowrap" }}>{r.disposalDate ? new Date(r.disposalDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
+                    <td style={{ padding: "0.625rem 0.75rem" }}>{prod?.productName || r.productName || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.75rem" }}>{r.containerCount ?? "—"}{r.containerSizeL ? ` × ${r.containerSizeL}L` : ""}</td>
+                    <td style={{ padding: "0.625rem 0.75rem", fontSize: "0.8rem", color: "#374151" }}>{method?.label || r.disposalMethod || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.75rem", fontFamily: "monospace", fontSize: "0.78rem" }}>{r.wasteTransferRef || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.75rem" }}>{r.rinsedOnSite ? <span style={{ color: "#16a34a", fontWeight: 600, fontSize: "0.78rem" }}>Yes</span> : <span style={{ color: "#9ca3af", fontSize: "0.78rem" }}>No</span>}</td>
+                    <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280", fontSize: "0.8rem" }}>{r.operatorMemberId ? memberFullName(members.find((m: any) => m.id === r.operatorMemberId)) : r.operatorName || "—"}</td>
+                    <td style={{ padding: "0.5rem" }}>
+                      <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Edit"><Pencil size={13} /></button>
+                      <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRec(null); } }}>
+        <DialogContent style={{ maxWidth: 560, maxHeight: "85vh", overflowY: "auto" }}>
+          <DialogHeader><DialogTitle>{editRec ? "Edit" : "Log"} Container Disposal</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Disposal Date <span style={{ color: "#ef4444" }}>*</span></Label>
+                <Input type="date" value={form.disposalDate} onChange={e => set("disposalDate", e.target.value)} />
+              </div>
+              <div>
+                <Label>Operator</Label>
+                <Select value={form.operatorMemberId} onValueChange={v => set("operatorMemberId", v)}>
+                  <SelectTrigger style={{ fontSize: "0.8rem" }}><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Not specified</SelectItem>
+                    {members.map((m: any) => <SelectItem key={m.id} value={String(m.id)}>{memberFullName(m)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>Product</Label>
+              <Select value={form.productId} onValueChange={v => set("productId", v)}>
+                <SelectTrigger style={{ fontSize: "0.8rem" }}><SelectValue placeholder="Select product…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Not listed / manual entry</SelectItem>
+                  {products.map((p: any) => <SelectItem key={p.id} value={String(p.id)}>{p.productName}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {(!form.productId || form.productId === "__none__") && (
+              <div>
+                <Label>Product Name (manual)</Label>
+                <Input placeholder="Enter product name" value={form.productName} onChange={e => set("productName", e.target.value)} />
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Number of Containers</Label>
+                <Input type="number" min="1" placeholder="e.g. 3" value={form.containerCount} onChange={e => set("containerCount", e.target.value)} />
+              </div>
+              <div>
+                <Label>Container Size (L)</Label>
+                <Input type="number" step="0.1" placeholder="e.g. 5" value={form.containerSizeL} onChange={e => set("containerSizeL", e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <Label>Disposal Method</Label>
+              <Select value={form.disposalMethod} onValueChange={v => set("disposalMethod", v)}>
+                <SelectTrigger style={{ fontSize: "0.8rem" }}><SelectValue placeholder="Select method…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Not specified</SelectItem>
+                  {DISPOSAL_METHODS.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {form.disposalMethod === "waste_contractor" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Waste Contractor Name</Label>
+                  <Input placeholder="e.g. Agri-Waste Services Ltd" value={form.wasteContractorName} onChange={e => set("wasteContractorName", e.target.value)} />
+                </div>
+                <div>
+                  <Label>Waste Transfer Note Ref</Label>
+                  <Input placeholder="e.g. WTN-2026-001" value={form.wasteTransferRef} onChange={e => set("wasteTransferRef", e.target.value)} />
+                </div>
+              </div>
+            )}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input type="checkbox" id="rinsedOnSite" checked={!!form.rinsedOnSite} onChange={e => set("rinsedOnSite", e.target.checked)} style={{ width: 16, height: 16, cursor: "pointer" }} />
+              <label htmlFor="rinsedOnSite" style={{ fontSize: "0.85rem", cursor: "pointer" }}>Containers triple-rinsed on site before disposal</label>
+            </div>
+            <div>
+              <Label>Notes</Label>
+              <Textarea value={form.notes} onChange={e => set("notes", e.target.value)} rows={2} placeholder="Additional details…" />
+            </div>
+          </div>
+          <DialogFooter>
+            <button className="border rounded-md px-4 py-2 text-sm hover:bg-gray-50" onClick={() => { setAddOpen(false); setEditRec(null); }}>Cancel</button>
+            <button className="bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
+              disabled={!form.disposalDate || createMut.isPending || updateMut.isPending}
+              onClick={() => editRec ? updateMut.mutate({ id: editRec.id, b: buildBody() }) : createMut.mutate(buildBody())}>
+              {createMut.isPending || updateMut.isPending ? "Saving…" : editRec ? "Save Changes" : "Log Disposal"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: 360 }}>
+          <DialogHeader><DialogTitle>Delete Disposal Record</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">Permanently delete this disposal record?</p>
+          <DialogFooter>
+            <button className="border rounded-md px-4 py-2 text-sm hover:bg-gray-50" onClick={() => setDeleteId(null)}>Cancel</button>
+            <button className="bg-red-600 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-red-700 disabled:opacity-50" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>Delete</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Store Inspection Tab ─────────────────────────────────────────────────────
+const INSPECTION_TYPES = [
+  { value: "routine", label: "Routine" },
+  { value: "pre_season", label: "Pre-Season" },
+  { value: "post_season", label: "Post-Season" },
+  { value: "ad_hoc", label: "Ad-hoc" },
+];
+
+const CHECKLIST_FIELDS: { key: string; label: string }[] = [
+  { key: "locked", label: "Store is lockable and kept locked" },
+  { key: "bunded", label: "Bunded / spillage containment in place" },
+  { key: "emergencyCardPosted", label: "Emergency contact card posted" },
+  { key: "coshhAssessed", label: "COSHH assessment available on site" },
+  { key: "signagePresent", label: "Hazard signage present" },
+  { key: "ventilationAdequate", label: "Ventilation adequate" },
+  { key: "separateFromSeed", label: "Stored separately from seed/feed" },
+  { key: "noObviousLeaks", label: "No obvious leaks or damaged containers" },
+];
+
+function StoreInspectionTab({ farmId }: { farmId: number }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const { data: membersData } = useFarmMembers(farmId);
+  const members: any[] = membersData?.members ?? [];
+  const key = [`/api/farms/${farmId}/spray-store-inspections`];
+  const dataQ = useQuery({ queryKey: key, queryFn: () => fetch(`/api/farms/${farmId}/spray-store-inspections`).then(r => r.json()) });
+  const records: any[] = dataQ.data?.records ?? [];
+
+  const emptyInspection = {
+    inspectionDate: new Date().toISOString().slice(0, 10),
+    inspectedById: "__none__",
+    inspectedByName: "",
+    inspectionType: "routine",
+    storeLocation: "",
+    passed: true,
+    locked: true,
+    bunded: false,
+    emergencyCardPosted: true,
+    coshhAssessed: true,
+    signagePresent: true,
+    ventilationAdequate: true,
+    separateFromSeed: true,
+    noObviousLeaks: true,
+    conditionNotes: "",
+    actionRequired: "",
+    actionDueDate: "",
+    nextInspectionDue: "",
+    notes: "",
+  };
+  const [form, setForm] = useState<any>(emptyInspection);
+  const [addOpen, setAddOpen] = useState(false);
+  const [editRec, setEditRec] = useState<any>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  function openAdd() { setEditRec(null); setForm(emptyInspection); setAddOpen(true); }
+  function openEdit(r: any) {
+    setEditRec(r);
+    setForm({
+      inspectionDate: r.inspectionDate ? String(r.inspectionDate).slice(0, 10) : "",
+      inspectedById: r.inspectedById ? String(r.inspectedById) : "__none__",
+      inspectedByName: r.inspectedByName ?? "",
+      inspectionType: r.inspectionType ?? "routine",
+      storeLocation: r.storeLocation ?? "",
+      passed: r.passed !== false,
+      locked: !!r.locked,
+      bunded: !!r.bunded,
+      emergencyCardPosted: !!r.emergencyCardPosted,
+      coshhAssessed: !!r.coshhAssessed,
+      signagePresent: !!r.signagePresent,
+      ventilationAdequate: !!r.ventilationAdequate,
+      separateFromSeed: !!r.separateFromSeed,
+      noObviousLeaks: !!r.noObviousLeaks,
+      conditionNotes: r.conditionNotes ?? "",
+      actionRequired: r.actionRequired ?? "",
+      actionDueDate: r.actionDueDate ? String(r.actionDueDate).slice(0, 10) : "",
+      nextInspectionDue: r.nextInspectionDue ? String(r.nextInspectionDue).slice(0, 10) : "",
+      notes: r.notes ?? "",
+    });
+    setAddOpen(true);
+  }
+
+  function buildBody() {
+    const { inspectedById, ...rest } = form;
+    const checksPassed = CHECKLIST_FIELDS.every(f => !!form[f.key]);
+    return {
+      ...rest,
+      inspectedById: inspectedById && inspectedById !== "__none__" ? Number(inspectedById) : null,
+      passed: checksPassed,
+      actionDueDate: rest.actionDueDate || null,
+      nextInspectionDue: rest.nextInspectionDue || null,
+    };
+  }
+
+  const createMut = useMutation({
+    mutationFn: (b: any) => fetch(`/api/farms/${farmId}/spray-store-inspections`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }),
+    onSuccess: () => { toast({ title: "Inspection saved" }); qc.invalidateQueries({ queryKey: key }); setAddOpen(false); },
+    onError: () => toast({ title: "Error saving inspection", variant: "destructive" }),
+  });
+  const updateMut = useMutation({
+    mutationFn: ({ id, b }: { id: number; b: any }) => fetch(`/api/farms/${farmId}/spray-store-inspections/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }),
+    onSuccess: () => { toast({ title: "Inspection updated" }); qc.invalidateQueries({ queryKey: key }); setAddOpen(false); },
+    onError: () => toast({ title: "Error updating inspection", variant: "destructive" }),
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/spray-store-inspections/${id}`, { method: "DELETE" }),
+    onSuccess: () => { toast({ title: "Deleted" }); qc.invalidateQueries({ queryKey: key }); setDeleteId(null); },
+    onError: () => toast({ title: "Error deleting", variant: "destructive" }),
+  });
+
+  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  return (
+    <div className="space-y-4">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <h3 style={{ fontWeight: 700, fontSize: "1rem", color: "#1e293b" }}>Pesticide Store Inspections</h3>
+          <p style={{ fontSize: "0.78rem", color: "#64748b", marginTop: 2 }}>Record routine and pre/post-season inspections of your pesticide store.</p>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" />Log Inspection</Button>
+      </div>
+
+      {records.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#94a3b8" }}>
+          <p style={{ fontWeight: 600, marginBottom: 4 }}>No inspections recorded</p>
+          <p style={{ fontSize: "0.8rem" }}>Regular store inspections demonstrate good stewardship and are required by some assurance schemes.</p>
+        </div>
+      ) : (
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+            <thead>
+              <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                {["Date", "Type", "Location", "Inspector", "Outcome", "Next Due", "Actions", ""].map((h, i) => (
+                  <th key={i} style={{ padding: "0.625rem 0.75rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {records.map((r: any, i: number) => {
+                const itype = INSPECTION_TYPES.find(t => t.value === r.inspectionType);
+                const inspector = r.inspectedById ? memberFullName(members.find((m: any) => m.id === r.inspectedById)) : r.inspectedByName;
+                const nextDue = r.nextInspectionDue ? new Date(r.nextInspectionDue) : null;
+                const overdue = nextDue && nextDue < new Date();
+                return (
+                  <tr key={r.id} style={{ borderBottom: i < records.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                    <td style={{ padding: "0.625rem 0.75rem", whiteSpace: "nowrap" }}>{r.inspectionDate ? new Date(r.inspectionDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
+                    <td style={{ padding: "0.625rem 0.75rem" }}><span style={{ background: "#f1f5f9", color: "#475569", fontSize: "0.72rem", fontWeight: 600, borderRadius: 4, padding: "2px 6px" }}>{itype?.label ?? r.inspectionType}</span></td>
+                    <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280", fontSize: "0.8rem" }}>{r.storeLocation || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.75rem", color: "#374151", fontSize: "0.8rem" }}>{inspector || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.75rem" }}>
+                      {r.passed === true ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "#f0fdf4", color: "#15803d", fontSize: "0.72rem", fontWeight: 700, borderRadius: 4, padding: "2px 7px" }}>Pass</span>
+                      ) : r.passed === false ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "#fef2f2", color: "#dc2626", fontSize: "0.72rem", fontWeight: 700, borderRadius: 4, padding: "2px 7px" }}>
+                          <AlertTriangle size={10} /> Fail
+                        </span>
+                      ) : <span style={{ color: "#9ca3af", fontSize: "0.72rem" }}>—</span>}
+                    </td>
+                    <td style={{ padding: "0.625rem 0.75rem" }}>
+                      {nextDue ? (
+                        <span style={{ fontSize: "0.78rem", color: overdue ? "#dc2626" : "#374151", fontWeight: overdue ? 700 : 400 }}>
+                          {overdue ? "⚠ " : ""}{nextDue.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                        </span>
+                      ) : <span style={{ color: "#9ca3af" }}>—</span>}
+                    </td>
+                    <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280", fontSize: "0.78rem", maxWidth: 200 }}>{r.actionRequired || "—"}</td>
+                    <td style={{ padding: "0.5rem" }}>
+                      <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Edit"><Pencil size={13} /></button>
+                      <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRec(null); } }}>
+        <DialogContent style={{ maxWidth: 600, maxHeight: "88vh", overflowY: "auto" }}>
+          <DialogHeader><DialogTitle>{editRec ? "Edit" : "Log"} Store Inspection</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Inspection Date <span style={{ color: "#ef4444" }}>*</span></Label>
+                <Input type="date" value={form.inspectionDate} onChange={e => set("inspectionDate", e.target.value)} />
+              </div>
+              <div>
+                <Label>Inspection Type</Label>
+                <Select value={form.inspectionType} onValueChange={v => set("inspectionType", v)}>
+                  <SelectTrigger style={{ fontSize: "0.8rem" }}><SelectValue /></SelectTrigger>
+                  <SelectContent>{INSPECTION_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Inspector (Farm Member)</Label>
+                <Select value={form.inspectedById} onValueChange={v => set("inspectedById", v)}>
+                  <SelectTrigger style={{ fontSize: "0.8rem" }}><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">External / manual entry</SelectItem>
+                    {members.map((m: any) => <SelectItem key={m.id} value={String(m.id)}>{memberFullName(m)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Inspector Name (if external)</Label>
+                <Input placeholder="Name of external inspector" value={form.inspectedByName} onChange={e => set("inspectedByName", e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <Label>Store Location / Description</Label>
+              <Input placeholder="e.g. Locked chemical store, north side of grain store" value={form.storeLocation} onChange={e => set("storeLocation", e.target.value)} />
+            </div>
+
+            <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "0.75rem" }}>
+              <Label style={{ marginBottom: "0.5rem", display: "block", fontWeight: 700 }}>Compliance Checklist</Label>
+              <div className="space-y-2">
+                {CHECKLIST_FIELDS.map(f => (
+                  <div key={f.key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input type="checkbox" id={`chk_${f.key}`} checked={!!form[f.key]} onChange={e => set(f.key, e.target.checked)} style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#16a34a" }} />
+                    <label htmlFor={`chk_${f.key}`} style={{ fontSize: "0.83rem", cursor: "pointer" }}>{f.label}</label>
+                  </div>
+                ))}
+              </div>
+              {!CHECKLIST_FIELDS.every(f => !!form[f.key]) && (
+                <div style={{ marginTop: "0.5rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "0.5rem 0.75rem", fontSize: "0.78rem", color: "#991b1b" }}>
+                  One or more checklist items not met — this inspection will be recorded as a <strong>Fail</strong>.
+                </div>
+              )}
+            </div>
+
+            <div>
+              <Label>Condition Notes</Label>
+              <Textarea value={form.conditionNotes} onChange={e => set("conditionNotes", e.target.value)} rows={2} placeholder="Describe general condition of the store…" />
+            </div>
+            <div>
+              <Label>Actions Required</Label>
+              <Textarea value={form.actionRequired} onChange={e => set("actionRequired", e.target.value)} rows={2} placeholder="List any corrective actions needed…" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Action Due Date</Label>
+                <Input type="date" value={form.actionDueDate} onChange={e => set("actionDueDate", e.target.value)} />
+              </div>
+              <div>
+                <Label>Next Inspection Due</Label>
+                <Input type="date" value={form.nextInspectionDue} onChange={e => set("nextInspectionDue", e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <Label>Additional Notes</Label>
+              <Textarea value={form.notes} onChange={e => set("notes", e.target.value)} rows={2} placeholder="Any other relevant notes…" />
+            </div>
+          </div>
+          <DialogFooter>
+            <button className="border rounded-md px-4 py-2 text-sm hover:bg-gray-50" onClick={() => { setAddOpen(false); setEditRec(null); }}>Cancel</button>
+            <button className="bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
+              disabled={!form.inspectionDate || createMut.isPending || updateMut.isPending}
+              onClick={() => editRec ? updateMut.mutate({ id: editRec.id, b: buildBody() }) : createMut.mutate(buildBody())}>
+              {createMut.isPending || updateMut.isPending ? "Saving…" : editRec ? "Save Changes" : "Log Inspection"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: 360 }}>
+          <DialogHeader><DialogTitle>Delete Inspection Record</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">Permanently delete this inspection record?</p>
           <DialogFooter>
             <button className="border rounded-md px-4 py-2 text-sm hover:bg-gray-50" onClick={() => setDeleteId(null)}>Cancel</button>
             <button className="bg-red-600 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-red-700 disabled:opacity-50" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>Delete</button>

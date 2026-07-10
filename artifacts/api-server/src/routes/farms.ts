@@ -29,6 +29,8 @@ import {
   cropDestinationsTable,
   sprayProductsTable,
   sprayApplicationsTable,
+  sprayContainerDisposalLogsTable,
+  sprayStoreInspectionsTable,
   nutrientManagementPlansTable,
   nmpFieldEntriesTable,
   nvzFertiliserApplicationsTable,
@@ -2714,6 +2716,7 @@ router.get("/farms/:farmId/spray-products", requireAuth, requireTenant, requireM
       lerapCategory: sprayProductsTable.lerapCategory,
       lerapStandardBufferM: sprayProductsTable.lerapStandardBufferM,
       herbicideMoaGroup: sprayProductsTable.herbicideMoaGroup,
+      expiryDate: sprayProductsTable.expiryDate,
       createdAt: sprayProductsTable.createdAt,
       coshhSubstanceName: coshhRecordsTable.substanceName,
       coshhHazardClassification: coshhRecordsTable.hazardClassification,
@@ -2721,10 +2724,13 @@ router.get("/farms/:farmId/spray-products", requireAuth, requireTenant, requireM
       coshhEmergencyProcedures: coshhRecordsTable.emergencyProcedures,
       coshhControlMeasures: coshhRecordsTable.controlMeasures,
       stockUnitCostPence: stockItemsTable.unitCostPence,
+      stockUnit: stockItemsTable.unit,
+      stockCurrentQuantity: stockLevelsTable.currentQuantity,
     })
     .from(sprayProductsTable)
     .leftJoin(coshhRecordsTable, eq(sprayProductsTable.coshhRecordId, coshhRecordsTable.id))
     .leftJoin(stockItemsTable, eq(sprayProductsTable.stockItemId, stockItemsTable.id))
+    .leftJoin(stockLevelsTable, and(eq(stockLevelsTable.farmId, farmId), sql`${stockLevelsTable.stockItemId} = ${sprayProductsTable.stockItemId}`))
     .where(eq(sprayProductsTable.farmId, farmId))
     .orderBy(desc(sprayProductsTable.createdAt));
   const records = rows.map(r => ({
@@ -2733,9 +2739,12 @@ router.get("/farms/:farmId/spray-products", requireAuth, requireTenant, requireM
     harvestInterval: r.harvestInterval, maxApplicationsPerSeason: r.maxApplicationsPerSeason,
     storageRequirements: r.storageRequirements, coshhRecordId: r.coshhRecordId,
     stockItemId: r.stockItemId, createdAt: r.createdAt,
+    expiryDate: r.expiryDate ?? null,
     lerapCategory: r.lerapCategory ?? null,
     lerapStandardBufferM: r.lerapStandardBufferM ?? null,
     unitCostPence: r.stockUnitCostPence ?? null,
+    stockUnit: r.stockUnit ?? null,
+    currentStockQuantity: r.stockCurrentQuantity != null ? parseFloat(String(r.stockCurrentQuantity)) : null,
     coshhRecord: r.coshhRecordId ? {
       id: r.coshhRecordId,
       substanceName: r.coshhSubstanceName,
@@ -2770,6 +2779,72 @@ router.delete("/farms/:farmId/spray-products/:recordId", requireAuth, requireTen
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(sprayProductsTable).where(and(eq(sprayProductsTable.id, recordId), eq(sprayProductsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Container Disposal Logs ──────────────────────────────────────────────────
+router.get("/farms/:farmId/spray-container-disposals", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(sprayContainerDisposalLogsTable).where(eq(sprayContainerDisposalLogsTable.farmId, farmId)).orderBy(desc(sprayContainerDisposalLogsTable.disposalDate));
+  res.json({ records: rows });
+});
+
+router.post("/farms/:farmId/spray-container-disposals", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(sprayContainerDisposalLogsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/spray-container-disposals/:recordId", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(sprayContainerDisposalLogsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(sprayContainerDisposalLogsTable.id, recordId), eq(sprayContainerDisposalLogsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/spray-container-disposals/:recordId", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(sprayContainerDisposalLogsTable).where(and(eq(sprayContainerDisposalLogsTable.id, recordId), eq(sprayContainerDisposalLogsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Store Inspections ─────────────────────────────────────────────────────────
+router.get("/farms/:farmId/spray-store-inspections", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(sprayStoreInspectionsTable).where(eq(sprayStoreInspectionsTable.farmId, farmId)).orderBy(desc(sprayStoreInspectionsTable.inspectionDate));
+  res.json({ records: rows });
+});
+
+router.post("/farms/:farmId/spray-store-inspections", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(sprayStoreInspectionsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/spray-store-inspections/:recordId", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(sprayStoreInspectionsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(sprayStoreInspectionsTable.id, recordId), eq(sprayStoreInspectionsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/spray-store-inspections/:recordId", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(sprayStoreInspectionsTable).where(and(eq(sprayStoreInspectionsTable.id, recordId), eq(sprayStoreInspectionsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -2884,6 +2959,25 @@ router.post("/farms/:farmId/spray-applications", requireAuth, requireTenant, req
       sprayBody.productCostPencePerUnit = Math.round(Number(del.costPence) / parseFloat(String(del.quantity)));
     }
   }
+  // ── Season application count check ──────────────────────────────────────────
+  let seasonWarning: string | null = null;
+  if (req.body.productId) {
+    const [prod] = await db.select({ maxApps: sprayProductsTable.maxApplicationsPerSeason, productName: sprayProductsTable.productName })
+      .from(sprayProductsTable).where(eq(sprayProductsTable.id, Number(req.body.productId))).limit(1);
+    if (prod?.maxApps) {
+      const appDate = req.body.applicationDate ? new Date(String(req.body.applicationDate)) : new Date();
+      const yr = appDate.getMonth() >= 7 ? appDate.getFullYear() : appDate.getFullYear() - 1;
+      const seasonStart = new Date(yr, 7, 1);
+      const seasonEnd = new Date(yr + 1, 6, 31, 23, 59, 59);
+      const [countRow] = await db.select({ cnt: sql<number>`count(*)::int` }).from(sprayApplicationsTable)
+        .where(and(eq(sprayApplicationsTable.farmId, farmId), eq(sprayApplicationsTable.productId, Number(req.body.productId)), gte(sprayApplicationsTable.applicationDate, seasonStart), lte(sprayApplicationsTable.applicationDate, seasonEnd)));
+      const currentCount = countRow?.cnt ?? 0;
+      if (currentCount >= prod.maxApps) {
+        seasonWarning = `${prod.productName} has a maximum of ${prod.maxApps} application${prod.maxApps !== 1 ? "s" : ""} per season. This is application ${currentCount + 1}.`;
+      }
+    }
+  }
+
   const [record] = await db.insert(sprayApplicationsTable).values({ ...sprayBody, farmId }).returning();
 
   const rate = parseFloat(req.body.applicationRate);
@@ -2913,7 +3007,7 @@ router.post("/farms/:farmId/spray-applications", requireAuth, requireTenant, req
     }
   }
 
-  res.status(201).json({ record });
+  res.status(201).json({ record, seasonWarning });
 });
 
 router.put("/farms/:farmId/spray-applications/:recordId", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
