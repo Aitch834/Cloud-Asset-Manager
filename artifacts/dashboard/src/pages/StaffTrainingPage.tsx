@@ -1643,6 +1643,66 @@ function certStatus(cert: CertificateRecord | undefined): "valid" | "expiring" |
   return "valid";
 }
 
+// Keywords to match training record titles against standard cert types.
+// Multiple keywords = ANY match is sufficient.  All comparisons are lowercase.
+const CERT_KEYWORDS: Record<string, string[]> = {
+  "PA1 — Safe use of pesticides":                                        ["pa1"],
+  "PA2 — Ground crop sprayers":                                          ["pa2"],
+  "PA3 — Hand-held applicators":                                         ["pa3"],
+  "PA4 — Broadcast air-assisted applicators":                            ["pa4"],
+  "PA6 — Amenity & hard surfaces":                                       ["pa6"],
+  "PA6AW — Aerial application (UAV/drone)":                              ["pa6aw"],
+  "Safe use of rodenticides":                                            ["rodenticide"],
+  "WASK/WATOK — On-farm Emergency Slaughter Certificate of Competence":  ["wask", "watok", "emergency slaughter"],
+  "Cattle Disbudding & Dehorning (NPTC/Lantra)":                         ["disbudding", "dehorning"],
+  "Cattle Castration (NPTC/Lantra)":                                     ["cattle castration"],
+  "Sheep Castration & Tail Docking (NPTC/Lantra)":                       ["sheep castration", "tail docking"],
+  "Pig Castration & Tail Docking (NPTC/Lantra)":                         ["pig castration"],
+  "Bovine Artificial Insemination (AI) Certificate":                     ["artificial insemination", "bovine ai"],
+  "Poultry Emergency Culling Competence":                                ["poultry emergency culling", "poultry culling"],
+  "Poultry Catching & Handling (Lantra)":                                ["poultry catching"],
+  "Animal Transport Certificate — Category 1 (journeys under 8 hours)": ["animal transport"],
+  "Animal Transport Certificate — Category 2 (long journeys, over 8 hours)": ["animal transport", "long journey"],
+  "Certificate of Competence — Livestock Vehicle Driver":                ["livestock vehicle driver"],
+  "Tractor & Machinery Safety":                                          ["tractor", "machinery safety"],
+  "Telehandler Operator (NPORS/Lantra/RTITB)":                          ["telehandler"],
+  "Counterbalance Fork Lift Truck (FLT)":                                ["counterbalance", "fork lift", "forklift", "flt"],
+  "Reach Fork Lift Truck (FLT)":                                         ["reach fork lift", "reach truck"],
+  "ATV / Quad Bike Safety Certificate (Lantra)":                         ["atv", "quad bike"],
+  "ROLO — Reversing Operations & Lifting Operations (Banks Person)":     ["rolo", "banks person", "reversing operations"],
+  "Combine Harvester Operation (NPTC/Lantra)":                          ["combine harvester"],
+  "Grain Dryer Operation":                                               ["grain dryer"],
+  "CS30 — Chainsaw crosscutting & maintenance":                         ["cs30"],
+  "CS31 — Felling small trees":                                          ["cs31"],
+  "CS32 — Felling medium trees":                                         ["cs32"],
+  "CS38 — Chainsaw from rope & harness":                                 ["cs38"],
+  "NPTC/Lantra Chainsaw Certificates":                                   ["chainsaw", "cs30", "cs31", "cs32", "cs38"],
+  "First Aid at Work (FAW) — 3 year":                                    ["first aid at work", "faw", "first aid (3"],
+  "First Aid at Work (HSE-approved, 3-year)":                            ["first aid at work", "faw", "first aid (3"],
+  "Emergency First Aid at Work (EFAW) — 1 year":                        ["emergency first aid"],
+  "Fire Warden / Fire Marshal":                                          ["fire warden", "fire marshal"],
+  "Manual Handling":                                                     ["manual handling"],
+  "Working at Height":                                                   ["working at height"],
+  "Confined Space Entry":                                                ["confined space"],
+  "Asbestos Awareness":                                                  ["asbestos"],
+  "COSHH Awareness":                                                     ["coshh"],
+  "BASIS Certificate in Agronomy":                                       ["basis certificate in agronomy"],
+  "BASIS Certificate in Crop Protection":                                ["basis certificate in crop"],
+  "Certificate of Competence in Agricultural Spraying (BASIS/FACTS)":   ["agricultural spraying"],
+  "Safe Crop Advisor Certificate (BASIS)":                               ["crop advisor", "safe crop"],
+  "FACTS — Fertiliser Adviser":                                          ["facts"],
+  "NRoSO — National Register of Spray Operators (CPD)":                  ["nroso"],
+  "AMTRA SQP — Suitably Qualified Person (veterinary medicines)":        ["amtra", "sqp"],
+  "Responsible for Medicines (named person)":                            ["responsible for medicines", "named person"],
+  "BVetMed / MRCVS — Veterinary Surgeon":                               ["bvetmed", "mrcvs", "veterinary surgeon"],
+  "Food Hygiene — Level 2 Award":                                        ["food hygiene"],
+  "Food Hygiene — Level 3 Award":                                        ["food hygiene", "level 3"],
+  "Food Safety in Manufacturing (Level 3)":                              ["food safety in manufacturing"],
+  "Water Hygiene Awareness":                                             ["water hygiene"],
+  "Telehandler Certificate (LANTRA/RTITB)":                             ["telehandler"],
+  "Counterbalance Forklift (ITSSAR/RTITB)":                             ["counterbalance", "forklift", "fork lift"],
+};
+
 function CompetencyMatrixTab({ farmId, members, certificates, certsLoading }: {
   farmId: number;
   members: FarmMember[];
@@ -1652,13 +1712,21 @@ function CompetencyMatrixTab({ farmId, members, certificates, certsLoading }: {
   const [filterStaff, setFilterStaff] = useState("");
   const [showAll, setShowAll] = useState(false);
 
+  // Also fetch training records — many qualifications are entered here rather than the Certificates tab
+  const trainingQ = useQuery<{ records: TrainingRecord[] }>({
+    queryKey: ["training-records", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/training`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const trainingRecords = trainingQ.data?.records ?? [];
+
   const activeMembers = members.filter(m => m.isActive !== false);
   const visibleMembers = activeMembers.filter(m =>
     !filterStaff || memberFullName(m).toLowerCase().includes(filterStaff.toLowerCase())
   );
   const certsToShow = showAll ? ALL_CERT_TYPES : KEY_CERTS;
 
-  // Key certMap by String(userId) — matches what the API stores in c.userId
+  // Formal certificate records: keyed by userId string
   const certMap = new Map<string, Map<string, CertificateRecord>>();
   for (const c of certificates) {
     const key = String(c.userId);
@@ -1666,9 +1734,71 @@ function CompetencyMatrixTab({ farmId, members, certificates, certsLoading }: {
     certMap.get(key)!.set(c.certificateType, c);
   }
 
-  // Helper: look up a member's cert map, trying numeric id then linkedUserId as fallback
-  const memberCertMap = (m: FarmMember): Map<string, CertificateRecord> | undefined =>
-    certMap.get(String(m.id)) ?? (m.linkedUserId ? certMap.get(m.linkedUserId) : undefined);
+  // Training records: keyed by userId string
+  const trainingByUser = new Map<string, TrainingRecord[]>();
+  for (const t of trainingRecords) {
+    const key = String(t.userId);
+    if (!trainingByUser.has(key)) trainingByUser.set(key, []);
+    trainingByUser.get(key)!.push(t);
+  }
+
+  // All userId keys for a member: numeric id + linkedUserId (covers both storage conventions)
+  function memberKeys(m: FarmMember): string[] {
+    const keys: string[] = [String(m.id)];
+    if (m.linkedUserId) keys.push(m.linkedUserId);
+    return keys;
+  }
+
+  function getMemberCerts(m: FarmMember): Map<string, CertificateRecord> | undefined {
+    for (const key of memberKeys(m)) {
+      const map = certMap.get(key);
+      if (map && map.size > 0) return map;
+    }
+    return undefined;
+  }
+
+  function getMemberTraining(m: FarmMember): TrainingRecord[] {
+    const results: TrainingRecord[] = [];
+    for (const key of memberKeys(m)) {
+      const recs = trainingByUser.get(key);
+      if (recs) results.push(...recs);
+    }
+    return results;
+  }
+
+  function certStatusFromExpiry(expiryDate: string | null | undefined): "valid" | "expiring" | "expired" {
+    if (!expiryDate) return "valid";
+    const exp = new Date(expiryDate);
+    const now = new Date();
+    if (exp < now) return "expired";
+    if (exp < new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000)) return "expiring";
+    return "valid";
+  }
+
+  // Combined lookup: formal cert first, then keyword-matched training record
+  function combinedCertStatus(m: FarmMember, certType: string): "valid" | "expiring" | "expired" | "none" {
+    const cert = getMemberCerts(m)?.get(certType);
+    if (cert) return certStatus(cert);
+
+    const keywords = CERT_KEYWORDS[certType];
+    if (keywords) {
+      const matched = getMemberTraining(m).filter(t => {
+        const title = t.trainingTitle.toLowerCase();
+        return keywords.some(kw => title.includes(kw));
+      });
+      if (matched.length > 0) {
+        const best = matched.reduce((a, b) => {
+          // Prefer the record with the later expiry date
+          const ae = a.expiryDate ? new Date(a.expiryDate).getTime() : Infinity;
+          const be = b.expiryDate ? new Date(b.expiryDate).getTime() : Infinity;
+          return be > ae ? b : a;
+        });
+        return certStatusFromExpiry(best.expiryDate);
+      }
+    }
+
+    return "none";
+  }
 
   const statusCell = (status: "valid" | "expiring" | "expired" | "none") => {
     if (status === "valid") return (
@@ -1749,10 +1879,7 @@ function CompetencyMatrixTab({ farmId, members, certificates, certsLoading }: {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {certsToShow.map(certType => {
-                const rowStatuses = visibleMembers.map(m => {
-                  const cert = memberCertMap(m)?.get(certType);
-                  return certStatus(cert);
-                });
+                const rowStatuses = visibleMembers.map(m => combinedCertStatus(m, certType));
                 const anyIssue = rowStatuses.some(s => s === "expired" || s === "expiring");
                 return (
                   <tr key={certType} className={anyIssue ? "bg-red-50/30" : "hover:bg-gray-50/50"}>
