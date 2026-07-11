@@ -75,7 +75,8 @@ export function createSignatureFunctionForTransform() {
 export function __hmr_import(moduleId) { return Promise.resolve({}); }
 export function registerExportsForReactRefresh(filename, moduleExports) {}
 export function validateRefreshBoundaryAndEnqueueUpdate(prevExports, nextExports) { return null; }
-export default { injectIntoGlobalHook, register, createSignatureFunctionForTransform, __hmr_import, registerExportsForReactRefresh, validateRefreshBoundaryAndEnqueueUpdate };
+export function performReactRefresh() {}
+export default { injectIntoGlobalHook, register, createSignatureFunctionForTransform, __hmr_import, registerExportsForReactRefresh, validateRefreshBoundaryAndEnqueueUpdate, performReactRefresh };
 `;
 
 self.addEventListener('fetch', event => {

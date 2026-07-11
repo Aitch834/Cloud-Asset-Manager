@@ -463,6 +463,10 @@ export function registerExportsForReactRefresh(filename, moduleExports) {
 export function validateRefreshBoundaryAndEnqueueUpdate(prevExports, nextExports) {
   return null; // null = update is safe (no forced full-reload needed)
 }
+export function performReactRefresh() {
+  // Intentional no-op — calling performReactRefresh() mid-render corrupts
+  // React's hook dispatcher, causing "Invalid hook call" crashes.
+}
 export default {
   injectIntoGlobalHook,
   register,
@@ -470,6 +474,7 @@ export default {
   __hmr_import,
   registerExportsForReactRefresh,
   validateRefreshBoundaryAndEnqueueUpdate,
+  performReactRefresh,
 };
 `;
           res.setHeader("Content-Type", "application/javascript; charset=utf-8");
@@ -686,6 +691,7 @@ export default defineConfig({
   plugins: [
     reconnectReloadPlugin(basePath),
     react({
+      fastRefresh: false,
       include: [
         path.resolve(import.meta.dirname, "src") + "/**/*.{tsx,ts,jsx,js}",
         path.resolve(import.meta.dirname, "../dashboard/src") + "/**/*.{tsx,ts,jsx,js}",

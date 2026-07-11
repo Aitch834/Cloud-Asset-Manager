@@ -605,14 +605,51 @@ specific component) but all dep chunks share the same session token and there ar
 0 "discovered" deps in _metadata.json, the cause is stale HMR module state, not
 a live dep re-optimization race. Restart the server to clear it.
 
-## Confirmed-working state (sw-v7 + @react-refresh no-op)
+## FINAL FIX: fastRefresh:false + performReactRefresh in stubs (July 2026)
+
+**Root cause (confirmed):** Two bugs together caused "Invalid hook call" on SeedStorePage:
+
+1. **Missing `performReactRefresh` on stub default export.** Per-file React Refresh
+   preambles (injected by @vitejs/plugin-react) call `RefreshRuntime.performReactRefresh()`
+   where `RefreshRuntime` is the `default` export of `@react-refresh`. Both the SW inline
+   stub AND the server-side stub had `performReactRefresh` missing from their default export
+   objects. Calling `undefined()` threw a TypeError that could corrupt React's error handling
+   during navigation.
+
+2. **Per-file preambles firing after React's initial render.** Even with the stub, preambles
+   from source files loaded lazily (by the browser's module loader after initial render) kept
+   scheduling `performReactRefresh()` calls via `setTimeout`. These raced with active renders.
+
+**Diagnostic clue:** Browser logs showed `[TD server] @react-refresh no-op stub loaded`
+AND `[TD sw-v7] @react-refresh no-op stub loaded` within the SAME page load. This revealed
+a SW-activation race: the HTML inline preamble's raw `@react-refresh` import fired before
+the SW was active (→ server), while source-file preambles (loaded later as modules) were
+intercepted by SW. So the "first" @react-refresh was always server-served. Also showed
+the extra `@react-refresh` load AFTER the React DevTools message — a lazy source file's
+preamble ran post-initial-render.
+
+**Fix applied:**
+1. Added `export function performReactRefresh() {}` and included it in the `default` export
+   of BOTH stubs (sw-v7.js inline stub AND server-side stub in vite.config.ts).
+2. Added `fastRefresh: false` to the `react()` plugin in vite.config.ts. This eliminates
+   ALL per-file React Refresh preambles from compiled source files. No more `@react-refresh`
+   imports from source files. No more `performReactRefresh()` calls anywhere.
+   Side effect: eliminates the double `@vite/client` instance (the HTML inline preamble
+   that was injecting the second tokenized @vite/client script is also removed).
+
+**Verified:** SeedStorePage `/seed-store` renders correctly. Browser logs show:
+- Single `[vite] connecting...` / `[vite] connected.` (ONE @vite/client)
+- Only `[TD sw-v7]` stubs (SW in control from start)
+- No crash, no reload loop, no error overlay
+
+**Rule:** `@react-refresh` stub default export MUST include `performReactRefresh: function(){}`.
+The test-dashboard never needs HMR; keep `fastRefresh: false` permanently.
+
+## Confirmed-working state (sw-v7 + fastRefresh:false + performReactRefresh no-op)
 
 Verified July 2026: SeedStorePage renders correctly end-to-end. Browser logs confirm:
-- `[TD server] @react-refresh no-op stub loaded (server-side)` — first load (pre-SW)
-- `[TD sw-v7] @react-refresh no-op stub loaded (SW inline)` — subsequent loads (post-SW claim)
-
-The two-connection sequence (`[vite] connecting...` × 2) is expected: first load goes
-direct to server, then `clients.claim()` activates the SW which reconnects the Vite WS.
+- Single `[vite] connecting...` / `[vite] connected.` — ONE @vite/client instance ✓
+- `[TD sw-v7] @react-refresh no-op stub loaded (SW inline)` × 1-2 — only SW stubs ✓
 
 ### Dep-chunk React chain (all confirmed sharing chunk-KC53NVYV.js):
 - react.js → chunk-KC53NVYV.js ✓
