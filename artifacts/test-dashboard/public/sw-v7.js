@@ -1,36 +1,34 @@
 /**
- * Service Worker v7 (dep-nonce patch v8):
+ * Service Worker v7 (dep-nonce patch v8, source-nonce patch v9):
  * path-based session nonce for BOTH source files AND dep chunks.
  *
- * KEY CHANGE (v8 patch):
- *   Previously dep chunks used a fixed canonical URL (@td/deps/FILE) shared
- *   across all sessions.  The Replit proxy cached them under this key.  When
- *   Vite's dep optimisation changes chunk assignments between sessions, the
- *   proxy serves zustand.js from session A (references chunk-OLD.js) while
- *   react.js is from session B (references chunk-KC53NVYV.js) → two React
- *   instances → "Invalid hook call" at useAppStore() in SeedStorePage.
+ * KEY CHANGE (v9 patch):
+ *   v7/v8 embedded source file URLs as @td/TOKEN/@xfs/FILE.  An OLD SW
+ *   (installed in the user's browser with CURRENT_TOKEN = OLD_TOKEN) sees
+ *   "@td/NEW_TOKEN/@xfs/FILE" and its OLD_FS_RE matches (NEW_TOKEN ≠ OLD_TOKEN)
+ *   → rewrites to "@td/OLD_TOKEN/@xfs-OLD_TOKEN/FILE" → proxy serves OLD session
+ *   content with @deps-OLD_TOKEN/ dep-chunk URLs → chunk-KC53NVYV.js loaded at
+ *   TWO different URLs (one per session) → two React instances → crash.
  *
- *   v8 FIX: dep chunks now use the same path-nonce scheme as source files:
- *     @td/TOKEN/@deps-TOKEN/FILE
- *   Proxy strips @td/TOKEN/ → cache key "@deps-TOKEN/FILE".
- *   TOKEN changes every session → unique cache key → always a proxy MISS →
- *   server serves fresh dep chunks with CURRENT sibling-chunk cross-references
- *   → all dep chunks in a session use the same chunk versions → one React. ✓
+ *   v9 FIX: vite.config.ts now embeds source file URLs as:
+ *     @td/TOKEN/@xfs-TOKEN/FILE  (self-authenticated nonce)
+ *   Old SW regex `@x?fs/` only matches `@xfs/` (literal slash after @xfs).
+ *   `@xfs-TOKEN/` has a DASH → old SW does NOT match → passes through → proxy
+ *   key = "@xfs-TOKEN/FILE" (unique per session) → always a cache MISS → server
+ *   always serves fresh content with CURRENT dep-chunk URLs → one React. ✓
  *
- *   Source file scheme (unchanged from v7):
- *     @td/TOKEN/@xfs/FILE  →  fetch  @td/TOKEN/@xfs-TOKEN/FILE
- *
- *   Server-side (vite.config.ts) strips:
- *     @td/TOKEN/@xfs-TOKEN/ → @fs/
- *     @td/TOKEN/@deps-TOKEN/ → node_modules/.vite/deps/
+ *   This SW adds Case 2b to handle old-session v9-format URLs that arrive via
+ *   proxy cache from a PREVIOUS session: "@td/OLD/@xfs-OLD/FILE" (OLD ≠ CURRENT)
+ *   → rewrite to "@td/CURRENT/@xfs-CURRENT/FILE" (fresh content). ✓
  *
  * CASE SUMMARY:
  *   0. /base/node_modules/.vite/deps/FILE[?v=*]        → fetch /base/@td/CURRENT/@deps-CURRENT/FILE
  *   1. /base/@td/OLD/deps/FILE (legacy)                 → fetch /base/@td/CURRENT/@deps-CURRENT/FILE
  *   1b./base/@td/deps/FILE (canonical, no token)        → fetch /base/@td/CURRENT/@deps-CURRENT/FILE
  *   1c./base/@td/OLD/@deps-OLD/FILE (old nonce)         → fetch /base/@td/CURRENT/@deps-CURRENT/FILE
- *   2. /base/@td/OLD/@[x]fs/FILE                        → fetch /base/@td/CURRENT/@xfs-CURRENT/FILE
- *   3. /base/@td/CURRENT/@xfs/FILE                      → fetch /base/@td/CURRENT/@xfs-CURRENT/FILE
+ *   2. /base/@td/OLD/@[x]fs/FILE (v7/v8 old format)    → fetch /base/@td/CURRENT/@xfs-CURRENT/FILE
+ *   2b./base/@td/OLD/@xfs-OLD/FILE (v9 old session)    → fetch /base/@td/CURRENT/@xfs-CURRENT/FILE
+ *   3. /base/@td/CURRENT/@xfs/FILE (v7/v8 compat)      → fetch /base/@td/CURRENT/@xfs-CURRENT/FILE
  *   4. Any URL with @react-refresh                       → inline no-op stub
  */
 
@@ -67,7 +65,20 @@ const OLD_DEPS_NONCE_RE = currentToken
     )
   : null;
 
-// Cases 2+3: old/current-token source file URLs
+// Case 2b: old-session v9-format source files (@td/OLD/@xfs-OLD/FILE, OLD ≠ CURRENT).
+// v9 scheme embeds "@td/TOKEN/@xfs-TOKEN/FILE" (self-authenticated nonce).
+// Old SW regex @x?fs/ does NOT match @xfs-TOKEN/ → old SW passes through.
+// This regex handles proxy-cached documents from a previous v9 session that
+// still embed the old session's @xfs-OLD/ URLs — redirect to current session. ✓
+const OLD_XFS_NONCE_RE = currentToken
+  ? new RegExp(
+      '^' + BASE +
+      '@td\\/(?!' + currentToken.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
+      '\\/)([^\\/]+)\\/@xfs-[^\\/]+\\/(.+)$'
+    )
+  : null;
+
+// Cases 2+3: old/current-token source file URLs (v7/v8 @xfs/ format — backward compat)
 const OLD_FS_RE = currentToken
   ? new RegExp(
       '^' + BASE +
@@ -176,7 +187,23 @@ self.addEventListener('fetch', event => {
     }
   }
 
-  // ── 2. Old-token source files → fetch via @xfs-TOKEN/ path nonce
+  // ── 2b. Old-session v9-format source files → fetch via current @xfs-TOKEN/ nonce
+  //
+  // Handles proxy-cached documents from a PREVIOUS v9 session that embed
+  // "@td/OLD/@xfs-OLD/FILE" source file URLs.  Redirect to current-session
+  // nonce so all modules in the page use consistent dep-chunk URLs. ✓
+  if (OLD_XFS_NONCE_RE) {
+    const xfsNonceMatch = pathname.match(OLD_XFS_NONCE_RE);
+    if (xfsNonceMatch) {
+      const nonceUrl = new URL(event.request.url);
+      nonceUrl.pathname = BASE + '@td/' + currentToken + '/@xfs-' + currentToken + '/' + xfsNonceMatch[2];
+      nonceUrl.search = '';
+      event.respondWith(fetch(nonceUrl.href, { cache: 'no-store', credentials: 'same-origin' }));
+      return;
+    }
+  }
+
+  // ── 2. Old-token source files → fetch via @xfs-TOKEN/ path nonce (v7/v8 compat)
   //
   // WHY path nonce not query string: the Replit proxy strips query strings from
   // cache keys for @xfs/ paths, making ?_t=TOKEN nonces ineffective (v6 bug).

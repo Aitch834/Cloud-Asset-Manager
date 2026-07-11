@@ -569,45 +569,54 @@ export default {
               );
             }
             // Rewrite every @fs/ source-file URL to embed the session token
-            // in the path: BASE@fs/path → BASE@td/TOKEN/@xfs/path.
+            // in the path using the v9 self-authenticated nonce scheme:
+            //   BASE@fs/path → BASE@td/TOKEN/@xfs-TOKEN/path
             //
-            // WHY @xfs/ instead of @fs/:
-            // The proxy had old content cached at key "@fs/path".  By changing
-            // the marker to "@xfs/" we guarantee a proxy cache MISS for every
-            // source file URL (the proxy has never seen "@xfs/" keys), so the
-            // server always serves the fresh padded version.  SeedStorePage at
-            // 512 KB exceeds the proxy cache threshold → never cached going
-            // forward → correct session token every time → one module identity
-            // per file → no React Refresh family conflict → no hook crash. ✓
+            // WHY @xfs-TOKEN/ (v9) instead of @xfs/ (v7/v8):
+            //
+            // v7/v8 used @td/TOKEN/@xfs/FILE.  The proxy strips @td/TOKEN/ and
+            // caches under key "@xfs/FILE".  That is fine per-session.  BUT:
+            //
+            // FATAL FLAW (Cause D): when the Vite server restarts and generates
+            // a NEW_TOKEN, an OLD SW (installed in the user's browser, with
+            // CURRENT_TOKEN = OLD_TOKEN) is still the active controller while
+            // the new SW installs.  Its OLD_FS_RE regex matches
+            // "@td/NEW_TOKEN/@xfs/FILE" (NEW_TOKEN ≠ OLD_TOKEN) and REWRITES
+            // it to "@td/OLD_TOKEN/@xfs-OLD_TOKEN/FILE".  The proxy then serves
+            // OLD session content with OLD dep-chunk URLs (@deps-OLD_TOKEN/).
+            // Those OLD dep-chunk URL requests eventually load chunk-KC53NVYV.js
+            // at "@deps-OLD_TOKEN/chunk-KC53NVYV.js".  Later, SeedStorePage
+            // (served fresh with @deps-NEW_TOKEN/) loads chunk-KC53NVYV.js at
+            // "@deps-NEW_TOKEN/chunk-KC53NVYV.js".  Browser module registry sees
+            // TWO entries for the same file at different URLs → two separate
+            // React objects → "Invalid hook call" at useAppStore() line 522.
+            //
+            // v9 FIX: embed the token INSIDE the @xfs- segment name:
+            //   @td/TOKEN/@xfs-TOKEN/FILE
+            //
+            // Old SW regex: `@x?fs/` only matches `@xfs/` (literal slash after).
+            // `@xfs-TOKEN/` has a dash before the slash → old SW does NOT match
+            // → passes through untouched → proxy key = "@xfs-TOKEN/FILE" which
+            // is unique per session → always a cache MISS → server always serves
+            // fresh content with CURRENT dep-chunk URLs → all modules in the
+            // page use the same dep chunks → one React. ✓
             result = result.replace(fsUrlRe, (_match, p1: string) => {
               // p1 = "/<base>@fs/home/runner/.../File.tsx"
               const pathAfterBase = p1.slice(sessionBase.length); // "@fs/..."
-              // Change "@fs/" → "@xfs/" so the browser requests the new-scheme
-              // URL (proxy cache miss) while the server middleware maps it back
-              // to Vite's native @fs/ path for serving.
-              const xfsPath = pathAfterBase.replace("@fs/", "@xfs/");
+              // Change "@fs/" → "@xfs-TOKEN/" (v9 self-authenticated nonce).
+              const xfsPath = pathAfterBase.replace("@fs/", `@xfs-${sessionToken}/`);
               return `"${sessionBase}@td/${sessionToken}/${xfsPath}"`;
             });
-            // Rewrite the @react-refresh import URL to include the session
-            // token via the @xfs/ scheme, guaranteeing a proxy cache MISS.
+            // Rewrite the @react-refresh import URL to the v9 self-authenticated
+            // @xfs-TOKEN/ nonce scheme, guaranteeing a proxy cache MISS AND
+            // preventing old SW interference.
             //
-            // WHY: Vite compiles preamble code with a bare /@react-refresh URL.
-            // The Replit proxy may have the REAL @react-refresh module cached
-            // under the key "@react-refresh" from a session predating our stub.
-            // Every browser request for "/base/@react-refresh" hits the proxy
-            // cache → the real module is served → performReactRefresh() fires
-            // mid-render → "Invalid hook call" crash persists even though our
-            // server-side stub is in place.
-            //
-            // By rewriting the URL to "@td/TOKEN/@xfs/@react-refresh":
-            //   proxy key after stripping @td/TOKEN/ → "@xfs/@react-refresh"
-            //   never seen before → proxy MISS → request reaches Vite server
-            //   step 4 in configureServer intercepts → no-op stub returned
-            //   proxy caches the STUB under "@xfs/@react-refresh" for all
-            //   future sessions.  ✓
+            // Old SW regex `@x?fs/` does not match `@xfs-TOKEN/` → passes
+            // through → proxy key = "@xfs-TOKEN/@react-refresh" (unique per
+            // session) → server no-op stub served fresh every session. ✓
             result = result.replace(
               `"${sessionBase}@react-refresh"`,
-              `"${sessionBase}@td/${sessionToken}/@xfs/@react-refresh"`,
+              `"${sessionBase}@td/${sessionToken}/@xfs-${sessionToken}/@react-refresh"`,
             );
             // Anti-proxy-cache padding for source files in the 256KB–490KB
             // compiled-size range.

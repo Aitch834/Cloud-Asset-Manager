@@ -22,6 +22,27 @@ the STALE transforms (old hash) alongside newly-compiled dep chunks (new hash) �
 different react.js URLs in the browser (different modules) → "Invalid hook call" on
 whichever component renders next.
 
+### Cause D — OLD SW rewrites NEW session source-file URLs to OLD session format (v9 fix)
+When the Vite server restarts (new session token NEW_TOKEN), the OLD SW installed in the
+user's browser (CURRENT_TOKEN = OLD_TOKEN) is STILL the active controller while the new SW
+installs. The OLD SW's OLD_FS_RE regex: `@td/(?!OLD_TOKEN)[^/]+/@x?fs/FILE` — it matches
+`@td/NEW_TOKEN/@xfs/FILE` (because NEW_TOKEN ≠ OLD_TOKEN) and REWRITES it to
+`@td/OLD_TOKEN/@xfs-OLD_TOKEN/FILE`. The proxy serves OLD session content with
+@deps-OLD_TOKEN/ dep-chunk URLs. Those dep chunks load chunk-KC53NVYV.js at OLD session URL.
+Later SeedStorePage loads fresh (via new SW) with @deps-NEW_TOKEN/ → loads chunk-KC53NVYV.js
+at NEW session URL. Browser module registry sees TWO entries for the same file at different
+URLs → two separate React objects → "Invalid hook call" at useAppStore() line 522.
+
+**v9 FIX:** change interceptText to embed source file URLs as `@td/TOKEN/@xfs-TOKEN/FILE`
+(self-authenticated nonce — token inside the segment name, not just in @td/).
+Old SW regex `@x?fs/` only matches `@xfs/` (literal slash after @xfs).
+`@xfs-TOKEN/` has a DASH before the slash → old SW does NOT match → passes through.
+Proxy key = `@xfs-TOKEN/FILE` (unique per session) → always cache MISS → always fresh. ✓
+@react-refresh URL also updated to `@xfs-TOKEN/` format.
+
+**SW Case 2b added:** handles old-session v9-format URLs `@td/OLD/@xfs-OLD/FILE`
+(from proxy-cached documents of a previous v9 session) → redirect to current session nonce.
+
 ### Cause C — proxy serves dep chunks from DIFFERENT sessions (v8 fix — the persistent crash)
 The proxy caches dep chunks under fixed canonical keys (`@td/deps/FILE`) across sessions.
 When Vite's dep optimisation changes chunk assignments between sessions (e.g. after pnpm
