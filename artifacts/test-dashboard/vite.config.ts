@@ -686,6 +686,22 @@ export default {
               (_m: string, pre: string, file: string, post: string) =>
                 `${pre}${file}?v=${sessionToken}${post}`,
             );
+            // Rewrite the @react-refresh URL injected by @vitejs/plugin-react
+            // into an inline <script type="module"> preamble block:
+            //   import { injectIntoGlobalHook } from "/test-dashboard/@react-refresh";
+            //
+            // This URL bypasses the JS response interceptor (it's inline HTML,
+            // not a JS module URL), so we must handle it here in the HTML path.
+            //
+            // Without this rewrite the proxy serves the real cached React Refresh
+            // runtime (cached before our no-op stub existed) → injectIntoGlobalHook
+            // sets up a RefreshRuntime that embeds its own React reference →
+            // TWO React instances in the same page → "Invalid hook call" on
+            // SeedStorePage (and any page with hooks). ✓
+            htmlResult = htmlResult.replace(
+              `"${sessionBase}@react-refresh"`,
+              `"${sessionBase}@td/${sessionToken}/@xfs-${sessionToken}/@react-refresh"`,
+            );
             return htmlResult;
           }
           return body;

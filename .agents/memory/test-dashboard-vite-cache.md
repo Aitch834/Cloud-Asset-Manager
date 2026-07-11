@@ -22,6 +22,18 @@ the STALE transforms (old hash) alongside newly-compiled dep chunks (new hash) �
 different react.js URLs in the browser (different modules) → "Invalid hook call" on
 whichever component renders next.
 
+### Cause E — @react-refresh preamble in index.html bypasses JS rewriter (v9b fix)
+`@vitejs/plugin-react` injects an inline `<script type="module">` into index.html:
+  `import { injectIntoGlobalHook } from "/test-dashboard/@react-refresh";`
+The `interceptText` `@react-refresh` URL replacement lives inside `if (ct.includes("javascript"))` →
+it NEVER runs for HTML responses. The untokenized `/test-dashboard/@react-refresh` URL is left
+in the HTML → the proxy serves the real (pre-stub) React Refresh runtime from cache →
+`injectIntoGlobalHook` sets up a RefreshRuntime with its own React reference → two React
+instances in the page → "Invalid hook call" on SeedStorePage (and any hook-using page).
+
+**Fix:** added `htmlResult.replace('"${sessionBase}@react-refresh"', tokenized)` in the
+`ct.includes("text/html")` branch of the `interceptText` callback. ✓
+
 ### Cause D — OLD SW rewrites NEW session source-file URLs to OLD session format (v9 fix)
 When the Vite server restarts (new session token NEW_TOKEN), the OLD SW installed in the
 user's browser (CURRENT_TOKEN = OLD_TOKEN) is STILL the active controller while the new SW
