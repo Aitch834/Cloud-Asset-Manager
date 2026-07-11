@@ -281,6 +281,23 @@ export async function runLisMigrations(): Promise<void> {
     )
   `);
 
+  // ── Spray notifications: new columns & contact book ──────────────────────
+  await db.execute(sql`ALTER TABLE spray_notifications ADD COLUMN IF NOT EXISTS recipient_contact text`);
+  await db.execute(sql`ALTER TABLE spray_notifications ADD COLUMN IF NOT EXISTS recipient_address text`);
+  await db.execute(sql`ALTER TABLE spray_notifications ADD COLUMN IF NOT EXISTS confirmation_date date`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS spray_notification_contacts (
+      id serial primary key,
+      farm_id integer not null references farms(id),
+      recipient_type text not null default 'beekeeper',
+      recipient_name text not null,
+      recipient_contact text,
+      recipient_address text,
+      notes text,
+      created_at timestamptz not null default now()
+    )
+  `);
+
   // ── Spray compliance: pesticide store inspection record ───────────────────
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS spray_store_inspections (

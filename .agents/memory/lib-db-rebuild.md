@@ -34,3 +34,8 @@ END $$;
 - brix_percentage: DROPPED
 
 **How to apply:** Any time a schema file is edited, run the tsc rebuild immediately. Never rely on drizzle push.
+
+## Spray Notifications schema additions (July 2026)
+Added to `spray_notifications`: `recipient_contact`, `recipient_address`, `confirmation_date`.
+Added new `spray_notification_contacts` table for reusable contact book per farm.
+Field name mismatches fixed: DB uses `contactMethod` (not `notificationMethod`), `confirmed` (not `confirmationReceived`).

@@ -222,12 +222,15 @@ export const sprayNotificationsTable = pgTable("spray_notifications", {
   sprayApplicationId: integer("spray_application_id").references(() => sprayApplicationsTable.id),
   notificationDate: date("notification_date").notNull(),
   plannedSprayDate: date("planned_spray_date"),
-  recipientType: text("recipient_type").notNull(),   // "beekeeper" | "neighbour" | "local_authority" | "other"
+  recipientType: text("recipient_type").notNull(),   // "beekeeper" | "neighbour" | "other"
   recipientName: text("recipient_name").notNull(),
+  recipientContact: text("recipient_contact"),       // phone / email
+  recipientAddress: text("recipient_address"),       // postal address (for letter generation)
   contactMethod: text("contact_method").notNull(),   // "phone" | "email" | "letter" | "in_person" | "text_message"
   productsNotified: text("products_notified"),
   fieldRefs: text("field_refs"),
   confirmed: boolean("confirmed").notNull().default(false),
+  confirmationDate: date("confirmation_date"),
   confirmationMethod: text("confirmation_method"),
   confirmationReference: text("confirmation_reference"),
   notes: text("notes"),
@@ -236,6 +239,23 @@ export const sprayNotificationsTable = pgTable("spray_notifications", {
 
 export type SprayNotification = typeof sprayNotificationsTable.$inferSelect;
 export type NewSprayNotification = typeof sprayNotificationsTable.$inferInsert;
+
+// ─── Spray Notification Contact Book ─────────────────────────────────────────
+// Reusable per-farm list of beekeepers / neighbours so they don't need to be
+// re-typed on every notification.
+export const sprayNotificationContactsTable = pgTable("spray_notification_contacts", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  recipientType: text("recipient_type").notNull().default("beekeeper"),
+  recipientName: text("recipient_name").notNull(),
+  recipientContact: text("recipient_contact"),
+  recipientAddress: text("recipient_address"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type SprayNotificationContact = typeof sprayNotificationContactsTable.$inferSelect;
+export type NewSprayNotificationContact = typeof sprayNotificationContactsTable.$inferInsert;
 
 // ─── Container Disposal Log ───────────────────────────────────────────────────
 export const sprayContainerDisposalLogsTable = pgTable("spray_container_disposal_logs", {

@@ -3420,83 +3420,215 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
 function SprayNotificationsTab({ farmId, applications, fields }: { farmId: number; applications: any[]; fields: any[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const today = new Date().toISOString().slice(0, 10);
+
   const [addOpen, setAddOpen] = useState(false);
   const [editRec, setEditRec] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [contactOpen, setContactOpen] = useState(false);
+  const [editContact, setEditContact] = useState<any>(null);
+  const [deleteContactId, setDeleteContactId] = useState<number | null>(null);
+  const [beeInfoOpen, setBeeInfoOpen] = useState(true);
 
-  const empty = { sprayApplicationId: "", notificationDate: new Date().toISOString().slice(0, 10), recipientType: "beekeeper", recipientName: "", recipientContact: "", notificationMethod: "phone", confirmationReceived: false, confirmationDate: "", notes: "" };
-  const [form, setForm] = useState({ ...empty });
+  const emptyForm = {
+    sprayApplicationId: "", notificationDate: today, plannedSprayDate: "",
+    recipientType: "beekeeper", recipientName: "", recipientContact: "", recipientAddress: "",
+    contactMethod: "phone", productsNotified: "", fieldRefs: "",
+    confirmed: false as boolean, confirmationDate: "", confirmationMethod: "", confirmationReference: "", notes: "",
+  };
+  const [form, setForm] = useState({ ...emptyForm });
+
+  const emptyContact = { recipientType: "beekeeper", recipientName: "", recipientContact: "", recipientAddress: "", notes: "" };
+  const [contactForm, setContactForm] = useState({ ...emptyContact });
+
+  const farmQ = useQuery({ queryKey: ["farm", farmId], queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()), select: (d: any) => d.record });
+  const farm = farmQ.data;
 
   const notifQ = useQuery({ queryKey: ["spray-notifications", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-notifications`).then(r => r.json()), enabled: !!farmId, select: (d: any) => d.notifications ?? [] });
   const notifications: any[] = notifQ.data ?? [];
 
-  const createMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/spray-notifications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Notification logged" }); qc.invalidateQueries({ queryKey: ["spray-notifications", farmId] }); setAddOpen(false); setForm({ ...empty }); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
+  const contactsQ = useQuery({ queryKey: ["spray-notification-contacts", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-notification-contacts`).then(r => r.json()), enabled: !!farmId, select: (d: any) => d.contacts ?? [] });
+  const contacts: any[] = contactsQ.data ?? [];
+
+  const createMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/spray-notifications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Notification logged" }); qc.invalidateQueries({ queryKey: ["spray-notifications", farmId] }); setAddOpen(false); setForm({ ...emptyForm }); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
   const updateMut = useMutation({ mutationFn: ({ id, b }: any) => fetch(`/api/farms/${farmId}/spray-notifications/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Notification updated" }); qc.invalidateQueries({ queryKey: ["spray-notifications", farmId] }); setEditRec(null); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
   const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`/api/farms/${farmId}/spray-notifications/${id}`, { method: "DELETE" }), onSuccess: () => { toast({ title: "Notification deleted" }); qc.invalidateQueries({ queryKey: ["spray-notifications", farmId] }); setDeleteId(null); }, onError: () => toast({ title: "Failed to delete", variant: "destructive" }) });
 
-  const fmtD = (d: any) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+  const createContactMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/spray-notification-contacts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Contact saved" }); qc.invalidateQueries({ queryKey: ["spray-notification-contacts", farmId] }); setEditContact(null); setContactForm({ ...emptyContact }); }, onError: () => toast({ title: "Failed to save contact", variant: "destructive" }) });
+  const updateContactMut = useMutation({ mutationFn: ({ id, b }: any) => fetch(`/api/farms/${farmId}/spray-notification-contacts/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Contact updated" }); qc.invalidateQueries({ queryKey: ["spray-notification-contacts", farmId] }); setEditContact(null); setContactForm({ ...emptyContact }); }, onError: () => toast({ title: "Failed to update contact", variant: "destructive" }) });
+  const deleteContactMut = useMutation({ mutationFn: (id: number) => fetch(`/api/farms/${farmId}/spray-notification-contacts/${id}`, { method: "DELETE" }), onSuccess: () => { toast({ title: "Contact deleted" }); qc.invalidateQueries({ queryKey: ["spray-notification-contacts", farmId] }); setDeleteContactId(null); }, onError: () => toast({ title: "Failed to delete contact", variant: "destructive" }) });
+
+  const fmtD = (d: any) => d ? new Date(d + "T12:00:00").toLocaleDateString("en-GB") : "—";
   const fldName = (id: any) => fields.find(f => String(f.id) === String(id))?.name || `Field #${id}`;
   const appLabel = (id: any) => { const a = applications.find(a => String(a.id) === String(id)); if (!a) return id ? `Application #${id}` : "—"; return `${a.productName || "Spray"} · ${fmtD(a.applicationDate)}${a.fieldId ? ` · ${fldName(a.fieldId)}` : ""}`; };
-  const beekeepers = notifications.filter((n: any) => n.recipientType === "beekeeper");
-  const confirmed = notifications.filter((n: any) => n.confirmationReceived);
   const rTypeLabel: Record<string, string> = { beekeeper: "Beekeeper", neighbour: "Neighbour", other: "Other" };
-  const methodLabel: Record<string, string> = { phone: "Phone", email: "Email", letter: "Letter", "in-person": "In Person" };
+  const methodLabel: Record<string, string> = { phone: "Phone call", email: "Email", letter: "Letter", in_person: "In person", text_message: "Text message" };
+
+  function leadTimeHours(n: any): number | null {
+    if (!n.plannedSprayDate || !n.notificationDate) return null;
+    const a = new Date(n.notificationDate + "T00:00:00");
+    const b = new Date(n.plannedSprayDate + "T00:00:00");
+    return (b.getTime() - a.getTime()) / 36e5;
+  }
+
+  function LeadTimeBadge({ n }: { n: any }) {
+    const hours = leadTimeHours(n);
+    if (hours === null) return null;
+    const days = Math.floor(Math.abs(hours) / 24);
+    if (hours < 0) return <span className="text-xs bg-gray-100 text-gray-500 border border-gray-200 rounded px-1.5 py-0.5">Spray date past</span>;
+    if (hours < 48) return <span className="text-xs bg-red-100 text-red-700 border border-red-200 rounded px-1.5 py-0.5 font-medium">⚠ {days}d notice</span>;
+    return <span className="text-xs bg-green-100 text-green-700 border border-green-200 rounded px-1.5 py-0.5">✓ {days}d notice</span>;
+  }
 
   function openEdit(n: any) {
     setEditRec(n);
-    setForm({ sprayApplicationId: String(n.sprayApplicationId ?? ""), notificationDate: n.notificationDate?.slice(0, 10) ?? "", recipientType: n.recipientType ?? "beekeeper", recipientName: n.recipientName ?? "", recipientContact: n.recipientContact ?? "", notificationMethod: n.notificationMethod ?? "phone", confirmationReceived: n.confirmationReceived ?? false, confirmationDate: n.confirmationDate?.slice(0, 10) ?? "", notes: n.notes ?? "" });
+    setForm({
+      sprayApplicationId: String(n.sprayApplicationId ?? ""),
+      notificationDate: n.notificationDate?.slice(0, 10) ?? today,
+      plannedSprayDate: n.plannedSprayDate?.slice(0, 10) ?? "",
+      recipientType: n.recipientType ?? "beekeeper",
+      recipientName: n.recipientName ?? "",
+      recipientContact: n.recipientContact ?? "",
+      recipientAddress: n.recipientAddress ?? "",
+      contactMethod: n.contactMethod ?? "phone",
+      productsNotified: n.productsNotified ?? "",
+      fieldRefs: n.fieldRefs ?? "",
+      confirmed: n.confirmed ?? false,
+      confirmationDate: n.confirmationDate?.slice(0, 10) ?? "",
+      confirmationMethod: n.confirmationMethod ?? "",
+      confirmationReference: n.confirmationReference ?? "",
+      notes: n.notes ?? "",
+    });
   }
+
+  function pickContact(c: any) {
+    setForm(f => ({ ...f, recipientType: c.recipientType, recipientName: c.recipientName, recipientContact: c.recipientContact ?? "", recipientAddress: c.recipientAddress ?? "" }));
+  }
+
+  function openEditContact(c: any) {
+    setEditContact(c);
+    setContactForm({ recipientType: c.recipientType ?? "beekeeper", recipientName: c.recipientName ?? "", recipientContact: c.recipientContact ?? "", recipientAddress: c.recipientAddress ?? "", notes: c.notes ?? "" });
+  }
+
+  function printNotificationLetter(n: any) {
+    const app = applications.find(a => String(a.id) === String(n.sprayApplicationId));
+    const farmName = farm?.name || "Our Farm";
+    const farmAddress = [farm?.address, farm?.postcode].filter(Boolean).join(", ");
+    const farmCph = farm?.cphNumber ? `CPH No: ${farm.cphNumber}` : "";
+    const farmManager = farm?.farmManager || "";
+    const dateStr = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    const plannedDate = n.plannedSprayDate ? new Date(n.plannedSprayDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "[date to be confirmed]";
+    const notifDateStr = fmtD(n.notificationDate);
+    const productsText = n.productsNotified || (app ? (app.productName || "pesticide products") : "pesticide products");
+    const fieldsText = n.fieldRefs || (app?.fieldId ? fldName(app.fieldId) : "fields at the above holding");
+    const isBeekeper = n.recipientType === "beekeeper";
+    const hours = leadTimeHours(n);
+    const daysNotice = hours !== null ? Math.floor(hours / 24) : null;
+    const recipientAddrHtml = n.recipientAddress ? String(n.recipientAddress).replace(/\n/g, "<br>") : "";
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Spray Notification Letter — ${n.recipientName}</title><style>body{font-family:Georgia,"Times New Roman",serif;max-width:680px;margin:40px auto;padding:20px;color:#111;font-size:14px;line-height:1.55}h1{font-size:18px;margin:0 0 4px}.meta{color:#555;margin:2px 0}.date{margin:28px 0 24px}.recip{margin-bottom:28px}.recip strong{font-size:15px}h2{font-size:14px;text-decoration:underline;letter-spacing:.04em;margin:0 0 18px}p{margin:0 0 14px}table{width:100%;border-collapse:collapse;margin:0 0 20px;font-size:13px}td{padding:6px 12px;border:1px solid #bbb}td:first-child{font-weight:bold;background:#f8f8f8;width:36%}.gap{height:52px}.ref{font-size:11px;color:#888;margin-top:6px}@media print{body{margin:0;padding:24px}}</style></head><body><div><h1>${farmName}</h1>${farmAddress ? `<p class="meta">${farmAddress}</p>` : ""}${farmCph ? `<p class="meta">${farmCph}</p>` : ""}</div><div class="date">${dateStr}</div><div class="recip"><strong>${n.recipientName}</strong>${recipientAddrHtml ? `<br>${recipientAddrHtml}` : ""}</div><h2>ADVANCE NOTICE OF PESTICIDE APPLICATION</h2><p>Dear ${n.recipientName},</p><p>We are writing to provide you with advance notice of our intention to apply pesticide products at ${farmName}. The details of the planned application are set out below:</p><table><tr><td>Planned Application Date</td><td><strong>${plannedDate}</strong></td></tr><tr><td>Date of This Notification</td><td>${notifDateStr}</td></tr>${daysNotice !== null ? `<tr><td>Notice Period Given</td><td>${daysNotice} day${daysNotice === 1 ? "" : "s"}</td></tr>` : ""}<tr><td>Products to be Applied</td><td>${productsText}</td></tr><tr><td>Fields / Areas Affected</td><td>${fieldsText}</td></tr></table>${isBeekeper ? "<p>As a registered beekeeper, we respectfully request that you take appropriate precautions to protect your bees during and after this application. Where practicable, we would ask that hive entrances are closed or that hives are moved away from the treated area before spraying commences, and remain so for at least 24 hours after the application has finished. We are happy to discuss the timing further to minimise any potential impact on your bees.</p>" : "<p>As an adjoining landowner or occupier, we are providing this advance notice as good practice under the Voluntary Initiative Code of Practice for the responsible use of pesticides. We take our obligations to neighbouring parties seriously and aim to keep all landowners informed prior to any pesticide application.</p>"}<p>If you have any questions or concerns about this planned application, please do not hesitate to contact us before the spray date.</p><p>Yours sincerely,</p><div class="gap"></div><p>${farmManager ? `<strong>${farmManager}</strong><br>` : ""}${farmName}</p><p class="ref">Notification ref: ${farmName} — ${notifDateStr} — ${n.recipientName}</p></body></html>`;
+    openPrintWindow(html);
+  }
+
+  const beekeepers = notifications.filter((n: any) => n.recipientType === "beekeeper");
+  const confirmedNotifs = notifications.filter((n: any) => n.confirmed);
+  const lateNotifs = notifications.filter((n: any) => { const h = leadTimeHours(n); return h !== null && h >= 0 && h < 48; });
+
+  const formLeadH = form.notificationDate && form.plannedSprayDate
+    ? (new Date(form.plannedSprayDate + "T00:00:00").getTime() - new Date(form.notificationDate + "T00:00:00").getTime()) / 36e5
+    : null;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold">Spray Beekeeper &amp; Neighbour Notifications</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Red Tractor requirement: log all pre-spray notifications to beekeepers and neighbours before applying bee-toxic products.</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Red Tractor requirement: log all pre-spray notifications to beekeepers and neighbours. Minimum 48 hours' advance notice required.</p>
         </div>
-        <button className="inline-flex items-center gap-1.5 text-sm font-medium bg-primary text-primary-foreground rounded-md px-3 py-1.5 hover:opacity-90" onClick={() => setAddOpen(true)}><Plus className="w-4 h-4" />Log Notification</button>
+        <div className="flex gap-2 flex-shrink-0">
+          <button className="inline-flex items-center gap-1.5 text-sm border rounded-md px-3 py-1.5 hover:bg-gray-50" onClick={() => setContactOpen(true)}>
+            <History className="w-3.5 h-3.5" />Contact Book
+          </button>
+          <button className="inline-flex items-center gap-1.5 text-sm font-medium bg-primary text-primary-foreground rounded-md px-3 py-1.5 hover:opacity-90" onClick={() => { setForm({ ...emptyForm }); setAddOpen(true); }}>
+            <Plus className="w-4 h-4" />Log Notification
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="border rounded-lg p-3 bg-blue-50"><p className="text-xs text-blue-700 font-medium">Total Notifications</p><p className="text-2xl font-bold text-blue-800 mt-1">{notifications.length}</p></div>
         <div className="border rounded-lg p-3 bg-amber-50"><p className="text-xs text-amber-700 font-medium">Beekeeper Notices</p><p className="text-2xl font-bold text-amber-800 mt-1">{beekeepers.length}</p></div>
-        <div className="border rounded-lg p-3 bg-green-50"><p className="text-xs text-green-700 font-medium">Confirmed</p><p className="text-2xl font-bold text-green-800 mt-1">{confirmed.length}</p></div>
+        <div className="border rounded-lg p-3 bg-green-50"><p className="text-xs text-green-700 font-medium">Confirmed</p><p className="text-2xl font-bold text-green-800 mt-1">{confirmedNotifs.length}</p></div>
+        <div className={`border rounded-lg p-3 ${lateNotifs.length > 0 ? "bg-red-50 border-red-200" : "bg-gray-50"}`}>
+          <p className={`text-xs font-medium ${lateNotifs.length > 0 ? "text-red-700" : "text-gray-600"}`}>Under 48hr Notice</p>
+          <p className={`text-2xl font-bold mt-1 ${lateNotifs.length > 0 ? "text-red-800" : "text-gray-400"}`}>{lateNotifs.length}</p>
+        </div>
       </div>
 
+      {/* BeeConnected info panel */}
+      {beeInfoOpen && (
+        <div className="border border-amber-200 rounded-lg p-4 bg-amber-50">
+          <div className="flex items-start gap-3">
+            <div className="text-2xl leading-none mt-0.5 flex-shrink-0">🐝</div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-amber-900">BeeConnected — Automatic Beekeeper Notification Service</p>
+              <p className="text-xs text-amber-800 mt-1 leading-relaxed">BeeConnected is a free UK service that automatically notifies registered beekeepers within your chosen radius when you plan to spray. Beekeepers register their hive locations voluntarily and receive instant alerts — saving you time and ensuring you meet your notification obligations without needing to know who keeps bees locally.</p>
+              <p className="text-xs text-amber-700 mt-1">APHA's BeeBase does not provide a public search API, but BeeConnected is the recommended alternative for England, Scotland and Wales.</p>
+              <a href="https://beeconnected.org.uk" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-amber-900 underline mt-2 hover:text-amber-700">
+                Visit BeeConnected.org.uk <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+            <button className="text-amber-500 hover:text-amber-800 flex-shrink-0 text-lg leading-none" onClick={() => setBeeInfoOpen(false)}>✕</button>
+          </div>
+        </div>
+      )}
+
+      {/* Notification list */}
       {notifQ.isLoading && <div className="flex justify-center py-8 text-sm text-muted-foreground gap-2"><Loader2 className="w-4 h-4 animate-spin" />Loading…</div>}
       {!notifQ.isLoading && notifications.length === 0 && (
         <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-lg">
           <AlertTriangle className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-500">No notifications logged</p>
-          <p className="text-xs text-gray-400 mt-1">Log when you notify beekeepers or neighbours before spraying.</p>
+          <p className="text-sm font-medium text-gray-500">No notifications logged yet</p>
+          <p className="text-xs text-gray-400 mt-1">Log when you notify beekeepers or neighbours before applying bee-toxic products.</p>
         </div>
       )}
-
       <div className="space-y-2">
         {notifications.map((n: any) => {
           const isExp = expandedId === n.id;
           return (
             <div key={n.id} className="border rounded-lg overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50" onClick={() => setExpandedId(isExp ? null : n.id)}>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">{n.recipientName || "Unnamed"} <span className="text-muted-foreground font-normal">({rTypeLabel[n.recipientType] || n.recipientType})</span></p>
-                  <p className="text-xs text-muted-foreground">{fmtD(n.notificationDate)} · {methodLabel[n.notificationMethod] || n.notificationMethod}{n.sprayApplicationId ? ` · ${appLabel(n.sprayApplicationId)}` : ""}</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium">{n.recipientName || "Unnamed"}</span>
+                    <span className="text-xs text-muted-foreground">({rTypeLabel[n.recipientType] || n.recipientType})</span>
+                    {n.confirmed && <span className="text-xs bg-green-100 text-green-700 border border-green-200 rounded px-1.5 py-0.5">✓ Confirmed</span>}
+                    <LeadTimeBadge n={n} />
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Notified {fmtD(n.notificationDate)} · {methodLabel[n.contactMethod] || n.contactMethod || "—"}
+                    {n.plannedSprayDate && ` · Spray: ${fmtD(n.plannedSprayDate)}`}
+                    {n.sprayApplicationId && ` · ${appLabel(n.sprayApplicationId)}`}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {n.confirmationReceived && <span className="text-xs bg-green-100 text-green-700 border border-green-200 rounded px-1.5 py-0.5">Confirmed</span>}
-                  <button className="p-1 rounded hover:bg-gray-200" onClick={e => { e.stopPropagation(); openEdit(n); }}><Pencil className="w-3.5 h-3.5 text-gray-500" /></button>
-                  <button className="p-1 rounded hover:bg-red-100" onClick={e => { e.stopPropagation(); setDeleteId(n.id); }}><Trash2 className="w-3.5 h-3.5 text-red-400" /></button>
+                <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                  <button className="p-1.5 rounded hover:bg-gray-200 text-gray-500" title="Print notification letter" onClick={e => { e.stopPropagation(); printNotificationLetter(n); }}><Printer className="w-3.5 h-3.5" /></button>
+                  <button className="p-1.5 rounded hover:bg-gray-200" onClick={e => { e.stopPropagation(); openEdit(n); }}><Pencil className="w-3.5 h-3.5 text-gray-500" /></button>
+                  <button className="p-1.5 rounded hover:bg-red-100" onClick={e => { e.stopPropagation(); setDeleteId(n.id); }}><Trash2 className="w-3.5 h-3.5 text-red-400" /></button>
                   {isExp ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                 </div>
               </div>
               {isExp && (
-                <div className="border-t bg-gray-50 px-4 py-3 grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2 text-sm">
-                  <div><p className="text-xs text-muted-foreground">Recipient Contact</p><p>{n.recipientContact || "—"}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Method</p><p>{methodLabel[n.notificationMethod] || n.notificationMethod}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Spray Application</p><p>{appLabel(n.sprayApplicationId)}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Confirmation Received</p><p>{n.confirmationReceived ? "Yes" : "No"}</p></div>
-                  {n.confirmationDate && <div><p className="text-xs text-muted-foreground">Confirmation Date</p><p>{fmtD(n.confirmationDate)}</p></div>}
+                <div className="border-t bg-gray-50 px-4 py-3 grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3 text-sm">
+                  <div><p className="text-xs text-muted-foreground">Phone / Email</p><p>{n.recipientContact || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Contact Method</p><p>{methodLabel[n.contactMethod] || n.contactMethod || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Linked Application</p><p className="text-xs">{appLabel(n.sprayApplicationId)}</p></div>
+                  {n.recipientAddress && <div className="col-span-2"><p className="text-xs text-muted-foreground">Postal Address</p><p className="whitespace-pre-line text-sm">{n.recipientAddress}</p></div>}
+                  {n.productsNotified && <div className="col-span-full"><p className="text-xs text-muted-foreground">Products Notified</p><p>{n.productsNotified}</p></div>}
+                  {n.fieldRefs && <div><p className="text-xs text-muted-foreground">Fields / Areas</p><p>{n.fieldRefs}</p></div>}
+                  <div><p className="text-xs text-muted-foreground">Confirmation</p><p>{n.confirmed ? "Received" : "Pending"}{n.confirmationDate && ` — ${fmtD(n.confirmationDate)}`}{n.confirmationMethod && ` (${n.confirmationMethod})`}</p></div>
                   {n.notes && <div className="col-span-full"><p className="text-xs text-muted-foreground">Notes</p><p className="whitespace-pre-line">{n.notes}</p></div>}
                 </div>
               )}
@@ -3505,63 +3637,183 @@ function SprayNotificationsTab({ farmId, applications, fields }: { farmId: numbe
         })}
       </div>
 
-      <Dialog open={addOpen || !!editRec} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRec(null); setForm({ ...empty }); } }}>
-        <DialogContent className="max-w-lg">
+      {/* Add / Edit dialog */}
+      <Dialog open={addOpen || !!editRec} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRec(null); setForm({ ...emptyForm }); } }}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editRec ? "Edit Notification" : "Log Spray Notification"}</DialogTitle></DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="text-xs font-medium">Notification Date *</label><Input type="date" value={form.notificationDate} onChange={e => setForm(f => ({ ...f, notificationDate: e.target.value }))} /></div>
-              <div><label className="text-xs font-medium">Recipient Type</label>
-                <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background" value={form.recipientType} onChange={e => setForm(f => ({ ...f, recipientType: e.target.value }))}>
-                  <option value="beekeeper">Beekeeper</option>
-                  <option value="neighbour">Neighbour</option>
-                  <option value="other">Other</option>
-                </select>
+          <div className="space-y-4 py-1">
+            {/* Recipient */}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Recipient</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium">Recipient Type</label>
+                  <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background" value={form.recipientType} onChange={e => setForm(f => ({ ...f, recipientType: e.target.value }))}>
+                    <option value="beekeeper">Beekeeper</option>
+                    <option value="neighbour">Neighbour / Landowner</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                {contacts.length > 0 && (
+                  <div>
+                    <label className="text-xs font-medium">Pick from Contact Book</label>
+                    <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background" value="" onChange={e => { const c = contacts.find((c: any) => String(c.id) === e.target.value); if (c) pickContact(c); }}>
+                      <option value="">— Select saved contact —</option>
+                      {contacts.map((c: any) => <option key={c.id} value={String(c.id)}>{c.recipientName} ({rTypeLabel[c.recipientType] || c.recipientType})</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-xs font-medium">Recipient Name *</label><Input value={form.recipientName} onChange={e => setForm(f => ({ ...f, recipientName: e.target.value }))} placeholder="e.g. John Smith" /></div>
+                <div><label className="text-xs font-medium">Phone / Email</label><Input value={form.recipientContact} onChange={e => setForm(f => ({ ...f, recipientContact: e.target.value }))} placeholder="07700 900 123" /></div>
+              </div>
+              <div>
+                <label className="text-xs font-medium">Postal Address <span className="font-normal text-muted-foreground">(used when printing notification letter)</span></label>
+                <Textarea value={form.recipientAddress} onChange={e => setForm(f => ({ ...f, recipientAddress: e.target.value }))} rows={2} placeholder={"1 Lane Road\nVillage, County\nAB1 2CD"} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="text-xs font-medium">Recipient Name</label><Input value={form.recipientName} onChange={e => setForm(f => ({ ...f, recipientName: e.target.value }))} /></div>
-              <div><label className="text-xs font-medium">Contact (phone/email)</label><Input value={form.recipientContact} onChange={e => setForm(f => ({ ...f, recipientContact: e.target.value }))} /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="text-xs font-medium">Notification Method</label>
-                <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background" value={form.notificationMethod} onChange={e => setForm(f => ({ ...f, notificationMethod: e.target.value }))}>
-                  <option value="phone">Phone</option>
-                  <option value="email">Email</option>
-                  <option value="letter">Letter</option>
-                  <option value="in-person">In Person</option>
-                </select>
+
+            {/* Notification details */}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Notification Details</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-xs font-medium">Date Notified *</label><Input type="date" value={form.notificationDate} onChange={e => setForm(f => ({ ...f, notificationDate: e.target.value }))} /></div>
+                <div><label className="text-xs font-medium">Planned Spray Date <span className="font-normal text-muted-foreground">(48hr check)</span></label><Input type="date" value={form.plannedSprayDate} onChange={e => setForm(f => ({ ...f, plannedSprayDate: e.target.value }))} /></div>
               </div>
-              <div><label className="text-xs font-medium">Linked Spray Application</label>
-                <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background" value={form.sprayApplicationId} onChange={e => setForm(f => ({ ...f, sprayApplicationId: e.target.value }))}>
-                  <option value="">— None —</option>
-                  {applications.slice(0, 50).map((a: any) => <option key={a.id} value={String(a.id)}>{a.productName || "Spray"} — {fmtD(a.applicationDate)} — {fldName(a.fieldId)}</option>)}
-                </select>
+              {formLeadH !== null && (
+                formLeadH < 48
+                  ? <p className="text-xs text-red-600 font-medium -mt-1">⚠ Only {Math.floor(formLeadH / 24)} day{Math.floor(formLeadH / 24) === 1 ? "" : "s"} notice — Red Tractor requires a minimum of 48 hours.</p>
+                  : <p className="text-xs text-green-700 -mt-1">✓ {Math.floor(formLeadH / 24)} day{Math.floor(formLeadH / 24) === 1 ? "" : "s"} notice — meets the 48-hour requirement.</p>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium">How Was Notification Made?</label>
+                  <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background" value={form.contactMethod} onChange={e => setForm(f => ({ ...f, contactMethod: e.target.value }))}>
+                    <option value="phone">Phone call</option>
+                    <option value="email">Email</option>
+                    <option value="letter">Letter (post)</option>
+                    <option value="in_person">In person</option>
+                    <option value="text_message">Text message</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium">Linked Spray Application</label>
+                  <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background" value={form.sprayApplicationId} onChange={e => setForm(f => ({ ...f, sprayApplicationId: e.target.value }))}>
+                    <option value="">— None —</option>
+                    {applications.slice(0, 50).map((a: any) => <option key={a.id} value={String(a.id)}>{a.productName || "Spray"} — {fmtD(a.applicationDate)}{a.fieldId ? ` — ${fldName(a.fieldId)}` : ""}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-xs font-medium">Products Notified</label><Input value={form.productsNotified} onChange={e => setForm(f => ({ ...f, productsNotified: e.target.value }))} placeholder="e.g. Karate Zeon, Lambda-C" /></div>
+                <div><label className="text-xs font-medium">Fields / Areas</label><Input value={form.fieldRefs} onChange={e => setForm(f => ({ ...f, fieldRefs: e.target.value }))} placeholder="e.g. North Field, Field 4" /></div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <input type="checkbox" id="spn-confirmed" checked={form.confirmationReceived} onChange={e => setForm(f => ({ ...f, confirmationReceived: e.target.checked }))} />
-              <label htmlFor="spn-confirmed" className="text-sm cursor-pointer">Confirmation received from recipient</label>
+
+            {/* Confirmation */}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Confirmation</p>
+              <div className="flex items-center gap-2">
+                <input type="checkbox" id="spn-confirmed" checked={form.confirmed} onChange={e => setForm(f => ({ ...f, confirmed: e.target.checked }))} className="w-4 h-4 cursor-pointer" />
+                <label htmlFor="spn-confirmed" className="text-sm cursor-pointer">Confirmation received from recipient</label>
+              </div>
+              {form.confirmed && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="text-xs font-medium">Confirmation Date</label><Input type="date" value={form.confirmationDate} onChange={e => setForm(f => ({ ...f, confirmationDate: e.target.value }))} /></div>
+                  <div><label className="text-xs font-medium">How Confirmed</label><Input value={form.confirmationMethod} onChange={e => setForm(f => ({ ...f, confirmationMethod: e.target.value }))} placeholder="e.g. verbal, email reply" /></div>
+                </div>
+              )}
             </div>
-            {form.confirmationReceived && <div><label className="text-xs font-medium">Confirmation Date</label><Input type="date" value={form.confirmationDate} onChange={e => setForm(f => ({ ...f, confirmationDate: e.target.value }))} /></div>}
+
             <div><label className="text-xs font-medium">Notes</label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
-            <button className="border rounded-md px-4 py-2 text-sm hover:bg-gray-50" onClick={() => { setAddOpen(false); setEditRec(null); setForm({ ...empty }); }}>Cancel</button>
-            <button className="bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50" disabled={!form.notificationDate || createMut.isPending || updateMut.isPending} onClick={() => editRec ? updateMut.mutate({ id: editRec.id, b: form }) : createMut.mutate(form)}>
+            <button className="border rounded-md px-4 py-2 text-sm hover:bg-gray-50" onClick={() => { setAddOpen(false); setEditRec(null); setForm({ ...emptyForm }); }}>Cancel</button>
+            <button className="bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50" disabled={!form.notificationDate || !form.recipientName || createMut.isPending || updateMut.isPending} onClick={() => editRec ? updateMut.mutate({ id: editRec.id, b: form }) : createMut.mutate(form)}>
               {createMut.isPending || updateMut.isPending ? "Saving…" : editRec ? "Save Changes" : "Log Notification"}
             </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* Contact Book dialog */}
+      <Dialog open={contactOpen} onOpenChange={o => { if (!o) { setContactOpen(false); setEditContact(null); setContactForm({ ...emptyContact }); } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Contact Book — Beekeepers &amp; Neighbours</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground -mt-2 mb-3">Save regular recipients here so you can quickly populate the notification form.</p>
+          <div className="border rounded-lg p-3 bg-gray-50 space-y-3">
+            <p className="text-xs font-semibold">{editContact ? "Edit Contact" : "Add Contact"}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium">Type</label>
+                <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background" value={contactForm.recipientType} onChange={e => setContactForm(f => ({ ...f, recipientType: e.target.value }))}>
+                  <option value="beekeeper">Beekeeper</option>
+                  <option value="neighbour">Neighbour / Landowner</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div><label className="text-xs font-medium">Name *</label><Input value={contactForm.recipientName} onChange={e => setContactForm(f => ({ ...f, recipientName: e.target.value }))} placeholder="e.g. John Smith" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="text-xs font-medium">Phone / Email</label><Input value={contactForm.recipientContact} onChange={e => setContactForm(f => ({ ...f, recipientContact: e.target.value }))} /></div>
+              <div><label className="text-xs font-medium">Notes</label><Input value={contactForm.notes} onChange={e => setContactForm(f => ({ ...f, notes: e.target.value }))} /></div>
+            </div>
+            <div>
+              <label className="text-xs font-medium">Postal Address</label>
+              <Textarea value={contactForm.recipientAddress} onChange={e => setContactForm(f => ({ ...f, recipientAddress: e.target.value }))} rows={2} placeholder={"1 Lane Road\nVillage, County AB1 2CD"} />
+            </div>
+            <div className="flex gap-2 justify-end">
+              {editContact && <button className="border rounded-md px-3 py-1.5 text-sm hover:bg-gray-100" onClick={() => { setEditContact(null); setContactForm({ ...emptyContact }); }}>Cancel</button>}
+              <button className="bg-primary text-primary-foreground rounded-md px-3 py-1.5 text-sm font-medium hover:opacity-90 disabled:opacity-50" disabled={!contactForm.recipientName || createContactMut.isPending || updateContactMut.isPending} onClick={() => editContact ? updateContactMut.mutate({ id: editContact.id, b: contactForm }) : createContactMut.mutate(contactForm)}>
+                {createContactMut.isPending || updateContactMut.isPending ? "Saving…" : editContact ? "Save Changes" : "Add Contact"}
+              </button>
+            </div>
+          </div>
+          {contactsQ.isLoading && <div className="flex justify-center py-4 gap-2 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" />Loading…</div>}
+          {!contactsQ.isLoading && contacts.length === 0 && <p className="text-sm text-gray-500 text-center py-4">No contacts saved yet.</p>}
+          <div className="space-y-2 mt-2">
+            {contacts.map((c: any) => (
+              <div key={c.id} className="border rounded-lg px-3 py-2 flex items-start justify-between gap-3 bg-white">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{c.recipientName} <span className="text-xs text-muted-foreground font-normal">({rTypeLabel[c.recipientType] || c.recipientType})</span></p>
+                  {c.recipientContact && <p className="text-xs text-gray-500">{c.recipientContact}</p>}
+                  {c.recipientAddress && <p className="text-xs text-gray-400 whitespace-pre-line">{c.recipientAddress}</p>}
+                  {c.notes && <p className="text-xs text-gray-400 italic">{c.notes}</p>}
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button className="p-1.5 rounded hover:bg-gray-100" onClick={() => openEditContact(c)}><Pencil className="w-3.5 h-3.5 text-gray-500" /></button>
+                  <button className="p-1.5 rounded hover:bg-red-100" onClick={() => setDeleteContactId(c.id)}><Trash2 className="w-3.5 h-3.5 text-red-400" /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter className="mt-2">
+            <button className="border rounded-md px-4 py-2 text-sm hover:bg-gray-50" onClick={() => setContactOpen(false)}>Close</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete notification */}
       <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
         <DialogContent style={{ maxWidth: 360 }}>
           <DialogHeader><DialogTitle>Delete Notification</DialogTitle></DialogHeader>
-          <p className="text-sm text-gray-600 py-2">Permanently delete this notification record?</p>
+          <p className="text-sm text-gray-600 py-2">Permanently delete this notification record? This cannot be undone.</p>
           <DialogFooter>
             <button className="border rounded-md px-4 py-2 text-sm hover:bg-gray-50" onClick={() => setDeleteId(null)}>Cancel</button>
-            <button className="bg-red-600 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-red-700 disabled:opacity-50" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>Delete</button>
+            <button className="bg-red-600 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-red-700 disabled:opacity-50" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>{deleteMut.isPending ? "Deleting…" : "Delete"}</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete contact */}
+      <Dialog open={deleteContactId !== null} onOpenChange={o => { if (!o) setDeleteContactId(null); }}>
+        <DialogContent style={{ maxWidth: 360 }}>
+          <DialogHeader><DialogTitle>Delete Contact</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">Remove this contact from the book? Existing notification records are not affected.</p>
+          <DialogFooter>
+            <button className="border rounded-md px-4 py-2 text-sm hover:bg-gray-50" onClick={() => setDeleteContactId(null)}>Cancel</button>
+            <button className="bg-red-600 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-red-700 disabled:opacity-50" disabled={deleteContactMut.isPending} onClick={() => deleteContactId !== null && deleteContactMut.mutate(deleteContactId)}>{deleteContactMut.isPending ? "Deleting…" : "Delete"}</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

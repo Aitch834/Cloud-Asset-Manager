@@ -430,6 +430,7 @@ import {
   grasslandReseedingRecordsTable,
   poultryPlacementQualityAssessmentsTable,
   sprayNotificationsTable,
+  sprayNotificationContactsTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createDairyAbrBorderlineNotification, createDairyAbrInvalidNotification, resolveAbrNotificationsForRecord, createMobilityLamenessAlert, createMobilityScore2Advisory, createBngComplianceNotification, createFpIntakeRejectionNotification, createFpPoorConditionNotification, createFpCheckMissingNotification, createFpPreCoolingPendingNotification, createRiddorNotification, createBcmsMortalityPendingNotification, createBiosecurityDeclarationMissingNotification, createHerdHealthFollowUpNotification, createIpmThresholdBreachedNotification, createReportableDiseaseNotification } from "../lib/alertingJob";
@@ -31639,11 +31640,25 @@ router.get("/farms/:farmId/spray-notifications", requireAuth, requireTenant, req
 router.post("/farms/:farmId/spray-notifications", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { sprayApplicationId, confirmed, ...rest } = req.body;
+  const { sprayApplicationId, notificationDate, plannedSprayDate, recipientType, recipientName, recipientContact, recipientAddress, contactMethod, productsNotified, fieldRefs, confirmed, confirmationDate, confirmationMethod, confirmationReference, notes } = req.body;
+  if (!notificationDate || !recipientName) { res.status(400).json({ error: "notificationDate and recipientName are required" }); return; }
   const [notification] = await db.insert(sprayNotificationsTable).values({
-    ...rest, farmId,
+    farmId,
     sprayApplicationId: sprayApplicationId ? Number(sprayApplicationId) : null,
+    notificationDate,
+    plannedSprayDate: plannedSprayDate || null,
+    recipientType: recipientType || "beekeeper",
+    recipientName,
+    recipientContact: recipientContact || null,
+    recipientAddress: recipientAddress || null,
+    contactMethod: contactMethod || "phone",
+    productsNotified: productsNotified || null,
+    fieldRefs: fieldRefs || null,
     confirmed: confirmed === true || confirmed === "true",
+    confirmationDate: confirmationDate || null,
+    confirmationMethod: confirmationMethod || null,
+    confirmationReference: confirmationReference || null,
+    notes: notes || null,
   }).returning();
   res.status(201).json({ notification });
 });
@@ -31652,11 +31667,23 @@ router.put("/farms/:farmId/spray-notifications/:id", requireAuth, requireTenant,
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const id = parseInt(req.params.id as string);
-  const { sprayApplicationId, confirmed, ...rest } = req.body;
+  const { sprayApplicationId, notificationDate, plannedSprayDate, recipientType, recipientName, recipientContact, recipientAddress, contactMethod, productsNotified, fieldRefs, confirmed, confirmationDate, confirmationMethod, confirmationReference, notes } = req.body;
   const [notification] = await db.update(sprayNotificationsTable).set({
-    ...rest,
     sprayApplicationId: sprayApplicationId ? Number(sprayApplicationId) : null,
+    notificationDate,
+    plannedSprayDate: plannedSprayDate || null,
+    recipientType: recipientType || "beekeeper",
+    recipientName,
+    recipientContact: recipientContact || null,
+    recipientAddress: recipientAddress || null,
+    contactMethod: contactMethod || "phone",
+    productsNotified: productsNotified || null,
+    fieldRefs: fieldRefs || null,
     confirmed: confirmed === true || confirmed === "true",
+    confirmationDate: confirmationDate || null,
+    confirmationMethod: confirmationMethod || null,
+    confirmationReference: confirmationReference || null,
+    notes: notes || null,
   }).where(and(eq(sprayNotificationsTable.id, id), eq(sprayNotificationsTable.farmId, farmId))).returning();
   if (!notification) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ notification });
@@ -31667,6 +31694,41 @@ router.delete("/farms/:farmId/spray-notifications/:id", requireAuth, requireTena
   if (!farmId) return;
   const id = parseInt(req.params.id as string);
   await db.delete(sprayNotificationsTable).where(and(eq(sprayNotificationsTable.id, id), eq(sprayNotificationsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Spray Notification Contact Book ─────────────────────────────────────────
+router.get("/farms/:farmId/spray-notification-contacts", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const contacts = await db.select().from(sprayNotificationContactsTable).where(eq(sprayNotificationContactsTable.farmId, farmId)).orderBy(asc(sprayNotificationContactsTable.recipientName));
+  res.json({ contacts });
+});
+
+router.post("/farms/:farmId/spray-notification-contacts", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { recipientType, recipientName, recipientContact, recipientAddress, notes } = req.body;
+  if (!recipientName) { res.status(400).json({ error: "recipientName is required" }); return; }
+  const [contact] = await db.insert(sprayNotificationContactsTable).values({ farmId, recipientType: recipientType || "beekeeper", recipientName, recipientContact: recipientContact || null, recipientAddress: recipientAddress || null, notes: notes || null }).returning();
+  res.status(201).json({ contact });
+});
+
+router.put("/farms/:farmId/spray-notification-contacts/:id", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const { recipientType, recipientName, recipientContact, recipientAddress, notes } = req.body;
+  const [contact] = await db.update(sprayNotificationContactsTable).set({ recipientType: recipientType || "beekeeper", recipientName, recipientContact: recipientContact || null, recipientAddress: recipientAddress || null, notes: notes || null }).where(and(eq(sprayNotificationContactsTable.id, id), eq(sprayNotificationContactsTable.farmId, farmId))).returning();
+  if (!contact) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ contact });
+});
+
+router.delete("/farms/:farmId/spray-notification-contacts/:id", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  await db.delete(sprayNotificationContactsTable).where(and(eq(sprayNotificationContactsTable.id, id), eq(sprayNotificationContactsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
