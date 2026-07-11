@@ -1,9 +1,9 @@
 ---
 name: Test-dashboard Vite deps cache — persistent "Invalid hook call" fix
-description: Complete root cause and all fix layers for recurring "Invalid hook call" on any tab in the test-dashboard. There are TWO distinct causes — proxy stale-cache AND in-memory transform-cache staleness — both must be addressed.
+description: Complete root cause and all fix layers for recurring "Invalid hook call" on any tab in the test-dashboard. Multiple distinct causes — proxy stale-cache AND in-memory transform-cache staleness — all must be addressed.
 ---
 
-## The TWO root causes (both must be fixed)
+## The root causes (all must be fixed)
 
 ### Cause A — Replit proxy caches dep chunks by path, ignoring ?v=HASH
 Replit's preview proxy caches responses keyed on URL PATH only (query params stripped).
@@ -21,6 +21,20 @@ dep-chunk import URL. When the browser reloads after the full-reload event, Vite
 the STALE transforms (old hash) alongside newly-compiled dep chunks (new hash) → two
 different react.js URLs in the browser (different modules) → "Invalid hook call" on
 whichever component renders next.
+
+### Cause C — proxy serves dep chunks from DIFFERENT sessions (v8 fix — the persistent crash)
+The proxy caches dep chunks under fixed canonical keys (`@td/deps/FILE`) across sessions.
+When Vite's dep optimisation changes chunk assignments between sessions (e.g. after pnpm
+install or .vite/deps cleared on restart), the proxy may serve zustand.js from session A
+(references `chunk-OLD.js`) while react.js is from session B (references `chunk-KC53NVYV.js`).
+Two different chunk files → two separate React instances → "Invalid hook call" at the FIRST
+hook call (line 522: `useAppStore()`) in SeedStorePage, because Zustand's React differs from
+the renderer's React.
+
+**WHY this is hard to see:** chunk names are content-addressed (hash of content), so chunks
+with the same name always have the same content. But WHICH chunks get which names can change
+when dep optimisation produces different assignments. When that happens, old sessions in
+proxy cache reference the old chunk names, new sessions use new names → mixed versions.
 
 ## Fix layers implemented in vite.config.ts (reconnectReloadPlugin)
 
@@ -49,55 +63,43 @@ Every @fs/ source-file URL embedded in compiled JS is rewritten to include SESSI
 in the PATH:  `/base/@fs/path`  →  `/base/@td/TOKEN/@fs/path`
 Proxy sees a different path each session → cache miss → always fresh.
 
-### Layer 1b — FIXED (tokenless) dep-chunk URLs — STRIP ?v=HASH, NO session token
-Absolute dep-chunk URLs embedded in compiled source files are rewritten:
-  `/base/node_modules/.vite/deps/react.js?v=HASH`  →  `/base/@td/deps/react.js`
-                                                         ↑ NO session token — by design
+### Layer 1b — DEP CHUNK NONCE URLs (v8 fix — @deps-TOKEN/ scheme)
+Absolute dep-chunk URLs embedded in compiled source files are rewritten to include a
+per-session token in both the @td/ prefix AND the @deps- segment:
+  `/base/node_modules/.vite/deps/react.js?v=HASH`
+  → `/base/@td/TOKEN/@deps-TOKEN/react.js`
 
-WHY no token: Replit's external proxy (*.replit.dev) normalises the `@td/TOKEN/` segment
-when building its cache key:
-  `/base/@td/SESSION_A/@fs/.../SeedStorePage.tsx`  →  cache key: `/base/@fs/.../SeedStorePage.tsx`
-This means @fs/ source files CAN be served from proxy cache with an OLD session's dep-chunk
-URLs embedded (`@td/SESSION_A/deps/react.js`). If fresh source files embed SESSION_B dep URLs
-and cached ones embed SESSION_A dep URLs, the browser sees two react.js module identities →
-two React instances → "Invalid hook call".
-Fix: dep chunks are at a FIXED tokenless path `/base/@td/deps/react.js`. Every source file
-(proxy-cached or fresh) embeds the same URL → one React instance. ✓
+WHY session-token nonce (same scheme as @xfs-TOKEN/ for source files):
+Proxy strips `@td/TOKEN/` from cache key → effective key is `@deps-TOKEN/react.js`.
+TOKEN is unique per Vite server session → cache key is unique per session → always a
+proxy MISS → server always serves fresh dep chunk content with CURRENT sibling-chunk
+cross-references → all dep chunks in a session use the same chunk versions → one React. ✓
 
 WHY strip ?v=HASH: dep chunks use RELATIVE imports internally without ?v=, so the browser
 resolves relative chunk refs to `.../dep.js` (no hash). Keeping ?v= would split the module
 registry between imports-with-hash and relative-without-hash.
 
 Regex: `"BASE/node_modules/.vite/deps/([^"?#]+)(?:\\?[^"]*)?"`  (group 1 = bare filename)
-Replacement: `"BASE/@td/deps/${filename}"`  (no token)
+Replacement: `"BASE/@td/${sessionToken}/@deps-${sessionToken}/${filename}"`
 
-Incoming request handler (in order — MUST check fixed before tokenized):
-  1. `tdDepsFixedRe` (`^BASE@td/deps/`) → strip → serve from `.vite/deps/` with body rewriting
+Incoming request handler order in vite.config.ts (MUST check fixed before tokenized):
+  1. `tdDepsFixedRe` (`^BASE@td/deps/`) → strip → serve from `.vite/deps/` (legacy backward compat)
   2. `tdDepsRe` (`^BASE@td/[^/]+/deps/`) → strip token+deps → serve from `.vite/deps/` (legacy fallback)
-  3. `tdPathRe` (`^BASE@td/[^/]+/`) → strip token → serve @fs/ source file
+  3. `tdDepsNonceRe` (`^BASE@td/[^/]+/@deps-[^/]+/`) → strip → serve from `.vite/deps/` (v8 nonce)
+  4. `tdPathRe` (`^BASE@td/[^/]+/`) → strip token → serve @fs/ source file
 
-When tokenized legacy dep-chunk URLs arrive (proxy-cached tabs with old scheme), the legacy
-`tdDepsRe` handler also serves the chunk with body rewriting active → cross-chunk refs inside
-that chunk are rewritten to `@td/deps/` (fixed) → dep chain unifies at chunk level. ✓
-
-### Layer 1c — relative cross-chunk imports in dep chunks rewritten to absolute fixed-path URLs
+### Layer 1c — relative cross-chunk imports in dep chunks rewritten to absolute nonce URLs
 Vite pre-bundled dep chunks reference sibling chunks with RELATIVE imports, e.g.:
   `import { require_react } from "./chunk-KC53NVYV.js";`
-The browser resolves relative imports relative to the SERVING URL base:
-  @td/deps/react.js          → @td/deps/chunk-KC53NVYV.js           ✓ (fixed)
-  @td/OLD_TOKEN/deps/react.js → @td/OLD_TOKEN/deps/chunk-KC53NVYV.js ✗ (old-token)
-Old-token dep chains propagate the token through every relative import in the chain →
-two separate require_react_development factories → two React objects → crash.
+The browser resolves relative imports relative to the SERVING URL base.
 
 FIX: in interceptText body transformer, when `url.includes("/.vite/deps/")` (we're serving
-a dep chunk), also rewrite every `"./CHUNK.js"` to `"/base/@td/deps/CHUNK.js"` (absolute,
-fixed). Applied AFTER the depsUrlRe pass so ALL cross-chunk references in dep chunks are
-fixed regardless of which URL prefix the dep chunk was requested at.
-Regex: `/"\.\/([^"?#]+\.js)(?:\?[^"]*)?"/g`  → `"${sessionBase}@td/deps/${filename}"`
+a dep chunk), also rewrite every `"./CHUNK.js"` to the current session nonce URL (absolute).
+Regex: `/"\.\/([^"?#]+\.js)(?:\?[^"]*)?"/g`  → `"${sessionBase}@td/${sessionToken}/@deps-${sessionToken}/${filename}"`
 
-Combined effect: any dep chunk served at ANY prefix (fixed or old-token legacy) has ALL its
-sibling chunk refs pointing to the same absolute fixed-path URLs → single dep chain → one
-React instance even after a hard refresh that hits stale proxy-cached source files. ✓
+Combined effect: any dep chunk served at ANY prefix (fixed, legacy, or nonce) has ALL its
+sibling chunk refs pointing to the CURRENT session's nonce URLs → single consistent dep
+chain → one React instance. ✓
 
 ### Layer 2 — entry-script path token in index.html
 The `<script type="module" src="...">` entry point is also rewritten with the session token.
@@ -258,77 +260,63 @@ per file → no React Refresh family conflict → hooks work correctly.
 
 **Scope:** Only source files in the dangerous 256KB–490KB zone. Tiny files (<256KB) are excluded
 because they only import from canonical dep chunks (no @fs/ sub-imports) so their proxy-cached
-content never causes dual-module issues. Dep chunks are excluded because they already use
-fixed canonical URLs.
+content never causes dual-module issues. Dep chunks are excluded because they use session-token
+nonce URLs.
 
 **Applied:** SeedStorePage.tsx (378KB → 512KB padded). No source file changes needed.
 
-### Layer 6 — Service Worker: normalize old-token dep-chunk AND source-file URLs (sw-v4.js)
+### Layer 6 — Service Worker: normalize all dep-chunk AND source-file URLs (sw-v7.js)
 
-**Four distinct proxy-cache problems addressed by the SW:**
+**Six distinct cases handled by the SW:**
 
-**Part A — dep-chunk identity split (fixed by dep-chunk normalization):**
-Replit's proxy caches ALL responses by URL path. When a source file is served from proxy
-cache it may embed `@td/OLD_TOKEN/deps/react.js`. The browser loads react.js at an old-token
-URL → separate module identity from the canonical `@td/deps/react.js` → two React instances.
-SW intercepts `@td/TOKEN/deps/FILE`, fetches canonical `@td/deps/FILE`, returns it directly.
+**Case 0 — raw Vite dep URLs** (`/base/node_modules/.vite/deps/FILE[?v=*]`):
+Source files proxy-cached BEFORE interceptText was added embed raw Vite pre-bundle URLs.
+SW redirects to current-session nonce: `@td/CURRENT/@deps-CURRENT/FILE`.
 
-**Part B — source-file identity split (fixed by source-file normalization in sw-v4.js):**
-The proxy caches source files with cache key stripped of `@td/TOKEN/`:
-  `/test-dashboard/@td/SESSION1/@fs/.../SeedStorePage.tsx`  → key: `@fs/.../SeedStorePage.tsx`
-SeedStorePage cached from SESSION1 embeds `@td/SESSION1/@fs/.../use-app-store.ts` (old token).
-App.tsx (served fresh) imports `use-app-store.ts` at `@td/SESSION2/@fs/.../use-app-store.ts`.
-Browser sees TWO different `use-app-store.ts` module URLs → two Zustand stores → `useAppStore()`
-from SeedStorePage's chain calls `useSyncExternalStore` in a context where the React dispatcher
-doesn't recognize it → "Invalid hook call".
+**Case 1 — legacy tokenised dep URLs** (`@td/OLD/deps/FILE`):
+Old-format dep URLs (before v8 nonce scheme). SW redirects to nonce URL.
 
-**Part C — raw Vite dep URLs from pre-interceptText proxy cache (sw-v4.js Case 0):**
-Source files proxy-cached BEFORE interceptText was added embed raw Vite pre-bundle URLs:
-  `import { create } from "/test-dashboard/node_modules/.vite/deps/zustand.js?v=OLD_HASH"`
-Those dep files contain RELATIVE chunk imports (`./chunk-KC53NVYV.js`) which the browser
-resolves to `node_modules/.vite/deps/chunk-KC53NVYV.js` — a DIFFERENT URL from the canonical
-`@td/deps/chunk-KC53NVYV.js` used by `react.js` and `react-dom_client.js` → two React instances
-→ "Invalid hook call". OLD_FS_RE only rewrites old-token source file URLS, not their dep imports.
-SW Case 0 intercepts `node_modules/.vite/deps/FILE` → redirects to canonical `@td/deps/FILE`.
+**Case 1b — canonical dep URLs** (`@td/deps/FILE`, no token):
+Source files from the v7-era (before dep nonce was added) embed canonical @td/deps/ URLs.
+SW redirects to nonce URL so always-fresh dep chunks are served.
 
-**Part D — current-token @xfs/ source files bypass OLD_FS_RE (sw-v4.js Case 3):**
-OLD_FS_RE has a negative lookahead excluding CURRENT_TOKEN URLs — it only rewrites old-token
-source file requests. But when SeedStorePage (proxy-cached, with current-token @xfs/ imports)
-imports `use-app-store.ts` at the current token, the SW does NOT intercept it. The proxy serves
-its cached `@xfs/use-app-store.ts` entry, which may be stale (from before interceptText). The
-stale `use-app-store.ts` has raw dep URLs → Part C cascade. Fix: Case 3 intercepts ALL
-current-token `@xfs/FILE` requests and fetches with `?_t=TOKEN` nonce, guaranteeing a proxy
-cache miss (unique URL per session) → Vite always serves fresh canonically-URL'd content. ✓
+**Case 1c — old-session nonce dep URLs** (`@td/OLD/@deps-OLD/FILE`):
+Source files from a PREVIOUS session that already used the v8 nonce scheme but with a
+different token. SW redirects to current-session nonce URL.
 
-**The SW reads its CURRENT_TOKEN from its own registration URL (`?v=SESSION_TOKEN`), then:**
-0. Intercepts `node_modules/.vite/deps/FILE[?v=*]` → fetches canonical `@td/deps/FILE` (Part C)
-1. Intercepts `@td/OLD_TOKEN/deps/FILE` → fetches `@td/deps/FILE` (Part A fix)
-2. Intercepts `@td/OLD_TOKEN/@[x]fs/FILE` where OLD_TOKEN ≠ CURRENT_TOKEN
-   → fetches `@td/CURRENT_TOKEN/@xfs/FILE?_t=TOKEN` (Part B fix with nonce; `@x?fs` handles both)
-3. Intercepts `@td/CURRENT_TOKEN/@xfs/FILE` → fetches same URL + `?_t=TOKEN` (Part D fix)
+**Case 2 — old-token source files** (`@td/OLD/@[x]fs/FILE`):
+Stale proxy-cached source files from a different session. SW rewrites to current-session
+path-nonce: `@td/CURRENT/@xfs-CURRENT/FILE`.
+
+**Case 3 — current-token source files** (`@td/CURRENT/@xfs/FILE`):
+Even current-session @xfs/ requests can hit stale proxy cache. SW fetches via nonce.
+
+**Case 4 — @react-refresh** (any URL containing `@react-refresh`):
+Returns inline no-op stub. Prevents real React Refresh from calling performReactRefresh()
+mid-render → would corrupt dispatcher → "Invalid hook call".
+
+**The SW reads its CURRENT_TOKEN from `self.location.search` (`?v=SESSION_TOKEN`).**
 
 **CRITICAL — ?_t=TOKEN query-string nonce does NOT work (v6 bug, fixed in v7):**
 The Replit proxy STRIPS query strings from cache keys for @xfs/ paths. So `@xfs/FILE?_t=TOKEN`
 has the SAME cache key as `@xfs/FILE` every session → always a proxy HIT → always stale.
 
-**v7 fix — path-based nonce (@xfs-TOKEN/ scheme):**
-SW fetches `@td/TOKEN/@xfs-TOKEN/FILE` instead of `@td/TOKEN/@xfs/FILE?_t=TOKEN`.
-Proxy strips `@td/TOKEN/` → cache key `@xfs-TOKEN/FILE`. TOKEN is unique per session →
-guaranteed proxy cache MISS → Vite serves fresh padded content → proxy cannot cache (512KB+). ✓
-Server middleware strips `/@xfs(?:-[^/]+)?\/` → `/@fs/` (regex handles both old and new scheme).
-SW Cases 2 AND 3 both use `@xfs-TOKEN/` fetch scheme. index.html registers sw-v7.js.
+**v7/v8 fix — path-based nonce (@xfs-TOKEN/ and @deps-TOKEN/ schemes):**
+SW fetches `@td/TOKEN/@xfs-TOKEN/FILE` for source files (proxy key = `@xfs-TOKEN/FILE`).
+SW fetches `@td/TOKEN/@deps-TOKEN/FILE` for dep chunks (proxy key = `@deps-TOKEN/FILE`).
+TOKEN is unique per session → guaranteed proxy cache MISS every session. ✓
 
-Negative lookahead on CURRENT_TOKEN in the regex prevents matching current-session URLs,
-avoiding infinite intercept loops. All source files converge on CURRENT_TOKEN URLs. ✓
+Server middleware strips `/@xfs(?:-[^/]+)?\/` → `/@fs/` and `@deps-[^/]+/` → `.vite/deps/`.
+index.html registers sw-v7.js (filename unchanged; content update triggers auto-reinstall).
 
 **CRITICAL: Do NOT use Response.redirect() for ES module imports.**
 Browsers do NOT follow SW-returned redirects (`Response.redirect(302)`) for ES module
-`import` statements. Use `fetch(canonicalUrl, { cache: 'no-store' })` instead.
+`import` statements. Use `fetch(nonceUrl, { cache: 'no-store' })` instead.
 
 **Files:**
-- `artifacts/test-dashboard/public/sw-v4.js` — current SW (dep + source-file normalization)
-- `artifacts/test-dashboard/index.html` — registers sw-v4.js (NOT type=module script)
-- `artifacts/test-dashboard/vite.config.ts` — middleware serving sw-v*.js + HTML rewriter
+- `artifacts/test-dashboard/public/sw-v7.js` — current SW with all 6 cases
+- `artifacts/test-dashboard/index.html` — registers sw-v7.js (NOT type=module script)
+- `artifacts/test-dashboard/vite.config.ts` — middleware + interceptText rewriting
 
 **Critical implementation notes:**
 
@@ -346,16 +334,16 @@ Browsers do NOT follow SW-returned redirects (`Response.redirect(302)`) for ES m
    with a browser-like tool that sends Origin headers, not just curl.
 
 3. **Inject session token into SW registration URL to bust proxy cache per session.**
-   The HTML body rewriter replaces `sw-v4.js` in the `register()` call with
-   `sw-v4.js?v=SESSION_TOKEN`. Each new Vite session → new token → new URL → proxy cache
-   miss → server serves fresh `application/javascript`. Middleware strips query params when
-   matching. **Never hardcode the SW filename in index.html** — it must receive the session
-   token query param from the server-side HTML rewriter. The SW reads its current token from
+   The HTML body rewriter replaces `sw-v7.js` in the `register()` call with
+   `sw-v7.js?v=SESSION_TOKEN`. Each new Vite session → new token → new URL → proxy cache
+   miss → server serves fresh `application/javascript`. The SW reads its current token from
    `self.location.search` (i.e. from the `?v=` param of its own registration URL).
 
 4. **SW scope and URL filters.**
    Scope = `/test-dashboard/`. Only intercepts same-origin requests. CURRENT_TOKEN-matching
    source-file URLs are excluded by negative lookahead to prevent infinite fetch loops.
+   Current-session dep nonce URLs (`@td/CURRENT/@deps-CURRENT/FILE`) are NOT intercepted by
+   SW — they pass through to the proxy which misses (unique URL) → server serves fresh. ✓
 
 5. **Auto-reload when controller is null (hard refresh + first visit recovery).**
    index.html inline script: register SW, then if `!navigator.serviceWorker.controller`,
@@ -366,327 +354,27 @@ Browsers do NOT follow SW-returned redirects (`Response.redirect(302)`) for ES m
 
 6. **skipWaiting() + clients.claim()** ensure the SW takes control immediately after activation.
 
-7. **Bump SW filename when changing SW behaviour** (sw-v3.js → sw-v4.js). This forces
-   browsers that have the old SW installed to register the new one and call skipWaiting().
-   The vite.config.ts regex `/sw(?:-v\d+)?\.js/` matches any version suffix automatically.
-
 ## React Refresh collision — ALL pages loaded eagerly (CRITICAL — found 2026-07-09)
 
 Dashboard App.tsx imports ALL pages statically (not lazy, except FlyTippingPage).
 React Refresh registers component families for EVERY page simultaneously. When two
 pages define a component with the SAME function name (e.g. `TabBar`, `EmptyState`,
 `ConfirmDialog`), React Refresh conflates their families → `performReactRefresh()`
-fires during the initial render → "Invalid hook call" on whichever component's first
-hook runs at that moment.
+fires during render → "Invalid hook call".
 
-**How to detect:** `grep -rn "^function X\|^export function X" .../pages/ --include="*.tsx"` for any name appearing in 2+ files → collision.
-
-**Fix:** Rename the local functions with a 2-4 char page prefix so each name is unique across the entire pages/ tree. For OrganicVenisonPage use `OV` prefix, VenisonProductionPage use `VP` prefix, etc.
-
-**Applied (2026-07-09):**
-- OrganicVenisonPage.tsx: TabBar→OVTabBar, TabButton→OVTabButton, SectionHeader→OVSectionHeader, EmptyState→OVEmptyState, FieldView→OVFieldView
-- VenisonProductionPage.tsx: TabBar→VPTabBar, TabButton→VPTabButton, SectionHeader→VPSectionHeader, EmptyState→VPEmptyState, KpiCard→VPKpiCard, FieldView→VPFieldView
-
-**Outstanding collisions (not yet renamed — may cause other page crashes):**
-- `ConfirmDialog` — 16 files (LivestockPage, FarmSettings, BeefProductionPage, SheepProductionPage, PigProductionPage, PoultryProductionPage, GoatProductionPage, ViticulturePage, BiofuelPage, CarbonPage, DiversificationPage, EnvironmentalPageFull, WaterIrrigationPage, FreshProducePage, SoilSensorsTab, FlocksTab)
-- `EmptyState` — still in BusinessReportsPage, OrganicArablePage, OrganicVenisonPage*, VenisonProductionPage*, SuppliersStock, HarvestPage, SprayPage
-- `DataTable` — 11 files; `StatusBadge` — 13 files; `StatCard` — 6 files; etc.
-
-**Rule:** When a new page is crashing with "Invalid hook call" and the SW is active and the file is large (>512KB), check for name collisions FIRST before investigating proxy cache issues.
-
-## HTML response must also have no-store (CRITICAL — fixed 2026-07-09)
-
-The `isModuleUrl` guard that overrides `Cache-Control: no-store` was missing HTML
-URL patterns (`rawUrl === "/"`, `rawUrl.endsWith("/")`, `/.html?/`). This meant the
-index.html response could be proxy-cached by Replit's proxy WITH the old tokenless SW
-registration URL baked in (`sw-v4.js` without `?v=TOKEN`). On the next session:
-1. Proxy serves old HTML → SW registered at tokenless `/test-dashboard/sw-v4.js`
-2. Proxy has a stale/bad cached response for that tokenless URL → 502
-3. SW fails to install → no intercept → SeedStorePage crashes ("Invalid hook call")
-
-**Fix:** Add HTML patterns to `isModuleUrl` in `vite.config.ts` so HTML also gets
-`Cache-Control: no-store`. Also bump the SW filename (sw-v4.js → sw-v5.js) to
-immediately bust any existing bad cached entry for the tokenless URL.
-
-**Rule:** Whenever the SW filename is bumped, ALSO ensure `isModuleUrl` covers HTML
-so the new tokenless URL never accumulates a bad proxy-cache entry.
-
-## Mid-render performReactRefresh() from lazy page compilation (CRITICAL — 2026-07-09)
-
-**Root cause:** Vite compiles source files LAZILY on first browser request. The test-dashboard
-has 98 pages all statically imported in App.tsx. Large pages (LivestockPage 500KB+) take 40–60
-seconds to compile on their first fetch. When Vite finishes compiling any file mid-session,
-`@react-refresh` calls `performReactRefresh()`. If ANOTHER component (e.g. `SeedStorePage`) is
-in the middle of its first render at that exact moment, the React dispatcher is in the wrong
-state → "Invalid hook call" at the first hook call in that component.
-
-**Symptom:** Crash ~44 seconds after page load, even with fresh session token, fresh source
-files, correct dep chunks, no dep re-optimisation. Babel deoptimise log in the workflow log
-fires ~44 seconds after the session starts (mid-session, not at startup).
-
-**Fix — two parts (both required in `vite.config.ts`):**
-
-1. **`server.warmup.clientFiles`**: list ALL page files from `artifacts/dashboard/src/pages/*.tsx`.
-   Vite pre-compiles them all at server startup, before the browser makes any requests.
-   → No more mid-session compilations → no spurious `performReactRefresh()`.
-
-2. **Strip `?_t=NONCE` from `req.url` before Vite sees it:**
-   The SW Case 3 appends `?_t=TOKEN` to source-file URLs to bust the proxy cache.
-   When the browser fetches `LivestockPage.tsx?_t=TOKEN`, Vite sees a new URL not in
-   its transform cache → recompiles the file → triggers `performReactRefresh()` again,
-   undoing the warmup benefit. Strip `?_t=` in the middleware (after the `/@td/` strip
-   but before the URL reaches Vite's pipeline) → Vite reuses the warmed-up module. ✓
-
-   Added before the existing `?td=TOKEN` strip block:
-   ```ts
-   if ((req.url as string)?.includes("_t=")) {
-     req.url = (req.url as string)
-       .replace(/[?&]_t=[^&]*/g, "")
-       .replace(/\?&/g, "?")
-       .replace(/[?&]$/g, "") || "/";
-   }
-   ```
-
-**Side effect of _t strip:** `createHotContext` module IDs are now clean paths without the
-nonce (e.g. `"/@fs/.../SeedStorePage.tsx"` not `"/@fs/.../SeedStorePage.tsx?_t=TOKEN"`).
-React Refresh family IDs are stable across sessions. ✓
-
-**Rule:** Whenever a new page is added to `artifacts/dashboard/src/pages/`, add it to the
-`server.warmup.clientFiles` list in `artifacts/test-dashboard/vite.config.ts`. The list is
-maintained manually (not glob-generated) because the config is a static file.
-
-## @react-refresh no-op stub — definitive fix for performReactRefresh() crashes
-
-**Root cause of all `performReactRefresh()` triggered crashes:**
-`registerExportsForReactRefresh(filename, currentExports)` (line 604 of the real `@react-refresh`)
-calls `performReactRefresh()` every time ANY compiled module is evaluated by the browser.
-This fires both at startup (warmup) AND when the browser fetches each source file URL.
-If a component is mid-render when this fires, React's dispatcher is corrupted → "Invalid hook call".
-
-**Definitive fix:** Intercept `/@react-refresh` in the configureServer middleware and return a
-no-op ES module stub instead of the real React Refresh runtime. The test-dashboard is a demo/test
-viewer — not a development environment — so HMR is not needed.
-
-**The stub must export ALL these symbols (v5 @vitejs/plugin-react):**
-- `injectIntoGlobalHook(globalObj)` — sets `$RefreshReg$` and `$RefreshSig$` as no-ops
-- `register(type, id)` — no-op
-- `createSignatureFunctionForTransform()` — returns `(type) => type`
-- `__hmr_import(moduleId)` — **MUST return `Promise.resolve({})`** — called by compiled preamble
-  as `RefreshRuntime.__hmr_import(import.meta.url).then(currentExports => ...)`. Missing this
-  export causes `RefreshRuntime.__hmr_import is not a function` crash.
-- `registerExportsForReactRefresh(filename, moduleExports)` — no-op, intentionally NO
-  `performReactRefresh()` call
-- `validateRefreshBoundaryAndEnqueueUpdate(prevExports, nextExports)` — returns `null`
-- `default` export: object with all of the above
-
-**Location in vite.config.ts:** Step 4 (before the interceptText step, after the SW file step).
-Intercept: `if ((req.url as string)?.includes("/@react-refresh"))`.
-
-**Interaction with warmup:** warmup pre-compiles pages at startup (before browser requests).
-The no-op stub means those compilations don't call `performReactRefresh()`. Both fixes are
-kept in place for defence-in-depth.
-
-## Mid-render dep discovery via missing use-sync-external-store dep chunks
-
-**Root cause (2026-07-09):** `zustand/traditional.mjs` and `@uppy/react` both import
-`use-sync-external-store/shim/with-selector` and `use-sync-external-store/with-selector.js`.
-This package is NOT hoisted to `artifacts/test-dashboard/node_modules/` or
-`artifacts/dashboard/node_modules/`. Without it in `optimizeDeps.include`:
-1. A stale proxy-cached source file requests `@td/deps/use-sync-external-store_shim_with-selector.js`
-2. Vite: "file does not exist" → triggers dep re-optimisation → browserHash changes → chunk names change
-3. `vite:beforeFullReload` → `regenToken()` → split module graph → two React instances → "Invalid hook call"
-
-**Fix:**
-- Add regex aliases for all `use-sync-external-store` sub-paths pointing to the pnpm
-  virtual-store path (dynamically resolved via `fs.realpathSync` from zustand's real path):
-  ```ts
-  { find: /^use-sync-external-store\/shim\/with-selector(?:\.js)?$/, replacement: ses("shim/with-selector.js") },
-  { find: /^use-sync-external-store\/shim(?:\/index(?:\.js)?)?$/,    replacement: ses("shim/index.js") },
-  { find: /^use-sync-external-store\/with-selector(?:\.js)?$/,       replacement: ses("with-selector.js") },
-  { find: /^use-sync-external-store(?:\/index(?:\.js)?)?$/,          replacement: ses("index.js") },
-  ```
-- Add all four variants + `zustand/traditional` to `optimizeDeps.include` and `dedupe`
-
-**CRITICAL: must use REGEX aliases, NOT string aliases.**
-String aliases use `startsWith()` matching: `"use-sync-external-store"` also matches
-`"use-sync-external-store/with-selector.js"` → replacement becomes `.../index.js/with-selector.js`
-(path does not exist → same crash). Regex aliases use `id.replace(regex, replacement)` which
-matches the FULL string exactly.
-
-**Result:** All four dep chunks (`use-sync-external-store.js`, `_shim.js`, `_with-selector.js`,
-`_shim_with-selector.js`) pre-bundled at startup. No mid-render dep discovery possible.
-React factory chunk (`chunk-KC53NVYV.js`) name is STABLE after adding these new includes.
-
-## Proxy-cached real @react-refresh bypasses server-side stub (CRITICAL — Layer 7)
-
-**Root cause:** The Replit proxy caches the **real** `@react-refresh` module under the cache
-key `/test-dashboard/@react-refresh` from a session that predated our no-op stub.
-When the browser requests the bare `/test-dashboard/@react-refresh` URL, the proxy serves
-the cached real module — our server-side stub intercept at Step 4 is **never reached**.
-The real module calls `performReactRefresh()` mid-render → "Invalid hook call" at
-`useAppStore()` in SeedStorePage, even though `curl localhost:18652/.../test-dashboard/@react-refresh`
-correctly shows our stub (localhost bypasses the proxy).
-
-**Symptom:** Crash persists after stub was added; stub verified server-side via curl; crash
-still deterministic at SeedStorePage:447; delay is ~40-170s (Clerk init + first heavy render).
-
-**Why crash is delayed ~60s (not immediate):** The real `@react-refresh`'s `injectIntoGlobalHook()`
-wraps `window.__REACT_DEVTOOLS_GLOBAL_HOOK__` to intercept ALL React commits and call
-`performReactRefresh()` after each. This includes re-renders triggered by Clerk's session
-verification completing (~60s after load). When ClerkProvider context updates → React commit →
-`performReactRefresh()` fires → corrupts React's concurrent fiber state → next render of
-SeedStorePage throws "Invalid hook call" at the first hook call (`useAppStore()`).
-
-**Fix A (vite.config.ts interceptText):** Rewrite the `@react-refresh` import URL in every
-compiled source file from a bare path to a session-tokenized `@xfs/` path:
+**ALWAYS grep for name collisions FIRST** before investigating cache/proxy issues:
 ```
-"/test-dashboard/@react-refresh"
-  →  "/test-dashboard/@td/TOKEN/@xfs/@react-refresh"
+grep -rn "^export default function\|^function [A-Z]" artifacts/dashboard/src/pages/ --include="*.tsx" | grep -oP "function \K[A-Z][a-zA-Z]+" | sort | uniq -d
 ```
-Code added after the `fsUrlRe` rewrite block:
-```ts
-result = result.replace(
-  `"${sessionBase}@react-refresh"`,
-  `"${sessionBase}@td/${sessionToken}/@xfs/@react-refresh"`,
-);
-```
-Proxy strips `@td/TOKEN/` → cache key `@xfs/@react-refresh` — never seen before → proxy MISS
-→ reaches Vite → Step 4 intercept fires → stub returned → proxy caches STUB for all future
-sessions. ✓ This handles NEWLY served source files.
+Any name appearing 2+ times across all page files is a collision candidate.
 
-**Fix B (sw-v6.js Case 4 — the decisive fix):** SW Case 4 intercepts ANY URL containing
-`@react-refresh` and returns the no-op stub **inline** (no network, no proxy). This handles:
-- Bare URLs: `/test-dashboard/@react-refresh` (proxy-cached old source files)
-- Tokenized URLs: `/test-dashboard/@td/TOKEN/@xfs/@react-refresh` (fresh files via interceptText)
+## Dep chunk internals — key chunk names (React 19.1.0)
 
-Case 4 is placed FIRST (before Cases 0-3) so it fires immediately without any network round-trip.
-The inline `REACT_REFRESH_STUB` string constant is returned as `new Response(stub, { 'Content-Type':
-'application/javascript' })`. ✓
+- `chunk-KC53NVYV.js` — React CJS implementation (require_react_development). Contains FULL React source.
+- `chunk-RCACXQ3E.js` — Zustand vanilla store (createStore)
+- `chunk-G3PMV62Z.js` — CommonJS helpers (__commonJS, __toESM, etc.)
+- `react.js` — thin re-export: `import { require_react } from chunk-KC53NVYV.js; export default require_react();`
+- `zustand.js` — imports require_react from chunk-KC53NVYV.js (SAME chunk as react.js → one React)
 
-**Fix C (index.html version-aware reload):** The SW controller check was upgraded from
-`!ctrl` to `!ctrl || !ctrl.scriptURL.includes('sw-v6')`. This forces a reload whenever an OLD
-SW version (sw-v5.js etc.) is controlling the page, ensuring sw-v6.js (with Case 4) is always
-fully in control before any module scripts execute.
-
-**Why curl vs browser behaves differently:** curl hits `localhost:18652` directly (bypasses
-proxy → stub served). Browser hits `*.replit.dev` (goes through proxy → cached real module
-served). Always verify proxy behaviour from the browser perspective, not curl.
-
-**Rule:** SW inline response (no network) is the ONLY reliable way to intercept a URL when the
-proxy may have the real module cached. A server-side stub is insufficient if the proxy serves
-the cached real module before the request reaches the server.
-
-## What NOT to do
-- Do NOT look for a hooks violation in the component source — the component code is correct.
-- Do NOT add `optimizeDeps.force:true` — it re-hashes chunks on every restart, making
-  the proxy caching problem worse.
-- Do NOT put a locally-defined hook-heavy tab component inside `<TabsContent>` (Radix
-  Presence) — render it OUTSIDE the `<Tabs>` block with a conditional render instead.
-- Do NOT leave `export function SameName` in a module that is indirectly loaded alongside
-  the consumer — same-named component registrations across modules confuse React Refresh.
-
-## Babel compile failure → stale HMR state (post-resolution note)
-
-When `vite:react-babel` fails to compile a source file (e.g. due to a duplicate
-`export { X }` re-export before the function declaration), Vite sends an error event
-via WebSocket. The browser's ES module cache may retain the previously-compiled module,
-which can have MISMATCHED React Refresh signatures vs the current running code.
-
-Even after the compilation error is fixed and a new HMR update arrives, the browser
-can remain in a bad state (hooks counter mismatch → "Invalid hook call") if it has
-a mix of old and new compiled modules in its cache.
-
-**Fix for this scenario**: Restart the test-dashboard workflow. The startup script
-clears `node_modules/.vite`, which regenerates the session token on next start, 
-forcing the browser to reload all modules fresh — any stale HMR state is cleared.
-
-**Key diagnostic**: if the error is deterministic (always on first render of the
-specific component) but all dep chunks share the same session token and there are
-0 "discovered" deps in _metadata.json, the cause is stale HMR module state, not
-a live dep re-optimization race. Restart the server to clear it.
-
-## SPA-route HTML proxy caching — definitive root cause (July 2026)
-
-**Root cause confirmed:** The Replit proxy caches HTML responses keyed by URL path. The
-`isModuleUrl` guard that forces `Cache-Control: no-store` was exhaustive for module URLs
-(`/@td/`, `/.vite/deps/`, `/@vite/`, etc.) and for the root HTML (`rawUrl === "/"`,
-`rawUrl.endsWith("/")`), but MISSED deep SPA routes like `/test-dashboard/seed-store`.
-
-When the user hard-refreshed directly on `/test-dashboard/seed-store`:
-1. Proxy served STALE HTML (cached from a previous session that had `fastRefresh:true`)
-2. Stale HTML contained the React Refresh preamble + old session token in entry-script URL
-3. Old session token → stale `main.tsx` served from proxy (another uncached URL) → two
-   `use-app-store.ts` module identities → two Zustand store instances
-4. The combination of stale preamble side-effects + long LivestockPage.tsx compile time
-   (69 seconds, exhausting React's dispatcher during the initial render) triggered
-   "Invalid hook call" at SeedStorePage line 522 (`useAppStore()`)
-
-**Fix applied (both belt and suspenders):**
-1. Added `(basePath != null && rawUrl.startsWith(basePath))` catch-all to `isModuleUrl`
-   in `vite.config.ts` — ensures ALL responses under `/test-dashboard/` (including every
-   SPA route) have `res.setHeader` and `res.writeHead` patched to force `Cache-Control: no-store`
-2. Added explicit `res.setHeader("Cache-Control", "no-store")` inside the `text/html`
-   branch of `interceptText` as an additional layer, in case Vite sends headers before
-   the patched `setHeader` fires.
-
-**Rule:** Whenever `isModuleUrl` patterns are reviewed, always verify that deep SPA routes
-(paths under basePath without extensions) are covered. The safe default is the catch-all
-`rawUrl.startsWith(basePath)`.
-
-## FINAL FIX: fastRefresh:false + performReactRefresh in stubs (July 2026)
-
-**Root cause (confirmed):** Two bugs together caused "Invalid hook call" on SeedStorePage:
-
-1. **Missing `performReactRefresh` on stub default export.** Per-file React Refresh
-   preambles (injected by @vitejs/plugin-react) call `RefreshRuntime.performReactRefresh()`
-   where `RefreshRuntime` is the `default` export of `@react-refresh`. Both the SW inline
-   stub AND the server-side stub had `performReactRefresh` missing from their default export
-   objects. Calling `undefined()` threw a TypeError that could corrupt React's error handling
-   during navigation.
-
-2. **Per-file preambles firing after React's initial render.** Even with the stub, preambles
-   from source files loaded lazily (by the browser's module loader after initial render) kept
-   scheduling `performReactRefresh()` calls via `setTimeout`. These raced with active renders.
-
-**Diagnostic clue:** Browser logs showed `[TD server] @react-refresh no-op stub loaded`
-AND `[TD sw-v7] @react-refresh no-op stub loaded` within the SAME page load. This revealed
-a SW-activation race: the HTML inline preamble's raw `@react-refresh` import fired before
-the SW was active (→ server), while source-file preambles (loaded later as modules) were
-intercepted by SW. So the "first" @react-refresh was always server-served. Also showed
-the extra `@react-refresh` load AFTER the React DevTools message — a lazy source file's
-preamble ran post-initial-render.
-
-**Fix applied:**
-1. Added `export function performReactRefresh() {}` and included it in the `default` export
-   of BOTH stubs (sw-v7.js inline stub AND server-side stub in vite.config.ts).
-2. Added `fastRefresh: false` to the `react()` plugin in vite.config.ts. This eliminates
-   ALL per-file React Refresh preambles from compiled source files. No more `@react-refresh`
-   imports from source files. No more `performReactRefresh()` calls anywhere.
-   Side effect: eliminates the double `@vite/client` instance (the HTML inline preamble
-   that was injecting the second tokenized @vite/client script is also removed).
-
-**Verified:** SeedStorePage `/seed-store` renders correctly. Browser logs show:
-- Single `[vite] connecting...` / `[vite] connected.` (ONE @vite/client)
-- Only `[TD sw-v7]` stubs (SW in control from start)
-- No crash, no reload loop, no error overlay
-
-**Rule:** `@react-refresh` stub default export MUST include `performReactRefresh: function(){}`.
-The test-dashboard never needs HMR; keep `fastRefresh: false` permanently.
-
-## Confirmed-working state (sw-v7 + fastRefresh:false + performReactRefresh no-op)
-
-Verified July 2026: SeedStorePage renders correctly end-to-end. Browser logs confirm:
-- Single `[vite] connecting...` / `[vite] connected.` — ONE @vite/client instance ✓
-- `[TD sw-v7] @react-refresh no-op stub loaded (SW inline)` × 1-2 — only SW stubs ✓
-
-### Dep-chunk React chain (all confirmed sharing chunk-KC53NVYV.js):
-- react.js → chunk-KC53NVYV.js ✓
-- react-dom_client.js → chunk-KC53NVYV.js + chunk-AE322PLF.js + chunk-OUZEF5U7.js ✓
-- @tanstack_react-query.js → chunk-KC53NVYV.js ✓
-- zustand.js → chunk-KC53NVYV.js ✓
-- wouter.js → chunk-KC53NVYV.js ✓
-
-ONE React instance. Wouter renders components via `createElement(component, { params })`
-(proper React render, not direct function call). SeedStorePage is a STATIC import
-in App.tsx (unlike most pages which are React.lazy). This is fine — the module evaluates
-at startup but only RENDERS when the route matches.
+After v8 fix, ALL cross-chunk imports in dep chunks use session-token nonce URLs
+`@td/TOKEN/@deps-TOKEN/CHUNK.js` → proxy cannot serve mixed-session content. ✓
