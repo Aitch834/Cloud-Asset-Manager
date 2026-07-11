@@ -605,6 +605,34 @@ specific component) but all dep chunks share the same session token and there ar
 0 "discovered" deps in _metadata.json, the cause is stale HMR module state, not
 a live dep re-optimization race. Restart the server to clear it.
 
+## SPA-route HTML proxy caching — definitive root cause (July 2026)
+
+**Root cause confirmed:** The Replit proxy caches HTML responses keyed by URL path. The
+`isModuleUrl` guard that forces `Cache-Control: no-store` was exhaustive for module URLs
+(`/@td/`, `/.vite/deps/`, `/@vite/`, etc.) and for the root HTML (`rawUrl === "/"`,
+`rawUrl.endsWith("/")`), but MISSED deep SPA routes like `/test-dashboard/seed-store`.
+
+When the user hard-refreshed directly on `/test-dashboard/seed-store`:
+1. Proxy served STALE HTML (cached from a previous session that had `fastRefresh:true`)
+2. Stale HTML contained the React Refresh preamble + old session token in entry-script URL
+3. Old session token → stale `main.tsx` served from proxy (another uncached URL) → two
+   `use-app-store.ts` module identities → two Zustand store instances
+4. The combination of stale preamble side-effects + long LivestockPage.tsx compile time
+   (69 seconds, exhausting React's dispatcher during the initial render) triggered
+   "Invalid hook call" at SeedStorePage line 522 (`useAppStore()`)
+
+**Fix applied (both belt and suspenders):**
+1. Added `(basePath != null && rawUrl.startsWith(basePath))` catch-all to `isModuleUrl`
+   in `vite.config.ts` — ensures ALL responses under `/test-dashboard/` (including every
+   SPA route) have `res.setHeader` and `res.writeHead` patched to force `Cache-Control: no-store`
+2. Added explicit `res.setHeader("Cache-Control", "no-store")` inside the `text/html`
+   branch of `interceptText` as an additional layer, in case Vite sends headers before
+   the patched `setHeader` fires.
+
+**Rule:** Whenever `isModuleUrl` patterns are reviewed, always verify that deep SPA routes
+(paths under basePath without extensions) are covered. The safe default is the catch-all
+`rawUrl.startsWith(basePath)`.
+
 ## FINAL FIX: fastRefresh:false + performReactRefresh in stubs (July 2026)
 
 **Root cause (confirmed):** Two bugs together caused "Invalid hook call" on SeedStorePage:

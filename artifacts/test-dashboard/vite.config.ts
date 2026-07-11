@@ -294,7 +294,13 @@ function reconnectReloadPlugin(sessionBase: string) {
           /\/src\/[^?]+\.(tsx?|jsx?|js)/.test(rawUrl) ||
           rawUrl === "/" ||
           rawUrl.endsWith("/") ||
-          /\.html?(\?|$)/.test(rawUrl);
+          /\.html?(\?|$)/.test(rawUrl) ||
+          // Catch-all: every URL under the test-dashboard base path (including
+          // SPA fallback routes like /test-dashboard/seed-store) must get
+          // Cache-Control: no-store so the Replit proxy never caches HTML
+          // responses that contain session-token-embedded entry-script URLs
+          // or React Refresh preambles from a previous fastRefresh:true build.
+          (basePath != null && rawUrl.startsWith(basePath));
 
         if (isModuleUrl) {
           const origSet = (res.setHeader as Function).bind(res);
@@ -631,6 +637,14 @@ export default {
             return result;
           }
           if (ct.includes("text/html")) {
+            // Belt-and-suspenders: force no-store on ALL HTML responses,
+            // even if the isModuleUrl path-based guard didn't catch this URL
+            // (e.g. deep SPA routes like /test-dashboard/seed-store).
+            // This prevents the Replit proxy from caching HTML that embeds
+            // a session token or a React Refresh preamble.
+            if (!res.headersSent) {
+              res.setHeader("Cache-Control", "no-store");
+            }
             // Rewrite the entry-script src with a path-based session token.
             let htmlResult = body.replace(
               scriptSrcRe,
