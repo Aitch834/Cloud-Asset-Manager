@@ -604,3 +604,24 @@ forcing the browser to reload all modules fresh — any stale HMR state is clear
 specific component) but all dep chunks share the same session token and there are
 0 "discovered" deps in _metadata.json, the cause is stale HMR module state, not
 a live dep re-optimization race. Restart the server to clear it.
+
+## Confirmed-working state (sw-v7 + @react-refresh no-op)
+
+Verified July 2026: SeedStorePage renders correctly end-to-end. Browser logs confirm:
+- `[TD server] @react-refresh no-op stub loaded (server-side)` — first load (pre-SW)
+- `[TD sw-v7] @react-refresh no-op stub loaded (SW inline)` — subsequent loads (post-SW claim)
+
+The two-connection sequence (`[vite] connecting...` × 2) is expected: first load goes
+direct to server, then `clients.claim()` activates the SW which reconnects the Vite WS.
+
+### Dep-chunk React chain (all confirmed sharing chunk-KC53NVYV.js):
+- react.js → chunk-KC53NVYV.js ✓
+- react-dom_client.js → chunk-KC53NVYV.js + chunk-AE322PLF.js + chunk-OUZEF5U7.js ✓
+- @tanstack_react-query.js → chunk-KC53NVYV.js ✓
+- zustand.js → chunk-KC53NVYV.js ✓
+- wouter.js → chunk-KC53NVYV.js ✓
+
+ONE React instance. Wouter renders components via `createElement(component, { params })`
+(proper React render, not direct function call). SeedStorePage is a STATIC import
+in App.tsx (unlike most pages which are React.lazy). This is fine — the module evaluates
+at startup but only RENDERS when the route matches.
