@@ -26,7 +26,7 @@ const FARM_TYPES = [
 
 const MODULES = [
   { id: "field-crop-management", label: "Field & Crop Management (spray records, field journal, varieties)" },
-  { id: "sprays-inputs", label: "Sprays & Inputs (spray application records with GRN-linked batch traceability, PA certificate auto-fill, withholding period alerts, IPM Plans, LERAP Assessments)" },
+  { id: "sprays-inputs", label: "Sprays & Inputs (spray application records with GRN-linked batch traceability, PA certificate auto-fill, withholding period alerts, IPM Plans, LERAP Assessments, Beekeeper & Neighbour Notification Log with 48-hour lead time check and printable letters)" },
   { id: "soil-management", label: "Soil Management (NMP, NVZ, sampling, soil sensors)" },
   { id: "livestock-management", label: "Livestock & Feed Management (BCMS & LIS submissions, LIS LIP cattle submission via OAuth, individual animal linking, Bluetooth RFID scanning, lambing records with perinatal ABP disposal, season analytics, date-validated forms, staff/assessor name auto-populates, BVD Testing Register, Johne's Disease Monitoring Register, Casualty/Emergency Slaughter Records with mobile capture, Dairy Management with DCT — POM-V enforcement, VMD medicine database, Vet Ledger finance trail)" },
   { id: "biosecurity", label: "Biosecurity & Visitors (visitor log with digital signature & photo/document attachments, pest control with attachments, COSHH with SDS photo, cleaning & disinfection with photo evidence, biosecurity plan)" },

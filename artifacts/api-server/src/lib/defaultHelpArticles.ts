@@ -128,6 +128,8 @@ const TITLES: [string, string][] = [
   ["Purchase Orders — Raising and Managing POs", "Financial"],
   ["Goods Received Notes (GRN) — Logging Deliveries and Linking to POs", "Financial"],
   ["Batch & Lot Traceability in Spray Application Records", "Sprays & Inputs"],
+  ["Spray Notifications — Beekeeper & Neighbour Notification Log", "Sprays & Inputs"],
+  ["Bee Precaution Flag — Product Register & 48-Hour Planner Alerts", "Sprays & Inputs"],
   ["Farm Planner — Week Ahead & Month Ahead View", "Planning"],
   ["Grants & Funding Register — Tracking FETF and Scheme Applications", "Financial"],
   ["Inspections Module — Tabs, Non-Conformances and Farm Assurance Certificates", "Inspections"],
@@ -1029,6 +1031,7 @@ const CONTENT: [string, string][] = [
 <li>Agri-environment management deadlines from the Environmental module</li>
 <li>Tasks due on specific dates from the Task Board</li>
 <li>Equipment MOT and NSTS calibration due dates</li>
+<li><strong>Beekeeper notification deadlines</strong> — when a spray application uses a product marked as harmful to bees (🐝 flag set in the Product Register) and no notification has yet been logged for that application, an amber card appears in the planner due-dated 48 hours before the spray date with a direct link to Sprays &amp; Inputs → Notifications; once a notification is logged the card disappears automatically</li>
 </ul>
 <h3>Printing the planner</h3>
 <p>Use the Print button to produce a formatted week or month planner suitable for pinning in the office or farm office.</p>`,
@@ -2258,6 +2261,52 @@ const CONTENT: [string, string][] = [
 <p>If a product recall is issued by the manufacturer or CRD (Chemicals Regulation Directorate), you can immediately identify all fields where that batch was used — by searching for the batch number across spray application records. This is the evidence needed to notify your buyer, implement any required management actions, and demonstrate that potentially affected crops have been identified.</p>
 <h3>Manual batch entry</h3>
 <p>If the product was not received through the GRN system, you can enter the batch number manually in the spray application record. The batch number field is not optional for products applied to food crops.</p>`,
+  ],
+  // Spray Notifications — Beekeeper & Neighbour Notification Log
+  [
+    "How to record pre-spray notifications to beekeepers and neighbouring landowners in BDE Farm Trac, including the 48-hour lead time check, contact book, and printable notification letter.",
+    `<h2>Spray Notifications — Beekeeper & Neighbour Notification Log</h2>
+<p>Red Tractor Combinable Crops, Fresh Produce, and Horticulture standards require you to document that beekeepers and neighbouring landowners were notified before applying products harmful to bees or near a boundary. BDE Farm Trac's Notification Log provides a complete, auditable record of every communication made.</p>
+<h3>Which products require notification?</h3>
+<p>Not all sprays — only those whose product label carries a "harmful to bees" or bee precaution statement. This primarily covers insecticides (pyrethroids, organophosphates, neonicotinoids where still approved, carbamates) and a small number of fungicides applied during flowering. Herbicides and most fungicides do not require beekeeper notification, though courtesy notice to neighbouring landowners before any boundary application is good practice. Check the product label — if it carries a bee precaution statement, tick the <strong>🐝 Harmful to Bees</strong> flag in the Product Register. This is the trigger for all planner alerts described below.</p>
+<h3>How to log a notification</h3>
+<p>Navigate to <strong>Sprays &amp; Inputs → Notifications</strong> and click <strong>Log Notification</strong>. Complete the following:</p>
+<ul>
+<li><strong>Notification date:</strong> the date you gave notice — must be at least 48 hours before the planned spray date.</li>
+<li><strong>Planned spray date:</strong> enter this to activate the 48-hour lead time check. The system shows a green badge ("✓ X days notice") or a red warning ("⚠ Under 48-hour notice") immediately.</li>
+<li><strong>Recipient type:</strong> Beekeeper, Neighbour, or Other.</li>
+<li><strong>Recipient name and contact:</strong> phone number or email address of the person notified.</li>
+<li><strong>Recipient address:</strong> postal address — used to auto-fill the printable notification letter.</li>
+<li><strong>Contact method:</strong> Phone, Email, Letter, In-person, or Text.</li>
+<li><strong>Products notified:</strong> list the products you mentioned in the notification.</li>
+<li><strong>Fields / areas:</strong> the fields or parcels where spraying is planned.</li>
+<li><strong>Linked spray application:</strong> optionally link to an existing spray application record for full audit trail.</li>
+<li><strong>Confirmation received:</strong> tick once the recipient acknowledges the notification. Enter the confirmation date, method, and reference.</li>
+</ul>
+<h3>Contact Book</h3>
+<p>Save your regular beekeepers and neighbouring landowners in the <strong>Contact Book</strong> (the button sits alongside Log Notification). Each contact stores their type, name, phone/email, and postal address. When logging a new notification, open the quick-pick dropdown to select a saved contact — all fields pre-fill instantly so repeat notifications take seconds rather than minutes.</p>
+<h3>The 48-hour lead time check</h3>
+<p>The summary panel at the top of the Notifications tab shows a red card titled <em>Under 48hr Notice</em> if any notification in the log has fewer than 48 hours between the notification date and the planned spray date. Each notification row carries a colour-coded badge — green for compliant, red for short notice. Red Tractor assessors will look at the gap between these two dates; the badge makes the status immediately clear.</p>
+<h3>Printable notification letter</h3>
+<p>Click the printer icon on any notification row to generate a formal, A4-ready notification letter. The letter is pre-filled with your farm name, address, and CPH number from Farm Settings, addressed to the recipient using the address you entered, and includes a table of the planned spray details (date, products, fields). Beekeeper letters ask for hive precautions to be taken; neighbour letters reference the Voluntary Initiative Code of Practice. The letter opens in a standard print dialog — no additional software needed. Print a copy for your records and post or hand deliver the original.</p>
+<h3>BeeConnected</h3>
+<p>An information panel at the top of the Notifications tab links to <a href="https://www.beeconnected.org.uk" target="_blank">BeeConnected</a> — the free BBKA / Bayer service that automatically alerts registered beekeepers by radius when you log a planned spray. Register once at beeconnected.org.uk and enter your field boundaries; the service then handles automatic beekeeper notification electronically. Use the BDE Farm Trac Notification Log to document any beekeepers not registered with BeeConnected and all neighbouring landowner notifications.</p>
+<h3>Mobile quick-entry</h3>
+<p>The mobile app includes a Spray Notification screen for quick in-field logging. Select the recipient type, enter the name and contact, choose the method, and save. The record syncs to the dashboard when connectivity is restored.</p>`,
+  ],
+  // Bee Precaution Flag — Product Register & 48-Hour Planner Alerts
+  [
+    "How to mark a spray product as harmful to bees in the Product Register, and how the 48-hour notification deadline then surfaces automatically in the Week Ahead Planner.",
+    `<h2>Bee Precaution Flag — Product Register & 48-Hour Planner Alerts</h2>
+<p>BDE Farm Trac's bee precaution system connects three things — the product label, the spray application calendar, and the Week Ahead Planner — so that the 48-hour notification requirement is flagged proactively rather than checked after the fact.</p>
+<h3>Step 1 — Mark the product in the Product Register</h3>
+<p>Navigate to <strong>Sprays &amp; Inputs → Product Register</strong> and open or add the product. The form includes a <strong>🐝 Harmful to Bees (Bee Precaution)</strong> checkbox with an amber highlight when ticked. Tick this if the product label carries a "harmful to bees", "do not apply when bees are foraging", or similar bee precaution statement. Once saved, a 🐝 icon appears on the product row in the register and an amber banner is shown inside the product detail panel as a persistent reminder. Products without the flag set are treated as not requiring beekeeper notification.</p>
+<h3>Step 2 — Log a spray application with a future date</h3>
+<p>When a spray application is logged using a bee-precaution product and the application date is in the future (or within the planner's look-ahead window), the system automatically checks whether a notification has been recorded in the Notification Log for that application.</p>
+<h3>Step 3 — Week Ahead Planner alert</h3>
+<p>If no notification is found, an amber event card appears in the <strong>Farm Planner → Week Ahead</strong> view titled <em>Beekeeper Notification Required — [Product Name]</em>. The card is due-dated 48 hours before the planned spray date — the notification deadline. The description states the spray date and links directly to <strong>Sprays &amp; Inputs → Notifications</strong> so you can log the notification immediately. If the deadline has already passed without a notification being logged, the card appears in the overdue section in red. Once a notification is logged for the application, the planner card disappears automatically on the next refresh.</p>
+<h3>Assigning the notification task</h3>
+<p>Every planner card, including bee-precaution notification reminders, has an <strong>Assign</strong> button. This opens the task assignment panel where you can delegate the notification to a named staff member with an SMS alert sent immediately. The assignment tracks pending / in-progress / completed status on the Task Board.</p>`,
   ],
   // 110 — Farm Planner — Week Ahead & Month Ahead View
   // 106 — Farm Planner — Week Ahead & Month Ahead View

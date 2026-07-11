@@ -54,11 +54,12 @@ export default function SprayNotificationScreen() {
   const [saving, setSaving] = useState(false);
 
   const [notificationDate, setNotificationDate] = useState(new Date().toISOString().slice(0, 10));
+  const [plannedSprayDate, setPlannedSprayDate] = useState("");
   const [recipientType, setRecipientType] = useState<RecipientType>("beekeeper");
   const [recipientName, setRecipientName] = useState("");
   const [recipientContact, setRecipientContact] = useState("");
   const [method, setMethod] = useState<Method>("phone");
-  const [confirmationReceived, setConfirmationReceived] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
   const [notes, setNotes] = useState("");
 
   const save = async () => {
@@ -71,18 +72,19 @@ export default function SprayNotificationScreen() {
     try {
       const res = await apiFetch(`/api/farms/${farmId}/spray-notifications`, "POST", {
         notificationDate,
+        plannedSprayDate: plannedSprayDate || null,
         recipientType,
         recipientName: recipientName || null,
         recipientContact: recipientContact || null,
-        notificationMethod: method,
-        confirmationReceived,
+        contactMethod: method,
+        confirmed,
         notes: notes || null,
       });
       if (!res.ok) throw new Error("Server error");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Notification Logged", "The spray notification has been recorded.", [
         { text: "Done", onPress: () => router.back() },
-        { text: "Log Another", onPress: () => { setRecipientName(""); setRecipientContact(""); setNotes(""); setConfirmationReceived(false); } },
+        { text: "Log Another", onPress: () => { setRecipientName(""); setRecipientContact(""); setNotes(""); setPlannedSprayDate(""); setConfirmed(false); } },
       ]);
     } catch {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -135,6 +137,10 @@ export default function SprayNotificationScreen() {
             <Text style={styles.fieldLabel}>Date Notified *</Text>
             <Input value={notificationDate} onChangeText={setNotificationDate} placeholder="YYYY-MM-DD" />
 
+            <Text style={[styles.fieldLabel, { marginTop: spacing.md }]}>Planned Spray Date</Text>
+            <Text style={styles.fieldSub}>Enter to check 48-hour lead time</Text>
+            <Input value={plannedSprayDate} onChangeText={setPlannedSprayDate} placeholder="YYYY-MM-DD (optional)" style={{ marginTop: 4 }} />
+
             <Text style={[styles.fieldLabel, { marginTop: spacing.md }]}>Method</Text>
             <View style={styles.methodRow}>
               {METHODS.map(m => (
@@ -154,7 +160,7 @@ export default function SprayNotificationScreen() {
                 <Text style={styles.fieldLabel}>Confirmation Received</Text>
                 <Text style={styles.fieldSub}>Recipient confirmed they received the notification</Text>
               </View>
-              <Switch value={confirmationReceived} onValueChange={setConfirmationReceived} trackColor={{ true: colors.primary }} />
+              <Switch value={confirmed} onValueChange={setConfirmed} trackColor={{ true: colors.primary }} />
             </View>
 
             <Text style={[styles.fieldLabel, { marginTop: spacing.md }]}>Notes</Text>
