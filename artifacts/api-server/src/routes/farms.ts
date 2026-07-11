@@ -2718,6 +2718,7 @@ router.get("/farms/:farmId/spray-products", requireAuth, requireTenant, requireM
       lerapStandardBufferM: sprayProductsTable.lerapStandardBufferM,
       herbicideMoaGroup: sprayProductsTable.herbicideMoaGroup,
       expiryDate: sprayProductsTable.expiryDate,
+      beePrecaution: sprayProductsTable.beePrecaution,
       createdAt: sprayProductsTable.createdAt,
       coshhSubstanceName: coshhRecordsTable.substanceName,
       coshhHazardClassification: coshhRecordsTable.hazardClassification,
@@ -2743,6 +2744,7 @@ router.get("/farms/:farmId/spray-products", requireAuth, requireTenant, requireM
     expiryDate: r.expiryDate ?? null,
     lerapCategory: r.lerapCategory ?? null,
     lerapStandardBufferM: r.lerapStandardBufferM ?? null,
+    beePrecaution: r.beePrecaution ?? false,
     unitCostPence: r.stockUnitCostPence ?? null,
     stockUnit: r.stockUnit ?? null,
     currentStockQuantity: r.stockCurrentQuantity != null ? parseFloat(String(r.stockCurrentQuantity)) : null,
@@ -17822,6 +17824,57 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       });
     }
   } catch (e) { console.error("[week-ahead] weather device calibration query failed:", e); }
+
+  // ── Bee-precaution spray applications: 48hr notification deadline check ──
+  try {
+    const notifLookAhead = new Date(rangeEnd);
+    notifLookAhead.setDate(notifLookAhead.getDate() + 3); // catch sprays up to 3 days beyond the window
+    const beeApps = await db
+      .select({
+        id: sprayApplicationsTable.id,
+        applicationDate: sprayApplicationsTable.applicationDate,
+        productName: sprayProductsTable.productName,
+      })
+      .from(sprayApplicationsTable)
+      .innerJoin(sprayProductsTable, and(
+        eq(sprayApplicationsTable.productId, sprayProductsTable.id),
+        eq(sprayProductsTable.beePrecaution, true),
+      ))
+      .where(and(
+        eq(sprayApplicationsTable.farmId, farmId),
+        gte(sprayApplicationsTable.applicationDate, overdueStart as any),
+        lt(sprayApplicationsTable.applicationDate, notifLookAhead as any),
+      ));
+    if (beeApps.length > 0) {
+      const notifiedIds = new Set(
+        (await db
+          .select({ sprayApplicationId: sprayNotificationsTable.sprayApplicationId })
+          .from(sprayNotificationsTable)
+          .where(and(
+            eq(sprayNotificationsTable.farmId, farmId),
+            inArray(sprayNotificationsTable.sprayApplicationId, beeApps.map(a => a.id).filter((id): id is number => id != null)),
+          ))
+        ).map(n => n.sprayApplicationId)
+      );
+      for (const app of beeApps) {
+        if (notifiedIds.has(app.id)) continue;
+        const appDate = new Date(app.applicationDate);
+        appDate.setHours(0, 0, 0, 0);
+        const deadlineDate = new Date(appDate);
+        deadlineDate.setDate(deadlineDate.getDate() - 2);
+        tasks.push({
+          id: `bee-notify-${app.id}`,
+          type: "bee_precaution_notification",
+          title: `Beekeeper Notification Required — ${app.productName}`,
+          description: `${app.productName} is marked as harmful to bees. Notify beekeepers and neighbours at least 48 hours before spraying on ${appDate.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}. Log the notification in Sprays & Inputs → Notifications.`,
+          dueDate: deadlineDate.toISOString(),
+          module: "Sprays & Inputs",
+          href: `/sprays?tab=notifications`,
+          colour: "amber",
+        });
+      }
+    }
+  } catch (e) { console.error("[week-ahead] bee-precaution notification check failed:", e); }
 
   tasks.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 

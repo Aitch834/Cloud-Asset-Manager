@@ -281,6 +281,9 @@ export async function runLisMigrations(): Promise<void> {
     )
   `);
 
+  // ── Spray products: bee precaution flag ──────────────────────────────────
+  await db.execute(sql`ALTER TABLE spray_products ADD COLUMN IF NOT EXISTS bee_precaution boolean NOT NULL DEFAULT false`);
+
   // ── Spray notifications: new columns & contact book ──────────────────────
   await db.execute(sql`ALTER TABLE spray_notifications ADD COLUMN IF NOT EXISTS recipient_contact text`);
   await db.execute(sql`ALTER TABLE spray_notifications ADD COLUMN IF NOT EXISTS recipient_address text`);

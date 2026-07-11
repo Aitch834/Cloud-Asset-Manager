@@ -1474,7 +1474,7 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
   const [editRecord, setEditRecord] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [viewRecord, setViewRecord] = useState<any>(null);
-  const emptyForm = { productName: "", activeIngredient: "", mappaNumber: "", manufacturer: "", category: "", harvestInterval: "", maxApplicationsPerSeason: "", storageRequirements: "", coshhRecordId: "__none__", lerapCategory: "__none__", lerapStandardBufferM: "", herbicideMoaGroup: "", expiryDate: "" };
+  const emptyForm = { productName: "", activeIngredient: "", mappaNumber: "", manufacturer: "", category: "", harvestInterval: "", maxApplicationsPerSeason: "", storageRequirements: "", coshhRecordId: "__none__", lerapCategory: "__none__", lerapStandardBufferM: "", herbicideMoaGroup: "", expiryDate: "", beePrecaution: false };
   const [form, setForm] = useState<any>(emptyForm);
 
   function openAdd() { setEditRecord(null); setForm(emptyForm); setDialogOpen(true); }
@@ -1494,6 +1494,7 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
       lerapStandardBufferM: p.lerapStandardBufferM != null ? String(p.lerapStandardBufferM) : "",
       herbicideMoaGroup: p.herbicideMoaGroup ?? "",
       expiryDate: p.expiryDate ? String(p.expiryDate).slice(0, 10) : "",
+      beePrecaution: p.beePrecaution ?? false,
     });
     setDialogOpen(true);
   }
@@ -1564,7 +1565,7 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["Product Name", "Active Ingredient", "MAPP No.", "Category", "LERAP", "Manufacturer", "Harvest Interval", "Max Apps/Season", "Expiry Date", ""].map((h, i) => (
+                {["Product Name", "Active Ingredient", "MAPP No.", "Category", "LERAP", "🐝", "Manufacturer", "Harvest Interval", "Max Apps/Season", "Expiry Date", ""].map((h, i) => (
                   <th key={i} style={{ padding: "0.625rem 0.75rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -1582,6 +1583,9 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
                     ) : p.lerapCategory === "B" ? (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "#fef3c7", color: "#92400e", fontSize: "0.7rem", fontWeight: 700, borderRadius: 4, padding: "1px 6px", whiteSpace: "nowrap" }}>Cat B{p.lerapStandardBufferM ? ` · ${p.lerapStandardBufferM}m` : ""}</span>
                     ) : <span style={{ color: "#d1d5db" }}>—</span>}
+                  </td>
+                  <td style={{ padding: "0.625rem 0.75rem", textAlign: "center" }}>
+                    {p.beePrecaution ? <span title="Harmful to bees — 48hr notification required" style={{ fontSize: "1rem" }}>🐝</span> : <span style={{ color: "#d1d5db" }}>—</span>}
                   </td>
                   <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{p.manufacturer || "—"}</td>
                   <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{p.harvestInterval ? `${p.harvestInterval} days` : "—"}</td>
@@ -1615,6 +1619,12 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
           </DialogHeader>
           {viewRecord && (
             <div className="space-y-3 py-1">
+              {viewRecord.beePrecaution && (
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem", borderRadius: 8, background: "#fef3c7", border: "1px solid #fde68a", marginBottom: "0.25rem" }}>
+                  <span style={{ fontSize: "1rem" }}>🐝</span>
+                  <p style={{ margin: 0, fontSize: "0.8rem", fontWeight: 600, color: "#92400e" }}>Harmful to bees — 48-hour notification required before spraying</p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
                 <div>
                   <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-0.5">Category</p>
@@ -1801,6 +1811,15 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
                 </p>
               </div>
             )}
+            <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "0.75rem", marginTop: "0.25rem" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "0.6rem", padding: "0.6rem 0.75rem", borderRadius: 8, background: form.beePrecaution ? "#fef3c7" : "#f9fafb", border: `1px solid ${form.beePrecaution ? "#fde68a" : "#e5e7eb"}`, cursor: "pointer" }} onClick={() => setForm((f: any) => ({ ...f, beePrecaution: !f.beePrecaution }))}>
+                <input type="checkbox" checked={!!form.beePrecaution} onChange={e => setForm((f: any) => ({ ...f, beePrecaution: e.target.checked }))} style={{ marginTop: 2, accentColor: "#d97706", cursor: "pointer" }} />
+                <div>
+                  <p style={{ margin: 0, fontWeight: 600, fontSize: "0.875rem", color: form.beePrecaution ? "#92400e" : "#374151" }}>🐝 Harmful to Bees (Bee Precaution)</p>
+                  <p style={{ margin: "2px 0 0", fontSize: "0.72rem", color: "#6b7280" }}>Tick if the product label carries a "harmful to bees" or bee precaution statement. This triggers a 48-hour notification reminder in the Week Ahead Planner whenever a spray with this product is logged.</p>
+                </div>
+              </div>
+            </div>
             <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "0.75rem", marginTop: "0.25rem" }}>
               <Label style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.3rem" }}>LERAP Label</Label>
               <p style={{ fontSize: "0.75rem", color: "#9ca3af", margin: "0 0 0.4rem" }}>

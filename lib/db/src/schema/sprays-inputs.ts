@@ -22,6 +22,7 @@ export const sprayProductsTable = pgTable("spray_products", {
   lerapStandardBufferM: numeric("lerap_standard_buffer_m", { precision: 6, scale: 1 }), // buffer distance printed on product label
   herbicideMoaGroup: text("herbicide_moa_group"),                                    // HRAC mode-of-action group code (e.g. "Group 1 / A"), herbicides only
   expiryDate: date("expiry_date"),
+  beePrecaution: boolean("bee_precaution").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
