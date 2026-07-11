@@ -400,6 +400,151 @@ export default function SeedStorePage() {
   const qc = useQueryClient();
   const safeFarmId = farmId ?? 0;
 
+  // ─── Hoisted mutations (hook positions 5–12) ──────────────────────────────
+  // useMutation calls are placed here so their fiber positions are fixed and
+  // early (before the larger useState/useQuery block).  Callbacks read live
+  // component state through _mut, which is refreshed at the end of every
+  // render.  Closures in mutationFn / onSuccess only run after user
+  // interaction — well after render completes — so _mut.current always has
+  // up-to-date values when they execute.
+  const _mut = useRef<any>({});
+
+  const saveMut = useMutation({
+    mutationFn: async (body: any) => {
+      const { safeFarmId: fid, editing } = _mut.current;
+      const url = editing
+        ? `/api/farms/${fid}/seed-batches/${editing.id}`
+        : `/api/farms/${fid}/seed-batches`;
+      const res = await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error("Failed to save");
+      return res.json();
+    },
+    onSuccess: () => {
+      const { toast: t, invalidate, setOpen, setForm, setEditing, editing } = _mut.current;
+      t({ title: editing ? "Seed batch updated" : "Seed batch added" });
+      invalidate();
+      setOpen(false);
+      setForm(emptyForm);
+      setEditing(null);
+    },
+    onError: () => _mut.current.toast({ title: "Failed to save batch", variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => {
+      const { safeFarmId: fid } = _mut.current;
+      return fetch(`/api/farms/${fid}/seed-batches/${id}`, { method: "DELETE" }).then(r => r.json());
+    },
+    onSuccess: () => {
+      const { toast: t, invalidate, setDeleteTarget } = _mut.current;
+      t({ title: "Seed batch deleted" });
+      invalidate();
+      setDeleteTarget(null);
+    },
+    onError: () => _mut.current.toast({ title: "Failed to delete batch", variant: "destructive" }),
+  });
+
+  const poMut = useMutation({
+    mutationFn: async (data: any) => {
+      const { safeFarmId: fid, editPo } = _mut.current;
+      const url = editPo
+        ? `/api/farms/${fid}/seed-purchase-orders/${editPo.id}`
+        : `/api/farms/${fid}/seed-purchase-orders`;
+      const res = await fetch(url, { method: editPo ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error("Failed to save");
+      return res.json();
+    },
+    onSuccess: () => {
+      const { invalidate, setShowPoDialog, toast: t, editPo } = _mut.current;
+      invalidate();
+      setShowPoDialog(false);
+      t({ title: editPo ? "Order updated" : "Seed order raised" });
+    },
+    onError: () => _mut.current.toast({ title: "Error saving order", variant: "destructive" }),
+  });
+
+  const deletePoMut = useMutation({
+    mutationFn: (id: number) => {
+      const { safeFarmId: fid } = _mut.current;
+      return fetch(`/api/farms/${fid}/seed-purchase-orders/${id}`, { method: "DELETE" }).then(r => r.json());
+    },
+    onSuccess: () => {
+      const { invalidate, setDeletePoTarget, toast: t } = _mut.current;
+      invalidate();
+      setDeletePoTarget(null);
+      t({ title: "Order removed" });
+    },
+    onError: () => _mut.current.toast({ title: "Failed to delete order", variant: "destructive" }),
+  });
+
+  const receivePoMut = useMutation({
+    mutationFn: ({ id, date }: { id: number; date: string }) => {
+      const { safeFarmId: fid } = _mut.current;
+      return fetch(`/api/farms/${fid}/seed-purchase-orders/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "received", actualDeliveryDate: date }),
+      }).then(r => r.json());
+    },
+    onSuccess: () => {
+      const { invalidate, setReceivePoId, toast: t } = _mut.current;
+      invalidate();
+      setReceivePoId(null);
+      t({ title: "Order marked as received — log the seed batch (GRN) in the Stock tab." });
+    },
+  });
+
+  const cancelPoMut = useMutation({
+    mutationFn: (id: number) => {
+      const { safeFarmId: fid } = _mut.current;
+      return fetch(`/api/farms/${fid}/seed-purchase-orders/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "cancelled" }),
+      }).then(r => r.json());
+    },
+    onSuccess: () => {
+      const { invalidate, toast: t } = _mut.current;
+      invalidate();
+      t({ title: "Order cancelled" });
+    },
+  });
+
+  const segMut = useMutation({
+    mutationFn: async (data: any) => {
+      const { safeFarmId: fid, editSeg } = _mut.current;
+      const url = editSeg
+        ? `/api/farms/${fid}/seed-storage-checks/${editSeg.id}`
+        : `/api/farms/${fid}/seed-storage-checks`;
+      const res = await fetch(url, { method: editSeg ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error("Failed to save");
+      return res.json();
+    },
+    onSuccess: () => {
+      const { invalidateSeg, setShowSegDialog, toast: t, editSeg } = _mut.current;
+      invalidateSeg();
+      setShowSegDialog(false);
+      t({ title: editSeg ? "Check updated" : "Segregation check logged" });
+    },
+    onError: () => _mut.current.toast({ title: "Failed to save check", variant: "destructive" }),
+  });
+
+  const deleteSegMut = useMutation({
+    mutationFn: (id: number) => {
+      const { safeFarmId: fid } = _mut.current;
+      return fetch(`/api/farms/${fid}/seed-storage-checks/${id}`, { method: "DELETE" }).then(r => r.json());
+    },
+    onSuccess: () => {
+      const { invalidateSeg, setDeleteSegTarget, toast: t } = _mut.current;
+      invalidateSeg();
+      setDeleteSegTarget(null);
+      t({ title: "Check deleted" });
+    },
+    onError: () => _mut.current.toast({ title: "Failed to delete check", variant: "destructive" }),
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+
   const [tab, setTab] = useState<Tab>(() => {
     const p = new URLSearchParams(window.location.search);
     const t = p.get("tab") as Tab | null;
@@ -516,29 +661,6 @@ export default function SeedStorePage() {
     setOpen(true);
   };
 
-  const saveMut = useMutation({
-    mutationFn: async (body: any) => {
-      const url = editing ? `/api/farms/${safeFarmId}/seed-batches/${editing.id}` : `/api/farms/${safeFarmId}/seed-batches`;
-      const res = await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      if (!res.ok) throw new Error("Failed to save");
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({ title: editing ? "Seed batch updated" : "Seed batch added" });
-      invalidate();
-      setOpen(false);
-      setForm(emptyForm);
-      setEditing(null);
-    },
-    onError: () => toast({ title: "Failed to save batch", variant: "destructive" }),
-  });
-
-  const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${safeFarmId}/seed-batches/${id}`, { method: "DELETE" }).then(r => r.json()),
-    onSuccess: () => { toast({ title: "Seed batch deleted" }); invalidate(); setDeleteTarget(null); },
-    onError: () => toast({ title: "Failed to delete batch", variant: "destructive" }),
-  });
-
   const handleSave = () => {
     if (!form.cropId || !form.varietyId || !form.batchNumber || !form.tgwGrams || !form.quantityReceivedKg) {
       toast({ title: "Crop, variety, batch number, TGW and quantity received are required", variant: "destructive" });
@@ -628,44 +750,8 @@ export default function SeedStorePage() {
     setShowPoDialog(true);
   }
 
-  const poMut = useMutation({
-    mutationFn: async (data: any) => {
-      const url = editPo ? `/api/farms/${safeFarmId}/seed-purchase-orders/${editPo.id}` : `/api/farms/${safeFarmId}/seed-purchase-orders`;
-      const res = await fetch(url, { method: editPo ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
-      if (!res.ok) throw new Error("Failed to save");
-      return res.json();
-    },
-    onSuccess: () => { invalidate(); setShowPoDialog(false); toast({ title: editPo ? "Order updated" : "Seed order raised" }); },
-    onError: () => toast({ title: "Error saving order", variant: "destructive" }),
-  });
-
-  const deletePoMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${safeFarmId}/seed-purchase-orders/${id}`, { method: "DELETE" }).then(r => r.json()),
-    onSuccess: () => { invalidate(); setDeletePoTarget(null); toast({ title: "Order removed" }); },
-    onError: () => toast({ title: "Failed to delete order", variant: "destructive" }),
-  });
-
   const [receivePoId, setReceivePoId] = useState<number | null>(null);
   const [receivePoDate, setReceivePoDate] = useState(new Date().toISOString().slice(0, 10));
-  const receivePoMut = useMutation({
-    mutationFn: ({ id, date }: { id: number; date: string }) =>
-      fetch(`/api/farms/${safeFarmId}/seed-purchase-orders/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "received", actualDeliveryDate: date }),
-      }).then(r => r.json()),
-    onSuccess: () => { invalidate(); setReceivePoId(null); toast({ title: "Order marked as received — log the seed batch (GRN) in the Stock tab." }); },
-  });
-
-  const cancelPoMut = useMutation({
-    mutationFn: (id: number) =>
-      fetch(`/api/farms/${safeFarmId}/seed-purchase-orders/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "cancelled" }),
-      }).then(r => r.json()),
-    onSuccess: () => { invalidate(); toast({ title: "Order cancelled" }); },
-  });
 
   const savingBatch = saveMut.isPending;
 
@@ -706,27 +792,19 @@ export default function SeedStorePage() {
     setShowSegDialog(true);
   }
 
-  const segMut = useMutation({
-    mutationFn: async (data: any) => {
-      const url = editSeg ? `/api/farms/${safeFarmId}/seed-storage-checks/${editSeg.id}` : `/api/farms/${safeFarmId}/seed-storage-checks`;
-      const res = await fetch(url, { method: editSeg ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
-      if (!res.ok) throw new Error("Failed to save");
-      return res.json();
-    },
-    onSuccess: () => { invalidateSeg(); setShowSegDialog(false); toast({ title: editSeg ? "Check updated" : "Segregation check logged" }); },
-    onError: () => toast({ title: "Failed to save check", variant: "destructive" }),
-  });
-
-  const deleteSegMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${safeFarmId}/seed-storage-checks/${id}`, { method: "DELETE" }).then(r => r.json()),
-    onSuccess: () => { invalidateSeg(); setDeleteSegTarget(null); toast({ title: "Check deleted" }); },
-    onError: () => toast({ title: "Failed to delete check", variant: "destructive" }),
-  });
-
   const nonCompliantSegChecks = useMemo(
     () => segChecks.filter((c: any) => c.isCompliant === false || c.treatedSeedStoredLoose === true),
     [segChecks]
   );
+
+  // Refresh the mutation state-bag on every render so callbacks always
+  // operate on the latest state values.
+  _mut.current = {
+    safeFarmId, toast, invalidate, invalidateSeg,
+    editing, setEditing, setOpen, setForm, setDeleteTarget,
+    editPo, setShowPoDialog, setDeletePoTarget, setReceivePoId,
+    editSeg, setShowSegDialog, setDeleteSegTarget,
+  };
 
   return (
     <AppLayout title="Seed Store">
