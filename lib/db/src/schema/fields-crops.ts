@@ -484,3 +484,16 @@ export type GrasslandGrazingEvent = typeof grasslandGrazingEventsTable.$inferSel
 export type NewGrasslandGrazingEvent = typeof grasslandGrazingEventsTable.$inferInsert;
 export type GrasslandReseedingRecord = typeof grasslandReseedingRecordsTable.$inferSelect;
 export type NewGrasslandReseedingRecord = typeof grasslandReseedingRecordsTable.$inferInsert;
+
+export const seedStocktakesTable = pgTable("seed_stocktakes", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  seedBatchId: integer("seed_batch_id").references(() => seedBatchesTable.id),
+  location: text("location"),
+  systemQtyBags: integer("system_qty_bags"),
+  physicalQtyBags: integer("physical_qty_bags").notNull(),
+  conductedBy: text("conducted_by"),
+  stocktakeDate: date("stocktake_date").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

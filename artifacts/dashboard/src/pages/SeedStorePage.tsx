@@ -81,7 +81,70 @@ import {
   Image as ImageIcon,
   Download,
   Printer,
+  ClipboardList,
+  TrendingDown,
+  TrendingUp,
 } from "lucide-react";
+
+function printStocktakeSheet(batches: any[], fieldCrops: any[], farmId: number) {
+  const win = window.open("", "_blank");
+  if (!win) return;
+  const fmtDate = (d: string) => { try { return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }); } catch { return d || "—"; } };
+  const batchRows = batches.map(batch => {
+    const assignments = fieldCrops.filter((fc: any) => fc.seedBatchId === batch.id && fc.bagsAllocated);
+    const bagW = Number(batch.bagWeightKg ?? 25);
+    const fieldRows = assignments.map((a: any) => `<tr>
+      <td style="padding:5px 8px">${a.fieldName || "—"}</td>
+      <td style="text-align:right;padding:5px 8px">${a.bagsAllocated ?? "—"}</td>
+      <td style="text-align:right;padding:5px 8px">${a.bagsAllocated && bagW ? (a.bagsAllocated * bagW).toLocaleString() : "—"} kg</td>
+      <td style="text-align:right;padding:5px 8px;border-bottom:1px solid #aaa;min-width:90px">&nbsp;</td>
+    </tr>`).join("");
+    const remBags = bagW > 0 ? Math.round(Number(batch.quantityRemainingKg) / bagW) : "—";
+    return `<div style="margin-bottom:28px;page-break-inside:avoid">
+      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:4px;flex-wrap:wrap">
+        <span style="font-family:monospace;font-size:13px;font-weight:700">${batch.batchNumber}</span>
+        <span style="font-size:12px;color:#374151">${batch.cropName} · ${batch.varietyName}</span>
+        <span style="font-size:10px;color:#6b7280">Supplier: ${batch.supplierName || "—"} · Bag: ${bagW}kg · TGW: ${batch.tgwGrams}g · Received: ${fmtDate(batch.dateReceived)}</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr style="background:#1a3a1a;color:#fff">
+          <th style="text-align:left;padding:5px 8px">Field / Description</th>
+          <th style="text-align:right;padding:5px 8px">Bags</th>
+          <th style="text-align:right;padding:5px 8px">System (kg)</th>
+          <th style="text-align:right;padding:5px 8px;min-width:90px">Physical count</th>
+        </tr></thead>
+        <tbody>${fieldRows}
+          <tr style="background:#f3f4f6;font-weight:600">
+            <td style="padding:5px 8px">In store (unallocated)</td>
+            <td style="text-align:right;padding:5px 8px">${remBags}</td>
+            <td style="text-align:right;padding:5px 8px">${Number(batch.quantityRemainingKg).toLocaleString()} kg</td>
+            <td style="text-align:right;padding:5px 8px;border-bottom:1px solid #aaa">&nbsp;</td>
+          </tr>
+          <tr style="background:#e5e7eb;font-weight:700">
+            <td style="padding:5px 8px">Total received</td>
+            <td style="text-align:right;padding:5px 8px">${bagW > 0 ? Math.round(Number(batch.quantityReceivedKg) / bagW) : "—"}</td>
+            <td style="text-align:right;padding:5px 8px">${Number(batch.quantityReceivedKg).toLocaleString()} kg</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="margin-top:4px;font-size:10px;color:#9ca3af">Notes / discrepancies: _______________________________________________</div>
+    </div>`;
+  }).join("");
+  win.document.write(`<!DOCTYPE html><html><head><title>Seed Store Stocktake Sheet</title>
+    <style>body{font-family:Arial,sans-serif;font-size:11px;margin:24px;color:#111}h1{font-size:15px;margin:0 0 4px}.meta{color:#6b7280;font-size:10px;margin:0 0 16px}@media print{button{display:none!important}}</style>
+  </head><body>
+    <button onclick="window.print()" style="margin-bottom:16px;padding:6px 16px;background:#1a3a1a;color:#fff;border:none;border-radius:4px;cursor:pointer">🖨 Print</button>
+    <h1>Seed Store — Stocktake Sheet</h1>
+    <p class="meta">Farm ID: ${farmId} &nbsp;·&nbsp; Printed: ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}</p>
+    ${batchRows}
+    <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#6b7280;display:flex;justify-content:space-between">
+      <span>Counted by: ________________________</span><span>Date: ________________________</span><span>Signature: ________________________</span>
+    </div>
+    <script>window.onload=function(){window.print()}</script>
+  </body></html>`);
+  win.document.close();
+}
 
 function printSegregationRegister(checks: any[], farmId: number) {
   const win = window.open("", "_blank");
@@ -141,7 +204,7 @@ function printSegregationRegister(checks: any[], farmId: number) {
   win.document.close();
 }
 
-type Tab = "stock" | "orders" | "segregation";
+type Tab = "stock" | "allocation" | "orders" | "segregation" | "stocktakes";
 
 interface SeedStoreAttachment {
   id: number;
@@ -548,7 +611,7 @@ export default function SeedStorePage() {
   const [tab, setTab] = useState<Tab>(() => {
     const p = new URLSearchParams(window.location.search);
     const t = p.get("tab") as Tab | null;
-    return t === "orders" || t === "segregation" ? t : "stock";
+    return (["orders", "segregation", "allocation", "stocktakes"] as Tab[]).includes(t as Tab) ? t as Tab : "stock";
   });
 
   const { data: membersData, isLoading: membersLoading } = useFarmMembers(safeFarmId);
@@ -591,6 +654,27 @@ export default function SeedStorePage() {
     enabled: !!safeFarmId,
   });
   const segChecks: any[] = Array.isArray(segChecksQ.data) ? segChecksQ.data : [];
+
+  const fieldCropsQ = useQuery({
+    queryKey: ["field-crops", safeFarmId],
+    queryFn: () => fetch(`/api/farms/${safeFarmId}/field-crops`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!safeFarmId,
+  });
+  const fieldCrops: any[] = fieldCropsQ.data ?? [];
+
+  const fieldsQ = useQuery({
+    queryKey: ["fields", safeFarmId],
+    queryFn: () => fetch(`/api/farms/${safeFarmId}/fields`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!safeFarmId,
+  });
+  const farmFields: any[] = fieldsQ.data ?? [];
+
+  const stocktakesQ = useQuery({
+    queryKey: ["seed-stocktakes", safeFarmId],
+    queryFn: () => fetch(`/api/farms/${safeFarmId}/seed-stocktakes`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!safeFarmId,
+  });
+  const stocktakes: any[] = stocktakesQ.data ?? [];
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["seed-batches", safeFarmId] });
@@ -798,6 +882,88 @@ export default function SeedStorePage() {
     [segChecks]
   );
 
+  // ─── Field Allocation ─────────────────────────────────────────────────────
+  const [allocCropFilter, setAllocCropFilter] = useState("all");
+  const [allocStatusFilter, setAllocStatusFilter] = useState("all");
+  const [assignBatch, setAssignBatch] = useState<any | null>(null);
+  const [assignFieldId, setAssignFieldId] = useState("");
+  const [assignBags, setAssignBags] = useState("");
+  const [assignDate, setAssignDate] = useState("");
+  const [editAlloc, setEditAlloc] = useState<{ assignment: any; batch: any } | null>(null);
+  const [editAllocBags, setEditAllocBags] = useState("");
+  const [editAllocDate, setEditAllocDate] = useState("");
+
+  const allocationByBatch = useMemo(() => {
+    const map: Record<number, any[]> = {};
+    for (const fc of fieldCrops) {
+      if (!fc.seedBatchId) continue;
+      if (!map[fc.seedBatchId]) map[fc.seedBatchId] = [];
+      map[fc.seedBatchId].push(fc);
+    }
+    return map;
+  }, [fieldCrops]);
+
+  const filteredAllocBatches = useMemo(() => batches.filter(b => {
+    if (!b.isActive) return false;
+    if (allocCropFilter !== "all" && String(b.cropId) !== allocCropFilter) return false;
+    const allocs = (allocationByBatch[b.id] ?? []).filter((a: any) => a.bagsAllocated);
+    if (allocStatusFilter === "unallocated" && allocs.length > 0) return false;
+    if (allocStatusFilter === "instock" && (allocs.length === 0 || Number(b.quantityRemainingKg) === 0)) return false;
+    if (allocStatusFilter === "used" && Number(b.quantityRemainingKg) > 0) return false;
+    return true;
+  }), [batches, allocCropFilter, allocStatusFilter, allocationByBatch]);
+
+  const assignMut = useMutation({
+    mutationFn: ({ fieldId, varietyId, seedBatchId, bagsAllocated, plantingDate }: any) =>
+      fetch(`/api/farms/${safeFarmId}/field-crops`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fieldId, varietyId, seedBatchId, bagsAllocated: bagsAllocated || null, plantingDate: plantingDate || null }) }).then(r => r.json()),
+    onSuccess: (data) => {
+      if (data.error) { toast({ title: data.error, variant: "destructive" }); return; }
+      qc.invalidateQueries({ queryKey: ["seed-batches", safeFarmId] });
+      qc.invalidateQueries({ queryKey: ["field-crops", safeFarmId] });
+      setAssignBatch(null); setAssignFieldId(""); setAssignBags(""); setAssignDate("");
+      toast({ title: "Field allocated successfully" });
+    },
+    onError: () => toast({ title: "Failed to save allocation", variant: "destructive" }),
+  });
+
+  const editAllocMut = useMutation({
+    mutationFn: ({ id, bagsAllocated, plantingDate }: any) =>
+      fetch(`/api/farms/${safeFarmId}/field-crops/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bagsAllocated: bagsAllocated || null, plantingDate: plantingDate || null }) }).then(r => r.json()),
+    onSuccess: (data) => {
+      if (data.error) { toast({ title: data.error, variant: "destructive" }); return; }
+      qc.invalidateQueries({ queryKey: ["seed-batches", safeFarmId] });
+      qc.invalidateQueries({ queryKey: ["field-crops", safeFarmId] });
+      setEditAlloc(null);
+      toast({ title: "Allocation updated" });
+    },
+    onError: () => toast({ title: "Failed to update allocation", variant: "destructive" }),
+  });
+
+  // ─── Stocktakes ───────────────────────────────────────────────────────────
+  const [showStocktakeDialog, setShowStocktakeDialog] = useState(false);
+  const [stBatchId, setStBatchId] = useState("");
+  const [stLocation, setStLocation] = useState("");
+  const [stSystemBags, setStSystemBags] = useState("");
+  const [stPhysicalBags, setStPhysicalBags] = useState("");
+  const [stConductedBy, setStConductedBy] = useState("");
+  const [stDate, setStDate] = useState(new Date().toISOString().slice(0, 10));
+  const [stNotes, setStNotes] = useState("");
+
+  const stocktakeMut = useMutation({
+    mutationFn: (body: any) =>
+      fetch(`/api/farms/${safeFarmId}/seed-stocktakes`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: (data) => {
+      if (data.error) { toast({ title: data.error, variant: "destructive" }); return; }
+      qc.invalidateQueries({ queryKey: ["seed-stocktakes", safeFarmId] });
+      setShowStocktakeDialog(false);
+      setStBatchId(""); setStLocation(""); setStSystemBags(""); setStPhysicalBags(""); setStConductedBy(""); setStDate(new Date().toISOString().slice(0, 10)); setStNotes("");
+      toast({ title: "Stocktake recorded" });
+    },
+    onError: () => toast({ title: "Failed to save stocktake", variant: "destructive" }),
+  });
+
+  const stVariance = stSystemBags && stPhysicalBags ? Number(stPhysicalBags) - Number(stSystemBags) : null;
+
   // Refresh the mutation state-bag on every render so callbacks always
   // operate on the latest state values.
   _mut.current = {
@@ -816,6 +982,15 @@ export default function SeedStorePage() {
 
         <TabBar className="mb-6">
           <TabButton active={tab === "stock"} onClick={() => setTab("stock")}>Seed Stock ({batches.length})</TabButton>
+          <TabButton active={tab === "allocation"} onClick={() => setTab("allocation")}>
+            <Package className="w-3.5 h-3.5 mr-1 inline" />
+            Field Allocation
+            {batches.filter(b => b.isActive && (allocationByBatch[b.id] ?? []).filter((a: any) => a.bagsAllocated).length === 0).length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center text-[10px] font-bold bg-amber-500 text-white rounded-full w-4 h-4">
+                {batches.filter(b => b.isActive && (allocationByBatch[b.id] ?? []).filter((a: any) => a.bagsAllocated).length === 0).length}
+              </span>
+            )}
+          </TabButton>
           <TabButton active={tab === "orders"} onClick={() => setTab("orders")}>
             <ShoppingCart className="w-3.5 h-3.5 mr-1 inline" />
             Seed Orders
@@ -833,6 +1008,10 @@ export default function SeedStorePage() {
                 {nonCompliantSegChecks.length}
               </span>
             )}
+          </TabButton>
+          <TabButton active={tab === "stocktakes"} onClick={() => setTab("stocktakes")}>
+            <FileText className="w-3.5 h-3.5 mr-1 inline" />
+            Stocktakes
           </TabButton>
         </TabBar>
 
@@ -1587,6 +1766,370 @@ export default function SeedStorePage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* ── Field Allocation Tab ────────────────────────────────────── */}
+        {tab === "allocation" && (
+          <div>
+            {/* Filters */}
+            <div className="flex flex-wrap gap-2 mb-4 items-center">
+              <select
+                value={allocCropFilter}
+                onChange={e => setAllocCropFilter(e.target.value)}
+                className="text-xs border rounded-md px-2 py-1.5 bg-white"
+              >
+                <option value="all">All crops</option>
+                {uniqueCrops.map(c => (
+                  <option key={c.cropId} value={String(c.cropId)}>{c.name}</option>
+                ))}
+              </select>
+              <select
+                value={allocStatusFilter}
+                onChange={e => setAllocStatusFilter(e.target.value)}
+                className="text-xs border rounded-md px-2 py-1.5 bg-white"
+              >
+                <option value="all">All status</option>
+                <option value="unallocated">Unallocated</option>
+                <option value="instock">Part allocated</option>
+                <option value="used">Fully used</option>
+              </select>
+              <div className="flex-1" />
+              <Button variant="outline" size="sm" onClick={() => printStocktakeSheet(batches.filter(b => b.isActive), fieldCrops, safeFarmId)}>
+                <Printer className="w-3.5 h-3.5 mr-1" />Print Stocktake Sheet
+              </Button>
+            </div>
+
+            {filteredAllocBatches.length === 0 ? (
+              <div className="text-center py-16 text-gray-400">
+                <Package className="w-10 h-10 mx-auto mb-3 opacity-20" />
+                <p className="font-medium text-gray-500">No active batches found</p>
+                <p className="text-sm mt-1">Receive seed stock on the Seed Stock tab first.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredAllocBatches.map(batch => {
+                  const allocs = (allocationByBatch[batch.id] ?? []).filter((a: any) => a.bagsAllocated);
+                  const bagW = Number(batch.bagWeightKg ?? 25);
+                  const totalBags = bagW > 0 ? Math.round(Number(batch.quantityReceivedKg) / bagW) : 0;
+                  const allocatedBags = allocs.reduce((s: number, a: any) => s + Number(a.bagsAllocated ?? 0), 0);
+                  const remainingBags = bagW > 0 ? Math.round(Number(batch.quantityRemainingKg) / bagW) : 0;
+                  const pct = totalBags > 0 ? Math.min(100, Math.round((allocatedBags / totalBags) * 100)) : 0;
+                  return (
+                    <div key={batch.id} className="border rounded-lg p-4 bg-white">
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div>
+                          <div className="flex items-baseline gap-2">
+                            <span className="font-mono text-sm font-semibold">{batch.batchNumber}</span>
+                            <span className="text-sm text-gray-600">{batch.cropName} · {batch.varietyName}</span>
+                            {batch.supplierName && <span className="text-xs text-gray-400">{batch.supplierName}</span>}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-0.5">
+                            {batch.tgwGrams}g TGW · {bagW}kg bags · {totalBags} bags received
+                          </div>
+                        </div>
+                        <Button size="sm" onClick={() => { setAssignBatch(batch); setAssignFieldId(""); setAssignBags(""); setAssignDate(""); }}>
+                          <Plus className="w-3.5 h-3.5 mr-1" />Assign to Field
+                        </Button>
+                      </div>
+
+                      {/* Stock bar */}
+                      <div className="mb-3">
+                        <div className="flex justify-between text-xs text-gray-500 mb-1">
+                          <span>{allocatedBags} bags allocated</span>
+                          <span>{remainingBags} bags in store</span>
+                        </div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-green-600 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+
+                      {/* Field breakdown table */}
+                      {allocs.length > 0 && (
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b text-gray-500">
+                              <th className="text-left py-1 font-medium">Field</th>
+                              <th className="text-right py-1 font-medium">Bags</th>
+                              <th className="text-right py-1 font-medium">Weight</th>
+                              <th className="text-right py-1 font-medium">Planting date</th>
+                              <th className="w-8"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {allocs.map((a: any) => (
+                              <tr key={a.id} className="border-b border-gray-50 hover:bg-gray-50">
+                                <td className="py-1.5">{a.fieldName || <span className="text-gray-400 italic">Unknown field</span>}</td>
+                                <td className="text-right py-1.5">{a.bagsAllocated}</td>
+                                <td className="text-right py-1.5">{(Number(a.bagsAllocated) * bagW).toLocaleString()} kg</td>
+                                <td className="text-right py-1.5 text-gray-500">{a.plantingDate ? new Date(a.plantingDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
+                                <td className="text-right py-1.5">
+                                  <button
+                                    className="text-gray-400 hover:text-green-700 transition-colors"
+                                    onClick={() => { setEditAlloc({ assignment: a, batch }); setEditAllocBags(String(a.bagsAllocated ?? "")); setEditAllocDate(a.plantingDate ? String(a.plantingDate).slice(0, 10) : ""); }}
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                      {allocs.length === 0 && (
+                        <p className="text-xs text-amber-600 bg-amber-50 rounded px-2 py-1.5">Not yet assigned to any field</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Assign to Field dialog */}
+            <Dialog open={!!assignBatch} onOpenChange={(v) => !v && setAssignBatch(null)}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Assign to Field</DialogTitle>
+                  <DialogDescription>
+                    Batch: <span className="font-mono font-semibold">{assignBatch?.batchNumber}</span> · {assignBatch?.cropName} {assignBatch?.varietyName}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 py-2">
+                  <div>
+                    <label className="text-xs font-medium text-gray-700 block mb-1">Field *</label>
+                    <select
+                      value={assignFieldId}
+                      onChange={e => setAssignFieldId(e.target.value)}
+                      className="w-full border rounded-md px-3 py-2 text-sm"
+                    >
+                      <option value="">Select a field…</option>
+                      {farmFields.map((f: any) => (
+                        <option key={f.id} value={String(f.id)}>{f.name}{f.areaHectares ? ` (${f.areaHectares} ha)` : ""}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-700 block mb-1">
+                      Bags *
+                      {assignBatch && (
+                        <span className="font-normal text-gray-400 ml-1">
+                          ({Math.round(Number(assignBatch.quantityRemainingKg) / Number(assignBatch.bagWeightKg ?? 25))} in store)
+                        </span>
+                      )}
+                    </label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={assignBags}
+                      onChange={e => setAssignBags(e.target.value)}
+                      placeholder="Number of bags"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-700 block mb-1">Planting date</label>
+                    <Input type="date" value={assignDate} onChange={e => setAssignDate(e.target.value)} />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setAssignBatch(null)}>Cancel</Button>
+                  <Button
+                    disabled={!assignFieldId || !assignBags || assignMut.isPending}
+                    onClick={() => assignBatch && assignMut.mutate({ fieldId: Number(assignFieldId), varietyId: assignBatch.varietyId, seedBatchId: assignBatch.id, bagsAllocated: Number(assignBags), plantingDate: assignDate || null })}
+                  >
+                    {assignMut.isPending ? "Saving…" : "Assign"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Edit allocation dialog */}
+            <Dialog open={!!editAlloc} onOpenChange={(v) => !v && setEditAlloc(null)}>
+              <DialogContent className="max-w-sm">
+                <DialogHeader>
+                  <DialogTitle>Edit Allocation</DialogTitle>
+                  <DialogDescription>
+                    {editAlloc?.batch?.batchNumber} → {editAlloc?.assignment?.fieldName}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 py-2">
+                  <div>
+                    <label className="text-xs font-medium text-gray-700 block mb-1">Bags *</label>
+                    <Input type="number" min="1" value={editAllocBags} onChange={e => setEditAllocBags(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-700 block mb-1">Planting date</label>
+                    <Input type="date" value={editAllocDate} onChange={e => setEditAllocDate(e.target.value)} />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setEditAlloc(null)}>Cancel</Button>
+                  <Button
+                    disabled={!editAllocBags || editAllocMut.isPending}
+                    onClick={() => editAlloc && editAllocMut.mutate({ id: editAlloc.assignment.id, bagsAllocated: Number(editAllocBags), plantingDate: editAllocDate || null })}
+                  >
+                    {editAllocMut.isPending ? "Saving…" : "Save"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        )}
+
+        {/* ── Stocktakes Tab ──────────────────────────────────────────── */}
+        {tab === "stocktakes" && (
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <p className="text-sm text-gray-500">Record physical counts and reconcile against system stock levels.</p>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => printStocktakeSheet(batches.filter(b => b.isActive), fieldCrops, safeFarmId)}>
+                  <Printer className="w-3.5 h-3.5 mr-1" />Print Sheet
+                </Button>
+                <Button size="sm" onClick={() => setShowStocktakeDialog(true)}>
+                  <Plus className="w-3.5 h-3.5 mr-1" />Record Stocktake
+                </Button>
+              </div>
+            </div>
+
+            {stocktakesQ.isLoading ? (
+              <div className="text-center py-12 text-gray-400 text-sm">Loading…</div>
+            ) : stocktakes.length === 0 ? (
+              <div className="text-center py-16 text-gray-400">
+                <ClipboardList className="w-10 h-10 mx-auto mb-3 opacity-20" />
+                <p className="font-medium text-gray-500">No stocktakes recorded yet</p>
+                <p className="text-sm mt-1 mb-4">Use "Record Stocktake" to log a physical count.</p>
+                <Button size="sm" onClick={() => setShowStocktakeDialog(true)}>
+                  <Plus className="w-3.5 h-3.5 mr-1" />Record Stocktake
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {stocktakes.map((st: any) => {
+                  const variance = st.systemQtyBags != null ? st.physicalQtyBags - st.systemQtyBags : null;
+                  return (
+                    <div key={st.id} className="border rounded-lg p-3 bg-white flex items-start gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="font-medium text-sm">{st.stocktakeDate ? new Date(st.stocktakeDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</span>
+                          {st.batchNumber && <span className="font-mono text-xs text-gray-600">{st.batchNumber}</span>}
+                          {st.cropName && <span className="text-xs text-gray-500">{st.cropName} · {st.varietyName}</span>}
+                          {st.location && <span className="text-xs text-gray-400">@ {st.location}</span>}
+                        </div>
+                        <div className="flex items-center gap-4 mt-1 text-xs text-gray-600">
+                          <span>Physical: <strong>{st.physicalQtyBags} bags</strong></span>
+                          {st.systemQtyBags != null && <span>System: {st.systemQtyBags} bags</span>}
+                          {variance != null && (
+                            <span className={`flex items-center gap-0.5 font-semibold ${variance === 0 ? "text-green-600" : variance < 0 ? "text-red-600" : "text-amber-600"}`}>
+                              {variance > 0 ? <TrendingUp className="w-3 h-3" /> : variance < 0 ? <TrendingDown className="w-3 h-3" /> : null}
+                              {variance > 0 ? "+" : ""}{variance}
+                            </span>
+                          )}
+                          {st.conductedBy && <span className="text-gray-400">by {st.conductedBy}</span>}
+                        </div>
+                        {st.notes && <p className="text-xs text-gray-400 mt-0.5 truncate">{st.notes}</p>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Record Stocktake dialog */}
+            <Dialog open={showStocktakeDialog} onOpenChange={(v) => !v && setShowStocktakeDialog(false)}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Record Stocktake</DialogTitle>
+                  <DialogDescription>Log a physical count of seed bags in store.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 py-2 max-h-[60vh] overflow-y-auto">
+                  <div>
+                    <label className="text-xs font-medium text-gray-700 block mb-1">Seed batch (optional)</label>
+                    <select
+                      value={stBatchId}
+                      onChange={e => {
+                        const bId = e.target.value;
+                        setStBatchId(bId);
+                        if (bId) {
+                          const b = batches.find(x => String(x.id) === bId);
+                          const bagW = Number(b?.bagWeightKg ?? 25);
+                          const sysBags = bagW > 0 ? Math.round(Number(b?.quantityRemainingKg) / bagW) : 0;
+                          setStSystemBags(String(sysBags));
+                        } else {
+                          setStSystemBags("");
+                        }
+                      }}
+                      className="w-full border rounded-md px-3 py-2 text-sm"
+                    >
+                      <option value="">— All / unspecified —</option>
+                      {batches.filter(b => b.isActive).map(b => (
+                        <option key={b.id} value={String(b.id)}>{b.batchNumber} · {b.cropName} {b.varietyName}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-gray-700 block mb-1">System bags</label>
+                      <Input type="number" min="0" value={stSystemBags} onChange={e => setStSystemBags(e.target.value)} placeholder="Auto-filled or enter" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-700 block mb-1">Physical bags *</label>
+                      <Input type="number" min="0" value={stPhysicalBags} onChange={e => setStPhysicalBags(e.target.value)} placeholder="Counted qty" />
+                    </div>
+                  </div>
+                  {stVariance != null && (
+                    <div className={`text-xs font-semibold flex items-center gap-1 px-3 py-2 rounded ${stVariance === 0 ? "bg-green-50 text-green-700" : stVariance < 0 ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-700"}`}>
+                      {stVariance > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : stVariance < 0 ? <TrendingDown className="w-3.5 h-3.5" /> : null}
+                      Variance: {stVariance > 0 ? "+" : ""}{stVariance} bags
+                      {stVariance === 0 && " — count matches system"}
+                    </div>
+                  )}
+                  <div>
+                    <label className="text-xs font-medium text-gray-700 block mb-1">Storage location</label>
+                    <Input value={stLocation} onChange={e => setStLocation(e.target.value)} placeholder="e.g. Main barn, bay 3" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-gray-700 block mb-1">Stocktake date *</label>
+                      <Input type="date" value={stDate} onChange={e => setStDate(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-700 block mb-1">Conducted by</label>
+                      <Input value={stConductedBy} onChange={e => setStConductedBy(e.target.value)} placeholder="Name" list="staff-names-st" />
+                      <datalist id="staff-names-st">
+                        {staffNames.map((n: string) => <option key={n} value={n} />)}
+                      </datalist>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-700 block mb-1">Notes / discrepancy explanation</label>
+                    <textarea
+                      value={stNotes}
+                      onChange={e => setStNotes(e.target.value)}
+                      rows={2}
+                      placeholder="Any notes about discrepancies or observations…"
+                      className="w-full border rounded-md px-3 py-2 text-sm resize-none"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowStocktakeDialog(false)}>Cancel</Button>
+                  <Button
+                    disabled={!stPhysicalBags || !stDate || stocktakeMut.isPending}
+                    onClick={() => stocktakeMut.mutate({
+                      seedBatchId: stBatchId ? Number(stBatchId) : null,
+                      location: stLocation || null,
+                      systemQtyBags: stSystemBags ? Number(stSystemBags) : null,
+                      physicalQtyBags: Number(stPhysicalBags),
+                      conductedBy: stConductedBy || null,
+                      stocktakeDate: stDate,
+                      notes: stNotes || null,
+                    })}
+                  >
+                    {stocktakeMut.isPending ? "Saving…" : "Record Stocktake"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        )}
+
       </div>
     </AppLayout>
   );

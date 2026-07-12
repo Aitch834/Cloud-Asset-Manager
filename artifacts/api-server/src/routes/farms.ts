@@ -20,6 +20,7 @@ import {
   fieldCropAssignmentsTable,
   seedBatchesTable,
   seedPurchaseOrdersTable,
+  seedStocktakesTable,
   seedStorageSegregationChecksTable,
   fieldSeasonLandUseTable,
   fieldSeasonExpensesTable,
@@ -1434,6 +1435,64 @@ router.post("/farms/:farmId/seed-batches/:id/consume", requireAuth, requireTenan
   const newRemaining = Math.max(0, currentRemaining - deduction);
   const [updated] = await db.update(seedBatchesTable).set({ quantityRemainingKg: String(newRemaining) }).where(eq(seedBatchesTable.id, id)).returning();
   res.json({ record: updated, consumed: deduction, remaining: newRemaining });
+});
+
+// ─── Seed Stocktakes ──────────────────────────────
+router.get("/farms/:farmId/seed-stocktakes", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db
+    .select({
+      id: seedStocktakesTable.id,
+      farmId: seedStocktakesTable.farmId,
+      seedBatchId: seedStocktakesTable.seedBatchId,
+      batchNumber: seedBatchesTable.batchNumber,
+      cropName: cropsTable.name,
+      varietyName: cropVarietiesTable.variety,
+      location: seedStocktakesTable.location,
+      systemQtyBags: seedStocktakesTable.systemQtyBags,
+      physicalQtyBags: seedStocktakesTable.physicalQtyBags,
+      conductedBy: seedStocktakesTable.conductedBy,
+      stocktakeDate: seedStocktakesTable.stocktakeDate,
+      notes: seedStocktakesTable.notes,
+      createdAt: seedStocktakesTable.createdAt,
+    })
+    .from(seedStocktakesTable)
+    .leftJoin(seedBatchesTable, eq(seedStocktakesTable.seedBatchId, seedBatchesTable.id))
+    .leftJoin(cropVarietiesTable, eq(seedBatchesTable.varietyId, cropVarietiesTable.id))
+    .leftJoin(cropsTable, eq(seedBatchesTable.cropId, cropsTable.id))
+    .where(eq(seedStocktakesTable.farmId, farmId))
+    .orderBy(desc(seedStocktakesTable.stocktakeDate), desc(seedStocktakesTable.createdAt));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/seed-stocktakes", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { seedBatchId, location, systemQtyBags, physicalQtyBags, conductedBy, stocktakeDate, notes } = req.body as Record<string, unknown>;
+  if (physicalQtyBags === undefined || physicalQtyBags === null || physicalQtyBags === "") {
+    res.status(400).json({ error: "physicalQtyBags is required" });
+    return;
+  }
+  if (!stocktakeDate) {
+    res.status(400).json({ error: "stocktakeDate is required" });
+    return;
+  }
+  if (seedBatchId) {
+    const [batch] = await db.select({ id: seedBatchesTable.id }).from(seedBatchesTable).where(and(eq(seedBatchesTable.id, Number(seedBatchId)), eq(seedBatchesTable.farmId, farmId))).limit(1);
+    if (!batch) { res.status(400).json({ error: "Seed batch not found on this farm" }); return; }
+  }
+  const [record] = await db.insert(seedStocktakesTable).values({
+    farmId,
+    seedBatchId: seedBatchId ? Number(seedBatchId) : null,
+    location: location ? String(location) : null,
+    systemQtyBags: systemQtyBags !== undefined && systemQtyBags !== "" ? Number(systemQtyBags) : null,
+    physicalQtyBags: Number(physicalQtyBags),
+    conductedBy: conductedBy ? String(conductedBy) : null,
+    stocktakeDate: String(stocktakeDate),
+    notes: notes ? String(notes) : null,
+  }).returning();
+  res.status(201).json({ record });
 });
 
 // ─── Seed Purchase Orders ─────────────────────────
