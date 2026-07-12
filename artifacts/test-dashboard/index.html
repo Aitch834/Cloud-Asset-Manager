@@ -10,9 +10,31 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(regs) {
-          regs.forEach(function(r) { r.unregister(); });
-        });
+        var ctrl = navigator.serviceWorker.controller;
+        // If an old SW (sw-v7 or earlier) is in control, it may intercept JS
+        // requests and cause a split module graph ("No QueryClient set").
+        // Register sw-v8 (no-op: clears caches, passes all fetches to network).
+        // When sw-v8 activates it takes control immediately; we then reload so
+        // this page runs with no SW interference on the second load.
+        if (ctrl && !ctrl.scriptURL.includes('sw-v8')) {
+          // Old SW detected — install the no-op replacement, then reload.
+          navigator.serviceWorker.register('/test-dashboard/sw-v8.js', { scope: '/test-dashboard/' })
+            .then(function(reg) {
+              var sw = reg.installing || reg.waiting;
+              if (sw) {
+                sw.addEventListener('statechange', function() {
+                  if (this.state === 'activated') { window.location.reload(); }
+                });
+              } else if (reg.active) {
+                // sw-v8 already active but wasn't in control — reload now.
+                window.location.reload();
+              }
+            }).catch(function() { window.location.reload(); });
+        } else {
+          // Either no SW at all, or sw-v8 is already in control.
+          // Register/refresh sw-v8 silently (keeps caches clear).
+          navigator.serviceWorker.register('/test-dashboard/sw-v8.js', { scope: '/test-dashboard/' });
+        }
       }
     </script>
   </head>
