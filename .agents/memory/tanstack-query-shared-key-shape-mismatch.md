@@ -42,3 +42,15 @@ The `Array.isArray` guard makes the component safe regardless of which queryFn p
 - `herds.map(...)` inside `<DialogContent>` is **always evaluated** even when `open={false}` (React evaluates JSX children eagerly before any component can short-circuit)
 - `TypeError: herds.map is not a function` → ErrorBoundary → "Something went wrong"
 - Replit console serialises the TypeError as `{}` (Error properties are non-enumerable → `JSON.stringify(TypeError) === "{}"`)
+
+## Confirmed instance: seed-storage-checks
+
+`ComplianceHealthPanel.tsx` queries `["seed-storage-checks", farmId]` with raw queryFn + `select: d => d.records ?? []`.
+`SeedStorePage.tsx` queried the same key but unwrapped records INSIDE the queryFn (`.then(d => d.records ?? [])`).
+
+When ComplianceHealthPanel fetches first it caches `{records: [...]}`. SeedStorePage then got that object back;
+`?? []` did NOT save it (object is truthy), so `.filter()` on a non-array threw `TypeError: E.filter is not a function`.
+
+**Fix applied:** Changed `segChecksQ` in SeedStorePage.tsx to use raw queryFn + `select: (d) => d.records ?? []` (matching ComplianceHealthPanel). Added `Array.isArray` guard at the access point.
+
+**Audit of other ComplianceHealthPanel keys:** `["insurance", farmId]` shared with FlyTippingPage / EncampmentPage / InsurancePage — all use raw queryFn (no unwrap) so cache shape is consistent. `["nmp-plans"]`, `["fields"]`, `["documents"]`, `["spray-applications"]` all use `select` in every consumer. No other mismatches found.

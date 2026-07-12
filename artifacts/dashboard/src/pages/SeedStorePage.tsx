@@ -586,10 +586,11 @@ export default function SeedStorePage() {
 
   const segChecksQ = useQuery({
     queryKey: ["seed-storage-checks", safeFarmId],
-    queryFn: () => fetch(`/api/farms/${safeFarmId}/seed-storage-checks`).then(r => r.json()).then(d => d.records ?? []),
+    queryFn: () => fetch(`/api/farms/${safeFarmId}/seed-storage-checks`).then(r => r.json()),
+    select: (d: any) => d.records ?? [],
     enabled: !!safeFarmId,
   });
-  const segChecks: any[] = segChecksQ.data ?? [];
+  const segChecks: any[] = Array.isArray(segChecksQ.data) ? segChecksQ.data : [];
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["seed-batches", safeFarmId] });
