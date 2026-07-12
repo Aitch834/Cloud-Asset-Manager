@@ -7,13 +7,8 @@ import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 const rawPort = process.env.PORT;
 
-if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
-}
-
-const port = Number(rawPort);
+// PORT is required for dev/preview serve but not needed for vite build itself.
+const port = rawPort ? Number(rawPort) : 3000;
 
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
@@ -1282,5 +1277,12 @@ export default defineConfig({
     port,
     host: "0.0.0.0",
     allowedHosts: true,
+    proxy: {
+      [`${basePath}api`]: {
+        target: "http://localhost:8080",
+        rewrite: (p: string) => p.replace(new RegExp(`^${basePath}api`), "/api"),
+        changeOrigin: true,
+      },
+    },
   },
 });

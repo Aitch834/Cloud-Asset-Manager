@@ -387,6 +387,34 @@ Browsers do NOT follow SW-returned redirects (`Response.redirect(302)`) for ES m
 
 6. **skipWaiting() + clients.claim()** ensure the SW takes control immediately after activation.
 
+## FINAL FIX — Switch to production build (vite build + vite preview)
+
+All Causes A–E above are dev-mode-only phenomena. The permanent fix is to eliminate
+Vite dev mode entirely for the test-dashboard.
+
+**What changed:**
+- `artifacts/test-dashboard/.replit-artifact/artifact.toml` — `[services.development] run`
+  changed from `pnpm run dev` to `pnpm run build && pnpm run serve`
+- `vite.config.ts` — PORT now has a fallback default (not a hard throw) so `vite build`
+  works without PORT set in the environment
+- `vite.config.ts` — `preview.proxy` added to mirror `server.proxy` for API calls
+
+**Why this works:**
+- Production build outputs hashed static assets (`/assets/index-HASH.js`). Hash in filename
+  means correct `Cache-Control: immutable` is safe — the URL changes every build.
+- No `@react-refresh` preamble, no `@vite/client`, no `@fs/` URLs, no HMR, no session tokens.
+- All proxy-cache hazards are eliminated.
+- `vite preview` serves from `dist/public/`, routing SPA fallback to `index.html`.
+
+**Build time:** ~28 seconds on first start. `dist/` is persisted between Replit restarts,
+so subsequent starts just run `vite preview` instantly (build only re-runs if workflow restarts).
+
+**API proxy:** `preview.proxy` must mirror `server.proxy` — the `${basePath}api` → `http://localhost:8080`
+rewrite rule is required or all API calls 404.
+
+**Service worker:** The SW (`sw-v7.js`) is still registered and its `@react-refresh` case 4
+stub still fires on first load (SW cached in browser), but produces no errors in production.
+
 ## React Refresh collision — ALL pages loaded eagerly (CRITICAL — found 2026-07-09)
 
 Dashboard App.tsx imports ALL pages statically (not lazy, except FlyTippingPage).
