@@ -65,6 +65,18 @@ const CATEGORIES: Category[] = [
       { title: "Recording spray applications — product, dose, operator and field", summary: "Log each spray event with date, product, dose, area, operator (PA certificate auto-filled), and target pest or weed. LERAP buffer and withholding period calculated automatically from product data." },
       { title: "IPM Plan — integrated pest management compliance record", summary: "The five-section IPM Plan is a structured written document required by Red Tractor. Spray records link back to the plan via the Spray Rationale field for a complete monitoring-to-application audit trail." },
       { title: "LERAP Assessments — recording assessments for sprays near watercourses", summary: "For Category A/B products adjacent to a watercourse, record the CRD Assessment Step, standard buffer distance, crop type, and soil type. Assessor must hold PA1 + PA2/PA6 certificates." },
+      { title: "Spray Store Stocktake — recording a physical stock count on mobile", summary: "Open the Record tab and tap 'Spray Store Stocktake'. Select the spray product from your cached product list — the system quantity auto-fills from the product's current stock record. Enter the physical quantity you have counted in litres. A live variance badge shows the difference (green = zero, amber = surplus, red = shortfall). Enter who conducted the count, confirm the date, add any notes, and tap Save. Records are stored offline and sync to the Spray Store Stocktakes tab on the dashboard automatically when connectivity is restored." },
+    ],
+  },
+  {
+    title: "Grain & Crop Storage",
+    icon: "package",
+    color: "#b45309",
+    bgColor: "#fffbeb",
+    articles: [
+      { title: "Grain Store Stocktake — recording a physical probe or weighbridge measurement on mobile", summary: "Open the Record tab and tap 'Grain Store Stocktake'. Select the storage bin or location, then enter the physical quantity in tonnes from your probe reading, auger sample, weighbridge, or visual estimate. The system quantity can be entered manually to see a live variance badge (green = zero, amber = surplus, red = shortfall). Select the measurement method, enter who conducted the stocktake, confirm the date and add any notes, then tap Save. Records are stored offline and sync to the Grain Store Stocktakes tab on the dashboard automatically when connectivity is restored." },
+      { title: "Crop stock stocktake history — viewing records on the dashboard", summary: "Stocktake records captured on mobile sync to the dashboard. Open the Grain Store (Crop Stock) page and select the Stocktakes tab to view all historical entries with their variance badges, measurement methods, system quantities, physical quantities, and conducted-by attribution." },
+      { title: "Stock movements — recording intakes, dispatches, and transfers", summary: "Grain and crop stock movements (intake, dispatch, on-farm transfer, sample withdrawal, drying loss, and manual adjustment) are recorded on the dashboard Grain Store page. Each movement can be linked to a haulage record, grain sale, or harvest record for a complete chain of custody from field to merchant." },
     ],
   },
   {

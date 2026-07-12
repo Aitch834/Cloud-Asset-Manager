@@ -25,8 +25,8 @@ const FARM_TYPES = [
 ];
 
 const MODULES = [
-  { id: "field-crop-management", label: "Field & Crop Management (spray records, field journal, varieties)" },
-  { id: "sprays-inputs", label: "Sprays & Inputs (spray application records with GRN-linked batch traceability, PA certificate auto-fill, withholding period alerts, IPM Plans, LERAP Assessments, Beekeeper & Neighbour Notification Log with 48-hour lead time check and printable letters)" },
+  { id: "field-crop-management", label: "Field & Crop Management (spray records, field journal, varieties, Seed Store with field allocation tab and physical stocktake recording)" },
+  { id: "sprays-inputs", label: "Sprays & Inputs (spray application records with GRN-linked batch traceability, PA certificate auto-fill, withholding period alerts, IPM Plans, LERAP Assessments, Beekeeper & Neighbour Notification Log with 48-hour lead time check and printable letters, Spray Store Stocktake with system quantity auto-fill and variance badge)" },
   { id: "soil-management", label: "Soil Management (NMP, NVZ, sampling, soil sensors)" },
   { id: "livestock-management", label: "Livestock & Feed Management (BCMS & LIS submissions, LIS LIP cattle submission via OAuth, individual animal linking, Bluetooth RFID scanning, lambing records with perinatal ABP disposal, season analytics, date-validated forms, staff/assessor name auto-populates, BVD Testing Register, Johne's Disease Monitoring Register, Casualty/Emergency Slaughter Records with mobile capture, Dairy Management with DCT — POM-V enforcement, VMD medicine database, Vet Ledger finance trail)" },
   { id: "biosecurity", label: "Biosecurity & Visitors (visitor log with digital signature & photo/document attachments, pest control with attachments, COSHH with SDS photo, cleaning & disinfection with photo evidence, biosecurity plan)" },
@@ -53,7 +53,7 @@ const MODULES = [
   { id: "poultry-production", label: "Poultry Production (flocks via Livestock register, placements & depletions, Chick Purchases tab with year filter & RecordAttachments, Thinning Records with year filter & document attachment, mortality logs, feed & water, egg production, medicines, biosecurity, house cleanout, Campylobacter Monitoring — FSA NCP records with year filter, document attachment, RecordAttachments & print report, Red Tractor Poultry)" },
   { id: "crop-trials", label: "Crop Trials" },
   { id: "farm-diversification", label: "Farm Diversification" },
-  { id: "grain-crop-storage", label: "Grain & Crop Storage (stock movements, merchant charges, record linking)" },
+  { id: "grain-crop-storage", label: "Grain & Crop Storage (stock movements, merchant charges, record linking, Crop Stock Stocktakes with system quantity auto-fill, measurement method picker and variance badge)" },
   { id: "farm-services-contracting", label: "Farm Services & Contracting (contracting jobs, equipment hire)" },
   { id: "weather-tracking", label: "Weather Tracking (manual station readings + Fetch Live — auto-fills from Open-Meteo GPS weather with one click, no API key needed; spray-record auto-link and historical charting)" },
   { id: "platform-addons", label: "Platform Add-ons (SMS Alerts, push notifications to mobile app on task assignment, and Advisor / Inspector Access)" },
