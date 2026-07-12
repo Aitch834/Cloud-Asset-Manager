@@ -5,7 +5,7 @@ generated = []
 id = "u5PV2CPpbAZ3SN6WcbL7r"
 uri = "file://threat_model.md"
 type = "text"
-title = "BDE Farm Trac — Threat Model"
+title = "BDE Farm Trac — Threat Model (reviewed 2026-07-12)"
 
 [[outputs]]
 id = "54DDEDwbzIHkzWo1T81BB"
