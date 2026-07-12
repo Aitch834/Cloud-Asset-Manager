@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
-import { useUser } from "@clerk/react";
+import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { StorageLocationMapPicker } from "@/components/storage/StorageLocationMapPicker";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useFarmMembers } from "@/hooks/use-farm-members";
@@ -1231,7 +1231,7 @@ const emptyTempLog = () => ({
 function GrainDryingTab({ farmId, locationId }: { farmId: number; locationId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { user: clerkUser } = useUser();
+  const { user: clerkUser } = useSafeUser();
   const myName = clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") : "";
   const { data: dryMembersData, isLoading: dryMembersLoading } = useFarmMembers(farmId);
   const dryStaffNames = (dryMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
@@ -1385,7 +1385,7 @@ function GrainDryingTab({ farmId, locationId }: { farmId: number; locationId: nu
 function GrainConditioningTab({ farmId, locationId }: { farmId: number; locationId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { user: clerkUser } = useUser();
+  const { user: clerkUser } = useSafeUser();
   const myName = clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") : "";
   const { data: condMembersData, isLoading: condMembersLoading } = useFarmMembers(farmId);
   const condStaffNames = (condMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
@@ -1540,7 +1540,7 @@ function GrainConditioningTab({ farmId, locationId }: { farmId: number; location
 function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: number; locationId: number; locationType: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { user: clerkUser } = useUser();
+  const { user: clerkUser } = useSafeUser();
   const myName = clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") : "";
   const { data: monMembersData, isLoading: monMembersLoading } = useFarmMembers(farmId);
   const monStaffNames = (monMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);

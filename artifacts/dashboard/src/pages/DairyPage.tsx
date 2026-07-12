@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 
-import { useUser } from "@clerk/react";
+import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, PieChart, Pie, Cell, Legend } from "recharts";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -2173,7 +2173,7 @@ interface BcsRecord {
 
 export function BcsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
-  const { user: clerkUser } = useUser();
+  const { user: clerkUser } = useSafeUser();
   const myName = clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") : "";
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<BcsRecord | null>(null);
@@ -2490,7 +2490,7 @@ interface MobilityScoring {
 
 export function MobilityTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
-  const { user: clerkUser } = useUser();
+  const { user: clerkUser } = useSafeUser();
   const myName = clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") : "";
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MobilityScoring | null>(null);

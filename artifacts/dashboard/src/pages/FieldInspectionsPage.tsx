@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { useUser } from "@clerk/react";
+import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
@@ -301,7 +301,7 @@ export default function FieldInspectionsPage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { user } = useUser();
+  const { user } = useSafeUser();
   const inspectorName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.primaryEmailAddress?.emailAddress || "" : "";
 
   const [search, setSearch] = useState("");

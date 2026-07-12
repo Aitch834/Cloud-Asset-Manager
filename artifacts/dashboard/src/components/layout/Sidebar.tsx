@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { useClerk } from "@clerk/react";
+import { useSafeClerk } from "@/hooks/use-safe-clerk";
 import { 
   LayoutDashboard, 
   Sprout, 
@@ -411,7 +411,7 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
 
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const { farmId, clearState } = useAppStore();
-  const { signOut } = useClerk();
+  const { signOut } = useSafeClerk();
   const [, setLocation] = useLocation();
   const { role: userRole } = useUserRole();
 

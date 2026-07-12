@@ -531,6 +531,21 @@ function DevBypassContent() {
 function ClerkProviderWrapper() {
   const [, setLocation] = useLocation();
   const isDevBypass = import.meta.env.VITE_DEV_BYPASS_AUTH === "true";
+
+  // In dev-bypass mode skip ClerkProvider entirely — Clerk's async session
+  // checks (fired ~20 s after init) throw an empty error object that crashes
+  // the ErrorBoundary even though no Clerk auth is needed in bypass mode.
+  if (isDevBypass) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <NavHistoryProvider>
+          <DevBypassContent />
+          <Toaster />
+        </NavHistoryProvider>
+      </QueryClientProvider>
+    );
+  }
+
   return (
     <ClerkProvider
       publishableKey={clerkPubKey}
@@ -540,8 +555,8 @@ function ClerkProviderWrapper() {
     >
       <QueryClientProvider client={queryClient}>
         <NavHistoryProvider>
-          {!isDevBypass && <ClerkQueryClientCacheInvalidator />}
-          {isDevBypass ? <DevBypassContent /> : <Router />}
+          <ClerkQueryClientCacheInvalidator />
+          <Router />
           <Toaster />
         </NavHistoryProvider>
       </QueryClientProvider>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { useUser } from "@clerk/react";
+import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -69,7 +69,7 @@ const steps = [
 
 export default function OnboardingPage() {
   const [, setLocation] = useLocation();
-  const { user } = useUser();
+  const { user } = useSafeUser();
   const { toast } = useToast();
   const { setTenantSlug, setFarmId } = useAppStore();
 

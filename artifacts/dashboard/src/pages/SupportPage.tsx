@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
-import { useUser } from "@clerk/react";
+import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { CheckCircle2, Loader2, LifeBuoy, Clock, MessageSquare, Hash } from "lucide-react";
 
 const CATEGORIES = [
@@ -49,7 +49,7 @@ function InfoCard({ icon: Icon, title, body }: { icon: React.ComponentType<{clas
 }
 
 export default function SupportPage() {
-  const { user: clerkUser } = useUser();
+  const { user: clerkUser } = useSafeUser();
   const { farmId, tenantSlug } = useAppStore();
   const [form, setForm] = useState<FormState>(EMPTY);
   const [errors, setErrors] = useState<Partial<FormState>>({});

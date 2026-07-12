@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { downloadCsvFile } from "@/lib/csv";
-import { useUser } from "@clerk/react";
+import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -1208,7 +1208,7 @@ function RotaTab({ farmId, staffNames, staffMembers }: { farmId: number; staffNa
 function AbsenceTab({ farmId, staffNames, onPendingCount, staffMembers }: { farmId: number; staffNames: string[]; onPendingCount?: (n: number) => void; staffMembers: StaffMember[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { user } = useUser();
+  const { user } = useSafeUser();
   const managerName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.primaryEmailAddress?.emailAddress || "Manager" : "Manager";
   const thisYear = new Date().getFullYear();
   const [yearFilter, setYearFilter] = useState(String(thisYear));

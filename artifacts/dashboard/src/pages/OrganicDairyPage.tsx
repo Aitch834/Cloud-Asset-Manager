@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo } from "react";
-import { useUser } from "@clerk/react";
+import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -897,7 +897,7 @@ function OrganicLabResultsBadge({ status }: { status?: string | null }) {
 function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { user } = useUser();
+  const { user } = useSafeUser();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CollectionRecord | null>(null);
   const [viewRecord, setViewRecord] = useState<CollectionRecord | null>(null);

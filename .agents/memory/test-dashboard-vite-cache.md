@@ -429,6 +429,45 @@ grep -rn "^export default function\|^function [A-Z]" artifacts/dashboard/src/pag
 ```
 Any name appearing 2+ times across all page files is a collision candidate.
 
+## Production build — Clerk `{}` crash after ~20 seconds (FIXED)
+
+After switching to production build (`vite build + vite preview`), a NEW crash appeared:
+a plain empty object `{}` thrown from `iGe` (SeedStorePage) ~20 seconds after page load,
+caught by the top-level ErrorBoundary.
+
+**Root cause:** `ClerkProvider` was always rendered (even in `VITE_DEV_BYPASS_AUTH=true` mode).
+Clerk initialises, makes an async session-validation request to its CDN, and after ~20 s
+the request resolves with an empty JSON body `{}`. Clerk throws this object into the React
+tree during a context re-render. Any component inside `<ClerkProvider>` — including
+SeedStorePage — fails with the thrown `{}`.
+
+**Why `VITE_CLERK_PROXY_URL` was irrelevant:** It was undefined (not set in env), equivalent
+to omitting the prop. The crash was from the session check, not from proxy URL issues.
+
+**Fix — two parts:**
+
+1. `App.tsx ClerkProviderWrapper`: when `isDevBypass === true`, skip `<ClerkProvider>`
+   entirely. Return `<QueryClientProvider>…<DevBypassContent />…` directly.
+
+2. Safe hook wrappers (`hooks/use-safe-clerk.ts`): Clerk hooks (`useClerk`, `useUser`) are
+   called in 8 files (Sidebar, DairyPage, FieldInspections, LabourPage, OnboardingPage,
+   OrganicDairyPage, StorageLocations, SupportPage). Without ClerkProvider they throw
+   immediately. The fix: define TWO functions per hook (one real, one bypass no-op), select
+   between them at module init time using the build-time constant:
+   ```ts
+   const DEV_BYPASS = import.meta.env.VITE_DEV_BYPASS_AUTH === "true";
+   export const useSafeClerk = DEV_BYPASS ? _useClerkBypass : _useClerkReal;
+   export const useSafeUser  = DEV_BYPASS ? _useUserBypass  : _useUserReal;
+   ```
+   No conditional hook calls inside components → Rules of Hooks satisfied. Vite tree-shakes
+   the unused branch at build time.
+
+**All 8 files updated:** import changed from `@clerk/react` → `@/hooks/use-safe-clerk`,
+`useClerk()` → `useSafeClerk()`, `useUser()` → `useSafeUser()`.
+
+**Verified:** screenshots show full UI rendering (Seed Store, Dashboard Overview) with
+zero ErrorBoundary errors and no `{}` in console logs after 27 seconds.
+
 ## Dep chunk internals — key chunk names (React 19.1.0)
 
 - `chunk-KC53NVYV.js` — React CJS implementation (require_react_development). Contains FULL React source.
