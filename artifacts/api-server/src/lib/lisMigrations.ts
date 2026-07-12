@@ -284,6 +284,24 @@ export async function runLisMigrations(): Promise<void> {
   // ── Spray products: bee precaution flag ──────────────────────────────────
   await db.execute(sql`ALTER TABLE spray_products ADD COLUMN IF NOT EXISTS bee_precaution boolean NOT NULL DEFAULT false`);
 
+  // ── Security: platform_audit_log immutability trigger ─────────────────────
+  // Prevents UPDATE and DELETE on audit log rows at the database level so the
+  // log is truly append-only regardless of what the application or SQL runner does.
+  await db.execute(sql`
+    CREATE OR REPLACE FUNCTION platform_audit_log_immutable()
+    RETURNS TRIGGER LANGUAGE plpgsql AS $$
+    BEGIN
+      RAISE EXCEPTION 'platform_audit_log rows are immutable — UPDATE and DELETE are prohibited';
+    END;
+    $$
+  `);
+  await db.execute(sql`DROP TRIGGER IF EXISTS platform_audit_log_immutable_tg ON platform_audit_log`);
+  await db.execute(sql`
+    CREATE TRIGGER platform_audit_log_immutable_tg
+      BEFORE UPDATE OR DELETE ON platform_audit_log
+      FOR EACH ROW EXECUTE FUNCTION platform_audit_log_immutable()
+  `);
+
   // ── Spray notifications: new columns & contact book ──────────────────────
   await db.execute(sql`ALTER TABLE spray_notifications ADD COLUMN IF NOT EXISTS recipient_contact text`);
   await db.execute(sql`ALTER TABLE spray_notifications ADD COLUMN IF NOT EXISTS recipient_address text`);

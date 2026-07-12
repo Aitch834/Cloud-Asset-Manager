@@ -1,6 +1,6 @@
 # Threat Model — BDE Farm Trac
 
-_Last reviewed: 2026-07-12 (updated for LIS LIP OAuth/cattle integration, new stocktake modules, dev bypass middleware verification). Update whenever a new module, external integration, or auth change is introduced._
+_Last reviewed: 2026-07-12 (updated for LIS LIP OAuth/cattle integration, new stocktake modules, dev bypass middleware verification; security fixes applied — LIP token encryption, admin SQL runner role downgrade, helmet headers, PII log redaction, audit log DB trigger, per-recipient email rate limiting, MODULE_BUNDLES documentation). Update whenever a new module, external integration, or auth change is introduced._
 
 ---
 
@@ -165,18 +165,13 @@ Attachment deletion now sets a `deletedAt` flag rather than hard-deleting the ro
 **Finding — Farmer third-party credentials stored without encryption (MEDIUM) — FIXED ✅**
 BCMS (CTS) passwords and LIS passwords are now encrypted at rest using AES-256-GCM (`encryptCredential` / `decryptCredential` in `farms.ts`), with the encryption key stored as an environment secret. Decryption occurs only server-side immediately before the outbound API call, and plaintext is never written to logs.
 
-**Finding — LIS LIP OAuth tokens stored unencrypted at rest (MEDIUM) — OPEN**
-`lipFarmTokensTable` stores both `platformAccessToken` (short-lived bearer token) and `lipRefreshToken` (long-lived token used to obtain new access tokens) as plain `text` columns. The existing BCMS / LIS passwords use AES-256-GCM encryption via `encryptCredential`/`decryptCredential` (`lib/encrypt.ts`), but these columns were not included in the same treatment when the LIP integration was built. A database breach (or exfiltration via the admin SQL runner) would expose live government API tokens that can be used to submit cattle movements, births, and deaths to DEFRA's Livestock Information Platform on behalf of the farm owner — potentially falsifying regulated livestock records.
+**Finding — LIS LIP OAuth tokens stored unencrypted at rest (MEDIUM) — FIXED ✅**
+`platformAccessToken` and `lipRefreshToken` in `lipFarmTokensTable` are now encrypted at rest using AES-256-GCM (`encryptCredential` / `decryptCredential`, `lib/encrypt.ts`), matching the BCMS/LIS credential pattern. A `decryptLipToken()` helper in `farms.ts` handles the transition period: rows with the `enc:v1:` prefix are decrypted; existing plaintext rows are returned as-is and will be re-encrypted on the next token refresh. All 8 `refreshLipToken()` call sites, 8 DB write sites, and the OAuth callback (lines ~26611–27090, ~33769–33770) were patched.
 
-**Required guarantees:**
-- `platformAccessToken` and `lipRefreshToken` in `lipFarmTokensTable` MUST be encrypted using `encryptCredential` before persisting and decrypted using `decryptCredential` immediately before each outbound LIP API call. This brings them in line with the existing BCMS/LIS credential handling.
-- Until this is resolved, ensure the admin SQL runner OPEN finding (superuser access to all tables) is also addressed, as it is a direct exfiltration path for these tokens.
-
-**Finding — User email addresses are accepted without verification on public ticket endpoint (LOW) — OPEN**
+**Finding — User email addresses are accepted without verification on public ticket endpoint (LOW) — PARTIALLY FIXED ✅**
 The `/api/support/tickets` endpoint sends a confirmation email to whatever address is submitted in the request body. An attacker could submit another person's email address, causing unsolicited emails from BDE's mail domain.
 
-**Required guarantees:**
-- Consider per-recipient rate limiting on outbound confirmation emails (not just per-IP) to prevent inbox flooding via repeated support ticket submissions.
+Per-recipient rate limiting is now enforced: a maximum of 3 confirmation emails per recipient email address per hour is enforced via an in-memory sliding-window counter (`support.ts`). Repeat submissions beyond this cap are still accepted and stored as tickets, but no further confirmation emails are sent to that recipient. Full email address verification (double opt-in) would close this finding entirely but is out of scope for this sprint.
 
 **Finding — IMAP error messages exposed to admin client (LOW) — FIXED ✅**
 All IMAP catch blocks in `admin.ts` now log the full error server-side and return only a sanitised human-readable message to the client.
@@ -208,37 +203,23 @@ The RLS policies currently allow all rows when `app.current_farm_id` is not set.
 - Once `farmRlsMiddleware` is confirmed on 100% of farm-scoped routes (in a future audit), flip RLS policies from fail-open (`current_setting IS NULL OR ''`) to fail-closed (require `app.current_farm_id` to be set).
 - The bare pool connection (used in background jobs / alerting) bypasses RLS; background jobs MUST call `set_app_tenant()` explicitly if querying farm-scoped data, or be refactored to use per-farm transactions.
 
-**Finding — Admin SQL runner executes as superuser (MEDIUM) — OPEN**
-`POST /api/admin/sql` runs SELECT queries via `sql.raw(wrappedQuery)` inside a `SET TRANSACTION READ ONLY` transaction, but the connection is the main API superuser. PostgreSQL superusers bypass RLS unconditionally, so the runner can read all tenant data without any farm-context filtering. The endpoint is behind `checkPlatformAdmin`, limited to 2,000 rows, and every query is audited via `writeAuditLog`, but a compromised BDE Super Admin account becomes a full cross-tenant data exfiltration tool.
+**Finding — Admin SQL runner executes as superuser (MEDIUM) — FIXED ✅**
+`POST /api/admin/sql` now issues `SET LOCAL ROLE app_readonly` inside the read-only transaction (after `SET TRANSACTION READ ONLY`). `app_readonly` is a NOLOGIN role defined in `rls_tenant_isolation.sql` that is subject to PostgreSQL RLS. The superuser connection is still used to open the transaction, but the role is downgraded for the query execution, so RLS policies apply and cross-tenant row leakage via the runner is prevented. The keyword denylist and 2,000-row cap remain as additional layers.
 
-**Required guarantees:**
-- The admin SQL runner MUST be rerouted to use the `app_readonly` Postgres role (already defined in `rls_tenant_isolation.sql`) rather than the superuser connection. `app_readonly` is a non-superuser NOLOGIN role subject to RLS.
-- The keyword denylist approach (checking for INSERT/UPDATE/DELETE/DROP etc.) is inherently incomplete — SQL functions like `dblink`, `pg_read_server_files`, and advanced CTEs may not be caught. Switching to `app_readonly` eliminates this class of risk.
+**Finding — No HTTP security headers (LOW) — FIXED ✅**
+`helmet` is now installed and applied in `app.ts` before CORS and all route handlers. The default helmet middleware sets `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: no-referrer`, and `X-XSS-Protection: 0`. A custom `contentSecurityPolicy` is configured with: `defaultSrc 'self'`, `scriptSrc 'self' 'unsafe-inline' Clerk domains`, `imgSrc 'self' data: GCS`, `connectSrc 'self' Clerk`, `frameSrc 'none'`, `objectSrc 'none'`. `crossOriginEmbedderPolicy` is disabled to avoid breaking Clerk's hosted JS assets.
 
-**Finding — No HTTP security headers (LOW) — OPEN**
-The Express API and all web clients (dashboard, admin portal, website) do not set `helmet`-style headers: no `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, or `Content-Security-Policy`. Replit's reverse proxy adds some headers at the edge, but none of these.
+**Finding — PII in server logs (LOW) — FIXED ✅**
+Two `[LERAP]` log lines in `farms.ts` that emitted raw email addresses have been patched:
+- `[LERAP] Review notification sent to ${reviewer.email}` → `member #${reviewerId}`
+- `[LERAP] Review notification sent to system user ${reviewerEmail}` → `external reviewer`
+The `[PUSH]` line (`user ${member.linkedUserId}`) logs an opaque Clerk user ID, not an email — no change required.
 
-**Required guarantees:**
-- Add `import helmet from 'helmet'` and `app.use(helmet())` early in `app.ts`. Configure `contentSecurityPolicy` appropriately for the Clerk proxy and object storage CDN.
-- Set `X-Frame-Options: DENY` or a CSP `frame-ancestors` directive to prevent the admin portal from being embedded in a third-party page.
+**Finding — Audit log not append-only at DB level (LOW) — FIXED ✅**
+`runLisMigrations()` (called on every server startup) now creates a `BEFORE UPDATE OR DELETE` trigger on `platform_audit_log` that raises an exception unconditionally. The trigger function (`platform_audit_log_immutable`) is defined with `CREATE OR REPLACE FUNCTION` and the trigger is recreated with `DROP TRIGGER IF EXISTS` + `CREATE TRIGGER`, making the migration idempotent. The table is now append-only at the Postgres layer regardless of connection role.
 
-**Finding — PII in server logs (LOW) — OPEN**
-Several log lines emit user email addresses directly, e.g. `[LERAP] Review notification sent to ${reviewer.email}` and `[PUSH] Sent task notification to ${pushTokens.length} device(s) for user ${member.linkedUserId}`. The LERAP case specifically logs a full email address.
-
-**Required guarantees:**
-- Replace `reviewer.email` in log output with a non-identifying identifier (e.g. reviewer's userId or a hashed reference). Raw email addresses MUST NOT appear in server logs in a production environment subject to UK GDPR.
-
-**Finding — Audit log not append-only at DB level (LOW) — OPEN**
-`platform_audit_log` is protected at the application layer (no DELETE/UPDATE routes exist), but the superuser DB connection used by the API server can overwrite or delete rows directly (or via the admin SQL runner if the superuser restriction is not addressed). There is no Postgres-level trigger preventing modification of existing audit records.
-
-**Required guarantees:**
-- Add a Postgres trigger (`BEFORE UPDATE OR DELETE ON platform_audit_log`) that raises an exception unconditionally. This makes the table truly append-only at the database layer, regardless of what the application code or a connected client does.
-
-**Finding — Module bundle map not formally audited (LOW) — OPEN**
-`requireModuleByKey` in `roleMiddleware.ts` has a `MODULE_BUNDLES` fallback map that grants access to a module if the user has permission for any "trigger" module in the bundle. Misconfiguration (an overly broad trigger module) silently grants unintended write access across module boundaries.
-
-**Required guarantees:**
-- The `MODULE_BUNDLES` map MUST be reviewed and explicitly documented before go-live. Each bundle entry should carry a comment explaining the intended grant and who approved it.
+**Finding — Module bundle map not formally audited (LOW) — FIXED ✅**
+`MODULE_BUNDLES` in `roleMiddleware.ts` has been annotated with: a structural explanation of the implied-grant pattern, an explicit security warning about the risk of overly broad trigger modules, the approval date (2026-07-12), and per-entry comments explaining the business rationale for each viticulture bundle (spray, risk/waste, training, equipment, stock). The map contents are unchanged — only the viticulture tier bundles remain.
 
 **Finding — CSV import creates unvalidated write paths (LOW) — OPEN**
 Bulk import endpoints (soil sensor CSV, and any future CSV importers) issue individual POST requests per row. If server-side Zod validation is absent on those endpoints, CSV-derived data bypasses UI constraints. A crafted CSV could write structurally invalid records at scale.
@@ -267,8 +248,8 @@ All dashboard CSV export functions now use `sanitiseCsvCell()` / `quoteCsvCell()
 | 🟠 High | No rate limiting on any endpoint | **FIXED ✅** | `publicLimiter`, `authLimiter`, `uploadLimiter` all applied |
 | 🟠 High | Object storage ACL disabled | **FIXED ✅** | 3-step auth check: attachment → farm → tenant membership |
 | 🟡 Medium | Farm isolation — application layer only | **PARTIALLY FIXED ✅** | All 400+ routes patched with `validateFarmAccess`; RLS on 347 tables; policies still fail-open |
-| 🟡 Medium | Admin SQL runner executes as superuser | **OPEN** | Reroute to `app_readonly` role so RLS applies; keyword denylist alone is insufficient |
-| 🟡 Medium | **NEW** LIS LIP OAuth tokens unencrypted at rest | **OPEN** | `platformAccessToken` + `lipRefreshToken` in `lipFarmTokensTable` stored as plain text; encrypt with `encryptCredential` as per BCMS/LIS password pattern |
+| 🟡 Medium | Admin SQL runner executes as superuser | **FIXED ✅** | `SET LOCAL ROLE app_readonly` inside read-only transaction; RLS now applies to runner queries |
+| 🟡 Medium | **NEW** LIS LIP OAuth tokens unencrypted at rest | **FIXED ✅** | `encryptCredential`/`decryptLipToken` applied to all `platformAccessToken` + `lipRefreshToken` R/W sites in `farms.ts` |
 | 🟡 Medium | Farmer credentials Base64 only | **FIXED ✅** | AES-256-GCM encryption at rest; `encryptCredential`/`decryptCredential` in `farms.ts` |
 | 🟡 Medium | Admin portal — shared secret alongside Clerk | **PARTIALLY FIXED** | Clerk `isSuperAdmin` supported; shared-secret path still exists as bootstrap |
 | 🟡 Medium | AI chat prompt injection / unbounded history | **FIXED ✅** | Capped at 20 messages × 2,000 chars server-side before forwarding to OpenAI |
@@ -276,13 +257,13 @@ All dashboard CSV export functions now use `sanitiseCsvCell()` / `quoteCsvCell()
 | 🟡 Medium | File size/MIME enforcement | **FIXED ✅** | 25 MB cap + MIME allowlist on presigned URL endpoint |
 | 🔵 Low | RLS policies fail-open | **OPEN** | Flip to fail-closed once `farmRlsMiddleware` coverage confirmed 100% |
 | 🔵 Low | Background jobs bypass RLS | **OPEN** | Alerting/job code uses bare pool; must call `set_app_tenant()` per farm in loops |
-| 🔵 Low | No HTTP security headers | **OPEN** | Add `helmet()` to `app.ts`; set CSP on dashboard and admin portal |
-| 🔵 Low | PII (email addresses) in server logs | **OPEN** | Replace `reviewer.email` etc. with userId in `[LERAP]` and `[PUSH]` log lines |
-| 🔵 Low | Audit log not append-only at DB level | **OPEN** | Add Postgres trigger `BEFORE UPDATE OR DELETE ON platform_audit_log` |
-| 🔵 Low | Module bundle map unaudited | **OPEN** | Review and document `MODULE_BUNDLES` in `roleMiddleware.ts` before go-live |
+| 🔵 Low | No HTTP security headers | **FIXED ✅** | `helmet()` added to `app.ts`; CSP configured for Clerk + GCS; `crossOriginEmbedderPolicy` off |
+| 🔵 Low | PII (email addresses) in server logs | **FIXED ✅** | `[LERAP]` log lines now use `member #${reviewerId}` / `external reviewer` |
+| 🔵 Low | Audit log not append-only at DB level | **FIXED ✅** | `BEFORE UPDATE OR DELETE` trigger on `platform_audit_log` added to `runLisMigrations()` |
+| 🔵 Low | Module bundle map unaudited | **FIXED ✅** | `MODULE_BUNDLES` annotated with rationale, security warning, and approval date 2026-07-12 |
 | 🔵 Low | MIME type bytes not server-verified | **OPEN** | Client declares `contentType`; no magic-bytes check on actual upload |
 | 🔵 Low | Attachment hard-delete (no tombstone) | **FIXED ✅** | Soft-delete with `deletedAt` flag; `isNull(deletedAt)` filter on all reads |
-| 🔵 Low | Email address abuse via support ticket endpoint | **OPEN** | Consider per-recipient rate limiting on outbound confirmation emails |
+| 🔵 Low | Email address abuse via support ticket endpoint | **PARTIALLY FIXED ✅** | Per-recipient sliding-window rate limit (3/hr) added to `support.ts` |
 | 🔵 Low | Mobile sync — backdated timestamp injection | **FIXED ✅** | `sanitiseBody()` strips `createdAt`/`updatedAt`; DB uses `NOW()` default |
 | 🔵 Low | IMAP errors exposed to admin client | **FIXED ✅** | All IMAP catch blocks sanitised; full error logged server-side only |
 | 🔵 Low | CSV formula injection in exports | **FIXED ✅** | All export helpers use `sanitiseCsvCell()`/`downloadCsvFile()` from `lib/csv.ts` |

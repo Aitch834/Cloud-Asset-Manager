@@ -7,6 +7,23 @@ import { sendTicketConfirmationEmail, sendNewTicketInternalAlert } from "../lib/
 
 const router: IRouter = Router();
 
+// Per-recipient rate limit for outbound confirmation emails on the public ticket
+// endpoint. Prevents inbox flooding via repeated submissions using the same email.
+const EMAIL_RATE_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const EMAIL_RATE_MAX = 3;
+const recipientEmailTimestamps = new Map<string, number[]>();
+
+function isEmailRateLimited(email: string): boolean {
+  const now = Date.now();
+  const recent = (recipientEmailTimestamps.get(email) ?? []).filter(
+    (t) => now - t < EMAIL_RATE_WINDOW_MS,
+  );
+  if (recent.length >= EMAIL_RATE_MAX) return true;
+  recent.push(now);
+  recipientEmailTimestamps.set(email, recent);
+  return false;
+}
+
 const SYSTEM_PROMPT = `You are a helpful support assistant for BDE Farm Trac, a UK-based SaaS platform that helps farmers achieve Red Tractor Scheme compliance.
 
 Key product information:
@@ -138,15 +155,24 @@ router.post("/support/tickets", async (req, res): Promise<void> => {
     const categoryMatch = rawSubject.match(/^\[([^\]]+)\]/);
     const category = categoryMatch ? categoryMatch[1] : "General";
 
+    const emailLimited = isEmailRateLimited(ticket.email);
+    if (emailLimited) {
+      console.warn(`[SUPPORT] Per-recipient email rate limit hit for ${ticketRef} — confirmation email suppressed`);
+    }
+
+    const confirmPromise = emailLimited
+      ? Promise.resolve({ sent: false, reason: "per-recipient rate limit" })
+      : sendTicketConfirmationEmail({
+          toEmail: ticket.email,
+          toName: ticket.name,
+          ticketRef,
+          ticketSubject: rawSubject,
+          category,
+          source,
+        });
+
     const [confirmResult, alertResult] = await Promise.allSettled([
-      sendTicketConfirmationEmail({
-        toEmail: ticket.email,
-        toName: ticket.name,
-        ticketRef,
-        ticketSubject: rawSubject,
-        category,
-        source,
-      }),
+      confirmPromise,
       sendNewTicketInternalAlert({
         ticketRef,
         ticketId: ticket.id,

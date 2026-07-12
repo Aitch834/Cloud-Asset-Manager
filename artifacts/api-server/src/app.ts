@@ -1,4 +1,5 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
+import helmet from "helmet";
 import cors from "cors";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import path from "path";
@@ -11,6 +12,27 @@ import { adminPortalMiddleware } from "./middlewares/adminPortalMiddleware";
 import router from "./routes";
 
 const app: Express = express();
+
+// ─── Security headers ────────────────────────────────────────────────────────
+// helmet sets X-Content-Type-Options, X-Frame-Options, Referrer-Policy,
+// Permissions-Policy, X-XSS-Protection, and a default Content-Security-Policy.
+// CSP is configured to allow Clerk's hosted assets and the object storage CDN.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://clerk.bdefarmtrac.co.uk", "https://*.clerk.accounts.dev"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https://storage.googleapis.com"],
+        connectSrc: ["'self'", "https://*.clerk.accounts.dev", "https://clerk.bdefarmtrac.co.uk", "https://api.clerk.dev"],
+        frameSrc: ["'none'"],
+        objectSrc: ["'none'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+  })
+);
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
 // Allow an explicit list of origins. Add production domains via ALLOWED_ORIGINS

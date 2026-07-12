@@ -5,6 +5,14 @@ import { sendSms } from "../lib/sms";
 import { sendAdminEmail } from "../lib/mailer";
 import { sanitiseBody } from "../lib/sanitise";
 import { encryptCredential, decryptCredential } from "../lib/encrypt";
+
+// Decrypt a LIP OAuth token stored in lip_farm_tokens.
+// Handles both new enc:v1: format and plaintext (existing rows — transition safe).
+function decryptLipToken(stored: string | null | undefined): string {
+  if (!stored) return "";
+  if (stored.startsWith("enc:v1:")) return decryptCredential(stored);
+  return stored;
+}
 import {
   biofuelCertificationsTable,
   biofuelFieldDeclarationsTable,
@@ -26608,17 +26616,17 @@ router.post("/farms/:farmId/lip-submit-movement/:movementId", requireAuth, requi
   const [farm] = await db.select().from(farmsTable).where(eq(farmsTable.id, farmId));
 
   // Determine access token — refresh if expired
-  let accessToken: string = tokenRow?.platformAccessToken ?? "";
+  let accessToken: string = decryptLipToken(tokenRow?.platformAccessToken);
   if (!isLipSandboxMode() && tokenRow?.isConfigured) {
     const nowPlusBuffer = new Date(Date.now() + 120_000);
     const isExpired = !accessToken || (tokenRow.tokenExpiresAt && new Date(tokenRow.tokenExpiresAt) < nowPlusBuffer);
     if (isExpired && tokenRow.lipRefreshToken) {
-      const refreshResult = await refreshLipToken(tokenRow.lipRefreshToken);
+      const refreshResult = await refreshLipToken(decryptLipToken(tokenRow.lipRefreshToken));
       if (refreshResult.success && refreshResult.accessToken) {
         accessToken = refreshResult.accessToken;
         await db.update(lipFarmTokensTable).set({
-          platformAccessToken: refreshResult.accessToken,
-          ...(refreshResult.refreshToken ? { lipRefreshToken: refreshResult.refreshToken } : {}),
+          platformAccessToken: encryptCredential(refreshResult.accessToken),
+          ...(refreshResult.refreshToken ? { lipRefreshToken: encryptCredential(refreshResult.refreshToken) } : {}),
           ...(refreshResult.expiresIn ? { tokenExpiresAt: new Date(Date.now() + refreshResult.expiresIn * 1000) } : {}),
           updatedAt: new Date(),
         }).where(eq(lipFarmTokensTable.farmId, farmId));
@@ -26692,17 +26700,17 @@ router.post("/farms/:farmId/lip-submit-death/:mortalityId", requireAuth, require
   const [tokenRow] = await db.select().from(lipFarmTokensTable).where(eq(lipFarmTokensTable.farmId, farmId));
   const [farm] = await db.select().from(farmsTable).where(eq(farmsTable.id, farmId));
 
-  let accessToken: string = tokenRow?.platformAccessToken ?? "";
+  let accessToken: string = decryptLipToken(tokenRow?.platformAccessToken);
   if (!isLipSandboxMode() && tokenRow?.isConfigured) {
     const nowPlusBuffer = new Date(Date.now() + 120_000);
     const isExpired = !accessToken || (tokenRow.tokenExpiresAt && new Date(tokenRow.tokenExpiresAt) < nowPlusBuffer);
     if (isExpired && tokenRow.lipRefreshToken) {
-      const refreshResult = await refreshLipToken(tokenRow.lipRefreshToken);
+      const refreshResult = await refreshLipToken(decryptLipToken(tokenRow.lipRefreshToken));
       if (refreshResult.success && refreshResult.accessToken) {
         accessToken = refreshResult.accessToken;
         await db.update(lipFarmTokensTable).set({
-          platformAccessToken: refreshResult.accessToken,
-          ...(refreshResult.refreshToken ? { lipRefreshToken: refreshResult.refreshToken } : {}),
+          platformAccessToken: encryptCredential(refreshResult.accessToken),
+          ...(refreshResult.refreshToken ? { lipRefreshToken: encryptCredential(refreshResult.refreshToken) } : {}),
           ...(refreshResult.expiresIn ? { tokenExpiresAt: new Date(Date.now() + refreshResult.expiresIn * 1000) } : {}),
           updatedAt: new Date(),
         }).where(eq(lipFarmTokensTable.farmId, farmId));
@@ -26769,17 +26777,17 @@ router.post("/farms/:farmId/lip-submit-birth/:calvingId", requireAuth, requireTe
   const [tokenRow] = await db.select().from(lipFarmTokensTable).where(eq(lipFarmTokensTable.farmId, farmId));
   const [farm] = await db.select().from(farmsTable).where(eq(farmsTable.id, farmId));
 
-  let accessToken: string = tokenRow?.platformAccessToken ?? "";
+  let accessToken: string = decryptLipToken(tokenRow?.platformAccessToken);
   if (!isLipSandboxMode() && tokenRow?.isConfigured) {
     const nowPlusBuffer = new Date(Date.now() + 120_000);
     const isExpired = !accessToken || (tokenRow.tokenExpiresAt && new Date(tokenRow.tokenExpiresAt) < nowPlusBuffer);
     if (isExpired && tokenRow.lipRefreshToken) {
-      const refreshResult = await refreshLipToken(tokenRow.lipRefreshToken);
+      const refreshResult = await refreshLipToken(decryptLipToken(tokenRow.lipRefreshToken));
       if (refreshResult.success && refreshResult.accessToken) {
         accessToken = refreshResult.accessToken;
         await db.update(lipFarmTokensTable).set({
-          platformAccessToken: refreshResult.accessToken,
-          ...(refreshResult.refreshToken ? { lipRefreshToken: refreshResult.refreshToken } : {}),
+          platformAccessToken: encryptCredential(refreshResult.accessToken),
+          ...(refreshResult.refreshToken ? { lipRefreshToken: encryptCredential(refreshResult.refreshToken) } : {}),
           ...(refreshResult.expiresIn ? { tokenExpiresAt: new Date(Date.now() + refreshResult.expiresIn * 1000) } : {}),
           updatedAt: new Date(),
         }).where(eq(lipFarmTokensTable.farmId, farmId));
@@ -26873,16 +26881,16 @@ router.post("/farms/:farmId/lip-lost-found", requireAuth, requireTenant, async (
   const [tokenRow] = await db.select().from(lipFarmTokensTable).where(eq(lipFarmTokensTable.farmId, farmId));
   const [farm] = await db.select().from(farmsTable).where(eq(farmsTable.id, farmId));
   const holdingCph = (farm as any)?.bcmsHoldingNumber ?? siteIdentifier ?? "";
-  let accessToken: string = tokenRow?.platformAccessToken ?? "";
+  let accessToken: string = decryptLipToken(tokenRow?.platformAccessToken);
 
   if (!isLipSandboxMode() && tokenRow?.isConfigured) {
     const nowPlusBuffer = new Date(Date.now() + 120_000);
     const isExpired = !accessToken || (tokenRow.tokenExpiresAt && new Date(tokenRow.tokenExpiresAt) < nowPlusBuffer);
     if (isExpired && tokenRow.lipRefreshToken) {
-      const refreshResult = await refreshLipToken(tokenRow.lipRefreshToken);
+      const refreshResult = await refreshLipToken(decryptLipToken(tokenRow.lipRefreshToken));
       if (refreshResult.success && refreshResult.accessToken) {
         accessToken = refreshResult.accessToken;
-        await db.update(lipFarmTokensTable).set({ platformAccessToken: refreshResult.accessToken, updatedAt: new Date() }).where(eq(lipFarmTokensTable.farmId, farmId));
+        await db.update(lipFarmTokensTable).set({ platformAccessToken: encryptCredential(refreshResult.accessToken), updatedAt: new Date() }).where(eq(lipFarmTokensTable.farmId, farmId));
       }
     }
   }
@@ -26963,16 +26971,16 @@ router.post("/farms/:farmId/lip-confirm-movement", requireAuth, requireTenant, a
   if (!lipReference || !action) { res.status(400).json({ error: "lipReference and action are required" }); return; }
 
   const [tokenRow] = await db.select().from(lipFarmTokensTable).where(eq(lipFarmTokensTable.farmId, farmId));
-  let accessToken: string = tokenRow?.platformAccessToken ?? "";
+  let accessToken: string = decryptLipToken(tokenRow?.platformAccessToken);
 
   if (!isLipSandboxMode() && tokenRow?.isConfigured) {
     const nowPlusBuffer = new Date(Date.now() + 120_000);
     const isExpired = !accessToken || (tokenRow.tokenExpiresAt && new Date(tokenRow.tokenExpiresAt) < nowPlusBuffer);
     if (isExpired && tokenRow.lipRefreshToken) {
-      const refreshResult = await refreshLipToken(tokenRow.lipRefreshToken);
+      const refreshResult = await refreshLipToken(decryptLipToken(tokenRow.lipRefreshToken));
       if (refreshResult.success && refreshResult.accessToken) {
         accessToken = refreshResult.accessToken;
-        await db.update(lipFarmTokensTable).set({ platformAccessToken: refreshResult.accessToken, updatedAt: new Date() }).where(eq(lipFarmTokensTable.farmId, farmId));
+        await db.update(lipFarmTokensTable).set({ platformAccessToken: encryptCredential(refreshResult.accessToken), updatedAt: new Date() }).where(eq(lipFarmTokensTable.farmId, farmId));
       }
     }
   }
@@ -27005,16 +27013,16 @@ router.post("/farms/:farmId/lip-cancel-movement", requireAuth, requireTenant, as
   if (!lipReference) { res.status(400).json({ error: "lipReference is required" }); return; }
 
   const [tokenRow] = await db.select().from(lipFarmTokensTable).where(eq(lipFarmTokensTable.farmId, farmId));
-  let accessToken: string = tokenRow?.platformAccessToken ?? "";
+  let accessToken: string = decryptLipToken(tokenRow?.platformAccessToken);
 
   if (!isLipSandboxMode() && tokenRow?.isConfigured) {
     const nowPlusBuffer = new Date(Date.now() + 120_000);
     const isExpired = !accessToken || (tokenRow.tokenExpiresAt && new Date(tokenRow.tokenExpiresAt) < nowPlusBuffer);
     if (isExpired && tokenRow.lipRefreshToken) {
-      const refreshResult = await refreshLipToken(tokenRow.lipRefreshToken);
+      const refreshResult = await refreshLipToken(decryptLipToken(tokenRow.lipRefreshToken));
       if (refreshResult.success && refreshResult.accessToken) {
         accessToken = refreshResult.accessToken;
-        await db.update(lipFarmTokensTable).set({ platformAccessToken: refreshResult.accessToken, updatedAt: new Date() }).where(eq(lipFarmTokensTable.farmId, farmId));
+        await db.update(lipFarmTokensTable).set({ platformAccessToken: encryptCredential(refreshResult.accessToken), updatedAt: new Date() }).where(eq(lipFarmTokensTable.farmId, farmId));
       }
     }
   }
@@ -27044,14 +27052,14 @@ router.get("/farms/:farmId/lip-rejection-reasons", requireAuth, requireTenant, a
   try {
     const [tokenRow] = await db.select().from(lipFarmTokensTable).where(eq(lipFarmTokensTable.farmId, farmId));
     if (!tokenRow?.platformAccessToken) { res.json({ reasons: [] }); return; }
-    let accessToken = tokenRow.platformAccessToken;
+    let accessToken = decryptLipToken(tokenRow?.platformAccessToken);
     if (tokenRow.lipRefreshToken) {
       const nowPlusBuffer = new Date(Date.now() + 120_000);
       if (!accessToken || (tokenRow.tokenExpiresAt && new Date(tokenRow.tokenExpiresAt) < nowPlusBuffer)) {
-        const r = await refreshLipToken(tokenRow.lipRefreshToken);
+        const r = await refreshLipToken(decryptLipToken(tokenRow.lipRefreshToken));
         if (r.success && r.accessToken) {
           accessToken = r.accessToken;
-          await db.update(lipFarmTokensTable).set({ platformAccessToken: r.accessToken, ...(r.refreshToken ? { lipRefreshToken: r.refreshToken } : {}), ...(r.expiresIn ? { tokenExpiresAt: new Date(Date.now() + r.expiresIn * 1000) } : {}), updatedAt: new Date() }).where(eq(lipFarmTokensTable.farmId, farmId));
+          await db.update(lipFarmTokensTable).set({ platformAccessToken: encryptCredential(r.accessToken), ...(r.refreshToken ? { lipRefreshToken: encryptCredential(r.refreshToken) } : {}), ...(r.expiresIn ? { tokenExpiresAt: new Date(Date.now() + r.expiresIn * 1000) } : {}), updatedAt: new Date() }).where(eq(lipFarmTokensTable.farmId, farmId));
         }
       }
     }
@@ -27077,14 +27085,14 @@ router.post("/farms/:farmId/lip-check-async/:submissionId", requireAuth, require
 
   const [tokenRow] = await db.select().from(lipFarmTokensTable).where(eq(lipFarmTokensTable.farmId, farmId));
   if (!tokenRow?.platformAccessToken) { res.status(400).json({ error: "LIP not connected" }); return; }
-  let accessToken = tokenRow.platformAccessToken;
+  let accessToken = decryptLipToken(tokenRow?.platformAccessToken);
   if (tokenRow.lipRefreshToken) {
     const nowPlusBuffer = new Date(Date.now() + 120_000);
     if (!accessToken || (tokenRow.tokenExpiresAt && new Date(tokenRow.tokenExpiresAt) < nowPlusBuffer)) {
-      const r = await refreshLipToken(tokenRow.lipRefreshToken);
+      const r = await refreshLipToken(decryptLipToken(tokenRow.lipRefreshToken));
       if (r.success && r.accessToken) {
         accessToken = r.accessToken;
-        await db.update(lipFarmTokensTable).set({ platformAccessToken: r.accessToken, ...(r.refreshToken ? { lipRefreshToken: r.refreshToken } : {}), ...(r.expiresIn ? { tokenExpiresAt: new Date(Date.now() + r.expiresIn * 1000) } : {}), updatedAt: new Date() }).where(eq(lipFarmTokensTable.farmId, farmId));
+        await db.update(lipFarmTokensTable).set({ platformAccessToken: encryptCredential(r.accessToken), ...(r.refreshToken ? { lipRefreshToken: encryptCredential(r.refreshToken) } : {}), ...(r.expiresIn ? { tokenExpiresAt: new Date(Date.now() + r.expiresIn * 1000) } : {}), updatedAt: new Date() }).where(eq(lipFarmTokensTable.farmId, farmId));
       }
     }
   }
@@ -31722,7 +31730,7 @@ router.post("/farms/:farmId/lerap-assessments", requireAuth, requireTenant, requ
               <p>Please log in to BDE Farm Trac and go to <strong>Sprays &amp; Inputs → LERAP Assessments</strong> to complete the review.</p>
               <p>Kind regards,<br>BDE Farm Trac</p>`,
           });
-          console.log(`[LERAP] Review notification sent to ${reviewer.email} for ${docRef}`);
+          console.log(`[LERAP] Review notification sent to member #${reviewerId} for ${docRef}`);
         }
         // Task Board assignment
         const [lerapTask] = await (db.insert(farmTaskAssignmentsTable) as any).values({
@@ -31766,7 +31774,7 @@ router.post("/farms/:farmId/lerap-assessments", requireAuth, requireTenant, requ
           <p>Please log in to BDE Farm Trac and go to <strong>Sprays &amp; Inputs → LERAP Assessments</strong> to complete the review.</p>
           <p>Kind regards,<br>BDE Farm Trac</p>`,
       });
-      console.log(`[LERAP] Review notification sent to system user ${reviewerEmail} for ${docRef}`);
+      console.log(`[LERAP] Review notification sent to external reviewer for ${docRef}`);
     } catch (err) { console.warn("[LERAP] Failed to send system-user review notification:", err); }
   }
   res.json({ record });
@@ -33766,8 +33774,8 @@ router.get("/lip/callback", async (req: Request, res: Response): Promise<void> =
   }
 
   const tokenFields = {
-    platformAccessToken: tokenResult.accessToken,
-    lipRefreshToken: tokenResult.refreshToken ?? null,
+    platformAccessToken: encryptCredential(tokenResult.accessToken),
+    lipRefreshToken: tokenResult.refreshToken ? encryptCredential(tokenResult.refreshToken) : null,
     tokenExpiresAt: tokenResult.expiresIn ? new Date(Date.now() + tokenResult.expiresIn * 1000) : null,
     isConfigured: true,
     sandboxMode: tokenResult.sandbox,

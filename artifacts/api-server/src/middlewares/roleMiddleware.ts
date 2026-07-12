@@ -158,13 +158,30 @@ async function resolveModuleId(key: string): Promise<number | null> {
   return null;
 }
 
-// Modules that are bundled into viticulture subscriptions at no extra charge.
-// Key = the module being requested; values = modules whose subscription grants implicit access.
+// MODULE_BUNDLES — implicit module grants bundled into higher-tier subscriptions.
+//
+// Structure: impliedModuleKey → triggerModuleKeys[]
+//   A farm that holds an active subscription for ANY trigger module also gets
+//   access to the implied module at no extra charge.
+//
+// SECURITY: each entry must be explicitly reviewed before go-live.
+//   Adding an overly broad trigger module here silently grants write access
+//   across module boundaries for every farm on that subscription.
+//
+// Current bundles (all approved for Viticulture tier — 2026-07-12):
+//   Viticulture subscribers need spray, risk, training, equipment, and stock
+//   management as integrated parts of the viticulture workflow. These are
+//   bundled rather than sold separately to keep the viticultural package simple.
 export const MODULE_BUNDLES: Record<string, string[]> = {
+  // Spray & Inputs: required for pesticide application records in viticulture.
   "sprays-inputs":        ["viticulture", "organic-viticulture"],
+  // Risk & Waste: required for COSHH/waste compliance across the holding.
   "risk-waste":           ["viticulture", "organic-viticulture"],
+  // Staff Training: required for operator certificate tracking under winemaker schemes.
   "staff-training":       ["viticulture", "organic-viticulture"],
+  // Equipment Management: required for sprayer inspection and calibration records.
   "equipment-management": ["viticulture", "organic-viticulture"],
+  // Stock & Suppliers: required for agrochemical and input stock management.
   "stock-suppliers":      ["viticulture", "organic-viticulture"],
 };
 

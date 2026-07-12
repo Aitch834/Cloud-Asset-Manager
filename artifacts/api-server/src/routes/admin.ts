@@ -382,6 +382,7 @@ router.post("/admin/sql", requireAuth, async (req: Request, res: Response): Prom
     const result = await db.transaction(async (tx) => {
       await tx.execute(sql`SET LOCAL statement_timeout = '10000'`);
       await tx.execute(sql`SET TRANSACTION READ ONLY`);
+      await tx.execute(sql`SET LOCAL ROLE app_readonly`);
       return await tx.execute(sql.raw(wrappedQuery));
     });
 
