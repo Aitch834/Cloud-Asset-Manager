@@ -105,6 +105,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["sprays-inputs"],
   },
   {
+    id: "spray-stocktake",
+    title: "Spray Store Stocktake",
+    description: "Count physical spray product stock and compare against system records to spot discrepancies",
+    icon: "droplet",
+    color: "#0891b2",
+    bgColor: "#e0f2fe",
+    route: "/spray-stocktake",
+    moduleKeys: ["sprays-inputs"],
+  },
+  {
     id: "weather",
     title: "Weather Entry",
     description: "Record daily weather observations for compliance records",
@@ -183,6 +193,16 @@ const recordOptions: RecordOption[] = [
     bgColor: "#e0f2fe",
     route: "/haulage-confirm",
     moduleKeys: ["haulage-transport", "field-crop-management"],
+  },
+  {
+    id: "grain-stocktake",
+    title: "Grain Store Stocktake",
+    description: "Record a physical probe measurement per bin and compare against system stock levels",
+    icon: "package",
+    color: "#d97706",
+    bgColor: "#fffbeb",
+    route: "/grain-stocktake",
+    moduleKeys: ["field-crop-management"],
   },
   {
     id: "service-job",

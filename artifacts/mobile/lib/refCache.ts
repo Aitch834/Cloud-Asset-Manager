@@ -6,6 +6,7 @@ export type RefHerd = { id: string; label: string; type: string };
 export type RefStaffMember = { id: string; label: string; role: string };
 export type RefSupplier = { id: string; label: string; supplierType: string };
 export type RefGrainBin = { id: string; label: string; binType: string; sublabel: string };
+export type RefSprayProduct = { id: string; label: string; currentStockQuantity: string | null };
 export type RefBatch = {
   id: string;
   supplierId: string;
@@ -69,6 +70,7 @@ export async function syncRefData(farmId: string): Promise<void> {
     syncBatches(farmId, token, base),
     syncGrainBins(farmId, token, base),
     syncStaffMembers(farmId, token, base),
+    syncSprayProducts(farmId, token, base),
   ]);
 }
 
@@ -203,6 +205,24 @@ async function syncGrainBins(farmId: string, token: string, base: string): Promi
 
 export async function getCachedGrainBins(farmId: string): Promise<RefGrainBin[]> {
   return getRefCache<RefGrainBin>("grain-bins", farmId);
+}
+
+async function syncSprayProducts(farmId: string, token: string, base: string): Promise<void> {
+  type RawProduct = { id: number; productName: string; currentStockQuantity: string | null };
+  const records = await safeFetch<RawProduct>(`${base}/api/farms/${farmId}/spray-products`, token);
+  if (!records) return;
+  const products: RefSprayProduct[] = records.map((p) => ({
+    id: String(p.id),
+    label: p.productName,
+    currentStockQuantity: p.currentStockQuantity ?? null,
+  }));
+  if (products.length > 0) {
+    await saveRefCache("spray-products", farmId, products);
+  }
+}
+
+export async function getCachedSprayProducts(farmId: string): Promise<RefSprayProduct[]> {
+  return getRefCache<RefSprayProduct>("spray-products", farmId);
 }
 
 export async function getCachedHerds(farmId: string): Promise<RefHerd[]> {

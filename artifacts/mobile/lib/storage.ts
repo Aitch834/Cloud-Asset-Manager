@@ -226,4 +226,6 @@ export const STORAGE_KEYS = {
   CARBON_REDUCTION_ACTIONS: "bde_carbon_reduction_actions",
   CARBON_AUDIT_RECORDS: "bde_carbon_audit_records",
   BNG_RECORDS: "bde_bng_records",
+  GRAIN_STOCK_STOCKTAKES: "bde_grain_stock_stocktakes",
+  SPRAY_STOCK_STOCKTAKES: "bde_spray_stock_stocktakes",
 } as const;
