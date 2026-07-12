@@ -928,6 +928,14 @@ export default defineConfig({
       { find: "zustand/shallow",     replacement: path.resolve(import.meta.dirname, "../dashboard/node_modules/zustand/esm/shallow.mjs") },
       { find: "zustand",             replacement: path.resolve(import.meta.dirname, "../dashboard/node_modules/zustand/esm/index.mjs") },
 
+      // ── @clerk/react bypass shim ──────────────────────────────────────────
+      // The test-dashboard always runs in VITE_DEV_BYPASS_AUTH mode.
+      // Replacing @clerk/react with this shim eliminates ALL of Clerk's
+      // module-level side effects (async session polling, window listeners, etc.)
+      // which otherwise throw a plain `{}` object into the React tree ~20 s
+      // after page load, crashing the ErrorBoundary.
+      { find: "@clerk/react", replacement: path.resolve(import.meta.dirname, "./src/clerk-bypass.ts") },
+
       // ── use-sync-external-store (peer dep of zustand/traditional + @uppy/react) ──
       // zustand/traditional.mjs imports use-sync-external-store/shim/with-selector.
       // @uppy/react imports use-sync-external-store/with-selector.js (with .js ext).

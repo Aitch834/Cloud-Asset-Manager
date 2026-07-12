@@ -8,45 +8,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!--
-      Service Worker guard — runs synchronously before any module scripts.
-
-      sw-v4.js (registered with ?v=SESSION_TOKEN appended by vite.config.ts)
-      normalises TWO categories of stale proxy-cached URLs:
-
-      1. Dep-chunk URLs: @td/OLD_TOKEN/deps/FILE → @td/deps/FILE
-         Ensures all dep imports (react, zustand, etc.) converge on the same
-         canonical path regardless of which session token the proxy cached.
-
-      2. Source-file URLs: @td/OLD_TOKEN/@fs/FILE → @td/CURRENT_TOKEN/@fs/FILE
-         Replit's proxy strips @td/TOKEN/ from cache keys, so source files
-         cached from old sessions embed old-token @fs/ imports. This creates
-         duplicate module instances for hook-containing files (e.g.
-         use-app-store.ts) → "Invalid hook call" in SeedStorePage and similar.
-         The SW reads CURRENT_TOKEN from its own ?v= registration URL and
-         normalises every stale @fs/ import to the current session token.
-
-      KEY ISSUE: on hard refresh (Ctrl+Shift+R) and on the very first page load,
-      navigator.serviceWorker.controller is null — the SW is bypassed and
-      requests are NOT intercepted → split module graph → "Invalid hook call".
-
-      FIX: if controller is null, register the SW and call .ready.then(reload).
-      For an ALREADY-ACTIVE SW (hard refresh bypass), .ready resolves as a
-      microtask — before any <script type="module"> executes — so the reload fires
-      before React renders. Zero visible crash. For a FIRST-EVER visit (SW not yet
-      installed), the reload fires once the SW activates, giving a brief auto-recover.
-      Subsequent normal loads (controller is non-null) skip the reload entirely.
-    -->
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/test-dashboard/sw-v7.js', { scope: '/test-dashboard/' });
-        var ctrl = navigator.serviceWorker.controller;
-        // Reload if: (a) no SW is in control, OR (b) the controlling SW is an old
-        // version that lacks the v7 path-nonce fix (proxy query-string stripping).
-        var needsReload = !ctrl || !ctrl.scriptURL.includes('sw-v7');
-        if (needsReload) {
-          navigator.serviceWorker.ready.then(function() { window.location.reload(); });
-        }
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          regs.forEach(function(r) { r.unregister(); });
+        });
       }
     </script>
   </head>
