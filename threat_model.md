@@ -1,6 +1,6 @@
 # Threat Model — BDE Farm Trac
 
-_Last reviewed: 2026-05-28 (updated for RLS implementation + full validateFarmAccess coverage). Update whenever a new module, external integration, or auth change is introduced._
+_Last reviewed: 2026-07-12 (updated for LIS LIP OAuth/cattle integration, new stocktake modules, dev bypass middleware verification). Update whenever a new module, external integration, or auth change is introduced._
 
 ---
 
@@ -22,7 +22,7 @@ BDE Farm Trac is a multi-tenant UK SaaS farm management platform built by Barnet
 | SMS | Twilio |
 | Email | Nodemailer outbound + ImapFlow (Titan) inbound |
 | AI | OpenAI gpt-5-mini (support chat widget) |
-| Gov integrations | BCMS / DEFRA CTS Web Services; LIS / England CLA API |
+| Gov integrations | BCMS / DEFRA CTS Web Services; LIS / England CLA API; LIS LIP (Cattle, OAuth 2.0 delegated — B2C_1A_THIRDPARTY_SIGNIN) |
 
 **Users**
 
@@ -41,7 +41,7 @@ BDE Farm Trac is a multi-tenant UK SaaS farm management platform built by Barnet
 | **Personal data / PII** | Staff names, phone numbers, Right to Work documents, signatures, TB test records. Regulated under UK GDPR. |
 | **Clerk session tokens** | Valid tokens grant full dashboard access scoped to the user's tenant and role. |
 | **Admin portal secret** | A single shared credential (plus per-user Clerk `isSuperAdmin` flag) granting platform-wide access including SQL execution. Highest-impact credential in the system. |
-| **Third-party API credentials** | Twilio SID/token, Stripe secret key, Titan IMAP password, OpenAI API key — stored as environment secrets. Farmer-supplied BCMS (CTS) and LIS passwords — stored encrypted (AES-256-GCM) in the database. |
+| **Third-party API credentials** | Twilio SID/token, Stripe secret key, Titan IMAP password, OpenAI API key — stored as environment secrets. Farmer-supplied BCMS (CTS) and LIS passwords — stored encrypted (AES-256-GCM) in the database. LIS LIP OAuth access tokens and refresh tokens — stored **unencrypted** in `lipFarmTokensTable`; grant delegated access to submit cattle movements to DEFRA (see Information Disclosure findings). |
 | **Uploaded attachments** | Photos and documents (defect evidence, vet certificates, insurance policies, TB test certificates) stored in Google Cloud Storage. May contain sensitive commercial or personal information. |
 | **Database connection string** | Direct database access; compromise gives full data exposure across all tenants. |
 | **Stripe billing data** | Subscription status, invoice history. Compromise could allow unauthorized subscription manipulation. |
@@ -59,7 +59,7 @@ BDE Farm Trac is a multi-tenant UK SaaS farm management platform built by Barnet
 | **API → PostgreSQL** | Drizzle ORM with parameterised queries. All 347 farm-scoped tables have RLS enabled. The API superuser connection bypasses RLS implicitly; `farmRlsMiddleware` uses a per-request transaction client to inject the farm context so policies fire. The bare pool connection (used outside `farmRlsMiddleware`) bypasses RLS entirely. |
 | **API → Google Cloud Storage** | Private object downloads (`GET /storage/objects/*`) are access-controlled: attachment must exist in `farm_record_attachments`, farm must belong to a tenant, requesting user is a member of that tenant. Public assets (`/storage/public-objects/*`) are unconditionally public — ensure no private content reaches the public path. |
 | **API → OpenAI** | Outbound only. User-supplied conversation history is passed to OpenAI's API, capped at 20 messages × 2,000 chars server-side before forwarding. |
-| **API → External Gov APIs** | Outbound calls to BCMS/DEFRA and LIS/CLA using farmer-supplied credentials (AES-256-GCM encrypted at rest). Hardcoded endpoint URLs (no SSRF risk). |
+| **API → External Gov APIs** | Outbound calls to BCMS/DEFRA and LIS/CLA using farmer-supplied credentials (AES-256-GCM encrypted at rest). Hardcoded endpoint URLs (no SSRF risk). LIS LIP cattle submission calls (movements, births, deaths, lost/found) use per-farm OAuth 2.0 delegated tokens fetched from `lipFarmTokensTable` and refreshed server-side. OAuth redirect URI is a fixed server-side callback (no open-redirect risk). OAuth state parameter is HMAC-SHA256 signed and verified on callback — no DB nonce required. |
 | **API → Twilio / Stripe / IMAP** | Outbound only. Stripe inbound webhooks are signature-verified. No other inbound webhooks identified. |
 | **Public → Authenticated** | Public API routes: `/api/healthz`, `/api/leads`, `/api/billing/webhook`, `/api/support/tickets`, `/api/support/chat`, `/api/help-images/*`. All others require a valid Clerk session. |
 | **Authenticated → Admin** | Admin portal routes (`/api/admin/*`) accept either a valid `x-admin-secret` header OR a Clerk-authenticated session with `isSuperAdmin = true` in `userTenantsTable`. |
@@ -77,10 +77,12 @@ BDE Farm Trac is a multi-tenant UK SaaS farm management platform built by Barnet
 - Mobile-specific routes: `artifacts/api-server/src/routes/mobile.ts`
 
 **Highest-risk code areas**
-- `artifacts/api-server/src/routes/farms.ts` — all INSERT/UPDATE routes use `sanitiseBody()` to strip protected fields
+- `artifacts/api-server/src/routes/farms.ts` — all INSERT/UPDATE routes use `sanitiseBody()` to strip protected fields; includes LIP cattle submission routes
 - `artifacts/api-server/src/routes/admin.ts` — SQL runner, IMAP access, audit log writer
 - `artifacts/api-server/src/routes/support.ts` — public AI chat (prompt injection) + email-sending ticket endpoint
 - `artifacts/api-server/src/lib/objectStorage.ts` — attachment access control
+- `artifacts/api-server/src/lib/lip.ts` — LIP cattle API integration (movements, births, deaths, lost/found); reads tokens from `lipFarmTokensTable`
+- `artifacts/api-server/src/lib/lis.ts` — LIS OAuth 2.0 flow; handles HMAC-signed state, code exchange, token storage
 - `artifacts/api-server/src/middlewares/tenantMiddleware.ts` — tenant isolation gate
 - `artifacts/api-server/src/middlewares/adminPortalMiddleware.ts` — admin authentication
 
@@ -100,6 +102,23 @@ BDE Farm Trac is a multi-tenant UK SaaS farm management platform built by Barnet
 ### Spoofing
 
 Clerk handles authentication for all standard user sessions. `clerkMiddleware()` validates the JWT on every request and `requireAuth` rejects requests without a valid `userId`. This boundary is solid.
+
+**Finding — LIS LIP OAuth 2.0 flow (NEW, MEDIUM) — ACCEPTABLE ✅**
+The LIS LIP integration uses a delegated OAuth 2.0 flow (`B2C_1A_THIRDPARTY_SIGNIN` policy). Key security properties confirmed:
+- The OAuth `state` parameter is HMAC-SHA256 signed using a server-side key before the redirect and verified on callback — no DB nonce is required and CSRF on the callback is prevented.
+- The authorization code is exchanged server-side only; no token is exposed to the browser.
+- The redirect URI is hardcoded in the server configuration; there is no user-controllable redirect target (no open-redirect risk).
+- LIP submission routes sit under `/api/farms/:farmId/lip/*` and are guarded by `requireAuth` + `requireTenant` + `farmRlsMiddleware`, preventing cross-farm token use.
+
+**Required guarantees:**
+- The HMAC signing key for OAuth state MUST be treated as a secret (stored as an environment variable, never hardcoded) and rotated if compromised.
+- Any future LIP callback route additions MUST preserve state verification before trusting the returned code.
+
+**Finding — Dev bypass middleware active in production? (LOW) — CONFIRMED SAFE ✅**
+`devBypassMiddleware` is registered unconditionally in `app.ts`, but the middleware evaluates `process.env.NODE_ENV` at module load time. When `NODE_ENV !== "development"` the module-level `DEV_BYPASS_TOKEN` constant is set to `null`, and the middleware immediately calls `next()` on every request without inspecting the header. In production the bypass path is dead code.
+
+**Required guarantees:**
+- Deployment environment MUST set `NODE_ENV=production`. Confirm this is enforced in the deployment configuration and cannot be overridden by a user-supplied environment variable at runtime.
 
 **Finding — Admin portal shared secret still present alongside Clerk (MEDIUM) — PARTIALLY FIXED**
 The admin portal now supports individual Clerk accounts with `isSuperAdmin = true`, which is an improvement over the April model. However, the shared `ADMIN_PORTAL_SECRET` header path still exists alongside it in `adminPortalMiddleware`. Both auth methods remain active. The shared-secret path provides no per-person identity or audit trail.
@@ -145,6 +164,13 @@ Attachment deletion now sets a `deletedAt` flag rather than hard-deleting the ro
 
 **Finding — Farmer third-party credentials stored without encryption (MEDIUM) — FIXED ✅**
 BCMS (CTS) passwords and LIS passwords are now encrypted at rest using AES-256-GCM (`encryptCredential` / `decryptCredential` in `farms.ts`), with the encryption key stored as an environment secret. Decryption occurs only server-side immediately before the outbound API call, and plaintext is never written to logs.
+
+**Finding — LIS LIP OAuth tokens stored unencrypted at rest (MEDIUM) — OPEN**
+`lipFarmTokensTable` stores both `platformAccessToken` (short-lived bearer token) and `lipRefreshToken` (long-lived token used to obtain new access tokens) as plain `text` columns. The existing BCMS / LIS passwords use AES-256-GCM encryption via `encryptCredential`/`decryptCredential` (`lib/encrypt.ts`), but these columns were not included in the same treatment when the LIP integration was built. A database breach (or exfiltration via the admin SQL runner) would expose live government API tokens that can be used to submit cattle movements, births, and deaths to DEFRA's Livestock Information Platform on behalf of the farm owner — potentially falsifying regulated livestock records.
+
+**Required guarantees:**
+- `platformAccessToken` and `lipRefreshToken` in `lipFarmTokensTable` MUST be encrypted using `encryptCredential` before persisting and decrypted using `decryptCredential` immediately before each outbound LIP API call. This brings them in line with the existing BCMS/LIS credential handling.
+- Until this is resolved, ensure the admin SQL runner OPEN finding (superuser access to all tables) is also addressed, as it is a direct exfiltration path for these tokens.
 
 **Finding — User email addresses are accepted without verification on public ticket endpoint (LOW) — OPEN**
 The `/api/support/tickets` endpoint sends a confirmation email to whatever address is submitted in the request body. An attacker could submit another person's email address, causing unsolicited emails from BDE's mail domain.
@@ -242,6 +268,7 @@ All dashboard CSV export functions now use `sanitiseCsvCell()` / `quoteCsvCell()
 | 🟠 High | Object storage ACL disabled | **FIXED ✅** | 3-step auth check: attachment → farm → tenant membership |
 | 🟡 Medium | Farm isolation — application layer only | **PARTIALLY FIXED ✅** | All 400+ routes patched with `validateFarmAccess`; RLS on 347 tables; policies still fail-open |
 | 🟡 Medium | Admin SQL runner executes as superuser | **OPEN** | Reroute to `app_readonly` role so RLS applies; keyword denylist alone is insufficient |
+| 🟡 Medium | **NEW** LIS LIP OAuth tokens unencrypted at rest | **OPEN** | `platformAccessToken` + `lipRefreshToken` in `lipFarmTokensTable` stored as plain text; encrypt with `encryptCredential` as per BCMS/LIS password pattern |
 | 🟡 Medium | Farmer credentials Base64 only | **FIXED ✅** | AES-256-GCM encryption at rest; `encryptCredential`/`decryptCredential` in `farms.ts` |
 | 🟡 Medium | Admin portal — shared secret alongside Clerk | **PARTIALLY FIXED** | Clerk `isSuperAdmin` supported; shared-secret path still exists as bootstrap |
 | 🟡 Medium | AI chat prompt injection / unbounded history | **FIXED ✅** | Capped at 20 messages × 2,000 chars server-side before forwarding to OpenAI |
@@ -261,3 +288,5 @@ All dashboard CSV export functions now use `sanitiseCsvCell()` / `quoteCsvCell()
 | 🔵 Low | CSV formula injection in exports | **FIXED ✅** | All export helpers use `sanitiseCsvCell()`/`downloadCsvFile()` from `lib/csv.ts` |
 | 🔵 Low | Admin SQL runner leaks DB error messages | **FIXED ✅** | Generic message returned to client; full error logged server-side |
 | 🔵 Low | CSV import — unvalidated bulk write paths | **OPEN** | Bulk import endpoints should apply same Zod validation as single-record routes |
+| 🔵 Low | **NEW** Dev bypass middleware — production safe | **CONFIRMED ✅** | `DEV_BYPASS_TOKEN` is `null` when `NODE_ENV !== "development"`; middleware is a no-op in production; confirm deployment sets `NODE_ENV=production` |
+| 🔵 Low | **NEW** LIS LIP OAuth — CSRF/state protection | **ACCEPTABLE ✅** | HMAC-SHA256 signed state; server-side code exchange; hardcoded redirect URI; routes under `farmRlsMiddleware` |
