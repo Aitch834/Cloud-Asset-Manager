@@ -25,6 +25,7 @@ import {
   TastingsToursTab,
   AgeVerificationTab,
   WineProductionTab,
+  WineryStockTab,
   SprayDiaryTab,
   SoilAnalysisTab,
   SO2Chip,
@@ -51,7 +52,7 @@ function fmtNum(val: number | null | undefined): string {
   return String(val);
 }
 
-type Tab = "block-conversion" | "input-log" | "copper-register" | "input-derogations" | "wine-production" | "certificates"
+type Tab = "block-conversion" | "input-log" | "copper-register" | "input-derogations" | "wine-production" | "winery-stock" | "certificates"
          | "vit-overview" | "vine-register" | "phenology" | "operations" | "vit-harvest" | "scouting"
          | "licensing" | "excise" | "tours" | "age-check" | "spray-diary" | "soil-analysis";
 
@@ -61,6 +62,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "copper-register", label: "Copper Register" },
   { id: "input-derogations", label: "Input Derogations" },
   { id: "wine-production", label: "Wine Production" },
+  { id: "winery-stock", label: "Winery Stock" },
   { id: "certificates", label: "Certificates" },
   { id: "vit-overview", label: "Overview" },
   { id: "vine-register", label: "Vine Register" },
@@ -1494,6 +1496,7 @@ export default function OrganicViticulturePage() {
           {tab === "copper-register" && <CopperRegisterTab farmId={farmId} blocks={vineyardBlocks} />}
           {tab === "input-derogations" && <InputDerogationsTab farmId={farmId} />}
           {tab === "wine-production" && <WineProductionTab farmId={farmId} />}
+          {tab === "winery-stock" && <WineryStockTab farmId={farmId} />}
           {tab === "certificates" && <CertificatesTab farmId={farmId} />}
           {tab === "vit-overview" && <VitOverviewTab farmId={farmId} />}
           {tab === "vine-register" && <VineRegisterTab farmId={farmId} blocks={vineyardBlocks} />}

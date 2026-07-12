@@ -348,4 +348,35 @@ export async function runLisMigrations(): Promise<void> {
       created_at timestamptz not null default now()
     )
   `);
+
+  // Winery stock — consumables for wine production (bottles, corks, barrels, finings etc.)
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS winery_stock_items (
+      id serial primary key,
+      farm_id integer not null references farms(id),
+      name text not null,
+      category text not null,
+      unit text not null default 'units',
+      minimum_stock numeric(10,3),
+      notes text,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS winery_stock_movements (
+      id serial primary key,
+      farm_id integer not null references farms(id),
+      stock_item_id integer not null references winery_stock_items(id),
+      movement_type text not null,
+      movement_date date not null,
+      quantity_change numeric(10,3) not null,
+      stocktake_actual numeric(10,3),
+      supplier text,
+      reference text,
+      cost_pence integer,
+      notes text,
+      created_at timestamptz not null default now()
+    )
+  `);
 }

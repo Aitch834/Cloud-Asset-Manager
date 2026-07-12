@@ -34262,3 +34262,131 @@ router.get("/farms/:farmId/labour-enterprise-report", requireAuth, requireTenant
     })),
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WINERY STOCK
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// GET — list all items with current balance
+router.get("/farms/:farmId/winery-stock", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const result = await db.execute(sql`
+    SELECT
+      i.id, i.name, i.category, i.unit, i.minimum_stock, i.notes,
+      i.created_at, i.updated_at,
+      COALESCE(SUM(m.quantity_change), 0)::numeric AS balance
+    FROM winery_stock_items i
+    LEFT JOIN winery_stock_movements m ON m.stock_item_id = i.id AND m.farm_id = ${farmId}
+    WHERE i.farm_id = ${farmId}
+    GROUP BY i.id
+    ORDER BY i.category, i.name
+  `);
+  res.json({ items: result.rows });
+});
+
+// POST — create item
+router.post("/farms/:farmId/winery-stock", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { name, category, unit, minimumStock, notes } = req.body as Record<string, unknown>;
+  if (!name || !category || !unit) { res.status(400).json({ error: "name, category and unit are required" }); return; }
+  const rows = await db.execute(sql`
+    INSERT INTO winery_stock_items (farm_id, name, category, unit, minimum_stock, notes, updated_at)
+    VALUES (${farmId}, ${String(name)}, ${String(category)}, ${String(unit)},
+            ${minimumStock != null && minimumStock !== "" ? Number(minimumStock) : null},
+            ${notes ? String(notes) : null}, now())
+    RETURNING *
+  `);
+  res.status(201).json({ item: rows.rows[0] });
+});
+
+// PUT — update item
+router.put("/farms/:farmId/winery-stock/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const { name, category, unit, minimumStock, notes } = req.body as Record<string, unknown>;
+  if (!name || !category || !unit) { res.status(400).json({ error: "name, category and unit are required" }); return; }
+  const rows = await db.execute(sql`
+    UPDATE winery_stock_items
+    SET name = ${String(name)}, category = ${String(category)}, unit = ${String(unit)},
+        minimum_stock = ${minimumStock != null && minimumStock !== "" ? Number(minimumStock) : null},
+        notes = ${notes ? String(notes) : null}, updated_at = now()
+    WHERE id = ${id} AND farm_id = ${farmId}
+    RETURNING *
+  `);
+  if (!rows.rows.length) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ item: rows.rows[0] });
+});
+
+// DELETE — delete item and its movements
+router.delete("/farms/:farmId/winery-stock/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  await db.execute(sql`DELETE FROM winery_stock_movements WHERE stock_item_id = ${id} AND farm_id = ${farmId}`);
+  await db.execute(sql`DELETE FROM winery_stock_items WHERE id = ${id} AND farm_id = ${farmId}`);
+  res.json({ success: true });
+});
+
+// GET — list movements for an item (with running balance)
+router.get("/farms/:farmId/winery-stock/:id/movements", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const rows = await db.execute(sql`
+    SELECT *, SUM(quantity_change) OVER (ORDER BY movement_date, id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_balance
+    FROM winery_stock_movements
+    WHERE stock_item_id = ${id} AND farm_id = ${farmId}
+    ORDER BY movement_date, id
+  `);
+  res.json({ movements: rows.rows });
+});
+
+// POST — add movement (delivery / usage / stocktake / write-off / adjustment)
+router.post("/farms/:farmId/winery-stock/:id/movements", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const stockItemId = parseInt(req.params.id as string);
+  const { movementType, movementDate, quantity, stocktakeActual, supplier, reference, costPence, notes } = req.body as Record<string, unknown>;
+  if (!movementType || !movementDate) { res.status(400).json({ error: "movementType and movementDate are required" }); return; }
+
+  let quantityChange: number;
+  let stocktakeActualVal: number | null = null;
+
+  if (movementType === "stocktake") {
+    if (stocktakeActual == null || stocktakeActual === "") { res.status(400).json({ error: "stocktakeActual is required for stocktake movements" }); return; }
+    const bal = await db.execute(sql`SELECT COALESCE(SUM(quantity_change), 0)::numeric AS balance FROM winery_stock_movements WHERE stock_item_id = ${stockItemId} AND farm_id = ${farmId}`);
+    const currentBalance = parseFloat(String((bal.rows[0] as Record<string, unknown>)?.balance ?? 0));
+    stocktakeActualVal = Number(stocktakeActual);
+    quantityChange = stocktakeActualVal - currentBalance;
+  } else if (movementType === "usage" || movementType === "write-off") {
+    if (!quantity) { res.status(400).json({ error: "quantity is required" }); return; }
+    quantityChange = -(Math.abs(Number(quantity)));
+  } else {
+    if (!quantity) { res.status(400).json({ error: "quantity is required" }); return; }
+    quantityChange = Number(quantity);
+  }
+
+  const rows = await db.execute(sql`
+    INSERT INTO winery_stock_movements
+      (farm_id, stock_item_id, movement_type, movement_date, quantity_change, stocktake_actual, supplier, reference, cost_pence, notes)
+    VALUES (${farmId}, ${stockItemId}, ${String(movementType)}, ${String(movementDate)},
+            ${quantityChange}, ${stocktakeActualVal},
+            ${supplier ? String(supplier) : null}, ${reference ? String(reference) : null},
+            ${costPence != null && costPence !== "" ? Number(costPence) : null},
+            ${notes ? String(notes) : null})
+    RETURNING *
+  `);
+  res.status(201).json({ movement: rows.rows[0] });
+});
+
+// DELETE — delete a movement
+router.delete("/farms/:farmId/winery-stock/:itemId/movements/:movId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const movId = parseInt(req.params.movId as string);
+  await db.execute(sql`DELETE FROM winery_stock_movements WHERE id = ${movId} AND farm_id = ${farmId}`);
+  res.json({ success: true });
+});
