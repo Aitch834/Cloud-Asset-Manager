@@ -283,7 +283,7 @@ export default function SprayPage() {
   const productCategories = useLookupStrings("spray_product_categories", PRODUCT_CATEGORIES_FALLBACK);
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"applications" | "dayview" | "products" | "print" | "analytics" | "ipm" | "lerap" | "notifications" | "disposal" | "store">("applications");
+  const [tab, setTab] = useState<"applications" | "dayview" | "products" | "print" | "analytics" | "ipm" | "lerap" | "notifications" | "disposal" | "store" | "stocktakes">("applications");
 
   const [cropYear, setCropYear] = useState<number>(currentCropYear());
   const applicationsQ = useQuery({ queryKey: ["spray-applications", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-applications`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
@@ -331,6 +331,7 @@ export default function SprayPage() {
           <TabButton active={tab === "notifications"} onClick={() => setTab("notifications")}>Notifications Log</TabButton>
           <TabButton active={tab === "disposal"} onClick={() => setTab("disposal")}>Container Disposal</TabButton>
           <TabButton active={tab === "store"} onClick={() => setTab("store")}>Store Inspections</TabButton>
+          <TabButton active={tab === "stocktakes"} onClick={() => setTab("stocktakes")}>Stocktakes</TabButton>
         </TabBar>
         {tab === "applications" && <ApplicationsTab applications={applications} products={products} fields={fields} farmId={farmId} loading={applicationsQ.isLoading} onRefresh={() => qc.invalidateQueries({ queryKey: ["spray-applications", farmId] })} toast={toast} initialSearch={initialFieldSearch} cropYear={cropYear} setCropYear={setCropYear} />}
         {tab === "dayview" && <SprayDayViewTab applications={applications} loading={applicationsQ.isLoading} />}
@@ -342,6 +343,7 @@ export default function SprayPage() {
         {tab === "notifications" && <SprayNotificationsTab farmId={farmId!} applications={applications} fields={fields} />}
         {tab === "disposal" && <ContainerDisposalTab farmId={farmId!} products={products} />}
         {tab === "store" && <StoreInspectionTab farmId={farmId!} />}
+        {tab === "stocktakes" && <SprayStocktakesTab farmId={farmId!} products={products} />}
       </div>
     </AppLayout>
   );
@@ -4058,6 +4060,185 @@ function ContainerDisposalTab({ farmId, products }: { farmId: number; products: 
           <DialogFooter>
             <button className="border rounded-md px-4 py-2 text-sm hover:bg-gray-50" onClick={() => setDeleteId(null)}>Cancel</button>
             <button className="bg-red-600 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-red-700 disabled:opacity-50" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>Delete</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Spray Product Stocktakes Tab ─────────────────────────────────────────────
+function SprayStocktakesTab({ farmId, products }: { farmId: number; products: any[] }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+
+  const todayST = () => new Date().toISOString().slice(0, 10);
+  const emptyST = {
+    productId: "",
+    productName: "",
+    systemQtyLitres: "",
+    physicalQtyLitres: "",
+    conductedBy: "",
+    stocktakeDate: todayST(),
+    notes: "",
+  };
+  const [stForm, setStForm] = useState(emptyST);
+
+  const stocktakesQ = useQuery({
+    queryKey: ["spray-product-stocktakes", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/spray-product-stocktakes`).then(r => r.json()),
+  });
+  const stRecords: any[] = Array.isArray(stocktakesQ.data?.records) ? stocktakesQ.data.records : [];
+
+  function handleSpraySTProdChange(productId: string) {
+    if (productId === "__other__") {
+      setStForm(f => ({ ...f, productId, productName: "", systemQtyLitres: "" }));
+      return;
+    }
+    const p = products.find((x: any) => String(x.id) === productId);
+    setStForm(f => ({
+      ...f,
+      productId,
+      productName: p?.productName ?? "",
+      systemQtyLitres: p?.currentStockQuantity !== null && p?.currentStockQuantity !== undefined ? String(p.currentStockQuantity) : "",
+    }));
+  }
+
+  const saveST = useMutation({
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/spray-product-stocktakes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(r => r.json()),
+    onSuccess: () => {
+      toast({ title: "Stocktake recorded" });
+      qc.invalidateQueries({ queryKey: ["spray-product-stocktakes", farmId] });
+      setOpen(false);
+      setStForm(emptyST);
+    },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  function handleSTSubmit() {
+    if (!stForm.physicalQtyLitres || !stForm.stocktakeDate) {
+      toast({ title: "Physical quantity and date are required", variant: "destructive" });
+      return;
+    }
+    saveST.mutate({
+      productId: stForm.productId && stForm.productId !== "__other__" ? Number(stForm.productId) : null,
+      productName: stForm.productName || null,
+      systemQtyLitres: stForm.systemQtyLitres || null,
+      physicalQtyLitres: stForm.physicalQtyLitres,
+      conductedBy: stForm.conductedBy || null,
+      stocktakeDate: stForm.stocktakeDate,
+      notes: stForm.notes || null,
+    });
+  }
+
+  const fmtL = (v: string | number | null | undefined) => (v === null || v === undefined) ? "—" : `${parseFloat(String(v)).toFixed(2)} L`;
+
+  function stVarBadge(sys: string | null | undefined, phys: string | null | undefined) {
+    if (!sys || !phys) return null;
+    const v = parseFloat(phys) - parseFloat(sys);
+    const cls = Math.abs(v) < 0.01 ? "bg-green-100 text-green-800" : v < 0 ? "bg-red-100 text-red-800" : "bg-yellow-100 text-yellow-800";
+    return <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${cls}`}>{v >= 0 ? "+" : ""}{v.toFixed(2)} L</span>;
+  }
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Spray Store Stocktake</h2>
+          <p className="text-sm text-gray-500 mt-0.5">Physically count bottles and containers, reconcile against application records.</p>
+        </div>
+        <button className="bg-green-700 text-white rounded-md px-3 py-2 text-sm font-medium hover:bg-green-800 flex items-center gap-1.5" onClick={() => setOpen(true)}>
+          <Plus size={14} />Record Stocktake
+        </button>
+      </div>
+
+      {stocktakesQ.isLoading ? (
+        <div className="flex items-center justify-center h-40"><Loader2 className="animate-spin text-gray-400" /></div>
+      ) : stRecords.length === 0 ? (
+        <div className="text-center py-16 text-gray-400">
+          <div className="mx-auto mb-3 opacity-40" style={{ fontSize: 36 }}>📋</div>
+          <p className="text-sm">No stocktakes recorded yet.</p>
+          <p className="text-xs mt-1">Use the button above to record a physical bottle count.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600">Date</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600">Product</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-600">System (L)</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-600">Physical (L)</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-600">Variance</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600">Conducted By</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600">Notes</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {stRecords.map((r: any) => (
+                <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2.5 whitespace-nowrap">{r.stocktakeDate ? new Date(r.stocktakeDate + "T12:00:00").toLocaleDateString("en-GB") : "—"}</td>
+                  <td className="px-3 py-2.5">{r.registeredProductName ?? r.productName ?? "—"}</td>
+                  <td className="px-3 py-2.5 text-right font-mono">{fmtL(r.systemQtyLitres)}</td>
+                  <td className="px-3 py-2.5 text-right font-mono">{fmtL(r.physicalQtyLitres)}</td>
+                  <td className="px-3 py-2.5 text-right">{stVarBadge(r.systemQtyLitres, r.physicalQtyLitres)}</td>
+                  <td className="px-3 py-2.5">{r.conductedBy ?? "—"}</td>
+                  <td className="px-3 py-2.5 text-gray-500 max-w-xs truncate">{r.notes ?? ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) setStForm(emptyST); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Record Spray Store Stocktake</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Product</Label>
+              <Select value={stForm.productId} onValueChange={handleSpraySTProdChange}>
+                <SelectTrigger><SelectValue placeholder="Select spray product…" /></SelectTrigger>
+                <SelectContent>
+                  {products.map((p: any) => <SelectItem key={p.id} value={String(p.id)}>{p.productName}</SelectItem>)}
+                  <SelectItem value="__other__">Other / not in register</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {stForm.productId === "__other__" && (
+              <div><Label>Product Name</Label><Input value={stForm.productName} onChange={e => setStForm(f => ({ ...f, productName: e.target.value }))} placeholder="Enter product name" /></div>
+            )}
+            <div><Label>Stocktake Date</Label><Input type="date" value={stForm.stocktakeDate} onChange={e => setStForm(f => ({ ...f, stocktakeDate: e.target.value }))} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>System Quantity (L)</Label>
+                <Input type="number" step="0.01" value={stForm.systemQtyLitres} onChange={e => setStForm(f => ({ ...f, systemQtyLitres: e.target.value }))} placeholder="From stock records" />
+              </div>
+              <div>
+                <Label>Physical Quantity (L) *</Label>
+                <Input type="number" step="0.01" value={stForm.physicalQtyLitres} onChange={e => setStForm(f => ({ ...f, physicalQtyLitres: e.target.value }))} placeholder="Counted in store" />
+              </div>
+            </div>
+            {stForm.systemQtyLitres && stForm.physicalQtyLitres && (
+              <div className="flex items-center gap-2 p-3 rounded-md bg-gray-50 border border-gray-200">
+                <span className="text-sm text-gray-600">Variance:</span>
+                {stVarBadge(stForm.systemQtyLitres, stForm.physicalQtyLitres)}
+                <span className="text-xs text-gray-400">(physical − system)</span>
+              </div>
+            )}
+            <div><Label>Conducted By</Label><Input value={stForm.conductedBy} onChange={e => setStForm(f => ({ ...f, conductedBy: e.target.value }))} placeholder="Name of person" /></div>
+            <div><Label>Notes</Label><Textarea value={stForm.notes} onChange={e => setStForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="e.g. partial containers measured, damaged stock noted" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setOpen(false); setStForm(emptyST); }}>Cancel</Button>
+            <Button className="bg-green-700 hover:bg-green-800" onClick={handleSTSubmit} disabled={saveST.isPending}>
+              {saveST.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : null}Save Stocktake
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

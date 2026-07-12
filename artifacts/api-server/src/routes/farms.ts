@@ -32,6 +32,7 @@ import {
   sprayApplicationsTable,
   sprayContainerDisposalLogsTable,
   sprayStoreInspectionsTable,
+  sprayProductStocktakesTable,
   nutrientManagementPlansTable,
   nmpFieldEntriesTable,
   nvzFertiliserApplicationsTable,
@@ -134,6 +135,7 @@ import {
   dispatchPlansTable,
   cropStockLevelsTable,
   cropStockMovementsTable,
+  cropStockStocktakesTable,
   suppliersTable,
   stockItemsTable,
   purchaseOrdersTable,
@@ -2908,6 +2910,52 @@ router.delete("/farms/:farmId/spray-store-inspections/:recordId", requireAuth, r
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(sprayStoreInspectionsTable).where(and(eq(sprayStoreInspectionsTable.id, recordId), eq(sprayStoreInspectionsTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── Spray Product Stocktakes ──────────────────────────────────────────────────
+router.get("/farms/:farmId/spray-product-stocktakes", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db
+    .select({
+      id: sprayProductStocktakesTable.id,
+      farmId: sprayProductStocktakesTable.farmId,
+      productId: sprayProductStocktakesTable.productId,
+      productName: sprayProductStocktakesTable.productName,
+      registeredProductName: sprayProductsTable.productName,
+      systemQtyLitres: sprayProductStocktakesTable.systemQtyLitres,
+      physicalQtyLitres: sprayProductStocktakesTable.physicalQtyLitres,
+      conductedBy: sprayProductStocktakesTable.conductedBy,
+      stocktakeDate: sprayProductStocktakesTable.stocktakeDate,
+      notes: sprayProductStocktakesTable.notes,
+      createdAt: sprayProductStocktakesTable.createdAt,
+    })
+    .from(sprayProductStocktakesTable)
+    .leftJoin(sprayProductsTable, eq(sprayProductStocktakesTable.productId, sprayProductsTable.id))
+    .where(eq(sprayProductStocktakesTable.farmId, farmId))
+    .orderBy(desc(sprayProductStocktakesTable.stocktakeDate), desc(sprayProductStocktakesTable.createdAt));
+  res.json({ records: rows });
+});
+
+router.post("/farms/:farmId/spray-product-stocktakes", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { productId, productName, systemQtyLitres, physicalQtyLitres, conductedBy, stocktakeDate, notes } = req.body as Record<string, unknown>;
+  if (physicalQtyLitres === undefined || physicalQtyLitres === null || physicalQtyLitres === "") {
+    res.status(400).json({ error: "physicalQtyLitres is required" }); return;
+  }
+  if (!stocktakeDate) { res.status(400).json({ error: "stocktakeDate is required" }); return; }
+  const [record] = await db.insert(sprayProductStocktakesTable).values({
+    farmId,
+    productId: productId ? Number(productId) : null,
+    productName: productName ? String(productName) : null,
+    systemQtyLitres: systemQtyLitres !== undefined && systemQtyLitres !== "" ? String(systemQtyLitres) : null,
+    physicalQtyLitres: String(physicalQtyLitres),
+    conductedBy: conductedBy ? String(conductedBy) : null,
+    stocktakeDate: String(stocktakeDate),
+    notes: notes ? String(notes) : null,
+  }).returning();
+  res.status(201).json({ record });
 });
 
 // ─── Stock Deliveries for Item (delivery picker helper) ────────────────────────
@@ -5930,6 +5978,60 @@ router.post("/farms/:farmId/crop-stock-movements", requireAuth, requireTenant, r
   }
 
   res.status(201).json({ movement, cleaningWarning });
+});
+
+// ─── Crop Stock Stocktakes ──────────────────────────
+router.get("/farms/:farmId/crop-stock-stocktakes", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db
+    .select({
+      id: cropStockStocktakesTable.id,
+      farmId: cropStockStocktakesTable.farmId,
+      cropStockLevelId: cropStockStocktakesTable.cropStockLevelId,
+      binId: cropStockStocktakesTable.binId,
+      binName: grainStorageBinsTable.binName,
+      commodity: cropStockStocktakesTable.commodity,
+      variety: cropStockStocktakesTable.variety,
+      cropYear: cropStockStocktakesTable.cropYear,
+      systemQtyTonnes: cropStockStocktakesTable.systemQtyTonnes,
+      physicalQtyTonnes: cropStockStocktakesTable.physicalQtyTonnes,
+      measurementMethod: cropStockStocktakesTable.measurementMethod,
+      conductedBy: cropStockStocktakesTable.conductedBy,
+      stocktakeDate: cropStockStocktakesTable.stocktakeDate,
+      notes: cropStockStocktakesTable.notes,
+      createdAt: cropStockStocktakesTable.createdAt,
+    })
+    .from(cropStockStocktakesTable)
+    .leftJoin(grainStorageBinsTable, eq(cropStockStocktakesTable.binId, grainStorageBinsTable.id))
+    .where(eq(cropStockStocktakesTable.farmId, farmId))
+    .orderBy(desc(cropStockStocktakesTable.stocktakeDate), desc(cropStockStocktakesTable.createdAt));
+  res.json({ records: rows });
+});
+
+router.post("/farms/:farmId/crop-stock-stocktakes", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { cropStockLevelId, binId, commodity, variety, cropYear, systemQtyTonnes, physicalQtyTonnes, measurementMethod, conductedBy, stocktakeDate, notes } = req.body as Record<string, unknown>;
+  if (physicalQtyTonnes === undefined || physicalQtyTonnes === null || physicalQtyTonnes === "") {
+    res.status(400).json({ error: "physicalQtyTonnes is required" }); return;
+  }
+  if (!stocktakeDate) { res.status(400).json({ error: "stocktakeDate is required" }); return; }
+  const [record] = await db.insert(cropStockStocktakesTable).values({
+    farmId,
+    cropStockLevelId: cropStockLevelId ? Number(cropStockLevelId) : null,
+    binId: binId ? Number(binId) : null,
+    commodity: commodity ? String(commodity) : null,
+    variety: variety ? String(variety) : null,
+    cropYear: cropYear ? String(cropYear) : null,
+    systemQtyTonnes: systemQtyTonnes !== undefined && systemQtyTonnes !== "" ? String(systemQtyTonnes) : null,
+    physicalQtyTonnes: String(physicalQtyTonnes),
+    measurementMethod: measurementMethod ? String(measurementMethod) : null,
+    conductedBy: conductedBy ? String(conductedBy) : null,
+    stocktakeDate: String(stocktakeDate),
+    notes: notes ? String(notes) : null,
+  }).returning();
+  res.status(201).json({ record });
 });
 
 // ─── Suppliers ─────────────────────────────────────

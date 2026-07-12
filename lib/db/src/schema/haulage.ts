@@ -179,3 +179,21 @@ export const cropStockMovementsTable = pgTable("crop_stock_movements", {
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ─── Crop Stock Stocktakes ──────────────────────────────────────────────────────
+export const cropStockStocktakesTable = pgTable("crop_stock_stocktakes", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  cropStockLevelId: integer("crop_stock_level_id").references(() => cropStockLevelsTable.id),
+  binId: integer("bin_id").references(() => grainStorageBinsTable.id),
+  commodity: text("commodity"),
+  variety: text("variety"),
+  cropYear: text("crop_year"),
+  systemQtyTonnes: numeric("system_qty_tonnes", { precision: 10, scale: 3 }),
+  physicalQtyTonnes: numeric("physical_qty_tonnes", { precision: 10, scale: 3 }).notNull(),
+  measurementMethod: text("measurement_method"), // probe | auger_sample | weighbridge | visual_estimate
+  conductedBy: text("conducted_by"),
+  stocktakeDate: date("stocktake_date").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

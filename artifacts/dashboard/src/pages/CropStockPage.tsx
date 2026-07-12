@@ -13,7 +13,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Wheat, Plus, ArrowDown, ArrowUp, ArrowLeftRight, Pencil, Trash2, History, Database, Printer, ShieldCheck, ShieldAlert, Loader2, Droplets, Check, ChevronsUpDown, FlaskConical } from "lucide-react";
+import { Wheat, Plus, ArrowDown, ArrowUp, ArrowLeftRight, Pencil, Trash2, History, Database, Printer, ShieldCheck, ShieldAlert, Loader2, Droplets, Check, ChevronsUpDown, FlaskConical, ClipboardList } from "lucide-react";
 import { openPrintWindow, buildProReport } from "@/lib/print-report";
 
 // ─── UK Approved Grain Store Treatment Products ────────────────────────────────
@@ -148,7 +148,7 @@ function ProductCombobox({ value, onChange, onProductSelect, disabled }: {
   );
 }
 
-type Tab = "stock" | "movements";
+type Tab = "stock" | "movements" | "stocktakes";
 
 const GRAIN_COMMODITIES = [
   "Winter Wheat","Spring Wheat","Winter Barley","Spring Barley","Malting Barley",
@@ -1825,6 +1825,219 @@ function MovementsTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Crop Stock Stocktakes Tab ─────────────────────────────────────────────────
+const MEASUREMENT_METHODS = [
+  { value: "probe", label: "Probe measurement" },
+  { value: "auger_sample", label: "Auger sample" },
+  { value: "weighbridge", label: "Weighbridge" },
+  { value: "visual_estimate", label: "Visual estimate" },
+];
+
+function CropStocktakesTab({ farmId }: { farmId: number }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+
+  const todayDate = () => new Date().toISOString().slice(0, 10);
+
+  const emptyStForm = {
+    binId: null as number | null,
+    commodity: "",
+    variety: "",
+    cropYear: "",
+    systemQtyTonnes: "",
+    physicalQtyTonnes: "",
+    measurementMethod: "probe",
+    conductedBy: "",
+    stocktakeDate: todayDate(),
+    notes: "",
+  };
+  const [stForm, setStForm] = useState(emptyStForm);
+
+  const stocktakesQ = useQuery({
+    queryKey: ["crop-stock-stocktakes", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/crop-stock-stocktakes`).then(r => r.json()),
+  });
+  const stRecords: any[] = Array.isArray(stocktakesQ.data?.records) ? stocktakesQ.data.records : [];
+
+  const levelsQ = useQuery({
+    queryKey: ["crop-stock-levels", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/crop-stock-levels`).then(r => r.json()),
+  });
+  const levels: any[] = Array.isArray(levelsQ.data?.records) ? levelsQ.data.records : [];
+
+  const binOccMap = useMemo(() => {
+    const m: Record<number, any> = {};
+    for (const l of levels) if (l.binId) m[l.binId] = l;
+    return m;
+  }, [levels]);
+
+  function handleStBinChange(binId: number | null) {
+    const lvl = binId ? binOccMap[binId] : null;
+    setStForm(f => ({
+      ...f,
+      binId,
+      commodity: lvl?.commodity ?? "",
+      variety: lvl?.variety ?? "",
+      cropYear: lvl?.cropYear ?? "",
+      systemQtyTonnes: lvl ? String(parseFloat(lvl.quantityTonnes ?? "0").toFixed(3)) : "",
+    }));
+  }
+
+  const saveMut = useMutation({
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/crop-stock-stocktakes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(r => r.json()),
+    onSuccess: () => {
+      toast({ title: "Stocktake recorded" });
+      qc.invalidateQueries({ queryKey: ["crop-stock-stocktakes", farmId] });
+      setOpen(false);
+      setStForm(emptyStForm);
+    },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  function handleStSubmit() {
+    if (!stForm.physicalQtyTonnes || !stForm.stocktakeDate) {
+      toast({ title: "Physical quantity and date are required", variant: "destructive" });
+      return;
+    }
+    saveMut.mutate({
+      binId: stForm.binId,
+      commodity: stForm.commodity || null,
+      variety: stForm.variety || null,
+      cropYear: stForm.cropYear || null,
+      systemQtyTonnes: stForm.systemQtyTonnes || null,
+      physicalQtyTonnes: stForm.physicalQtyTonnes,
+      measurementMethod: stForm.measurementMethod,
+      conductedBy: stForm.conductedBy || null,
+      stocktakeDate: stForm.stocktakeDate,
+      notes: stForm.notes || null,
+    });
+  }
+
+  const stBinLabel = (r: any) => r.binName ?? (r.binId ? `Bin #${r.binId}` : "No bin");
+  const fmtT = (v: string | null | undefined) => (v === null || v === undefined) ? "—" : `${parseFloat(v).toFixed(3)} t`;
+
+  function stVarianceBadge(sys: string | null | undefined, phys: string | null | undefined) {
+    if (!sys || !phys) return null;
+    const v = parseFloat(phys) - parseFloat(sys);
+    const cls = Math.abs(v) < 0.001 ? "bg-green-100 text-green-800" : v < 0 ? "bg-red-100 text-red-800" : "bg-yellow-100 text-yellow-800";
+    return <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${cls}`}>{v >= 0 ? "+" : ""}{v.toFixed(3)} t</span>;
+  }
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Grain Store Stocktakes</h2>
+          <p className="text-sm text-gray-500 mt-0.5">Record physical measurements (probe, weighbridge, etc.) and reconcile against system stock totals.</p>
+        </div>
+        <Button onClick={() => setOpen(true)}><Plus size={14} className="mr-1" />Record Stocktake</Button>
+      </div>
+
+      {stocktakesQ.isLoading ? (
+        <div className="flex items-center justify-center h-40"><Loader2 className="animate-spin text-gray-400" /></div>
+      ) : stRecords.length === 0 ? (
+        <div className="text-center py-16 text-gray-400">
+          <ClipboardList size={36} className="mx-auto mb-3 opacity-40" />
+          <p className="text-sm">No stocktakes recorded yet.</p>
+          <p className="text-xs mt-1">Use the button above to record your first physical measurement.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600">Date</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600">Bin / Location</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600">Commodity</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600">Crop Year</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-600">System (t)</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-600">Physical (t)</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-600">Variance</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600">Method</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600">Conducted By</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {stRecords.map((r: any) => (
+                <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2.5 whitespace-nowrap">{r.stocktakeDate ? new Date(r.stocktakeDate + "T12:00:00").toLocaleDateString("en-GB") : "—"}</td>
+                  <td className="px-3 py-2.5">{stBinLabel(r)}</td>
+                  <td className="px-3 py-2.5">{r.commodity ?? "—"}{r.variety ? <span className="text-gray-400 ml-1 text-xs">({r.variety})</span> : null}</td>
+                  <td className="px-3 py-2.5">{r.cropYear ?? "—"}</td>
+                  <td className="px-3 py-2.5 text-right font-mono">{fmtT(r.systemQtyTonnes)}</td>
+                  <td className="px-3 py-2.5 text-right font-mono">{fmtT(r.physicalQtyTonnes)}</td>
+                  <td className="px-3 py-2.5 text-right">{stVarianceBadge(r.systemQtyTonnes, r.physicalQtyTonnes)}</td>
+                  <td className="px-3 py-2.5 capitalize">{r.measurementMethod?.replace(/_/g, " ") ?? "—"}</td>
+                  <td className="px-3 py-2.5">{r.conductedBy ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) setStForm(emptyStForm); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Record Grain Store Stocktake</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Bin / Storage Location</Label>
+              <BinSelect farmId={farmId} value={stForm.binId} onChange={handleStBinChange} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Commodity</Label><Input value={stForm.commodity} onChange={e => setStForm(f => ({ ...f, commodity: e.target.value }))} placeholder="e.g. Winter Wheat" /></div>
+              <div><Label>Variety</Label><Input value={stForm.variety} onChange={e => setStForm(f => ({ ...f, variety: e.target.value }))} placeholder="e.g. Skyfall" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Crop Year</Label><Input value={stForm.cropYear} onChange={e => setStForm(f => ({ ...f, cropYear: e.target.value }))} placeholder="e.g. 2024/25" /></div>
+              <div><Label>Stocktake Date</Label><Input type="date" value={stForm.stocktakeDate} onChange={e => setStForm(f => ({ ...f, stocktakeDate: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>System Quantity (t)</Label>
+                <Input type="number" step="0.001" value={stForm.systemQtyTonnes} onChange={e => setStForm(f => ({ ...f, systemQtyTonnes: e.target.value }))} placeholder="Auto-filled from stock levels" />
+              </div>
+              <div>
+                <Label>Physical Quantity (t) *</Label>
+                <Input type="number" step="0.001" value={stForm.physicalQtyTonnes} onChange={e => setStForm(f => ({ ...f, physicalQtyTonnes: e.target.value }))} placeholder="Measured quantity" />
+              </div>
+            </div>
+            {stForm.systemQtyTonnes && stForm.physicalQtyTonnes && (
+              <div className="flex items-center gap-2 p-3 rounded-md bg-gray-50 border border-gray-200">
+                <span className="text-sm text-gray-600">Variance:</span>
+                {stVarianceBadge(stForm.systemQtyTonnes, stForm.physicalQtyTonnes)}
+                <span className="text-xs text-gray-400">(physical − system)</span>
+              </div>
+            )}
+            <div>
+              <Label>Measurement Method</Label>
+              <Select value={stForm.measurementMethod} onValueChange={v => setStForm(f => ({ ...f, measurementMethod: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MEASUREMENT_METHODS.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Conducted By</Label><Input value={stForm.conductedBy} onChange={e => setStForm(f => ({ ...f, conductedBy: e.target.value }))} placeholder="Name of person" /></div>
+            <div><Label>Notes</Label><Textarea value={stForm.notes} onChange={e => setStForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="e.g. probe depth, sample location, drying rate applied" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setOpen(false); setStForm(emptyStForm); }}>Cancel</Button>
+            <Button onClick={handleStSubmit} disabled={saveMut.isPending}>
+              {saveMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : null}Save Stocktake
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Page Shell ──────────────────────────────────────────────────────────────
 export default function CropStockPage() {
   const { farmId } = useAppStore();
@@ -1835,10 +2048,12 @@ export default function CropStockPage() {
       <TabBar>
         <TabButton active={tab === "stock"} onClick={() => setTab("stock")}><Wheat size={14} className="mr-1" />Stock Levels</TabButton>
         <TabButton active={tab === "movements"} onClick={() => setTab("movements")}><ArrowLeftRight size={14} className="mr-1" />Movement Log</TabButton>
+        <TabButton active={tab === "stocktakes"} onClick={() => setTab("stocktakes")}><ClipboardList size={14} className="mr-1" />Stocktakes</TabButton>
       </TabBar>
       <div style={{ marginTop: 20 }}>
         {farmId && tab === "stock" && <StockLevelsTab farmId={farmId} />}
         {farmId && tab === "movements" && <MovementsTab farmId={farmId} />}
+        {farmId && tab === "stocktakes" && <CropStocktakesTab farmId={farmId} />}
       </div>
     </AppLayout>
   );

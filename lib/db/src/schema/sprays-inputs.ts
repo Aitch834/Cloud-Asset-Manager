@@ -312,3 +312,17 @@ export const sprayStoreInspectionsTable = pgTable("spray_store_inspections", {
 
 export type SprayStoreInspection = typeof sprayStoreInspectionsTable.$inferSelect;
 export type NewSprayStoreInspection = typeof sprayStoreInspectionsTable.$inferInsert;
+
+// ─── Spray Product Stocktakes ──────────────────────────────────────────────────
+export const sprayProductStocktakesTable = pgTable("spray_product_stocktakes", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  productId: integer("product_id").references(() => sprayProductsTable.id),
+  productName: text("product_name"),
+  systemQtyLitres: numeric("system_qty_litres", { precision: 10, scale: 3 }),
+  physicalQtyLitres: numeric("physical_qty_litres", { precision: 10, scale: 3 }).notNull(),
+  conductedBy: text("conducted_by"),
+  stocktakeDate: date("stocktake_date").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
