@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { createHmac, timingSafeEqual } from "crypto";
-import { db, helpArticlesTable } from "@workspace/db";
+import { db, helpArticlesTable, farmResourcesTable, farmTaskResourceAllocationsTable } from "@workspace/db";
 import { sendSms } from "../lib/sms";
 import { sendAdminEmail } from "../lib/mailer";
 import { sanitiseBody } from "../lib/sanitise";
@@ -16559,6 +16559,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   type TaskItem = {
     id: string; type: string; title: string; description: string;
     dueDate: string; endDate?: string | null; module: string; href: string; colour: string;
+    allocations?: { id: number; resourceId: number; resourceName: string; resourceType: string; resourceColour: string; allocatedDate: string; notes: string | null }[];
   };
 
   const tasks: TaskItem[] = [];
@@ -18087,6 +18088,29 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       });
     }
   }
+
+  // Attach resource allocations to each task
+  try {
+    const nowStr = now.toISOString().slice(0, 10);
+    const rangeEndStr = new Date(rangeEnd.getTime() - 86400000).toISOString().slice(0, 10);
+    const allocRows = (await db.execute(sql`
+      SELECT tra.id, tra.task_ref, tra.resource_id, tra.allocated_date, tra.notes,
+             fr.name AS resource_name, fr.type AS resource_type, fr.colour AS resource_colour
+      FROM farm_task_resource_allocations tra
+      JOIN farm_resources fr ON fr.id = tra.resource_id
+      WHERE tra.farm_id = ${farmId}
+        AND tra.allocated_date >= ${nowStr}
+        AND tra.allocated_date <= ${rangeEndStr}
+    `)).rows as { id: number; task_ref: string; resource_id: number; allocated_date: string; notes: string | null; resource_name: string; resource_type: string; resource_colour: string }[];
+    const allocMap = new Map<string, { id: number; resourceId: number; resourceName: string; resourceType: string; resourceColour: string; allocatedDate: string; notes: string | null }[]>();
+    for (const row of allocRows) {
+      if (!allocMap.has(row.task_ref)) allocMap.set(row.task_ref, []);
+      allocMap.get(row.task_ref)!.push({ id: row.id, resourceId: row.resource_id, resourceName: row.resource_name, resourceType: row.resource_type, resourceColour: row.resource_colour, allocatedDate: row.allocated_date, notes: row.notes ?? null });
+    }
+    for (const task of tasks) {
+      (task as any).allocations = allocMap.get(task.id) ?? [];
+    }
+  } catch (e) { console.error("[week-ahead] resource allocations query failed:", e); }
 
   res.json({ tasks, days, rangeStart: now.toISOString(), rangeEnd: rangeEnd.toISOString() });
 });
@@ -34404,5 +34428,110 @@ router.delete("/farms/:farmId/winery-stock/:itemId/movements/:movId", requireAut
   if (!farmId) return;
   const movId = parseInt(req.params.movId as string);
   await db.execute(sql`DELETE FROM winery_stock_movements WHERE id = ${movId} AND farm_id = ${farmId}`);
+  res.json({ success: true });
+});
+
+// ══════════════════════════════════════════════════════════════════
+// RESOURCE PLANNER — Farm Resources & Task Resource Allocations
+// ══════════════════════════════════════════════════════════════════
+
+router.get("/farms/:farmId/resources", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const showAll = req.query.showAll === "true";
+  const rows = await db.select().from(farmResourcesTable)
+    .where(showAll ? eq(farmResourcesTable.farmId, farmId) : and(eq(farmResourcesTable.farmId, farmId), eq(farmResourcesTable.isActive, true)))
+    .orderBy(farmResourcesTable.type, farmResourcesTable.name);
+  res.json({ resources: rows });
+});
+
+router.post("/farms/:farmId/resources", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { name, type, description, colour } = sanitiseBody(req.body);
+  if (!name || !type) { res.status(400).json({ error: "name and type are required" }); return; }
+  const [row] = await db.insert(farmResourcesTable).values({
+    farmId,
+    name: String(name),
+    type: String(type),
+    description: description ? String(description) : null,
+    colour: colour ? String(colour) : "slate",
+  }).returning();
+  res.status(201).json({ resource: row });
+});
+
+router.patch("/farms/:farmId/resources/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const { name, type, description, colour, isActive } = sanitiseBody(req.body);
+  const updates: Record<string, unknown> = {};
+  if (name !== undefined) updates.name = String(name);
+  if (type !== undefined) updates.type = String(type);
+  if (description !== undefined) updates.description = description ? String(description) : null;
+  if (colour !== undefined) updates.colour = String(colour);
+  if (isActive !== undefined) updates.isActive = Boolean(isActive);
+  if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No fields to update" }); return; }
+  const [row] = await db.update(farmResourcesTable).set(updates).where(and(eq(farmResourcesTable.id, id), eq(farmResourcesTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ resource: row });
+});
+
+router.delete("/farms/:farmId/resources/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  await db.update(farmResourcesTable).set({ isActive: false }).where(and(eq(farmResourcesTable.id, id), eq(farmResourcesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/task-resource-allocations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { taskRef, start, end } = req.query as Record<string, string>;
+  let rows: unknown[];
+  if (taskRef) {
+    rows = (await db.execute(sql`
+      SELECT tra.*, fr.name AS resource_name, fr.type AS resource_type, fr.colour AS resource_colour
+      FROM farm_task_resource_allocations tra
+      JOIN farm_resources fr ON fr.id = tra.resource_id
+      WHERE tra.farm_id = ${farmId} AND tra.task_ref = ${taskRef}
+      ORDER BY tra.created_at ASC
+    `)).rows;
+  } else if (start && end) {
+    rows = (await db.execute(sql`
+      SELECT tra.*, fr.name AS resource_name, fr.type AS resource_type, fr.colour AS resource_colour
+      FROM farm_task_resource_allocations tra
+      JOIN farm_resources fr ON fr.id = tra.resource_id
+      WHERE tra.farm_id = ${farmId} AND tra.allocated_date >= ${start} AND tra.allocated_date <= ${end}
+      ORDER BY tra.allocated_date ASC, tra.created_at ASC
+    `)).rows;
+  } else {
+    res.status(400).json({ error: "Provide taskRef or start+end date range" }); return;
+  }
+  res.json({ allocations: rows });
+});
+
+router.post("/farms/:farmId/task-resource-allocations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { resourceId, taskRef, taskTitle, allocatedDate, notes } = sanitiseBody(req.body);
+  if (!resourceId || !taskRef || !allocatedDate) { res.status(400).json({ error: "resourceId, taskRef and allocatedDate are required" }); return; }
+  const [row] = await db.insert(farmTaskResourceAllocationsTable).values({
+    farmId,
+    resourceId: Number(resourceId),
+    taskRef: String(taskRef),
+    taskTitle: taskTitle ? String(taskTitle) : null,
+    allocatedDate: String(allocatedDate),
+    notes: notes ? String(notes) : null,
+  }).returning();
+  res.status(201).json({ allocation: row });
+});
+
+router.delete("/farms/:farmId/task-resource-allocations/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  await db.execute(sql`DELETE FROM farm_task_resource_allocations WHERE id = ${id} AND farm_id = ${farmId}`);
   res.json({ success: true });
 });

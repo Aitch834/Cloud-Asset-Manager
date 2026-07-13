@@ -4,6 +4,7 @@ import { seedLookupDefaults } from "./lib/seedLookups";
 import { startAlertingJob } from "./lib/alertingJob";
 import { startTimesheetReminderJob } from "./lib/timesheetReminderJob";
 import { runPlannerMigrations } from "./lib/plannerMigrations";
+import { runResourceMigrations } from "./lib/resourceMigrations";
 
 interface EnvSpec {
   key: string;
@@ -80,5 +81,8 @@ app.listen(port, () => {
   startTimesheetReminderJob();
   runPlannerMigrations().catch((err) => {
     console.error("[PLANNER-MIGRATE] Failed:", err);
+  });
+  runResourceMigrations().catch((err) => {
+    console.error("[RESOURCE-MIGRATE] Failed:", err);
   });
 });

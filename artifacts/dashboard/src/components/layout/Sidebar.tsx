@@ -60,6 +60,8 @@ import {
   Scale,
   Clock,
   Crosshair,
+  CalendarClock,
+  Boxes,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -81,6 +83,7 @@ const coreNav: NavItem[] = [
   { name: "Group Overview", href: "/group-overview", icon: Building2 },
   { name: "Week Ahead", href: "/week-ahead", icon: CalendarDays },
   { name: "Task Board", href: "/task-board", icon: ClipboardList },
+  { name: "Resource Planner", href: "/resources", icon: CalendarClock, moduleKeys: ["resource-planner"] },
   { name: "Staff", href: "/staff", icon: Users },
   { name: "Departments", href: "/departments", icon: Building2 },
   { name: "Labour", href: "/labour", icon: Clock, moduleKeys: ["staff-training"] },

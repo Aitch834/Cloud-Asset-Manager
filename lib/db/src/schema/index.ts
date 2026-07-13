@@ -53,3 +53,4 @@ export * from "./medicated-feed";
 export * from "./viticulture";
 export * from "./small-ruminant-dairy";
 export * from "./venison-production";
+export * from "./resources";

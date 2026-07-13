@@ -5,11 +5,31 @@ import { Redirect, Link } from "wouter";
 import {
   AlertTriangle, Calendar, CheckCircle2, ArrowRight, Clock, Loader2,
   Plus, Trash2, X, UserPlus, CheckCircle, LayoutList, CalendarDays, Baby, GanttChart,
+  Tractor, Wrench, Truck, Droplets, User, Boxes, AlertCircle, Package,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "@/hooks/use-toast";
+
+type ResourceAllocation = {
+  id: number;
+  resourceId: number;
+  resourceName: string;
+  resourceType: string;
+  resourceColour: string;
+  allocatedDate: string;
+  notes: string | null;
+};
+
+type FarmResource = {
+  id: number;
+  name: string;
+  type: string;
+  description: string | null;
+  colour: string;
+  isActive: boolean;
+};
 
 type TaskItem = {
   id: string;
@@ -22,6 +42,7 @@ type TaskItem = {
   href: string;
   colour: string;
   assignedToMemberId?: number;
+  allocations?: ResourceAllocation[];
 };
 
 type StaffMember = {
@@ -298,9 +319,97 @@ function TaskCard({
   return <Link href={task.href}>{inner}</Link>;
 }
 
+/* ─────────── ResourceAssignSection ─────────── */
+function ResourceAssignSection({
+  task, farmId, resources, onRefresh,
+}: {
+  task: TaskItem;
+  farmId: number;
+  resources: FarmResource[];
+  onRefresh: () => void;
+}) {
+  const [showPicker, setShowPicker] = useState(false);
+
+  const createAllocMut = useMutation({
+    mutationFn: (body: { resourceId: number; taskRef: string; taskTitle: string; allocatedDate: string }) =>
+      fetch(`/api/farms/${farmId}/task-resource-allocations`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }).then(r => r.json()),
+    onSuccess: () => { onRefresh(); setShowPicker(false); },
+  });
+
+  const removeAllocMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/task-resource-allocations/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => onRefresh(),
+  });
+
+  const allocations = task.allocations ?? [];
+  const assignedIds = new Set(allocations.map(a => a.resourceId));
+  const available = resources.filter(r => !assignedIds.has(r.id));
+
+  if (resources.length === 0) return null;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border/50">
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <p className="text-xs font-semibold text-foreground/60">Resources</p>
+        {available.length > 0 && (
+          <button
+            onClick={() => setShowPicker(p => !p)}
+            className="text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors"
+          >
+            {showPicker ? "Cancel" : "+ Assign"}
+          </button>
+        )}
+      </div>
+      {allocations.length === 0 && !showPicker && (
+        <p className="text-xs text-foreground/35 italic">No resources assigned</p>
+      )}
+      {allocations.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {allocations.map(alloc => (
+            <span key={alloc.id} className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-muted border border-border/60">
+              <div className={cn("w-1.5 h-1.5 rounded-full", RESOURCE_DOT_COLOURS[alloc.resourceColour] ?? "bg-slate-400")} />
+              <ResourceTypeIcon type={alloc.resourceType} className="text-foreground/50" />
+              {alloc.resourceName}
+              <button
+                onClick={() => removeAllocMut.mutate(alloc.id)}
+                disabled={removeAllocMut.isPending}
+                className="ml-0.5 text-foreground/30 hover:text-red-500 transition-colors"
+              >
+                <X className="w-2.5 h-2.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {showPicker && (
+        <div className="rounded-lg border border-border bg-muted/20 p-1.5 space-y-0.5">
+          {available.map(r => (
+            <button
+              key={r.id}
+              onClick={() => createAllocMut.mutate({ resourceId: r.id, taskRef: task.id, taskTitle: task.title, allocatedDate: task.dueDate.slice(0, 10) })}
+              disabled={createAllocMut.isPending}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-white border border-transparent hover:border-border/50 transition-all text-left"
+            >
+              <div className={cn("w-2 h-2 rounded-full flex-shrink-0", RESOURCE_DOT_COLOURS[r.colour] ?? "bg-slate-400")} />
+              <ResourceTypeIcon type={r.type} className="text-foreground/40 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-foreground leading-tight">{r.name}</p>
+                <p className="text-[10px] text-foreground/40">{RESOURCE_TYPE_LABELS[r.type] ?? r.type}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─────────── TaskCardExpanded — used inside calendar ─────────── */
 function TaskCardExpanded({
-  task, today, onDelete, staff, farmId, onAssigned, onClose,
+  task, today, onDelete, staff, farmId, onAssigned, onClose, resources,
 }: {
   task: TaskItem; today: Date;
   onDelete?: (id: string) => void;
@@ -308,6 +417,7 @@ function TaskCardExpanded({
   farmId: number;
   onAssigned: () => void;
   onClose: () => void;
+  resources?: FarmResource[];
 }) {
   const days = daysUntil(task.dueDate, today);
   const overdue = days < 0;
@@ -431,6 +541,7 @@ function TaskCardExpanded({
           </>
         );
       })()}
+      <ResourceAssignSection task={task} farmId={farmId} resources={resources ?? []} onRefresh={onAssigned} />
     </div>
   );
 }
@@ -647,9 +758,27 @@ function CalendarView({
   );
 }
 
+const RESOURCE_DOT_COLOURS: Record<string, string> = {
+  slate: "bg-slate-400", indigo: "bg-indigo-500", blue: "bg-blue-500",
+  green: "bg-green-500", emerald: "bg-emerald-500", amber: "bg-amber-400",
+  orange: "bg-orange-500", red: "bg-red-500", purple: "bg-purple-500",
+};
+const RESOURCE_TYPE_LABELS: Record<string, string> = {
+  tractor: "Tractor", implement: "Implement", vehicle: "Vehicle",
+  sprayer: "Sprayer", trailer: "Trailer", staff: "Staff / Contractor", other: "Other",
+};
+function ResourceTypeIcon({ type, className }: { type: string; className?: string }) {
+  const icons: Record<string, React.ElementType> = {
+    tractor: Tractor, implement: Wrench, vehicle: Truck,
+    sprayer: Droplets, trailer: Package, staff: User, other: Boxes,
+  };
+  const Icon = icons[type] ?? Boxes;
+  return <Icon className={cn("w-3 h-3", className)} />;
+}
+
 /* ─────────── GanttView ─────────── */
 function GanttView({
-  tasks, today, days, onDelete, staff, farmId, onAssigned,
+  tasks, today, days, onDelete, staff, farmId, onAssigned, resources,
 }: {
   tasks: TaskItem[];
   today: Date;
@@ -658,8 +787,35 @@ function GanttView({
   staff: StaffMember[];
   farmId: number;
   onAssigned: () => void;
+  resources: FarmResource[];
 }) {
   const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
+  const [showResourceSidebar, setShowResourceSidebar] = useState(false);
+  const [draggingResourceId, setDraggingResourceId] = useState<number | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+
+  const createAllocMut = useMutation({
+    mutationFn: (body: { resourceId: number; taskRef: string; taskTitle: string; allocatedDate: string }) =>
+      fetch(`/api/farms/${farmId}/task-resource-allocations`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }).then(r => r.json()),
+    onSuccess: () => onAssigned(),
+  });
+
+  const conflictedTaskIds = useMemo(() => {
+    const byKey = new Map<string, string[]>();
+    for (const task of tasks) {
+      for (const alloc of task.allocations ?? []) {
+        const key = `${alloc.allocatedDate}-${alloc.resourceId}`;
+        if (!byKey.has(key)) byKey.set(key, []);
+        byKey.get(key)!.push(task.id);
+      }
+    }
+    const conflicted = new Set<string>();
+    for (const [, ids] of byKey) { if (ids.length > 1) ids.forEach(id => conflicted.add(id)); }
+    return conflicted;
+  }, [tasks]);
 
   const overdue  = tasks.filter(t => daysUntil(t.dueDate, today) < 0);
   const upcoming = tasks.filter(t => daysUntil(t.dueDate, today) >= 0);
@@ -719,12 +875,28 @@ function GanttView({
           </div>
           {selectedTask && overdue.some(t => t.id === selectedTask.id) && (
             <div className="mt-3">
-              <TaskCardExpanded task={selectedTask} today={today} onDelete={onDelete} staff={staff} farmId={farmId} onAssigned={onAssigned} onClose={() => setSelectedTask(null)} />
+              <TaskCardExpanded task={selectedTask} today={today} onDelete={onDelete} staff={staff} farmId={farmId} onAssigned={onAssigned} onClose={() => setSelectedTask(null)} resources={resources} />
             </div>
           )}
         </div>
       )}
 
+      {resources.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            onClick={() => setShowResourceSidebar(p => !p)}
+            className={cn(
+              "flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors",
+              showResourceSidebar ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "border-border text-foreground/60 hover:bg-muted"
+            )}
+          >
+            <Boxes className="w-3.5 h-3.5" />
+            {showResourceSidebar ? "Hide resources" : "Show resources"}
+          </button>
+        </div>
+      )}
+      <div className="flex gap-4 items-start">
+      <div className="flex-1 min-w-0">
       {/* Gantt chart */}
       <div className="rounded-xl border border-border bg-white overflow-hidden">
         {/* Header row */}
@@ -772,13 +944,25 @@ function GanttView({
           return (
             <div key={task.id} className={cn("flex border-b last:border-b-0 transition-colors", isSel ? "bg-indigo-50/40" : "hover:bg-muted/20")}>
               {/* Label */}
-              <div className="w-56 flex-shrink-0 border-r border-border px-3 py-2.5 flex items-center gap-2 min-w-0">
-                <div className={cn("w-2 h-2 rounded-full flex-shrink-0", colours.dot)} />
+              <div className="w-56 flex-shrink-0 border-r border-border px-3 py-2 flex items-start gap-2 min-w-0">
+                <div className={cn("w-2 h-2 rounded-full flex-shrink-0 mt-1.5", colours.dot)} />
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-foreground truncate leading-tight">{task.title}</p>
+                  <div className="flex items-center gap-1">
+                    <p className="text-xs font-semibold text-foreground truncate leading-tight">{task.title}</p>
+                    {conflictedTaskIds.has(task.id) && (
+                      <AlertCircle className="w-3 h-3 flex-shrink-0 text-amber-500" aria-label="Resource conflict" />
+                    )}
+                  </div>
                   <span className={cn("inline-flex text-[10px] font-semibold px-1.5 rounded-full border mt-0.5", colours.badge)}>
                     {task.module}
                   </span>
+                  {(task.allocations ?? []).length > 0 && (
+                    <div className="flex items-center gap-0.5 mt-1 flex-wrap">
+                      {task.allocations!.map(alloc => (
+                        <div key={alloc.id} className={cn("w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm", RESOURCE_DOT_COLOURS[alloc.resourceColour] ?? "bg-slate-400")} title={alloc.resourceName} />
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -794,6 +978,16 @@ function GanttView({
                 {/* Bar */}
                 <button
                   onClick={() => setSelectedTask(isSel ? null : task)}
+                  onDragOver={(e) => { e.preventDefault(); setDropTargetId(task.id); }}
+                  onDragLeave={() => setDropTargetId(null)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDropTargetId(null);
+                    if (draggingResourceId !== null) {
+                      createAllocMut.mutate({ resourceId: draggingResourceId, taskRef: task.id, taskTitle: task.title, allocatedDate: task.dueDate.slice(0, 10) });
+                      setDraggingResourceId(null);
+                    }
+                  }}
                   title={task.title}
                   className={cn(
                     "absolute top-1/2 -translate-y-1/2 h-7 flex items-center px-2 text-white text-[10px] font-semibold transition-all hover:brightness-90 focus:outline-none",
@@ -802,6 +996,7 @@ function GanttView({
                     startsBeforeWindow && "rounded-l-none",
                     endsAfterWindow    && "rounded-r-none",
                     isSel && "ring-2 ring-offset-1 ring-indigo-400 brightness-90",
+                    dropTargetId === task.id && "ring-2 ring-offset-1 ring-white scale-y-110 brightness-110",
                   )}
                   style={{ left: `${Math.max(0, leftPct)}%`, width: `${widthPct}%` }}
                 >
@@ -814,15 +1009,48 @@ function GanttView({
           );
         })}
       </div>
+      </div>
+      {showResourceSidebar && resources.length > 0 && (
+        <div className="w-52 flex-shrink-0 rounded-xl border border-border bg-white overflow-hidden self-stretch">
+          <div className="px-3 py-2.5 border-b border-border bg-muted/20">
+            <p className="text-[11px] font-bold text-foreground/60 uppercase tracking-wide">Resources</p>
+            <p className="text-[10px] text-foreground/35 mt-0.5">Drag onto a task bar to assign</p>
+          </div>
+          <div className="p-2 space-y-1 max-h-[480px] overflow-y-auto">
+            {resources.map(r => (
+              <div
+                key={r.id}
+                draggable
+                onDragStart={() => setDraggingResourceId(r.id)}
+                onDragEnd={() => setDraggingResourceId(null)}
+                className={cn(
+                  "flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-grab active:cursor-grabbing border select-none transition-all",
+                  draggingResourceId === r.id
+                    ? "opacity-40 border-border/50 bg-muted/30"
+                    : "border-transparent hover:border-border/60 hover:bg-muted/30"
+                )}
+              >
+                <div className={cn("w-2.5 h-2.5 rounded-full flex-shrink-0", RESOURCE_DOT_COLOURS[r.colour] ?? "bg-slate-400")} />
+                <ResourceTypeIcon type={r.type} className="text-foreground/40 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-foreground truncate leading-tight">{r.name}</p>
+                  <p className="text-[10px] text-foreground/40">{RESOURCE_TYPE_LABELS[r.type] ?? r.type}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      </div>
 
       {/* Detail panel */}
       {selectedTask && !overdue.some(t => t.id === selectedTask.id) && (
-        <TaskCardExpanded task={selectedTask} today={today} onDelete={onDelete} staff={staff} farmId={farmId} onAssigned={onAssigned} onClose={() => setSelectedTask(null)} />
+        <TaskCardExpanded task={selectedTask} today={today} onDelete={onDelete} staff={staff} farmId={farmId} onAssigned={onAssigned} onClose={() => setSelectedTask(null)} resources={resources} />
       )}
 
       {(sorted.length > 0 || overdue.length > 0) && (
         <p className="text-xs text-foreground/35 text-center">
-          Click any bar to view details and actions. Multi-day bars show task duration.
+          Click any bar to view details. {resources.length > 0 ? "Show the resource panel and drag a resource onto a bar to assign it." : "Visit Resource Planner to add your tractors, implements and staff."}
         </p>
       )}
     </div>
@@ -1029,6 +1257,11 @@ export default function WeekAheadPage() {
     queryFn: () => fetch(`/api/farms/${farmId}/members`).then(r => r.json()),
   });
 
+  const { data: resourcesData } = useQuery<{ resources: FarmResource[] }>({
+    queryKey: ["resources", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/resources`).then(r => r.json()),
+  });
+
   const { data: organicCertData } = useQuery<any[]>({
     queryKey: ["oa-cert", farmId],
     queryFn: async () => {
@@ -1068,6 +1301,7 @@ export default function WeekAheadPage() {
   const apiTasks = data?.tasks ?? [];
   const tasks = [...apiTasks, ...certTasks];
   const staff = staffData?.members ?? [];
+  const resources = resourcesData?.resources ?? [];
   const overdue = tasks.filter(t => daysUntil(t.dueDate, today) < 0);
   const upcoming = tasks.filter(t => daysUntil(t.dueDate, today) >= 0);
 
@@ -1229,6 +1463,7 @@ export default function WeekAheadPage() {
             staff={staff}
             farmId={farmId}
             onAssigned={handleAssigned}
+            resources={resources}
           />
         )}
 
