@@ -5657,11 +5657,27 @@ const CONTENT: [string, string][] = [
   ],
   // 274 — Resource Planner — Building Your Resource Registry
   [
-    "How to build and manage your farm resource registry — machines, implements, vehicles, staff, and specialist equipment — in the Resource Planner module.",
+    "How to build and manage your farm resource registry — import from Equipment Register and Staff, or add custom resources — in the Resource Planner module.",
     `<h2>Resource Planner — Building Your Resource Registry</h2>
-<p>The Resource Planner module gives every farm a centralised registry of all resources that can be scheduled against tasks — tractors, implements, sprayers, trailers, vehicles, and named staff. Once resources are registered, they can be assigned to tasks in the Week Ahead Gantt view and tracked for availability, preventing double-booking and highlighting pressure points in your farm's workload.</p>
+<p>The Resource Planner module gives every farm a centralised registry of all resources that can be scheduled against tasks — tractors, implements, sprayers, trailers, vehicles, and named staff. Once resources are in the registry, they can be assigned to tasks in the Week Ahead Gantt view and tracked for availability, preventing double-booking and highlighting pressure points in your farm's workload.</p>
 <h3>Accessing the Resource Planner</h3>
 <p>Navigate to <strong>Resource Planner</strong> in the main sidebar. The page shows all registered resources grouped by type. If the module has not yet been activated on your subscription, a prompt will guide you to Settings to enable it.</p>
+<h3>Importing from your existing farm records</h3>
+<p>BDE Farm Trac automatically detects any machinery and staff you have already registered elsewhere in the platform. When you open the Resource Planner, an <strong>Import from your farm records</strong> panel appears at the top of the page showing:</p>
+<ul>
+<li><strong>Equipment &amp; Machinery</strong> — all active records from your Equipment Register (tractors, implements, sprayers, trailers, vehicles), with make, model, and registration pre-filled as the description</li>
+<li><strong>Staff Members</strong> — all active records from your Staff &amp; Training list, with job title pre-filled as the description</li>
+</ul>
+<p>Tick the items you want to add to the resource registry and click <strong>Import selected</strong>. Each item is created instantly — the resource type is mapped automatically from the equipment category, and a default colour is applied (green for tractors, amber for implements, blue for vehicles, indigo for sprayers, orange for trailers, purple for staff). You can edit the colour and description afterwards using the pencil icon on any resource card.</p>
+<p>Items that have already been imported do not appear in the panel again. Once all equipment and staff have been imported, the panel disappears. Use <strong>Select all</strong> to tick everything in one click if you want to bring the entire fleet and team into the planner at once.</p>
+<h3>Adding a custom resource</h3>
+<p>For resources not held in your Equipment Register or Staff list — for example, a hired contractor, a rented machine, or any specialist item — click <strong>Add custom</strong> and complete the short form:</p>
+<ul>
+<li><strong>Name</strong> — a clear identifier such as "Hired Telehandler" or "John (contractor)"</li>
+<li><strong>Type</strong> — Tractor, Implement, Sprayer, Trailer, Vehicle, Staff / Contractor, or Other</li>
+<li><strong>Description</strong> (optional) — registration plate, hire period, specialisation, or any useful note</li>
+<li><strong>Colour</strong> — choose from nine preset colours used consistently across all planning views</li>
+</ul>
 <h3>Resource types</h3>
 <p>BDE Farm Trac supports seven resource categories:</p>
 <ul>
@@ -5670,24 +5686,15 @@ const CONTENT: [string, string][] = [
 <li><strong>Sprayer</strong> — self-propelled or trailed sprayer units</li>
 <li><strong>Trailer</strong> — grain trailers, livestock trailers, flat-beds</li>
 <li><strong>Vehicle</strong> — pick-ups, ATV/UTVs, lorries, vans</li>
-<li><strong>Staff</strong> — named farm workers, operators, or contractors</li>
+<li><strong>Staff / Contractor</strong> — named farm workers, operators, or contractors</li>
 <li><strong>Other</strong> — any resource that does not fit the above categories</li>
 </ul>
-<h3>Adding a resource</h3>
-<p>Click <strong>Add Resource</strong> and complete the form:</p>
-<ul>
-<li><strong>Name</strong> — a clear identifier such as "JD 6R 155" or "Sarah Jones"</li>
-<li><strong>Type</strong> — select from the seven categories above</li>
-<li><strong>Description</strong> (optional) — any additional detail such as registration plate, power output, or role</li>
-<li><strong>Colour</strong> — choose from nine preset colours; this colour is used to display the resource's assignment chips across all planning views, making it easy to distinguish resources at a glance</li>
-</ul>
-<p>Save the resource. It will appear immediately in the registry and become available to assign to tasks in the Week Ahead planner.</p>
 <h3>Editing a resource</h3>
-<p>Click the pencil icon on any resource card to update its name, description, or colour. The type cannot be changed after creation — if the wrong type was selected, archive the resource and create a new one.</p>
+<p>Click the pencil icon on any resource card to update its name, description, or colour. The type cannot be changed after creation — if the wrong type was selected, archive the resource and create a new one with the correct type.</p>
 <h3>Archiving and restoring resources</h3>
 <p>Resources that are no longer in active use (for example, a machine that has been sold or a staff member who has left) can be archived rather than deleted. Archived resources retain all their historical allocation records but are hidden from the assignment picker in the Week Ahead view. Click the archive icon to archive, or the restore icon to bring an archived resource back into active use. All historical records are preserved throughout.</p>
 <h3>Resource colour coding</h3>
-<p>Each resource is assigned one of nine colours from the colour picker. These colours are consistent across all planning views — the resource registry, the Gantt sidebar, the task expanded panel, and the conflict detection markers all use the same colour for a given resource. Choose colours that reflect your own conventions (for example, green for tractors, blue for staff) to make the Gantt view instantly readable for your team.</p>`,
+<p>Each resource is shown in a consistent colour across all planning views — the resource registry cards, the Gantt sidebar, task expanded panels, and conflict detection markers all use the same colour for a given resource. Imported resources get sensible defaults; you can override any colour at any time using the pencil icon. Choose colours that match your own conventions to make the Gantt view instantly readable for your whole team.</p>`,
   ],
   // 275 — Assigning Resources to Tasks — Gantt View, Drag-and-Drop and Conflict Detection
   [

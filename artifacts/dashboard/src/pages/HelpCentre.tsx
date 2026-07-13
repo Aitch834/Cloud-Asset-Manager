@@ -192,11 +192,11 @@ const WORKFLOWS: Workflow[] = [
     icon: CheckCircle2,
     moduleKey: "resource-planner",
     steps: [
-      { title: "Open Week Ahead", detail: "Navigate to Week Ahead from the main menu and switch to Gantt view." },
-      { title: "Show the resource sidebar", detail: "Click Show Resources above the Gantt chart to open the sidebar listing all your registered machines, implements, and staff." },
+      { title: "Import your fleet & staff", detail: "Open Resource Planner from the sidebar. The Import from your farm records panel shows all active equipment and staff from your existing registers — tick what you need and click Import selected. Items are added instantly with type and colour pre-set." },
+      { title: "Add custom resources if needed", detail: "For hired contractors, rented plant, or anything not in your Equipment Register, click Add custom to enter a name, type, colour, and optional description." },
+      { title: "Open the Gantt view", detail: "Navigate to Week Ahead and switch to Gantt view. Click Show Resources above the chart to open the sidebar listing all your registered machines and staff." },
       { title: "Drag a resource onto a task bar", detail: "Drag a resource card from the sidebar and drop it onto the target task bar in the Gantt chart. The assignment is created instantly." },
       { title: "Check for conflicts", detail: "An amber ⚠ icon on a task label means that resource is already assigned to another task on the same day. Resolve by removing one assignment or rescheduling." },
-      { title: "Review from the task panel", detail: "Click any task bar to open the expanded panel. The Resources section shows all current assignments and an inline picker to add or remove more." },
     ],
   },
   {
