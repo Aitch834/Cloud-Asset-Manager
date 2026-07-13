@@ -413,10 +413,13 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
               )}
               <div>
                 <Label>Commodity *</Label>
-                <Select value={form.commodity} onValueChange={v => setForm((f: any) => ({ ...f, commodity: v }))}>
+                <Select value={COMMODITIES.filter(c => c !== "Other").includes(form.commodity) ? form.commodity : form.commodity ? "Other" : ""} onValueChange={v => setForm((f: any) => ({ ...f, commodity: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select commodity" /></SelectTrigger>
                   <SelectContent>{COMMODITIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                 </Select>
+                {(form.commodity === "Other" || (form.commodity && !COMMODITIES.filter(c => c !== "Other").includes(form.commodity))) && (
+                  <Input className="mt-1.5" value={form.commodity === "Other" ? "" : form.commodity} onChange={e => setForm((f: any) => ({ ...f, commodity: e.target.value || "Other" }))} placeholder="Please specify commodity…" />
+                )}
               </div>
               <div>
                 <Label>Variety</Label>
@@ -933,10 +936,13 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
               </div>
               <div>
                 <Label>Species *</Label>
-                <Select value={formDW.species} onValueChange={v => setFormDW((f: any) => ({ ...f, species: v }))}>
+                <Select value={SPECIES.filter(s => s !== "Other").includes(formDW.species) ? formDW.species : formDW.species ? "Other" : ""} onValueChange={v => setFormDW((f: any) => ({ ...f, species: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select species" /></SelectTrigger>
                   <SelectContent>{SPECIES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                 </Select>
+                {(formDW.species === "Other" || (formDW.species && !SPECIES.filter(s => s !== "Other").includes(formDW.species))) && (
+                  <Input className="mt-1.5" value={formDW.species === "Other" ? "" : formDW.species} onChange={e => setFormDW((f: any) => ({ ...f, species: e.target.value || "Other" }))} placeholder="Please specify species…" />
+                )}
               </div>
               <div><Label>Breed</Label><Input value={formDW.breed} onChange={e => setFormDW((f: any) => ({ ...f, breed: e.target.value }))} placeholder="e.g. Limousin x" /></div>
               <div><Label>Head Count *</Label><Input type="number" min="1" step="1" value={formDW.headCount} onChange={e => setFormDW((f: any) => ({ ...f, headCount: e.target.value }))} required /></div>
@@ -1018,10 +1024,13 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
               <div><Label>Mart Location</Label><Input value={formMart.martLocation} onChange={e => setFormMart((f: any) => ({ ...f, martLocation: e.target.value }))} /></div>
               <div>
                 <Label>Species *</Label>
-                <Select value={formMart.species} onValueChange={v => setFormMart((f: any) => ({ ...f, species: v }))}>
+                <Select value={SPECIES.filter(s => s !== "Other").includes(formMart.species) ? formMart.species : formMart.species ? "Other" : ""} onValueChange={v => setFormMart((f: any) => ({ ...f, species: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select species" /></SelectTrigger>
                   <SelectContent>{SPECIES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                 </Select>
+                {(formMart.species === "Other" || (formMart.species && !SPECIES.filter(s => s !== "Other").includes(formMart.species))) && (
+                  <Input className="mt-1.5" value={formMart.species === "Other" ? "" : formMart.species} onChange={e => setFormMart((f: any) => ({ ...f, species: e.target.value || "Other" }))} placeholder="Please specify species…" />
+                )}
               </div>
               <div>
                 <Label>Category</Label>
@@ -2253,13 +2262,16 @@ function DirectSalesTab({ farmId }: { farmId: number }) {
               <div><Label>Product Name *</Label><Input value={form.productName} onChange={e => setForm((f: any) => ({ ...f, productName: e.target.value }))} required placeholder="e.g. Organic Carrots, Free Range Eggs" /></div>
               <div>
                 <Label>Product Category</Label>
-                <Select value={form.productCategory || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, productCategory: v === "__none__" ? "" : v }))}>
+                <Select value={PRODUCT_CATEGORIES.filter(c => c !== "Other").includes(form.productCategory || "") ? form.productCategory : form.productCategory ? "Other" : "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, productCategory: v === "__none__" ? "" : v }))}>
                   <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">None</SelectItem>
                     {PRODUCT_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {(form.productCategory === "Other" || (form.productCategory && !PRODUCT_CATEGORIES.filter(c => c !== "Other").includes(form.productCategory))) && (
+                  <Input className="mt-1.5" value={form.productCategory === "Other" ? "" : form.productCategory} onChange={e => setForm((f: any) => ({ ...f, productCategory: e.target.value || "Other" }))} placeholder="Please specify category…" />
+                )}
               </div>
               <div><Label>Quantity *</Label><Input type="number" step="0.001" value={form.quantity} onChange={e => setForm((f: any) => ({ ...f, quantity: e.target.value }))} required /></div>
               <div>

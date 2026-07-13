@@ -835,13 +835,16 @@ export default function FeedManagementPage() {
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Storage location</Label><Input value={deliveryForm.storageLocation ?? ""} onChange={e => setDeliveryForm(f => ({ ...f, storageLocation: e.target.value }))} placeholder="e.g. Grain store Bay 4" /></div>
               <div><Label>Species intended</Label>
-                <Select value={deliveryForm.speciesIntended ?? "__none__"} onValueChange={v => setDeliveryForm(f => ({ ...f, speciesIntended: v === "__none__" ? "" : v }))}>
+                <Select value={SPECIES.filter(s => s !== "other").includes(deliveryForm.speciesIntended ?? "") ? (deliveryForm.speciesIntended ?? "__none__") : (deliveryForm.speciesIntended && deliveryForm.speciesIntended !== "__none__") ? "other" : "__none__"} onValueChange={v => setDeliveryForm(f => ({ ...f, speciesIntended: v === "__none__" ? "" : v }))}>
                   <SelectTrigger><SelectValue placeholder="Select species" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">Not specified</SelectItem>
                     {SPECIES.map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {(deliveryForm.speciesIntended === "other" || (deliveryForm.speciesIntended && deliveryForm.speciesIntended !== "__none__" && !SPECIES.filter(s => s !== "other").includes(deliveryForm.speciesIntended))) && (
+                  <Input className="mt-1.5" value={deliveryForm.speciesIntended === "other" ? "" : deliveryForm.speciesIntended} onChange={e => setDeliveryForm(f => ({ ...f, speciesIntended: e.target.value || "other" }))} placeholder="Please specify species…" />
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -937,13 +940,16 @@ export default function FeedManagementPage() {
               </div>
               <div>
                 <Label>Species intended</Label>
-                <Select value={stockForm.speciesIntended ?? "__none__"} onValueChange={v => setStockForm(f => ({ ...f, speciesIntended: v === "__none__" ? "" : v }))}>
+                <Select value={SPECIES.filter(s => s !== "other").includes(stockForm.speciesIntended ?? "") ? (stockForm.speciesIntended ?? "__none__") : (stockForm.speciesIntended && stockForm.speciesIntended !== "__none__") ? "other" : "__none__"} onValueChange={v => setStockForm(f => ({ ...f, speciesIntended: v === "__none__" ? "" : v }))}>
                   <SelectTrigger><SelectValue placeholder="Any species" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">Not specified</SelectItem>
                     {SPECIES.map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {(stockForm.speciesIntended === "other" || (stockForm.speciesIntended && stockForm.speciesIntended !== "__none__" && !SPECIES.filter(s => s !== "other").includes(stockForm.speciesIntended))) && (
+                  <Input className="mt-1.5" value={stockForm.speciesIntended === "other" ? "" : stockForm.speciesIntended} onChange={e => setStockForm(f => ({ ...f, speciesIntended: e.target.value || "other" }))} placeholder="Please specify species…" />
+                )}
               </div>
             </div>
 
@@ -1594,7 +1600,7 @@ export default function FeedManagementPage() {
               </div>
               <div>
                 <Label className="text-xs mb-1 block">Species Intended</Label>
-                <Select value={fpoForm.speciesIntended ?? "__none__"} onValueChange={v => setFpoForm(f => ({ ...f, speciesIntended: v }))}>
+                <Select value={["cattle","sheep","pigs","poultry"].includes(fpoForm.speciesIntended ?? "") ? (fpoForm.speciesIntended ?? "__none__") : (fpoForm.speciesIntended && fpoForm.speciesIntended !== "__none__") ? "other" : (fpoForm.speciesIntended ?? "__none__")} onValueChange={v => setFpoForm(f => ({ ...f, speciesIntended: v }))}>
                   <SelectTrigger><SelectValue placeholder="Any / not specified" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">Not specified</SelectItem>
@@ -1605,6 +1611,9 @@ export default function FeedManagementPage() {
                     <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
+                {(fpoForm.speciesIntended === "other" || (fpoForm.speciesIntended && fpoForm.speciesIntended !== "__none__" && !["cattle","sheep","pigs","poultry"].includes(fpoForm.speciesIntended))) && (
+                  <Input className="mt-1.5" value={fpoForm.speciesIntended === "other" ? "" : fpoForm.speciesIntended} onChange={e => setFpoForm(f => ({ ...f, speciesIntended: e.target.value || "other" }))} placeholder="Please specify species…" />
+                )}
               </div>
             </div>
             <div>
@@ -1855,12 +1864,15 @@ function MedicatedFeedTab({ farmId }: { farmId: number }) {
             <div><Label>Start Date *</Label><Input type="date" value={form.startDate} onChange={e => f("startDate")(e.target.value)} /></div>
             <div><Label>End Date</Label><Input type="date" value={form.endDate} onChange={e => f("endDate")(e.target.value)} /></div>
             <div><Label>Species *</Label>
-              <Select value={form.species} onValueChange={v => f("species")(v)}>
+              <Select value={["Cattle","Sheep","Pigs","Poultry"].includes(form.species) ? form.species : form.species ? "Other" : ""} onValueChange={v => f("species")(v)}>
                 <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
                 <SelectContent>
                   {["Cattle", "Sheep", "Pigs", "Poultry", "Other"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {(form.species === "Other" || (form.species && !["Cattle","Sheep","Pigs","Poultry"].includes(form.species))) && (
+                <Input className="mt-1.5" value={form.species === "Other" ? "" : form.species} onChange={e => f("species")(e.target.value || "Other")} placeholder="Please specify species…" />
+              )}
             </div>
             <div><Label>Animal Group</Label><Input value={form.animalGroup} onChange={e => f("animalGroup")(e.target.value)} placeholder="e.g. Finishers shed 2" /></div>
             <div className="col-span-2"><Label>Medicament Name *</Label><Input value={form.medicament} onChange={e => f("medicament")(e.target.value)} placeholder="Product name" /></div>

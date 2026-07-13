@@ -730,10 +730,13 @@ export default function ContractorsPage() {
               <div className="col-span-2"><Label>Company Name *</Label><Input value={form.companyName} onChange={e => setF("companyName", e.target.value)} placeholder="e.g. Smith Electrical Services Ltd" /></div>
               <div>
                 <Label>Trade Type *</Label>
-                <Select value={form.tradeType} onValueChange={v => setF("tradeType", v)}>
+                <Select value={Object.keys(TRADE_TYPES).filter(k => k !== "other").includes(form.tradeType) ? form.tradeType : form.tradeType ? "other" : ""} onValueChange={v => setF("tradeType", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{Object.entries(TRADE_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
                 </Select>
+                {(form.tradeType === "other" || (form.tradeType && !Object.keys(TRADE_TYPES).includes(form.tradeType))) && (
+                  <Input className="mt-1.5" value={form.tradeType === "other" ? "" : form.tradeType} onChange={e => setF("tradeType", e.target.value || "other")} placeholder="Please specify trade type…" />
+                )}
               </div>
               <div className="flex items-center gap-2 mt-5">
                 <input type="checkbox" id="cActive" checked={form.isActive} onChange={e => setF("isActive", e.target.checked)} className="h-4 w-4" />

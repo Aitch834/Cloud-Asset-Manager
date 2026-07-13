@@ -119,10 +119,13 @@ function ActivitiesTab({ farmId }: { farmId: number }) {
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2"><Label>Activity Name *</Label><Input value={String(form.activityName ?? "")} onChange={e => setForm(f => ({ ...f, activityName: e.target.value }))} /></div>
             <div><Label>Activity Type *</Label>
-              <Select value={String(form.activityType ?? "")} onValueChange={v => setForm(f => ({ ...f, activityType: v }))}>
+              <Select value={TYPES.filter(t => t !== "Other").includes(String(form.activityType ?? "")) ? String(form.activityType) : form.activityType ? "Other" : ""} onValueChange={v => setForm(f => ({ ...f, activityType: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>{TYPES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
+              {(form.activityType === "Other" || (form.activityType && !TYPES.filter(t => t !== "Other").includes(String(form.activityType)))) ? (
+                <Input className="mt-1.5" value={form.activityType === "Other" ? "" : String(form.activityType)} onChange={e => setForm(f => ({ ...f, activityType: e.target.value || "Other" }))} placeholder="Please specify activity type…" />
+              ) : null}
             </div>
             <div><Label>Status</Label>
               <Select value={String(form.status ?? "active")} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
@@ -1036,10 +1039,13 @@ function FarmShopTab({ farmId }: { farmId: number }) {
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2"><Label>Product Name *</Label><Input value={String(prodForm.productName ?? "")} onChange={e => setProdForm(f => ({ ...f, productName: e.target.value }))} /></div>
             <div><Label>Category *</Label>
-              <Select value={String(prodForm.category ?? "")} onValueChange={v => setProdForm(f => ({ ...f, category: v }))}>
+              <Select value={SHOP_CATEGORIES.filter(c => c !== "Other").includes(String(prodForm.category ?? "")) ? String(prodForm.category) : prodForm.category ? "Other" : ""} onValueChange={v => setProdForm(f => ({ ...f, category: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>{SHOP_CATEGORIES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
+              {(prodForm.category === "Other" || (prodForm.category && !SHOP_CATEGORIES.filter(c => c !== "Other").includes(String(prodForm.category)))) ? (
+                <Input className="mt-1.5" value={prodForm.category === "Other" ? "" : String(prodForm.category)} onChange={e => setProdForm(f => ({ ...f, category: e.target.value || "Other" }))} placeholder="Please specify category…" />
+              ) : null}
             </div>
             <div><Label>Unit of Sale</Label><Input value={String(prodForm.unitOfSale ?? "")} onChange={e => setProdForm(f => ({ ...f, unitOfSale: e.target.value }))} placeholder="e.g. dozen, kg, jar" /></div>
             <div><Label>Cost Price (£)</Label><Input type="number" step="0.01" value={String(prodForm.costPrice ?? "")} onChange={e => setProdForm(f => ({ ...f, costPrice: e.target.value }))} placeholder="What you pay" /></div>
@@ -1150,10 +1156,13 @@ function HygieneInspectionsTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Hygiene Inspection</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2"><Label>Relates To *</Label>
-              <Select value={String(form.relatesTo ?? "")} onValueChange={v => setForm(f => ({ ...f, relatesTo: v }))}>
+              <Select value={HYGIENE_RELATES_TO.filter(o => o !== "Other").includes(String(form.relatesTo ?? "")) ? String(form.relatesTo) : form.relatesTo ? "Other" : ""} onValueChange={v => setForm(f => ({ ...f, relatesTo: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select activity this inspection covers" /></SelectTrigger>
                 <SelectContent>{HYGIENE_RELATES_TO.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
+              {(form.relatesTo === "Other" || (form.relatesTo && !HYGIENE_RELATES_TO.filter(o => o !== "Other").includes(String(form.relatesTo)))) ? (
+                <Input className="mt-1.5" value={form.relatesTo === "Other" ? "" : String(form.relatesTo)} onChange={e => setForm(f => ({ ...f, relatesTo: e.target.value || "Other" }))} placeholder="Please specify…" />
+              ) : null}
             </div>
             <div><Label>Inspection Date *</Label><Input type="date" value={String(form.inspectionDate ?? "")} onChange={e => setForm(f => ({ ...f, inspectionDate: e.target.value }))} /></div>
             <div><Label>Inspection Type *</Label>
@@ -1711,10 +1720,13 @@ function IncomeTab({ farmId }: { farmId: number }) {
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Income Date *</Label><Input type="date" value={String(form.incomeDate ?? "")} onChange={e => setForm(f => ({ ...f, incomeDate: e.target.value }))} /></div>
             <div><Label>Income Type *</Label>
-              <Select value={String(form.incomeType ?? "")} onValueChange={v => setForm(f => ({ ...f, incomeType: v }))}>
+              <Select value={INCOME_TYPES.filter(t => t !== "Other").includes(String(form.incomeType ?? "")) ? String(form.incomeType) : form.incomeType ? "Other" : ""} onValueChange={v => setForm(f => ({ ...f, incomeType: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                 <SelectContent>{INCOME_TYPES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
+              {(form.incomeType === "Other" || (form.incomeType && !INCOME_TYPES.filter(t => t !== "Other").includes(String(form.incomeType)))) ? (
+                <Input className="mt-1.5" value={form.incomeType === "Other" ? "" : String(form.incomeType)} onChange={e => setForm(f => ({ ...f, incomeType: e.target.value || "Other" }))} placeholder="Please specify income type…" />
+              ) : null}
             </div>
             <div><Label>Linked Activity</Label>
               <Select value={String(form.activityId ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, activityId: v === "__none__" ? "" : v }))}>

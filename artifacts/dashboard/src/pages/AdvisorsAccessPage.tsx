@@ -448,12 +448,15 @@ export default function AdvisorsAccessPage() {
             </div>
             <div className="space-y-1">
               <Label>Advisor role *</Label>
-              <Select value={advisorForm.advisorRole} onValueChange={v => setAdvisorForm(f => ({ ...f, advisorRole: v }))}>
+              <Select value={ADVISOR_ROLES.filter(r => r.value !== "other").some(r => r.value === advisorForm.advisorRole) ? advisorForm.advisorRole : advisorForm.advisorRole ? "other" : ""} onValueChange={v => setAdvisorForm(f => ({ ...f, advisorRole: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select role…" /></SelectTrigger>
                 <SelectContent>
                   {ADVISOR_ROLES.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {(advisorForm.advisorRole === "other" || (advisorForm.advisorRole && !ADVISOR_ROLES.filter(r => r.value !== "other").some(r => r.value === advisorForm.advisorRole))) && (
+                <Input className="mt-1.5" value={advisorForm.advisorRole === "other" ? "" : advisorForm.advisorRole} onChange={e => setAdvisorForm(f => ({ ...f, advisorRole: e.target.value || "other" }))} placeholder="Please specify role…" />
+              )}
             </div>
             <div className="space-y-1">
               <Label>Notes (optional)</Label>
@@ -500,12 +503,15 @@ export default function AdvisorsAccessPage() {
             </div>
             <div className="space-y-1">
               <Label>Purpose *</Label>
-              <Select value={sessionForm.purpose} onValueChange={v => setSessionForm(f => ({ ...f, purpose: v }))}>
+              <Select value={INSPECTION_PURPOSES.filter(p => p.value !== "other").some(p => p.value === sessionForm.purpose) ? sessionForm.purpose : sessionForm.purpose ? "other" : ""} onValueChange={v => setSessionForm(f => ({ ...f, purpose: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select purpose…" /></SelectTrigger>
                 <SelectContent>
                   {INSPECTION_PURPOSES.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {(sessionForm.purpose === "other" || (sessionForm.purpose && !INSPECTION_PURPOSES.filter(p => p.value !== "other").some(p => p.value === sessionForm.purpose))) && (
+                <Input className="mt-1.5" value={sessionForm.purpose === "other" ? "" : sessionForm.purpose} onChange={e => setSessionForm(f => ({ ...f, purpose: e.target.value || "other" }))} placeholder="Please specify purpose…" />
+              )}
             </div>
             <div className="space-y-1">
               <Label>Access expires on *</Label>
@@ -652,12 +658,15 @@ function InspectorModeCard({ farmId, toast }: { farmId: number; toast: ReturnTyp
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>Inspection Purpose *</Label>
-          <Select value={form.purpose} onValueChange={v => setForm(f => ({ ...f, purpose: v }))}>
+          <Select value={INSPECTOR_PURPOSES.filter(p => p.value !== "other-inspector").some(p => p.value === form.purpose) ? form.purpose : form.purpose ? "other-inspector" : ""} onValueChange={v => setForm(f => ({ ...f, purpose: v }))}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {INSPECTOR_PURPOSES.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
             </SelectContent>
           </Select>
+          {(form.purpose === "other-inspector" || (form.purpose && !INSPECTOR_PURPOSES.filter(p => p.value !== "other-inspector").some(p => p.value === form.purpose))) && (
+            <Input className="mt-1.5" value={form.purpose === "other-inspector" ? "" : form.purpose} onChange={e => setForm(f => ({ ...f, purpose: e.target.value || "other-inspector" }))} placeholder="Please specify inspection type…" />
+          )}
         </div>
         <div className="space-y-1">
           <Label>Inspector Reference / Visit Code</Label>

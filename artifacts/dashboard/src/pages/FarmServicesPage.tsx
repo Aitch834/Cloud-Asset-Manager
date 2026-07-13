@@ -1348,10 +1348,13 @@ function GrainIntakeTab({ farmId, customers }: { farmId: number; customers: Farm
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Commodity <span className="text-destructive">*</span></Label>
-                <Select value={form.commodity} onValueChange={(v) => setForm((f) => ({ ...f, commodity: v }))}>
+                <Select value={COMMODITIES.filter(c => c !== "Other").includes(form.commodity) ? form.commodity : form.commodity ? "Other" : ""} onValueChange={(v) => setForm((f) => ({ ...f, commodity: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{COMMODITIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                 </Select>
+                {(form.commodity === "Other" || (form.commodity && !COMMODITIES.filter(c => c !== "Other").includes(form.commodity))) && (
+                  <Input className="mt-1.5" value={form.commodity === "Other" ? "" : form.commodity} onChange={(e) => setForm((f) => ({ ...f, commodity: e.target.value || "Other" }))} placeholder="Please specify commodity…" />
+                )}
               </div>
               <div className="space-y-1"><Label>Variety</Label>
                 <Input placeholder="e.g. KWS Zyatt" value={form.variety} onChange={(e) => setForm((f) => ({ ...f, variety: e.target.value }))} /></div>

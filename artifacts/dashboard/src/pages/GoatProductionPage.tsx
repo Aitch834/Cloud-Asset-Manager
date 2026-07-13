@@ -240,10 +240,13 @@ function MatingTab({ farmId }: { farmId: number }) {
             <Field label="Start Date *"><Input type="date" value={form.matingStartDate ?? ""} onChange={e => sf("matingStartDate", e.target.value)} /></Field>
             <Field label="End Date"><Input type="date" value={form.matingEndDate ?? ""} onChange={e => sf("matingEndDate", e.target.value)} /></Field>
             <Field label="Buck Breed">
-              <Select value={form.buckBreed ?? ""} onValueChange={v => sf("buckBreed", v)}>
+              <Select value={["Boer","Kiko","Savanna","Spanish","Nubian","Anglo-Nubian","Cashmere","Pygmy","Pygmy x","Crossbred"].includes(form.buckBreed ?? "") ? (form.buckBreed ?? "") : form.buckBreed ? "Other" : ""} onValueChange={v => sf("buckBreed", v)}>
                 <SelectTrigger><SelectValue placeholder="Select breed..." /></SelectTrigger>
                 <SelectContent>{["Boer","Kiko","Savanna","Spanish","Nubian","Anglo-Nubian","Cashmere","Pygmy","Pygmy x","Crossbred","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
+              {(form.buckBreed === "Other" || (form.buckBreed && !["Boer","Kiko","Savanna","Spanish","Nubian","Anglo-Nubian","Cashmere","Pygmy","Pygmy x","Crossbred"].includes(form.buckBreed))) && (
+                <Input className="mt-1.5" value={form.buckBreed === "Other" ? "" : form.buckBreed} onChange={e => sf("buckBreed", e.target.value || "Other")} placeholder="Please specify breed…" />
+              )}
             </Field>
             <Field label="Buck Ear Tag"><Input value={form.buckEarTag ?? ""} onChange={e => sf("buckEarTag", e.target.value)} /></Field>
             <Field label="Buck Owner"><Input value={form.buckOwner ?? ""} onChange={e => sf("buckOwner", e.target.value)} /></Field>
@@ -588,23 +591,32 @@ function CullTab({ farmId }: { farmId: number }) {
           <div className="grid grid-cols-2 gap-3">
             <Field label="Date *"><Input type="date" value={form.cullDate ?? ""} onChange={e => sf("cullDate", e.target.value)} /></Field>
             <Field label="Age / Category">
-              <Select value={form.ageClass ?? ""} onValueChange={v => sf("ageClass", v)}>
+              <Select value={["Kids","Young does","Cull does","Cull bucks","Store goats"].includes(form.ageClass ?? "") ? (form.ageClass ?? "") : form.ageClass ? "Other" : ""} onValueChange={v => sf("ageClass", v)}>
                 <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                 <SelectContent>{["Kids","Young does","Cull does","Cull bucks","Store goats","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
+              {(form.ageClass === "Other" || (form.ageClass && !["Kids","Young does","Cull does","Cull bucks","Store goats"].includes(form.ageClass))) && (
+                <Input className="mt-1.5" value={form.ageClass === "Other" ? "" : form.ageClass} onChange={e => sf("ageClass", e.target.value || "Other")} placeholder="Please specify age / category…" />
+              )}
             </Field>
             <Field label="Number *"><Input type="number" min="1" step="1" value={form.numberCulled ?? ""} onChange={e => sf("numberCulled", e.target.value)} /></Field>
             <Field label="Reason *">
-              <Select value={form.reasonForCulling ?? ""} onValueChange={v => sf("reasonForCulling", v)}>
+              <Select value={["Finished for slaughter","Store sale","Draft ewe/doe","Age cull","Health / injury","Poor performance","Surplus stock"].includes(form.reasonForCulling ?? "") ? (form.reasonForCulling ?? "") : form.reasonForCulling ? "Other" : ""} onValueChange={v => sf("reasonForCulling", v)}>
                 <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                 <SelectContent>{["Finished for slaughter","Store sale","Draft ewe/doe","Age cull","Health / injury","Poor performance","Surplus stock","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
+              {(form.reasonForCulling === "Other" || (form.reasonForCulling && !["Finished for slaughter","Store sale","Draft ewe/doe","Age cull","Health / injury","Poor performance","Surplus stock"].includes(form.reasonForCulling))) && (
+                <Input className="mt-1.5" value={form.reasonForCulling === "Other" ? "" : form.reasonForCulling} onChange={e => sf("reasonForCulling", e.target.value || "Other")} placeholder="Please specify reason…" />
+              )}
             </Field>
             <Field label="Destination *">
-              <Select value={form.destination ?? ""} onValueChange={v => setForm(f => ({ ...f, destination: v, destinationCph: "", abattoirName: "" }))}>
+              <Select value={["Abattoir (direct)","Market / mart","Private sale","On-farm slaughter"].includes(form.destination ?? "") ? (form.destination ?? "") : form.destination ? "Other" : ""} onValueChange={v => setForm(f => ({ ...f, destination: v, destinationCph: "", abattoirName: "" }))}>
                 <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                 <SelectContent>{["Abattoir (direct)","Market / mart","Private sale","On-farm slaughter","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
+              {(form.destination === "Other" || (form.destination && !["Abattoir (direct)","Market / mart","Private sale","On-farm slaughter"].includes(form.destination))) && (
+                <Input className="mt-1.5" value={form.destination === "Other" ? "" : form.destination} onChange={e => setForm(f => ({ ...f, destination: e.target.value || "Other" }))} placeholder="Please specify destination…" />
+              )}
             </Field>
             {form.destination === "Private sale"
               ? <Field label="Destination CPH"><Input value={form.destinationCph ?? ""} onChange={e => sf("destinationCph", e.target.value)} placeholder="e.g. 12/345/6789" /></Field>
@@ -734,10 +746,13 @@ function HealthTab({ farmId }: { farmId: number }) {
           <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Vaccination</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Vaccination Programme">
-                <Select value={form.vaccinationCategory ?? ""} onValueChange={v => sf("vaccinationCategory", v)}>
+                <Select value={["CAE prevention (dam-raised)","Clostridial diseases","Pasteurella / pneumonia","Enterotoxaemia","Foot rot (Footvax)","Caseous Lymphadenitis (CLA)","E. coli (neonatal)","Orf"].includes(form.vaccinationCategory ?? "") ? (form.vaccinationCategory ?? "") : form.vaccinationCategory ? "Other" : ""} onValueChange={v => sf("vaccinationCategory", v)}>
                   <SelectTrigger><SelectValue placeholder="Select programme..." /></SelectTrigger>
                   <SelectContent>{["CAE prevention (dam-raised)","Clostridial diseases","Pasteurella / pneumonia","Enterotoxaemia","Foot rot (Footvax)","Caseous Lymphadenitis (CLA)","E. coli (neonatal)","Orf","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                 </Select>
+                {(form.vaccinationCategory === "Other" || (form.vaccinationCategory && !["CAE prevention (dam-raised)","Clostridial diseases","Pasteurella / pneumonia","Enterotoxaemia","Foot rot (Footvax)","Caseous Lymphadenitis (CLA)","E. coli (neonatal)","Orf"].includes(form.vaccinationCategory))) && (
+                  <Input className="mt-1.5" value={form.vaccinationCategory === "Other" ? "" : form.vaccinationCategory} onChange={e => sf("vaccinationCategory", e.target.value || "Other")} placeholder="Please specify programme…" />
+                )}
               </Field>
               <Field label="Vaccine Product *"><Input value={form.vaccineProduct ?? ""} onChange={e => sf("vaccineProduct", e.target.value)} /></Field>
               <Field label="Date *"><Input type="date" value={form.vaccinationDate ?? ""} onChange={e => sf("vaccinationDate", e.target.value)} /></Field>

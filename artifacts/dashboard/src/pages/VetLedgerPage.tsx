@@ -1114,12 +1114,15 @@ ${hasHpCia ? '<p style="background:#fef3c7;border:1px solid #fcd34d;padding:8px 
                       <Label className="text-xs">Qty</Label>
                       <Input type="number" className="h-7 text-xs mt-0.5" value={med.quantityUsed} onChange={e => setVisitMeds(ms => ms.map((m, i) => i === idx ? { ...m, quantityUsed: e.target.value } : m))} />
                     </div>
-                    <div className="w-20 shrink-0">
+                    <div className={(med.unit === "other" || !MEDICINE_UNITS.filter(u => u !== "other").includes(med.unit)) ? "w-32 shrink-0" : "w-20 shrink-0"}>
                       <Label className="text-xs">Unit</Label>
-                      <Select value={med.unit} onValueChange={v => setVisitMeds(ms => ms.map((m, i) => i === idx ? { ...m, unit: v } : m))}>
+                      <Select value={MEDICINE_UNITS.filter(u => u !== "other").includes(med.unit) ? med.unit : "other"} onValueChange={v => setVisitMeds(ms => ms.map((m, i) => i === idx ? { ...m, unit: v } : m))}>
                         <SelectTrigger className="h-7 text-xs mt-0.5"><SelectValue /></SelectTrigger>
                         <SelectContent>{MEDICINE_UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
                       </Select>
+                      {(med.unit === "other" || !MEDICINE_UNITS.filter(u => u !== "other").includes(med.unit)) && (
+                        <Input className="h-7 text-xs mt-0.5" value={med.unit === "other" ? "" : med.unit} onChange={e => setVisitMeds(ms => ms.map((m, i) => i === idx ? { ...m, unit: e.target.value || "other" } : m))} placeholder="Specify…" />
+                      )}
                     </div>
                     <div className="w-28 shrink-0">
                       <Label className="text-xs">Withdrawal (days)</Label>
