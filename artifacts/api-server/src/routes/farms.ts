@@ -34485,6 +34485,85 @@ router.delete("/farms/:farmId/resources/:id", requireAuth, requireTenant, async 
   res.json({ success: true });
 });
 
+// Returns equipment and staff that are not yet imported as resources (matched by name, case-insensitive).
+router.get("/farms/:farmId/resources/importable", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+
+  function equipTypeToResourceType(t: string): string {
+    const l = t.toLowerCase();
+    if (l.includes("tractor")) return "tractor";
+    if (l.includes("sprayer")) return "sprayer";
+    if (l.includes("trailer")) return "trailer";
+    if (l.includes("vehicle") || l.includes("atv") || l.includes("utv") || l.includes("van") || l.includes("car") || l.includes("lorry") || l.includes("pickup") || l.includes("4x4")) return "vehicle";
+    if (l.includes("implement") || l.includes("plough") || l.includes("drill") || l.includes("cultivat") || l.includes("harrow") || l.includes("spreader") || l.includes("baler") || l.includes("mower") || l.includes("combine")) return "implement";
+    return "other";
+  }
+
+  const [equipment, members, existing] = await Promise.all([
+    db.select({ id: equipmentTable.id, name: equipmentTable.name, type: equipmentTable.type, make: equipmentTable.make, model: equipmentTable.model, registrationNumber: equipmentTable.registrationNumber })
+      .from(equipmentTable)
+      .where(and(eq(equipmentTable.farmId, farmId), eq(equipmentTable.isActive, true))),
+    db.select({
+      id: farmMembersTable.id,
+      name: sql<string>`trim(concat(${farmMembersTable.firstName}, ' ', ${farmMembersTable.lastName}))`,
+      jobTitle: farmMembersTable.jobTitle,
+    })
+      .from(farmMembersTable)
+      .where(and(eq(farmMembersTable.farmId, farmId), eq(farmMembersTable.isActive, true)))
+      .orderBy(farmMembersTable.lastName, farmMembersTable.firstName),
+    db.select({ name: farmResourcesTable.name }).from(farmResourcesTable).where(eq(farmResourcesTable.farmId, farmId)),
+  ]);
+
+  const existingNames = new Set(existing.map(r => r.name.trim().toLowerCase()));
+
+  const importableEquipment = equipment
+    .filter(e => e.name && !existingNames.has(e.name.trim().toLowerCase()))
+    .map(e => ({
+      sourceType: "equipment" as const,
+      sourceId: e.id,
+      name: e.name,
+      resourceType: equipTypeToResourceType(e.type ?? ""),
+      description: [e.make, e.model, e.registrationNumber].filter(Boolean).join(" · ") || null,
+    }));
+
+  const importableStaff = members
+    .filter(m => m.name && m.name.trim() !== "" && !existingNames.has(m.name.trim().toLowerCase()))
+    .map(m => ({
+      sourceType: "staff" as const,
+      sourceId: m.id,
+      name: m.name,
+      resourceType: "staff" as const,
+      description: m.jobTitle ?? null,
+    }));
+
+  res.json({ equipment: importableEquipment, staff: importableStaff });
+});
+
+// Bulk import resources (from equipment/staff or manually supplied list).
+router.post("/farms/:farmId/resources/batch", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { items } = req.body as { items: Array<{ name: string; type: string; description?: string; colour?: string }> };
+  if (!Array.isArray(items) || items.length === 0) { res.status(400).json({ error: "items array is required" }); return; }
+
+  const defaultColour: Record<string, string> = {
+    tractor: "green", implement: "amber", vehicle: "blue",
+    sprayer: "indigo", trailer: "orange", staff: "purple", other: "slate",
+  };
+
+  const rows = await db.insert(farmResourcesTable).values(
+    items.map(item => ({
+      farmId,
+      name: String(item.name).trim(),
+      type: String(item.type),
+      description: item.description ? String(item.description) : null,
+      colour: item.colour ?? defaultColour[item.type] ?? "slate",
+    }))
+  ).returning();
+  res.status(201).json({ resources: rows });
+});
+
 router.get("/farms/:farmId/task-resource-allocations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
