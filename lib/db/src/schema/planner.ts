@@ -7,6 +7,7 @@ export const farmPlannerEventsTable = pgTable("farm_planner_events", {
   title: text("title").notNull(),
   description: text("description"),
   eventDate: timestamp("event_date", { withTimezone: true }).notNull(),
+  endDate: timestamp("end_date", { withTimezone: true }),
   colour: text("colour").notNull().default("slate"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

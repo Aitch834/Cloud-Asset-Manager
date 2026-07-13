@@ -3,6 +3,7 @@ import { seedDefaults } from "./lib/seedDefaults";
 import { seedLookupDefaults } from "./lib/seedLookups";
 import { startAlertingJob } from "./lib/alertingJob";
 import { startTimesheetReminderJob } from "./lib/timesheetReminderJob";
+import { runPlannerMigrations } from "./lib/plannerMigrations";
 
 interface EnvSpec {
   key: string;
@@ -77,4 +78,7 @@ app.listen(port, () => {
   });
   startAlertingJob();
   startTimesheetReminderJob();
+  runPlannerMigrations().catch((err) => {
+    console.error("[PLANNER-MIGRATE] Failed:", err);
+  });
 });

@@ -8824,9 +8824,9 @@ router.get("/farms/:farmId/planner-events", requireAuth, requireTenant, async (r
 router.post("/farms/:farmId/planner-events", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { title, description, eventDate, colour } = req.body;
+  const { title, description, eventDate, endDate, colour } = req.body;
   if (!title || !eventDate) { res.status(400).json({ error: "title and eventDate are required" }); return; }
-  const [record] = await db.insert(farmPlannerEventsTable).values({ farmId, title, description: description || null, eventDate: new Date(eventDate), colour: colour || "slate" }).returning();
+  const [record] = await db.insert(farmPlannerEventsTable).values({ farmId, title, description: description || null, eventDate: new Date(eventDate), endDate: endDate ? new Date(endDate) : null, colour: colour || "slate" }).returning();
   res.status(201).json(record);
 });
 
@@ -8834,11 +8834,12 @@ router.patch("/farms/:farmId/planner-events/:recordId", requireAuth, requireTena
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
-  const { title, description, eventDate, colour } = req.body;
+  const { title, description, eventDate, endDate, colour } = req.body;
   const updates: Record<string, unknown> = {};
   if (title !== undefined) updates.title = title;
   if (description !== undefined) updates.description = description;
   if (eventDate !== undefined) updates.eventDate = new Date(eventDate);
+  if (endDate !== undefined) updates.endDate = endDate ? new Date(endDate) : null;
   if (colour !== undefined) updates.colour = colour;
   const [record] = await db.update(farmPlannerEventsTable).set(updates).where(and(eq(farmPlannerEventsTable.id, recordId), eq(farmPlannerEventsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
@@ -8884,7 +8885,7 @@ router.post("/farms/:farmId/task-assignments", requireAuth, requireTenant, async
   if (!farmId) return;
   const userId = req.userId ?? "unknown";
   const tenantId = farmId;
-  const { assignedToMemberId, title, description, dueDate, module: mod, href, assignmentNote, taskType, taskSourceId, isWorkOrder, serviceInvoiceId, customerId, estimatedHours } = req.body;
+  const { assignedToMemberId, title, description, dueDate, endDate, module: mod, href, assignmentNote, taskType, taskSourceId, isWorkOrder, serviceInvoiceId, customerId, estimatedHours } = req.body;
   if (!assignedToMemberId || !title) { res.status(400).json({ error: "assignedToMemberId and title are required" }); return; }
   const [member] = await db.select({ firstName: farmMembersTable.firstName, lastName: farmMembersTable.lastName, phone: farmMembersTable.phone, linkedUserId: farmMembersTable.linkedUserId })
     .from(farmMembersTable).where(and(eq(farmMembersTable.id, Number(assignedToMemberId)), eq(farmMembersTable.farmId, farmId)));
@@ -8900,6 +8901,7 @@ router.post("/farms/:farmId/task-assignments", requireAuth, requireTenant, async
     title: title.trim(),
     description: description?.trim() || null,
     dueDate: dueDate || null,
+    endDate: endDate || null,
     module: mod || (isWorkOrder ? "Farm Services" : null),
     href: href || (isWorkOrder ? "/farm-services?tab=work-orders" : null),
     staffName,
@@ -9047,6 +9049,8 @@ router.patch("/farms/:farmId/task-assignments/:id", requireAuth, requireTenant, 
   if (completionNote !== undefined) allowed.completionNote = completionNote;
   if (assignmentNote !== undefined) allowed.assignmentNote = assignmentNote;
   if (dueDate !== undefined) allowed.dueDate = dueDate;
+  const patchEndDate = req.body.endDate;
+  if (patchEndDate !== undefined) allowed.endDate = patchEndDate;
   if (patchTitle !== undefined) allowed.title = patchTitle;
   if (patchDesc !== undefined) allowed.description = patchDesc;
   if (patchHours !== undefined) allowed.estimatedHours = patchHours ? String(patchHours) : null;
@@ -16554,7 +16558,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
 
   type TaskItem = {
     id: string; type: string; title: string; description: string;
-    dueDate: string; module: string; href: string; colour: string;
+    dueDate: string; endDate?: string | null; module: string; href: string; colour: string;
   };
 
   const tasks: TaskItem[] = [];
@@ -17262,7 +17266,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     tasks.push({ id: `pod-${r.id}`, type: "po_delivery_due", title: `Delivery Expected — ${r.poNumber || "PO"}`, description: `${r.supplierName ? `Delivery from ${r.supplierName}` : "Delivery"} is expected${r.poNumber ? ` on PO ${r.poNumber}` : ""}. Check in Trade Contacts & Stock → Purchase Orders.`, dueDate: toISO(r.expectedDeliveryDate)!, module: "Trade Contacts & Stock", href: `/suppliers-stock?tab=purchase-orders&open=${r.id}`, colour: "amber" });
   }
   for (const r of plannerEventRows) {
-    tasks.push({ id: `planner-${r.id}`, type: "planner_event", title: r.title, description: r.description || "Custom reminder added by you.", dueDate: toISO(r.eventDate)!, module: "Custom", href: "#", colour: r.colour || "slate" });
+    tasks.push({ id: `planner-${r.id}`, type: "planner_event", title: r.title, description: r.description || "Custom reminder added by you.", dueDate: toISO(r.eventDate)!, endDate: r.endDate ? toISO(r.endDate) : null, module: "Custom", href: "#", colour: r.colour || "slate" });
   }
   for (const r of grantPurchaseRows) {
     if (!r.purchaseDeadline || r.status === "purchased" || r.status === "claimed" || r.status === "rejected" || r.status === "withdrawn") continue;
@@ -17400,7 +17404,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     const type = isWO ? "work_order" : "task_assignment";
     const prefix = isWO ? `${r.workOrderRef} · ` : "";
     const statusLabel = r.status === "in_progress" ? "in progress" : "scheduled";
-    tasks.push({ id: `assign-${r.id}`, type, title: `${prefix}${r.title}`, description: `Assigned to ${r.staffName || "a staff member"} — ${statusLabel}`, dueDate: typeof r.dueDate === "string" ? new Date(r.dueDate + "T00:00:00Z").toISOString() : (r.dueDate as Date).toISOString(), module: r.module || "Farm Services", href: r.href || "/farm-services?tab=work-orders", colour } as any);
+    tasks.push({ id: `assign-${r.id}`, type, title: `${prefix}${r.title}`, description: `Assigned to ${r.staffName || "a staff member"} — ${statusLabel}`, dueDate: typeof r.dueDate === "string" ? new Date(r.dueDate + "T00:00:00Z").toISOString() : (r.dueDate as Date).toISOString(), endDate: r.endDate ? toISO(r.endDate) : null, module: r.module || "Farm Services", href: r.href || "/farm-services?tab=work-orders", colour } as any);
   }
 
   for (const r of vetFollowUpRows) {

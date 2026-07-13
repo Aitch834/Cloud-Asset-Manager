@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Redirect, Link } from "wouter";
 import {
   AlertTriangle, Calendar, CheckCircle2, ArrowRight, Clock, Loader2,
-  Plus, Trash2, X, UserPlus, CheckCircle, LayoutList, CalendarDays, Baby,
+  Plus, Trash2, X, UserPlus, CheckCircle, LayoutList, CalendarDays, Baby, GanttChart,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,7 @@ type TaskItem = {
   title: string;
   description: string;
   dueDate: string;
+  endDate?: string | null;
   module: string;
   href: string;
   colour: string;
@@ -54,15 +55,17 @@ function isoDate(d: Date): string {
   return d.toISOString().split("T")[0];
 }
 
-const COLOUR_MAP: Record<string, { badge: string; dot: string; chip: string }> = {
-  red:    { badge: "bg-red-50 text-red-700 border-red-100",          dot: "bg-red-400",     chip: "bg-red-100 text-red-800 border-red-200 hover:bg-red-200" },
-  indigo: { badge: "bg-indigo-50 text-indigo-700 border-indigo-100", dot: "bg-indigo-400",  chip: "bg-indigo-100 text-indigo-800 border-indigo-200 hover:bg-indigo-200" },
-  violet: { badge: "bg-violet-50 text-violet-700 border-violet-100", dot: "bg-violet-400",  chip: "bg-violet-100 text-violet-800 border-violet-200 hover:bg-violet-200" },
-  amber:  { badge: "bg-amber-50 text-amber-700 border-amber-100",    dot: "bg-amber-400",   chip: "bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200" },
-  orange: { badge: "bg-orange-50 text-orange-700 border-orange-100", dot: "bg-orange-400",  chip: "bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-200" },
-  blue:   { badge: "bg-blue-50 text-blue-700 border-blue-100",       dot: "bg-blue-400",    chip: "bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200" },
-  green:  { badge: "bg-emerald-50 text-emerald-700 border-emerald-100", dot: "bg-emerald-400", chip: "bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-200" },
-  slate:  { badge: "bg-slate-50 text-slate-600 border-slate-100",    dot: "bg-slate-400",   chip: "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200" },
+const COLOUR_MAP: Record<string, { badge: string; dot: string; chip: string; bar: string }> = {
+  red:     { badge: "bg-red-50 text-red-700 border-red-100",             dot: "bg-red-400",      chip: "bg-red-100 text-red-800 border-red-200 hover:bg-red-200",         bar: "bg-red-400" },
+  indigo:  { badge: "bg-indigo-50 text-indigo-700 border-indigo-100",    dot: "bg-indigo-400",   chip: "bg-indigo-100 text-indigo-800 border-indigo-200 hover:bg-indigo-200", bar: "bg-indigo-500" },
+  violet:  { badge: "bg-violet-50 text-violet-700 border-violet-100",    dot: "bg-violet-400",   chip: "bg-violet-100 text-violet-800 border-violet-200 hover:bg-violet-200", bar: "bg-violet-500" },
+  amber:   { badge: "bg-amber-50 text-amber-700 border-amber-100",       dot: "bg-amber-400",    chip: "bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200",   bar: "bg-amber-400" },
+  orange:  { badge: "bg-orange-50 text-orange-700 border-orange-100",    dot: "bg-orange-400",   chip: "bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-200", bar: "bg-orange-400" },
+  blue:    { badge: "bg-blue-50 text-blue-700 border-blue-100",          dot: "bg-blue-400",     chip: "bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200",       bar: "bg-blue-500" },
+  green:   { badge: "bg-emerald-50 text-emerald-700 border-emerald-100", dot: "bg-emerald-400",  chip: "bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-200", bar: "bg-emerald-500" },
+  emerald: { badge: "bg-emerald-50 text-emerald-700 border-emerald-100", dot: "bg-emerald-400",  chip: "bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-200", bar: "bg-emerald-500" },
+  purple:  { badge: "bg-purple-50 text-purple-700 border-purple-100",    dot: "bg-purple-400",   chip: "bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-200", bar: "bg-purple-500" },
+  slate:   { badge: "bg-slate-50 text-slate-600 border-slate-100",       dot: "bg-slate-400",    chip: "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200",   bar: "bg-slate-500" },
 };
 
 const COLOUR_OPTIONS = [
@@ -644,6 +647,188 @@ function CalendarView({
   );
 }
 
+/* ─────────── GanttView ─────────── */
+function GanttView({
+  tasks, today, days, onDelete, staff, farmId, onAssigned,
+}: {
+  tasks: TaskItem[];
+  today: Date;
+  days: number;
+  onDelete?: (id: string) => void;
+  staff: StaffMember[];
+  farmId: number;
+  onAssigned: () => void;
+}) {
+  const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
+
+  const overdue  = tasks.filter(t => daysUntil(t.dueDate, today) < 0);
+  const upcoming = tasks.filter(t => daysUntil(t.dueDate, today) >= 0);
+  const sorted   = [...upcoming].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+  const dayHeaders: Date[] = Array.from({ length: days }, (_, i) => {
+    const d = new Date(today); d.setDate(d.getDate() + i); return d;
+  });
+  const todayStr     = isoDate(today);
+  const ganttStartMs = today.getTime();
+  const totalMs      = days * 86400000;
+
+  const getBarProps = (task: TaskItem) => {
+    const startD = new Date(task.dueDate); startD.setHours(0, 0, 0, 0);
+    const endD   = task.endDate
+      ? (() => { const d = new Date(task.endDate!); d.setHours(0, 0, 0, 0); return d; })()
+      : startD;
+    const clampedStart = Math.max(ganttStartMs, startD.getTime());
+    const clampedEnd   = Math.min(ganttStartMs + totalMs, endD.getTime() + 86400000);
+    const leftPct  = ((clampedStart - ganttStartMs) / totalMs) * 100;
+    const widthPct = Math.max((1 / days) * 100, (clampedEnd - clampedStart) / totalMs * 100);
+    return {
+      leftPct, widthPct,
+      hasDuration:        endD.getTime() > startD.getTime(),
+      startsBeforeWindow: startD.getTime() < ganttStartMs,
+      endsAfterWindow:    endD.getTime() + 86400000 > ganttStartMs + totalMs,
+    };
+  };
+
+  const colGrid = { gridTemplateColumns: `repeat(${days}, 1fr)` };
+
+  return (
+    <div className="space-y-4">
+      {/* Overdue banner */}
+      {overdue.length > 0 && (
+        <div className="rounded-xl border border-red-200 bg-red-50/60 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="w-4 h-4 text-red-500" />
+            <h3 className="font-bold text-sm text-red-700">Overdue</h3>
+            <span className="text-xs font-semibold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{overdue.length}</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {overdue.map(t => {
+              const colours  = COLOUR_MAP[t.colour] ?? COLOUR_MAP.slate;
+              const isSel    = selectedTask?.id === t.id;
+              return (
+                <button key={t.id} onClick={() => setSelectedTask(isSel ? null : t)}
+                  className={cn("text-left px-3 py-2 rounded-lg border text-xs font-semibold flex items-center gap-2 transition-all",
+                    isSel ? "ring-2 ring-red-400 bg-white border-red-300" : "bg-white border-red-200 hover:border-red-400 hover:shadow-sm"
+                  )}>
+                  <div className={cn("w-2 h-2 rounded-full flex-shrink-0", colours.dot)} />
+                  <span className="truncate text-red-800">{t.title}</span>
+                  <span className={cn("ml-auto text-[10px] px-1.5 py-0.5 rounded-full border flex-shrink-0", colours.badge)}>{t.module}</span>
+                </button>
+              );
+            })}
+          </div>
+          {selectedTask && overdue.some(t => t.id === selectedTask.id) && (
+            <div className="mt-3">
+              <TaskCardExpanded task={selectedTask} today={today} onDelete={onDelete} staff={staff} farmId={farmId} onAssigned={onAssigned} onClose={() => setSelectedTask(null)} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Gantt chart */}
+      <div className="rounded-xl border border-border bg-white overflow-hidden">
+        {/* Header row */}
+        <div className="flex border-b border-border bg-muted/20">
+          <div className="w-56 flex-shrink-0 border-r border-border px-3 py-2">
+            <span className="text-[10px] font-bold text-foreground/40 uppercase tracking-wide">Task</span>
+          </div>
+          <div className="flex-1 grid" style={colGrid}>
+            {dayHeaders.map((d, i) => {
+              const ds      = isoDate(d);
+              const isToday = ds === todayStr;
+              return (
+                <div key={i} className={cn("py-2 text-center border-r last:border-r-0 border-border/40", isToday && "bg-primary/10")}>
+                  {days <= 7 ? (
+                    <>
+                      <p className={cn("text-[10px] font-bold leading-none", isToday ? "text-primary" : "text-foreground/50")}>
+                        {d.toLocaleDateString("en-GB", { weekday: "short" })}
+                      </p>
+                      <p className={cn("text-[12px] font-bold mt-0.5", isToday ? "text-primary" : "text-foreground/70")}>
+                        {d.getDate()}
+                      </p>
+                    </>
+                  ) : (
+                    <p className={cn("text-[10px] font-bold", isToday ? "text-primary" : "text-foreground/40")}>
+                      {d.getDate() === 1
+                        ? d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+                        : d.getDate() % (days <= 14 ? 2 : 5) === 0 ? String(d.getDate()) : ""}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {sorted.length === 0 && (
+          <div className="px-6 py-8 text-center text-sm text-foreground/40">No upcoming tasks in this window.</div>
+        )}
+
+        {sorted.map(task => {
+          const colours = COLOUR_MAP[task.colour] ?? COLOUR_MAP.slate;
+          const isSel   = selectedTask?.id === task.id;
+          const { leftPct, widthPct, hasDuration, startsBeforeWindow, endsAfterWindow } = getBarProps(task);
+
+          return (
+            <div key={task.id} className={cn("flex border-b last:border-b-0 transition-colors", isSel ? "bg-indigo-50/40" : "hover:bg-muted/20")}>
+              {/* Label */}
+              <div className="w-56 flex-shrink-0 border-r border-border px-3 py-2.5 flex items-center gap-2 min-w-0">
+                <div className={cn("w-2 h-2 rounded-full flex-shrink-0", colours.dot)} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-foreground truncate leading-tight">{task.title}</p>
+                  <span className={cn("inline-flex text-[10px] font-semibold px-1.5 rounded-full border mt-0.5", colours.badge)}>
+                    {task.module}
+                  </span>
+                </div>
+              </div>
+
+              {/* Timeline */}
+              <div className="flex-1 relative" style={{ minHeight: 50 }}>
+                {/* Column backgrounds */}
+                <div className="absolute inset-0 grid pointer-events-none" style={colGrid}>
+                  {dayHeaders.map((d, i) => (
+                    <div key={i} className={cn("border-r last:border-r-0 border-border/25 h-full", isoDate(d) === todayStr && "bg-primary/5")} />
+                  ))}
+                </div>
+
+                {/* Bar */}
+                <button
+                  onClick={() => setSelectedTask(isSel ? null : task)}
+                  title={task.title}
+                  className={cn(
+                    "absolute top-1/2 -translate-y-1/2 h-7 flex items-center px-2 text-white text-[10px] font-semibold transition-all hover:brightness-90 focus:outline-none",
+                    colours.bar,
+                    hasDuration ? "rounded-md" : "rounded-full",
+                    startsBeforeWindow && "rounded-l-none",
+                    endsAfterWindow    && "rounded-r-none",
+                    isSel && "ring-2 ring-offset-1 ring-indigo-400 brightness-90",
+                  )}
+                  style={{ left: `${Math.max(0, leftPct)}%`, width: `${widthPct}%` }}
+                >
+                  {hasDuration && widthPct > 12 && (
+                    <span className="truncate">{task.title}</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Detail panel */}
+      {selectedTask && !overdue.some(t => t.id === selectedTask.id) && (
+        <TaskCardExpanded task={selectedTask} today={today} onDelete={onDelete} staff={staff} farmId={farmId} onAssigned={onAssigned} onClose={() => setSelectedTask(null)} />
+      )}
+
+      {(sorted.length > 0 || overdue.length > 0) && (
+        <p className="text-xs text-foreground/35 text-center">
+          Click any bar to view details and actions. Multi-day bars show task duration.
+        </p>
+      )}
+    </div>
+  );
+}
+
 /* ─────────── DaySection (list view) ─────────── */
 function DaySection({ label, tasks, today, isOverdue, onDelete, staff, farmId, onAssigned }: {
   label: string; tasks: TaskItem[]; today: Date; isOverdue?: boolean;
@@ -687,6 +872,7 @@ function AddReminderPanel({ farmId, days, onClose }: { farmId: number; days: 7 |
   const [date, setDate] = useState("");
   const [description, setDescription] = useState("");
   const [colour, setColour] = useState("slate");
+  const [endDate, setEndDate] = useState("");
   const [error, setError] = useState("");
 
   const minDate = (() => {
@@ -695,6 +881,10 @@ function AddReminderPanel({ farmId, days, onClose }: { farmId: number; days: 7 |
   })();
   const maxDate = (() => {
     const d = new Date(); d.setDate(d.getDate() + days);
+    return d.toISOString().split("T")[0];
+  })();
+  const maxEndDate = (() => {
+    const d = new Date(); d.setDate(d.getDate() + 365);
     return d.toISOString().split("T")[0];
   })();
 
@@ -716,7 +906,7 @@ function AddReminderPanel({ farmId, days, onClose }: { farmId: number; days: 7 |
     if (!title.trim()) { setError("Please enter a title."); return; }
     if (!date) { setError("Please choose a date."); return; }
     setError("");
-    createMut.mutate({ title: title.trim(), description: description.trim() || undefined, eventDate: date + "T12:00:00Z", colour });
+    createMut.mutate({ title: title.trim(), description: description.trim() || undefined, eventDate: date + "T12:00:00Z", endDate: endDate ? endDate + "T12:00:00Z" : undefined, colour });
   };
 
   return (
@@ -738,13 +928,26 @@ function AddReminderPanel({ farmId, days, onClose }: { farmId: number; days: 7 |
           />
         </div>
         <div>
-          <label className="text-xs font-semibold text-foreground/60 block mb-1">Date *</label>
+          <label className="text-xs font-semibold text-foreground/60 block mb-1">Start Date *</label>
           <input
             type="date"
             value={date}
             min={minDate}
             max={maxDate}
-            onChange={e => setDate(e.target.value)}
+            onChange={e => { setDate(e.target.value); if (endDate && e.target.value > endDate) setEndDate(""); }}
+            className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-foreground/60 block mb-1">
+            End Date <span className="font-normal text-foreground/40">(optional — for multi-day tasks)</span>
+          </label>
+          <input
+            type="date"
+            value={endDate}
+            min={date || minDate}
+            max={maxEndDate}
+            onChange={e => setEndDate(e.target.value)}
             className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
@@ -802,7 +1005,13 @@ export default function WeekAheadPage() {
   const queryClient = useQueryClient();
   const [days, setDays] = useState<7 | 30>(7);
   const [showAddPanel, setShowAddPanel] = useState(false);
-  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
+  const [viewMode, setViewMode] = useState<"list" | "calendar" | "gantt">(() => {
+    try { return (localStorage.getItem("weekAheadViewMode") as "list" | "calendar" | "gantt") || "list"; } catch { return "list"; }
+  });
+  const setView = (mode: "list" | "calendar" | "gantt") => {
+    setViewMode(mode);
+    try { localStorage.setItem("weekAheadViewMode", mode); } catch {}
+  };
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -901,10 +1110,10 @@ export default function WeekAheadPage() {
               </button>
             </div>
 
-            {/* List / Calendar view toggle */}
+            {/* List / Calendar / Gantt toggle */}
             <div className="flex items-center bg-muted rounded-lg p-0.5 text-xs font-semibold">
               <button
-                onClick={() => setViewMode("list")}
+                onClick={() => setView("list")}
                 title="List view"
                 className={cn(
                   "px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1.5",
@@ -915,7 +1124,7 @@ export default function WeekAheadPage() {
                 List
               </button>
               <button
-                onClick={() => setViewMode("calendar")}
+                onClick={() => setView("calendar")}
                 title="Calendar view"
                 className={cn(
                   "px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1.5",
@@ -924,6 +1133,17 @@ export default function WeekAheadPage() {
               >
                 <CalendarDays className="w-3.5 h-3.5" />
                 Calendar
+              </button>
+              <button
+                onClick={() => setView("gantt")}
+                title="Gantt view"
+                className={cn(
+                  "px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1.5",
+                  viewMode === "gantt" ? "bg-white shadow-sm text-foreground" : "text-foreground/50 hover:text-foreground/70"
+                )}
+              >
+                <GanttChart className="w-3.5 h-3.5" />
+                Gantt
               </button>
             </div>
 
@@ -950,7 +1170,7 @@ export default function WeekAheadPage() {
         </div>
 
         {/* Content area — max-width expands for calendar view only */}
-        <div className={cn("space-y-6", viewMode === "calendar" ? "max-w-5xl" : "max-w-2xl")}>
+        <div className={cn("space-y-6", viewMode === "list" ? "max-w-2xl" : "max-w-5xl")}>
 
         {/* Add reminder panel */}
         {showAddPanel && (
@@ -989,6 +1209,19 @@ export default function WeekAheadPage() {
         {/* ── Calendar view ── */}
         {!isLoading && tasks.length > 0 && viewMode === "calendar" && (
           <CalendarView
+            tasks={tasks}
+            today={today}
+            days={days}
+            onDelete={handleDelete}
+            staff={staff}
+            farmId={farmId}
+            onAssigned={handleAssigned}
+          />
+        )}
+
+        {/* ── Gantt view ── */}
+        {!isLoading && tasks.length > 0 && viewMode === "gantt" && (
+          <GanttView
             tasks={tasks}
             today={today}
             days={days}

@@ -285,6 +285,7 @@ export const farmTaskAssignmentsTable = pgTable("farm_task_assignments", {
   title: text("title").notNull(),
   description: text("description"),
   dueDate: text("due_date"),
+  endDate: text("end_date"),
   module: text("module"),
   href: text("href"),
   staffName: text("staff_name").notNull(),
