@@ -187,6 +187,19 @@ const WORKFLOWS: Workflow[] = [
     ],
   },
   {
+    id: "resource-assignment",
+    title: "Assigning Resources in the Gantt View",
+    icon: CheckCircle2,
+    moduleKey: "resource-planner",
+    steps: [
+      { title: "Open Week Ahead", detail: "Navigate to Week Ahead from the main menu and switch to Gantt view." },
+      { title: "Show the resource sidebar", detail: "Click Show Resources above the Gantt chart to open the sidebar listing all your registered machines, implements, and staff." },
+      { title: "Drag a resource onto a task bar", detail: "Drag a resource card from the sidebar and drop it onto the target task bar in the Gantt chart. The assignment is created instantly." },
+      { title: "Check for conflicts", detail: "An amber ⚠ icon on a task label means that resource is already assigned to another task on the same day. Resolve by removing one assignment or rescheduling." },
+      { title: "Review from the task panel", detail: "Click any task bar to open the expanded panel. The Resources section shows all current assignments and an inline picker to add or remove more." },
+    ],
+  },
+  {
     id: "biosecurity-event",
     title: "Recording a Biosecurity Event",
     icon: Shield,
@@ -245,6 +258,8 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Organic Arable": "bg-amber-50 text-amber-800",
   "Viticulture": "bg-purple-50 text-purple-700",
   "Organic Viticulture": "bg-purple-50 text-purple-800",
+  "Resource Planner": "bg-indigo-50 text-indigo-700",
+  "Planning": "bg-violet-50 text-violet-700",
 };
 
 const ALWAYS_SHOW_CATEGORIES = new Set([
@@ -294,6 +309,8 @@ const CATEGORY_TO_MODULE: Record<string, string | string[]> = {
   "Organic Arable": "organic-arable",
   "Viticulture": "viticulture",
   "Organic Viticulture": "organic-viticulture",
+  "Resource Planner": "resource-planner",
+  "Planning": "resource-planner",
 };
 
 function categoryColor(cat: string) {

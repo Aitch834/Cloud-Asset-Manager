@@ -5,7 +5,7 @@ import {
   CloudRain, PawPrint, Sprout, ShieldAlert, GraduationCap,
   Droplets, AlertTriangle, Leaf, Fuel, Zap,
   Ham, Bird, Flower2, Store, Waves, Landmark, WheatIcon,
-  Warehouse, Wrench, HeartPulse, Milk, Grape, Crosshair,
+  Warehouse, Wrench, HeartPulse, Milk, Grape, Crosshair, CalendarClock,
 } from "lucide-react";
 
 type Badge = "required" | "module" | "included";
@@ -191,8 +191,26 @@ const sections: Section[] = [
   },
   {
     title: "Equipment & Operations",
-    description: "Full lifecycle management for machinery, vehicles, workshop job cards, fuel compliance, and energy metering — in one module.",
+    description: "Full lifecycle management for machinery, vehicles, workshop job cards, fuel compliance, energy metering, and resource scheduling — in one place.",
     modules: [
+      {
+        title: "Resource Planner",
+        icon: CalendarClock,
+        color: "bg-indigo-50 text-indigo-700 border-indigo-100",
+        badge: "module",
+        features: [
+          "Resource registry — register all farm resources (tractors, implements, sprayers, trailers, vehicles, and named staff) in a single, colour-coded registry grouped by type",
+          "Colour picker — assign one of nine preset colours to each resource; colours are consistent across all planning views for instant visual recognition",
+          "Archive & restore — retire sold machines or departed staff without losing their allocation history; restore them at any time",
+          "Gantt view resource sidebar — open a collapsible sidebar alongside the Week Ahead Gantt chart listing all active resources as draggable cards",
+          "Drag-and-drop assignment — drag a resource from the sidebar and drop it onto a task bar to assign it to that task on that date; the assignment is created in real time",
+          "Task panel assignment — open any task's expanded panel to add or remove resource assignments using an inline picker, without touching the Gantt chart",
+          "Conflict detection — the planner automatically identifies any resource assigned to more than one task on the same day and shows an amber warning icon on the affected task bars",
+          "Resource chips on task bars — colour-coded dots representing assigned resources are shown directly on Gantt bars for a whole-week utilisation overview at a glance",
+          "Live conflict resolution — conflict markers update instantly as assignments are added or removed; no page refresh needed",
+          "Purchaseable add-on module at £20/month — activate in Settings for any farm holding",
+        ],
+      },
       {
         title: "Equipment Register, Workshop & Fuel",
         icon: Tractor,

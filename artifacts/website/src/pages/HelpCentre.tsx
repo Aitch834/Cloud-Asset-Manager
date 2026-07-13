@@ -5,7 +5,7 @@ import {
   Search, ChevronDown, BookOpen, Sprout, ShieldCheck, FlaskConical,
   Tractor, PawPrint, ClipboardCheck, LifeBuoy, Phone, Mail,
   LeafyGreen, Leaf, AlertTriangle, LineChart, CloudRain, Landmark, Store, Fuel, Package,
-  Warehouse, Wrench, Map, Bird, Grape, Flame, Crosshair,
+  Warehouse, Wrench, Map, Bird, Grape, Flame, Crosshair, CalendarClock,
 } from "lucide-react";
 
 interface FaqItem {
@@ -557,6 +557,21 @@ const FAQ: FaqCategory[] = [
       { q: "Can I have different invoice branding for different farm holdings?", a: "Yes. Each farm holding in a multi-farm account has its own independent invoice branding settings. Switch between farms using the farm selector in the sidebar, then go to Settings → Farm Settings to configure the logo, company details, VAT number, and bank details for that specific holding. This allows group farming businesses or partnerships that trade under different legal entities to produce correctly branded invoices from a single BDE Farm Trac account." },
       { q: "How do I set up multiple farm holdings in one account?", a: "From Settings, click Add Farm Holding to create a new holding. Each holding has its own fields, livestock herds, staff, modules, and compliance records. You switch between holdings using the farm selector at the top of the sidebar. The Group Dashboard (available when two or more holdings are active) shows a consolidated compliance overview across all your holdings — compliance percentages, upcoming expiry alerts, and cross-farm task summaries — so you can manage your whole group from one screen." },
       { q: "How do I invite staff members and manage their access?", a: "Navigate to Staff & Training → Staff and click Add Staff Member. Enter their name, role, department, and email address, then click Send Invite. The staff member receives an email with a link to set their own password. Access level (Manager, Supervisor, or Operator) determines which modules and functions they can view or edit. Managers can approve timesheets, leave requests, and purchase orders. If a staff member leaves, deactivate their account from Settings — this removes their access immediately without deleting any of the records they created, preserving your compliance audit trail." },
+    ],
+  },
+  {
+    title: "Resource Planner",
+    icon: CalendarClock,
+    color: "bg-indigo-50 text-indigo-700 border-indigo-100",
+    items: [
+      { q: "What is the Resource Planner module?", a: "The Resource Planner is a purchaseable add-on (£20/month per farm holding) that adds a centralised resource registry and drag-and-drop scheduling layer on top of the Week Ahead planner. You register all farm resources — tractors, implements, sprayers, trailers, vehicles, and named staff — and can then assign them to tasks directly on the Gantt chart. The planner automatically detects double-booking conflicts and flags them with an amber warning icon." },
+      { q: "How do I register a new resource?", a: "Navigate to Resource Planner in the sidebar and click Add Resource. Enter a name (e.g. 'JD 6R 155' or 'Sarah Jones'), choose a resource type (Tractor, Implement, Sprayer, Trailer, Vehicle, Staff, or Other), add an optional description, and pick a colour from the nine-colour palette. Save — the resource is immediately available to assign to tasks in the Week Ahead Gantt view." },
+      { q: "How do I assign a resource to a task in the Gantt view?", a: "Open Week Ahead and switch to Gantt view. Click Show Resources above the chart to open the collapsible resource sidebar on the left. Find the resource you want to assign, drag its card across, and drop it onto the target task bar. The assignment is created instantly and a colour-coded chip for that resource appears on the task bar. You can also assign resources without drag-and-drop by clicking any task bar to open the expanded panel and using the Resources picker there." },
+      { q: "What does the amber conflict warning mean?", a: "An amber ⚠ icon on a task label in the Gantt view means that at least one resource assigned to that task is also assigned to another task on the same date — a double-booking. Both tasks involved in the conflict are flagged. The warning is advisory only — it does not block saving. To resolve it, open the expanded task panel for one of the affected tasks and remove the duplicate assignment using the × on the resource chip, or reschedule one of the tasks." },
+      { q: "Can I assign multiple resources to one task?", a: "Yes. You can assign as many resources as you need to a single task. Each assignment appears as a separate colour-coded chip on the task bar and in the expanded task panel. There is no limit on the number of resources per task." },
+      { q: "How do I remove a resource assignment?", a: "Click the task bar in the Gantt view to open the expanded task panel. In the Resources section, click the × on the resource chip you want to remove. The assignment is deleted immediately and the chip disappears from the task bar. Conflict warnings are recalculated instantly." },
+      { q: "What happens to allocation history when I archive a resource?", a: "Archiving a resource hides it from the assignment picker and the Gantt sidebar so it cannot be assigned to new tasks. All existing historical allocations are preserved — past records remain intact. You can restore an archived resource at any time from the Resource Planner page, whereupon it becomes available for new assignments again." },
+      { q: "Can I use the Resource Planner without the Week Ahead module?", a: "The resource registry itself is always accessible from the Resource Planner page once the module is active. However, drag-and-drop assignment and conflict detection are features of the Week Ahead Gantt view — you will need to be using the Week Ahead planner to make use of those scheduling features. The Week Ahead planner is included in the core platform for all farm accounts." },
     ],
   },
   {

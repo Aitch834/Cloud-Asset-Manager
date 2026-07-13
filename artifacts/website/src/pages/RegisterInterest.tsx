@@ -57,6 +57,7 @@ const MODULES = [
   { id: "farm-services-contracting", label: "Farm Services & Contracting (contracting jobs, equipment hire)" },
   { id: "weather-tracking", label: "Weather Tracking (manual station readings + Fetch Live — auto-fills from Open-Meteo GPS weather with one click, no API key needed; spray-record auto-link and historical charting)" },
   { id: "platform-addons", label: "Platform Add-ons (SMS Alerts, push notifications to mobile app on task assignment, and Advisor / Inspector Access)" },
+  { id: "resource-planner", label: "Resource Planner (resource registry — tractors, implements, sprayers, trailers, vehicles, staff; drag-and-drop Gantt assignment; conflict detection with amber double-booking warnings; colour-coded resource chips on task bars)" },
 ];
 
 const HEARD_VIA = [

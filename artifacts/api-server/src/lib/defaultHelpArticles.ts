@@ -296,6 +296,8 @@ const TITLES: [string, string][] = [
   ["Crop Rotation Reason Tags and the Field Map Year Selector", "Fields & Crops"],
   ["Enterprise Cost-of-Production Reports — Dairy, Beef, Sheep, Pig, Poultry, Labour and Fleet", "Dashboards"],
   ["IPM Plan — Integrated Pest Management Recording and SFI CIPM Evidence", "Fields & Crops"],
+  ["Resource Planner — Building Your Resource Registry", "Resource Planner"],
+  ["Assigning Resources to Tasks — Gantt View, Drag-and-Drop and Conflict Detection", "Resource Planner"],
 ];
 
 const CONTENT: [string, string][] = [
@@ -5653,7 +5655,70 @@ const CONTENT: [string, string][] = [
 <h3>Red Tractor Evidence</h3>
 <p>Red Tractor Combinable Crops requires evidence of a written crop protection strategy and that spray decisions are made on the basis of monitoring and threshold assessments. The printed plan and monitoring log together constitute this evidence. Click <strong>Print Plan</strong> from the plan detail view, or export the monitoring log as a CSV file, to produce documentation suitable for a physical audit folder or digital submission.</p>`,
   ],
-  // 273 — Enterprise Cost-of-Production Reports — Dairy, Beef, Sheep, Pig, Poultry, Labour and Fleet
+  // 274 — Resource Planner — Building Your Resource Registry
+  [
+    "How to build and manage your farm resource registry — machines, implements, vehicles, staff, and specialist equipment — in the Resource Planner module.",
+    `<h2>Resource Planner — Building Your Resource Registry</h2>
+<p>The Resource Planner module gives every farm a centralised registry of all resources that can be scheduled against tasks — tractors, implements, sprayers, trailers, vehicles, and named staff. Once resources are registered, they can be assigned to tasks in the Week Ahead Gantt view and tracked for availability, preventing double-booking and highlighting pressure points in your farm's workload.</p>
+<h3>Accessing the Resource Planner</h3>
+<p>Navigate to <strong>Resource Planner</strong> in the main sidebar. The page shows all registered resources grouped by type. If the module has not yet been activated on your subscription, a prompt will guide you to Settings to enable it.</p>
+<h3>Resource types</h3>
+<p>BDE Farm Trac supports seven resource categories:</p>
+<ul>
+<li><strong>Tractor</strong> — any self-propelled power unit</li>
+<li><strong>Implement</strong> — mounted or trailed implements (plough, drill, cultivator, etc.)</li>
+<li><strong>Sprayer</strong> — self-propelled or trailed sprayer units</li>
+<li><strong>Trailer</strong> — grain trailers, livestock trailers, flat-beds</li>
+<li><strong>Vehicle</strong> — pick-ups, ATV/UTVs, lorries, vans</li>
+<li><strong>Staff</strong> — named farm workers, operators, or contractors</li>
+<li><strong>Other</strong> — any resource that does not fit the above categories</li>
+</ul>
+<h3>Adding a resource</h3>
+<p>Click <strong>Add Resource</strong> and complete the form:</p>
+<ul>
+<li><strong>Name</strong> — a clear identifier such as "JD 6R 155" or "Sarah Jones"</li>
+<li><strong>Type</strong> — select from the seven categories above</li>
+<li><strong>Description</strong> (optional) — any additional detail such as registration plate, power output, or role</li>
+<li><strong>Colour</strong> — choose from nine preset colours; this colour is used to display the resource's assignment chips across all planning views, making it easy to distinguish resources at a glance</li>
+</ul>
+<p>Save the resource. It will appear immediately in the registry and become available to assign to tasks in the Week Ahead planner.</p>
+<h3>Editing a resource</h3>
+<p>Click the pencil icon on any resource card to update its name, description, or colour. The type cannot be changed after creation — if the wrong type was selected, archive the resource and create a new one.</p>
+<h3>Archiving and restoring resources</h3>
+<p>Resources that are no longer in active use (for example, a machine that has been sold or a staff member who has left) can be archived rather than deleted. Archived resources retain all their historical allocation records but are hidden from the assignment picker in the Week Ahead view. Click the archive icon to archive, or the restore icon to bring an archived resource back into active use. All historical records are preserved throughout.</p>
+<h3>Resource colour coding</h3>
+<p>Each resource is assigned one of nine colours from the colour picker. These colours are consistent across all planning views — the resource registry, the Gantt sidebar, the task expanded panel, and the conflict detection markers all use the same colour for a given resource. Choose colours that reflect your own conventions (for example, green for tractors, blue for staff) to make the Gantt view instantly readable for your team.</p>`,
+  ],
+  // 275 — Assigning Resources to Tasks — Gantt View, Drag-and-Drop and Conflict Detection
+  [
+    "How to assign resources to tasks using the Week Ahead Gantt view, including drag-and-drop from the resource sidebar and conflict detection for double-booked resources.",
+    `<h2>Assigning Resources to Tasks — Gantt View, Drag-and-Drop and Conflict Detection</h2>
+<p>Once resources are registered in the Resource Planner, they can be assigned to tasks in the <strong>Week Ahead</strong> planner's Gantt view. Resource assignments are visible at a glance, and the system automatically flags any resource that is double-booked on the same day.</p>
+<h3>Opening the Gantt view with the resource sidebar</h3>
+<p>Navigate to <strong>Week Ahead</strong> and switch to Gantt view using the toggle at the top of the page. If you have registered resources, a <strong>Show Resources</strong> button appears above the Gantt chart. Click it to open the resource sidebar on the left-hand side of the chart. The sidebar lists all active resources grouped by type, each shown as a draggable card with its colour dot and name.</p>
+<h3>Drag-and-drop assignment</h3>
+<p>To assign a resource to a task:</p>
+<ol>
+<li>Find the resource in the sidebar.</li>
+<li>Drag the resource card across to the task bar in the Gantt chart and drop it onto the bar.</li>
+<li>The assignment is created immediately — a coloured chip for that resource appears in the task bar and in the task's expanded detail panel.</li>
+</ol>
+<p>You can assign multiple resources to a single task, and the same resource can be assigned to multiple tasks on different days. All assignments are stored against the task's specific date.</p>
+<h3>Assigning resources from the task panel</h3>
+<p>You can also manage resource assignments without using drag-and-drop. Click on any task bar in the Gantt view to open the expanded task panel. Scroll to the <strong>Resources</strong> section and use the picker to select a resource from your registry. A chip for the resource appears immediately. To remove an assignment, click the × on its chip.</p>
+<h3>Conflict detection</h3>
+<p>The Resource Planner automatically checks whether any resource has been assigned to more than one task on the same date. If a conflict is detected:</p>
+<ul>
+<li>An amber <strong>⚠</strong> icon appears next to the task name in the Gantt chart label column for every task involved in the conflict.</li>
+<li>The resource's chip on the task bar is highlighted to draw attention to the clash.</li>
+</ul>
+<p>Conflicts are recalculated in real time as you add or remove assignments — there is no need to refresh the page. A conflict does not prevent you from saving the assignment; it is an advisory indicator to help you resolve scheduling clashes before they become operational problems.</p>
+<h3>Resolving conflicts</h3>
+<p>To resolve a conflict, either remove one of the duplicate assignments by clicking the × on its chip in the expanded task panel, or reschedule one of the conflicting tasks to a different date using the Task Board. Once the conflict is resolved, the amber warning icon disappears automatically.</p>
+<h3>Resource overview on task bars</h3>
+<p>When the resource sidebar is visible, each task bar in the Gantt chart shows up to three small colour-coded dots representing the resources currently assigned to that task. This gives a farm-manager overview of the full week's resource utilisation at a glance — without needing to open each task individually — making it straightforward to spot gaps or overloaded days across the operation.</p>`,
+  ],
+  // 276 — Enterprise Cost-of-Production Reports — Dairy, Beef, Sheep, Pig, Poultry, Labour and Fleet
   [
     "How to use BDE Farm Trac's seven enterprise cost-of-production reports to see cost per litre, per head or per bird across dairy, beef, sheep, pig, poultry, labour and fleet.",
     `<h2>Enterprise Cost-of-Production Reports</h2>
