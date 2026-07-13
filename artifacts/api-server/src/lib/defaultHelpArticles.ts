@@ -218,6 +218,7 @@ const TITLES: [string, string][] = [
   ["Winery Tastings & Tours — Cellar Door Event Register, Attendee Counts and Session Revenue", "Viticulture"],
   ["Winery Age Verification (Challenge 25) — ID Check Register, Outcome Log and Compliance Audit Trail", "Viticulture"],
   ["Wine Production — SO₂ Compliance, Additive Records and Organic Wine Certification per Vintage", "Viticulture"],
+  ["Winery Stock — Consumable Ledger for Bottles, Corks, Barrels, Fining Agents and SO₂ Products", "Viticulture"],
   ["Organic Livestock — Feed Records Log, Date Defaults & Species-Filtered Herd Selector", "Organic"],
   ["Organic Livestock — Feed Derogations: Case Management, Correspondence Log & Document Storage", "Organic"],
   ["Organic Livestock — Outdoor Access Log, Herd Register Cascade & Compliance Status", "Organic"],
@@ -233,6 +234,7 @@ const TITLES: [string, string][] = [
   ["Organic Viticulture — Input Derogations: Case Register, Correspondence Log and Availability Evidence", "Organic Viticulture"],
   ["Organic Viticulture — Wine Production Additives: SO2 Compliance, Additive Records and Organic Certification (Shared with Standard Viticulture)", "Organic Viticulture"],
   ["Organic Viticulture — Certificates: Vineyard and Wine Organic Certificate Register", "Organic Viticulture"],
+  ["Organic Viticulture — Winery Stock: Consumable Ledger Shared with Standard Viticulture", "Organic Viticulture"],
   ["Mobile App — Organic Viticulture Derogation Register: Viewing Input Derogation Cases in the Field", "Mobile App"],
   ["Organic Livestock — Full Livestock Tab Access: Herds & Flocks, Animals, Vet Health Plans, Mortality, TB Tests and More", "Organic"],
   ["Organic Fresh Produce — Full Fresh Produce Tab Access: Crops, Water Tests, Harvest, Intake, Packhouse and Allergens", "Organic"],
@@ -241,7 +243,7 @@ const TITLES: [string, string][] = [
   ["Organic Arable — Input Log: Annex II Approved Substances and Restricted Input Workflow", "Organic Arable"],
   ["Organic Arable — Harvest Declarations and Buyer Declaration Record", "Organic Arable"],
   ["Mobile App — Organic Arable: Input, Seed, and Harvest Recording", "Mobile App"],
-  ["Organic Viticulture — Full Viticulture Tab Access: Vine Register, Block Lifecycle, Phenology, Pruning & Canopy, Harvest, Disease Scouting and Winery Compliance (Licensing, Excise & Duty, Tastings & Tours, Age Verification, Wine Production)", "Organic Viticulture"],
+  ["Organic Viticulture — Full Viticulture Tab Access: Vine Register, Block Lifecycle, Phenology, Pruning & Canopy, Harvest, Disease Scouting, Winery Compliance and Winery Stock", "Organic Viticulture"],
   ["Accident Book — Four-Stage Investigation Workflow", "Health, Safety & Risk"],
   ["Vet Health Plans — Recording Action Completion and Manager Sign-Off", "Livestock"],
   ["Livestock Mortality Records — Four-Stage Disposal Tracking", "Livestock"],
@@ -3951,6 +3953,36 @@ const CONTENT: [string, string][] = [
 <h3>Organic wine SO₂ limits</h3>
 <p>For organic wines, UK-retained EU Regulation 203/2012 sets maximum total SO₂ of 100 mg/L for red wine and 150 mg/L for white and rosé. Where actual SO₂ exceeds the applicable limit, the record shows an Exceeds Limit chip in red — a compliance breach that must be investigated and resolved with your certifier before the wine can be sold as organic.</p>`,
   ],
+  // Winery Stock — Consumable Ledger for Bottles, Corks, Barrels, Fining Agents and SO₂ Products
+  [
+    "How to track winery consumables in BDE Farm Trac's Winery Stock tab — bottles, corks, barrels, fining agents and SO₂ products — with deliveries, usage, stocktakes and a running balance.",
+    `<h2>Winery Stock — Consumable Ledger for Bottles, Corks, Barrels, Fining Agents and SO₂ Products</h2>
+<p>The Winery Stock tab in the Viticulture module provides a dedicated stock ledger for winery consumables — items specific to wine production that are not covered by the general Sprays &amp; Inputs or Stock &amp; Suppliers modules. Track bottles, corks, fining agents, SO₂ products, and everything else needed in the winery from delivery through to end-of-vintage stocktake.</p>
+<h3>Adding stock items</h3>
+<p>Navigate to <strong>Viticulture → Winery Stock</strong> and click <strong>Add Item</strong>. For each item record:</p>
+<ul>
+<li><strong>Item name</strong> — describe the specific product (e.g. Sauvignon Blanc Bottles 75cl, Cork #8 Natural, Potassium Metabisulphite).</li>
+<li><strong>Category</strong> — choose from Bottles, Corks &amp; Stoppers, Capsules &amp; Closures, Labels, Barrels &amp; Oak, Fining Agents, SO₂ &amp; Preservatives, Yeast &amp; Nutrients, Packaging &amp; Cases, or Other.</li>
+<li><strong>Unit</strong> — units, bottles, cases (12), cases (6), kg, g, L, mL, or sheets.</li>
+<li><strong>Low stock alert</strong> (optional) — the item displays a Low stock badge when the running balance reaches or falls below this value.</li>
+<li><strong>Notes</strong> (optional).</li>
+</ul>
+<h3>Recording movements</h3>
+<p>Click <strong>+ Movement</strong> on any item row to open the movement dialog. Five movement types are available:</p>
+<ul>
+<li><strong>Delivery / Received</strong> — stock arriving from a supplier. Enter the quantity, supplier name, and optional cost per unit. Added to the running balance.</li>
+<li><strong>Used in Production</strong> — stock consumed during winemaking. Enter the quantity used and an optional reference (e.g. vintage year or batch). Deducted from the running balance.</li>
+<li><strong>Write-off / Wastage</strong> — broken items, spillage, or other losses, recorded separately from production usage for a clean audit trail.</li>
+<li><strong>Stocktake (Actual Count)</strong> — enter the physical count from a stocktake; the system automatically calculates and applies the adjustment delta (actual minus recorded balance) so you do not need to compute the difference manually.</li>
+<li><strong>Manual Adjustment</strong> — any other signed correction, positive or negative.</li>
+</ul>
+<h3>Running balance and history</h3>
+<p>The main table shows the current balance for each item — updated immediately after each movement. Click the history icon (eye symbol) on any item row to open the movement history dialog, which lists every movement in chronological order with the running balance after each entry. Individual movements can be deleted if recorded in error; the running balance recalculates automatically.</p>
+<h3>Low stock alerts</h3>
+<p>When a stock item's balance falls to or below its configured threshold, a Low stock badge appears on the row and the row is highlighted amber — a prompt to reorder before production is interrupted.</p>
+<h3>Shared with Organic Viticulture</h3>
+<p>The Winery Stock tab is shared between the standard Viticulture module and the Organic Viticulture module. Items and movements added from either page are visible from both.</p>`,
+  ],
   // 198 — Organic Livestock — Feed Records Log, Date Defaults & Species-Filtered Herd Selector
   // 193 — Organic Livestock — Feed Records Log, Date Defaults & Species-Filtered Herd Selector
   [
@@ -4232,6 +4264,24 @@ const CONTENT: [string, string][] = [
 <h3>Certificate history</h3>
 <p>Previous certificates are retained in the register even after they have been superseded by a renewed certificate. This provides an unbroken certification history for the holding — useful for buyers who require proof of organic certification continuity, and for certifiers reviewing conversion history during appeals or transfers of certification between bodies.</p>`,
   ],
+  // Organic Viticulture — Winery Stock: Consumable Ledger Shared with Standard Viticulture
+  [
+    "How the Winery Stock tab in Organic Viticulture works and how it shares data with the standard Viticulture module for tracking permitted fining agents, SO₂ products and winery consumables.",
+    `<h2>Organic Viticulture — Winery Stock: Consumable Ledger Shared with Standard Viticulture</h2>
+<p>The Winery Stock tab in the Organic Viticulture module is identical to the Winery Stock tab in the standard Viticulture module — it is the same tab, showing the same data. Any items or movements recorded from Organic Viticulture are immediately visible from the Viticulture page and vice versa. Organic wine producers do not need to switch between modules to maintain their consumable ledger.</p>
+<h3>Relevant categories for organic winemakers</h3>
+<p>The following stock categories are particularly relevant for organic wine production compliance:</p>
+<ul>
+<li><strong>Fining Agents</strong> — track bentonite, plant-based protein alternatives, and any other permitted fining agents. For organic wine, only fining agents permitted under UK-retained EU Regulation 203/2012 and your certifier's approved input list may be used. Maintaining a stock record creates a clear audit trail of what was ordered, when it was received, and how much was consumed per vintage.</li>
+<li><strong>SO₂ &amp; Preservatives</strong> — log potassium metabisulphite and other sulphite additions. Combined with the Wine Production tab's SO₂ compliance records, the Winery Stock ledger provides both the stock-level view (how much was ordered and used in total) and the product-level view (what was added to each wine at what concentration).</li>
+<li><strong>Yeast &amp; Nutrients</strong> — track approved commercial yeast strains and yeast nutrients. Only permitted strains may be used in certified organic wine.</li>
+<li><strong>Barrels &amp; Oak</strong> — log barrel deliveries and disposals; useful for tracing barrel source if your certifier requires evidence that barrels were not treated with prohibited substances.</li>
+</ul>
+<h3>Winery Stock alongside Wine Production Additives</h3>
+<p>The Winery Stock tab and the Wine Production Additives tab serve different but complementary purposes. Winery Stock records the quantity of consumables held and consumed — it is a stock ledger. Wine Production Additives records how much of a specific additive was used in a specific vintage and at what concentration — it is a production and compliance record. Together they provide a complete picture: you can confirm that the fining agent used in a vintage was drawn from a known stock batch, and that the quantity applied was within your certified permitted input levels.</p>
+<h3>Recording movements</h3>
+<p>All movement recording (deliveries, usage, write-offs, stocktakes and adjustments) works identically to the standard Viticulture Winery Stock tab. See the <strong>Winery Stock — Consumable Ledger</strong> help article for full recording instructions.</p>`,
+  ],
   // 213 — Mobile App — Organic Viticulture Derogation Register: Viewing Input Derogation Cases in the Field
   // 208 — Mobile App — Organic Viticulture Derogation Register: Viewing Input Derogation Cases in the Field
   [
@@ -4457,6 +4507,10 @@ const CONTENT: [string, string][] = [
 <h3>Winery Compliance tabs (shared with standard Viticulture)</h3>
 <ul>
 <li>Licensing, Excise &amp; Duty, Tastings &amp; Tours, Age Verification (Challenge 25), Wine Production (SO₂ and additive compliance — with organic SO₂ limits applied for certified wine).</li>
+</ul>
+<h3>Winery Stock (shared with standard Viticulture)</h3>
+<ul>
+<li>Consumable ledger for bottles, corks, fining agents, SO₂ products, yeast, barrels and other winery inputs. Record deliveries, production usage, write-offs and stocktakes with a running balance per item. Organic producers can use the ledger to evidence permitted fining agent and SO₂ product usage alongside their Wine Production Additives compliance records. All items and movements are shared with the standard Viticulture module — visible from both pages.</li>
 </ul>`,
   ],
   // 222 — Accident Book — Four-Stage Investigation Workflow
