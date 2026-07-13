@@ -379,4 +379,7 @@ export async function runLisMigrations(): Promise<void> {
       created_at timestamptz not null default now()
     )
   `);
+  await db.execute(sql`
+    ALTER TABLE organic_certification ADD COLUMN IF NOT EXISTS scope text
+  `);
 }

@@ -52,6 +52,7 @@ function expectedCertDate(startDate: string): string {
 
 const INPUT_CLS = "h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base w-full";
 const CERTIFIERS = ["Soil Association", "Organic Farmers & Growers (OF&G)", "Biodynamic Association (BDOCA)", "Other"];
+const CERT_SCOPES = ["All enterprises", "Arable", "Horticulture", "Livestock", "Livestock & Dairy", "Dairy", "Pigs", "Poultry", "Viticulture", "Other"];
 const OUTCOMES = ["Pass", "Pass with Advisory Notes", "Non-conformance – Minor", "Non-conformance – Major", "Suspension"];
 const STATUSES = ["certified", "in-conversion", "conventional"];
 const STATUS_LABELS: Record<string, string> = { certified: "Certified Organic", "in-conversion": "In Conversion", conventional: "Conventional" };
@@ -170,9 +171,9 @@ function printInputRegister(records: OrganicInput[], farmName: string, cropYear:
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface Certification {
-  id: number; farmId: number; certifier: string; certificateNumber: string | null;
-  certificationDate: string | null; renewalDate: string | null; status: string;
-  operatorNumber: string | null; notes: string | null;
+  id: number; farmId: number; certifier: string; scope: string | null;
+  certificateNumber: string | null; certificationDate: string | null;
+  renewalDate: string | null; status: string; operatorNumber: string | null; notes: string | null;
 }
 interface FieldStatus {
   id: number; farmId: number; fieldId: number | null; fieldName: string; status: string;
@@ -263,44 +264,57 @@ function FieldPicker({
 
 // ─── Certification Tab ───────────────────────────────────────────────────────
 
+const EMPTY_CERT = { certifier: "Soil Association", scope: "All enterprises", certificateNumber: "", certificationDate: "", renewalDate: "", status: "certified", operatorNumber: "", notes: "" };
+
 function CertificationTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [editing, setEditing] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [editRecord, setEditRecord] = useState<Certification | null>(null);
   const [viewRecord, setViewRecord] = useState<Certification | null>(null);
-  const EMPTY = { certifier: "Soil Association", certificateNumber: "", certificationDate: "", renewalDate: "", status: "certified", operatorNumber: "", notes: "" };
-  const [form, setForm] = useState(EMPTY);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<{ title: string; description: string; dueDate?: string } | null>(null);
+  const [form, setForm] = useState(EMPTY_CERT);
 
-  const { data, isLoading } = useQuery<{ record: Certification | null }>({
+  const { data, isLoading } = useQuery<{ records: Certification[] }>({
     queryKey: ["organic-cert", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/organic/certification`).then(r => r.json()),
   });
-  const record = data?.record ?? null;
+  const records = data?.records ?? [];
 
-  const saveMut = useMutation({
-    mutationFn: (body: typeof EMPTY) => fetch(`/api/farms/${farmId}/organic/certification`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["organic-cert", farmId] }); setEditing(false); toast({ title: "Certification details saved" }); },
+  const createMut = useMutation({
+    mutationFn: (body: typeof EMPTY_CERT) => fetch(`/api/farms/${farmId}/organic/certification`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["organic-cert", farmId] }); setAdding(false); toast({ title: "Certifier registration added" }); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
-  function openEdit() {
-    setForm({ certifier: record?.certifier ?? "Soil Association", certificateNumber: record?.certificateNumber ?? "", certificationDate: record?.certificationDate ?? "", renewalDate: record?.renewalDate ?? "", status: record?.status ?? "certified", operatorNumber: record?.operatorNumber ?? "", notes: record?.notes ?? "" });
-    setEditing(true);
+  const updateMut = useMutation({
+    mutationFn: ({ id, ...body }: typeof EMPTY_CERT & { id: number }) => fetch(`/api/farms/${farmId}/organic/certification/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["organic-cert", farmId] }); setEditRecord(null); toast({ title: "Certifier registration updated" }); },
+    onError: () => toast({ title: "Failed to update", variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic/certification/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["organic-cert", farmId] }); setDeleteId(null); toast({ title: "Certifier registration removed" }); },
+    onError: () => toast({ title: "Failed to remove", variant: "destructive" }),
+  });
+
+  function openAdd() { setForm(EMPTY_CERT); setAdding(true); }
+  function openEdit(r: Certification) {
+    setForm({ certifier: r.certifier, scope: r.scope ?? "All enterprises", certificateNumber: r.certificateNumber ?? "", certificationDate: r.certificationDate ?? "", renewalDate: r.renewalDate ?? "", status: r.status, operatorNumber: r.operatorNumber ?? "", notes: r.notes ?? "" });
+    setEditRecord(r);
   }
 
   if (isLoading) return <div className="text-center py-12 text-foreground/50"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading…</div>;
 
-  const renewalDays = daysUntil(record?.renewalDate);
-
   return (
-    <div className="max-w-2xl">
-      <div className="mb-6 flex gap-3 p-4 rounded-xl bg-green-50 border border-green-200 text-sm text-green-800">
+    <div className="max-w-2xl space-y-4">
+      <div className="flex gap-3 p-4 rounded-xl bg-green-50 border border-green-200 text-sm text-green-800">
         <Info className="w-4 h-4 mt-0.5 shrink-0" />
         <div>
           <p className="font-semibold mb-1">Complementary record — not a replacement</p>
-          <p className="text-green-700">BDE Farm Trac stores your certification reference details alongside your operational records. Your official certification is managed directly with your certifier's portal (Soil Association, OF&amp;G, etc.).</p>
-          <p className="text-green-700 mt-1.5">The certifier and certificate number recorded here are your <strong>primary organic certification reference</strong>. When recording herd conversions in Organic Livestock or Dairy, vineyard block status in Organic Viticulture, or any other sector-specific organic record, use the same certifying body to keep all your organic records consistent.</p>
+          <p className="text-green-700">BDE Farm Trac stores your certification reference details alongside your operational records. Your official certification is managed directly with your certifier's portal. Add one registration per certifying body — most holdings have one, but diversified farms registered with multiple bodies (e.g. Soil Association for livestock, OF&amp;G for horticulture) can record each separately.</p>
           <div className="flex gap-3 mt-2 flex-wrap">
             <a href="https://www.soilassociation.org/certification" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-green-700 underline underline-offset-2 hover:text-green-900"><ExternalLink className="w-3 h-3" />Soil Association Portal</a>
             <a href="https://www.ofgorganic.org" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-green-700 underline underline-offset-2 hover:text-green-900"><ExternalLink className="w-3 h-3" />OF&amp;G Portal</a>
@@ -308,77 +322,100 @@ function CertificationTab({ farmId }: { farmId: number }) {
         </div>
       </div>
 
-      {!record ? (
+      <div className="flex justify-end">
+        <Button onClick={openAdd}><Plus className="w-4 h-4 mr-2" />Add Certifier Registration</Button>
+      </div>
+
+      {records.length === 0 ? (
         <Card className="p-8 text-center">
           <Leaf className="w-12 h-12 mx-auto mb-3 text-green-600 opacity-50" />
-          <p className="font-semibold text-lg mb-1">No certification details recorded</p>
-          <p className="text-sm text-foreground/60 mb-4">Add your organic certification reference to link your operational records to your certifier.</p>
-          <Button onClick={openEdit}><Plus className="w-4 h-4 mr-2" />Add Certification Details</Button>
+          <p className="font-semibold text-lg mb-1">No certifier registrations recorded</p>
+          <p className="text-sm text-foreground/60 mb-4">Add the certifying body or bodies your holding is registered with.</p>
+          <Button onClick={openAdd}><Plus className="w-4 h-4 mr-2" />Add Certifier Registration</Button>
         </Card>
       ) : (
-        <Card className="p-6 space-y-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center"><Leaf className="w-5 h-5 text-green-700" /></div>
-              <div>
-                <p className="font-semibold text-lg">{record.certifier}</p>
-                <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border ${STATUS_COLORS[record.status] ?? STATUS_COLORS.conventional}`}>{STATUS_LABELS[record.status] ?? record.status}</span>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              {record.renewalDate && (
-                <Button variant="ghost" size="icon" className="h-8 w-8" title="Raise task" onClick={() => setRaiseTaskFor({ title: `Organic Certification Renewal Due — ${record.certifier}`, description: `Your organic certification annual renewal is due. Contact ${record.certifier} and update the record in Organic Compliance → Certification.`, dueDate: record.renewalDate ?? undefined })}>
-                  <ClipboardList className="w-4 h-4 text-amber-600" />
-                </Button>
-              )}
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewRecord(record)}><Eye className="w-4 h-4" /></Button>
-              <Button variant="outline" size="sm" onClick={openEdit}><Pencil className="w-4 h-4 mr-1" />Edit</Button>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm border-t pt-4">
-            {record.certificateNumber && <><span className="text-foreground/60">Certificate Number</span><span className="font-medium">{record.certificateNumber}</span></>}
-            {record.operatorNumber && <><span className="text-foreground/60">Operator Number</span><span className="font-medium">{record.operatorNumber}</span></>}
-            {record.certificationDate && <><span className="text-foreground/60">Certification Date</span><span className="font-medium">{fmt(record.certificationDate)}</span></>}
-            {record.renewalDate && (
-              <>
-                <span className="text-foreground/60">Annual Renewal</span>
-                <span className={`font-medium flex items-center gap-1 ${renewalDays !== null && renewalDays <= 60 ? "text-amber-600" : renewalDays !== null && renewalDays < 0 ? "text-red-600" : ""}`}>
-                  {fmt(record.renewalDate)}
-                  {renewalDays !== null && renewalDays <= 60 && renewalDays >= 0 && <span className="text-xs bg-amber-100 text-amber-700 px-1.5 rounded-full border border-amber-200">{renewalDays}d</span>}
-                  {renewalDays !== null && renewalDays < 0 && <span className="text-xs bg-red-100 text-red-700 px-1.5 rounded-full border border-red-200">Overdue</span>}
-                </span>
-              </>
-            )}
-          </div>
-          {record.notes && <p className="text-sm text-foreground/70 border-t pt-3">{record.notes}</p>}
-        </Card>
+        <div className="space-y-3">
+          {records.map(record => {
+            const renewalDays = daysUntil(record.renewalDate);
+            return (
+              <Card key={record.id} className="p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center shrink-0 mt-0.5"><Leaf className="w-4 h-4 text-green-700" /></div>
+                    <div>
+                      <p className="font-semibold">{record.certifier}</p>
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border ${STATUS_COLORS[record.status] ?? STATUS_COLORS.conventional}`}>{STATUS_LABELS[record.status] ?? record.status}</span>
+                        {record.scope && <span className="text-xs text-foreground/60 bg-muted px-2 py-0.5 rounded-full border">{record.scope}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    {record.renewalDate && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Raise renewal task" onClick={() => setRaiseTaskFor({ title: `Organic Certification Renewal Due — ${record.certifier}`, description: `Your organic certification annual renewal is due. Contact ${record.certifier} and update the record in Organic Compliance → Certification.`, dueDate: record.renewalDate ?? undefined })}>
+                        <ClipboardList className="w-4 h-4 text-amber-600" />
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="icon" className="h-8 w-8" title="View" onClick={() => setViewRecord(record)}><Eye className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit" onClick={() => openEdit(record)}><Pencil className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" title="Remove" onClick={() => setDeleteId(record.id)}><Trash2 className="w-4 h-4" /></Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm mt-4 pt-3 border-t">
+                  {record.certificateNumber && <><span className="text-foreground/60">Certificate No.</span><span className="font-medium">{record.certificateNumber}</span></>}
+                  {record.operatorNumber && <><span className="text-foreground/60">Operator No.</span><span className="font-medium">{record.operatorNumber}</span></>}
+                  {record.certificationDate && <><span className="text-foreground/60">Certified Since</span><span className="font-medium">{fmt(record.certificationDate)}</span></>}
+                  {record.renewalDate && (
+                    <>
+                      <span className="text-foreground/60">Annual Renewal</span>
+                      <span className={`font-medium flex items-center gap-1.5 ${renewalDays !== null && renewalDays <= 60 && renewalDays >= 0 ? "text-amber-600" : renewalDays !== null && renewalDays < 0 ? "text-red-600" : ""}`}>
+                        {fmt(record.renewalDate)}
+                        {renewalDays !== null && renewalDays <= 60 && renewalDays >= 0 && <span className="text-xs bg-amber-100 text-amber-700 px-1.5 rounded-full border border-amber-200">{renewalDays}d</span>}
+                        {renewalDays !== null && renewalDays < 0 && <span className="text-xs bg-red-100 text-red-700 px-1.5 rounded-full border border-red-200">Overdue</span>}
+                      </span>
+                    </>
+                  )}
+                </div>
+                {record.notes && <p className="text-sm text-foreground/70 mt-2 pt-2 border-t">{record.notes}</p>}
+              </Card>
+            );
+          })}
+        </div>
       )}
 
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>
-            <DialogHeader><DialogTitle>View Organic Certification</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>Certifier Registration Detail</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-4 text-sm">
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifying Body</p><p className="font-medium">{String(viewRecord.certifier ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifying Body</p><p className="font-medium">{viewRecord.certifier}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium">{STATUS_LABELS[viewRecord.status] ?? viewRecord.status}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certificate Number</p><p className="font-medium">{String(viewRecord.certificateNumber ?? "—")}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Operator Number</p><p className="font-medium">{String(viewRecord.operatorNumber ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Scope / Enterprise</p><p className="font-medium">{viewRecord.scope || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certificate Number</p><p className="font-medium">{viewRecord.certificateNumber || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Operator Number</p><p className="font-medium">{viewRecord.operatorNumber || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certification Date</p><p className="font-medium">{fmt(viewRecord.certificationDate)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Annual Renewal Date</p><p className="font-medium">{fmt(viewRecord.renewalDate)}</p></div>
-              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRecord.notes || "—"}</p></div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => { openEdit(); setViewRecord(null); }}>Edit</Button>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
               <Button onClick={() => setViewRecord(null)}>Close</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
 
-      <Dialog open={editing} onOpenChange={setEditing}>
+      <Dialog open={adding || !!editRecord} onOpenChange={v => { if (!v) { setAdding(false); setEditRecord(null); } }}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{record ? "Edit Certification Details" : "Add Certification Details"}</DialogTitle><DialogDescription>Reference details for your organic certification — stored alongside your operational records.</DialogDescription></DialogHeader>
-          <form onSubmit={e => { e.preventDefault(); saveMut.mutate(form); }} className="space-y-4">
+          <DialogHeader>
+            <DialogTitle>{editRecord ? "Edit Certifier Registration" : "Add Certifier Registration"}</DialogTitle>
+            <DialogDescription>Record one entry per certifying body. Most holdings have one; diversified farms may have more.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={e => {
+            e.preventDefault();
+            if (editRecord) updateMut.mutate({ ...form, id: editRecord.id });
+            else createMut.mutate(form);
+          }} className="space-y-4">
             <div><Label>Certifying Body *</Label>
               <select className={INPUT_CLS}
                 value={CERTIFIERS.filter(c => c !== "Other").includes(form.certifier) ? form.certifier : "Other"}
@@ -393,6 +430,13 @@ function CertificationTab({ farmId }: { farmId: number }) {
                   autoFocus={form.certifier === "Other"}
                 />
               )}
+            </div>
+            <div>
+              <Label>Scope / Enterprise</Label>
+              <select className={INPUT_CLS} value={form.scope} onChange={e => setForm(f => ({ ...f, scope: e.target.value }))}>
+                {CERT_SCOPES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <p className="text-xs text-foreground/50 mt-1">Which enterprises or activities this certifying body covers for your holding.</p>
             </div>
             <div><Label>Farm Status *</Label>
               <select className={INPUT_CLS} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
@@ -409,12 +453,32 @@ function CertificationTab({ farmId }: { farmId: number }) {
             </div>
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3} /></div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
-              <Button type="submit" disabled={saveMut.isPending || !form.certifier}>{saveMut.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Save Details</Button>
+              <Button type="button" variant="outline" onClick={() => { setAdding(false); setEditRecord(null); }}>Cancel</Button>
+              <Button type="submit" disabled={(editRecord ? updateMut : createMut).isPending || !form.certifier}>
+                {(editRecord ? updateMut : createMut).isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                {editRecord ? "Save Changes" : "Add Registration"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+
+      {deleteId !== null && (
+        <Dialog open onOpenChange={() => setDeleteId(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Remove Certifier Registration</DialogTitle>
+              <DialogDescription>This will permanently remove this certifier registration from your holding records. Are you sure?</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+              <Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate(deleteId)}>
+                {deleteMut.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Remove
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {raiseTaskFor && (
         <RaiseTaskDialog

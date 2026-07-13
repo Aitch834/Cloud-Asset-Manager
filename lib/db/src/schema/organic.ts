@@ -9,6 +9,7 @@ export const organicCertificationTable = pgTable("organic_certification", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   certifier: text("certifier").notNull(),
+  scope: text("scope"),
   certificateNumber: text("certificate_number"),
   certificationDate: date("certification_date"),
   renewalDate: date("renewal_date"),
