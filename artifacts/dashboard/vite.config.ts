@@ -48,6 +48,14 @@ function sessionCacheBustPlugin(sessionBase: string) {
     "g",
   );
 
+  // Rewrite /src/ source-file URLs (files inside the project root).
+  // These use /dashboard/src/Foo.tsx?t=TIMESTAMP — proxy ignores the query
+  // param and caches by path, so we embed the session token in the path instead.
+  const srcUrlRe = new RegExp(
+    `"(${escapedBase}src/[^"?#]+)(?:\\?[^"]*)?"`,
+    "g",
+  );
+
   // Rewrite dep-chunk URLs to embed session token so proxy always misses.
   const depsUrlRe = new RegExp(
     `"${escapedBase}node_modules/\\.vite/deps/([^"?#]+)(?:\\?[^"]*)?"`,
@@ -220,6 +228,12 @@ function sessionCacheBustPlugin(sessionBase: string) {
             );
             body = body.replace(fsUrlRe, (_m, cleanUrl) =>
               `"${sessionBase}@td/${sessionToken}/@xfs-${sessionToken}/${cleanUrl.slice(sessionBase.length + "@fs/".length)}"`,
+            );
+            // Rewrite /src/ URLs: /dashboard/src/Foo.tsx → /dashboard/@td/TOKEN/src/Foo.tsx
+            // The proxy caches by path and ignores ?t= query params, so embedding
+            // the token in the path guarantees a cache miss on each session.
+            body = body.replace(srcUrlRe, (_m, cleanUrl) =>
+              `"${sessionBase}@td/${sessionToken}/${cleanUrl.slice(sessionBase.length)}"`,
             );
             return body;
           });
