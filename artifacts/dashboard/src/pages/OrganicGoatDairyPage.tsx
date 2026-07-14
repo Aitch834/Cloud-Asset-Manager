@@ -18,6 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { MastitisTab, KiddingTab, BcsTab, BulkTankTab, CaeTab, AssuranceTab } from "@/pages/GoatDairyPage";
+import { SccEquipmentSection } from "@/pages/DairyPage";
 import { AbrProcurementSection } from "@/pages/dairy/AbrProcurementSection";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 
@@ -70,7 +71,7 @@ const PRODUCT_CATEGORIES = ["Antibiotic", "NSAID", "Anthelmintic", "Antiparasiti
 
 const ROUTES_OF_ADMINISTRATION = ["Intramuscular (IM)", "Subcutaneous (SC)", "Intravenous (IV)", "Oral", "Intramammary", "Topical", "Other"];
 
-type Tab = "conversion" | "collections" | "feed" | "treatments" | "mastitis" | "kidding" | "bcs" | "tank" | "cae" | "assurance" | "abr-kit";
+type Tab = "conversion" | "collections" | "feed" | "treatments" | "mastitis" | "kidding" | "bcs" | "tank" | "cae" | "assurance" | "abr-kit" | "scc-equipment";
 
 export default function OrganicGoatDairyPage() {
   const { farmId } = useAppStore();
@@ -101,6 +102,7 @@ export default function OrganicGoatDairyPage() {
           <TabButton active={tab === "cae"} onClick={() => setTab("cae")}>CAE Monitoring</TabButton>
           <TabButton active={tab === "assurance"} onClick={() => setTab("assurance")}>Assurance</TabButton>
           <TabButton active={tab === "abr-kit"} onClick={() => setTab("abr-kit")}>ABR Kit Stock</TabButton>
+          <TabButton active={tab === "scc-equipment"} onClick={() => setTab("scc-equipment")}>SCC Equipment</TabButton>
         </TabBar>
         <div className="mt-6">
           {tab === "conversion" && <FlockConversionTab farmId={farmId} />}
@@ -114,6 +116,7 @@ export default function OrganicGoatDairyPage() {
           {tab === "cae" && <CaeTab farmId={farmId} />}
           {tab === "assurance" && <AssuranceTab />}
           {tab === "abr-kit" && <AbrProcurementSection farmId={farmId} />}
+          {tab === "scc-equipment" && <SccEquipmentSection farmId={farmId} species="goat" />}
         </div>
       </div>
     </AppLayout>

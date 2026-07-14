@@ -40,7 +40,7 @@ import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { useToast } from "@/hooks/use-toast";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from "recharts";
-import { MastitisTab, CalvingTab, BcsTab, MobilityTab, BulkTankTab, DctTab, RecordingVisitsTab } from "@/pages/DairyPage";
+import { MastitisTab, CalvingTab, BcsTab, MobilityTab, BulkTankTab, DctTab, RecordingVisitsTab, SccEquipmentSection } from "@/pages/DairyPage";
 import { openPrintWindow } from "@/lib/print-report";
 import { DairyEnterpriseReport } from "@/components/DairyEnterpriseReport";
 import { OrganicJohnesTab } from "@/pages/OrganicJohnesTab";
@@ -2214,6 +2214,7 @@ export default function OrganicDairyPage() {
             <TabsTrigger value="treatments">Treatment Compliance</TabsTrigger>
             <TabsTrigger value="enterprise">Enterprise Report</TabsTrigger>
             <TabsTrigger value="abr-kit">ABR Kit Stock</TabsTrigger>
+            <TabsTrigger value="scc-equipment">SCC Equipment</TabsTrigger>
           </TabsList>
           <TabsContent value="herd-conversion" className="mt-4">
             <HerdConversionTab farmId={farmId} farmName={name} />
@@ -2251,6 +2252,9 @@ export default function OrganicDairyPage() {
           </TabsContent>
           <TabsContent value="enterprise" className="mt-4">
             <DairyEnterpriseReport farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="scc-equipment" className="mt-4">
+            <SccEquipmentSection farmId={farmId} species="cattle" />
           </TabsContent>
           <TabsContent value="abr-kit" className="mt-4">
             <AbrProcurementSection farmId={farmId} />
