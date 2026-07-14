@@ -1,5 +1,5 @@
 kind = "web"
-previewPath = "/dashboard-v2/"
+previewPath = "/dashboard/"
 title = "BDE Farm Trac Dashboard"
 version = "1.0.0"
 id = "artifacts/dashboard"
@@ -12,14 +12,14 @@ version = "1.0.0"
 [[services]]
 localPort = 23183
 name = "web"
-paths = ["/dashboard-v2/"]
+paths = ["/dashboard/"]
 
 [services.development]
 run = "pnpm --filter @workspace/dashboard run dev"
 
 [services.env]
 PORT = "23183"
-BASE_PATH = "/dashboard-v2/"
+BASE_PATH = "/dashboard/"
 
 [services.production]
 build = ["pnpm", "--filter", "@workspace/dashboard", "run", "build"]
