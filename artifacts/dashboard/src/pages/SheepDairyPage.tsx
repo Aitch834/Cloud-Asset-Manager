@@ -60,7 +60,7 @@ function ResultBadge({ v }: { v?: string | null }) {
   return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>{v}</span>;
 }
 
-type Tab = "milk" | "mastitis" | "kidding" | "bcs" | "tank" | "mv" | "assurance";
+type Tab = "milk" | "mastitis" | "kidding" | "bcs" | "tank" | "mv" | "assurance" | "abr-kit";
 
 export default function SheepDairyPage() {
   const { farmId } = useAppStore();
@@ -84,6 +84,7 @@ export default function SheepDairyPage() {
           <TabButton active={tab === "tank"} onClick={() => setTab("tank")}>Bulk Tank</TabButton>
           <TabButton active={tab === "mv"} onClick={() => setTab("mv")}>Maedi-Visna</TabButton>
           <TabButton active={tab === "assurance"} onClick={() => setTab("assurance")}>Assurance</TabButton>
+          <TabButton active={tab === "abr-kit"} onClick={() => setTab("abr-kit")}>ABR Kit Stock</TabButton>
         </TabBar>
         <div className="mt-6">
           {tab === "milk" && <MilkTab farmId={farmId} />}
@@ -93,6 +94,7 @@ export default function SheepDairyPage() {
           {tab === "tank" && <BulkTankTab farmId={farmId} />}
           {tab === "mv" && <MvTab farmId={farmId} />}
           {tab === "assurance" && <AssuranceTab />}
+          {tab === "abr-kit" && <AbrProcurementSection farmId={farmId} />}
         </div>
       </div>
     </AppLayout>
