@@ -474,7 +474,7 @@ function LipConnectionCard({ farmId }: { farmId: number }) {
     }
   };
 
-  const isConnected = creds?.configured && creds?.testStatus === "ok";
+  const isConnected = creds?.configured;
 
   return (
     <Card>
@@ -535,16 +535,16 @@ function LipConnectionCard({ farmId }: { farmId: number }) {
         )}
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {!isConnected && creds?.platformReady && (
+          {creds?.platformReady && (
             <button
               onClick={handleSignIn}
               style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#7c3aed", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: "0.82rem", fontWeight: 600, cursor: "pointer" }}
             >
               <LogIn size={13} />
-              Sign in with LIS
+              {creds?.configured ? "Re-sign in with LIS" : "Sign in with LIS"}
             </button>
           )}
-          {!isConnected && !creds?.platformReady && (
+          {!creds?.platformReady && (
             <p style={{ fontSize: "0.78rem", color: "#9ca3af", fontStyle: "italic" }}>
               Awaiting LIS LIP sandbox approval from DEFRA — sign-in will be enabled once active.
             </p>
@@ -559,7 +559,7 @@ function LipConnectionCard({ farmId }: { farmId: number }) {
           </button>
         </div>
 
-        {!isConnected && (
+        {!creds?.configured && (
           <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: "1rem" }}>
             <p style={{ fontSize: "0.78rem", fontWeight: 600, color: "#374151", marginBottom: 6 }}>How to connect:</p>
             <ol style={{ margin: 0, paddingLeft: "1.2rem", display: "flex", flexDirection: "column", gap: 4 }}>
