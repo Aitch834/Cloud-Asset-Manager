@@ -193,12 +193,71 @@ function sessionCacheBustPlugin(sessionBase: string) {
           }
         }
 
-        // Startup token endpoint — client uses this to detect server restarts.
-        if ((req.url as string)?.endsWith("/__startup_token__")) {
+        // Time-keyed startup token endpoint: /<base>__startup_token__/<unix5s>/
+        // The timestamp component changes every 5 seconds — even if the proxy
+        // caches the response by URL path, the key changes before it matters.
+        const tokenPathRe2 = new RegExp(
+          `^${escapedBase}__startup_token__/\\d+/`,
+        );
+        if (tokenPathRe2.test(rawUrl)) {
           res.setHeader("Content-Type", "application/json");
           res.setHeader("Cache-Control", "no-store");
           res.end(JSON.stringify({ token: sessionToken }));
           return;
+        }
+
+        // HTML redirect: for any SPA route that does NOT already carry a session
+        // prefix, serve a tiny invariant redirect page. That page fetches the
+        // time-keyed token endpoint (proxy-immune) and bounces to
+        //   /<base>@v/<token>/<original-sub-path>
+        // which is a URL the proxy has never cached → fresh app HTML served.
+        // Even if the proxy caches this redirect page forever it still works,
+        // because the token fetch URL is different every 5 seconds.
+        const isHtmlRoute =
+          !rawUrl.includes("/@v/") &&
+          !rawUrl.includes("/@td/") &&
+          !rawUrl.includes("/__startup_token__") &&
+          (rawUrl === sessionBase ||
+            rawUrl.endsWith("/") ||
+            /\.html?(\?|$)/.test(rawUrl) ||
+            (basePath != null &&
+              rawUrl.startsWith(basePath) &&
+              !rawUrl.includes(".")));
+
+        if (isHtmlRoute) {
+          const escBase = sessionBase.replace(/\//g, "\\/");
+          const redirectHtml =
+            `<!DOCTYPE html><html><head><meta charset="utf-8">` +
+            `<title>Loading…</title><script>` +
+            `(function(){` +
+            `var t5=Math.floor(Date.now()/5000);` +
+            `fetch('${sessionBase}__startup_token__/'+t5+'/',{cache:'no-store'})` +
+            `.then(function(r){return r.json();})` +
+            `.then(function(d){` +
+            `var tok=encodeURIComponent(d.token||String(t5));` +
+            `var here=window.location.pathname` +
+            `.replace(new RegExp('^${escBase}@v\\/[^\\/]+\\/?'),'');` +
+            `window.location.replace('${sessionBase}@v/'+tok+'/'+(here||'')+window.location.search);` +
+            `}).catch(function(){` +
+            `window.location.replace('${sessionBase}@v/'+t5+'/');` +
+            `});` +
+            `})();` +
+            `</script></head><body></body></html>`;
+          res.setHeader("Content-Type", "text/html; charset=utf-8");
+          res.setHeader("Cache-Control", "no-store");
+          res.end(redirectHtml);
+          return;
+        }
+
+        // Strip /@v/<token>/ prefix from session-routed HTML requests so Vite
+        // sees the canonical path and its SPA fallback works normally.
+        // Flag the request so the rewrite middleware below knows to tokenise the HTML.
+        if (rawUrl.includes("/@v/")) {
+          (req as any)._sessionHtmlRoute = true;
+          req.url = rawUrl.replace(
+            new RegExp(`^${escapedBase}@v/[^/]+/?`),
+            sessionBase,
+          );
         }
 
         next();
@@ -214,11 +273,14 @@ function sessionCacheBustPlugin(sessionBase: string) {
           url.includes("/@react-refresh") ||
           /\/src\/[^?]+\.(tsx?|jsx?)/.test(url) ||
           url.includes("node_modules/.vite/deps/");
+        // Only intercept HTML for @v/ session routes (flagged by the first middleware
+        // after stripping the prefix). Regular /dashboard/ is handled by the redirect.
         const isHtml =
-          url === "/" ||
-          url.endsWith("/") ||
-          /\.html?(\?|$)/.test(url) ||
-          (basePath != null && url.startsWith(basePath) && !url.includes("."));
+          !!(req as any)._sessionHtmlRoute &&
+          (url === "/" ||
+            url.endsWith("/") ||
+            /\.html?(\?|$)/.test(url) ||
+            (basePath != null && url.startsWith(basePath) && !url.includes(".")));
 
         if (isJs) {
           interceptText(res, (body) => {
@@ -240,8 +302,9 @@ function sessionCacheBustPlugin(sessionBase: string) {
         } else if (isHtml) {
           interceptText(res, (body) =>
             body.replace(scriptSrcRe, (_m, pre, src, post) => {
-              const newSrc = src.startsWith(sessionBase)
-                ? `${sessionBase}@td/${sessionToken}/src/${src.slice(sessionBase.length + "src/".length)}`
+              // Only session-tokenise src/ entry scripts — leave @vite/client etc. alone.
+              const newSrc = src.startsWith(`${sessionBase}src/`)
+                ? `${sessionBase}@td/${sessionToken}/${src.slice(sessionBase.length)}`
                 : src;
               return `${pre}${newSrc}${post}`;
             }),

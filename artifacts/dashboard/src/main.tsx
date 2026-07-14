@@ -2,15 +2,32 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 
-// Detect server restarts via the startup token endpoint.
-// When Vite restarts it generates a new session token → new URL paths →
-// proxy cache miss → fresh modules. The client detects the token change
-// and reloads so it fetches all modules under the new session URLs.
+// Strip the session routing prefix /@v/TOKEN/ from the URL before mounting.
+// The Vite plugin bounces /dashboard/ → /dashboard/@v/TOKEN/ to guarantee a
+// proxy cache miss on the HTML. Once the fresh HTML loads, we clean up the URL
+// so wouter sees the canonical /dashboard/... path and routes correctly.
+const base = import.meta.env.BASE_URL ?? "/dashboard/";
+const vPfx = window.location.pathname.match(
+  /^(\/[^/]+\/?)@v\/[^/]+\/(.*)/,
+);
+if (vPfx) {
+  const restored = vPfx[1] + (vPfx[2] || "");
+  window.history.replaceState(
+    null,
+    "",
+    restored + window.location.search + window.location.hash,
+  );
+}
+
+// Detect server restarts: reload if the session token changed so we fetch
+// all modules under the new session URLs (proxy cache miss).
 let storedToken: string | null = null;
 async function checkStartupToken() {
   try {
-    const base = import.meta.env.BASE_URL ?? "/";
-    const res = await fetch(`${base}__startup_token__`, { cache: "no-store" });
+    const t5 = Math.floor(Date.now() / 5000);
+    const res = await fetch(`${base}__startup_token__/${t5}/`, {
+      cache: "no-store",
+    });
     if (!res.ok) return;
     const { token } = await res.json();
     if (storedToken === null) {
