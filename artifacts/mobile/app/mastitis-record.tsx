@@ -70,6 +70,7 @@ export default function MastitisRecordScreen() {
   const [treatmentProduct, setTreatmentProduct] = useState("");
   const [treatmentStartDate, setTreatmentStartDate] = useState(new Date().toISOString().split("T")[0]);
   const [treatmentDurationDays, setTreatmentDurationDays] = useState("");
+  const [sccAtOnset, setSccAtOnset] = useState("");
   const [vetConsulted, setVetConsulted] = useState(false);
   const [vetName, setVetName] = useState("");
   const [notes, setNotes] = useState("");
@@ -106,6 +107,7 @@ export default function MastitisRecordScreen() {
       onsetDate,
       quartersAffected: quartersAffected.join(", "),
       clinicalGrade,
+      sccAtOnset: sccAtOnset ? parseInt(sccAtOnset, 10) : null,
       treatmentProduct: treatmentProduct.trim(),
       treatmentStartDate,
       treatmentDurationDays: treatmentDurationDays.trim(),
@@ -181,6 +183,13 @@ export default function MastitisRecordScreen() {
             value={onsetDate}
             onChangeText={setOnsetDate}
             keyboardType="numbers-and-punctuation"
+          />
+          <Text style={styles.label}>SCC at Onset (k/mL)</Text>
+          <Input
+            placeholder="e.g. 850"
+            value={sccAtOnset}
+            onChangeText={setSccAtOnset}
+            keyboardType="number-pad"
           />
         </Section>
 

@@ -708,6 +708,7 @@ export interface DairyMastitisRecord {
   onsetDate: string;
   quartersAffected: string;
   clinicalGrade: string;
+  sccAtOnset: number | null;
   treatmentProduct: string;
   treatmentStartDate: string;
   treatmentDurationDays: string;
