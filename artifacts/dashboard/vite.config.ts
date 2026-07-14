@@ -225,21 +225,24 @@ function sessionCacheBustPlugin(sessionBase: string) {
               !rawUrl.includes(".")));
 
         if (isHtmlRoute) {
-          const escBase = sessionBase.replace(/\//g, "\\/");
+          // `here` = sub-path relative to the base (e.g. "sheep-dairy" at /dashboard-v2/sheep-dairy).
+          // Slice the base prefix off the pathname — do NOT use a regex that only
+          // strips the @v/TOKEN/ portion, which left the full path in `here` and
+          // produced doubled paths like /dashboard-v2/@v/TOKEN//dashboard-v2/sheep-dairy.
           const redirectHtml =
             `<!DOCTYPE html><html><head><meta charset="utf-8">` +
             `<title>Loading…</title><script>` +
             `(function(){` +
+            `var base=${JSON.stringify(sessionBase)};` +
             `var t5=Math.floor(Date.now()/5000);` +
-            `fetch('${sessionBase}__startup_token__/'+t5+'/',{cache:'no-store'})` +
+            `fetch(base+'__startup_token__/'+t5+'/',{cache:'no-store'})` +
             `.then(function(r){return r.json();})` +
             `.then(function(d){` +
             `var tok=encodeURIComponent(d.token||String(t5));` +
-            `var here=window.location.pathname` +
-            `.replace(new RegExp('^${escBase}@v\\/[^\\/]+\\/?'),'');` +
-            `window.location.replace('${sessionBase}@v/'+tok+'/'+(here||'')+window.location.search);` +
+            `var here=window.location.pathname.slice(base.length);` +
+            `window.location.replace(base+'@v/'+tok+'/'+here+window.location.search);` +
             `}).catch(function(){` +
-            `window.location.replace('${sessionBase}@v/'+t5+'/');` +
+            `window.location.replace(base+'@v/'+t5+'/');` +
             `});` +
             `})();` +
             `</script></head><body></body></html>`;
