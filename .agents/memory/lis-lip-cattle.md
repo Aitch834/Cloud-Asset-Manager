@@ -69,3 +69,19 @@ description: LIP (Livestock Information Platform) confirmed as per-farm delegate
 ## Secrets in use
 - LIS_LIP_CLIENT_ID, LIS_LIP_PRIMARY_SECRET, LIS_LIP_SECONDARY_SECRET
 - LIS_LIP_SUBSCRIPTION_KEY, LIS_LIP_SUBSCRIPTION_KEY_2
+
+## LIS LIP Known Issues (from portal, 14 Jul 2026)
+Source: LIS LIP Developer Portal "Known Issues" table.
+
+| Issue | Status | Notes |
+|---|---|---|
+| Animal Lost/Found Data Issue | Planned (TBC) | Users cannot record an animal as lost or found via API — confirms V080 is a platform bug, not our payload |
+| Delayed Synchronization of Newly Submitted Data | Released Jan 2026 | Animal records created/updated via API may not be immediately available; can cause HTTP 500 errors |
+| Incomplete Error Messaging | Planned (TBC) | Some API responses return generic HTTP status codes without sufficient detail |
+| Movement Review Capability | Released Apr 2026 | Previously submitted livestock movements not reviewable via API |
+| Data Issues — sex field format | Released Jan 2026 | Sex in test data is 'M'/'F'; registration **requires** 'male'/'female' (case-sensitive). **Our code is compliant** — DB stores 'male'/'female', passed directly to LIP payload. |
+
+### Lost/Found — confirmed platform bug
+V080 "Lost & Stolen Animal ID is for wrong species" is a known LIS platform bug (not a species subscription
+boundary, not a payload issue). The `/lostfounds` endpoint is broken for ALL species in the current
+sandbox. Status: Planned fix, no release date. No code changes needed on our side.
