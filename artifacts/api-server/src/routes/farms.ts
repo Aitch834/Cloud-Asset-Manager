@@ -34623,3 +34623,79 @@ router.delete("/farms/:farmId/task-resource-allocations/:id", requireAuth, requi
   await db.execute(sql`DELETE FROM farm_task_resource_allocations WHERE id = ${id} AND farm_id = ${farmId}`);
   res.json({ success: true });
 });
+
+// ─── SCC Test Equipment ────────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/scc-equipment", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const species = req.query.species as string | undefined;
+  const rows = await db.execute(sql`
+    SELECT * FROM scc_test_equipment
+    WHERE farm_id = ${farmId}
+    ${species ? sql`AND species = ${species}` : sql``}
+    ORDER BY in_service DESC, device_name ASC
+  `);
+  res.json({ equipment: rows.rows });
+});
+
+router.post("/farms/:farmId/scc-equipment", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { deviceName, manufacturer, modelNumber, serialNumber, testMethod, species,
+    lastCalibrationDate, calibrationExpiryDate, calibratedBy,
+    lastServiceDate, nextServiceDueDate, serviceProvider, inService, notes } = req.body;
+  if (!deviceName) { res.status(400).json({ error: "deviceName required" }); return; }
+  const [row] = (await db.execute(sql`
+    INSERT INTO scc_test_equipment
+      (farm_id, device_name, manufacturer, model_number, serial_number, test_method, species,
+       last_calibration_date, calibration_expiry_date, calibrated_by,
+       last_service_date, next_service_due_date, service_provider, in_service, notes)
+    VALUES
+      (${farmId}, ${deviceName}, ${manufacturer || null}, ${modelNumber || null}, ${serialNumber || null},
+       ${testMethod || null}, ${species || "cattle"},
+       ${lastCalibrationDate || null}, ${calibrationExpiryDate || null}, ${calibratedBy || null},
+       ${lastServiceDate || null}, ${nextServiceDueDate || null}, ${serviceProvider || null},
+       ${inService !== false}, ${notes || null})
+    RETURNING *
+  `)).rows;
+  res.status(201).json({ equipment: row });
+});
+
+router.put("/farms/:farmId/scc-equipment/:id", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const { deviceName, manufacturer, modelNumber, serialNumber, testMethod,
+    lastCalibrationDate, calibrationExpiryDate, calibratedBy,
+    lastServiceDate, nextServiceDueDate, serviceProvider, inService, notes } = req.body;
+  const [row] = (await db.execute(sql`
+    UPDATE scc_test_equipment SET
+      device_name = ${deviceName},
+      manufacturer = ${manufacturer || null},
+      model_number = ${modelNumber || null},
+      serial_number = ${serialNumber || null},
+      test_method = ${testMethod || null},
+      last_calibration_date = ${lastCalibrationDate || null},
+      calibration_expiry_date = ${calibrationExpiryDate || null},
+      calibrated_by = ${calibratedBy || null},
+      last_service_date = ${lastServiceDate || null},
+      next_service_due_date = ${nextServiceDueDate || null},
+      service_provider = ${serviceProvider || null},
+      in_service = ${inService !== false},
+      notes = ${notes || null},
+      updated_at = now()
+    WHERE id = ${id} AND farm_id = ${farmId}
+    RETURNING *
+  `)).rows;
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ equipment: row });
+});
+
+router.delete("/farms/:farmId/scc-equipment/:id", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  await db.execute(sql`DELETE FROM scc_test_equipment WHERE id = ${id} AND farm_id = ${farmId}`);
+  res.json({ success: true });
+});

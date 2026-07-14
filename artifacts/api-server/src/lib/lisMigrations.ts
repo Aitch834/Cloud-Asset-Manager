@@ -382,4 +382,28 @@ export async function runLisMigrations(): Promise<void> {
   await db.execute(sql`
     ALTER TABLE organic_certification ADD COLUMN IF NOT EXISTS scope text
   `);
+
+  // SCC Test Equipment register — per-farm, per-species device + calibration log
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS scc_test_equipment (
+      id               serial primary key,
+      farm_id          integer not null,
+      species          text not null default 'cattle',
+      device_name      text not null,
+      manufacturer     text,
+      model_number     text,
+      serial_number    text,
+      test_method      text,
+      last_calibration_date   date,
+      calibration_expiry_date date,
+      calibrated_by    text,
+      last_service_date       date,
+      next_service_due_date   date,
+      service_provider text,
+      in_service       boolean not null default true,
+      notes            text,
+      created_at       timestamptz not null default now(),
+      updated_at       timestamptz not null default now()
+    )
+  `);
 }
