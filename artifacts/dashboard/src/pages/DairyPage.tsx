@@ -69,7 +69,7 @@ function BcsBadge({ v }: { v?: string | null }) {
   return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ok ? "bg-green-100 text-green-800" : low ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"}`}>{v}</span>;
 }
 
-type Tab = "milk" | "mastitis" | "calving" | "bcs" | "mobility" | "tank" | "dct" | "johnes" | "recording" | "enterprise";
+type Tab = "milk" | "mastitis" | "calving" | "bcs" | "mobility" | "tank" | "dct" | "johnes" | "recording" | "enterprise" | "abr-kit";
 
 export default function DairyPage() {
   const { farmId } = useAppStore();
@@ -96,6 +96,7 @@ export default function DairyPage() {
           <TabButton active={tab === "johnes"} onClick={() => setTab("johnes")}>Johne's Monitoring</TabButton>
           <TabButton active={tab === "recording"} onClick={() => setTab("recording")}>Recording Visits</TabButton>
           <TabButton active={tab === "enterprise"} onClick={() => setTab("enterprise")}>Enterprise Report</TabButton>
+          <TabButton active={tab === "abr-kit"} onClick={() => setTab("abr-kit")}>ABR Kit Stock</TabButton>
         </TabBar>
 
         <div className="mt-6">
@@ -109,6 +110,7 @@ export default function DairyPage() {
           {tab === "johnes" && <DairyJohnesTab farmId={farmId} />}
           {tab === "recording" && <RecordingVisitsTab farmId={farmId} />}
           {tab === "enterprise" && <DairyEnterpriseReport farmId={farmId} />}
+          {tab === "abr-kit" && <div className="space-y-6"><AbrKitStockSection farmId={farmId} /><AbrProcurementSection farmId={farmId} /></div>}
         </div>
       </div>
     </AppLayout>
@@ -3845,9 +3847,6 @@ ${collRows ? `<h3>Milk Collections</h3><table><tr><th>Date</th><th>Tank</th><th>
       </Dialog>
 
       </>)}
-      {/* ── Section 4: ABR Test Kit Stock ───────────────────────────────────── */}
-      <AbrKitStockSection farmId={farmId} />
-      <AbrProcurementSection farmId={farmId} />
 
     </div>
   );

@@ -322,7 +322,7 @@ function MilkTab({ farmId }: { farmId: number }) {
 interface MastitisRecord {
   id: number; incidentDate: string; doeLisTag?: string | null; doeName?: string | null;
   halfAffected?: string | null; clinicalSigns?: string | null; pathogenIdentified?: string | null;
-  labSampleTaken?: boolean; labRef?: string | null;
+  labSampleTaken?: boolean; labRef?: string | null; sccAtOnset?: number | null;
   treatmentProduct?: string | null; treatmentDurationDays?: number | null;
   withdrawalMilkDays?: number | null; milkWithdrawnUntil?: string | null;
   outcome?: string | null; chronicCase?: boolean; culledDueToMastitis?: boolean;
@@ -415,6 +415,7 @@ export function MastitisTab({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Half Affected</p><p className="font-medium capitalize">{viewRec.halfAffected || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Clinical Signs</p><p className="font-medium">{viewRec.clinicalSigns || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Pathogen</p><p className="font-medium">{viewRec.pathogenIdentified || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">SCC at Onset (k/mL)</p><p className="font-medium">{viewRec.sccAtOnset ? viewRec.sccAtOnset.toLocaleString() : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Treatment Product</p><p className="font-medium">{viewRec.treatmentProduct || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Milk Withdrawal</p><p className="font-medium">{viewRec.withdrawalMilkDays != null ? `${viewRec.withdrawalMilkDays} days` : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Outcome</p><OutcomeBadge v={viewRec.outcome} /></div>
@@ -441,6 +442,7 @@ export function MastitisTab({ farmId }: { farmId: number }) {
             <div><Label>Clinical Signs</Label><Input value={form.clinicalSigns || ""} onChange={e => set("clinicalSigns", e.target.value)} /></div>
             <div><Label>Pathogen Identified</Label><Input value={form.pathogenIdentified || ""} onChange={e => set("pathogenIdentified", e.target.value)} placeholder="e.g. Staph. aureus, Strep." /></div>
             <div><Label>Lab Ref</Label><Input value={form.labRef || ""} onChange={e => set("labRef", e.target.value)} /></div>
+            <div><Label>SCC at Onset (k/mL)</Label><Input type="number" value={form.sccAtOnset || ""} onChange={e => set("sccAtOnset", e.target.value ? parseInt(e.target.value) : null)} placeholder="e.g. 800" /><p className="text-xs text-gray-400 mt-0.5">UK limit: 1,000k</p></div>
             <div><Label>Treatment Product</Label><Input value={form.treatmentProduct || ""} onChange={e => set("treatmentProduct", e.target.value)} /></div>
             <div><Label>Treatment Duration (days)</Label><Input type="number" value={form.treatmentDurationDays || ""} onChange={e => set("treatmentDurationDays", e.target.value ? parseInt(e.target.value) : null)} /></div>
             <div><Label>Milk Withdrawal (days)</Label><Input type="number" value={form.withdrawalMilkDays || ""} onChange={e => set("withdrawalMilkDays", e.target.value ? parseInt(e.target.value) : null)} /></div>
