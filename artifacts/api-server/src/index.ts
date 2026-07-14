@@ -5,6 +5,7 @@ import { startAlertingJob } from "./lib/alertingJob";
 import { startTimesheetReminderJob } from "./lib/timesheetReminderJob";
 import { runPlannerMigrations } from "./lib/plannerMigrations";
 import { runResourceMigrations } from "./lib/resourceMigrations";
+import { runDairySuppliesMigrations } from "./lib/dairySuppliesMigrations";
 
 interface EnvSpec {
   key: string;
@@ -84,5 +85,8 @@ app.listen(port, () => {
   });
   runResourceMigrations().catch((err) => {
     console.error("[RESOURCE-MIGRATE] Failed:", err);
+  });
+  runDairySuppliesMigrations().catch((err) => {
+    console.error("[DAIRY-SUPPLIES-MIGRATE] Failed:", err);
   });
 });

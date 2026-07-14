@@ -72,7 +72,8 @@ const PRODUCT_CATEGORIES = ["Antibiotic", "NSAID", "Anthelmintic", "Antiparasiti
 
 const ROUTES_OF_ADMINISTRATION = ["Intramuscular (IM)", "Subcutaneous (SC)", "Intravenous (IV)", "Oral", "Intramammary", "Topical", "Other"];
 
-type Tab = "tupping" | "conversion" | "collections" | "feed" | "treatments" | "mastitis" | "bcs" | "tank" | "mv" | "assurance" | "abr-kit" | "scc-equipment";
+import { DairySuppliesTab } from "@/components/DairySuppliesTab";
+type Tab = "tupping" | "conversion" | "collections" | "feed" | "treatments" | "mastitis" | "bcs" | "tank" | "mv" | "assurance" | "abr-kit" | "scc-equipment" | "supplies";
 
 export default function OrganicSheepDairyPage() {
   const { farmId } = useAppStore();
@@ -104,6 +105,7 @@ export default function OrganicSheepDairyPage() {
           <TabButton active={tab === "assurance"} onClick={() => setTab("assurance")}>Assurance</TabButton>
           <TabButton active={tab === "abr-kit"} onClick={() => setTab("abr-kit")}>ABR Kit Stock</TabButton>
           <TabButton active={tab === "scc-equipment"} onClick={() => setTab("scc-equipment")}>SCC Equipment</TabButton>
+          <TabButton active={tab === "supplies"} onClick={() => setTab("supplies")}>Supplies</TabButton>
         </TabBar>
         <div className="mt-6">
           {tab === "tupping" && <TuppingTab farmId={farmId} />}
@@ -118,6 +120,7 @@ export default function OrganicSheepDairyPage() {
           {tab === "assurance" && <AssuranceTab />}
           {tab === "abr-kit" && <AbrProcurementSection farmId={farmId} />}
           {tab === "scc-equipment" && <SccEquipmentSection farmId={farmId} species="sheep" />}
+          {tab === "supplies" && <DairySuppliesTab farmId={farmId} dairyType="organic-sheep" />}
         </div>
       </div>
     </AppLayout>

@@ -43,6 +43,7 @@ import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianG
 import { MastitisTab, CalvingTab, BcsTab, MobilityTab, BulkTankTab, DctTab, RecordingVisitsTab, SccEquipmentSection } from "@/pages/DairyPage";
 import { openPrintWindow } from "@/lib/print-report";
 import { DairyEnterpriseReport } from "@/components/DairyEnterpriseReport";
+import { DairySuppliesTab } from "@/components/DairySuppliesTab";
 import { OrganicJohnesTab } from "@/pages/OrganicJohnesTab";
 
 const FEED_TYPES: [string, string][] = [
@@ -2215,6 +2216,7 @@ export default function OrganicDairyPage() {
             <TabsTrigger value="enterprise">Enterprise Report</TabsTrigger>
             <TabsTrigger value="abr-kit">ABR Kit Stock</TabsTrigger>
             <TabsTrigger value="scc-equipment">SCC Equipment</TabsTrigger>
+            <TabsTrigger value="supplies">Supplies</TabsTrigger>
           </TabsList>
           <TabsContent value="herd-conversion" className="mt-4">
             <HerdConversionTab farmId={farmId} farmName={name} />
@@ -2258,6 +2260,9 @@ export default function OrganicDairyPage() {
           </TabsContent>
           <TabsContent value="abr-kit" className="mt-4">
             <AbrProcurementSection farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="supplies" className="mt-4">
+            <DairySuppliesTab farmId={farmId} dairyType="organic-cattle" />
           </TabsContent>
         </Tabs>
         {activeTab === "johnes" && <div className="mt-4"><OrganicJohnesTab farmId={farmId} /></div>}

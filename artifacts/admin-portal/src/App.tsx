@@ -17,6 +17,7 @@ import PlatformConfig from "@/pages/PlatformConfig";
 import CompanySettings from "@/pages/CompanySettings";
 import Lookups from "@/pages/Lookups";
 import HelpCentre from "@/pages/HelpCentre";
+import DairyRestock from "@/pages/DairyRestock";
 import NotFound from "@/pages/not-found";
 import { getSecret } from "@/lib/auth";
 
@@ -39,6 +40,7 @@ function PortalRouter() {
         <Route path="/platform-config" component={PlatformConfig} />
         <Route path="/company-settings" component={CompanySettings} />
         <Route path="/help-articles" component={HelpCentre} />
+        <Route path="/dairy-restock" component={DairyRestock} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

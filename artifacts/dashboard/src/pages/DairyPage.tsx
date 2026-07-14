@@ -70,7 +70,8 @@ function BcsBadge({ v }: { v?: string | null }) {
   return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ok ? "bg-green-100 text-green-800" : low ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"}`}>{v}</span>;
 }
 
-type Tab = "milk" | "mastitis" | "calving" | "bcs" | "mobility" | "tank" | "dct" | "johnes" | "recording" | "enterprise" | "abr-kit" | "scc-equipment";
+import { DairySuppliesTab } from "@/components/DairySuppliesTab";
+type Tab = "milk" | "mastitis" | "calving" | "bcs" | "mobility" | "tank" | "dct" | "johnes" | "recording" | "enterprise" | "abr-kit" | "scc-equipment" | "supplies";
 
 export default function DairyPage() {
   const { farmId } = useAppStore();
@@ -99,6 +100,7 @@ export default function DairyPage() {
           <TabButton active={tab === "enterprise"} onClick={() => setTab("enterprise")}>Enterprise Report</TabButton>
           <TabButton active={tab === "abr-kit"} onClick={() => setTab("abr-kit")}>ABR Kit Stock</TabButton>
           <TabButton active={tab === "scc-equipment"} onClick={() => setTab("scc-equipment")}>SCC Equipment</TabButton>
+          <TabButton active={tab === "supplies"} onClick={() => setTab("supplies")}>Supplies</TabButton>
         </TabBar>
 
         <div className="mt-6">
@@ -114,6 +116,7 @@ export default function DairyPage() {
           {tab === "enterprise" && <DairyEnterpriseReport farmId={farmId} />}
           {tab === "abr-kit" && <div className="space-y-6"><AbrKitStockSection farmId={farmId} /><AbrProcurementSection farmId={farmId} /></div>}
           {tab === "scc-equipment" && <SccEquipmentSection farmId={farmId} species="cattle" />}
+          {tab === "supplies" && <DairySuppliesTab farmId={farmId} dairyType="cattle" />}
         </div>
       </div>
     </AppLayout>

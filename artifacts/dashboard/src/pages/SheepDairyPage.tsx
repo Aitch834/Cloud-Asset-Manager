@@ -64,7 +64,8 @@ function ResultBadge({ v }: { v?: string | null }) {
   return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>{v}</span>;
 }
 
-type Tab = "milk" | "mastitis" | "kidding" | "bcs" | "tank" | "mv" | "assurance" | "abr-kit" | "scc-equipment" | "enterprise";
+import { DairySuppliesTab } from "@/components/DairySuppliesTab";
+type Tab = "milk" | "mastitis" | "kidding" | "bcs" | "tank" | "mv" | "assurance" | "abr-kit" | "scc-equipment" | "enterprise" | "supplies";
 
 export default function SheepDairyPage() {
   const { farmId } = useAppStore();
@@ -91,6 +92,7 @@ export default function SheepDairyPage() {
           <TabButton active={tab === "abr-kit"} onClick={() => setTab("abr-kit")}>ABR Kit Stock</TabButton>
           <TabButton active={tab === "scc-equipment"} onClick={() => setTab("scc-equipment")}>SCC Equipment</TabButton>
           <TabButton active={tab === "enterprise"} onClick={() => setTab("enterprise")}>Enterprise Report</TabButton>
+          <TabButton active={tab === "supplies"} onClick={() => setTab("supplies")}>Supplies</TabButton>
         </TabBar>
         <div className="mt-6">
           {tab === "milk" && <MilkTab farmId={farmId} />}
@@ -103,6 +105,7 @@ export default function SheepDairyPage() {
           {tab === "abr-kit" && <div className="space-y-6"><AbrKitStockSection farmId={farmId} /><AbrProcurementSection farmId={farmId} /></div>}
           {tab === "scc-equipment" && <SccEquipmentSection farmId={farmId} species="sheep" />}
           {tab === "enterprise" && <DairyEnterpriseReport farmId={farmId} endpoint={api(`farms/${farmId}/sheep-dairy-enterprise-report`)} queryPrefix="sheep-dairy-enterprise" speciesNote="Milk income from sheep dairy collection records. Feed cost and other variable costs not yet included — add via Financial for a complete P&L." />}
+          {tab === "supplies" && <DairySuppliesTab farmId={farmId} dairyType="sheep" />}
         </div>
       </div>
     </AppLayout>

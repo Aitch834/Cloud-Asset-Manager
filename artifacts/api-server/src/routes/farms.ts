@@ -34791,3 +34791,313 @@ router.get("/farms/:farmId/goat-dairy-enterprise-report", requireAuth, requireTe
     collectionCount: totalCollections, feedDeliveryCount: 0, monthlyBreakdown,
   });
 });
+
+// ─── DAIRY SUPPLIES: Stock Overview ──────────────────────────────────────────
+router.get("/farms/:farmId/dairy-supplies/stock", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  try {
+    const [ppeResult, chemResult] = await Promise.all([
+      db.execute(sql`
+        SELECT id, ppe_type, description, size, quantity_in_stock, unit_cost_pence
+        FROM ppe_stock_items
+        WHERE farm_id = ${farmId} AND is_active = true
+        ORDER BY ppe_type, description NULLS LAST
+      `),
+      db.execute(sql`
+        SELECT si.id, si.name AS product_name, sl.id AS stock_level_id,
+               sl.current_quantity, si.unit
+        FROM stock_items si
+        LEFT JOIN stock_levels sl ON sl.stock_item_id = si.id AND sl.farm_id = ${farmId}
+        WHERE si.farm_id = ${farmId} AND si.is_active = true
+          AND (si.stock_type = 'chemical' OR si.stock_type IS NULL OR si.stock_type = 'agchem')
+        ORDER BY si.name
+      `),
+    ]);
+    res.json({
+      ppeItems: (ppeResult.rows as any[]).map(r => ({
+        id: Number(r.id), ppeType: r.ppe_type, description: r.description ?? null,
+        size: r.size ?? null, quantityInStock: Number(r.quantity_in_stock ?? 0),
+        unitCostPence: r.unit_cost_pence != null ? Number(r.unit_cost_pence) : null,
+      })),
+      chemItems: (chemResult.rows as any[]).map(r => ({
+        id: Number(r.id), productName: r.product_name,
+        stockItemId: r.stock_level_id != null ? Number(r.stock_level_id) : null,
+        currentQty: r.current_quantity != null ? Number(r.current_quantity) : null,
+        unit: r.unit ?? null,
+      })),
+    });
+  } catch (err) {
+    console.error("[DAIRY-SUPPLIES/STOCK]", err);
+    res.status(500).json({ error: "Failed to load stock" });
+  }
+});
+
+// ─── DAIRY SUPPLIES: Drawdowns ────────────────────────────────────────────────
+router.get("/farms/:farmId/dairy-supplies/drawdowns", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const { dairyType } = req.query as Record<string, string>;
+  try {
+    const rows = await db.execute(sql`
+      SELECT * FROM dairy_supply_drawdowns
+      WHERE farm_id = ${farmId}
+        ${dairyType ? sql`AND dairy_type = ${dairyType}` : sql``}
+      ORDER BY drawdown_date DESC, created_at DESC
+      LIMIT 500
+    `);
+    res.json({ drawdowns: (rows.rows as any[]).map(r => ({
+      id: Number(r.id), dairyType: r.dairy_type, drawdownDate: r.drawdown_date,
+      itemType: r.item_type, itemName: r.item_name,
+      ppeStockItemId: r.ppe_stock_item_id != null ? Number(r.ppe_stock_item_id) : null,
+      chemStockItemId: r.chem_stock_item_id != null ? Number(r.chem_stock_item_id) : null,
+      quantityUsed: r.quantity_used, unit: r.unit, usedBy: r.used_by ?? null,
+      usageContext: r.usage_context ?? null, notes: r.notes ?? null, createdAt: r.created_at,
+    })) });
+  } catch (err) {
+    console.error("[DAIRY-SUPPLIES/DRAWDOWNS GET]", err);
+    res.status(500).json({ error: "Failed to load drawdowns" });
+  }
+});
+
+router.post("/farms/:farmId/dairy-supplies/drawdowns", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const body = sanitiseBody(req.body);
+  const { dairyType, drawdownDate, itemType, itemName, ppeStockItemId, chemStockItemId, quantityUsed, unit, usedBy, usageContext, notes } = body;
+  if (!dairyType || !drawdownDate || !itemType || !itemName || !quantityUsed || !unit) {
+    res.status(400).json({ error: "Missing required fields" });
+    return;
+  }
+  const qty = Number(quantityUsed);
+  try {
+    const result = await db.execute(sql`
+      INSERT INTO dairy_supply_drawdowns
+        (farm_id, dairy_type, drawdown_date, item_type, item_name, ppe_stock_item_id, chem_stock_item_id, quantity_used, unit, used_by, usage_context, notes)
+      VALUES
+        (${farmId}, ${dairyType}, ${new Date(drawdownDate)}, ${itemType}, ${itemName},
+         ${ppeStockItemId ? Number(ppeStockItemId) : null},
+         ${chemStockItemId ? Number(chemStockItemId) : null},
+         ${qty}, ${unit},
+         ${usedBy || null}, ${usageContext || null}, ${notes || null})
+      RETURNING id
+    `);
+    const newId = (result.rows[0] as any)?.id;
+
+    // Deduct from PPE stock
+    if (ppeStockItemId && itemType === "ppe") {
+      await db.execute(sql`
+        UPDATE ppe_stock_items
+        SET quantity_in_stock = GREATEST(0, quantity_in_stock - ${Math.round(qty)}), updated_at = NOW()
+        WHERE id = ${Number(ppeStockItemId)} AND farm_id = ${farmId}
+      `);
+    }
+    // Deduct from chemical stock_levels + log movement
+    if (chemStockItemId && itemType === "chemical") {
+      const cid = Number(chemStockItemId);
+      await db.execute(sql`
+        UPDATE stock_levels
+        SET current_quantity = GREATEST(0, current_quantity - ${qty}), last_updated = NOW()
+        WHERE stock_item_id = ${cid} AND farm_id = ${farmId}
+      `);
+      await db.execute(sql`
+        INSERT INTO stock_movements (farm_id, stock_item_id, movement_type, quantity_change, reference_type, reference_id, performed_by, notes, moved_at)
+        VALUES (${farmId}, ${cid}, 'usage', ${-qty}, 'dairy-drawdown', ${Number(newId)}, ${usedBy || null}, ${notes || null}, NOW())
+      `);
+    }
+    res.status(201).json({ id: Number(newId) });
+  } catch (err) {
+    console.error("[DAIRY-SUPPLIES/DRAWDOWNS POST]", err);
+    res.status(500).json({ error: "Failed to log drawdown" });
+  }
+});
+
+router.delete("/farms/:farmId/dairy-supplies/drawdowns/:id", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  try {
+    // Fetch the record to know what stock to restore
+    const rec = await db.execute(sql`SELECT * FROM dairy_supply_drawdowns WHERE id = ${id} AND farm_id = ${farmId}`);
+    const row = rec.rows[0] as any;
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+
+    await db.execute(sql`DELETE FROM dairy_supply_drawdowns WHERE id = ${id} AND farm_id = ${farmId}`);
+
+    // Restore PPE stock
+    if (row.ppe_stock_item_id && row.item_type === "ppe") {
+      await db.execute(sql`
+        UPDATE ppe_stock_items
+        SET quantity_in_stock = quantity_in_stock + ${Math.round(Number(row.quantity_used))}, updated_at = NOW()
+        WHERE id = ${Number(row.ppe_stock_item_id)} AND farm_id = ${farmId}
+      `);
+    }
+    // Restore chemical stock
+    if (row.chem_stock_item_id && row.item_type === "chemical") {
+      const cid = Number(row.chem_stock_item_id);
+      await db.execute(sql`
+        UPDATE stock_levels
+        SET current_quantity = current_quantity + ${Number(row.quantity_used)}, last_updated = NOW()
+        WHERE stock_item_id = ${cid} AND farm_id = ${farmId}
+      `);
+      await db.execute(sql`
+        INSERT INTO stock_movements (farm_id, stock_item_id, movement_type, quantity_change, reference_type, reference_id, notes, moved_at)
+        VALUES (${farmId}, ${cid}, 'adjustment', ${Number(row.quantity_used)}, 'dairy-drawdown-delete', ${id}, 'Dairy drawdown record deleted — stock restored', NOW())
+      `);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[DAIRY-SUPPLIES/DRAWDOWNS DELETE]", err);
+    res.status(500).json({ error: "Failed to delete drawdown" });
+  }
+});
+
+// ─── DAIRY SUPPLIES: Restock Requests ────────────────────────────────────────
+router.get("/farms/:farmId/dairy-supplies/restock-requests", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const { dairyType, status } = req.query as Record<string, string>;
+  try {
+    const rows = await db.execute(sql`
+      SELECT * FROM dairy_restock_requests
+      WHERE farm_id = ${farmId}
+        ${dairyType ? sql`AND dairy_type = ${dairyType}` : sql``}
+        ${status ? sql`AND status = ${status}` : sql``}
+      ORDER BY
+        CASE urgency WHEN 'critical' THEN 1 WHEN 'urgent' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
+        request_date DESC, created_at DESC
+      LIMIT 300
+    `);
+    res.json({ requests: (rows.rows as any[]).map(r => ({
+      id: Number(r.id), dairyType: r.dairy_type, requestDate: r.request_date,
+      itemType: r.item_type, itemName: r.item_name,
+      ppeStockItemId: r.ppe_stock_item_id != null ? Number(r.ppe_stock_item_id) : null,
+      chemStockItemId: r.chem_stock_item_id != null ? Number(r.chem_stock_item_id) : null,
+      requestedQty: r.requested_qty, unit: r.unit, urgency: r.urgency,
+      requestedBy: r.requested_by ?? null, reason: r.reason ?? null,
+      status: r.status, adminNotes: r.admin_notes ?? null,
+      resolvedBy: r.resolved_by ?? null, resolvedAt: r.resolved_at ?? null, createdAt: r.created_at,
+    })) });
+  } catch (err) {
+    console.error("[DAIRY-SUPPLIES/RESTOCK GET]", err);
+    res.status(500).json({ error: "Failed to load restock requests" });
+  }
+});
+
+router.post("/farms/:farmId/dairy-supplies/restock-requests", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const body = sanitiseBody(req.body);
+  const { dairyType, requestDate, itemType, itemName, ppeStockItemId, chemStockItemId, requestedQty, unit, urgency, requestedBy, reason } = body;
+  if (!dairyType || !requestDate || !itemType || !itemName || !requestedQty || !unit) {
+    res.status(400).json({ error: "Missing required fields" });
+    return;
+  }
+  try {
+    const result = await db.execute(sql`
+      INSERT INTO dairy_restock_requests
+        (farm_id, dairy_type, request_date, item_type, item_name, ppe_stock_item_id, chem_stock_item_id, requested_qty, unit, urgency, requested_by, reason, status)
+      VALUES
+        (${farmId}, ${dairyType}, ${new Date(requestDate)}, ${itemType}, ${itemName},
+         ${ppeStockItemId ? Number(ppeStockItemId) : null},
+         ${chemStockItemId ? Number(chemStockItemId) : null},
+         ${Number(requestedQty)}, ${unit}, ${urgency || "normal"},
+         ${requestedBy || null}, ${reason || null}, 'pending')
+      RETURNING id
+    `);
+    res.status(201).json({ id: Number((result.rows[0] as any)?.id) });
+  } catch (err) {
+    console.error("[DAIRY-SUPPLIES/RESTOCK POST]", err);
+    res.status(500).json({ error: "Failed to create restock request" });
+  }
+});
+
+router.patch("/farms/:farmId/dairy-supplies/restock-requests/:id", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  const body = sanitiseBody(req.body);
+  const { status, adminNotes, resolvedBy } = body;
+  const resolvedStatuses = ["received", "rejected"];
+  const isResolved = status && resolvedStatuses.includes(status);
+  try {
+    await db.execute(sql`
+      UPDATE dairy_restock_requests SET
+        ${status ? sql`status = ${status},` : sql``}
+        ${adminNotes !== undefined ? sql`admin_notes = ${adminNotes},` : sql``}
+        ${resolvedBy ? sql`resolved_by = ${resolvedBy},` : sql``}
+        ${isResolved ? sql`resolved_at = NOW(),` : sql``}
+        updated_at = NOW()
+      WHERE id = ${id} AND farm_id = ${farmId}
+    `);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[DAIRY-SUPPLIES/RESTOCK PATCH]", err);
+    res.status(500).json({ error: "Failed to update restock request" });
+  }
+});
+
+router.delete("/farms/:farmId/dairy-supplies/restock-requests/:id", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  try {
+    await db.execute(sql`DELETE FROM dairy_restock_requests WHERE id = ${id} AND farm_id = ${farmId}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[DAIRY-SUPPLIES/RESTOCK DELETE]", err);
+    res.status(500).json({ error: "Failed to delete restock request" });
+  }
+});
+
+// ─── ADMIN: All-farm dairy restock overview ───────────────────────────────────
+router.get("/admin/dairy-restock-requests", async (req: Request, res: Response): Promise<void> => {
+  const secret = req.headers["x-admin-secret"] as string | undefined;
+  if (!secret || secret !== process.env.ADMIN_PORTAL_SECRET) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const status = (req.query.status as string) || "pending";
+  try {
+    const rows = await db.execute(sql`
+      SELECT r.*, f.name AS farm_name, f.id AS farm_id
+      FROM dairy_restock_requests r
+      JOIN farms f ON f.id = r.farm_id
+      WHERE (${status} = 'all' OR r.status = ${status})
+      ORDER BY
+        CASE r.urgency WHEN 'critical' THEN 1 WHEN 'urgent' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
+        r.created_at DESC
+      LIMIT 500
+    `);
+    res.json({ requests: (rows.rows as any[]).map(r => ({
+      id: Number(r.id), farmId: Number(r.farm_id), farmName: r.farm_name,
+      dairyType: r.dairy_type, requestDate: r.request_date, itemType: r.item_type,
+      itemName: r.item_name, requestedQty: r.requested_qty, unit: r.unit,
+      urgency: r.urgency, requestedBy: r.requested_by ?? null, reason: r.reason ?? null,
+      status: r.status, adminNotes: r.admin_notes ?? null, createdAt: r.created_at,
+    })) });
+  } catch (err) {
+    console.error("[ADMIN/DAIRY-RESTOCK]", err);
+    res.status(500).json({ error: "Failed to load requests" });
+  }
+});
+
+router.patch("/admin/dairy-restock-requests/:id", async (req: Request, res: Response): Promise<void> => {
+  const secret = req.headers["x-admin-secret"] as string | undefined;
+  if (!secret || secret !== process.env.ADMIN_PORTAL_SECRET) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const id = Number(req.params.id);
+  const body = sanitiseBody(req.body);
+  const { status, adminNotes, resolvedBy } = body;
+  const resolvedStatuses = ["received", "rejected"];
+  const isResolved = status && resolvedStatuses.includes(status);
+  try {
+    await db.execute(sql`
+      UPDATE dairy_restock_requests SET
+        ${status ? sql`status = ${status},` : sql``}
+        ${adminNotes !== undefined ? sql`admin_notes = ${adminNotes},` : sql``}
+        ${resolvedBy ? sql`resolved_by = ${resolvedBy},` : sql``}
+        ${isResolved ? sql`resolved_at = NOW(),` : sql``}
+        updated_at = NOW()
+      WHERE id = ${id}
+    `);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[ADMIN/DAIRY-RESTOCK PATCH]", err);
+    res.status(500).json({ error: "Failed to update request" });
+  }
+});
