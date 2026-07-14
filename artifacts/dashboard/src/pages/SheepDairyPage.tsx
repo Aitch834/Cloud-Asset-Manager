@@ -18,6 +18,10 @@ import { DocAttach } from "@/components/DocAttach";
 import { useToast } from "@/hooks/use-toast";
 import { AbrKitStockSection, SccEquipmentSection } from "@/pages/DairyPage";
 import { AbrProcurementSection } from "@/pages/dairy/AbrProcurementSection";
+import { DairyEnterpriseReport } from "@/components/DairyEnterpriseReport";
+import { ResponsiveContainer, BarChart, Bar, ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart } from "recharts";
+
+const PIE_COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
 
 const BASE = import.meta.env.BASE_URL;
 const api = (path: string) => `${BASE}api/${path}`;
@@ -60,7 +64,7 @@ function ResultBadge({ v }: { v?: string | null }) {
   return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>{v}</span>;
 }
 
-type Tab = "milk" | "mastitis" | "kidding" | "bcs" | "tank" | "mv" | "assurance" | "abr-kit" | "scc-equipment";
+type Tab = "milk" | "mastitis" | "kidding" | "bcs" | "tank" | "mv" | "assurance" | "abr-kit" | "scc-equipment" | "enterprise";
 
 export default function SheepDairyPage() {
   const { farmId } = useAppStore();
@@ -86,6 +90,7 @@ export default function SheepDairyPage() {
           <TabButton active={tab === "assurance"} onClick={() => setTab("assurance")}>Assurance</TabButton>
           <TabButton active={tab === "abr-kit"} onClick={() => setTab("abr-kit")}>ABR Kit Stock</TabButton>
           <TabButton active={tab === "scc-equipment"} onClick={() => setTab("scc-equipment")}>SCC Equipment</TabButton>
+          <TabButton active={tab === "enterprise"} onClick={() => setTab("enterprise")}>Enterprise Report</TabButton>
         </TabBar>
         <div className="mt-6">
           {tab === "milk" && <MilkTab farmId={farmId} />}
@@ -97,6 +102,7 @@ export default function SheepDairyPage() {
           {tab === "assurance" && <AssuranceTab />}
           {tab === "abr-kit" && <div className="space-y-6"><AbrKitStockSection farmId={farmId} /><AbrProcurementSection farmId={farmId} /></div>}
           {tab === "scc-equipment" && <SccEquipmentSection farmId={farmId} species="sheep" />}
+          {tab === "enterprise" && <DairyEnterpriseReport farmId={farmId} endpoint={api(`farms/${farmId}/sheep-dairy-enterprise-report`)} queryPrefix="sheep-dairy-enterprise" speciesNote="Milk income from sheep dairy collection records. Feed cost and other variable costs not yet included — add via Financial for a complete P&L." />}
         </div>
       </div>
     </AppLayout>
@@ -154,6 +160,20 @@ function MilkTab({ farmId }: { farmId: number }) {
   function openAdd() { setEditing(null); setForm(blank); setAbrKitStockId(""); setOpen(true); }
   function openEdit(r: MilkRecord) { setEditing(r); setForm(r); setAbrKitStockId(""); setOpen(true); }
 
+  const milkChartData = useMemo(() => {
+    const monthMap: Record<string, { label: string; yieldL: number; scc: number | null }> = {};
+    [...records].sort((a, b) => String(a.recordDate).localeCompare(String(b.recordDate))).forEach(r => {
+      const d = new Date(String(r.recordDate));
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+      if (!monthMap[key]) monthMap[key] = { label, yieldL: 0, scc: null };
+      monthMap[key].yieldL += parseFloat(r.yieldLitres || "0") || 0;
+      const scc = r.buyerSccThousands ?? r.sccThousands ?? null;
+      if (scc != null) monthMap[key].scc = scc;
+    });
+    return Object.keys(monthMap).sort().map(k => monthMap[k]);
+  }, [records]);
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -161,6 +181,28 @@ function MilkTab({ farmId }: { farmId: number }) {
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Avg SCC (k/mL)</p><p className={`text-2xl font-bold ${avgScc == null ? "text-gray-400" : avgScc > 1500 ? "text-red-700" : avgScc > 750 ? "text-amber-700" : "text-green-700"}`}>{avgScc != null ? avgScc.toLocaleString() : "—"}</p><p className="text-xs text-gray-400">UK limit: 1,500k cells/mL</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Records</p><p className="text-2xl font-bold text-gray-800">{records.length}</p></CardContent></Card>
       </div>
+      {milkChartData.length > 1 && (
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Yield &amp; SCC Trend — Monthly</h3>
+            <span className="text-xs text-gray-400">Sheep regulatory SCC limit: 1,500k cells/mL</span>
+          </div>
+          <div className="p-4">
+            <ResponsiveContainer width="100%" height={200}>
+              <ComposedChart data={milkChartData} margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="left" tick={{ fontSize: 11 }} width={55} tickFormatter={(v: number) => `${v}L`} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} width={65} tickFormatter={(v: number) => `${v}k`} />
+                <Tooltip formatter={(v: number, name: string) => [name === "SCC (k/mL)" ? `${v}k` : `${Number(v).toFixed(0)}L`, name]} />
+                <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                <Bar yAxisId="left" dataKey="yieldL" name="Yield (L)" fill="#3b82f6" radius={[3, 3, 0, 0]} maxBarSize={40} />
+                <Line yAxisId="right" type="monotone" dataKey="scc" name="SCC (k/mL)" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
       <div className="flex justify-between items-center">
         <h2 className="text-base font-semibold text-gray-800">Milk Collection Records</h2>
         <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
@@ -350,8 +392,6 @@ export function MastitisTab({ farmId }: { farmId: number }) {
 
   const { data, isLoading } = useQuery({ queryKey: ["sheep-dairy-mastitis", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-dairy/mastitis-records`)).then(r => r.json()) });
   const records: MastitisRecord[] = data?.records ?? [];
-  const chronicCount = records.filter(r => r.chronicCase).length;
-  const culledCount = records.filter(r => r.culledDueToMastitis).length;
 
   const save = useMutation({
     mutationFn: (body: Partial<MastitisRecord>) => fetch(api(`farms/${farmId}/sheep-dairy/mastitis-records${editing ? `/${editing.id}` : ""}`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
@@ -362,25 +402,128 @@ export function MastitisTab({ farmId }: { farmId: number }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-mastitis", farmId] }); toast({ title: "Record deleted" }); },
   });
 
+  const mastiYears = useMemo(() => {
+    const s = new Set<string>(records.map(r => String(r.incidentDate || "").slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort((a, b) => b.localeCompare(a));
+  }, [records]);
+  const [mastiYear, setMastiYear] = useState("all");
+  const filtered = useMemo(() => mastiYear === "all" ? records : records.filter(r => String(r.incidentDate || "").startsWith(mastiYear)), [records, mastiYear]);
+
+  const analytics = useMemo(() => {
+    const monthMap: Record<string, number> = {};
+    filtered.forEach(r => { const key = String(r.incidentDate || "").slice(0, 7); if (key.length === 7) monthMap[key] = (monthMap[key] || 0) + 1; });
+    const trend = Object.keys(monthMap).sort().map(k => ({ label: new Date(k + "-01").toLocaleDateString("en-GB", { month: "short", year: "2-digit" }), cases: monthMap[k] }));
+    const outcomeMap: Record<string, number> = {};
+    filtered.forEach(r => { const o = r.outcome || "ongoing"; outcomeMap[o] = (outcomeMap[o] || 0) + 1; });
+    const outcomeData = Object.entries(outcomeMap).map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1).replace(/-/g, " "), value }));
+    const pathMap: Record<string, number> = {};
+    filtered.forEach(r => { if (r.pathogenIdentified?.trim()) { const p = r.pathogenIdentified.trim(); pathMap[p] = (pathMap[p] || 0) + 1; } });
+    const pathData = Object.entries(pathMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8);
+    const animalMap: Record<string, number> = {};
+    filtered.forEach(r => { if (r.eweLisTag) animalMap[r.eweLisTag] = (animalMap[r.eweLisTag] || 0) + 1; });
+    const repeatAnimals = Object.entries(animalMap).filter(([, c]) => c >= 2).map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count);
+    return { trend, outcomeData, pathData, repeatAnimals };
+  }, [filtered]);
+
+  const printCompliance = () => {
+    const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    const period = mastiYear === "all" ? "All records" : mastiYear;
+    const pathRows = analytics.pathData.map(p => `<tr><td>${p.name}</td><td>${p.value}</td><td>${filtered.length > 0 ? ((p.value / filtered.length) * 100).toFixed(0) : 0}%</td></tr>`).join("");
+    const repeatRows = analytics.repeatAnimals.map(a => `<tr><td>${a.tag}</td><td>${a.count}</td></tr>`).join("");
+    const rows = filtered.map(r => `<tr><td>${r.incidentDate ? new Date(r.incidentDate).toLocaleDateString("en-GB") : "—"}</td><td>${r.eweLisTag || "—"}</td><td>${r.quarterAffected || "—"}</td><td>${r.pathogenIdentified || "—"}</td><td>${r.treatmentProduct || "—"}</td><td>${r.outcome || "Ongoing"}</td></tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>Mastitis Compliance — Sheep Dairy</title><style>body{font-family:Arial,sans-serif;font-size:10px;padding:20px}h1{font-size:14px}h2{font-size:11px;color:#555}h3{font-size:11px;margin:12px 0 6px}.kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}.kpi-box{border:1px solid #e5e7eb;border-radius:4px;padding:8px;text-align:center}.kpi-val{font-size:20px;font-weight:700}.kpi-lbl{font-size:9px;color:#6b7280;margin-top:2px}table{width:100%;border-collapse:collapse;margin-bottom:14px}th,td{border:1px solid #e5e7eb;padding:4px 6px;font-size:10px;text-align:left}th{background:#f9fafb;font-weight:700;font-size:9px;text-transform:uppercase}.note{font-size:8px;color:#555;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:8px}</style></head><body><h1>Mastitis Compliance Report — Sheep Dairy</h1><h2>Period: ${period} · Printed: ${printedDate}</h2><div class="kpi"><div class="kpi-box"><div class="kpi-val">${filtered.length}</div><div class="kpi-lbl">Total cases</div></div><div class="kpi-box"><div class="kpi-val">${filtered.filter(r => r.chronicCase).length}</div><div class="kpi-lbl">Chronic</div></div><div class="kpi-box"><div class="kpi-val">${filtered.filter(r => r.culledDueToMastitis).length}</div><div class="kpi-lbl">Culled</div></div><div class="kpi-box"><div class="kpi-val">${analytics.repeatAnimals.length}</div><div class="kpi-lbl">Repeat ewes</div></div></div>${pathRows ? `<h3>Pathogen Breakdown</h3><table><tr><th>Pathogen</th><th>Cases</th><th>%</th></tr>${pathRows}</table>` : ""}${repeatRows ? `<h3>Repeat Offenders (≥2 episodes)</h3><table><tr><th>Ewe LIS Tag</th><th>Episodes</th></tr>${repeatRows}</table>` : ""}<h3>All Records</h3><table><tr><th>Date</th><th>Ewe LIS Tag</th><th>Quarter</th><th>Pathogen</th><th>Treatment</th><th>Outcome</th></tr>${rows || "<tr><td colspan='6'>No records</td></tr>"}</table><p class="note">BSDA mastitis compliance report produced by BDE Farm Trac. Retain for 3 years. Printed: ${printedDate}.</p></body></html>`;
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    w.print();
+  };
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
-        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Total Cases</p><p className="text-2xl font-bold text-gray-800">{records.length}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Chronic Cases</p><p className="text-2xl font-bold text-amber-700">{chronicCount}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Culled Due to Mastitis</p><p className="text-2xl font-bold text-red-700">{culledCount}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Total Cases</p><p className="text-2xl font-bold text-gray-800">{filtered.length}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Chronic Cases</p><p className="text-2xl font-bold text-amber-700">{filtered.filter(r => r.chronicCase).length}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Culled Due to Mastitis</p><p className="text-2xl font-bold text-red-700">{filtered.filter(r => r.culledDueToMastitis).length}</p></CardContent></Card>
       </div>
-      <div className="flex justify-between items-center">
+      {analytics.trend.length > 1 && (
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted/30"><h3 className="text-sm font-semibold">Monthly Case Trend</h3></div>
+          <div className="p-4">
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={analytics.trend} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="cases" name="Cases" fill="#f59e0b" radius={[3, 3, 0, 0]} maxBarSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+      {(analytics.outcomeData.length > 0 || analytics.pathData.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {analytics.outcomeData.length > 0 && (
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="px-4 py-3 border-b border-border bg-muted/30"><h3 className="text-sm font-semibold">Outcome Distribution</h3></div>
+              <div className="p-4 flex justify-center">
+                <PieChart width={220} height={160}>
+                  <Pie data={analytics.outcomeData} cx={110} cy={75} innerRadius={40} outerRadius={70} dataKey="value" label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false} style={{ fontSize: 9 }}>
+                    {analytics.outcomeData.map((_: unknown, i: number) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </div>
+            </div>
+          )}
+          {analytics.pathData.length > 0 && (
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="px-4 py-3 border-b border-border bg-muted/30"><h3 className="text-sm font-semibold">Pathogen Breakdown</h3></div>
+              <div className="p-4">
+                <ResponsiveContainer width="100%" height={160}>
+                  <BarChart data={analytics.pathData} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
+                    <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={110} />
+                    <Tooltip />
+                    <Bar dataKey="value" name="Cases" fill="#3b82f6" radius={[0, 3, 3, 0]} maxBarSize={20} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {analytics.repeatAnimals.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
+          <div className="px-4 py-3 border-b border-amber-200"><h3 className="text-sm font-semibold text-amber-800">⚠ Repeat Mastitis Ewes — {analytics.repeatAnimals.length} ewe{analytics.repeatAnimals.length !== 1 ? "s" : ""} with ≥2 episodes</h3></div>
+          <div className="px-4 py-2 flex flex-wrap gap-2">
+            {analytics.repeatAnimals.map((a: { tag: string; count: number }) => (
+              <span key={a.tag} className="inline-flex items-center gap-1.5 px-2 py-1 bg-amber-100 border border-amber-300 rounded-md text-xs font-mono font-medium text-amber-900">{a.tag} <span className="font-bold text-amber-700">× {a.count}</span></span>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <h2 className="text-base font-semibold text-gray-800">Mastitis Records</h2>
-        <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={mastiYear} onValueChange={setMastiYear}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{mastiYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={printCompliance}><Printer className="w-3.5 h-3.5 mr-1" />Print Report</Button>
+          <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        </div>
       </div>
-      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : records.length === 0 ? (
+      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : filtered.length === 0 ? (
         <div className="text-center py-12 text-gray-400"><AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-40" /><p>No mastitis records yet.</p></div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide"><th className="py-2 px-3 text-left">Date</th><th className="py-2 px-3 text-left">Ewe LIS Tag</th><th className="py-2 px-3 text-left">Quarter</th><th className="py-2 px-3 text-left">Pathogen</th><th className="py-2 px-3 text-left">Treatment</th><th className="py-2 px-3 text-left">Outcome</th><th className="py-2 px-3 text-left">Actions</th></tr></thead>
             <tbody>
-              {records.map(r => (
+              {filtered.map(r => (
                 <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
                   <td className="py-2 px-3 font-medium">{fmt(r.incidentDate)}</td>
                   <td className="py-2 px-3 font-mono text-xs">{r.eweLisTag || "—"}</td>
@@ -531,9 +674,21 @@ export function SheepLambingTab({ farmId }: { farmId: number }) {
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Live Lambs</p><p className="text-2xl font-bold text-green-700">{liveCount}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">EID Pending</p><p className={`text-2xl font-bold ${pendingEid > 0 ? "text-amber-700" : "text-gray-400"}`}>{pendingEid}</p></CardContent></Card>
       </div>
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <h2 className="text-base font-semibold text-gray-800">Lambing Records</h2>
-        <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button size="sm" variant="outline" onClick={() => {
+            const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+            const rows = records.map(r => `<tr><td>${r.lambingDate ? new Date(r.lambingDate).toLocaleDateString("en-GB") : "—"}</td><td>${r.eweLisTag || "—"}</td><td>${r.birthOutcome?.replace(/-/g, " ") || "—"}</td><td>${r.lambCount ?? 1} × ${r.lambSex || "?"}</td><td>${r.easeScore ?? "—"}</td><td>${r.eidApplied ? "Applied" : "Pending"}</td><td>${r.lambBirthWeightKg || "—"}</td></tr>`).join("");
+            const html = `<!DOCTYPE html><html><head><title>Lambing Records — Sheep Dairy</title><style>body{font-family:Arial,sans-serif;font-size:10px;padding:20px}h1{font-size:14px}h2{font-size:11px;color:#555}.kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}.kpi-box{border:1px solid #e5e7eb;border-radius:4px;padding:8px;text-align:center}.kpi-val{font-size:20px;font-weight:700}.kpi-lbl{font-size:9px;color:#6b7280;margin-top:2px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #e5e7eb;padding:4px 6px;text-align:left}th{background:#f9fafb;font-weight:700;text-transform:uppercase;font-size:9px}.note{font-size:8px;color:#555;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:12px}</style></head><body><h1>Lambing Records — Sheep Dairy</h1><h2>Printed: ${printedDate}</h2><div class="kpi"><div class="kpi-box"><div class="kpi-val">${records.length}</div><div class="kpi-lbl">Litters recorded</div></div><div class="kpi-box"><div class="kpi-val">${liveCount}</div><div class="kpi-lbl">Live lambs</div></div><div class="kpi-box"><div class="kpi-val">${pendingEid}</div><div class="kpi-lbl">EID pending</div></div></div><table><tr><th>Date</th><th>Ewe LIS Tag</th><th>Outcome</th><th>Lambs</th><th>Ease</th><th>EID</th><th>Birth Weight (kg)</th></tr>${rows || "<tr><td colspan='7'>No records</td></tr>"}</table><p class="note">Sheep dairy lambing records — BDE Farm Trac. LIS EID tags must be applied before first movement off holding. Printed: ${printedDate}.</p></body></html>`;
+            const w = window.open("", "_blank");
+            if (!w) return;
+            w.document.write(html);
+            w.document.close();
+            w.print();
+          }}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
+          <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        </div>
       </div>
       {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : records.length === 0 ? (
         <div className="text-center py-12 text-gray-400"><p>No lambing records yet.</p></div>
@@ -694,13 +849,69 @@ export function BcsTab({ farmId }: { farmId: number }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-bcs", farmId] }); toast({ title: "Deleted" }); },
   });
 
+  const bcsYears = useMemo(() => {
+    const s = new Set<string>(records.map(r => String(r.assessmentDate || "").slice(0, 4)).filter(Boolean));
+    return Array.from(s).sort((a, b) => b.localeCompare(a));
+  }, [records]);
+  const [bcsYear, setBcsYear] = useState("all");
+  const filteredBcs = useMemo(() => bcsYear === "all" ? records : records.filter(r => String(r.assessmentDate || "").startsWith(bcsYear)), [records, bcsYear]);
+
+  const bcsChartData = useMemo(() => {
+    const byDate: Record<string, { label: string; scores: number[] }> = {};
+    [...records].sort((a, b) => String(a.assessmentDate).localeCompare(String(b.assessmentDate))).forEach(r => {
+      const key = String(r.assessmentDate || "").slice(0, 7);
+      if (key.length !== 7) return;
+      const label = new Date(key + "-01").toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+      if (!byDate[key]) byDate[key] = { label, scores: [] };
+      const s = parseFloat(r.bcsScore || "");
+      if (!isNaN(s)) byDate[key].scores.push(s);
+    });
+    return Object.keys(byDate).sort().map(k => ({ label: byDate[k].label, avgBcs: byDate[k].scores.length ? parseFloat((byDate[k].scores.reduce((a, b) => a + b, 0) / byDate[k].scores.length).toFixed(2)) : null }));
+  }, [records]);
+
+  const printBcs = () => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<html><head><title>BCS Records — Sheep Dairy</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f5f5f5}</style></head><body><h2>Body Condition Scoring Records${bcsYear !== "all" ? ` — ${bcsYear}` : ""}</h2><table><thead><tr><th>Date</th><th>Ewe LIS Tag</th><th>Stage</th><th>BCS</th><th>Action Required</th><th>Assessed By</th></tr></thead><tbody>${filteredBcs.map(r => `<tr><td>${fmt(r.assessmentDate)}</td><td>${r.eweLisTag || "—"}</td><td>${r.assessmentStage || "—"}</td><td>${r.bcsScore || "—"}</td><td>${r.actionRequired || "None"}</td><td>${r.assessedBy || "—"}</td></tr>`).join("")}</tbody></table></body></html>`);
+    w.document.close(); w.print();
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h2 className="text-base font-semibold text-gray-800">Body Condition Scoring (1–5 scale)</h2><Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Assessment</Button></div>
-      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : records.length === 0 ? <div className="text-center py-12 text-gray-400"><p>No BCS records yet.</p></div> : (
+      {bcsChartData.length > 1 && (
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center justify-between">
+            <h3 className="text-sm font-semibold">BCS Trend — Average by Month</h3>
+            <span className="text-xs text-gray-400">Target range: 2.5–3.5 at all stages</span>
+          </div>
+          <div className="p-4">
+            <ResponsiveContainer width="100%" height={180}>
+              <LineChart data={bcsChartData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <YAxis domain={[1, 5]} ticks={[1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]} tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(v: number) => [`BCS ${v}`, "Avg BCS"]} />
+                <Line type="monotone" dataKey="avgBcs" name="Avg BCS" stroke="#10b981" strokeWidth={2} dot={{ r: 4, fill: "#10b981" }} connectNulls />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <h2 className="text-base font-semibold text-gray-800">Body Condition Scoring (1–5 scale)</h2>
+        <div className="flex gap-2 flex-wrap">
+          <Select value={bcsYear} onValueChange={setBcsYear}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{bcsYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={printBcs}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
+          <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Assessment</Button>
+        </div>
+      </div>
+      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : filteredBcs.length === 0 ? <div className="text-center py-12 text-gray-400"><p>No BCS records yet.</p></div> : (
         <div className="overflow-x-auto"><table className="w-full text-sm">
           <thead><tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide"><th className="py-2 px-3 text-left">Date</th><th className="py-2 px-3 text-left">Ewe LIS Tag</th><th className="py-2 px-3 text-left">Stage</th><th className="py-2 px-3 text-left">BCS</th><th className="py-2 px-3 text-left">Action</th><th className="py-2 px-3 text-left">Assessed By</th><th className="py-2 px-3 text-left">Actions</th></tr></thead>
-          <tbody>{records.map(r => (
+          <tbody>{filteredBcs.map(r => (
             <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
               <td className="py-2 px-3 font-medium">{fmt(r.assessmentDate)}</td>
               <td className="py-2 px-3 font-mono text-xs">{r.eweLisTag || "—"}</td>

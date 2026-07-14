@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Redirect } from "wouter";
 import { Plus, Pencil, Trash2, Loader2, Eye, Droplets, Printer, AlertTriangle } from "lucide-react";
+import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -444,6 +445,42 @@ function OrganicCollectionsTab({ farmId }: { farmId: number }) {
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Avg SCC (k/mL)</p><p className={`text-2xl font-bold ${avgScc == null ? "text-gray-400" : avgScc > 1000 ? "text-red-700" : avgScc > 500 ? "text-amber-700" : "text-green-700"}`}>{avgScc != null ? avgScc.toLocaleString() : "—"}</p><p className="text-xs text-gray-400">Limit: 1,000k</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">ABR Alerts</p><p className={`text-2xl font-bold ${abrPositive > 0 ? "text-red-700" : "text-gray-400"}`}>{abrPositive}</p></CardContent></Card>
       </div>
+
+      {(() => {
+        const monthMap: Record<string, { label: string; volL: number; scc: number | null }> = {};
+        [...filteredRecords].sort((a, b) => String(a.collectionDate).localeCompare(String(b.collectionDate))).forEach(r => {
+          const key = String(r.collectionDate || "").slice(0, 7);
+          if (key.length !== 7) return;
+          const label = new Date(key + "-01").toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+          if (!monthMap[key]) monthMap[key] = { label, volL: 0, scc: null };
+          monthMap[key].volL += parseFloat(r.volumeLitres || "0") || 0;
+          if (r.sccCount != null) monthMap[key].scc = r.sccCount;
+        });
+        const chartData = Object.keys(monthMap).sort().map(k => monthMap[k]);
+        if (chartData.length <= 1) return null;
+        return (
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Volume &amp; SCC Trend — Monthly</h3>
+              <span className="text-xs text-gray-400">Organic goat regulatory SCC limit: 1,000k cells/mL</span>
+            </div>
+            <div className="p-4">
+              <ResponsiveContainer width="100%" height={200}>
+                <ComposedChart data={chartData} margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 11 }} width={55} tickFormatter={(v: number) => `${v}L`} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} width={65} tickFormatter={(v: number) => `${v}k`} />
+                  <Tooltip formatter={(v: number, name: string) => [name === "SCC (k/mL)" ? `${v}k` : `${Number(v).toFixed(0)}L`, name]} />
+                  <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                  <Bar yAxisId="left" dataKey="volL" name="Volume (L)" fill="#10b981" radius={[3, 3, 0, 0]} maxBarSize={40} />
+                  <Line yAxisId="right" type="monotone" dataKey="scc" name="SCC (k/mL)" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">

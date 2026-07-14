@@ -34699,3 +34699,95 @@ router.delete("/farms/:farmId/scc-equipment/:id", requireAuth, requireTenant, re
   await db.execute(sql`DELETE FROM scc_test_equipment WHERE id = ${id} AND farm_id = ${farmId}`);
   res.json({ success: true });
 });
+
+// ─── Sheep Dairy Enterprise Report ────────────────────────────────────────────
+router.get("/farms/:farmId/sheep-dairy-enterprise-report", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const year = parseInt(String(req.query.year ?? new Date().getFullYear()));
+  const rows = (await db.execute(sql`
+    SELECT
+      to_char(date_trunc('month', record_date::date), 'YYYY-MM') AS month,
+      COUNT(*)::integer AS collections,
+      COALESCE(SUM(yield_litres::numeric), 0)::numeric AS volume_litres,
+      COALESCE(SUM(CASE
+        WHEN net_payment_pence IS NOT NULL THEN net_payment_pence
+        WHEN pence_per_litre IS NOT NULL AND yield_litres IS NOT NULL
+          THEN ROUND(pence_per_litre::numeric * yield_litres::numeric)::integer
+        ELSE 0
+      END), 0)::integer AS income_pence,
+      AVG(CASE WHEN pence_per_litre IS NOT NULL THEN pence_per_litre::numeric END)::numeric AS avg_ppl
+    FROM sheep_dairy_milk_records
+    WHERE farm_id = ${farmId}
+      AND EXTRACT(YEAR FROM record_date::date) = ${year}
+    GROUP BY 1 ORDER BY 1
+  `)).rows as { month: string; collections: number; volume_litres: string; income_pence: number; avg_ppl: string | null }[];
+
+  const totalVolume = rows.reduce((s, r) => s + parseFloat(r.volume_litres || "0"), 0);
+  const totalIncome = rows.reduce((s, r) => s + Number(r.income_pence || 0), 0);
+  const totalCollections = rows.reduce((s, r) => s + Number(r.collections || 0), 0);
+  const monthlyBreakdown = rows.map(r => ({
+    month: r.month,
+    volumeLitres: parseFloat(r.volume_litres || "0"),
+    incomePence: Number(r.income_pence || 0),
+    feedCostPence: 0,
+    collections: Number(r.collections || 0),
+    grossMarginPence: Number(r.income_pence || 0),
+    pplActual: r.avg_ppl != null ? parseFloat(r.avg_ppl) : null,
+  }));
+  res.json({
+    year, totalVolumeLitres: totalVolume, totalMilkIncomePence: totalIncome,
+    totalFeedCostPence: 0, totalFeedKg: 0, dairyPurchaseCostPence: 0, totalVetCostPence: 0,
+    totalVariableCostPence: 0, grossMarginPence: totalIncome,
+    pencePerLitre: totalVolume > 0 && totalIncome > 0 ? totalIncome / totalVolume : null,
+    feedCostPerLitrePence: null,
+    grossMarginPerLitrePence: totalVolume > 0 && totalIncome > 0 ? totalIncome / totalVolume : null,
+    collectionCount: totalCollections, feedDeliveryCount: 0, monthlyBreakdown,
+  });
+});
+
+// ─── Goat Dairy Enterprise Report ─────────────────────────────────────────────
+router.get("/farms/:farmId/goat-dairy-enterprise-report", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const year = parseInt(String(req.query.year ?? new Date().getFullYear()));
+  const rows = (await db.execute(sql`
+    SELECT
+      to_char(date_trunc('month', record_date::date), 'YYYY-MM') AS month,
+      COUNT(*)::integer AS collections,
+      COALESCE(SUM(yield_litres::numeric), 0)::numeric AS volume_litres,
+      COALESCE(SUM(CASE
+        WHEN net_payment_pence IS NOT NULL THEN net_payment_pence
+        WHEN pence_per_litre IS NOT NULL AND yield_litres IS NOT NULL
+          THEN ROUND(pence_per_litre::numeric * yield_litres::numeric)::integer
+        ELSE 0
+      END), 0)::integer AS income_pence,
+      AVG(CASE WHEN pence_per_litre IS NOT NULL THEN pence_per_litre::numeric END)::numeric AS avg_ppl
+    FROM goat_dairy_milk_records
+    WHERE farm_id = ${farmId}
+      AND EXTRACT(YEAR FROM record_date::date) = ${year}
+    GROUP BY 1 ORDER BY 1
+  `)).rows as { month: string; collections: number; volume_litres: string; income_pence: number; avg_ppl: string | null }[];
+
+  const totalVolume = rows.reduce((s, r) => s + parseFloat(r.volume_litres || "0"), 0);
+  const totalIncome = rows.reduce((s, r) => s + Number(r.income_pence || 0), 0);
+  const totalCollections = rows.reduce((s, r) => s + Number(r.collections || 0), 0);
+  const monthlyBreakdown = rows.map(r => ({
+    month: r.month,
+    volumeLitres: parseFloat(r.volume_litres || "0"),
+    incomePence: Number(r.income_pence || 0),
+    feedCostPence: 0,
+    collections: Number(r.collections || 0),
+    grossMarginPence: Number(r.income_pence || 0),
+    pplActual: r.avg_ppl != null ? parseFloat(r.avg_ppl) : null,
+  }));
+  res.json({
+    year, totalVolumeLitres: totalVolume, totalMilkIncomePence: totalIncome,
+    totalFeedCostPence: 0, totalFeedKg: 0, dairyPurchaseCostPence: 0, totalVetCostPence: 0,
+    totalVariableCostPence: 0, grossMarginPence: totalIncome,
+    pencePerLitre: totalVolume > 0 && totalIncome > 0 ? totalIncome / totalVolume : null,
+    feedCostPerLitrePence: null,
+    grossMarginPerLitrePence: totalVolume > 0 && totalIncome > 0 ? totalIncome / totalVolume : null,
+    collectionCount: totalCollections, feedDeliveryCount: 0, monthlyBreakdown,
+  });
+});

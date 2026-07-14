@@ -18,6 +18,10 @@ import { DocAttach } from "@/components/DocAttach";
 import { useToast } from "@/hooks/use-toast";
 import { AbrKitStockSection, SccEquipmentSection } from "@/pages/DairyPage";
 import { AbrProcurementSection } from "@/pages/dairy/AbrProcurementSection";
+import { DairyEnterpriseReport } from "@/components/DairyEnterpriseReport";
+import { ResponsiveContainer, BarChart, Bar, ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart } from "recharts";
+
+const PIE_COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
 
 const BASE = import.meta.env.BASE_URL;
 const api = (path: string) => `${BASE}api/${path}`;
@@ -60,7 +64,7 @@ function ResultBadge({ v }: { v?: string | null }) {
   return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>{v}</span>;
 }
 
-type Tab = "milk" | "mastitis" | "kidding" | "bcs" | "tank" | "cae" | "assurance" | "abr-kit" | "scc-equipment";
+type Tab = "milk" | "mastitis" | "kidding" | "bcs" | "tank" | "cae" | "assurance" | "abr-kit" | "scc-equipment" | "enterprise";
 
 export default function GoatDairyPage() {
   const { farmId } = useAppStore();
@@ -86,6 +90,7 @@ export default function GoatDairyPage() {
           <TabButton active={tab === "assurance"} onClick={() => setTab("assurance")}>Assurance</TabButton>
           <TabButton active={tab === "abr-kit"} onClick={() => setTab("abr-kit")}>ABR Kit Stock</TabButton>
           <TabButton active={tab === "scc-equipment"} onClick={() => setTab("scc-equipment")}>SCC Equipment</TabButton>
+          <TabButton active={tab === "enterprise"} onClick={() => setTab("enterprise")}>Enterprise Report</TabButton>
         </TabBar>
         <div className="mt-6">
           {tab === "milk" && <MilkTab farmId={farmId} />}
@@ -97,6 +102,7 @@ export default function GoatDairyPage() {
           {tab === "assurance" && <AssuranceTab />}
           {tab === "abr-kit" && <div className="space-y-6"><AbrKitStockSection farmId={farmId} /><AbrProcurementSection farmId={farmId} /></div>}
           {tab === "scc-equipment" && <SccEquipmentSection farmId={farmId} species="goat" />}
+          {tab === "enterprise" && <DairyEnterpriseReport farmId={farmId} endpoint={api(`farms/${farmId}/goat-dairy-enterprise-report`)} queryPrefix="goat-dairy-enterprise" speciesNote="Milk income from goat dairy collection records. Feed cost and other variable costs not yet included — add via Financial for a complete P&L." />}
         </div>
       </div>
     </AppLayout>
@@ -170,6 +176,42 @@ function MilkTab({ farmId }: { farmId: number }) {
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Avg SCC (k/mL)</p><p className={`text-2xl font-bold ${avgScc == null ? "text-gray-400" : avgScc > 1000 ? "text-red-700" : avgScc > 500 ? "text-amber-700" : "text-green-700"}`}>{avgScc != null ? avgScc.toLocaleString() : "—"}</p><p className="text-xs text-gray-400">UK limit: 1,000k cells/mL</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Records</p><p className="text-2xl font-bold text-gray-800">{filteredMilk.length}</p></CardContent></Card>
       </div>
+      {(() => {
+        const monthMap: Record<string, { label: string; yieldL: number; scc: number | null }> = {};
+        [...records].sort((a, b) => String(a.recordDate).localeCompare(String(b.recordDate))).forEach(r => {
+          const d = new Date(String(r.recordDate));
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          const label = d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+          if (!monthMap[key]) monthMap[key] = { label, yieldL: 0, scc: null };
+          monthMap[key].yieldL += parseFloat(r.yieldLitres || "0") || 0;
+          const scc = r.buyerSccThousands ?? r.sccThousands ?? null;
+          if (scc != null) monthMap[key].scc = scc;
+        });
+        const chartData = Object.keys(monthMap).sort().map(k => monthMap[k]);
+        if (chartData.length <= 1) return null;
+        return (
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Yield &amp; SCC Trend — Monthly</h3>
+              <span className="text-xs text-gray-400">Goat regulatory SCC limit: 1,000k cells/mL</span>
+            </div>
+            <div className="p-4">
+              <ResponsiveContainer width="100%" height={200}>
+                <ComposedChart data={chartData} margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 11 }} width={55} tickFormatter={(v: number) => `${v}L`} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} width={65} tickFormatter={(v: number) => `${v}k`} />
+                  <Tooltip formatter={(v: number, name: string) => [name === "SCC (k/mL)" ? `${v}k` : `${Number(v).toFixed(0)}L`, name]} />
+                  <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                  <Bar yAxisId="left" dataKey="yieldL" name="Yield (L)" fill="#3b82f6" radius={[3, 3, 0, 0]} maxBarSize={40} />
+                  <Line yAxisId="right" type="monotone" dataKey="scc" name="SCC (k/mL)" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        );
+      })()}
       <div className="flex flex-wrap justify-between items-center gap-2">
         <h2 className="text-base font-semibold text-gray-800">Milk Collection Records</h2>
         <div className="flex items-center gap-2 flex-wrap">
@@ -367,6 +409,22 @@ export function MastitisTab({ farmId }: { farmId: number }) {
     w.document.close(); w.print();
   };
 
+  const mastiAnalytics = useMemo(() => {
+    const monthMap: Record<string, number> = {};
+    filteredMasti.forEach(r => { const key = String(r.incidentDate || "").slice(0, 7); if (key.length === 7) monthMap[key] = (monthMap[key] || 0) + 1; });
+    const trend = Object.keys(monthMap).sort().map(k => ({ label: new Date(k + "-01").toLocaleDateString("en-GB", { month: "short", year: "2-digit" }), cases: monthMap[k] }));
+    const outcomeMap: Record<string, number> = {};
+    filteredMasti.forEach(r => { const o = r.outcome || "ongoing"; outcomeMap[o] = (outcomeMap[o] || 0) + 1; });
+    const outcomeData = Object.entries(outcomeMap).map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1).replace(/-/g, " "), value }));
+    const pathMap: Record<string, number> = {};
+    filteredMasti.forEach(r => { if (r.pathogenIdentified?.trim()) { const p = r.pathogenIdentified.trim(); pathMap[p] = (pathMap[p] || 0) + 1; } });
+    const pathData = Object.entries(pathMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8);
+    const animalMap: Record<string, number> = {};
+    filteredMasti.forEach(r => { if (r.doeLisTag) animalMap[r.doeLisTag] = (animalMap[r.doeLisTag] || 0) + 1; });
+    const repeatAnimals = Object.entries(animalMap).filter(([, c]) => c >= 2).map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count);
+    return { trend, outcomeData, pathData, repeatAnimals };
+  }, [filteredMasti]);
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
@@ -374,6 +432,65 @@ export function MastitisTab({ farmId }: { farmId: number }) {
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Chronic Cases</p><p className="text-2xl font-bold text-amber-700">{filteredMasti.filter(r => r.chronicCase).length}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Culled Due to Mastitis</p><p className="text-2xl font-bold text-red-700">{filteredMasti.filter(r => r.culledDueToMastitis).length}</p></CardContent></Card>
       </div>
+      {mastiAnalytics.trend.length > 1 && (
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted/30"><h3 className="text-sm font-semibold">Monthly Case Trend</h3></div>
+          <div className="p-4">
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={mastiAnalytics.trend} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="cases" name="Cases" fill="#f59e0b" radius={[3, 3, 0, 0]} maxBarSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+      {(mastiAnalytics.outcomeData.length > 0 || mastiAnalytics.pathData.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {mastiAnalytics.outcomeData.length > 0 && (
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="px-4 py-3 border-b border-border bg-muted/30"><h3 className="text-sm font-semibold">Outcome Distribution</h3></div>
+              <div className="p-4 flex justify-center">
+                <PieChart width={220} height={160}>
+                  <Pie data={mastiAnalytics.outcomeData} cx={110} cy={75} innerRadius={40} outerRadius={70} dataKey="value" label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false} style={{ fontSize: 9 }}>
+                    {mastiAnalytics.outcomeData.map((_: unknown, i: number) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </div>
+            </div>
+          )}
+          {mastiAnalytics.pathData.length > 0 && (
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="px-4 py-3 border-b border-border bg-muted/30"><h3 className="text-sm font-semibold">Pathogen Breakdown</h3></div>
+              <div className="p-4">
+                <ResponsiveContainer width="100%" height={160}>
+                  <BarChart data={mastiAnalytics.pathData} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
+                    <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={110} />
+                    <Tooltip />
+                    <Bar dataKey="value" name="Cases" fill="#3b82f6" radius={[0, 3, 3, 0]} maxBarSize={20} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {mastiAnalytics.repeatAnimals.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
+          <div className="px-4 py-3 border-b border-amber-200"><h3 className="text-sm font-semibold text-amber-800">⚠ Repeat Mastitis Does — {mastiAnalytics.repeatAnimals.length} doe{mastiAnalytics.repeatAnimals.length !== 1 ? "s" : ""} with ≥2 episodes</h3></div>
+          <div className="px-4 py-2 flex flex-wrap gap-2">
+            {mastiAnalytics.repeatAnimals.map((a: { tag: string; count: number }) => (
+              <span key={a.tag} className="inline-flex items-center gap-1.5 px-2 py-1 bg-amber-100 border border-amber-300 rounded-md text-xs font-mono font-medium text-amber-900">{a.tag} <span className="font-bold text-amber-700">× {a.count}</span></span>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap justify-between items-center gap-2">
         <h2 className="text-base font-semibold text-gray-800">Mastitis Records</h2>
         <div className="flex items-center gap-2 flex-wrap">
@@ -700,8 +817,40 @@ export function BcsTab({ farmId }: { farmId: number }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-dairy-bcs", farmId] }); toast({ title: "Deleted" }); },
   });
 
+  const bcsChartData = useMemo(() => {
+    const byDate: Record<string, { label: string; scores: number[] }> = {};
+    [...records].sort((a, b) => String(a.assessmentDate).localeCompare(String(b.assessmentDate))).forEach(r => {
+      const key = String(r.assessmentDate || "").slice(0, 7);
+      if (key.length !== 7) return;
+      const label = new Date(key + "-01").toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+      if (!byDate[key]) byDate[key] = { label, scores: [] };
+      const s = parseFloat(r.bcsScore || "");
+      if (!isNaN(s)) byDate[key].scores.push(s);
+    });
+    return Object.keys(byDate).sort().map(k => ({ label: byDate[k].label, avgBcs: byDate[k].scores.length ? parseFloat((byDate[k].scores.reduce((a, b) => a + b, 0) / byDate[k].scores.length).toFixed(2)) : null }));
+  }, [records]);
+
   return (
     <div className="space-y-4">
+      {bcsChartData.length > 1 && (
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center justify-between">
+            <h3 className="text-sm font-semibold">BCS Trend — Average by Month</h3>
+            <span className="text-xs text-gray-400">Target range: 2.5–3.5 at all stages</span>
+          </div>
+          <div className="p-4">
+            <ResponsiveContainer width="100%" height={180}>
+              <LineChart data={bcsChartData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <YAxis domain={[1, 5]} ticks={[1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]} tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(v: number) => [`BCS ${v}`, "Avg BCS"]} />
+                <Line type="monotone" dataKey="avgBcs" name="Avg BCS" stroke="#10b981" strokeWidth={2} dot={{ r: 4, fill: "#10b981" }} connectNulls />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap justify-between items-center gap-2">
         <h2 className="text-base font-semibold text-gray-800">Body Condition Scoring (1–5 scale)</h2>
         <div className="flex items-center gap-2 flex-wrap">

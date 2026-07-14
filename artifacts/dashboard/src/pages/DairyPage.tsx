@@ -6155,9 +6155,25 @@ export function SccEquipmentSection({ farmId, species }: { farmId: number; speci
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Calibration Overdue</p><p className={`text-2xl font-bold ${overdueCount > 0 ? "text-red-700" : "text-gray-400"}`}>{overdueCount}</p></CardContent></Card>
       </div>
 
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <h2 className="text-base font-semibold text-gray-800">SCC Test Equipment</h2>
-        <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Device</Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button size="sm" variant="outline" onClick={() => {
+            const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+            const overdue = records.filter(r => r.calibrationExpiryDate && new Date(r.calibrationExpiryDate) < new Date());
+            const rows = records.map(r => {
+              const expired = r.calibrationExpiryDate && new Date(r.calibrationExpiryDate) < new Date();
+              return `<tr${expired ? ' style="background:#fef2f2"' : ""}><td>${r.deviceName}</td><td>${r.testMethod || "—"}</td><td>${r.serialNumber || "—"}</td><td>${r.manufacturer || "—"}</td><td>${r.calibrationExpiryDate ? new Date(r.calibrationExpiryDate).toLocaleDateString("en-GB") : "—"}${expired ? ' <strong style="color:red">OVERDUE</strong>' : ""}</td><td>${r.nextServiceDueDate ? new Date(r.nextServiceDueDate).toLocaleDateString("en-GB") : "—"}</td><td>${r.inService ? "✓" : "✗"}</td></tr>`;
+            }).join("");
+            const html = `<!DOCTYPE html><html><head><title>SCC Equipment Calibration Schedule — ${speciesLabel}</title><style>body{font-family:Arial,sans-serif;font-size:10px;padding:20px}h1{font-size:14px}h2{font-size:11px;color:#555}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #e5e7eb;padding:4px 6px;text-align:left}th{background:#f9fafb;font-weight:700;text-transform:uppercase;font-size:9px}.alert{background:#fef2f2;border:1px solid #fecaca;padding:8px 12px;border-radius:4px;margin-bottom:12px;font-size:11px;color:#991b1b}.note{font-size:8px;color:#555;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:12px}</style></head><body><h1>SCC Equipment Calibration Schedule — ${speciesLabel}</h1><h2>Printed: ${printedDate}</h2>${overdue.length > 0 ? `<div class="alert">⚠ ${overdue.length} device${overdue.length !== 1 ? "s" : ""} with overdue calibration: ${overdue.map(r => r.deviceName).join(", ")}</div>` : ""}<table><tr><th>Device Name</th><th>Type</th><th>Serial No.</th><th>Manufacturer</th><th>Calibration Expiry</th><th>Next Service Due</th><th>In Service</th></tr>${rows || "<tr><td colspan='7'>No equipment recorded</td></tr>"}</table><p class="note">${speciesLabel} SCC test equipment register — BDE Farm Trac. Regulatory SCC limit: ${regulatoryLimit} cells/mL. Keep calibration certificates on file for ${species === "cattle" ? "Red Tractor Dairy / NMR" : species === "sheep" ? "BSDA" : "BGS"} assurance inspections. Printed: ${printedDate}.</p></body></html>`;
+            const w = window.open("", "_blank");
+            if (!w) return;
+            w.document.write(html);
+            w.document.close();
+            w.print();
+          }}><Printer className="w-3.5 h-3.5 mr-1" />Print Schedule</Button>
+          <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Device</Button>
+        </div>
       </div>
 
       {isLoading ? (

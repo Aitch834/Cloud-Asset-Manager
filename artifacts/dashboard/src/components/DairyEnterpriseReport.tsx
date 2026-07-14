@@ -78,14 +78,15 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-export function DairyEnterpriseReport({ farmId }: { farmId: number }) {
+export function DairyEnterpriseReport({ farmId, endpoint, queryPrefix, speciesNote }: { farmId: number; endpoint?: string; queryPrefix?: string; speciesNote?: string }) {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
   const [showMonthly, setShowMonthly] = useState(false);
 
+  const actualEndpoint = endpoint ?? `/api/farms/${farmId}/dairy-enterprise-report`;
   const { data, isLoading } = useQuery<DairyReportData>({
-    queryKey: ["dairy-enterprise-report", farmId, year],
-    queryFn: () => fetch(`/api/farms/${farmId}/dairy-enterprise-report?year=${year}`).then(r => r.json()),
+    queryKey: [queryPrefix ?? "dairy-enterprise-report", farmId, year],
+    queryFn: () => fetch(`${actualEndpoint}?year=${year}`).then(r => r.json()),
     enabled: !!farmId,
   });
 
