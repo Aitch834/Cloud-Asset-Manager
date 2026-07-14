@@ -26773,6 +26773,11 @@ router.post("/farms/:farmId/lip-submit-death/:mortalityId", requireAuth, require
       holdingCph,
       deathDate,
       earTag: mortality.tagNumber ?? undefined,
+      sex: (mortality as any).sex ?? undefined,
+      // birthDate: for the death PUT we re-include the birth context; look up from livestock record
+      birthDate: (mortality as any).birthDate
+        ? new Date((mortality as any).birthDate).toISOString().slice(0, 10)
+        : undefined,
       causeOfDeath: mortality.causeOfDeath ?? undefined,
       disposalMethod: mortality.disposalMethod ?? undefined,
     });
@@ -26875,6 +26880,58 @@ router.post("/farms/:farmId/lip-submit-birth/:calvingId", requireAuth, requireTe
     await db.update(lipSubmissionsTable).set({ status: "failed", errorMessage: err?.message ?? "Unknown error", updatedAt: new Date() }).where(eq(lipSubmissionsTable.id, submission.id));
     res.status(500).json({ error: err?.message ?? "LIP birth submission failed" });
   }
+});
+
+// ─── LIP Reference Data ──────────────────────────────────────────────────────
+
+/**
+ * GET /farms/:farmId/lip-breeds?species=bovine
+ * Proxy to LIS LIP GET /breeds — returns valid breed codes for a species.
+ * Used by the breed picker in the UI and for validating birth submissions.
+ */
+router.get("/farms/:farmId/lip-breeds", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const species = (req.query.species as string) ?? "cattle";
+  const [tokenRow] = await db.select().from(lipFarmTokensTable).where(eq(lipFarmTokensTable.farmId, farmId));
+  if (!tokenRow?.platformAccessToken) { res.status(400).json({ error: "LIP not connected for this farm" }); return; }
+  const accessToken = decryptLipToken(tokenRow.platformAccessToken);
+  const result = await callLipApi(accessToken, "GET", `/breeds?species=${encodeURIComponent(species)}`);
+  res.json(result);
+});
+
+/**
+ * GET /farms/:farmId/lip-death-reasons
+ * Proxy to LIS LIP GET /deathreasons — returns valid death reason IDs for the UI picker.
+ */
+router.get("/farms/:farmId/lip-death-reasons", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [tokenRow] = await db.select().from(lipFarmTokensTable).where(eq(lipFarmTokensTable.farmId, farmId));
+  if (!tokenRow?.platformAccessToken) { res.status(400).json({ error: "LIP not connected for this farm" }); return; }
+  const accessToken = decryptLipToken(tokenRow.platformAccessToken);
+  const result = await callLipApi(accessToken, "GET", "/deathreasons");
+  res.json(result);
+});
+
+/**
+ * GET /farms/:farmId/lip-animals?species=cattle&siteIdentifier=44/026/0001
+ * Proxy to LIS LIP GET /animals — list registered animals at a site.
+ */
+router.get("/farms/:farmId/lip-animals", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [tokenRow] = await db.select().from(lipFarmTokensTable).where(eq(lipFarmTokensTable.farmId, farmId));
+  if (!tokenRow?.platformAccessToken) { res.status(400).json({ error: "LIP not connected for this farm" }); return; }
+  const accessToken = decryptLipToken(tokenRow.platformAccessToken);
+  const species = (req.query.species as string) ?? "cattle";
+  const siteIdentifier = req.query.siteIdentifier as string;
+  if (!siteIdentifier) { res.status(400).json({ error: "siteIdentifier query param required" }); return; }
+  const qs = new URLSearchParams({ species, siteIdentifier });
+  if (req.query.page) qs.set("page", req.query.page as string);
+  if (req.query.pageSize) qs.set("pageSize", req.query.pageSize as string);
+  const result = await callLipApi(accessToken, "GET", `/animals?${qs.toString()}`);
+  res.json(result);
 });
 
 // ─── LIP Lost & Found ────────────────────────────────────────────────────────

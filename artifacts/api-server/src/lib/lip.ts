@@ -326,6 +326,7 @@ async function callLipApiWithKey(
     "Authorization": `Bearer ${accessToken}`,
     "Ocp-Apim-Subscription-Key": subscriptionKey,
     "Accept": "application/json",
+    "LI-Request-Mode": "sync",
   };
   if (body !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -396,6 +397,7 @@ async function callLipApiMultipartWithKey(
       "Authorization": `Bearer ${accessToken}`,
       "Ocp-Apim-Subscription-Key": subscriptionKey,
       "Accept": "application/json",
+      "LI-Request-Mode": "sync",
     },
     body: form,
   });
@@ -614,10 +616,11 @@ export async function submitLipBirth(params: LipBirthParams): Promise<LipSubmiss
       species: "cattle",
       ...(params.calfSex ? { sex: params.calfSex } : {}),
     },
-    ...(params.calfBreed ? { breed: { name: params.calfBreed } } : {}),
+    ...(params.calfBreed ? { breed: { code: params.calfBreed } } : {}),
     birth: {
       site: { identifiers: [{ identifier: params.holdingCph }] },
       date: params.birthDate,
+      year: parseInt(params.birthDate.slice(0, 4), 10),
       assistedBirthFlag: params.assistanceRequired ?? false,
       multipleBirthsFlag: (params.numberOfCalves ?? 1) > 1,
       embryoTransferFlag: isEmbryoTransfer,
@@ -625,13 +628,13 @@ export async function submitLipBirth(params: LipBirthParams): Promise<LipSubmiss
     registration: {
       site: { identifiers: [{ identifier: params.holdingCph }] },
       date: params.birthDate,
-      category: "bovine",
-    },
-    ...(params.damEarTag ? {
-      importParents: {
+      category: "birthRegistration",
+      ...(params.damEarTag ? {
         birthDam: { identifier: params.damEarTag, species: "cattle" },
-      },
-    } : {}),
+        // For normal (non-ET) births, genetic dam = birth dam
+        ...(!isEmbryoTransfer ? { geneticDam: { identifier: params.damEarTag, species: "cattle" } } : {}),
+      } : {}),
+    },
   };
 
   const res = await callLipApi(params.accessToken, "POST", "/animals", payload);
@@ -660,7 +663,11 @@ export interface LipDeathParams {
   holdingCph: string;
   deathDate: string;            // YYYY-MM-DD
   earTag?: string;              // UK ear tag — used as animal identifier in PUT /animals/{identifier}
+  sex?: string;                 // "male" | "female" — required by Animal schema
+  birthDate?: string;           // YYYY-MM-DD — original birth date, needed for birthRegistration category in death PUT
   causeOfDeath?: string;
+  deathReasonId?: string;       // UUID from GET /deathreasons — preferred over causeOfDeath name
+  holdingCphUuid?: string;      // LIS internal UUID for the holding (CPH string not resolved in death.site)
   disposalMethod?: string;
   tseTestRequired?: boolean;    // → tseTestRequiredFlag on death record
 }
@@ -798,16 +805,22 @@ export async function submitLipDeath(params: LipDeathParams): Promise<LipSubmiss
     animal: {
       identifier: params.earTag,
       species: "cattle",
+      sex: params.sex ?? "male",
     },
     registration: {
-      site: { identifiers: [{ identifier: params.holdingCph }] },
+      // category "registration" required for death.site CPH to resolve (birthRegistration = " ").
+      // registration.date must differ from the animal's stored birth date to avoid V052
+      // "The Birth Date has been updated before" — in production, death date != birth date.
+      site: { type: { type: "agriculturalHolding" }, identifiers: [{ identifier: params.holdingCph }] } as any,
       date: params.deathDate,
-      category: "bovine",
+      category: "registration",
     },
     death: {
       date: params.deathDate,
-      site: { identifiers: [{ identifier: params.holdingCph }] },
-      ...(params.causeOfDeath ? { reason: { name: params.causeOfDeath } } : {}),
+      // site.type agriculturalHolding required; without it the CPH resolves to " " in death context.
+      site: { type: { type: "agriculturalHolding" }, identifiers: [{ identifier: params.holdingCph }] } as any,
+      // reason requires a valid UUID from GET /deathreasons — omit if not provided
+      ...(params.deathReasonId ? { reason: { id: params.deathReasonId } } : {}),
       ...(params.tseTestRequired !== undefined ? { tseTestRequiredFlag: params.tseTestRequired } : {}),
     },
   };
