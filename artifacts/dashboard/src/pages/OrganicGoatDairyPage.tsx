@@ -18,6 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { MastitisTab, KiddingTab, BcsTab, BulkTankTab, CaeTab, AssuranceTab } from "@/pages/GoatDairyPage";
+import { AbrProcurementSection } from "@/pages/dairy/AbrProcurementSection";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 
 const BASE = import.meta.env.BASE_URL;
@@ -69,7 +70,7 @@ const PRODUCT_CATEGORIES = ["Antibiotic", "NSAID", "Anthelmintic", "Antiparasiti
 
 const ROUTES_OF_ADMINISTRATION = ["Intramuscular (IM)", "Subcutaneous (SC)", "Intravenous (IV)", "Oral", "Intramammary", "Topical", "Other"];
 
-type Tab = "conversion" | "collections" | "feed" | "treatments" | "mastitis" | "kidding" | "bcs" | "tank" | "cae" | "assurance";
+type Tab = "conversion" | "collections" | "feed" | "treatments" | "mastitis" | "kidding" | "bcs" | "tank" | "cae" | "assurance" | "abr-kit";
 
 export default function OrganicGoatDairyPage() {
   const { farmId } = useAppStore();
@@ -99,6 +100,7 @@ export default function OrganicGoatDairyPage() {
           <TabButton active={tab === "tank"} onClick={() => setTab("tank")}>Bulk Tank</TabButton>
           <TabButton active={tab === "cae"} onClick={() => setTab("cae")}>CAE Monitoring</TabButton>
           <TabButton active={tab === "assurance"} onClick={() => setTab("assurance")}>Assurance</TabButton>
+          <TabButton active={tab === "abr-kit"} onClick={() => setTab("abr-kit")}>ABR Kit Stock</TabButton>
         </TabBar>
         <div className="mt-6">
           {tab === "conversion" && <FlockConversionTab farmId={farmId} />}
@@ -111,6 +113,7 @@ export default function OrganicGoatDairyPage() {
           {tab === "tank" && <BulkTankTab farmId={farmId} />}
           {tab === "cae" && <CaeTab farmId={farmId} />}
           {tab === "assurance" && <AssuranceTab />}
+          {tab === "abr-kit" && <AbrProcurementSection farmId={farmId} />}
         </div>
       </div>
     </AppLayout>
@@ -367,6 +370,12 @@ function OrganicCollectionsTab({ farmId }: { farmId: number }) {
   const set = (k: keyof CollectionRecord, v: unknown) => setForm(p => ({ ...p, [k]: v }));
 
   const [yearFilter, setYearFilter] = useState("all");
+  const [abrKitStockId, setAbrKitStockId] = useState<string>("");
+  const abrStockQ = useQuery<{ stock: Array<{ id: number; productName: string; lotNumber: string | null; quantityRemaining: number }> }>({
+    queryKey: ["dairy-abr-stock", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/dairy/abr-test-kit-stock`)).then(r => r.json()),
+  });
+  const abrStock = abrStockQ.data?.stock ?? [];
 
   const { data, isLoading } = useQuery({
     queryKey: ["org-goat-collections", farmId],
@@ -396,10 +405,10 @@ function OrganicCollectionsTab({ farmId }: { farmId: number }) {
         throw new Error("Reason required for non-organic collection");
       }
       return fetch(api(`farms/${farmId}/organic-goat-dairy/collections${editing ? `/${editing.id}` : ""}`), {
-        method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+        method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, abrKitStockId: abrKitStockId || undefined }),
       });
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-goat-collections", farmId] }); setOpen(false); toast({ title: editing ? "Record updated" : "Collection added" }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-goat-collections", farmId] }); qc.invalidateQueries({ queryKey: ["dairy-abr-stock", farmId] }); setOpen(false); setAbrKitStockId(""); toast({ title: editing ? "Record updated" : "Collection added" }); },
     onError: (e: Error) => toast({ title: e.message || "Failed to save", variant: "destructive" }),
   });
 
@@ -408,8 +417,8 @@ function OrganicCollectionsTab({ farmId }: { farmId: number }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-goat-collections", farmId] }); toast({ title: "Record deleted" }); },
   });
 
-  function openNew() { setEditing(null); setForm(blank); setFormTab("collection"); setOpen(true); }
-  function openEdit(r: CollectionRecord) { setEditing(r); setForm(r); setFormTab("collection"); setOpen(true); }
+  function openNew() { setEditing(null); setForm(blank); setAbrKitStockId(""); setFormTab("collection"); setOpen(true); }
+  function openEdit(r: CollectionRecord) { setEditing(r); setForm(r); setAbrKitStockId(""); setFormTab("collection"); setOpen(true); }
 
   function doPrint() {
     const w = window.open("", "_blank");
@@ -612,6 +621,15 @@ function OrganicCollectionsTab({ farmId }: { farmId: number }) {
                 <div className="space-y-1">
                   <Label>ABR Tested By</Label>
                   <Input list="goat-dairy-staff-list" placeholder="Name of tester" value={form.abrTestedBy ?? ""} onChange={f("abrTestedBy")} />
+                </div>
+                <div className="col-span-2 space-y-1"><Label>ABR Kit Stock Record</Label>
+                  <Select value={abrKitStockId} onValueChange={setAbrKitStockId}>
+                    <SelectTrigger><SelectValue placeholder="Link kit (auto-decrements stock)" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">None / not tracking</SelectItem>
+                      {abrStock.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.productName}{s.lotNumber ? ` · Lot ${s.lotNumber}` : ""} ({s.quantityRemaining} remaining)</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-1"><Label>ABR Test Kit Lot</Label><Input value={form.abrTestKitLot ?? ""} onChange={f("abrTestKitLot")} placeholder="Lot number" /></div>
                 <div className="space-y-1"><Label>ABR Test Kit Batch</Label><Input value={form.abrTestKitBatch ?? ""} onChange={f("abrTestKitBatch")} placeholder="Batch / expiry" /></div>

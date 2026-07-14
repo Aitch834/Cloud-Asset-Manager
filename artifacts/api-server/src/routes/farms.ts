@@ -25901,8 +25901,9 @@ router.get("/farms/:farmId/organic-dairy/collections", requireAuth, requireTenan
 router.post("/farms/:farmId/organic-dairy/collections", requireAuth, requireTenant, requireModuleByKey("organic-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { collectionDate, collectorName, collectorSupplierId, vehicleRegistration, volumeLitres, fatPercentage, proteinPercentage, sccCount, tbcCount, milkTemperatureCelsius, tempTestedBy, antibioticResidueTestResult, abrTestedBy, abrTestKitLot, abrTestKitBatch, lactosePercentage, buyerLabResultsStatus, buyerLabResultsDate, buyerLabRef, buyerSccCount, buyerTbcCount, buyerFatPercentage, buyerProteinPercentage, buyerLactosePercentage, buyerBactoscanThousands, buyerTvcCfuMl, buyerThermsCfuMl, buyerColiformsCfuMl, buyerCaseinPercent, buyerUreaMillimolesPerLitre, isRetest, retestOfId, isOrganicCollection, nonOrganicReason, processorRef, collectionSlipRef, deductionsPence, netValuePence, recordedByUserId, recordedByUserName, witnessedBy, notes } = req.body;
+  const { collectionDate, collectorName, collectorSupplierId, vehicleRegistration, volumeLitres, fatPercentage, proteinPercentage, sccCount, tbcCount, milkTemperatureCelsius, tempTestedBy, antibioticResidueTestResult, abrTestedBy, abrTestKitLot, abrTestKitBatch, lactosePercentage, buyerLabResultsStatus, buyerLabResultsDate, buyerLabRef, buyerSccCount, buyerTbcCount, buyerFatPercentage, buyerProteinPercentage, buyerLactosePercentage, buyerBactoscanThousands, buyerTvcCfuMl, buyerThermsCfuMl, buyerColiformsCfuMl, buyerCaseinPercent, buyerUreaMillimolesPerLitre, isRetest, retestOfId, isOrganicCollection, nonOrganicReason, processorRef, collectionSlipRef, deductionsPence, netValuePence, recordedByUserId, recordedByUserName, witnessedBy, notes, abrKitStockId: odAbrKitId } = req.body;
   const [record] = await db.insert(organicDairyCollectionTable).values({ farmId, collectionDate, collectorName: collectorName ?? null, collectorSupplierId: collectorSupplierId ?? null, vehicleRegistration: vehicleRegistration ?? null, volumeLitres, fatPercentage: fatPercentage ?? null, proteinPercentage: proteinPercentage ?? null, sccCount: sccCount ?? null, tbcCount: tbcCount ?? null, milkTemperatureCelsius: milkTemperatureCelsius ?? null, tempTestedBy: tempTestedBy ?? null, antibioticResidueTestResult: antibioticResidueTestResult ?? null, abrTestedBy: abrTestedBy ?? null, abrTestKitLot: abrTestKitLot ?? null, abrTestKitBatch: abrTestKitBatch ?? null, lactosePercentage: lactosePercentage ?? null, buyerLabResultsStatus: buyerLabResultsStatus ?? null, buyerLabResultsDate: buyerLabResultsDate ?? null, buyerLabRef: buyerLabRef ?? null, buyerSccCount: buyerSccCount ?? null, buyerTbcCount: buyerTbcCount ?? null, buyerFatPercentage: buyerFatPercentage ?? null, buyerProteinPercentage: buyerProteinPercentage ?? null, buyerLactosePercentage: buyerLactosePercentage ?? null, buyerBactoscanThousands: buyerBactoscanThousands ?? null, buyerTvcCfuMl: buyerTvcCfuMl ?? null, buyerThermsCfuMl: buyerThermsCfuMl ?? null, buyerColiformsCfuMl: buyerColiformsCfuMl ?? null, buyerCaseinPercent: buyerCaseinPercent ?? null, buyerUreaMillimolesPerLitre: buyerUreaMillimolesPerLitre ?? null, isRetest: isRetest ?? false, retestOfId: retestOfId ?? null, isOrganicCollection: isOrganicCollection ?? true, nonOrganicReason: nonOrganicReason ?? null, processorRef: processorRef ?? null, collectionSlipRef: collectionSlipRef ?? null, deductionsPence: deductionsPence ?? null, netValuePence: netValuePence ?? null, recordedByUserId: recordedByUserId ?? null, recordedByUserName: recordedByUserName ?? null, witnessedBy: witnessedBy ?? null, notes: notes ?? null }).returning();
+  if (antibioticResidueTestResult && odAbrKitId) { db.update(dairyAbrTestKitStockTable).set({ quantityUsed: sql`quantity_used + 1`, quantityRemaining: sql`GREATEST(quantity_remaining - 1, 0)` }).where(and(eq(dairyAbrTestKitStockTable.id, parseInt(String(odAbrKitId))), eq(dairyAbrTestKitStockTable.farmId, farmId))).catch(e => console.error("[ORG-DAIRY] ABR stock decrement:", e)); }
   res.status(201).json({ record });
 });
 
@@ -32257,6 +32258,8 @@ router.post("/farms/:farmId/sheep-dairy/milk-records", requireAuth, requireTenan
   if (sAbr === "borderline") { createDairyAbrBorderlineNotification({ tenantId: sTenantId, farmId, recordId: record.id, recordDate: sRdStr, sessionType: (sSession as string) || null, abrTestedBy: (sAbrBy as string) || null }).catch(e => console.error("[SHEEP-DAIRY] ABR borderline:", e)); }
   if (sAbr === "invalid") { createDairyAbrInvalidNotification({ tenantId: sTenantId, farmId, recordId: record.id, recordDate: sRdStr, sessionType: (sSession as string) || null, abrTestedBy: (sAbrBy as string) || null }).catch(e => console.error("[SHEEP-DAIRY] ABR invalid:", e)); }
   if (sIsRetest && sRetestOfId && sAbr === "negative") { resolveAbrNotificationsForRecord({ farmId, retestOfId: Number(sRetestOfId) }).catch(e => console.error("[SHEEP-DAIRY] retest resolve:", e)); }
+  const { abrKitStockId: sAbrKitId } = req.body as Record<string, unknown>;
+  if (sAbr && sAbrKitId) { db.update(dairyAbrTestKitStockTable).set({ quantityUsed: sql`quantity_used + 1`, quantityRemaining: sql`GREATEST(quantity_remaining - 1, 0)` }).where(and(eq(dairyAbrTestKitStockTable.id, parseInt(String(sAbrKitId))), eq(dairyAbrTestKitStockTable.farmId, farmId))).catch(e => console.error("[SHEEP-DAIRY] ABR stock decrement:", e)); }
   res.status(201).json({ record });
 });
 
@@ -32506,6 +32509,8 @@ router.post("/farms/:farmId/goat-dairy/milk-records", requireAuth, requireTenant
   if (gAbr === "borderline") { createDairyAbrBorderlineNotification({ tenantId: gTenantId, farmId, recordId: record.id, recordDate: gRdStr, sessionType: (gSession as string) || null, abrTestedBy: (gAbrBy as string) || null }).catch(e => console.error("[GOAT-DAIRY] ABR borderline:", e)); }
   if (gAbr === "invalid") { createDairyAbrInvalidNotification({ tenantId: gTenantId, farmId, recordId: record.id, recordDate: gRdStr, sessionType: (gSession as string) || null, abrTestedBy: (gAbrBy as string) || null }).catch(e => console.error("[GOAT-DAIRY] ABR invalid:", e)); }
   if (gIsRetest && gRetestOfId && gAbr === "negative") { resolveAbrNotificationsForRecord({ farmId, retestOfId: Number(gRetestOfId) }).catch(e => console.error("[GOAT-DAIRY] retest resolve:", e)); }
+  const { abrKitStockId: gAbrKitId } = req.body as Record<string, unknown>;
+  if (gAbr && gAbrKitId) { db.update(dairyAbrTestKitStockTable).set({ quantityUsed: sql`quantity_used + 1`, quantityRemaining: sql`GREATEST(quantity_remaining - 1, 0)` }).where(and(eq(dairyAbrTestKitStockTable.id, parseInt(String(gAbrKitId))), eq(dairyAbrTestKitStockTable.farmId, farmId))).catch(e => console.error("[GOAT-DAIRY] ABR stock decrement:", e)); }
   res.status(201).json({ record });
 });
 
@@ -32775,7 +32780,9 @@ router.get("/farms/:farmId/organic-sheep-dairy/collections", requireAuth, requir
 router.post("/farms/:farmId/organic-sheep-dairy/collections", requireAuth, requireTenant, requireModuleByKey("organic-sheep-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
+  const { abrKitStockId: osdAbrKitId, antibioticResidueTestResult: osdAbr } = req.body as Record<string, unknown>;
   const [record] = await db.insert(organicSheepDairyCollectionsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  if (osdAbr && osdAbrKitId) { db.update(dairyAbrTestKitStockTable).set({ quantityUsed: sql`quantity_used + 1`, quantityRemaining: sql`GREATEST(quantity_remaining - 1, 0)` }).where(and(eq(dairyAbrTestKitStockTable.id, parseInt(String(osdAbrKitId))), eq(dairyAbrTestKitStockTable.farmId, farmId))).catch(e => console.error("[ORG-SHEEP-DAIRY] ABR stock decrement:", e)); }
   res.status(201).json({ record });
 });
 
@@ -32895,7 +32902,9 @@ router.get("/farms/:farmId/organic-goat-dairy/collections", requireAuth, require
 router.post("/farms/:farmId/organic-goat-dairy/collections", requireAuth, requireTenant, requireModuleByKey("organic-goat-dairy", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
+  const { abrKitStockId: ogdAbrKitId, antibioticResidueTestResult: ogdAbr } = req.body as Record<string, unknown>;
   const [record] = await db.insert(organicGoatDairyCollectionsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  if (ogdAbr && ogdAbrKitId) { db.update(dairyAbrTestKitStockTable).set({ quantityUsed: sql`quantity_used + 1`, quantityRemaining: sql`GREATEST(quantity_remaining - 1, 0)` }).where(and(eq(dairyAbrTestKitStockTable.id, parseInt(String(ogdAbrKitId))), eq(dairyAbrTestKitStockTable.farmId, farmId))).catch(e => console.error("[ORG-GOAT-DAIRY] ABR stock decrement:", e)); }
   res.status(201).json({ record });
 });
 

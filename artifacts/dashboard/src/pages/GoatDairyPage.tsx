@@ -125,9 +125,16 @@ function MilkTab({ farmId }: { farmId: number }) {
   const { data, isLoading } = useQuery({ queryKey: ["goat-dairy-milk", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-dairy/milk-records`)).then(r => r.json()) });
   const records: MilkRecord[] = data?.records ?? [];
 
+  const [abrKitStockId, setAbrKitStockId] = useState<string>("");
+  const abrStockQ = useQuery<{ stock: Array<{ id: number; productName: string; lotNumber: string | null; quantityRemaining: number }> }>({
+    queryKey: ["dairy-abr-stock", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/dairy/abr-test-kit-stock`)).then(r => r.json()),
+  });
+  const abrStock = abrStockQ.data?.stock ?? [];
+
   const save = useMutation({
-    mutationFn: (body: Partial<MilkRecord>) => fetch(api(`farms/${farmId}/goat-dairy/milk-records${editing ? `/${editing.id}` : ""}`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-dairy-milk", farmId] }); setOpen(false); toast({ title: editing ? "Record updated" : "Record added" }); },
+    mutationFn: (body: Partial<MilkRecord>) => fetch(api(`farms/${farmId}/goat-dairy/milk-records${editing ? `/${editing.id}` : ""}`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, abrKitStockId: abrKitStockId || undefined }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-dairy-milk", farmId] }); qc.invalidateQueries({ queryKey: ["dairy-abr-stock", farmId] }); setOpen(false); setAbrKitStockId(""); toast({ title: editing ? "Record updated" : "Record added" }); },
   });
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-dairy/milk-records/${id}`), { method: "DELETE" }).then(r => r.json()),
@@ -167,7 +174,7 @@ function MilkTab({ farmId }: { farmId: number }) {
             <SelectContent><SelectItem value="all">All years</SelectItem>{milkYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
           </Select>
           <Button size="sm" variant="outline" onClick={printMilk}><Printer className="w-3.5 h-3.5 mr-1" />Print</Button>
-          <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+          <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setAbrKitStockId(""); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
         </div>
       </div>
       {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : filteredMilk.length === 0 ? (
@@ -189,7 +196,7 @@ function MilkTab({ farmId }: { farmId: number }) {
                 <td className="py-2 px-3"><DocAttach farmId={farmId} endpoint="goat-dairy/milk-records" recordId={r.id} documentPath={(r as any).documentPath ?? null} documentName={(r as any).documentName ?? null} queryKey={["goat-dairy-milk", String(farmId)]} compact /></td>
                 <td className="py-2 px-3"><div className="flex gap-1">
                   <Button variant="ghost" size="sm" onClick={() => setViewRec(r)}><Eye className="w-3.5 h-3.5" /></Button>
-                  <Button variant="ghost" size="sm" onClick={() => { setEditing(r); setForm(r); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                  <Button variant="ghost" size="sm" onClick={() => { setEditing(r); setForm(r); setAbrKitStockId(""); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
                   <Button variant="ghost" size="sm" className="text-red-500" onClick={() => del.mutate(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                 </div></td>
               </tr>
@@ -216,7 +223,7 @@ function MilkTab({ farmId }: { farmId: number }) {
               {viewRec.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRec.notes}</p></div>}
               <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="goat-dairy-milk" recordId={viewRec.id} /></div>
             </div>
-            <DialogFooter><Button variant="outline" onClick={() => setViewRec(null)}>Close</Button><Button onClick={() => { setEditing(viewRec); setForm(viewRec); setOpen(true); setViewRec(null); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button></DialogFooter>
+            <DialogFooter><Button variant="outline" onClick={() => setViewRec(null)}>Close</Button><Button onClick={() => { setEditing(viewRec); setForm(viewRec); setAbrKitStockId(""); setOpen(true); setViewRec(null); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button></DialogFooter>
           </DialogContent>
         </Dialog>
       )}
@@ -247,6 +254,15 @@ function MilkTab({ farmId }: { farmId: number }) {
                   <Select value={form.antibioticResidueTestResult || "__none__"} onValueChange={v => set("antibioticResidueTestResult", v === "__none__" ? null : v)}>
                     <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
                     <SelectContent><SelectItem value="__none__">Not tested</SelectItem><SelectItem value="negative">Negative ✓</SelectItem><SelectItem value="positive">Positive ⚠</SelectItem><SelectItem value="borderline">Borderline</SelectItem><SelectItem value="invalid">Invalid (test void)</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                <div><Label>ABR Kit Stock Record</Label>
+                  <Select value={abrKitStockId} onValueChange={setAbrKitStockId}>
+                    <SelectTrigger><SelectValue placeholder="Link kit (auto-decrements stock)" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">None / not tracking</SelectItem>
+                      {abrStock.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.productName}{s.lotNumber ? ` · Lot ${s.lotNumber}` : ""} ({s.quantityRemaining} remaining)</SelectItem>)}
+                    </SelectContent>
                   </Select>
                 </div>
                 <div><Label>ABR Kit Lot</Label><Input value={form.abrTestKitLot || ""} onChange={e => set("abrTestKitLot", e.target.value)} /></div>

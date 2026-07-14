@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo } from "react";
+import { AbrProcurementSection } from "@/pages/dairy/AbrProcurementSection";
 import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -950,16 +951,26 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
   const members = membersData?.members ?? [];
   const staffNames = members.map(m => `${m.firstName} ${m.lastName}`.trim()).filter(Boolean);
 
+  const [abrKitStockId, setAbrKitStockId] = useState<string>("");
+  const abrStockQ = useQuery<{ stock: Array<{ id: number; productName: string; lotNumber: string | null; quantityRemaining: number }> }>({
+    queryKey: ["dairy-abr-stock", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/dairy/abr-test-kit-stock`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const abrStock = abrStockQ.data?.stock ?? [];
+
   const save = useMutation({
     mutationFn: () => {
       const url = editing
         ? `/api/farms/${farmId}/organic-dairy/collections/${editing.id}`
         : `/api/farms/${farmId}/organic-dairy/collections`;
-      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, abrKitStockId: abrKitStockId || undefined }) });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["organic-dairy-collections", farmId] });
+      qc.invalidateQueries({ queryKey: ["dairy-abr-stock", farmId] });
       setOpen(false);
+      setAbrKitStockId("");
       toast({ title: editing ? "Record updated" : "Record added" });
     },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
@@ -973,6 +984,7 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
 
   function openNew() {
     setEditing(null);
+    setAbrKitStockId("");
     setForm({
       isOrganicCollection: true,
       collectionDate: new Date().toISOString().slice(0, 10),
@@ -984,7 +996,7 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
     setFormTab("collection");
     setOpen(true);
   }
-  function openEdit(r: CollectionRecord) { setEditing(r); setForm({ ...r }); setFormTab("collection"); setOpen(true); }
+  function openEdit(r: CollectionRecord) { setEditing(r); setForm({ ...r }); setAbrKitStockId(""); setFormTab("collection"); setOpen(true); }
 
   const f = (k: keyof CollectionRecord) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
@@ -1291,6 +1303,15 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
                 <div className="space-y-1">
                   <Label>ABR Tested By</Label>
                   <Input list="dairy-staff-list-org" placeholder="Name of tester" value={form.abrTestedBy ?? ""} onChange={f("abrTestedBy")} />
+                </div>
+                <div className="col-span-2 space-y-1"><Label>ABR Kit Stock Record</Label>
+                  <Select value={abrKitStockId} onValueChange={setAbrKitStockId}>
+                    <SelectTrigger><SelectValue placeholder="Link kit (auto-decrements stock)" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">None / not tracking</SelectItem>
+                      {abrStock.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.productName}{s.lotNumber ? ` · Lot ${s.lotNumber}` : ""} ({s.quantityRemaining} remaining)</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-1"><Label>ABR Test Kit Lot</Label><Input value={form.abrTestKitLot ?? ""} onChange={f("abrTestKitLot")} placeholder="Lot number" /></div>
                 <div className="space-y-1"><Label>ABR Test Kit Batch</Label><Input value={form.abrTestKitBatch ?? ""} onChange={f("abrTestKitBatch")} placeholder="Batch / expiry" /></div>
@@ -2192,6 +2213,7 @@ export default function OrganicDairyPage() {
             <TabsTrigger value="feed">Feed & Nutrition</TabsTrigger>
             <TabsTrigger value="treatments">Treatment Compliance</TabsTrigger>
             <TabsTrigger value="enterprise">Enterprise Report</TabsTrigger>
+            <TabsTrigger value="abr-kit">ABR Kit Stock</TabsTrigger>
           </TabsList>
           <TabsContent value="herd-conversion" className="mt-4">
             <HerdConversionTab farmId={farmId} farmName={name} />
@@ -2229,6 +2251,9 @@ export default function OrganicDairyPage() {
           </TabsContent>
           <TabsContent value="enterprise" className="mt-4">
             <DairyEnterpriseReport farmId={farmId} />
+          </TabsContent>
+          <TabsContent value="abr-kit" className="mt-4">
+            <AbrProcurementSection farmId={farmId} />
           </TabsContent>
         </Tabs>
         {activeTab === "johnes" && <div className="mt-4"><OrganicJohnesTab farmId={farmId} /></div>}

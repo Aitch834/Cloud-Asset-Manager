@@ -130,9 +130,16 @@ function MilkTab({ farmId }: { farmId: number }) {
   const sccReadings = records.map(r => r.buyerSccThousands ?? r.sccThousands).filter((v): v is number => v != null);
   const avgScc = sccReadings.length ? Math.round(sccReadings.reduce((a, b) => a + b, 0) / sccReadings.length) : null;
 
+  const [abrKitStockId, setAbrKitStockId] = useState<string>("");
+  const abrStockQ = useQuery<{ stock: Array<{ id: number; productName: string; lotNumber: string | null; quantityRemaining: number }> }>({
+    queryKey: ["dairy-abr-stock", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/dairy/abr-test-kit-stock`)).then(r => r.json()),
+  });
+  const abrStock = abrStockQ.data?.stock ?? [];
+
   const save = useMutation({
-    mutationFn: (body: Partial<MilkRecord>) => fetch(api(`farms/${farmId}/sheep-dairy/milk-records${editing ? `/${editing.id}` : ""}`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-milk", farmId] }); setOpen(false); toast({ title: editing ? "Record updated" : "Record added" }); },
+    mutationFn: (body: Partial<MilkRecord>) => fetch(api(`farms/${farmId}/sheep-dairy/milk-records${editing ? `/${editing.id}` : ""}`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, abrKitStockId: abrKitStockId || undefined }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-milk", farmId] }); qc.invalidateQueries({ queryKey: ["dairy-abr-stock", farmId] }); setOpen(false); setAbrKitStockId(""); toast({ title: editing ? "Record updated" : "Record added" }); },
   });
 
   const del = useMutation({
@@ -140,8 +147,8 @@ function MilkTab({ farmId }: { farmId: number }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-milk", farmId] }); toast({ title: "Record deleted" }); },
   });
 
-  function openAdd() { setEditing(null); setForm(blank); setOpen(true); }
-  function openEdit(r: MilkRecord) { setEditing(r); setForm(r); setOpen(true); }
+  function openAdd() { setEditing(null); setForm(blank); setAbrKitStockId(""); setOpen(true); }
+  function openEdit(r: MilkRecord) { setEditing(r); setForm(r); setAbrKitStockId(""); setOpen(true); }
 
   return (
     <div className="space-y-4">
@@ -250,6 +257,15 @@ function MilkTab({ farmId }: { farmId: number }) {
                       <SelectItem value="positive">Positive ⚠</SelectItem>
                       <SelectItem value="borderline">Borderline</SelectItem>
                       <SelectItem value="invalid">Invalid (test void)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>ABR Kit Stock Record</Label>
+                  <Select value={abrKitStockId} onValueChange={setAbrKitStockId}>
+                    <SelectTrigger><SelectValue placeholder="Link kit (auto-decrements stock)" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">None / not tracking</SelectItem>
+                      {abrStock.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.productName}{s.lotNumber ? ` · Lot ${s.lotNumber}` : ""} ({s.quantityRemaining} remaining)</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
