@@ -298,6 +298,8 @@ const TITLES: [string, string][] = [
   ["IPM Plan — Integrated Pest Management Recording and SFI CIPM Evidence", "Fields & Crops"],
   ["Resource Planner — Building Your Resource Registry", "Resource Planner"],
   ["Assigning Resources to Tasks — Gantt View, Drag-and-Drop and Conflict Detection", "Resource Planner"],
+  ["Dairy Supplies — PPE & Chemical Drawdown Recording", "Livestock"],
+  ["Dairy Supplies — Restock Request Workflow", "Livestock"],
 ];
 
 const CONTENT: [string, string][] = [
@@ -5726,6 +5728,7 @@ const CONTENT: [string, string][] = [
 <p>When the resource sidebar is visible, each task bar in the Gantt chart shows up to three small colour-coded dots representing the resources currently assigned to that task. This gives a farm-manager overview of the full week's resource utilisation at a glance — without needing to open each task individually — making it straightforward to spot gaps or overloaded days across the operation.</p>`,
   ],
   // 276 — Enterprise Cost-of-Production Reports — Dairy, Beef, Sheep, Pig, Poultry, Labour and Fleet
+  // (articles 277 and 278 appended below)
   [
     "How to use BDE Farm Trac's seven enterprise cost-of-production reports to see cost per litre, per head or per bird across dairy, beef, sheep, pig, poultry, labour and fleet.",
     `<h2>Enterprise Cost-of-Production Reports</h2>
@@ -5736,6 +5739,58 @@ const CONTENT: [string, string][] = [
 <p>All five livestock enterprise reports include a dedicated vet cost line, sourced from your Vet Ledger and medicine records, so veterinary spend is properly reflected in the cost per head/litre/bird figure rather than being buried in a general overhead.</p>
 <h3>Where to find them</h3>
 <p>Navigate to <strong>Finance &amp; Business → Business Reports</strong> and select the enterprise report you want from the report picker. Each report can be filtered by date range/crop year and exported for use with your accountant or when benchmarking against AHDB figures. These sit alongside the farm-wide Season Reports profitability rollup, which prorates rent and overheads across all enterprises for a whole-farm view.</p>`,
+  ],
+  // 277 — Dairy Supplies — PPE & Chemical Drawdown Recording
+  [
+    "How to log PPE usage and chemical usage against your stock registers from any dairy section in BDE Farm Trac, keeping stock levels accurate and providing an audit trail.",
+    `<h2>Dairy Supplies — PPE &amp; Chemical Drawdown Recording</h2>
+<p>The <strong>Supplies</strong> tab on every dairy page (standard Dairy, Sheep Dairy, Goat Dairy, Organic Dairy, Organic Sheep Dairy, and Organic Goat Dairy) gives you a single place to record consumable usage per session and keep your PPE and chemical stock registers accurate without double-entry.</p>
+<h3>Where to find it</h3>
+<p>Navigate to <strong>Livestock → Dairy</strong> (or the relevant species dairy page) and select the <strong>Supplies</strong> tab. The tab opens with an <strong>Available Stock</strong> panel showing your current PPE quantities and chemical stock levels side-by-side. Items below their low-stock threshold are highlighted amber; items at zero stock show a red badge.</p>
+<h3>Logging a PPE drawdown</h3>
+<p>Click <strong>Log PPE Usage</strong> to open the drawdown form. Select the PPE item from the dropdown (populated from your PPE Stock Register in Staff &amp; Training), enter the quantity used, confirm the session date (defaults to today), and add any notes. On save, the quantity is deducted from the PPE Stock Register in real time — the same register used by the Staff &amp; Training module — so stock levels remain consistent across the platform.</p>
+<p>PPE items available for drawdown include gloves, overshoes, aprons, goggles, face shields, coveralls, and boot covers. Only items currently active in the PPE Stock Register are shown.</p>
+<h3>Logging a chemical drawdown</h3>
+<p>Click <strong>Log Chemical Usage</strong> to record usage of a cleaning or teat hygiene product. Select the chemical from the dropdown (populated from your spray and chemical stock items), enter the quantity used and the unit, confirm the date, and add notes. On save:</p>
+<ul>
+<li>The current stock level for that product is reduced by the quantity used.</li>
+<li>A stock movement record is created with a <em>dairy-session</em> reference type, linking the deduction directly back to this dairy usage event for full traceability from stock purchase through to point-of-use.</li>
+</ul>
+<p>Chemicals available include teat dip, udder wash, teat spray, CIP acid detergent, CIP alkaline detergent, disinfectant, and sanitiser — any active stock item in your chemical/spray store.</p>
+<h3>Usage History</h3>
+<p>All past drawdown records are listed in the <strong>Usage History</strong> section below the stock overview. Use the year filter and the type filter (PPE / Chemical / All) to narrow the list. The <strong>Print Report</strong> button generates a dated usage log suitable for inclusion in an audit pack or for review at a Red Tractor Dairy inspection.</p>
+<h3>Dairy type filtering</h3>
+<p>Each dairy page (cattle, sheep, goat, organic variants) maintains its own drawdown log, filtered by dairy type. This means a goat dairy's PPE records do not appear in the cattle dairy register and vice versa — keeping each enterprise's supply trail separate and clean.</p>`,
+  ],
+  // 278 — Dairy Supplies — Restock Request Workflow
+  [
+    "How to raise a restock request for PPE or dairy chemicals from the Supplies tab and how the admin approval, order, and receipt workflow progresses.",
+    `<h2>Dairy Supplies — Restock Request Workflow</h2>
+<p>When PPE or chemical stock runs low, the <strong>Supplies</strong> tab lets you raise a formal restock request directly from the dairy page. Requests are routed to the BDE Farm Trac admin team and follow a structured status workflow from approval through to goods received.</p>
+<h3>Raising a request</h3>
+<p>In the <strong>Supplies</strong> tab, click <strong>Request Restock</strong>. The form asks for:</p>
+<ul>
+<li><strong>Item type</strong> — PPE or Chemical</li>
+<li><strong>Item name / description</strong> — free text describing the product needed</li>
+<li><strong>Quantity requested</strong> — how many units or what volume you need</li>
+<li><strong>Urgency</strong> — Routine (standard ordering cycle), Urgent (needed within a few days), or Critical (immediate need — stock at zero)</li>
+<li><strong>Notes</strong> — any additional information for the admin team (preferred supplier, product code, specification)</li>
+</ul>
+<p>Click <strong>Submit Request</strong> to send. The request is immediately visible to the admin team in the BDE Admin Portal under <strong>Dairy Restock</strong>.</p>
+<h3>Status workflow</h3>
+<p>Requests progress through the following statuses:</p>
+<ul>
+<li><strong>Pending</strong> — submitted by the farm, awaiting admin review</li>
+<li><strong>Approved</strong> — admin has reviewed and approved the request; ordering is in progress</li>
+<li><strong>Ordered</strong> — the item has been placed with a supplier; awaiting delivery</li>
+<li><strong>Received</strong> — goods have arrived; the request is closed</li>
+<li><strong>Rejected</strong> — request declined by admin (a rejection reason is recorded and visible on the farm side)</li>
+</ul>
+<p>You can see the current status of all your requests in the <strong>Restock Requests</strong> section of the Supplies tab, alongside the urgency badge, submission date, and any notes from the admin team.</p>
+<h3>Admin Portal view</h3>
+<p>The BDE admin team manages all incoming requests through the <strong>Dairy Restock</strong> page in the Admin Portal. Requests can be filtered by status and urgency, and the admin team updates the status (Approve, Mark Ordered, Mark Received, or Reject with reason) from there. Critical-urgency requests are highlighted to ensure prompt action.</p>
+<h3>When to use Urgent or Critical</h3>
+<p>Use <strong>Urgent</strong> when you have a few days' stock remaining but cannot wait for the next routine order cycle. Use <strong>Critical</strong> when you have zero stock and operations are at risk — for example, no teat dip ahead of milking or no gloves available for DCT. Critical requests are flagged prominently in the admin portal.</p>`,
   ],
 ];
 
