@@ -85,3 +85,24 @@ Source: LIS LIP Developer Portal "Known Issues" table.
 V080 "Lost & Stolen Animal ID is for wrong species" is a known LIS platform bug (not a species subscription
 boundary, not a payload issue). The `/lostfounds` endpoint is broken for ALL species in the current
 sandbox. Status: Planned fix, no release date. No code changes needed on our side.
+
+## LIS LIP Planned Improvements (from portal, 14 Jul 2026)
+All status: Planned, TBC.
+
+| Enhancement | Description | Impact on our code |
+|---|---|---|
+| Dedicated /holdings Endpoint | List of all holdings registered to the authenticated user's account | Useful future addition: auto-populate CPH list for farm setup instead of manual entry |
+| Holding Number Lookup Service | Returns full name & address for a given CPH number | Useful for validating/auto-filling movement destination details |
+| Simplified Animal Death Reporting | Required attributes for death notifications will be reduced and streamlined | **Watch this:** our death payload is complex (registration block, agriculturalHolding type hints, matching siteIds). Once released, the payload may simplify significantly — revisit |
+| Support for Still Birth / Untagged Death Reporting | Record still births or untagged deaths during animal registration | Currently our birth route requires calfEarTag; once live, perinatal/untagged deaths become possible without a tag |
+
+## LIS LIP Documentation Updates (from portal, 14 Jul 2026)
+All status: Planned, TBC.
+
+| Area | Description |
+|---|---|
+| JSON Examples & Field Explanations | Clearer examples for births, deaths, movements — focusing on **minimal required** fields |
+| Reference Data Documentation | Full enum documentation (breeds, species, etc.) |
+
+**Note on JSON Examples:** Once released, verify our birth/death/movement payloads against the documented
+minimal field set — our current death payload may be over-specified (we worked it out empirically).
