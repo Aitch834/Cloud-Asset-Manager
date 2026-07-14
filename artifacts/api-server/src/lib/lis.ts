@@ -424,32 +424,60 @@ export async function refreshLisToken(refreshToken: string): Promise<LisTokenRes
  * Build the CLA API movement request body.
  */
 function buildMovementPayload(req: LisMovementRequest): object {
-  const typeMap: Record<LisMovementType, string> = {
-    movement_off: "OFF",
-    movement_on: "ON",
-    birth: "BIRTH",
-    death: "DEATH",
+  // CLA OData endpoint: POST /TransferRequests with { content: { ...TransferModel } } wrapper.
+  // ALL field names confirmed via live LIS CLA API validation (July 2026).
+  //
+  // TransferModel confirmed fields:
+  //   transferDate ✅  species ✅  userHolding ✅  sourceHolding ✅
+  //   destinationHolding ✅  animalCount ✅  movementGroups ✅
+  //
+  // MovementGroup confirmed: batches ✅
+  // Batch confirmed: batchNumber ✅ (flock mark e.g. "UK130181")  animalTotal ✅
+  //
+  // species must be title-case: 'Sheep' | 'Goat' | 'Deer'
+  // userHolding = the farm's own CPH (sourceHolding for off, destinationHolding for on)
+  //
+  // Individual animal identification (ear tag arrays) field name is still unknown.
+  // Batch approach using flock mark as batchNumber works for sheep movements.
+
+  const speciesMap: Record<LisSpecies, string> = {
+    SHEEP: "Sheep",
+    GOAT: "Goat",
+    DEER: "Deer",
   };
 
-  const animals = req.earTagNumbers
-    ? req.earTagNumbers
-        .split(/[\s,]+/)
-        .filter(Boolean)
-        .map(tag => ({ tagNumber: tag.trim() }))
-    : [];
+  const departureCph = req.departureCph ?? req.fromLocation ?? "";
+  const destinationCph = req.destinationCph ?? req.toLocation ?? "";
+
+  // userHolding = the holding that belongs to this user (the farm submitting).
+  // For movement_off the farm is the source; for movement_on the farm is the destination.
+  const userHolding = req.movementType === "movement_on" ? destinationCph : departureCph;
+
+  // Derive flock mark (batchNumber) from the provided flockMark or from the first ear tag.
+  // Ear tag format: UK<7-char flock code><5-char sequence> e.g. UK013018100001
+  // Flock mark = "UK" + flock-code-without-leading-zeros e.g. "UK130181"
+  let batchNumber = req.flockMark ?? "";
+  if (!batchNumber && req.earTagNumbers) {
+    const firstTag = req.earTagNumbers.split(/[\s,]+/).filter(Boolean)[0]?.trim() ?? "";
+    if (firstTag.toUpperCase().startsWith("UK") && firstTag.length >= 9) {
+      const flockCode = firstTag.slice(2, 9); // 7-char flock code portion
+      batchNumber = "UK" + flockCode.replace(/^0+/, "");
+    }
+  }
+
+  const animalCount = req.numberOfAnimals;
+
+  const batch: Record<string, unknown> = { animalTotal: animalCount };
+  if (batchNumber) batch.batchNumber = batchNumber;
 
   return {
-    movementDocument: {
-      movementType: typeMap[req.movementType],
-      movementDate: req.movementDate,
-      speciesIdentifier: req.species,
-      numberOfAnimals: req.numberOfAnimals,
-      departureCphNumber: req.departureCph ?? req.fromLocation ?? "",
-      destinationCphNumber: req.destinationCph ?? req.toLocation ?? "",
-      flockMark: req.flockMark ?? "",
-      licenceNumber: req.licenceNumber ?? "",
-      ...(animals.length > 0 && { animals }),
-    },
+    transferDate: req.movementDate,
+    species: speciesMap[req.species] ?? req.species,
+    userHolding,
+    sourceHolding: departureCph,
+    destinationHolding: destinationCph,
+    animalCount,
+    movementGroups: [{ batches: [batch] }],
   };
 }
 
@@ -479,54 +507,40 @@ export async function submitLisMovement(req: LisMovementRequest): Promise<LisRes
     return { sandbox: false, success: false, requestPayload: payloadStr, errorMessage: "No LIS access token available — please reconnect your LIS account." };
   }
 
-  const proxy = proxyUrl();
+  // LIS CLA OData API: movement submissions go to POST /TransferRequests.
+  // All POST bodies must use the { content: { ... } } wrapper (confirmed working pattern).
+  // Note: POST /movements (v1) was the old path and returns 404 — not a valid CLA endpoint.
+  const wrappedPayload = { content: payload };
 
   try {
-    let upstreamUrl: string;
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`,
-    };
+    const result = await callLisApi(token, "/TransferRequests", "POST", wrappedPayload);
 
-    if (proxy) {
-      // /v1.0 is part of CLA_API_BASE on the proxy — path here must not re-add it
-      upstreamUrl = `${proxy}/lis/cla/movements`;
-      Object.assign(headers, proxyHeaders());
-    } else {
-      const apiBase = process.env.LIS_USE_SANDBOX_API === "true" ? LIS_API_BASE_SANDBOX : LIS_API_BASE;
-      // LIS_API_BASE already includes /v1.0 — just append the resource path
-      upstreamUrl = `${apiBase}/movements`;
-      headers["Ocp-Apim-Subscription-Key"] = process.env.LIS_SUBSCRIPTION_KEY!;
+    if (!result.ok) {
+      const errData = result.data as any;
+      const errMsg = errData?.message ?? errData?.error?.message ?? result.raw.slice(0, 200) ?? `HTTP ${result.status}`;
+      return {
+        sandbox: false,
+        success: false,
+        requestPayload: JSON.stringify(wrappedPayload, null, 2),
+        responsePayload: result.raw,
+        errorMessage: errMsg,
+      };
     }
 
-    const res = await fetch(upstreamUrl, {
-      method: "POST",
-      headers,
-      body: payloadStr,
-    });
-
-    const responseText = await res.text();
-
-    if (!res.ok) {
-      let errMsg = `HTTP ${res.status}`;
-      try {
-        const errBody = JSON.parse(responseText) as any;
-        errMsg = errBody.message ?? errBody.error ?? errMsg;
-      } catch {}
-      return { sandbox: false, success: false, requestPayload: payloadStr, responsePayload: responseText, errorMessage: errMsg };
-    }
-
-    let responseData: any = {};
-    try { responseData = JSON.parse(responseText); } catch {}
-
-    const reference = responseData.movementId ?? responseData.reference ?? responseData.id;
+    const responseData = result.data as any;
+    const reference =
+      responseData?.content?.requestId ??
+      responseData?.content?.id ??
+      responseData?.requestId ??
+      responseData?.id ??
+      responseData?.reference;
 
     return {
       sandbox: false,
       success: true,
       reference: String(reference ?? ""),
-      requestPayload: payloadStr,
-      responsePayload: responseText,
+      requestPayload: JSON.stringify(wrappedPayload, null, 2),
+      responsePayload: result.raw,
     };
   } catch (err: any) {
     return { sandbox: false, success: false, requestPayload: payloadStr, errorMessage: err?.message ?? "Network error" };

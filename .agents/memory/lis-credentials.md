@@ -1,6 +1,6 @@
 ---
 name: LIS credentials & integration status
-description: LIS CLA API secrets, confirmed working auth endpoint, OAuth flow status
+description: LIS CLA API secrets, confirmed working auth endpoint, OAuth flow status, endpoint test matrix, confirmed TransferRequest schema
 ---
 
 ## Configured secrets (Replit)
@@ -54,19 +54,93 @@ Migration already applied: `ALTER TABLE lis_farm_tokens ADD COLUMN IF NOT EXISTS
 - **Sandbox:** `https://ext-cla.api.livestockinformation.org.uk/v1.0`
 - **Production:** `https://cla.api.livestockinformation.org.uk/v1.0`
 - `/v1.0` is part of the base URL — do NOT add `/v1/` to resource paths
+- **Direct access from Replit (US):** Not possible — LIS returns 401 "invalid subscription key" for direct calls. All calls must go via the UK proxy.
 
 ## CLA API request/response conventions (confirmed working June 2026)
-- POST bodies must be wrapped: `{ "content": { "holdings": [...] } }` — bare `{ "holdings": [...] }` returns 400 with "not a valid parameter" error
+- POST bodies must be wrapped: `{ "content": { ... } }` — bare payloads return 400 with "not a valid parameter" error
 - ValidHoldings response shape: `{ content: { validateResults: [{ holding, state, propertyName }] } }` — state value is `"Valid"` for recognised holdings
 - Response parsing must try `d.validateResults ?? d.content?.validateResults ?? d.value ?? d.items` to handle shape variations
 
-## Token refresh (confirmed working June 2026)
-- `refreshLisToken` tries proxy first, then falls through (does NOT return) to direct B2C if proxy fails
-- Direct refresh tries 4 endpoints in order: sandbox B2C policy → prod B2C policy → sandbox AAD → prod AAD
+## Token refresh (confirmed working July 2026 — tokens ~3 weeks old)
+- `refreshLisToken` tries proxy first, then falls through to direct B2C if proxy fails
+- Direct refresh tries 4 endpoints: sandbox B2C policy → prod B2C policy → sandbox AAD → prod AAD
 - Sandbox policy endpoint is first because beta test users are in `livestockinformationb2cprod` tenant
-- ROPC fallback in test-connection and sync routes is skipped if `creds.refreshToken` exists
+- ROPC fallback skipped if `creds.refreshToken` exists
 
 ## UK Proxy
 - Deployed on DigitalOcean London (LON1) VPS at port 3001, pm2 process `lis-proxy`
-- Token/refresh calls route through proxy when `LIS_PROXY_URL` is set
-- Auth code exchange (`exchangeLisCode`) calls b2clogin.com directly — no proxy needed for that leg
+- Header: `X-Proxy-Secret` (not `x-bde-proxy-secret`)
+- **Known bug: proxy URL-encodes `$` to `%24` in query strings.** OData params like `$top`, `$filter`, `$orderby` are mangled when forwarded to LIS. LIS then returns 400 "The $top query parameter must be provided" even when $top IS in the URL.
+- **Workaround:** Avoid query-string OData params. Use OData path functions instead (e.g. `ReviewBySpecies(species='Sheep',holding='...')` works fine). Fix requires updating the proxy server.
+- POSTs with JSON bodies work correctly via the proxy (no encoding issues).
+- `$metadata` path (GET /lis/cla/$metadata) returns 404 — not exposed through the APIM gateway.
+
+## POST /TransferRequests — CONFIRMED WORKING SCHEMA (July 2026)
+
+**Result: 201 Created — `requestId` returned. First successful submission July 15 2026.**
+
+Confirmed TransferModel fields (all others tried return "property X does not exist on type CLAOData.Models.Transfer.TransferModel"):
+```json
+{
+  "content": {
+    "transferDate": "2026-07-14",          // ISO date string (NOT movementDate, date, etc.)
+    "species": "Sheep",                     // Title-case: 'Sheep' | 'Goat' | 'Deer' (NOT 'SHEEP')
+    "userHolding": "01/100/0257",           // Farm's own CPH (source for off, dest for on)
+    "sourceHolding": "01/100/0257",         // Departure CPH
+    "destinationHolding": "01/100/0264",    // Destination CPH
+    "animalCount": 3,                       // Top-level total count (NOT animalTotal, numberOfAnimals, headCount)
+    "movementGroups": [{
+      "batches": [{
+        "batchNumber": "UK130181",          // Flock mark: UK + flock-code-without-leading-zeros
+        "animalTotal": 3                    // Count within this batch
+      }]
+    }]
+  }
+}
+```
+
+**Flock mark (batchNumber) derivation from ear tags:**
+- Ear tag format: `UK<7-char flock code><5-char sequence>` e.g. `UK013018100001`
+- Flock code = chars 2–8: `0130181`
+- batchNumber = `UK` + lstrip-zeros(flock-code) = `UK130181`
+- Implemented in `buildMovementPayload` — uses `req.flockMark` if provided, else derives from first ear tag
+
+**Key discoveries (70+ field names tried to find these):**
+- `batches` ❌ for species='Sheep' when batchNumber is an individual ear tag format (e.g. UK013018100001)
+- `batches` ✅ for species='Sheep' when batchNumber is the flock mark format (e.g. UK130181)
+- Individual ear tag array field in MovementGroup: STILL UNKNOWN after 70+ attempts
+  (tried: animals, individuals, tags, earTags, identifiedAnimals, tagInformations, identifications, and many more)
+  → Batch approach with flock mark is the current working solution
+
+**Response shape:**
+```json
+{
+  "@odata.context": "https://lz-cla-core-cla-odata-prod-ext-uks-01.azurewebsites.net/v1/$metadata#TransferRequests/$entity",
+  "requestId": 60197,
+  "requestStatus": "Pending",
+  "requestDate": "2026-07-15T00:22:31.717+01:00",
+  "updatedDate": "2026-07-15T00:22:31.717+01:00",
+  "isFullUndone": false,
+  "undoSupported": true,
+  "userName": null,
+  "isContentPurged": false,
+  "errors": [],
+  "warnings": [],
+  "validationErrors": null
+}
+```
+Reference stored as `requestId` (integer). `submitLisMovement` already handles `responseData?.requestId`.
+
+## CLA Endpoint Test Matrix (July 2026)
+| Endpoint | Method | Status | Notes |
+|---|---|---|---|
+| /Holdings/ValidHoldings | POST | ✅ 200 | Content wrapper required |
+| /HoldingMovementForReviews/ReviewBySpecies(species='...',holding='...') | GET | ✅ 200 | Path-param OData, no query string |
+| /TransferRequests | POST | ✅ 201 | Working — confirmed July 2026. Schema above. |
+| /TransferRequests?$top=50 | GET | ❌ 400 | Proxy encodes `$` → `%24`; LIS never sees `$top` |
+| /$metadata | GET | ❌ 404 | Not exposed through APIM gateway |
+| /ReviewHoldingMovementRequests | POST | ✅ implemented | Content wrapper; used in review flow |
+| /UndoRequests | POST | ✅ implemented | Content wrapper |
+
+## `isLisSandboxMode()` in lis.ts
+Checks `!process.env.LIS_SUBSCRIPTION_KEY` (NOT `LIS_USE_SANDBOX_API`). Since the key IS set in production, sandbox mode is always `false`. The `LIS_USE_SANDBOX_API` env var is now irrelevant to this function.

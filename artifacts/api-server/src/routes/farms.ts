@@ -26558,16 +26558,35 @@ router.post("/farms/:farmId/lis-submit/:movementId", requireAuth, requireTenant,
   // Refresh token if expired or not present
   let accessToken = creds?.accessToken ?? undefined;
   if (!isLisSandboxMode() && creds?.isConfigured) {
-    if (!accessToken || (creds.tokenExpiresAt && new Date(creds.tokenExpiresAt) < new Date(Date.now() + 60000))) {
-      const tokenResult = await fetchLisToken(creds.lisUsername!, password);
-      if (tokenResult.success && tokenResult.accessToken) {
-        accessToken = tokenResult.accessToken;
-        await db.update(lisFarmTokensTable).set({
-          accessToken: tokenResult.accessToken,
-          refreshToken: tokenResult.refreshToken ?? undefined,
-          tokenExpiresAt: tokenResult.expiresIn ? new Date(Date.now() + tokenResult.expiresIn * 1000) : undefined,
-          updatedAt: new Date(),
-        }).where(eq(lisFarmTokensTable.farmId, farmId));
+    const tokenExpired = !accessToken || (creds.tokenExpiresAt && new Date(creds.tokenExpiresAt) < new Date(Date.now() + 60_000));
+    if (tokenExpired) {
+      // ── Try OAuth refresh token first ───────────────────────────────────
+      if (creds.refreshToken) {
+        const refreshResult = await refreshLisToken(creds.refreshToken);
+        if (refreshResult.success && refreshResult.accessToken) {
+          accessToken = refreshResult.accessToken;
+          await db.update(lisFarmTokensTable).set({
+            accessToken,
+            refreshToken: refreshResult.refreshToken ?? undefined,
+            tokenExpiresAt: refreshResult.expiresIn ? new Date(Date.now() + refreshResult.expiresIn * 1000) : undefined,
+            updatedAt: new Date(),
+          }).where(eq(lisFarmTokensTable.farmId, farmId));
+        } else {
+          accessToken = undefined;
+        }
+      }
+      // ── Legacy ROPC fallback ─────────────────────────────────────────────
+      if (!accessToken && creds.lisPasswordEncrypted) {
+        const tokenResult = await fetchLisToken(creds.lisUsername!, password);
+        if (tokenResult.success && tokenResult.accessToken) {
+          accessToken = tokenResult.accessToken;
+          await db.update(lisFarmTokensTable).set({
+            accessToken: tokenResult.accessToken,
+            refreshToken: tokenResult.refreshToken ?? undefined,
+            tokenExpiresAt: tokenResult.expiresIn ? new Date(Date.now() + tokenResult.expiresIn * 1000) : undefined,
+            updatedAt: new Date(),
+          }).where(eq(lisFarmTokensTable.farmId, farmId));
+        }
       }
     }
   }
@@ -27344,7 +27363,7 @@ router.post("/farms/:farmId/lis/sync-herds", requireAuth, requireTenant, async (
   }
 
   // ── 3. Fetch transfer requests (outbound movements) ───────────────────────
-  const transferResult = await callLisApi(accessToken!, "/TransferRequests?$top=50&$orderby=requestDate desc");
+  const transferResult = await callLisApi(accessToken!, "/TransferRequests?$top=50");
   let recentTransfers: any[] = [];
   if (transferResult.data) {
     const d = transferResult.data as any;
