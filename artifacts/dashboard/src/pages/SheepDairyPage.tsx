@@ -77,7 +77,7 @@ export default function SheepDairyPage() {
           </p>
         </div>
         <TabBar>
-          <TabButton active={tab === "milk"} onClick={() => setTab("milk")}>Milk Collections</TabButton>
+          <TabButton active={tab === "milk"} onClick={() => setTab("milk")}>Milk Collections ★</TabButton>
           <TabButton active={tab === "mastitis"} onClick={() => setTab("mastitis")}>Mastitis</TabButton>
           <TabButton active={tab === "kidding"} onClick={() => setTab("kidding")}>Lambing Records</TabButton>
           <TabButton active={tab === "bcs"} onClick={() => setTab("bcs")}>Body Condition</TabButton>
