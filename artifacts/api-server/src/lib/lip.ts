@@ -680,6 +680,7 @@ export interface LipLostFoundParams {
   accessToken: string;
   identifier: string;           // animal ear tag / identifier
   holdingCph: string;
+  species?: string;             // "cattle" | "sheep" | etc — required by V080 species check
   status: LipLostFoundStatus;
   eventDate: string;            // YYYY-MM-DD
   crimeReferenceNumber?: string;
@@ -693,6 +694,7 @@ export interface LipLostFoundParams {
 export async function submitLipLostFound(params: LipLostFoundParams): Promise<LipSubmissionResult> {
   const payload: Record<string, unknown> = {
     identifier: params.identifier,
+    species: params.species ?? "cattle",
     site: { identifiers: [{ identifier: params.holdingCph }] },
     status: params.status,
     eventDate: params.eventDate,
@@ -808,16 +810,23 @@ export async function submitLipDeath(params: LipDeathParams): Promise<LipSubmiss
       sex: params.sex ?? "male",
     },
     registration: {
-      // category "registration" required for death.site CPH to resolve (birthRegistration = " ").
-      // registration.date must differ from the animal's stored birth date to avoid V052
-      // "The Birth Date has been updated before" — in production, death date != birth date.
+      // category "registration" is required for death.site CPH to resolve correctly.
+      // registration.date = deathDate (the death registration date).
+      //
+      // KNOWN SANDBOX LIMITATION: V052 "The Birth Date has been updated before" fires
+      // when the PUT /animals is done on the SAME CALENDAR DAY as the original POST /animals
+      // (birth registration). In production, births and deaths are days/weeks/months apart,
+      // so V052 never fires. Same-day testing in the sandbox is not possible.
+      //
+      // agriculturalHolding type hint required for both registration.site and death.site
+      // CPH string resolution to work correctly.
       site: { type: { type: "agriculturalHolding" }, identifiers: [{ identifier: params.holdingCph }] } as any,
       date: params.deathDate,
       category: "registration",
     },
     death: {
       date: params.deathDate,
-      // site.type agriculturalHolding required; without it the CPH resolves to " " in death context.
+      // site.type agriculturalHolding required; without it the CPH resolves to " " (null UUID).
       site: { type: { type: "agriculturalHolding" }, identifiers: [{ identifier: params.holdingCph }] } as any,
       // reason requires a valid UUID from GET /deathreasons — omit if not provided
       ...(params.deathReasonId ? { reason: { id: params.deathReasonId } } : {}),

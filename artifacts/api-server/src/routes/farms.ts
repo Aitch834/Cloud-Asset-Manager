@@ -26762,6 +26762,17 @@ router.post("/farms/:farmId/lip-submit-death/:mortalityId", requireAuth, require
   const deathDate = mortality.dateOfDeath ? new Date(mortality.dateOfDeath).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
   const holdingCph = (farm as any)?.bcmsHoldingNumber ?? "";
 
+  // Look up calving record to get birthDate and sex (not stored on mortality table)
+  const [calving] = mortality.tagNumber
+    ? await db.select({ calvingDate: dairyCalvingRecordsTable.calvingDate, calfSex: dairyCalvingRecordsTable.calfSex })
+        .from(dairyCalvingRecordsTable)
+        .where(and(eq(dairyCalvingRecordsTable.farmId, farmId), eq(dairyCalvingRecordsTable.calfEarTag, mortality.tagNumber)))
+        .orderBy(desc(dairyCalvingRecordsTable.calvingDate))
+        .limit(1)
+    : [undefined];
+  const birthDate = calving?.calvingDate ? new Date(calving.calvingDate).toISOString().slice(0, 10) : undefined;
+  const sex = calving?.calfSex ?? undefined;
+
   const [submission] = await db.insert(lipSubmissionsTable).values({
     farmId, mortalityId, submissionType: "death",
     status: "pending", sandboxMode: isLipSandboxMode(), submittedAt: new Date(),
@@ -26773,11 +26784,8 @@ router.post("/farms/:farmId/lip-submit-death/:mortalityId", requireAuth, require
       holdingCph,
       deathDate,
       earTag: mortality.tagNumber ?? undefined,
-      sex: (mortality as any).sex ?? undefined,
-      // birthDate: for the death PUT we re-include the birth context; look up from livestock record
-      birthDate: (mortality as any).birthDate
-        ? new Date((mortality as any).birthDate).toISOString().slice(0, 10)
-        : undefined,
+      sex,
+      birthDate,
       causeOfDeath: mortality.causeOfDeath ?? undefined,
       disposalMethod: mortality.disposalMethod ?? undefined,
     });
