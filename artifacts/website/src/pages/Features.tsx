@@ -508,6 +508,21 @@ const sections: Section[] = [
         ],
       },
       {
+        title: "Organic Poultry",
+        icon: Bird,
+        color: "bg-orange-50 text-orange-700 border-orange-100",
+        badge: "module",
+        features: [
+          "Certification tab — record the holding's organic poultry certification per flock or enterprise: certifying body (Soil Association, OF&G, Organic Farmers & Growers, or other), certificate type (Laying Hens, Broilers, Turkeys, Ducks, Geese, or Mixed Poultry), certificate number, issue date, expiry date, scope, and status (Active, Pending, Suspended, or Withdrawn); expiry alerts surface in the Farm Planner as amber and red event cards as the renewal date approaches",
+          "Outdoor Access tab — log every outdoor access event per flock: flock reference, total birds in flock, number of birds on range, range area (ha), auto-calculated stocking density (birds/ha), access duration, vegetation condition (Good, Fair, Poor), and compliance status (Compliant, Derogation, Non-Compliant); access blocked flag reveals a mandatory reason field when the range is temporarily closed (e.g. disease restrictions, adverse conditions, veterinary advice); full event history per flock with year filter",
+          "Stocking density auto-calculation — birds on range ÷ range area (ha) is calculated immediately as values are entered, so you can verify compliance with the 2,500 birds/ha outdoor stocking limit (or 170 kg N/ha where applicable) before saving the record",
+          "Feed Records tab — log every feed delivery for organic compliance: delivery date (defaults to today), product name, product type, organic approval status (Certified Organic / Approved Non-Organic / Conventional Derogation), certifier reference, quantity (kg), supplier, lot number, invoice reference, and linked flock; non-certified deliveries can be linked directly to an active derogation case, auto-filling the certifier approval reference and regulatory basis with no re-keying",
+          "Organic approval status enforcement — the 100% organic feed requirement of the UK Organic Regulations 2020 is supported by the three-state approval status on every feed delivery: Certified Organic confirms full compliance; Approved Non-Organic requires a certifier reference and is reserved for approved exceptions; Conventional Derogation requires a linked derogation case — a mandatory reference picker appears on the delivery form when this status is selected",
+          "Derogations tab — dedicated case register for non-organic and non-permitted input derogations under the UK Organic Regulations 2020: each case captures a unique case reference, input name, regulatory basis, certifying body, application date, status (Pending / Approved / Rejected / Expired / Withdrawn), internal decision date, certifier decision date, expiry date, and approval conditions; rejection handling records rejection reason, rejection reference, and corrective action required; an Action Required badge surfaces on rejected cases where no corrective action has been entered; expiry urgency badges turn amber below 60 days and red below 14",
+          "Mobile app — two dedicated organic poultry recording screens: Outdoor Access (select flock, enter birds on range, range area, duration, vegetation condition, and compliance status; access blocked toggle with reason field; saves offline and syncs to dashboard automatically) and Feed Records (delivery date, product name, approval status chips, quantity, supplier, lot number; derogation case linking for non-certified deliveries; offline-first with automatic sync); GPS coordinates captured automatically on both mobile screens",
+        ],
+      },
+      {
         title: "Staff & Training",
         icon: GraduationCap,
         color: "bg-indigo-50 text-indigo-600 border-indigo-100",
