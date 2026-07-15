@@ -113,7 +113,7 @@ const complianceNav: NavItem[] = [
   { name: "Accident Book", href: "/accident-book", icon: BookOpen, moduleKeys: ["risk-waste"] },
   { name: "Contractors H&S File", href: "/contractors", icon: ClipboardCheck, moduleKeys: ["risk-waste"] },
   { name: "Insurance", href: "/insurance", icon: ShieldCheck },
-  { name: "AMR Report", href: "/amr-report", icon: FlaskConical, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production", "pig-production", "poultry-production"] },
+  { name: "AMR Report", href: "/amr-report", icon: FlaskConical, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production", "pig-production", "poultry-production", "organic-livestock", "organic-dairy", "organic-sheep-dairy", "organic-goat-dairy", "organic-venison"] },
 ];
 
 const organicFarmingNav: NavItem[] = [
@@ -149,9 +149,9 @@ const livestockNav: NavItem[] = [
   { name: "Goat Dairy", href: "/goat-dairy", icon: Milk, moduleKeys: ["goat-dairy"] },
   { name: "Feed Management", href: "/feed", icon: Package, moduleKeys: ["feed-management"] },
   { name: "Vet Ledger", href: "/vet-ledger", icon: Stethoscope, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production", "pig-production", "poultry-production"], requiresLivestock: true },
-  { name: "TB Testing Register", href: "/tb-tests", icon: TestTube, moduleKeys: ["livestock-management", "beef-production", "sheep-production", "goat-production"], requiresLivestock: true },
-  { name: "Lambing Records", href: "/lambing", icon: Scissors, moduleKeys: ["sheep-production"] },
-  { name: "Annual Health Reviews", href: "/ahwr", icon: ClipboardList, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production", "pig-production", "poultry-production"] },
+  { name: "TB Testing Register", href: "/tb-tests", icon: TestTube, moduleKeys: ["livestock-management", "beef-production", "sheep-production", "goat-production", "organic-livestock", "organic-dairy", "organic-sheep-dairy", "organic-goat-dairy"], requiresLivestock: true },
+  { name: "Lambing Records", href: "/lambing", icon: Scissors, moduleKeys: ["sheep-production", "organic-livestock", "organic-sheep-dairy"] },
+  { name: "Annual Health Reviews", href: "/ahwr", icon: ClipboardList, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production", "pig-production", "poultry-production", "organic-livestock", "organic-dairy", "organic-sheep-dairy", "organic-goat-dairy", "organic-venison"] },
 ];
 
 const biofuelNav: NavItem[] = [
