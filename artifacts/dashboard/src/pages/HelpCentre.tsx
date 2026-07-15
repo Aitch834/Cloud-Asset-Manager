@@ -7,7 +7,7 @@ import {
   Search, ChevronDown, ChevronUp, BookOpen, Loader2, Info,
   Rocket, Droplets, ArrowRightLeft, Pill, ClipboardCheck,
   Tractor, GraduationCap, Leaf, Tag, Egg, Wrench, Shield,
-  CheckCircle2, type LucideIcon,
+  CheckCircle2, HeartPulse, type LucideIcon,
 } from "lucide-react";
 import { useAppStore } from "@/hooks/use-app-store";
 
@@ -86,6 +86,20 @@ const WORKFLOWS: Workflow[] = [
       { title: "Record dose and route", detail: "Enter the quantity, dose rate and route of administration (e.g. oral, injection)." },
       { title: "Add the withdrawal period", detail: "The system calculates the earliest sale or slaughter date automatically." },
       { title: "Sign off the record", detail: "Enter the treating person's name and save. A COSHH record is created where applicable." },
+    ],
+  },
+  {
+    id: "adr-record",
+    title: "Recording an Adverse Drug Reaction (ADR)",
+    icon: HeartPulse,
+    moduleKey: "livestock-management",
+    steps: [
+      { title: "Open the medicine treatment record", detail: "Go to Livestock → Medicines and open the relevant treatment record (or create a new one)." },
+      { title: "Toggle 'Adverse reaction suspected'", detail: "Enable the ADR toggle on the record form. The ADR section expands automatically." },
+      { title: "Record clinical signs and severity", detail: "Describe the signs observed and select the severity: Mild, Moderate, Severe, or Fatal." },
+      { title: "Enter onset and outcome", detail: "Record how many hours after administration the reaction started and choose the current outcome (Recovered, Recovering, Not Recovered, Unknown, or Fatal)." },
+      { title: "Log reporting dates", detail: "Enter the date you reported the reaction to your vet, and — once confirmed — the date your vet reported to VMD via SARSS." },
+      { title: "Add the VMD SARSS reference", detail: "Once VMD assign a reference number, enter it on the record. The ADR Register tab lists all suspected reactions with vet-report and SARSS status at a glance." },
     ],
   },
   {

@@ -708,7 +708,22 @@ const CONTENT: [string, string][] = [
 <h3>Withdrawal period alerts</h3>
 <p>Animals with an active withdrawal period are flagged in the Individual Animal Register with an amber badge. An SMS alert is sent when the withdrawal period is within three days of ending so movements and milk supply can be reinstated promptly.</p>
 <h3>Vet authorisation</h3>
-<p>For medicines used under a Veterinary Written Direction (VWD) or Cascade prescription, attach the vet's written authorisation to the treatment record. The Vet Prescriptions tab provides a dedicated register for all outstanding prescriptions with their expiry dates.</p>`,
+<p>For medicines used under a Veterinary Written Direction (VWD) or Cascade prescription, attach the vet's written authorisation to the treatment record. The Vet Prescriptions tab provides a dedicated register for all outstanding prescriptions with their expiry dates.</p>
+<h3>Adverse Drug Reaction (ADR) recording and VMD SARSS reporting</h3>
+<p>Under the Veterinary Medicines Regulations 2013 (Regulation 58 and Schedule 6), any suspected adverse reaction to a veterinary medicine must be reported to the VMD's Suspected Adverse Reaction Surveillance Scheme (SARSS). BDE Farm Trac provides a structured ADR section on every medicine record.</p>
+<p>Toggle <strong>Adverse reaction suspected</strong> on a treatment record to reveal the ADR fields:</p>
+<ul>
+<li><strong>Clinical signs:</strong> free-text description of signs observed.</li>
+<li><strong>Severity:</strong> Mild, Moderate, Severe, or Fatal.</li>
+<li><strong>Onset (hours):</strong> how many hours after administration the reaction first appeared.</li>
+<li><strong>Outcome:</strong> Recovered, Recovering, Not Recovered, Unknown, or Fatal.</li>
+<li><strong>Reported to vet date:</strong> the date you notified your attending vet.</li>
+<li><strong>Vet reported to VMD date:</strong> the date your vet submitted the report to VMD via SARSS.</li>
+<li><strong>VMD SARSS reference:</strong> the reference number assigned by VMD once the report is logged.</li>
+</ul>
+<p>A dedicated <strong>ADR Register</strong> tab on the Medicines page lists every suspected reaction across all your treatments — with severity badges, outcome status, vet-report date, and SARSS reference — so you can track reporting progress and ensure nothing is missed.</p>
+<p>The <strong>AMR Report</strong> page (Livestock → AMR Report) includes an ADR summary panel showing the total number of suspected reactions for the year, how many were reported to a vet, how many were escalated to VMD via SARSS, and a warning alert if any remain unreported.</p>
+<p>ADR recording is available on both the dashboard and the mobile app. To submit a SARSS report directly, visit <a href="https://www.vmd.defra.gov.uk/adversereactionreporting/" target="_blank" rel="noopener noreferrer">www.vmd.defra.gov.uk/adversereactionreporting</a>.</p>`,
   ],
   // 20 — Pest Control and Cleaning Records
   // 20 — Pest Control and Cleaning Records
