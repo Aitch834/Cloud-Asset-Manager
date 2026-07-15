@@ -181,6 +181,15 @@ export const livestockMedicineRecordsTable = pgTable("livestock_medicine_records
   certifierNotified: boolean("certifier_notified").notNull().default(false),
   certifierNotifiedDate: timestamp("certifier_notified_date", { withTimezone: true }),
   maxTreatmentsReached: boolean("max_treatments_reached").notNull().default(false), // flag if 3-treatment limit hit in conversion
+  // ─── Adverse Drug Reaction (VMR 2013 Reg 58 / SARSS reporting) ───────────────
+  adverseReactionSuspected: boolean("adverse_reaction_suspected").notNull().default(false),
+  adverseReactionSigns: text("adverse_reaction_signs"),                              // clinical signs observed
+  adverseReactionSeverity: text("adverse_reaction_severity"),                        // 'mild' | 'moderate' | 'severe' | 'fatal'
+  adverseReactionOnsetHours: integer("adverse_reaction_onset_hours"),               // hours after treatment
+  adverseReactionOutcome: text("adverse_reaction_outcome"),                          // 'recovered' | 'recovering' | 'not_recovered' | 'fatal' | 'unknown'
+  reportedToVetDate: timestamp("reported_to_vet_date", { withTimezone: true }),     // keeper → vet notification date
+  vetReportedToVmdDate: timestamp("vet_reported_to_vmd_date", { withTimezone: true }), // vet → VMD SARSS submission date
+  vmdSarssRef: text("vmd_sarss_ref"),                                                // VMD SARSS reference number
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

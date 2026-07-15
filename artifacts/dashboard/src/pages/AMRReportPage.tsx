@@ -6,7 +6,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Download, Info, Printer, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, Download, HeartPulse, Info, Printer, TrendingDown, TrendingUp, CheckCircle2, XCircle } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie,
   Cell, Legend, LineChart, Line, CartesianGrid,
@@ -21,8 +21,13 @@ type AMRReport = {
   byClass: { className: string; totalMg: number; percent: number; isCritical: boolean }[];
   bySpecies: { species: string; totalMg: number; treatmentCount: number }[];
   monthlyTrend: { month: string; totalMg: number }[];
-  rumaCategory: string; // "green" | "amber" | "red"
+  rumaCategory: string;
   prevYearMgPerPcu: number | null;
+  // ADR summary
+  adrTotal: number;
+  adrReportedToVet: number;
+  adrReportedToVmd: number;
+  adrUnreported: number;
 };
 
 const RUMA_THRESHOLDS = { green: 50, amber: 99 }; // mg/PCU — indicative
@@ -95,6 +100,40 @@ export default function AMRReportPage() {
         <>
           {tab === "summary" && report && (
             <div className="space-y-4">
+              {/* ADR summary panel */}
+              {report.adrTotal > 0 && (
+                <div className="rounded-xl border-2 border-red-200 bg-red-50 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <HeartPulse className="w-4 h-4 text-red-600" />
+                    <span className="text-sm font-semibold text-red-800">Adverse Drug Reactions — {report.year}</span>
+                    <span className="ml-auto text-xs text-red-700">VMR 2013 Reg 58 / VMD SARSS</span>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-white rounded-lg p-3 text-center border border-red-100">
+                      <div className="text-2xl font-bold text-red-700">{report.adrTotal}</div>
+                      <div className="text-xs text-red-600">Suspected ADRs</div>
+                    </div>
+                    <div className={`rounded-lg p-3 text-center border ${report.adrReportedToVet === report.adrTotal ? "bg-green-50 border-green-200" : "bg-white border-red-100"}`}>
+                      <div className={`text-2xl font-bold ${report.adrReportedToVet === report.adrTotal ? "text-green-700" : "text-amber-700"}`}>{report.adrReportedToVet}</div>
+                      <div className="text-xs text-muted-foreground">Reported to Vet</div>
+                    </div>
+                    <div className={`rounded-lg p-3 text-center border ${report.adrReportedToVmd === report.adrTotal ? "bg-green-50 border-green-200" : "bg-white border-red-100"}`}>
+                      <div className={`text-2xl font-bold ${report.adrReportedToVmd === report.adrTotal ? "text-green-700" : "text-amber-700"}`}>{report.adrReportedToVmd}</div>
+                      <div className="text-xs text-muted-foreground">VMD SARSS Submitted</div>
+                    </div>
+                    <div className={`rounded-lg p-3 text-center border ${report.adrUnreported === 0 ? "bg-green-50 border-green-200" : "bg-red-50 border-red-300"}`}>
+                      <div className={`text-2xl font-bold ${report.adrUnreported === 0 ? "text-green-700" : "text-red-700"}`}>{report.adrUnreported}</div>
+                      <div className="text-xs text-muted-foreground">Awaiting Report</div>
+                    </div>
+                  </div>
+                  {report.adrUnreported > 0 && (
+                    <div className="mt-3 flex items-start gap-2 text-xs text-red-800 bg-red-100 border border-red-200 rounded-lg p-2.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <span>{report.adrUnreported} reaction{report.adrUnreported !== 1 ? "s have" : " has"} not yet been confirmed as reported to the VMD SARSS. Serious reactions must be submitted within 15 days. Go to <strong>Medicine Register → ADR Register</strong> to update reporting status.</span>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white border rounded-lg p-4 text-center">
                   <div className="text-2xl font-bold">{(report.totalUseMg / 1000).toFixed(1)}g</div>

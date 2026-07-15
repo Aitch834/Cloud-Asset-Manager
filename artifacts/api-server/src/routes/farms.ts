@@ -35507,6 +35507,21 @@ router.get("/farms/:farmId/amr-report", async (req, res) => {
       percent: totalEvents > 0 ? Math.round((Number(r.treatment_events) / totalEvents) * 100) : 0,
     }));
 
+    // ADR summary counts for the year
+    const adrCounts = await db.execute(sql`
+      SELECT
+        COUNT(*) FILTER (WHERE adverse_reaction_suspected = true)                          AS adr_total,
+        COUNT(*) FILTER (WHERE adverse_reaction_suspected = true AND reported_to_vet_date IS NOT NULL) AS adr_reported_to_vet,
+        COUNT(*) FILTER (WHERE adverse_reaction_suspected = true AND (vet_reported_to_vmd_date IS NOT NULL OR vmd_sarss_ref IS NOT NULL)) AS adr_reported_to_vmd
+      FROM livestock_medicine_records
+      WHERE farm_id = ${farmId}
+        AND EXTRACT(YEAR FROM administered_date AT TIME ZONE 'UTC') = ${year}
+    `);
+    const adrRow = (adrCounts.rows as any[])[0] ?? {};
+    const adrTotal = Number(adrRow.adr_total ?? 0);
+    const adrReportedToVet = Number(adrRow.adr_reported_to_vet ?? 0);
+    const adrReportedToVmd = Number(adrRow.adr_reported_to_vmd ?? 0);
+
     res.json({
       report: {
         year,
@@ -35530,6 +35545,11 @@ router.get("/farms/:farmId/amr-report", async (req, res) => {
           animalsPerEvent: Number(r.animals_treated),
           mg: 0,
         })),
+        // ADR summary (VMR 2013 Reg 58 / SARSS)
+        adrTotal,
+        adrReportedToVet,
+        adrReportedToVmd,
+        adrUnreported: adrTotal - adrReportedToVmd,
         generatedAt: new Date().toISOString(),
       }
     });

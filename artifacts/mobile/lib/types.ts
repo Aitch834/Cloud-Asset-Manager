@@ -223,6 +223,15 @@ export interface MedicineRecord {
   longitude?: number;
   createdAt: string;
   synced: boolean;
+  // Adverse Drug Reaction (VMR 2013 Reg 58 / SARSS)
+  adverseReactionSuspected?: boolean;
+  adverseReactionSigns?: string;
+  adverseReactionSeverity?: string;
+  adverseReactionOnsetHours?: string;
+  adverseReactionOutcome?: string;
+  reportedToVetDate?: string;
+  vetReportedToVmdDate?: string;
+  vmdSarssRef?: string;
 }
 
 export interface LivestockCheck {

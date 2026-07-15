@@ -69,6 +69,13 @@ export default function MedicineRecordScreen() {
   const [reason, setReason] = useState("");
   const [vetName, setVetName] = useState("");
   const [notes, setNotes] = useState("");
+  // ADR fields
+  const [adverseReactionSuspected, setAdverseReactionSuspected] = useState(false);
+  const [adverseReactionSigns, setAdverseReactionSigns] = useState("");
+  const [adverseReactionSeverity, setAdverseReactionSeverity] = useState("");
+  const [adverseReactionOnsetHours, setAdverseReactionOnsetHours] = useState("");
+  const [adverseReactionOutcome, setAdverseReactionOutcome] = useState("");
+  const [reportedToVetDate, setReportedToVetDate] = useState("");
 
   const withdrawalEndDate = calcWithdrawalEnd(withdrawalPeriodDays);
 
@@ -124,6 +131,12 @@ export default function MedicineRecordScreen() {
       longitude,
       createdAt: new Date().toISOString(),
       synced: false,
+      adverseReactionSuspected,
+      adverseReactionSigns: adverseReactionSigns.trim() || undefined,
+      adverseReactionSeverity: adverseReactionSeverity || undefined,
+      adverseReactionOnsetHours: adverseReactionOnsetHours.trim() || undefined,
+      adverseReactionOutcome: adverseReactionOutcome || undefined,
+      reportedToVetDate: reportedToVetDate.trim() || undefined,
     };
 
     await appendToList(STORAGE_KEYS.MEDICINE_RECORDS, { ...record, documentUrl } as MedicineRecord);
@@ -292,6 +305,118 @@ export default function MedicineRecordScreen() {
             promptTitle="Attach Medicine Record Document"
           />
 
+          {/* ── Adverse Drug Reaction ── */}
+          <View style={styles.sectionLabel}>
+            <Feather name="alert-circle" size={14} color={colors.error} />
+            <Text style={styles.sectionTitle}>Adverse Reaction (ADR)</Text>
+          </View>
+
+          <Pressable
+            onPress={() => { Haptics.selectionAsync(); setAdverseReactionSuspected(v => !v); }}
+            style={[
+              styles.adrToggle,
+              adverseReactionSuspected && { backgroundColor: "#fef2f2", borderColor: "#ef4444" },
+            ]}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.adrToggleLabel, adverseReactionSuspected && { color: "#b91c1c" }]}>
+                Suspected adverse reaction?
+              </Text>
+              <Text style={styles.adrToggleHint}>
+                VMR 2013 Reg 58 — tick if this treatment caused unexpected adverse effects
+              </Text>
+            </View>
+            <View style={[styles.adrCheckbox, adverseReactionSuspected && { backgroundColor: "#ef4444", borderColor: "#ef4444" }]}>
+              {adverseReactionSuspected && <Feather name="check" size={12} color="#fff" />}
+            </View>
+          </Pressable>
+
+          {adverseReactionSuspected && (
+            <>
+              <Input
+                label="Clinical Signs Observed"
+                placeholder="e.g. anaphylaxis, swelling at injection site, neurological signs"
+                value={adverseReactionSigns}
+                onChangeText={setAdverseReactionSigns}
+                multiline
+                numberOfLines={2}
+              />
+
+              <View style={styles.sectionLabel}>
+                <Text style={[styles.sectionTitle, { color: colors.error }]}>Severity</Text>
+              </View>
+              <View style={styles.chipRow}>
+                {([
+                  { key: "mild", label: "Mild" },
+                  { key: "moderate", label: "Moderate" },
+                  { key: "severe", label: "Severe" },
+                  { key: "fatal", label: "Fatal" },
+                ] as const).map(s => (
+                  <Pressable
+                    key={s.key}
+                    onPress={() => { Haptics.selectionAsync(); setAdverseReactionSeverity(s.key); }}
+                    style={[
+                      styles.chip,
+                      adverseReactionSeverity === s.key && { backgroundColor: colors.error, borderColor: colors.error },
+                    ]}
+                  >
+                    <Text style={[styles.chipText, adverseReactionSeverity === s.key && { color: colors.textInverse }]}>
+                      {s.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <Input
+                label="Onset (hours after treatment)"
+                placeholder="e.g. 2"
+                value={adverseReactionOnsetHours}
+                onChangeText={setAdverseReactionOnsetHours}
+                keyboardType="number-pad"
+              />
+
+              <View style={styles.sectionLabel}>
+                <Text style={[styles.sectionTitle, { color: colors.error }]}>Outcome</Text>
+              </View>
+              <View style={styles.chipRow}>
+                {([
+                  { key: "recovered", label: "Recovered" },
+                  { key: "recovering", label: "Recovering" },
+                  { key: "not_recovered", label: "Not recovered" },
+                  { key: "fatal", label: "Fatal" },
+                  { key: "unknown", label: "Unknown" },
+                ] as const).map(o => (
+                  <Pressable
+                    key={o.key}
+                    onPress={() => { Haptics.selectionAsync(); setAdverseReactionOutcome(o.key); }}
+                    style={[
+                      styles.chip,
+                      adverseReactionOutcome === o.key && { backgroundColor: colors.error, borderColor: colors.error },
+                    ]}
+                  >
+                    <Text style={[styles.chipText, adverseReactionOutcome === o.key && { color: colors.textInverse }]}>
+                      {o.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <Input
+                label="Date Reported to Vet"
+                placeholder="YYYY-MM-DD"
+                value={reportedToVetDate}
+                onChangeText={setReportedToVetDate}
+              />
+
+              <View style={[styles.withdrawalBanner, { borderColor: "#fca5a5" }]}>
+                <Feather name="alert-triangle" size={14} color={colors.error} />
+                <Text style={[styles.withdrawalText, { color: "#b91c1c" }]}>
+                  Serious reactions must be reported to the VMD SARSS portal within 15 days. Non-serious within 90 days. Update the full SARSS reference on the dashboard.
+                </Text>
+              </View>
+            </>
+          )}
+
           <Button
             title="Save Medicine Record"
             onPress={handleSave}
@@ -371,5 +496,38 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.accent,
     lineHeight: 20,
+  },
+  adrToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    marginBottom: spacing.md,
+  },
+  adrToggleLabel: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.text,
+    marginBottom: 2,
+  },
+  adrToggleHint: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    lineHeight: 16,
+  },
+  adrCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: radius.sm,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.background,
   },
 });

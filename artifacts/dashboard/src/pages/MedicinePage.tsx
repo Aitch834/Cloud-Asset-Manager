@@ -23,7 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { useToast } from "@/hooks/use-toast";
 import { VMD_MEDICINES, DOSE_UNITS, findVmdMedicine, type VmdMedicine } from "@/data/vmdMedicines";
 
-type StatusFilter = "all" | "in_withdrawal" | "cleared" | "no_withdrawal" | "analytics";
+type StatusFilter = "all" | "in_withdrawal" | "cleared" | "no_withdrawal" | "analytics" | "adr";
 type TreatmentScope = "individual" | "group" | "whole_herd";
 
 function formatDate(val: string | null | undefined): string {
@@ -101,6 +101,15 @@ interface MedicineRecord {
   vetVisitMedicineId: number | null;
   prescriptionId: number | null;
   createdAt: string;
+  // Adverse Drug Reaction (VMR 2013 Reg 58 / SARSS)
+  adverseReactionSuspected: boolean | null;
+  adverseReactionSigns: string | null;
+  adverseReactionSeverity: string | null;
+  adverseReactionOnsetHours: number | null;
+  adverseReactionOutcome: string | null;
+  reportedToVetDate: string | null;
+  vetReportedToVmdDate: string | null;
+  vmdSarssRef: string | null;
 }
 interface VetPrescription {
   id: number; prescriptionDate: string | null; prescriptionRef: string | null;
@@ -129,6 +138,15 @@ const EMPTY_FORM = {
   certifierNotifiedDate: "",
   // prescription link — optional FK to vet_prescription_records
   prescriptionId: "" as string | number,
+  // Adverse Drug Reaction (VMR 2013 Reg 58 / SARSS)
+  adverseReactionSuspected: false,
+  adverseReactionSigns: "",
+  adverseReactionSeverity: "",
+  adverseReactionOnsetHours: "",
+  adverseReactionOutcome: "",
+  reportedToVetDate: "",
+  vetReportedToVmdDate: "",
+  vmdSarssRef: "",
 };
 const ADMIN_ROUTES = ["Oral", "Subcutaneous injection", "Intramuscular injection", "Intravenous injection", "Intramammary", "Topical / Pour-on", "Intrauterine", "Ocular", "Nasal", "Other"];
 
@@ -984,11 +1002,13 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
   const inWithdrawal = yearRecords.filter(r => getRecordStatus(r) === "in_withdrawal");
   const cleared = yearRecords.filter(r => getRecordStatus(r) === "cleared");
   const noWithdrawal = yearRecords.filter(r => getRecordStatus(r) === "no_withdrawal");
-  const tabCounts = { all: yearRecords.length, in_withdrawal: inWithdrawal.length, cleared: cleared.length, no_withdrawal: noWithdrawal.length };
+  const adrRecords = yearRecords.filter(r => r.adverseReactionSuspected);
+  const tabCounts = { all: yearRecords.length, in_withdrawal: inWithdrawal.length, cleared: cleared.length, no_withdrawal: noWithdrawal.length, adr: adrRecords.length };
 
   const baseFiltered = statusFilter === "all" ? yearRecords
     : statusFilter === "in_withdrawal" ? inWithdrawal
     : statusFilter === "cleared" ? cleared
+    : statusFilter === "adr" ? adrRecords
     : noWithdrawal;
 
   const filtered = baseFiltered.filter(r => !search
@@ -1028,6 +1048,14 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
       certifierNotified: (r as any).certifierNotified ?? false,
       certifierNotifiedDate: (r as any).certifierNotifiedDate ? new Date((r as any).certifierNotifiedDate).toISOString().slice(0, 10) : "",
       prescriptionId: r.prescriptionId ? String(r.prescriptionId) : "",
+      adverseReactionSuspected: r.adverseReactionSuspected ?? false,
+      adverseReactionSigns: r.adverseReactionSigns ?? "",
+      adverseReactionSeverity: r.adverseReactionSeverity ?? "",
+      adverseReactionOnsetHours: r.adverseReactionOnsetHours ? String(r.adverseReactionOnsetHours) : "",
+      adverseReactionOutcome: r.adverseReactionOutcome ?? "",
+      reportedToVetDate: r.reportedToVetDate ? new Date(r.reportedToVetDate).toISOString().slice(0, 10) : "",
+      vetReportedToVmdDate: r.vetReportedToVmdDate ? new Date(r.vetReportedToVmdDate).toISOString().slice(0, 10) : "",
+      vmdSarssRef: r.vmdSarssRef ?? "",
     };
     setForm(newForm);
     // If editing a group record that already has tags, pre-validate them
@@ -1129,9 +1157,94 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
         <TabButton active={statusFilter === "cleared"} onClick={() => setStatusFilter("cleared")}>Cleared <span className="ml-1 text-xs opacity-60">({tabCounts.cleared})</span></TabButton>
         <TabButton active={statusFilter === "no_withdrawal"} onClick={() => setStatusFilter("no_withdrawal")}>No W/D Required <span className="ml-1 text-xs opacity-60">({tabCounts.no_withdrawal})</span></TabButton>
         <TabButton active={statusFilter === "analytics"} onClick={() => setStatusFilter("analytics")}>Analytics</TabButton>
+        <TabButton active={statusFilter === "adr"} onClick={() => setStatusFilter("adr")}>
+          <HeartPulse className="w-3.5 h-3.5 mr-1 inline-block" />ADR Register
+          {tabCounts.adr > 0 && <span className="ml-1 text-xs bg-red-100 text-red-700 rounded-full px-1.5">{tabCounts.adr}</span>}
+        </TabButton>
       </TabBar>
 
       {statusFilter === "analytics" && <MedicineAnalyticsPanel records={allRecords} />}
+
+      {statusFilter === "adr" && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-900">
+            <div className="font-semibold flex items-center gap-2 mb-1"><HeartPulse className="w-4 h-4" />Adverse Drug Reaction (ADR) Register — VMR 2013 / VMD SARSS</div>
+            <p className="text-xs text-red-800">Under the Veterinary Medicines Regulations 2013 (Reg 58 &amp; Sch 6), suspected adverse reactions must be reported to your prescribing vet. Serious reactions must reach the VMD SARSS portal within 15 days; non-serious within 90 days. This register tracks all flagged records and their reporting status.</p>
+          </div>
+          {adrRecords.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground border rounded-xl bg-white">
+              <HeartPulse className="mx-auto mb-2 w-8 h-8 opacity-20" />
+              <p className="font-medium text-sm">No adverse reactions recorded for {cropYear}</p>
+              <p className="text-xs mt-1">Flag a reaction when adding or editing a medicine record.</p>
+            </div>
+          ) : (
+            <div className="bg-white border rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-red-50 border-b border-red-100">
+                  <tr>
+                    <th className="px-4 py-2.5 text-left font-medium text-xs text-red-800">Date</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-xs text-red-800">Medicine</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-xs text-red-800">Herd / Animal</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-xs text-red-800">Severity</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-xs text-red-800">Signs</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-xs text-red-800">Outcome</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-xs text-red-800">Reported to Vet</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-xs text-red-800">VMD SARSS Ref</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-xs text-red-800"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adrRecords.map(r => {
+                    const herd = r.herdId ? herds.find(h => h.id === r.herdId) : null;
+                    const animal = r.animalId ? animals.find(a => a.id === r.animalId) : null;
+                    const severityColour = r.adverseReactionSeverity === "fatal" ? "text-red-700 bg-red-100"
+                      : r.adverseReactionSeverity === "severe" ? "text-orange-700 bg-orange-100"
+                      : r.adverseReactionSeverity === "moderate" ? "text-amber-700 bg-amber-100"
+                      : "text-green-700 bg-green-100";
+                    const vetReported = !!r.reportedToVetDate;
+                    const sarssReported = !!r.vetReportedToVmdDate || !!r.vmdSarssRef;
+                    return (
+                      <tr key={r.id} className="border-t hover:bg-red-50/50">
+                        <td className="px-4 py-2.5 whitespace-nowrap text-xs">{formatDate(r.administeredDate)}</td>
+                        <td className="px-4 py-2.5 font-medium text-xs">{r.medicineName}</td>
+                        <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                          {animal ? animalShortLabel(animal) : herd?.name ?? r.treatedAnimalTags ?? "—"}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {r.adverseReactionSeverity ? (
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${severityColour}`}>{r.adverseReactionSeverity}</span>
+                          ) : <span className="text-xs text-muted-foreground">—</span>}
+                        </td>
+                        <td className="px-4 py-2.5 text-xs max-w-[180px] truncate" title={r.adverseReactionSigns ?? ""}>{r.adverseReactionSigns || "—"}</td>
+                        <td className="px-4 py-2.5 text-xs capitalize">{r.adverseReactionOutcome?.replace("_", " ") || "—"}</td>
+                        <td className="px-4 py-2.5">
+                          {vetReported ? (
+                            <span className="flex items-center gap-1 text-xs text-green-700"><CheckCircle2 className="w-3.5 h-3.5" />{formatDate(r.reportedToVetDate)}</span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-xs text-red-600"><XCircle className="w-3.5 h-3.5" />Not reported</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-xs font-mono">
+                          {sarssReported ? (
+                            <span className="flex items-center gap-1 text-green-700"><ShieldCheck className="w-3.5 h-3.5" />{r.vmdSarssRef || "Submitted"}</span>
+                          ) : (
+                            <span className="text-muted-foreground">Pending</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <Button size="sm" variant="ghost" onClick={() => openEdit(r)} className="h-7 w-7 p-0">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {statusFilter !== "analytics" && (
         <>
@@ -1601,6 +1714,113 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
                     </div>
                   );
                 })()}
+              </div>
+
+              {/* ── Adverse Drug Reaction (VMR 2013 Reg 58 / SARSS) ── */}
+              <div className="col-span-full">
+                <div
+                  className={`rounded-xl border-2 p-4 space-y-3 transition-colors ${form.adverseReactionSuspected ? "border-red-400 bg-red-50" : "border-border bg-muted/20"}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <HeartPulse className={`w-4 h-4 ${form.adverseReactionSuspected ? "text-red-600" : "text-muted-foreground"}`} />
+                      <span className={`text-sm font-semibold ${form.adverseReactionSuspected ? "text-red-800" : "text-foreground/70"}`}>
+                        Suspected Adverse Reaction (ADR)
+                      </span>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.adverseReactionSuspected}
+                        onChange={e => setForm(f => ({ ...f, adverseReactionSuspected: e.target.checked }))}
+                        className="w-4 h-4 accent-red-600"
+                      />
+                      <span className="text-sm text-foreground/70">Flag this treatment as a suspected ADR</span>
+                    </label>
+                  </div>
+                  {form.adverseReactionSuspected && (
+                    <>
+                      <p className="text-xs text-red-800">VMR 2013 Reg 58: report to your prescribing vet immediately. Serious reactions must reach the VMD SARSS portal within 15 days; non-serious within 90 days.</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="col-span-2">
+                          <label className="text-sm font-medium text-red-800 mb-1 block">Clinical Signs Observed</label>
+                          <Input
+                            placeholder="Describe the adverse signs observed (e.g. anaphylaxis, injection-site reaction, neurological signs)"
+                            value={form.adverseReactionSigns}
+                            onChange={e => setForm(f => ({ ...f, adverseReactionSigns: e.target.value }))}
+                            className="border-red-300 focus:border-red-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-red-800 mb-1 block">Severity</label>
+                          <select
+                            className="w-full h-12 rounded-xl border-2 border-red-300 bg-transparent px-4 py-2 text-base focus:outline-none focus:border-red-500"
+                            value={form.adverseReactionSeverity}
+                            onChange={e => setForm(f => ({ ...f, adverseReactionSeverity: e.target.value }))}
+                          >
+                            <option value="">Select severity...</option>
+                            <option value="mild">Mild — self-limiting, no treatment required</option>
+                            <option value="moderate">Moderate — required treatment</option>
+                            <option value="severe">Severe — life-threatening</option>
+                            <option value="fatal">Fatal</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-red-800 mb-1 block">Onset (hours after treatment)</label>
+                          <Input
+                            type="number" min="0" placeholder="e.g. 2"
+                            value={form.adverseReactionOnsetHours}
+                            onChange={e => setForm(f => ({ ...f, adverseReactionOnsetHours: e.target.value }))}
+                            className="border-red-300"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-red-800 mb-1 block">Outcome</label>
+                          <select
+                            className="w-full h-12 rounded-xl border-2 border-red-300 bg-transparent px-4 py-2 text-base focus:outline-none focus:border-red-500"
+                            value={form.adverseReactionOutcome}
+                            onChange={e => setForm(f => ({ ...f, adverseReactionOutcome: e.target.value }))}
+                          >
+                            <option value="">Select outcome...</option>
+                            <option value="recovered">Recovered</option>
+                            <option value="recovering">Recovering</option>
+                            <option value="not_recovered">Not recovered</option>
+                            <option value="fatal">Fatal</option>
+                            <option value="unknown">Unknown</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-red-800 mb-1 block">Date Reported to Vet</label>
+                          <Input
+                            type="date"
+                            value={form.reportedToVetDate}
+                            onChange={e => setForm(f => ({ ...f, reportedToVetDate: e.target.value }))}
+                            className="border-red-300"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-red-800 mb-1 block">Date Vet Reported to VMD SARSS</label>
+                          <Input
+                            type="date"
+                            value={form.vetReportedToVmdDate}
+                            onChange={e => setForm(f => ({ ...f, vetReportedToVmdDate: e.target.value }))}
+                            className="border-red-300"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-red-800 mb-1 block">VMD SARSS Reference Number</label>
+                          <Input
+                            placeholder="e.g. SARSS-2025-12345"
+                            value={form.vmdSarssRef}
+                            onChange={e => setForm(f => ({ ...f, vmdSarssRef: e.target.value }))}
+                            className="border-red-300"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-xs text-red-700 italic">Report via the VMD SARSS online portal at <a href="https://www.vmd.defra.gov.uk/adversereactionreporting/" target="_blank" rel="noopener noreferrer" className="underline">vmd.defra.gov.uk/adversereactionreporting/</a></p>
+                    </>
+                  )}
+                </div>
               </div>
 
               {/* ── Organic compliance ── shown when organic herd selected or isOrganicTreatment is already set */}
