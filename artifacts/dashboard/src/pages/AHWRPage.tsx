@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { CalendarCheck, Clock, Plus, Printer, Stethoscope } from "lucide-react";
+import { BarChart3, CalendarCheck, Clock, Plus, Printer, Stethoscope } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
 type AHWR = {
   id: number;
@@ -31,23 +32,24 @@ type AHWR = {
 };
 
 const SPECIES = ["Cattle", "Sheep", "Pigs", "Poultry"];
-
-const EMPTY: Partial<AHWR> = {
-  reviewDate: new Date().toISOString().slice(0, 10),
-  species: "Cattle",
-};
-
 const SPECIES_COLOUR: Record<string, string> = {
   Cattle: "bg-blue-100 text-blue-800",
   Sheep: "bg-green-100 text-green-800",
   Pigs: "bg-pink-100 text-pink-800",
   Poultry: "bg-yellow-100 text-yellow-800",
 };
+const PIE_COLOURS = ["#3b82f6", "#22c55e", "#ec4899", "#eab308"];
+
+const EMPTY: Partial<AHWR> = {
+  reviewDate: new Date().toISOString().slice(0, 10),
+  species: "Cattle",
+};
 
 export default function AHWRPage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const [tab, setTab] = useState<"reviews" | "analytics">("reviews");
   const [speciesFilter, setSpeciesFilter] = useState<string>("all");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<AHWR | null>(null);
@@ -76,7 +78,6 @@ export default function AHWRPage() {
 
   const records = recordsQ.data ?? [];
   const filtered = speciesFilter === "all" ? records : records.filter(r => r.species === speciesFilter);
-
   const today = new Date().toISOString().slice(0, 10);
   const overdue = records.filter(r => r.nextReviewDue && r.nextReviewDue < today);
 
@@ -84,10 +85,20 @@ export default function AHWRPage() {
   const openEdit = (r: AHWR) => { setEditing(r); setForm({ ...r }); setOpen(true); };
   const f = (field: string, val: any) => setForm((p: any) => ({ ...p, [field]: val }));
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    saveMut.mutate(form);
-  };
+  const bySpecies = SPECIES.map(s => ({
+    species: s,
+    count: records.filter(r => r.species === s).length,
+  })).filter(d => d.count > 0);
+
+  const byYear = Array.from(new Set(records.map(r => r.reviewDate.slice(0, 4)))).sort().map(yr => ({
+    year: yr,
+    count: records.filter(r => r.reviewDate.startsWith(yr)).length,
+  }));
+
+  const upcoming = records
+    .filter(r => r.nextReviewDue && r.nextReviewDue >= today)
+    .sort((a, b) => a.nextReviewDue!.localeCompare(b.nextReviewDue!))
+    .slice(0, 4);
 
   return (
     <AppLayout title="Annual Health & Welfare Review (AHWR)">
@@ -111,46 +122,168 @@ export default function AHWRPage() {
 
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <div className="flex gap-2 flex-wrap">
-          {["all", ...SPECIES].map(s => (
-            <Button key={s} size="sm" variant={speciesFilter === s ? "default" : "outline"} onClick={() => setSpeciesFilter(s)}>
-              {s === "all" ? "All Species" : s}
-            </Button>
-          ))}
+          <Button size="sm" variant={tab === "reviews" ? "default" : "outline"} onClick={() => setTab("reviews")}>
+            Reviews
+          </Button>
+          <Button size="sm" variant={tab === "analytics" ? "default" : "outline"} onClick={() => setTab("analytics")}>
+            <BarChart3 className="w-3.5 h-3.5 mr-1" />Analytics
+          </Button>
         </div>
-        <Button onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add AHWR</Button>
+        {tab === "reviews" && (
+          <div className="flex gap-2 flex-wrap items-center">
+            {["all", ...SPECIES].map(s => (
+              <Button key={s} size="sm" variant={speciesFilter === s ? "default" : "outline"} onClick={() => setSpeciesFilter(s)}>
+                {s === "all" ? "All" : s}
+              </Button>
+            ))}
+            <Button onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add AHWR</Button>
+          </div>
+        )}
+        {tab === "analytics" && (
+          <Button onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add AHWR</Button>
+        )}
       </div>
 
-      {recordsQ.isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> : filtered.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          <Stethoscope className="mx-auto mb-2 w-10 h-10 opacity-30" />
-          <p>No AHWR records for {speciesFilter === "all" ? "any species" : speciesFilter}. Add your first review.</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filtered.sort((a, b) => b.reviewDate.localeCompare(a.reviewDate)).map(r => (
-            <div key={r.id} className="bg-white border rounded-lg p-4 cursor-pointer hover:shadow-sm transition-shadow" onClick={() => openEdit(r)}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Badge className={SPECIES_COLOUR[r.species] ?? "bg-gray-100 text-gray-700"}>{r.species}</Badge>
-                  <span className="font-medium text-sm">{r.reviewDate}</span>
-                  {r.nextReviewDue && r.nextReviewDue < today && (
-                    <Badge className="bg-amber-100 text-amber-800 text-xs">Overdue</Badge>
-                  )}
+      {tab === "reviews" && (
+        <>
+          {recordsQ.isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> : filtered.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Stethoscope className="mx-auto mb-2 w-10 h-10 opacity-30" />
+              <p>No AHWR records for {speciesFilter === "all" ? "any species" : speciesFilter}. Add your first review.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filtered.sort((a, b) => b.reviewDate.localeCompare(a.reviewDate)).map(r => (
+                <div key={r.id} className="bg-white border rounded-lg p-4 cursor-pointer hover:shadow-sm transition-shadow" onClick={() => openEdit(r)}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Badge className={SPECIES_COLOUR[r.species] ?? "bg-gray-100 text-gray-700"}>{r.species}</Badge>
+                      <span className="font-medium text-sm">{r.reviewDate}</span>
+                      {r.nextReviewDue && r.nextReviewDue < today && (
+                        <Badge className="bg-amber-100 text-amber-800 text-xs">Overdue</Badge>
+                      )}
+                    </div>
+                    <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); window.print(); }}><Printer className="w-4 h-4" /></Button>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>Vet: <strong>{r.vetName}</strong>{r.vetPractice ? ` — ${r.vetPractice}` : ""}</p>
+                    {r.ahwrRef && <p>AHWR ref: {r.ahwrRef}</p>}
+                    {r.keyFindings && <p className="line-clamp-2">Findings: {r.keyFindings}</p>}
+                    {r.nextReviewDue && (
+                      <p className={r.nextReviewDue < today ? "text-amber-600 font-medium" : "text-blue-700"}>
+                        <CalendarCheck className="inline w-3 h-3 mr-1" />Next due: {r.nextReviewDue}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); window.print(); }}><Printer className="w-4 h-4" /></Button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {tab === "analytics" && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: "Total Reviews", value: records.length },
+              { label: "Overdue", value: overdue.length, amber: overdue.length > 0 },
+              { label: "Upcoming (next 90d)", value: records.filter(r => r.nextReviewDue && r.nextReviewDue >= today && r.nextReviewDue <= new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10)).length, blue: true },
+              { label: "Species Covered", value: new Set(records.map(r => r.species)).size },
+            ].map((s, i) => (
+              <div key={i} className="bg-white border rounded-lg p-4 text-center">
+                <div className={`text-2xl font-bold ${(s as any).amber ? "text-amber-600" : (s as any).blue ? "text-blue-600" : ""}`}>{s.value}</div>
+                <div className="text-xs text-muted-foreground">{s.label}</div>
               </div>
-              <div className="text-xs text-muted-foreground space-y-1">
-                <p>Vet: <strong>{r.vetName}</strong>{r.vetPractice ? ` — ${r.vetPractice}` : ""}</p>
-                {r.ahwrRef && <p>AHWR ref: {r.ahwrRef}</p>}
-                {r.keyFindings && <p className="line-clamp-2">Findings: {r.keyFindings}</p>}
-                {r.nextReviewDue && (
-                  <p className={r.nextReviewDue < today ? "text-amber-600 font-medium" : "text-blue-700"}>
-                    <CalendarCheck className="inline w-3 h-3 mr-1" />Next due: {r.nextReviewDue}
-                  </p>
+            ))}
+          </div>
+
+          {records.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground border rounded-lg">
+              <Stethoscope className="mx-auto mb-2 w-10 h-10 opacity-30" />
+              <p>No AHWR records yet. Add your first review to see analytics.</p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {bySpecies.length > 0 && (
+                  <div className="bg-white border rounded-lg p-4">
+                    <div className="text-sm font-medium mb-3">Reviews by Species</div>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <PieChart>
+                        <Pie data={bySpecies} dataKey="count" nameKey="species" cx="50%" cy="50%" outerRadius={65} label={d => d.species}>
+                          {bySpecies.map((_, i) => <Cell key={i} fill={PIE_COLOURS[i % PIE_COLOURS.length]} />)}
+                        </Pie>
+                        <Tooltip />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+                {byYear.length > 0 && (
+                  <div className="bg-white border rounded-lg p-4">
+                    <div className="text-sm font-medium mb-3">Annual Review Frequency</div>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <BarChart data={byYear}>
+                        <XAxis dataKey="year" tick={{ fontSize: 11 }} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                        <Tooltip />
+                        <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Reviews" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 )}
               </div>
-            </div>
-          ))}
+
+              {upcoming.length > 0 && (
+                <div className="bg-white border rounded-lg p-4">
+                  <div className="text-sm font-medium mb-3 flex items-center gap-2">
+                    <CalendarCheck className="w-4 h-4 text-blue-600" />Upcoming Reviews
+                  </div>
+                  <div className="space-y-2">
+                    {upcoming.map(r => {
+                      const daysUntil = Math.ceil((new Date(r.nextReviewDue!).getTime() - Date.now()) / 86400000);
+                      return (
+                        <div key={r.id} className="flex items-center justify-between text-sm border rounded p-2">
+                          <div className="flex items-center gap-2">
+                            <Badge className={SPECIES_COLOUR[r.species] ?? "bg-gray-100 text-gray-700"}>{r.species}</Badge>
+                            <span className="text-muted-foreground">Vet: {r.vetName}</span>
+                          </div>
+                          <div className={`text-xs font-medium ${daysUntil <= 30 ? "text-amber-600" : "text-blue-600"}`}>
+                            Due {r.nextReviewDue} ({daysUntil}d)
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-white border rounded-lg p-4">
+                <div className="text-sm font-medium mb-3">SFI / ELM Compliance Overview</div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                  {SPECIES.map(sp => {
+                    const spRecords = records.filter(r => r.species === sp);
+                    const latest = spRecords.sort((a, b) => b.reviewDate.localeCompare(a.reviewDate))[0];
+                    const isOverdue = latest?.nextReviewDue && latest.nextReviewDue < today;
+                    return (
+                      <div key={sp} className={`rounded p-3 border ${isOverdue ? "border-amber-300 bg-amber-50" : spRecords.length > 0 ? "border-green-200 bg-green-50" : "border-gray-200 bg-gray-50"}`}>
+                        <div className="font-semibold mb-1">{sp}</div>
+                        {spRecords.length === 0 ? (
+                          <p className="text-muted-foreground">No records</p>
+                        ) : (
+                          <>
+                            <p>Last: {latest.reviewDate}</p>
+                            {latest.nextReviewDue && <p className={isOverdue ? "text-amber-600 font-medium" : "text-green-700"}>Next: {latest.nextReviewDue}</p>}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -159,7 +292,7 @@ export default function AHWRPage() {
           <DialogHeader>
             <DialogTitle>{editing ? "Edit AHWR Record" : "Add Annual Health & Welfare Review"}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={e => { e.preventDefault(); saveMut.mutate(form); }} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Species *</Label>

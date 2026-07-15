@@ -62,6 +62,7 @@ import {
   Crosshair,
   CalendarClock,
   Boxes,
+  Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -126,7 +127,7 @@ const organicFarmingNav: NavItem[] = [
   { name: "Organic Viticulture", href: "/organic-viticulture", icon: Grape, moduleKeys: ["organic-viticulture"] },
   { name: "Organic Arable", href: "/organic-arable", icon: Wheat, moduleKeys: ["organic-arable"] },
   { name: "Organic Venison", href: "/organic-venison", icon: Leaf, moduleKeys: ["organic-venison"] },
-  { name: "Organic Poultry", href: "/poultry-production", icon: Bird, moduleKeys: ["organic-poultry"] },
+  { name: "Organic Poultry", href: "/organic-poultry", icon: Bird, moduleKeys: ["organic-poultry"] },
 ];
 
 const biosecurityNav: NavItem[] = [
@@ -205,6 +206,7 @@ const bottomNav: NavItem[] = [
   { name: "Farm Settings", href: "/settings/farm", icon: MapPin, minRole: "manager" },
   { name: "Lookup Lists", href: "/settings/lookups", icon: List, minRole: "manager" },
   { name: "Account & Notifications", href: "/account", icon: Smartphone },
+  { name: "SMS & Alert Settings", href: "/sms-alerts", icon: Bell, minRole: "manager" },
   { name: "Settings", href: "/settings", icon: Settings, minRole: "manager" },
 ];
 

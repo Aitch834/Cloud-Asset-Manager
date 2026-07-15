@@ -112,6 +112,8 @@ import LambingRecordsPage from "@/pages/LambingRecordsPage";
 import PoultryNCPPage from "@/pages/PoultryNCPPage";
 import AHWRPage from "@/pages/AHWRPage";
 import BeekeepingPage from "@/pages/BeekeepingPage";
+import OrganicPoultryPage from "@/pages/OrganicPoultryPage";
+import SMSAlertsPage from "@/pages/SMSAlertsPage";
 import { NavHistoryProvider } from "@/context/NavHistoryContext";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -414,6 +416,8 @@ function ProtectedContent() {
         <Route path="/poultry-ncp" component={PoultryNCPPage} />
         <Route path="/ahwr" component={AHWRPage} />
         <Route path="/beekeeping" component={BeekeepingPage} />
+        <Route path="/organic-poultry" component={OrganicPoultryPage} />
+        <Route path="/sms-alerts" component={SMSAlertsPage} />
         <Route component={NotFound} />
       </Switch>
     </AuthGate>
@@ -546,6 +550,8 @@ function DevBypassContent() {
         <Route path="/poultry-ncp" component={PoultryNCPPage} />
         <Route path="/ahwr" component={AHWRPage} />
         <Route path="/beekeeping" component={BeekeepingPage} />
+        <Route path="/organic-poultry" component={OrganicPoultryPage} />
+        <Route path="/sms-alerts" component={SMSAlertsPage} />
         <Route component={NotFound} />
       </Switch>
     </RouteErrorBoundary>

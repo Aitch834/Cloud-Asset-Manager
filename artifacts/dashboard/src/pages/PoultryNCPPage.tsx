@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { AlertTriangle, CheckCircle2, FlaskConical, Plus } from "lucide-react";
+import { AlertTriangle, BarChart3, CheckCircle2, FlaskConical, Plus } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
 type NCPTest = {
   id: number;
@@ -50,10 +51,15 @@ const RESULT_BADGE: Record<string, { label: string; className: string }> = {
   inconclusive: { label: "Inconclusive", className: "bg-orange-100 text-orange-800" },
 };
 
+const PIE_COLOURS: Record<string, string> = {
+  Negative: "#22c55e", Pending: "#eab308", Positive: "#ef4444", Inconclusive: "#f97316",
+};
+
 export default function PoultryNCPPage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const [tab, setTab] = useState<"records" | "analytics">("records");
   const [search, setSearch] = useState("");
   const [resultFilter, setResultFilter] = useState<string>("all");
   const [open, setOpen] = useState(false);
@@ -101,14 +107,23 @@ export default function PoultryNCPPage() {
   const openEdit = (t: NCPTest) => { setEditing(t); setForm({ ...t }); setOpen(true); };
   const f = (field: string, val: any) => setForm((p: any) => ({ ...p, [field]: val }));
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    saveMut.mutate({
-      ...form,
-      notificationSentToApha: Boolean(form.notificationSentToApha),
-      movementRestrictions: Boolean(form.movementRestrictions),
-    });
-  };
+  const resultDistrib = ["negative", "positive", "inconclusive", "pending"].map(r => ({
+    name: r.charAt(0).toUpperCase() + r.slice(1),
+    value: tests.filter(t => t.result === r).length,
+  })).filter(d => d.value > 0);
+
+  const monthlyTests = Array.from({ length: 12 }, (_, i) => {
+    const m = String(i + 1).padStart(2, "0");
+    return {
+      month: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][i],
+      tests: tests.filter(t => t.testDate.slice(5, 7) === m).length,
+      positives: tests.filter(t => t.testDate.slice(5, 7) === m && t.result === "positive").length,
+    };
+  });
+
+  const positiveRate = tests.filter(t => t.result !== "pending").length > 0
+    ? ((positives.length / tests.filter(t => t.result !== "pending").length) * 100).toFixed(1)
+    : "0.0";
 
   return (
     <AppLayout title="Poultry NCP Salmonella Testing">
@@ -131,58 +146,144 @@ export default function PoultryNCPPage() {
       )}
 
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <div className="flex gap-2 flex-wrap">
-          <Input placeholder="Search flock, sample ref, date…" value={search} onChange={e => setSearch(e.target.value)} className="max-w-xs" />
-          {(["all", "negative", "positive", "pending", "inconclusive"] as const).map(r => (
-            <Button key={r} size="sm" variant={resultFilter === r ? "default" : "outline"} onClick={() => setResultFilter(r)}>
-              {r === "all" ? "All" : r.charAt(0).toUpperCase() + r.slice(1)}
-            </Button>
-          ))}
+        <div className="flex gap-2">
+          <Button size="sm" variant={tab === "records" ? "default" : "outline"} onClick={() => setTab("records")}>Records</Button>
+          <Button size="sm" variant={tab === "analytics" ? "default" : "outline"} onClick={() => setTab("analytics")}>
+            <BarChart3 className="w-3.5 h-3.5 mr-1" />Analytics
+          </Button>
         </div>
         <Button onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add NCP Test</Button>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        {[
-          { label: "Total Tests", value: tests.length },
-          { label: "Pending", value: pending.length, amber: pending.length > 0 },
-          { label: "Positives", value: positives.length, red: positives.length > 0, green: positives.length === 0 },
-        ].map((s, i) => (
-          <div key={i} className="bg-white border rounded-lg p-3 text-center">
-            <div className={`text-xl font-bold ${s.red ? "text-red-600" : s.amber ? "text-amber-600" : s.green ? "text-green-600" : ""}`}>{s.value}</div>
-            <div className="text-xs text-muted-foreground">{s.label}</div>
+      {tab === "records" && (
+        <>
+          <div className="flex gap-2 flex-wrap mb-4">
+            <Input placeholder="Search flock, sample ref, date…" value={search} onChange={e => setSearch(e.target.value)} className="max-w-xs" />
+            {(["all", "negative", "positive", "pending", "inconclusive"] as const).map(r => (
+              <Button key={r} size="sm" variant={resultFilter === r ? "default" : "outline"} onClick={() => setResultFilter(r)}>
+                {r === "all" ? "All" : r.charAt(0).toUpperCase() + r.slice(1)}
+              </Button>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {testsQ.isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> : filtered.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          <FlaskConical className="mx-auto mb-2 w-10 h-10 opacity-30" />
-          <p>No NCP test records found. Record your first Salmonella test.</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filtered.sort((a, b) => b.testDate.localeCompare(a.testDate)).map(t => {
-            const rb = RESULT_BADGE[t.result] ?? RESULT_BADGE.pending;
-            return (
-              <div key={t.id} className={`bg-white border rounded-lg p-4 cursor-pointer hover:shadow-sm transition-shadow ${t.result === "positive" ? "border-red-300" : ""}`} onClick={() => openEdit(t)}>
-                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <span className="font-medium text-sm">{t.testDate}</span>
-                  <Badge className={`text-xs ${rb.className}`}>{rb.label}</Badge>
-                  <span className="text-xs text-muted-foreground capitalize">{t.sampleType.replace(/_/g, " ")}</span>
-                  {t.result === "positive" && !t.notificationSentToApha && <Badge className="text-xs bg-red-200 text-red-900">APHA not notified</Badge>}
-                  {t.movementRestrictions && <Badge className="text-xs bg-red-100 text-red-800">Restricted</Badge>}
-                </div>
-                <div className="text-xs text-muted-foreground space-x-3">
-                  {t.flockRef && <span>Flock/House: {t.flockRef}</span>}
-                  {t.sampleRef && <span>Sample: {t.sampleRef}</span>}
-                  {t.laboratoryName && <span>Lab: {t.laboratoryName}</span>}
-                  {t.serotypeIsolated && <span className="text-red-700 font-medium">Serotype: {t.serotypeIsolated}</span>}
-                  {t.nextTestDueDate && <span className="text-blue-700">Next: {t.nextTestDueDate}</span>}
-                </div>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            {[
+              { label: "Total Tests", value: tests.length },
+              { label: "Pending", value: pending.length, amber: pending.length > 0 },
+              { label: "Positives", value: positives.length, red: positives.length > 0, green: positives.length === 0 },
+            ].map((s, i) => (
+              <div key={i} className="bg-white border rounded-lg p-3 text-center">
+                <div className={`text-xl font-bold ${(s as any).red ? "text-red-600" : (s as any).amber ? "text-amber-600" : (s as any).green ? "text-green-600" : ""}`}>{s.value}</div>
+                <div className="text-xs text-muted-foreground">{s.label}</div>
               </div>
-            );
-          })}
+            ))}
+          </div>
+
+          {testsQ.isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> : filtered.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <FlaskConical className="mx-auto mb-2 w-10 h-10 opacity-30" />
+              <p>No NCP test records found. Record your first Salmonella test.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filtered.sort((a, b) => b.testDate.localeCompare(a.testDate)).map(t => {
+                const rb = RESULT_BADGE[t.result] ?? RESULT_BADGE.pending;
+                return (
+                  <div key={t.id} className={`bg-white border rounded-lg p-4 cursor-pointer hover:shadow-sm transition-shadow ${t.result === "positive" ? "border-red-300" : ""}`} onClick={() => openEdit(t)}>
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="font-medium text-sm">{t.testDate}</span>
+                      <Badge className={`text-xs ${rb.className}`}>{rb.label}</Badge>
+                      <span className="text-xs text-muted-foreground capitalize">{t.sampleType.replace(/_/g, " ")}</span>
+                      {t.result === "positive" && !t.notificationSentToApha && <Badge className="text-xs bg-red-200 text-red-900">APHA not notified</Badge>}
+                      {t.movementRestrictions && <Badge className="text-xs bg-red-100 text-red-800">Restricted</Badge>}
+                      {t.result === "negative" && <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />}
+                    </div>
+                    <div className="text-xs text-muted-foreground space-x-3">
+                      {t.flockRef && <span>Flock/House: {t.flockRef}</span>}
+                      {t.sampleRef && <span>Sample: {t.sampleRef}</span>}
+                      {t.laboratoryName && <span>Lab: {t.laboratoryName}</span>}
+                      {t.serotypeIsolated && <span className="text-red-700 font-medium">Serotype: {t.serotypeIsolated}</span>}
+                      {t.nextTestDueDate && <span className="text-blue-700">Next: {t.nextTestDueDate}</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {tab === "analytics" && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: "Total Tests", value: tests.length },
+              { label: "Negative", value: tests.filter(t => t.result === "negative").length, green: true },
+              { label: "Positive", value: positives.length, red: positives.length > 0, green: positives.length === 0 },
+              { label: "Positive Rate", value: `${positiveRate}%`, red: parseFloat(positiveRate) > 0 },
+            ].map((s, i) => (
+              <div key={i} className={`bg-white border rounded-lg p-4 text-center ${(s as any).red && parseFloat(String(s.value)) > 0 ? "border-red-300" : ""}`}>
+                <div className={`text-2xl font-bold ${(s as any).red && (positives.length > 0 || parseFloat(positiveRate) > 0) ? "text-red-600" : (s as any).green ? "text-green-600" : ""}`}>{s.value}</div>
+                <div className="text-xs text-muted-foreground">{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {tests.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground border rounded-lg">
+              <FlaskConical className="mx-auto mb-2 w-8 h-8 opacity-30" />
+              <p>Add NCP test records to see analytics.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {resultDistrib.length > 0 && (
+                <div className="bg-white border rounded-lg p-4">
+                  <div className="text-sm font-medium mb-3">Result Distribution</div>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <PieChart>
+                      <Pie data={resultDistrib} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={65} label={d => d.name}>
+                        {resultDistrib.map((d, i) => <Cell key={i} fill={PIE_COLOURS[d.name] ?? "#9ca3af"} />)}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              <div className="bg-white border rounded-lg p-4">
+                <div className="text-sm font-medium mb-3">Monthly Testing Activity</div>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={monthlyTests}>
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                    <Tooltip />
+                    <Bar dataKey="tests" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Tests" />
+                    <Bar dataKey="positives" fill="#ef4444" radius={[4, 4, 0, 0]} name="Positives" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {positives.length > 0 && (
+            <div className="bg-white border rounded-lg p-4">
+              <div className="text-sm font-semibold mb-3 text-red-700">Positive Result History</div>
+              <div className="space-y-2">
+                {positives.sort((a, b) => b.testDate.localeCompare(a.testDate)).map(t => (
+                  <div key={t.id} className="flex items-center justify-between text-xs border border-red-200 rounded p-2 bg-red-50">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{t.testDate}</span>
+                      {t.flockRef && <span className="text-muted-foreground">Flock: {t.flockRef}</span>}
+                      {t.serotypeIsolated && <span className="text-red-700 font-medium">{t.serotypeIsolated}</span>}
+                    </div>
+                    <Badge className={`text-xs ${t.notificationSentToApha ? "bg-green-100 text-green-800" : "bg-red-200 text-red-900"}`}>
+                      {t.notificationSentToApha ? "APHA notified" : "APHA not notified"}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -191,12 +292,9 @@ export default function PoultryNCPPage() {
           <DialogHeader>
             <DialogTitle>{editing ? "Edit NCP Test" : "Add NCP Salmonella Test"}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={e => { e.preventDefault(); saveMut.mutate({ ...form, notificationSentToApha: Boolean(form.notificationSentToApha), movementRestrictions: Boolean(form.movementRestrictions) }); }} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Test Date *</Label>
-                <Input type="date" value={form.testDate ?? ""} onChange={e => f("testDate", e.target.value)} required />
-              </div>
+              <div><Label>Test Date *</Label><Input type="date" value={form.testDate ?? ""} onChange={e => f("testDate", e.target.value)} required /></div>
               <div>
                 <Label>Sample Type *</Label>
                 <Select value={form.sampleType ?? "boot_swab"} onValueChange={v => f("sampleType", v)}>
@@ -242,28 +340,13 @@ export default function PoultryNCPPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>Flock/House Reference</Label>
-                <Input value={form.flockRef ?? ""} onChange={e => f("flockRef", e.target.value)} placeholder="e.g. House 3 / Flock A" />
-              </div>
-              <div>
-                <Label>Laboratory Name</Label>
-                <Input value={form.laboratoryName ?? ""} onChange={e => f("laboratoryName", e.target.value)} />
-              </div>
-              <div>
-                <Label>Sample Reference</Label>
-                <Input value={form.sampleRef ?? ""} onChange={e => f("sampleRef", e.target.value)} />
-              </div>
+              <div><Label>Flock/House Reference</Label><Input value={form.flockRef ?? ""} onChange={e => f("flockRef", e.target.value)} placeholder="e.g. House 3 / Flock A" /></div>
+              <div><Label>Laboratory Name</Label><Input value={form.laboratoryName ?? ""} onChange={e => f("laboratoryName", e.target.value)} /></div>
+              <div><Label>Sample Reference</Label><Input value={form.sampleRef ?? ""} onChange={e => f("sampleRef", e.target.value)} /></div>
               {form.result === "positive" && (
-                <div className="col-span-2">
-                  <Label>Serotype Isolated</Label>
-                  <Input value={form.serotypeIsolated ?? ""} onChange={e => f("serotypeIsolated", e.target.value)} placeholder="e.g. S. Enteritidis, S. Typhimurium DT104" />
-                </div>
+                <div className="col-span-2"><Label>Serotype Isolated</Label><Input value={form.serotypeIsolated ?? ""} onChange={e => f("serotypeIsolated", e.target.value)} placeholder="e.g. S. Enteritidis, S. Typhimurium DT104" /></div>
               )}
-              <div>
-                <Label>Next Test Due</Label>
-                <Input type="date" value={form.nextTestDueDate ?? ""} onChange={e => f("nextTestDueDate", e.target.value)} />
-              </div>
+              <div><Label>Next Test Due</Label><Input type="date" value={form.nextTestDueDate ?? ""} onChange={e => f("nextTestDueDate", e.target.value)} /></div>
             </div>
             <div className="flex flex-wrap gap-4">
               {[
@@ -276,14 +359,8 @@ export default function PoultryNCPPage() {
                 </div>
               ))}
             </div>
-            <div>
-              <Label>Actions Taken</Label>
-              <Textarea value={form.actionsTaken ?? ""} onChange={e => f("actionsTaken", e.target.value)} rows={3} />
-            </div>
-            <div>
-              <Label>Notes</Label>
-              <Textarea value={form.notes ?? ""} onChange={e => f("notes", e.target.value)} rows={2} />
-            </div>
+            <div><Label>Actions Taken</Label><Textarea value={form.actionsTaken ?? ""} onChange={e => f("actionsTaken", e.target.value)} rows={3} /></div>
+            <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => f("notes", e.target.value)} rows={2} /></div>
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={saveMut.isPending}>{saveMut.isPending ? "Saving…" : "Save Test"}</Button>

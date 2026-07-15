@@ -57,3 +57,4 @@ export * from "./resources";
 export * from "./dairy-supplies";
 export * from "./equine";
 export * from "./beekeeping";
+export * from "./organic-poultry";

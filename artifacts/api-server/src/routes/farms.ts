@@ -448,6 +448,10 @@ import {
   apiaryRegisterTable,
   apiaryInspectionsTable,
   apiaryHoneyRecordsTable,
+  organicPoultryCertificationTable,
+  organicPoultryAccessRecordsTable,
+  organicPoultryFeedRecordsTable,
+  organicPoultryDerogationsTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createDairyAbrBorderlineNotification, createDairyAbrInvalidNotification, resolveAbrNotificationsForRecord, createMobilityLamenessAlert, createMobilityScore2Advisory, createBngComplianceNotification, createFpIntakeRejectionNotification, createFpPoorConditionNotification, createFpCheckMissingNotification, createFpPreCoolingPendingNotification, createRiddorNotification, createBcmsMortalityPendingNotification, createBiosecurityDeclarationMissingNotification, createHerdHealthFollowUpNotification, createIpmThresholdBreachedNotification, createReportableDiseaseNotification } from "../lib/alertingJob";
@@ -35787,5 +35791,344 @@ router.get("/farms/:farmId/equine-register", async (req, res) => {
   } catch (err) {
     console.error("[EQUINE-REGISTER GET]", err);
     res.status(500).json({ error: "Failed to fetch equine register" });
+  }
+});
+
+// ─── GOAT ENTERPRISE REPORT ───────────────────────────────────────────────────
+router.get("/farms/:farmId/goat-enterprise-report", requireAuth, requireTenant, requireModuleByKey("goat-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const year = Number(req.query.year) || new Date().getFullYear();
+  try {
+    const startDate = `${year}-01-01`;
+    const endDate = `${year}-12-31`;
+    const cullRows = await db.select().from(goatCullRecordsTable)
+      .where(and(eq(goatCullRecordsTable.farmId, farmId), gte(goatCullRecordsTable.cullDate, startDate), lte(goatCullRecordsTable.cullDate, endDate)));
+    const totalRevenue = cullRows.reduce((s, r) => s + (Number(r.totalValueGbp) || 0), 0);
+    const totalHead = cullRows.reduce((s, r) => s + (Number(r.numberCulled) || 0), 0);
+    const byDestination: Record<string, { head: number; value: number }> = {};
+    const byMonth: Record<string, { head: number; value: number }> = {};
+    for (const r of cullRows) {
+      const dest = r.destination || "Unknown";
+      if (!byDestination[dest]) byDestination[dest] = { head: 0, value: 0 };
+      byDestination[dest].head += Number(r.numberCulled) || 0;
+      byDestination[dest].value += Number(r.totalValueGbp) || 0;
+      const month = (r.cullDate || "").slice(0, 7);
+      if (!byMonth[month]) byMonth[month] = { head: 0, value: 0 };
+      byMonth[month].head += Number(r.numberCulled) || 0;
+      byMonth[month].value += Number(r.totalValueGbp) || 0;
+    }
+    const avgPricePerHead = totalHead > 0 ? totalRevenue / totalHead : 0;
+    res.json({
+      year,
+      totalRevenue,
+      totalHead,
+      avgPricePerHead,
+      cullRecords: cullRows,
+      byDestination: Object.entries(byDestination).map(([destination, d]) => ({ destination, ...d })),
+      byMonth: Object.entries(byMonth).sort(([a], [b]) => a.localeCompare(b)).map(([month, d]) => ({ month, ...d })),
+    });
+  } catch (err) {
+    console.error("[GOAT-ENTERPRISE-REPORT GET]", err);
+    res.status(500).json({ error: "Failed to fetch goat enterprise report" });
+  }
+});
+
+// ─── ORGANIC POULTRY CERTIFICATION ────────────────────────────────────────────
+router.get("/farms/:farmId/organic-poultry/certification", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  try {
+    const certifications = await db.select().from(organicPoultryCertificationTable).where(eq(organicPoultryCertificationTable.farmId, farmId)).orderBy(desc(organicPoultryCertificationTable.issueDate));
+    res.json({ certifications });
+  } catch (err) {
+    console.error("[ORGANIC-POULTRY-CERT GET]", err);
+    res.status(500).json({ error: "Failed to fetch certifications" });
+  }
+});
+
+router.post("/farms/:farmId/organic-poultry/certification", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const b = req.body;
+  try {
+    const [row] = await db.insert(organicPoultryCertificationTable).values({
+      farmId,
+      certifyingBody: String(b.certifyingBody ?? ""),
+      certificateNumber: b.certificateNumber ? String(b.certificateNumber) : null,
+      certificateType: b.certificateType ? String(b.certificateType) : "laying_hens",
+      issueDate: b.issueDate ? String(b.issueDate) : null,
+      expiryDate: b.expiryDate ? String(b.expiryDate) : null,
+      scope: b.scope ? String(b.scope) : null,
+      status: b.status ? String(b.status) : "active",
+      notes: b.notes ? String(b.notes) : null,
+    }).returning();
+    res.status(201).json(row);
+  } catch (err) {
+    console.error("[ORGANIC-POULTRY-CERT POST]", err);
+    res.status(500).json({ error: "Failed to create certification" });
+  }
+});
+
+router.put("/farms/:farmId/organic-poultry/certification/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  const b = req.body;
+  try {
+    const [row] = await db.update(organicPoultryCertificationTable).set({
+      certifyingBody: b.certifyingBody ? String(b.certifyingBody) : undefined,
+      certificateNumber: b.certificateNumber !== undefined ? (b.certificateNumber ? String(b.certificateNumber) : null) : undefined,
+      certificateType: b.certificateType ? String(b.certificateType) : undefined,
+      issueDate: b.issueDate !== undefined ? (b.issueDate ? String(b.issueDate) : null) : undefined,
+      expiryDate: b.expiryDate !== undefined ? (b.expiryDate ? String(b.expiryDate) : null) : undefined,
+      scope: b.scope !== undefined ? (b.scope ? String(b.scope) : null) : undefined,
+      status: b.status ? String(b.status) : undefined,
+      notes: b.notes !== undefined ? (b.notes ? String(b.notes) : null) : undefined,
+    }).where(and(eq(organicPoultryCertificationTable.id, id), eq(organicPoultryCertificationTable.farmId, farmId))).returning();
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(row);
+  } catch (err) {
+    console.error("[ORGANIC-POULTRY-CERT PUT]", err);
+    res.status(500).json({ error: "Failed to update certification" });
+  }
+});
+
+router.delete("/farms/:farmId/organic-poultry/certification/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  try {
+    await db.delete(organicPoultryCertificationTable).where(and(eq(organicPoultryCertificationTable.id, id), eq(organicPoultryCertificationTable.farmId, farmId)));
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[ORGANIC-POULTRY-CERT DELETE]", err);
+    res.status(500).json({ error: "Failed to delete certification" });
+  }
+});
+
+// ─── ORGANIC POULTRY OUTDOOR ACCESS RECORDS ───────────────────────────────────
+router.get("/farms/:farmId/organic-poultry/access-records", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  try {
+    const records = await db.select().from(organicPoultryAccessRecordsTable).where(eq(organicPoultryAccessRecordsTable.farmId, farmId)).orderBy(desc(organicPoultryAccessRecordsTable.recordDate));
+    res.json({ records });
+  } catch (err) {
+    console.error("[ORGANIC-POULTRY-ACCESS GET]", err);
+    res.status(500).json({ error: "Failed to fetch access records" });
+  }
+});
+
+router.post("/farms/:farmId/organic-poultry/access-records", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const b = req.body;
+  try {
+    const [row] = await db.insert(organicPoultryAccessRecordsTable).values({
+      farmId,
+      recordDate: String(b.recordDate ?? ""),
+      flockRef: b.flockRef ? String(b.flockRef) : null,
+      houseOrLocation: b.houseOrLocation ? String(b.houseOrLocation) : null,
+      birdsInFlock: b.birdsInFlock ? Number(b.birdsInFlock) : null,
+      birdsAccessedRange: b.birdsAccessedRange ? Number(b.birdsAccessedRange) : null,
+      rangeAreaHa: b.rangeAreaHa ? String(b.rangeAreaHa) : null,
+      birdsPerHa: b.birdsPerHa ? String(b.birdsPerHa) : null,
+      accessDurationHours: b.accessDurationHours ? String(b.accessDurationHours) : null,
+      vegetationCondition: b.vegetationCondition ? String(b.vegetationCondition) : null,
+      accessBlocked: Boolean(b.accessBlocked),
+      accessBlockReason: b.accessBlockReason ? String(b.accessBlockReason) : null,
+      complianceStatus: b.complianceStatus ? String(b.complianceStatus) : "compliant",
+      notes: b.notes ? String(b.notes) : null,
+    }).returning();
+    res.status(201).json(row);
+  } catch (err) {
+    console.error("[ORGANIC-POULTRY-ACCESS POST]", err);
+    res.status(500).json({ error: "Failed to create access record" });
+  }
+});
+
+router.put("/farms/:farmId/organic-poultry/access-records/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  const b = req.body;
+  try {
+    const [row] = await db.update(organicPoultryAccessRecordsTable).set({
+      recordDate: b.recordDate ? String(b.recordDate) : undefined,
+      flockRef: b.flockRef !== undefined ? (b.flockRef ? String(b.flockRef) : null) : undefined,
+      houseOrLocation: b.houseOrLocation !== undefined ? (b.houseOrLocation ? String(b.houseOrLocation) : null) : undefined,
+      birdsInFlock: b.birdsInFlock !== undefined ? (b.birdsInFlock ? Number(b.birdsInFlock) : null) : undefined,
+      birdsAccessedRange: b.birdsAccessedRange !== undefined ? (b.birdsAccessedRange ? Number(b.birdsAccessedRange) : null) : undefined,
+      rangeAreaHa: b.rangeAreaHa !== undefined ? (b.rangeAreaHa ? String(b.rangeAreaHa) : null) : undefined,
+      birdsPerHa: b.birdsPerHa !== undefined ? (b.birdsPerHa ? String(b.birdsPerHa) : null) : undefined,
+      accessDurationHours: b.accessDurationHours !== undefined ? (b.accessDurationHours ? String(b.accessDurationHours) : null) : undefined,
+      vegetationCondition: b.vegetationCondition !== undefined ? (b.vegetationCondition ? String(b.vegetationCondition) : null) : undefined,
+      accessBlocked: b.accessBlocked !== undefined ? Boolean(b.accessBlocked) : undefined,
+      accessBlockReason: b.accessBlockReason !== undefined ? (b.accessBlockReason ? String(b.accessBlockReason) : null) : undefined,
+      complianceStatus: b.complianceStatus ? String(b.complianceStatus) : undefined,
+      notes: b.notes !== undefined ? (b.notes ? String(b.notes) : null) : undefined,
+    }).where(and(eq(organicPoultryAccessRecordsTable.id, id), eq(organicPoultryAccessRecordsTable.farmId, farmId))).returning();
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(row);
+  } catch (err) {
+    console.error("[ORGANIC-POULTRY-ACCESS PUT]", err);
+    res.status(500).json({ error: "Failed to update access record" });
+  }
+});
+
+router.delete("/farms/:farmId/organic-poultry/access-records/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  try {
+    await db.delete(organicPoultryAccessRecordsTable).where(and(eq(organicPoultryAccessRecordsTable.id, id), eq(organicPoultryAccessRecordsTable.farmId, farmId)));
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[ORGANIC-POULTRY-ACCESS DELETE]", err);
+    res.status(500).json({ error: "Failed to delete access record" });
+  }
+});
+
+// ─── ORGANIC POULTRY FEED RECORDS ─────────────────────────────────────────────
+router.get("/farms/:farmId/organic-poultry/feed-records", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  try {
+    const records = await db.select().from(organicPoultryFeedRecordsTable).where(eq(organicPoultryFeedRecordsTable.farmId, farmId)).orderBy(desc(organicPoultryFeedRecordsTable.deliveryDate));
+    res.json({ records });
+  } catch (err) {
+    console.error("[ORGANIC-POULTRY-FEED GET]", err);
+    res.status(500).json({ error: "Failed to fetch feed records" });
+  }
+});
+
+router.post("/farms/:farmId/organic-poultry/feed-records", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const b = req.body;
+  try {
+    const [row] = await db.insert(organicPoultryFeedRecordsTable).values({
+      farmId,
+      deliveryDate: String(b.deliveryDate ?? ""),
+      productName: String(b.productName ?? ""),
+      productType: b.productType ? String(b.productType) : null,
+      organicApprovalStatus: b.organicApprovalStatus ? String(b.organicApprovalStatus) : "certified_organic",
+      certifierApprovalReference: b.certifierApprovalReference ? String(b.certifierApprovalReference) : null,
+      quantityKg: b.quantityKg ? String(b.quantityKg) : null,
+      supplierName: b.supplierName ? String(b.supplierName) : null,
+      supplierLotNumber: b.supplierLotNumber ? String(b.supplierLotNumber) : null,
+      invoiceReference: b.invoiceReference ? String(b.invoiceReference) : null,
+      flock: b.flock ? String(b.flock) : null,
+      notes: b.notes ? String(b.notes) : null,
+    }).returning();
+    res.status(201).json(row);
+  } catch (err) {
+    console.error("[ORGANIC-POULTRY-FEED POST]", err);
+    res.status(500).json({ error: "Failed to create feed record" });
+  }
+});
+
+router.put("/farms/:farmId/organic-poultry/feed-records/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  const b = req.body;
+  try {
+    const [row] = await db.update(organicPoultryFeedRecordsTable).set({
+      deliveryDate: b.deliveryDate ? String(b.deliveryDate) : undefined,
+      productName: b.productName ? String(b.productName) : undefined,
+      productType: b.productType !== undefined ? (b.productType ? String(b.productType) : null) : undefined,
+      organicApprovalStatus: b.organicApprovalStatus ? String(b.organicApprovalStatus) : undefined,
+      certifierApprovalReference: b.certifierApprovalReference !== undefined ? (b.certifierApprovalReference ? String(b.certifierApprovalReference) : null) : undefined,
+      quantityKg: b.quantityKg !== undefined ? (b.quantityKg ? String(b.quantityKg) : null) : undefined,
+      supplierName: b.supplierName !== undefined ? (b.supplierName ? String(b.supplierName) : null) : undefined,
+      supplierLotNumber: b.supplierLotNumber !== undefined ? (b.supplierLotNumber ? String(b.supplierLotNumber) : null) : undefined,
+      invoiceReference: b.invoiceReference !== undefined ? (b.invoiceReference ? String(b.invoiceReference) : null) : undefined,
+      flock: b.flock !== undefined ? (b.flock ? String(b.flock) : null) : undefined,
+      notes: b.notes !== undefined ? (b.notes ? String(b.notes) : null) : undefined,
+    }).where(and(eq(organicPoultryFeedRecordsTable.id, id), eq(organicPoultryFeedRecordsTable.farmId, farmId))).returning();
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(row);
+  } catch (err) {
+    console.error("[ORGANIC-POULTRY-FEED PUT]", err);
+    res.status(500).json({ error: "Failed to update feed record" });
+  }
+});
+
+router.delete("/farms/:farmId/organic-poultry/feed-records/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  try {
+    await db.delete(organicPoultryFeedRecordsTable).where(and(eq(organicPoultryFeedRecordsTable.id, id), eq(organicPoultryFeedRecordsTable.farmId, farmId)));
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[ORGANIC-POULTRY-FEED DELETE]", err);
+    res.status(500).json({ error: "Failed to delete feed record" });
+  }
+});
+
+// ─── ORGANIC POULTRY DEROGATIONS ──────────────────────────────────────────────
+router.get("/farms/:farmId/organic-poultry/derogations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  try {
+    const derogations = await db.select().from(organicPoultryDerogationsTable).where(eq(organicPoultryDerogationsTable.farmId, farmId)).orderBy(desc(organicPoultryDerogationsTable.applicationDate));
+    res.json({ derogations });
+  } catch (err) {
+    console.error("[ORGANIC-POULTRY-DEROG GET]", err);
+    res.status(500).json({ error: "Failed to fetch derogations" });
+  }
+});
+
+router.post("/farms/:farmId/organic-poultry/derogations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const b = req.body;
+  try {
+    const [row] = await db.insert(organicPoultryDerogationsTable).values({
+      farmId,
+      caseReference: b.caseReference ? String(b.caseReference) : null,
+      inputName: String(b.inputName ?? ""),
+      inputType: b.inputType ? String(b.inputType) : null,
+      regulatoryBasis: b.regulatoryBasis ? String(b.regulatoryBasis) : null,
+      certifyingBody: b.certifyingBody ? String(b.certifyingBody) : null,
+      certifierRef: b.certifierRef ? String(b.certifierRef) : null,
+      applicationDate: b.applicationDate ? String(b.applicationDate) : null,
+      justification: b.justification ? String(b.justification) : null,
+      status: b.status ? String(b.status) : "pending",
+      decisionDate: b.decisionDate ? String(b.decisionDate) : null,
+      expiryDate: b.expiryDate ? String(b.expiryDate) : null,
+      approvalConditions: b.approvalConditions ? String(b.approvalConditions) : null,
+      notes: b.notes ? String(b.notes) : null,
+    }).returning();
+    res.status(201).json(row);
+  } catch (err) {
+    console.error("[ORGANIC-POULTRY-DEROG POST]", err);
+    res.status(500).json({ error: "Failed to create derogation" });
+  }
+});
+
+router.put("/farms/:farmId/organic-poultry/derogations/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  const b = req.body;
+  try {
+    const [row] = await db.update(organicPoultryDerogationsTable).set({
+      caseReference: b.caseReference !== undefined ? (b.caseReference ? String(b.caseReference) : null) : undefined,
+      inputName: b.inputName ? String(b.inputName) : undefined,
+      inputType: b.inputType !== undefined ? (b.inputType ? String(b.inputType) : null) : undefined,
+      certifyingBody: b.certifyingBody !== undefined ? (b.certifyingBody ? String(b.certifyingBody) : null) : undefined,
+      applicationDate: b.applicationDate !== undefined ? (b.applicationDate ? String(b.applicationDate) : null) : undefined,
+      justification: b.justification !== undefined ? (b.justification ? String(b.justification) : null) : undefined,
+      status: b.status ? String(b.status) : undefined,
+      decisionDate: b.decisionDate !== undefined ? (b.decisionDate ? String(b.decisionDate) : null) : undefined,
+      expiryDate: b.expiryDate !== undefined ? (b.expiryDate ? String(b.expiryDate) : null) : undefined,
+      approvalConditions: b.approvalConditions !== undefined ? (b.approvalConditions ? String(b.approvalConditions) : null) : undefined,
+      notes: b.notes !== undefined ? (b.notes ? String(b.notes) : null) : undefined,
+    }).where(and(eq(organicPoultryDerogationsTable.id, id), eq(organicPoultryDerogationsTable.farmId, farmId))).returning();
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(row);
+  } catch (err) {
+    console.error("[ORGANIC-POULTRY-DEROG PUT]", err);
+    res.status(500).json({ error: "Failed to update derogation" });
+  }
+});
+
+router.delete("/farms/:farmId/organic-poultry/derogations/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  try {
+    await db.delete(organicPoultryDerogationsTable).where(and(eq(organicPoultryDerogationsTable.id, id), eq(organicPoultryDerogationsTable.farmId, farmId)));
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[ORGANIC-POULTRY-DEROG DELETE]", err);
+    res.status(500).json({ error: "Failed to delete derogation" });
   }
 });

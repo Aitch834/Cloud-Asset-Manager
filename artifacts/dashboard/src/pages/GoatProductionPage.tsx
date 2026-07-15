@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
+import { GoatEnterpriseReport } from "@/components/GoatEnterpriseReport";
 import { useAppStore } from "@/hooks/use-app-store";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -986,7 +987,7 @@ function GoatAnalyticsTab({ farmId }: { farmId: number }) {
 // ─── PAGE ─────────────────────────────────────────────────────────────────────
 export default function GoatProductionPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<"herds" | "mating" | "scanning" | "weigh" | "cull" | "health" | "analytics">("herds");
+  const [tab, setTab] = useState<"herds" | "mating" | "scanning" | "weigh" | "cull" | "health" | "analytics" | "enterprise">("herds");
 
   if (!farmId) {
     return (
@@ -1019,6 +1020,7 @@ export default function GoatProductionPage() {
           <TabButton active={tab === "cull"} onClick={() => setTab("cull")}>Cull / Market</TabButton>
           <TabButton active={tab === "health"} onClick={() => setTab("health")}>Health</TabButton>
           <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}><BarChart3 className="w-3.5 h-3.5 mr-1 inline" />Analytics</TabButton>
+          <TabButton active={tab === "enterprise"} onClick={() => setTab("enterprise")}>Enterprise Report</TabButton>
         </TabBar>
 
         <div className="rounded-md border p-4 bg-card">
@@ -1029,6 +1031,7 @@ export default function GoatProductionPage() {
           {tab === "cull" && <CullTab farmId={farmId} />}
           {tab === "health" && <HealthTab farmId={farmId} />}
           {tab === "analytics" && <GoatAnalyticsTab farmId={farmId} />}
+          {tab === "enterprise" && <GoatEnterpriseReport farmId={farmId} />}
         </div>
       </div>
     </AppLayout>

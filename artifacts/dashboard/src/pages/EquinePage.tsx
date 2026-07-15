@@ -11,10 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Printer, Stethoscope } from "lucide-react";
+import { BarChart3, Plus, Printer, Stethoscope } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
-// Uses equineRecordsTable (equine_records) and equineHealthEventsTable (equine_health_events)
-// from diversification.ts via existing routes in farms.ts
 type EquineRecord = {
   id: number;
   horseName: string;
@@ -59,12 +58,13 @@ const STATUS_BADGE: Record<string, string> = {
   deceased: "bg-red-100 text-red-700",
   loaned: "bg-blue-100 text-blue-800",
 };
+const EVENT_COLOURS = ["#3b82f6", "#22c55e", "#8b5cf6", "#f97316", "#eab308", "#06b6d4", "#9ca3af"];
 
 export default function EquinePage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [tab, setTab] = useState<"horses" | "health">("horses");
+  const [tab, setTab] = useState<"horses" | "health" | "analytics">("horses");
   const [search, setSearch] = useState("");
   const [selectedHorse, setSelectedHorse] = useState<number | null>(null);
   const [horseOpen, setHorseOpen] = useState(false);
@@ -125,21 +125,37 @@ export default function EquinePage() {
     (h.breed ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
-  const filteredEvents = selectedHorse
-    ? events.filter(e => e.horseId === selectedHorse)
-    : events;
-
+  const filteredEvents = selectedHorse ? events.filter(e => e.horseId === selectedHorse) : events;
   const getHorseName = (id: number) => horses.find(h => h.id === id)?.horseName ?? `Horse ${id}`;
-
   const fh = (field: string, val: any) => setHorseForm((p: any) => ({ ...p, [field]: val }));
   const fe = (field: string, val: any) => setEventForm((p: any) => ({ ...p, [field]: val }));
+
+  const today = new Date().toISOString().slice(0, 10);
+  const activeHorses = horses.filter(h => h.status === "active").length;
+  const onWithdrawal = events.filter(e => e.withdrawalPeriodDays && e.withdrawalPeriodDays > 0 &&
+    new Date(e.eventDate).getTime() + e.withdrawalPeriodDays * 86400000 > Date.now()).length;
+
+  const eventTypeData = EVENT_TYPES.map(t => ({
+    type: t.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+    count: events.filter(e => e.eventType === t).length,
+  })).filter(d => d.count > 0);
+
+  const monthlyEvents = Array.from({ length: 12 }, (_, i) => {
+    const m = String(i + 1).padStart(2, "0");
+    return {
+      month: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][i],
+      count: events.filter(e => e.eventDate.slice(5, 7) === m).length,
+    };
+  });
+
+  const totalCost = events.reduce((s, e) => s + (parseFloat(e.cost ?? "0") || 0), 0);
 
   return (
     <AppLayout title="Equine Register">
       <div className="mb-4 flex gap-2">
-        {(["horses", "health"] as const).map(t => (
+        {(["horses", "health", "analytics"] as const).map(t => (
           <Button key={t} variant={tab === t ? "default" : "outline"} size="sm" onClick={() => setTab(t)}>
-            {t === "horses" ? `Horses & Ponies (${horses.length})` : "Health Events"}
+            {t === "horses" ? `Horses & Ponies (${horses.length})` : t === "health" ? "Health Events" : <><BarChart3 className="w-3.5 h-3.5 mr-1 inline" />Analytics</>}
           </Button>
         ))}
       </div>
@@ -238,7 +254,80 @@ export default function EquinePage() {
         </>
       )}
 
-      {/* Horse Dialog */}
+      {tab === "analytics" && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: "Total Horses", value: horses.length },
+              { label: "Active", value: activeHorses, green: activeHorses > 0 },
+              { label: "Health Events", value: events.length },
+              { label: "Total Vet/Farrier Cost", value: totalCost > 0 ? `£${totalCost.toFixed(2)}` : "—" },
+            ].map((s, i) => (
+              <div key={i} className="bg-white border rounded-lg p-4 text-center">
+                <div className={`text-2xl font-bold ${(s as any).green ? "text-green-600" : ""}`}>{s.value}</div>
+                <div className="text-xs text-muted-foreground">{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {events.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground border rounded-lg">
+              <BarChart3 className="mx-auto mb-2 w-8 h-8 opacity-30" />
+              <p>Add health events to see analytics.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {eventTypeData.length > 0 && (
+                <div className="bg-white border rounded-lg p-4">
+                  <div className="text-sm font-medium mb-3">Events by Type</div>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <PieChart>
+                      <Pie data={eventTypeData} dataKey="count" nameKey="type" cx="50%" cy="50%" outerRadius={65}>
+                        {eventTypeData.map((_, i) => <Cell key={i} fill={EVENT_COLOURS[i % EVENT_COLOURS.length]} />)}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              <div className="bg-white border rounded-lg p-4">
+                <div className="text-sm font-medium mb-3">Monthly Event Frequency</div>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={monthlyEvents}>
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Events" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {onWithdrawal > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <div className="text-sm font-semibold text-amber-800 mb-1">Withdrawal Periods Active</div>
+              <p className="text-xs text-amber-700">{onWithdrawal} horse{onWithdrawal > 1 ? "s" : ""} currently under a medicine withdrawal period. Check health events for details before competition or slaughter.</p>
+            </div>
+          )}
+
+          {horses.length > 0 && (
+            <div className="bg-white border rounded-lg p-4">
+              <div className="text-sm font-medium mb-3">Register Summary</div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                {["active", "loaned", "sold", "deceased"].map(st => (
+                  <div key={st} className="rounded border p-2 text-center">
+                    <div className="text-lg font-bold">{horses.filter(h => h.status === st).length}</div>
+                    <div className="text-muted-foreground capitalize">{st}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <Dialog open={horseOpen} onOpenChange={o => { setHorseOpen(o); if (!o) { setEditingHorse(null); setHorseForm(EMPTY_HORSE); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingHorse ? "Edit Horse Record" : "Add Horse / Pony"}</DialogTitle></DialogHeader>
@@ -263,7 +352,6 @@ export default function EquinePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Event Dialog */}
       <Dialog open={eventOpen} onOpenChange={o => { setEventOpen(o); if (!o) { setEditingEvent(null); setEventForm(EMPTY_EVENT); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingEvent ? "Edit Health Event" : "Add Health Event"}</DialogTitle></DialogHeader>
