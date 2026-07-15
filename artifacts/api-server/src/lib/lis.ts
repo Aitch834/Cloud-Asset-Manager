@@ -425,20 +425,20 @@ export async function refreshLisToken(refreshToken: string): Promise<LisTokenRes
  */
 function buildMovementPayload(req: LisMovementRequest): object {
   // CLA OData endpoint: POST /TransferRequests with { content: { ...TransferModel } } wrapper.
-  // ALL field names confirmed via live LIS CLA API validation (July 2026).
+  // ALL field names confirmed via live LIS CLA API + GET /TransferRequests?$expand=content (July 2026).
   //
-  // TransferModel confirmed fields:
-  //   transferDate ✅  species ✅  userHolding ✅  sourceHolding ✅
-  //   destinationHolding ✅  animalCount ✅  movementGroups ✅
+  // TransferModel: transferDate ✅  species (title-case) ✅  userHolding ✅  sourceHolding ✅
+  //               destinationHolding ✅  animalCount ✅  movementGroups ✅
   //
-  // MovementGroup confirmed: batches ✅
-  // Batch confirmed: batchNumber ✅ (flock mark e.g. "UK130181")  animalTotal ✅
+  // MovementGroup: devices ✅ (individual ear tags — preferred)
+  //               batches ✅ (flock-mark batch — fallback)
+  //
+  // Device (individual animal): { tagNumber } ✅  (rfid auto-populated by LIS from tagNumber)
+  // Batch: { batchNumber (flock mark e.g. "UK130181"), animalTotal } ✅
   //
   // species must be title-case: 'Sheep' | 'Goat' | 'Deer'
-  // userHolding = the farm's own CPH (sourceHolding for off, destinationHolding for on)
-  //
-  // Individual animal identification (ear tag arrays) field name is still unknown.
-  // Batch approach using flock mark as batchNumber works for sheep movements.
+  // userHolding = farm's own CPH (sourceHolding for off, destinationHolding for on)
+  // animalCount at TransferModel level = total number of animals (NOT in MovementGroup/Batch)
 
   const speciesMap: Record<LisSpecies, string> = {
     SHEEP: "Sheep",
@@ -453,19 +453,32 @@ function buildMovementPayload(req: LisMovementRequest): object {
   // For movement_off the farm is the source; for movement_on the farm is the destination.
   const userHolding = req.movementType === "movement_on" ? destinationCph : departureCph;
 
-  // Derive flock mark (batchNumber) from the provided flockMark or from the first ear tag.
-  // Ear tag format: UK<7-char flock code><5-char sequence> e.g. UK013018100001
-  // Flock mark = "UK" + flock-code-without-leading-zeros e.g. "UK130181"
-  let batchNumber = req.flockMark ?? "";
-  if (!batchNumber && req.earTagNumbers) {
-    const firstTag = req.earTagNumbers.split(/[\s,]+/).filter(Boolean)[0]?.trim() ?? "";
-    if (firstTag.toUpperCase().startsWith("UK") && firstTag.length >= 9) {
-      const flockCode = firstTag.slice(2, 9); // 7-char flock code portion
-      batchNumber = "UK" + flockCode.replace(/^0+/, "");
-    }
+  const animalCount = req.numberOfAnimals;
+
+  // ── Individual ear-tag submission (preferred) ────────────────────────────
+  // When ear tag numbers are provided, submit as individual devices.
+  // Device tagNumber format: UK013018100001 (LIS auto-populates rfid from this).
+  const earTags = req.earTagNumbers
+    ? req.earTagNumbers.split(/[\s,]+/).filter(Boolean).map(t => t.trim())
+    : [];
+
+  if (earTags.length > 0) {
+    return {
+      transferDate: req.movementDate,
+      species: speciesMap[req.species] ?? req.species,
+      userHolding,
+      sourceHolding: departureCph,
+      destinationHolding: destinationCph,
+      animalCount,
+      movementGroups: [{ devices: earTags.map(tagNumber => ({ tagNumber })) }],
+    };
   }
 
-  const animalCount = req.numberOfAnimals;
+  // ── Batch / flock-mark fallback ──────────────────────────────────────────
+  // When no individual ear tags: use flock mark as batchNumber.
+  // Flock mark = "UK" + flock-code-without-leading-zeros (e.g. "UK130181").
+  // Derived from earTag UK013018100001 → chars 2-8 "0130181" → strip leading zero → "UK130181".
+  const batchNumber = req.flockMark ?? "";
 
   const batch: Record<string, unknown> = { animalTotal: animalCount };
   if (batchNumber) batch.batchNumber = batchNumber;

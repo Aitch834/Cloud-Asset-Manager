@@ -69,17 +69,18 @@ Migration already applied: `ALTER TABLE lis_farm_tokens ADD COLUMN IF NOT EXISTS
 
 ## UK Proxy
 - Deployed on DigitalOcean London (LON1) VPS at port 3001, pm2 process `lis-proxy`
+- Script at `/root/lis-proxy.js` — rebuilt July 2026 after accidental droplet rebuild
 - Header: `X-Proxy-Secret` (not `x-bde-proxy-secret`)
-- **Known bug: proxy URL-encodes `$` to `%24` in query strings.** OData params like `$top`, `$filter`, `$orderby` are mangled when forwarded to LIS. LIS then returns 400 "The $top query parameter must be provided" even when $top IS in the URL.
-- **Workaround:** Avoid query-string OData params. Use OData path functions instead (e.g. `ReviewBySpecies(species='Sheep',holding='...')` works fine). Fix requires updating the proxy server.
+- **$ encoding bug FIXED** in the new proxy script (July 2026). Uses raw `req.url` string concatenation — never passes through `new URL()` which encodes `$` to `%24`.
 - POSTs with JSON bodies work correctly via the proxy (no encoding issues).
-- `$metadata` path (GET /lis/cla/$metadata) returns 404 — not exposed through the APIM gateway.
+- `$metadata` path returns 404 — not exposed through the APIM gateway (APIM policy blocks it regardless of $ encoding).
+- After proxy rebuild, env vars must be set: `PROXY_SECRET`, `LIS_SUBSCRIPTION_KEY`, `LIS_B2C_CLIENT_ID`
 
-## POST /TransferRequests — CONFIRMED WORKING SCHEMA (July 2026)
+## POST /TransferRequests — FULLY CONFIRMED SCHEMA (July 2026)
 
-**Result: 201 Created — `requestId` returned. First successful submission July 15 2026.**
+**Result: 201 Created — individual ear-tag submission confirmed working.**
+**GET /TransferRequests(id)?$expand=content reveals the complete stored schema.**
 
-Confirmed TransferModel fields (all others tried return "property X does not exist on type CLAOData.Models.Transfer.TransferModel"):
 ```json
 {
   "content": {
@@ -88,57 +89,69 @@ Confirmed TransferModel fields (all others tried return "property X does not exi
     "userHolding": "01/100/0257",           // Farm's own CPH (source for off, dest for on)
     "sourceHolding": "01/100/0257",         // Departure CPH
     "destinationHolding": "01/100/0264",    // Destination CPH
-    "animalCount": 3,                       // Top-level total count (NOT animalTotal, numberOfAnimals, headCount)
+    "animalCount": 3,                       // Top-level total (NOT animalTotal / numberOfAnimals)
+
+    // PREFERRED: individual ear-tag submission
     "movementGroups": [{
-      "batches": [{
-        "batchNumber": "UK130181",          // Flock mark: UK + flock-code-without-leading-zeros
-        "animalTotal": 3                    // Count within this batch
-      }]
+      "devices": [
+        { "tagNumber": "UK013018100001" },  // LIS auto-populates rfid from tagNumber
+        { "tagNumber": "UK013018100002" },
+        { "tagNumber": "UK013018100003" }
+      ]
     }]
+
+    // FALLBACK: flock-mark batch (when no individual ear tags known)
+    // "movementGroups": [{
+    //   "batches": [{ "batchNumber": "UK130181", "animalTotal": 3 }]
+    // }]
   }
 }
 ```
 
-**Flock mark (batchNumber) derivation from ear tags:**
-- Ear tag format: `UK<7-char flock code><5-char sequence>` e.g. `UK013018100001`
-- Flock code = chars 2–8: `0130181`
-- batchNumber = `UK` + lstrip-zeros(flock-code) = `UK130181`
-- Implemented in `buildMovementPayload` — uses `req.flockMark` if provided, else derives from first ear tag
-
-**Key discoveries (70+ field names tried to find these):**
-- `batches` ❌ for species='Sheep' when batchNumber is an individual ear tag format (e.g. UK013018100001)
-- `batches` ✅ for species='Sheep' when batchNumber is the flock mark format (e.g. UK130181)
-- Individual ear tag array field in MovementGroup: STILL UNKNOWN after 70+ attempts
-  (tried: animals, individuals, tags, earTags, identifiedAnimals, tagInformations, identifications, and many more)
-  → Batch approach with flock mark is the current working solution
-
-**Response shape:**
+**GET response content shape (from $expand=content):**
 ```json
 {
-  "@odata.context": "https://lz-cla-core-cla-odata-prod-ext-uks-01.azurewebsites.net/v1/$metadata#TransferRequests/$entity",
-  "requestId": 60197,
-  "requestStatus": "Pending",
-  "requestDate": "2026-07-15T00:22:31.717+01:00",
-  "updatedDate": "2026-07-15T00:22:31.717+01:00",
-  "isFullUndone": false,
-  "undoSupported": true,
-  "userName": null,
-  "isContentPurged": false,
-  "errors": [],
-  "warnings": [],
-  "validationErrors": null
+  "sourceHolding": "...", "destinationHolding": "...", "userHolding": "...",
+  "transferDate": "...", "animalCount": 3, "species": "Sheep",
+  "saleDate": null, "saleId": null, "transportHaulierName": null,
+  "transportVehicleRegistrationNo": null, "id": 60206, "trackingId": null,
+  "movementGroups": [{
+    "fromSubLocation": null, "toSubLocation": null, "vendorHolding": null,
+    "batches": [],
+    "devices": [
+      { "tagNumber": "UK0130181 00001", "rfid": "0826013018100001", "freezebrand": null }
+    ],
+    "devicesWithDetail": []
+  }],
+  "movementDocument": {
+    "documentType": "CLA",
+    "movementDocumentRef": "10496501",   // ← official CLA document reference
+    ...
+  },
+  "deviceApplication": null, "processingFlags": []
 }
 ```
-Reference stored as `requestId` (integer). `submitLisMovement` already handles `responseData?.requestId`.
+
+**Key notes:**
+- LIS stores tagNumber with a space: `"UK0130181 00001"` (reformats UK + 7-digit code + space + 5-digit seq)
+- LIS auto-populates `rfid` from `tagNumber` — only need to send `{ tagNumber }` 
+- `movementDocumentRef` in the response is the official CLA document reference for the movement
+- `requestStatus: "Success"` appears within seconds on sandbox (may differ on production)
+- `devices` sits directly in MovementGroup (NOT inside batches)
+- `devicesWithDetail` exists but inner type field names not yet confirmed (`tagNumber` was invalid for it)
+
+**Flock mark derivation (batch fallback only):**
+- Ear tag `UK013018100001` → chars 2–8 = `0130181` → strip leading zero → `130181` → `UK130181`
 
 ## CLA Endpoint Test Matrix (July 2026)
 | Endpoint | Method | Status | Notes |
 |---|---|---|---|
 | /Holdings/ValidHoldings | POST | ✅ 200 | Content wrapper required |
 | /HoldingMovementForReviews/ReviewBySpecies(species='...',holding='...') | GET | ✅ 200 | Path-param OData, no query string |
-| /TransferRequests | POST | ✅ 201 | Working — confirmed July 2026. Schema above. |
-| /TransferRequests?$top=50 | GET | ❌ 400 | Proxy encodes `$` → `%24`; LIS never sees `$top` |
-| /$metadata | GET | ❌ 404 | Not exposed through APIM gateway |
+| /TransferRequests | POST | ✅ 201 | Working — individual devices + batch fallback both confirmed |
+| /TransferRequests?$top=N | GET | ✅ 200 | **Fixed** in new proxy ($ encoding bug resolved) |
+| /TransferRequests(id)?$expand=content | GET | ✅ 200 | Reveals full stored content including movementGroups |
+| /$metadata | GET | ❌ 404 | Blocked at APIM level — not a proxy issue |
 | /ReviewHoldingMovementRequests | POST | ✅ implemented | Content wrapper; used in review flow |
 | /UndoRequests | POST | ✅ implemented | Content wrapper |
 
