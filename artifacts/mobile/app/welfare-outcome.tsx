@@ -23,6 +23,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { WelfareOutcomeRecord } from "@/lib/types";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
 
 type Lameness = WelfareOutcomeRecord["lameness"];
 type Cleanliness = WelfareOutcomeRecord["cleanlinessScore"];
@@ -76,6 +77,7 @@ export default function WelfareOutcomeScreen() {
   const [actionsRequired, setActionsRequired] = useState("");
   const [nextAssessmentDate, setNextAssessmentDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const handleSave = async () => {
     if (!assessmentDate || !assessorName.trim() || !species) {
@@ -106,6 +108,7 @@ export default function WelfareOutcomeScreen() {
       actionsRequired: actionsRequired.trim(),
       nextAssessmentDate: nextAssessmentDate.trim(),
       notes: notes.trim(),
+      photoUri: photoUri || undefined,
       createdAt: new Date().toISOString(),
       synced: false,
     };
@@ -274,6 +277,13 @@ export default function WelfareOutcomeScreen() {
             placeholder="Any additional observations..."
             multiline
             numberOfLines={3}
+          />
+
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={setPhotoUri}
+            label="Attach Photo Evidence"
+            promptTitle="Welfare Assessment Photo"
           />
 
           <Button

@@ -25,6 +25,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiGoatFlocks } from "@/lib/hooks/useApiGoatFlocks";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
 
 function todayDate(): string {
   return new Date().toISOString().split("T")[0];
@@ -78,6 +79,7 @@ export default function KiddingRecordScreen() {
   const [sireTagNumber, setSireTagNumber] = useState("");
   const [attendedByVet, setAttendedByVet] = useState(false);
   const [notes, setNotes] = useState("");
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const handleSave = async () => {
     if (!doeTagNumber.trim() && !doeName.trim()) {
@@ -104,6 +106,7 @@ export default function KiddingRecordScreen() {
         sireTagNumber: sireTagNumber || null,
         attendedByVet,
         notes: notes || null,
+        photoUri: photoUri || null,
         syncEndpoint: `/api/farms/${currentFarm?.id}/goat-dairy/kidding-records`,
         syncMethod: "POST",
         createdAt: new Date().toISOString(),
@@ -209,6 +212,13 @@ export default function KiddingRecordScreen() {
           <Text style={styles.label}>Notes</Text>
           <Input value={notes} onChangeText={setNotes} placeholder="Any additional notes" multiline numberOfLines={3} />
         </View>
+
+        <PhotoAttachButton
+          photoUri={photoUri}
+          onPhotoSelected={setPhotoUri}
+          label="Attach Photo Evidence"
+          promptTitle="Kidding Record Photo"
+        />
 
         <Button title={saving ? "Saving…" : "Save Kidding Record"} onPress={handleSave} disabled={saving} style={styles.saveBtn} />
       </ScrollView>

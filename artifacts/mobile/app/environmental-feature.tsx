@@ -10,7 +10,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from "react-native";
@@ -25,6 +24,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { EnvironmentalFeature } from "@/lib/types";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
 
 const FEATURE_TYPES: { value: string; label: string }[] = [
   { value: "hedgerow",          label: "Hedgerow" },
@@ -75,7 +75,7 @@ export default function EnvironmentalFeatureScreen() {
   const [dateRecorded, setDateRecorded]             = useState(today);
   const [latitude, setLatitude]                     = useState<number | undefined>();
   const [longitude, setLongitude]                   = useState<number | undefined>();
-  const [photoTaken, setPhotoTaken]                 = useState(false);
+  const [photoUri, setPhotoUri]                     = useState<string | null>(null);
   const [notes, setNotes]                           = useState("");
 
   const [showTypePicker, setShowTypePicker]         = useState(false);
@@ -119,7 +119,8 @@ export default function EnvironmentalFeatureScreen() {
       dateRecorded,
       latitude,
       longitude,
-      photoTaken,
+      photoTaken: !!photoUri,
+      photoUri: photoUri || undefined,
       notes: notes.trim(),
       createdAt: new Date().toISOString(),
       synced: false,
@@ -226,13 +227,12 @@ export default function EnvironmentalFeatureScreen() {
           </View>
 
           {/* Photo */}
-          <View style={styles.switchRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.switchLabel}>Photo Taken</Text>
-              <Text style={styles.switchSub}>Confirm a photo was taken to document this feature</Text>
-            </View>
-            <Switch value={photoTaken} onValueChange={setPhotoTaken} trackColor={{ false: colors.border, true: colors.success }} thumbColor="#fff" />
-          </View>
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={setPhotoUri}
+            label="Attach Photo of Feature"
+            promptTitle="Environmental Feature Photo"
+          />
 
           <Input
             label="Notes"

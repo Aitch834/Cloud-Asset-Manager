@@ -28,6 +28,7 @@ import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { PigTailBitingRisk } from "@/lib/types";
 import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
 import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
 
 const RISK_LEVELS = [
   { key: "low", label: "Low Risk", color: colors.success },
@@ -74,6 +75,7 @@ export default function PigTailBitingScreen() {
   const [monitoringFrequency, setMonitoringFrequency] = useState("Daily");
   const [reviewDate, setReviewDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const toggleEnrichment = (e: string) => {
     Haptics.selectionAsync();
@@ -107,6 +109,7 @@ export default function PigTailBitingScreen() {
       monitoringFrequency,
       reviewDate: reviewDate.trim(),
       notes: notes.trim(),
+      photoUri: photoUri || undefined,
       createdAt: new Date().toISOString(),
       synced: false,
     };
@@ -269,6 +272,13 @@ export default function PigTailBitingScreen() {
             <Text style={styles.sectionTitle}>Notes</Text>
           </View>
           <Input label="Additional Notes" placeholder="Any other observations or actions…" value={notes} onChangeText={setNotes} multiline numberOfLines={2} />
+
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={setPhotoUri}
+            label="Attach Photo Evidence"
+            promptTitle="Tail Biting Assessment Photo"
+          />
 
           <Button title="Save Tail Biting Assessment" onPress={handleSave} loading={saving} fullWidth icon="check" />
           <View style={{ height: insets.bottom + spacing.xxxl }} />

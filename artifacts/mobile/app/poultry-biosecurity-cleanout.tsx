@@ -25,6 +25,7 @@ import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { PoultryBiosecurityCleanout } from "@/lib/types";
 import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
 import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
 
 interface CheckItem {
   key: keyof PoultryBiosecurityCleanout;
@@ -147,6 +148,7 @@ export default function PoultryBiosecurityCleanoutScreen() {
   const [contactTimeMinutes, setContactTimeMinutes] = useState("");
   const [downtime, setDowntime] = useState("");
   const [notes, setNotes] = useState("");
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const [checks, setChecks] = useState<Record<string, boolean>>({
     litterRemoval: false,
@@ -223,6 +225,7 @@ export default function PoultryBiosecurityCleanoutScreen() {
       eggEquipmentCleaned: !!checks["eggEquipmentCleaned"],
       downtime: downtime.trim(),
       notes: notes.trim(),
+      photoUri: photoUri || undefined,
       createdAt: new Date().toISOString(),
       synced: false,
     };
@@ -435,6 +438,13 @@ export default function PoultryBiosecurityCleanoutScreen() {
             onChangeText={setNotes}
             multiline
             numberOfLines={3}
+          />
+
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={setPhotoUri}
+            label="Attach Photo of Cleaned House"
+            promptTitle="Cleanout Photo Evidence"
           />
 
           <Button

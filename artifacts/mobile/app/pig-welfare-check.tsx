@@ -26,6 +26,7 @@ import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { PigWelfareCheck } from "@/lib/types";
 import { usePrint } from "@/lib/hooks/usePrint";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
 import { pigWelfareCheckHtml } from "@/lib/printTemplates";
 import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
 import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
@@ -82,6 +83,7 @@ export default function PigWelfareCheckScreen() {
   const [overallWelfare, setOverallWelfare] = useState<OverallWelfare>("pass");
   const [actionTaken, setActionTaken] = useState("");
   const [notes, setNotes] = useState("");
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const handleSave = async () => {
     if (!groupName.trim()) {
@@ -126,6 +128,7 @@ export default function PigWelfareCheckScreen() {
       notes: notes.trim(),
       latitude,
       longitude,
+      photoUri: photoUri || undefined,
       createdAt: new Date().toISOString(),
       synced: false,
     };
@@ -334,6 +337,13 @@ export default function PigWelfareCheckScreen() {
             onChangeText={setNotes}
             multiline
             numberOfLines={3}
+          />
+
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={setPhotoUri}
+            label="Attach Photo Evidence"
+            promptTitle="Welfare Check Photo"
           />
 
           <Button

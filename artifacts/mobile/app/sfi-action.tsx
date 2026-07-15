@@ -10,7 +10,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from "react-native";
@@ -25,6 +24,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { SfiAction } from "@/lib/types";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
 
 const SCHEME_NAMES = [
   "SFI 2023",
@@ -101,7 +101,7 @@ export default function SfiActionScreen() {
   const [lastEvidenceDate, setLastEvidenceDate]       = useState("");
   const [nextEvidenceDate, setNextEvidenceDate]       = useState("");
   const [evidenceNotes, setEvidenceNotes]             = useState("");
-  const [photoTaken, setPhotoTaken]                   = useState(false);
+  const [photoUri, setPhotoUri]                       = useState<string | null>(null);
   const [notes, setNotes]                             = useState("");
   const [latitude, setLatitude]                       = useState<number | undefined>();
   const [longitude, setLongitude]                     = useState<number | undefined>();
@@ -178,7 +178,8 @@ export default function SfiActionScreen() {
       lastEvidenceDate,
       nextEvidenceDate,
       evidenceNotes: evidenceNotes.trim(),
-      photoTaken,
+      photoTaken: !!photoUri,
+      photoUri: photoUri || undefined,
       latitude,
       longitude,
       notes: notes.trim(),
@@ -343,18 +344,12 @@ export default function SfiActionScreen() {
             numberOfLines={3}
           />
 
-          <View style={styles.switchRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.switchLabel}>Photo Evidence Taken</Text>
-              <Text style={styles.switchSub}>Confirm a photo was captured as evidence</Text>
-            </View>
-            <Switch
-              value={photoTaken}
-              onValueChange={setPhotoTaken}
-              trackColor={{ false: colors.border, true: colors.success }}
-              thumbColor="#fff"
-            />
-          </View>
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={setPhotoUri}
+            label="Attach Photo Evidence"
+            promptTitle="SFI / ELMs Action Evidence"
+          />
 
           <Input label="Additional Notes" value={notes} onChangeText={setNotes} placeholder="Any additional notes…" multiline numberOfLines={2} />
 

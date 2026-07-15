@@ -869,6 +869,7 @@ export interface PigWelfareCheck {
   notes: string;
   latitude?: number;
   longitude?: number;
+  photoUri?: string;
   createdAt: string;
   synced: boolean;
 }
@@ -1170,6 +1171,7 @@ export interface SfiAction {
   nextEvidenceDate: string;
   evidenceNotes: string;
   photoTaken: boolean;
+  photoUri?: string;
   latitude?: number;
   longitude?: number;
   notes: string;
@@ -1190,6 +1192,7 @@ export interface EnvironmentalFeature {
   latitude?: number;
   longitude?: number;
   photoTaken: boolean;
+  photoUri?: string;
   notes: string;
   createdAt: string;
   synced: boolean;
@@ -1469,6 +1472,7 @@ export interface FoodHygieneInspectionRecord {
   findingsSummary: string;
   correctiveActions: string;
   notes: string;
+  photoUri?: string;
   createdAt: string;
   synced: boolean;
 }
@@ -1594,6 +1598,7 @@ export interface PoultryBiosecurityCleanout {
   eggEquipmentCleaned: boolean;
   downtime: string;
   notes: string;
+  photoUri?: string;
   createdAt: string;
   synced: boolean;
 }
@@ -1876,6 +1881,7 @@ export interface PigTailBitingRisk {
   monitoringFrequency: string;
   reviewDate: string;
   notes: string;
+  photoUri?: string;
   createdAt: string;
   synced: boolean;
 }
@@ -2338,6 +2344,7 @@ export interface WelfareOutcomeRecord {
   actionsRequired: string;
   nextAssessmentDate: string;
   notes: string;
+  photoUri?: string;
   createdAt: string;
   synced: boolean;
 }

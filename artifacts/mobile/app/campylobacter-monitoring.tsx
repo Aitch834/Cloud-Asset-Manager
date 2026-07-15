@@ -23,6 +23,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
 
 function todayDate(): string {
   return new Date().toISOString().split("T")[0];
@@ -100,6 +101,7 @@ export default function CampylobacterMonitoringScreen() {
   const [labReference, setLabReference] = useState("");
   const [nextSampleDue, setNextSampleDue] = useState("");
   const [notes, setNotes] = useState("");
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const handleSave = async () => {
     if (!sampleDate.trim()) {
@@ -133,6 +135,7 @@ export default function CampylobacterMonitoringScreen() {
         labReference: labReference || null,
         nextSampleDue: nextSampleDue || null,
         notes: notes || null,
+        photoUri: photoUri || null,
         syncEndpoint: `/api/farms/${currentFarm?.id}/campylobacter-monitoring`,
         syncMethod: "POST",
         createdAt: new Date().toISOString(),
@@ -300,6 +303,13 @@ export default function CampylobacterMonitoringScreen() {
             numberOfLines={3}
           />
         </View>
+
+        <PhotoAttachButton
+          photoUri={photoUri}
+          onPhotoSelected={setPhotoUri}
+          label="Attach Lab Result / Photo Evidence"
+          promptTitle="Campylobacter Lab Result"
+        />
 
         <Button
           title={saving ? "Saving…" : "Save Campylobacter Record"}

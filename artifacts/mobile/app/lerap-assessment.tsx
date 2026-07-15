@@ -26,6 +26,7 @@ import { useApiFields, type ApiField } from "@/lib/hooks/useApiFields";
 import { useApiSprayProducts, type ApiSprayProduct } from "@/lib/hooks/useApiSprayProducts";
 import { useApiStaff } from "@/lib/hooks/useApiStaff";
 import { kvGet } from "@/lib/database";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
 
 const CRD_STEPS = [
   { value: "1", label: "Step 1", desc: "Notify only — product registrant notified; no buffer reduction required" },
@@ -109,6 +110,7 @@ export default function LerapAssessmentScreen() {
   const [pendingReviewBy, setPendingReviewBy] = useState("");
   const [notes, setNotes] = useState("");
   const [reductionJustification, setReductionJustification] = useState("");
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   useEffect(() => {
     if (selectedProduct?.lerapStandardBufferM) {
@@ -155,6 +157,7 @@ export default function LerapAssessmentScreen() {
         reductionJustification: reductionJustification || null,
         pendingReviewBy: pendingReviewBy || null,
         pendingReviewByMemberId,
+        photoUri: photoUri || null,
       };
 
       if (selectedProduct?.id) body.productId = selectedProduct.id;
@@ -388,6 +391,13 @@ export default function LerapAssessmentScreen() {
             onChangeText={setNotes}
             multiline
             numberOfLines={3}
+          />
+
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={setPhotoUri}
+            label="Attach Assessment Evidence / Map"
+            promptTitle="LERAP Assessment Evidence"
           />
 
           <Button
