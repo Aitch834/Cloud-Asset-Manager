@@ -76,6 +76,13 @@ Migration already applied: `ALTER TABLE lis_farm_tokens ADD COLUMN IF NOT EXISTS
 - `$metadata` path returns 404 — not exposed through the APIM gateway (APIM policy blocks it regardless of $ encoding).
 - After proxy rebuild, env vars must be set: `PROXY_SECRET`, `LIS_SUBSCRIPTION_KEY`, `LIS_B2C_CLIENT_ID`
 
+## Species strings — confirmed via live POST /TransferRequests (July 2026)
+| Internal (DB/code) | LIS API string | Notes |
+|---|---|---|
+| SHEEP | `"Sheep"` | Singular ✅ |
+| GOAT | `"Goats"` | **Plural** ✅ — singular `"Goat"` returns UNKNOWN |
+| DEER | `"Deer"` | Singular ✅ |
+
 ## POST /TransferRequests — FULLY CONFIRMED SCHEMA (July 2026)
 
 **Result: 201 Created — individual ear-tag submission confirmed working.**
@@ -142,6 +149,22 @@ Migration already applied: `ALTER TABLE lis_farm_tokens ADD COLUMN IF NOT EXISTS
 
 **Flock mark derivation (batch fallback only):**
 - Ear tag `UK013018100001` → chars 2–8 = `0130181` → strip leading zero → `130181` → `UK130181`
+
+## Births & Deaths
+All probed endpoints (BirthRequests, DeathRequests, DeathNotifications, Births, Deaths, SlaughterRequests, AnimalEvents) return 404. Births and deaths are NOT part of the CLA TransferRequests API. Likely handled by a separate LIS service or not yet exposed in sandbox. Do not attempt to map these to CLA until LIS confirms the endpoint.
+
+## Movement scenario test matrix (July 2026)
+| Species | Direction | Identification | Result |
+|---|---|---|---|
+| Sheep | OFF (movement_off) | Individual ear tags (devices) | ✅ 201 |
+| Sheep | ON (movement_on) | Individual ear tags (devices) | ✅ 201 |
+| Goats | OFF | Individual ear tags (devices) | ✅ 201 |
+| Goats | ON | Individual ear tags (devices) | ✅ 201 |
+| Goats | OFF | Batch (flock mark) | ✅ 201 |
+| Deer | OFF | Batch only (no tags) | ✅ 201 |
+| Deer | ON | Batch only (no tags) | ✅ 201 |
+
+Deer has no individual tag data in sandbox (UKBD0185/UKBD0190 herds have no tags). Batch-only submission works.
 
 ## CLA Endpoint Test Matrix (July 2026)
 | Endpoint | Method | Status | Notes |

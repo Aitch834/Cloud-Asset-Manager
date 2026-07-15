@@ -436,13 +436,15 @@ function buildMovementPayload(req: LisMovementRequest): object {
   // Device (individual animal): { tagNumber } ✅  (rfid auto-populated by LIS from tagNumber)
   // Batch: { batchNumber (flock mark e.g. "UK130181"), animalTotal } ✅
   //
-  // species must be title-case: 'Sheep' | 'Goat' | 'Deer'
+  // species strings: 'Sheep' | 'Goats' (plural!) | 'Deer'
   // userHolding = farm's own CPH (sourceHolding for off, destinationHolding for on)
   // animalCount at TransferModel level = total number of animals (NOT in MovementGroup/Batch)
 
+  // species strings confirmed via live POST /TransferRequests (July 2026):
+  // "Sheep" ✅  "Goats" ✅ (plural — "Goat" returns UNKNOWN)  "Deer" ✅
   const speciesMap: Record<LisSpecies, string> = {
     SHEEP: "Sheep",
-    GOAT: "Goat",
+    GOAT: "Goats",  // NB: plural — singular "Goat" is treated as UNKNOWN by LIS
     DEER: "Deer",
   };
 
