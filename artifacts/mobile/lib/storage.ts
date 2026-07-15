@@ -228,4 +228,7 @@ export const STORAGE_KEYS = {
   BNG_RECORDS: "bde_bng_records",
   GRAIN_STOCK_STOCKTAKES: "bde_grain_stock_stocktakes",
   SPRAY_STOCK_STOCKTAKES: "bde_spray_stock_stocktakes",
+  POULTRY_NCP_TESTS: "bde_poultry_ncp_tests",
+  AHWR_RECORDS: "bde_ahwr_records",
+  HIVE_INSPECTIONS: "bde_hive_inspections",
 } as const;

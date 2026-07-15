@@ -109,6 +109,9 @@ function RootLayoutNav() {
         <Stack.Screen name="seed-rate-calculator" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="field-crop-assignment" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="task-inbox" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="poultry-ncp-test" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="ahwr-review" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="hive-inspection" options={{ headerShown: false, presentation: "modal" }} />
       </Stack>
       <SyncStatusBar />
     </View>

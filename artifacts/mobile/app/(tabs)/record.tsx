@@ -1801,6 +1801,36 @@ const recordOptions: RecordOption[] = [
     route: "/fresh-produce-water-test",
     moduleKeys: ["fresh-produce"],
   },
+  {
+    id: "poultry-ncp-test",
+    title: "NCP Salmonella Test",
+    description: "Record NCP Salmonella flock test — sample type, lab reference, result, serotype isolated and APHA notification status",
+    icon: "activity",
+    color: "#d97706",
+    bgColor: "#fef3c7",
+    route: "/poultry-ncp-test",
+    moduleKeys: ["poultry-production", "organic-poultry"],
+  },
+  {
+    id: "ahwr-review",
+    title: "Annual Health & Welfare Review",
+    description: "Record AHWR with your vet — key findings, health priorities, action points and next review date for all livestock species",
+    icon: "clipboard",
+    color: "#0891b2",
+    bgColor: "#cffafe",
+    route: "/ahwr-review",
+    moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production", "pig-production", "poultry-production", "organic-livestock", "organic-dairy", "organic-sheep-dairy", "organic-goat-dairy", "organic-venison"],
+  },
+  {
+    id: "hive-inspection",
+    title: "Hive Inspection",
+    description: "Log a beehive inspection — queen status, brood pattern, varroa count, food stores, temperament and colony health assessment",
+    icon: "hexagon",
+    color: "#f59e0b",
+    bgColor: "#fef3c7",
+    route: "/hive-inspection",
+    moduleKeys: ["beekeeping"],
+  },
 ];
 
 function hasSector(farm: { sectorArable?: boolean; sectorBeef?: boolean; sectorDairy?: boolean; sectorPigs?: boolean; sectorPoultry?: boolean } | null, sectors: FarmSector[]): boolean {
