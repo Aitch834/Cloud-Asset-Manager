@@ -1207,3 +1207,27 @@ export type LivestockIsolationRecord = typeof livestockIsolationRecordsTable.$in
 export type NewLivestockIsolationRecord = typeof livestockIsolationRecordsTable.$inferInsert;
 export type LivestockIsolationHealthCheck = typeof livestockIsolationHealthChecksTable.$inferSelect;
 export type NewLivestockIsolationHealthCheck = typeof livestockIsolationHealthChecksTable.$inferInsert;
+
+// ─── Annual Health & Welfare Reviews (AHWR) ───────────────────────────────────
+export const annualHealthWelfareReviewsTable = pgTable("annual_health_welfare_reviews", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  species: text("species").notNull(), // "Cattle" | "Sheep" | "Pigs" | "Poultry"
+  reviewDate: date("review_date").notNull(),
+  vetName: text("vet_name").notNull(),
+  vetPractice: text("vet_practice"),
+  ahwrRef: text("ahwr_ref"),          // Government AHWR agreement/claim reference
+  sbiNumber: text("sbi_number"),       // Single Business Identifier for claim
+  areasReviewed: text("areas_reviewed"), // free text or comma-sep list
+  keyFindings: text("key_findings"),
+  recommendations: text("recommendations"),
+  actionsAgreed: text("actions_agreed"),
+  nextReviewDue: date("next_review_due"),
+  documentRef: text("document_ref"),  // reference to uploaded vet report
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export type AnnualHealthWelfareReview = typeof annualHealthWelfareReviewsTable.$inferSelect;
+export type NewAnnualHealthWelfareReview = typeof annualHealthWelfareReviewsTable.$inferInsert;

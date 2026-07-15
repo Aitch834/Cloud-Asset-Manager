@@ -442,6 +442,12 @@ import {
   poultryPlacementQualityAssessmentsTable,
   sprayNotificationsTable,
   sprayNotificationContactsTable,
+  annualHealthWelfareReviewsTable,
+  sheepLambingRecordsTable,
+  poultryNcpTestsTable,
+  apiaryRegisterTable,
+  apiaryInspectionsTable,
+  apiaryHoneyRecordsTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createDairyAbrBorderlineNotification, createDairyAbrInvalidNotification, resolveAbrNotificationsForRecord, createMobilityLamenessAlert, createMobilityScore2Advisory, createBngComplianceNotification, createFpIntakeRejectionNotification, createFpPoorConditionNotification, createFpCheckMissingNotification, createFpPreCoolingPendingNotification, createRiddorNotification, createBcmsMortalityPendingNotification, createBiosecurityDeclarationMissingNotification, createHerdHealthFollowUpNotification, createIpmThresholdBreachedNotification, createReportableDiseaseNotification } from "../lib/alertingJob";
@@ -35183,5 +35189,603 @@ router.patch("/admin/dairy-restock-requests/:id", async (req: Request, res: Resp
   } catch (err) {
     console.error("[ADMIN/DAIRY-RESTOCK PATCH]", err);
     res.status(500).json({ error: "Failed to update request" });
+  }
+});
+
+// ─── Annual Health & Welfare Reviews (AHWR) ────────────────────────────────────
+
+router.get("/farms/:farmId/ahwr-records", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  try {
+    const records = await db.select().from(annualHealthWelfareReviewsTable)
+      .where(eq(annualHealthWelfareReviewsTable.farmId, farmId))
+      .orderBy(desc(annualHealthWelfareReviewsTable.reviewDate));
+    res.json({ records });
+  } catch (err) {
+    console.error("[AHWR GET]", err);
+    res.status(500).json({ error: "Failed to fetch AHWR records" });
+  }
+});
+
+router.post("/farms/:farmId/ahwr-records", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  const body = sanitiseBody(req.body);
+  try {
+    const [row] = await db.insert(annualHealthWelfareReviewsTable).values({
+      farmId,
+      species: body.species,
+      reviewDate: body.reviewDate,
+      vetName: body.vetName,
+      vetPractice: body.vetPractice ?? null,
+      ahwrRef: body.ahwrRef ?? null,
+      sbiNumber: body.sbiNumber ?? null,
+      areasReviewed: body.areasReviewed ?? null,
+      keyFindings: body.keyFindings ?? null,
+      recommendations: body.recommendations ?? null,
+      actionsAgreed: body.actionsAgreed ?? null,
+      nextReviewDue: body.nextReviewDue ?? null,
+      documentRef: body.documentRef ?? null,
+      notes: body.notes ?? null,
+    }).returning();
+    res.json({ record: row });
+  } catch (err) {
+    console.error("[AHWR POST]", err);
+    res.status(500).json({ error: "Failed to create AHWR record" });
+  }
+});
+
+router.put("/farms/:farmId/ahwr-records/:id", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  const body = sanitiseBody(req.body);
+  try {
+    await db.update(annualHealthWelfareReviewsTable).set({
+      species: body.species,
+      reviewDate: body.reviewDate ?? undefined,
+      vetName: body.vetName,
+      vetPractice: body.vetPractice ?? null,
+      ahwrRef: body.ahwrRef ?? null,
+      sbiNumber: body.sbiNumber ?? null,
+      areasReviewed: body.areasReviewed ?? null,
+      keyFindings: body.keyFindings ?? null,
+      recommendations: body.recommendations ?? null,
+      actionsAgreed: body.actionsAgreed ?? null,
+      nextReviewDue: body.nextReviewDue ?? null,
+      documentRef: body.documentRef ?? null,
+      notes: body.notes ?? null,
+    }).where(and(eq(annualHealthWelfareReviewsTable.id, id), eq(annualHealthWelfareReviewsTable.farmId, farmId)));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[AHWR PUT]", err);
+    res.status(500).json({ error: "Failed to update AHWR record" });
+  }
+});
+
+router.delete("/farms/:farmId/ahwr-records/:id", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  try {
+    await db.delete(annualHealthWelfareReviewsTable)
+      .where(and(eq(annualHealthWelfareReviewsTable.id, id), eq(annualHealthWelfareReviewsTable.farmId, farmId)));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[AHWR DELETE]", err);
+    res.status(500).json({ error: "Failed to delete AHWR record" });
+  }
+});
+
+// ─── Sheep Lambing Records ─────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/sheep-lambing-records", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  try {
+    const records = await db.select().from(sheepLambingRecordsTable)
+      .where(eq(sheepLambingRecordsTable.farmId, farmId))
+      .orderBy(desc(sheepLambingRecordsTable.lambingDate));
+    res.json({ records });
+  } catch (err) {
+    console.error("[SHEEP-LAMBING GET]", err);
+    res.status(500).json({ error: "Failed to fetch sheep lambing records" });
+  }
+});
+
+router.post("/farms/:farmId/sheep-lambing-records", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  const body = sanitiseBody(req.body);
+  try {
+    const [row] = await db.insert(sheepLambingRecordsTable).values({
+      farmId,
+      flockId: body.flockId ? Number(body.flockId) : null,
+      lambingDate: body.lambingDate,
+      eweEarTag: body.eweEarTag ?? null,
+      eweAgeYears: body.eweAgeYears ? Number(body.eweAgeYears) : null,
+      numberOfLambs: body.numberOfLambs ? Number(body.numberOfLambs) : 1,
+      lambingEase: body.lambingEase ? Number(body.lambingEase) : null,
+      assistanceRequired: body.assistanceRequired ?? false,
+      assistanceType: body.assistanceType ?? null,
+      lambEarTags: body.lambEarTags ?? null,
+      sexOfLambs: body.sexOfLambs ?? null,
+      birthWeightsKg: body.birthWeightsKg ?? null,
+      colostrumGiven: body.colostrumGiven ?? true,
+      fostered: body.fostered ?? false,
+      fosterEweTag: body.fosterEweTag ?? null,
+      mortalityCount: body.mortalityCount ? Number(body.mortalityCount) : 0,
+      mortalityReasons: body.mortalityReasons ?? null,
+      notes: body.notes ?? null,
+    }).returning();
+    res.json({ record: row });
+  } catch (err) {
+    console.error("[SHEEP-LAMBING POST]", err);
+    res.status(500).json({ error: "Failed to create lambing record" });
+  }
+});
+
+router.put("/farms/:farmId/sheep-lambing-records/:id", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  const body = sanitiseBody(req.body);
+  try {
+    await db.update(sheepLambingRecordsTable).set({
+      flockId: body.flockId ? Number(body.flockId) : null,
+      lambingDate: body.lambingDate ?? undefined,
+      eweEarTag: body.eweEarTag ?? null,
+      eweAgeYears: body.eweAgeYears ? Number(body.eweAgeYears) : null,
+      numberOfLambs: body.numberOfLambs ? Number(body.numberOfLambs) : undefined,
+      lambingEase: body.lambingEase ? Number(body.lambingEase) : null,
+      assistanceRequired: body.assistanceRequired ?? false,
+      assistanceType: body.assistanceType ?? null,
+      lambEarTags: body.lambEarTags ?? null,
+      sexOfLambs: body.sexOfLambs ?? null,
+      birthWeightsKg: body.birthWeightsKg ?? null,
+      colostrumGiven: body.colostrumGiven ?? true,
+      fostered: body.fostered ?? false,
+      fosterEweTag: body.fosterEweTag ?? null,
+      mortalityCount: body.mortalityCount ? Number(body.mortalityCount) : 0,
+      mortalityReasons: body.mortalityReasons ?? null,
+      notes: body.notes ?? null,
+    }).where(and(eq(sheepLambingRecordsTable.id, id), eq(sheepLambingRecordsTable.farmId, farmId)));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[SHEEP-LAMBING PUT]", err);
+    res.status(500).json({ error: "Failed to update lambing record" });
+  }
+});
+
+router.delete("/farms/:farmId/sheep-lambing-records/:id", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  try {
+    await db.delete(sheepLambingRecordsTable)
+      .where(and(eq(sheepLambingRecordsTable.id, id), eq(sheepLambingRecordsTable.farmId, farmId)));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[SHEEP-LAMBING DELETE]", err);
+    res.status(500).json({ error: "Failed to delete lambing record" });
+  }
+});
+
+// ─── Poultry NCP / Salmonella Tests ───────────────────────────────────────────
+
+router.get("/farms/:farmId/poultry-ncp-tests", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  try {
+    const tests = await db.select().from(poultryNcpTestsTable)
+      .where(eq(poultryNcpTestsTable.farmId, farmId))
+      .orderBy(desc(poultryNcpTestsTable.testDate));
+    res.json({ tests });
+  } catch (err) {
+    console.error("[POULTRY-NCP GET]", err);
+    res.status(500).json({ error: "Failed to fetch NCP tests" });
+  }
+});
+
+router.post("/farms/:farmId/poultry-ncp-tests", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  const body = sanitiseBody(req.body);
+  try {
+    const [row] = await db.insert(poultryNcpTestsTable).values({
+      farmId,
+      flockId: body.flockId ? Number(body.flockId) : null,
+      testDate: body.testDate,
+      sampleType: body.sampleType ?? null,
+      samplingMethod: body.samplingMethod ?? null,
+      laboratoryName: body.laboratoryName ?? null,
+      sampleRef: body.sampleRef ?? null,
+      serotypeIsolated: body.serotypeIsolated ?? null,
+      result: body.result ?? "pending",
+      notificationSentToApha: body.notificationSentToApha ?? false,
+      actionsTaken: body.actionsTaken ?? null,
+      notes: body.notes ?? null,
+    }).returning();
+    res.json({ test: row });
+  } catch (err) {
+    console.error("[POULTRY-NCP POST]", err);
+    res.status(500).json({ error: "Failed to create NCP test" });
+  }
+});
+
+router.put("/farms/:farmId/poultry-ncp-tests/:id", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  const body = sanitiseBody(req.body);
+  try {
+    await db.update(poultryNcpTestsTable).set({
+      flockId: body.flockId ? Number(body.flockId) : null,
+      testDate: body.testDate ?? undefined,
+      sampleType: body.sampleType ?? null,
+      samplingMethod: body.samplingMethod ?? null,
+      laboratoryName: body.laboratoryName ?? null,
+      sampleRef: body.sampleRef ?? null,
+      serotypeIsolated: body.serotypeIsolated ?? null,
+      result: body.result ?? "pending",
+      notificationSentToApha: body.notificationSentToApha ?? false,
+      actionsTaken: body.actionsTaken ?? null,
+      notes: body.notes ?? null,
+    }).where(and(eq(poultryNcpTestsTable.id, id), eq(poultryNcpTestsTable.farmId, farmId)));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[POULTRY-NCP PUT]", err);
+    res.status(500).json({ error: "Failed to update NCP test" });
+  }
+});
+
+router.delete("/farms/:farmId/poultry-ncp-tests/:id", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  try {
+    await db.delete(poultryNcpTestsTable)
+      .where(and(eq(poultryNcpTestsTable.id, id), eq(poultryNcpTestsTable.farmId, farmId)));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[POULTRY-NCP DELETE]", err);
+    res.status(500).json({ error: "Failed to delete NCP test" });
+  }
+});
+
+// ─── AMR Report ───────────────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/amr-report", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
+  try {
+    // Aggregate medicine usage by medicine name (grouped as antibiotic class proxy)
+    const byMedicine = await db.execute(sql`
+      SELECT
+        m.medicine_name,
+        m.administration_route,
+        COALESCE(SUM(m.treated_animal_count), 0) AS animals_treated,
+        COUNT(*) AS treatment_events,
+        MIN(m.administered_date) AS first_use,
+        MAX(m.administered_date) AS last_use
+      FROM livestock_medicine_records m
+      WHERE m.farm_id = ${farmId}
+        AND EXTRACT(YEAR FROM m.administered_date AT TIME ZONE 'UTC') = ${year}
+      GROUP BY m.medicine_name, m.administration_route
+      ORDER BY treatment_events DESC
+    `);
+
+    // Monthly trend
+    const monthly = await db.execute(sql`
+      SELECT
+        TO_CHAR(m.administered_date AT TIME ZONE 'UTC', 'Mon') AS month,
+        EXTRACT(MONTH FROM m.administered_date AT TIME ZONE 'UTC') AS month_num,
+        COUNT(*) AS treatment_events,
+        COALESCE(SUM(m.treated_animal_count), 0) AS animals_treated
+      FROM livestock_medicine_records m
+      WHERE m.farm_id = ${farmId}
+        AND EXTRACT(YEAR FROM m.administered_date AT TIME ZONE 'UTC') = ${year}
+      GROUP BY month, month_num
+      ORDER BY month_num
+    `);
+
+    // By species (via herd join if available, else use reason field as proxy)
+    const bySpecies = await db.execute(sql`
+      SELECT
+        COALESCE(h.type, 'Unknown') AS species,
+        COUNT(*) AS treatment_events,
+        COALESCE(SUM(m.treated_animal_count), 0) AS animals_treated
+      FROM livestock_medicine_records m
+      LEFT JOIN herd_flock_register h ON m.herd_id = h.id
+      WHERE m.farm_id = ${farmId}
+        AND EXTRACT(YEAR FROM m.administered_date AT TIME ZONE 'UTC') = ${year}
+      GROUP BY h.type
+      ORDER BY treatment_events DESC
+    `);
+
+    const totalEvents = (byMedicine.rows as any[]).reduce((s, r) => s + Number(r.treatment_events), 0);
+
+    // Build byClass array using medicine_name as the class name
+    const byClass = (byMedicine.rows as any[]).map(r => ({
+      className: r.medicine_name as string,
+      treatmentEvents: Number(r.treatment_events),
+      animalsPerEvent: Number(r.animals_treated),
+      mg: 0,
+      percent: totalEvents > 0 ? Math.round((Number(r.treatment_events) / totalEvents) * 100) : 0,
+    }));
+
+    res.json({
+      report: {
+        year,
+        farmId,
+        totalUseMg: 0,        // mg dosage data not stored — use treatment events for benchmarking
+        mgPerPcu: 0,
+        rumaCategory: "green",
+        criticallyImportantMg: 0,
+        criticallyImportantPercent: 0,
+        prevYearMgPerPcu: null,
+        totalTreatmentEvents: totalEvents,
+        byClass,
+        bySpecies: (bySpecies.rows as any[]).map(r => ({
+          species: r.species as string,
+          treatmentEvents: Number(r.treatment_events),
+          animalsPerEvent: Number(r.animals_treated),
+        })),
+        monthlyTrend: (monthly.rows as any[]).map(r => ({
+          month: r.month as string,
+          treatmentEvents: Number(r.treatment_events),
+          animalsPerEvent: Number(r.animals_treated),
+          mg: 0,
+        })),
+        generatedAt: new Date().toISOString(),
+      }
+    });
+  } catch (err) {
+    console.error("[AMR-REPORT GET]", err);
+    res.status(500).json({ error: "Failed to generate AMR report" });
+  }
+});
+
+// ─── Beekeeping — Apiaries ────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/apiaries", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  try {
+    const apiaries = await db.select().from(apiaryRegisterTable)
+      .where(eq(apiaryRegisterTable.farmId, farmId))
+      .orderBy(asc(apiaryRegisterTable.apiaryName));
+    res.json({ apiaries });
+  } catch (err) {
+    console.error("[APIARIES GET]", err);
+    res.status(500).json({ error: "Failed to fetch apiaries" });
+  }
+});
+
+router.post("/farms/:farmId/apiaries", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  const body = sanitiseBody(req.body);
+  try {
+    const [row] = await db.insert(apiaryRegisterTable).values({
+      farmId,
+      apiaryName: body.apiaryName,
+      location: body.location ?? null,
+      numberOfHives: body.numberOfHives ? Number(body.numberOfHives) : 1,
+      beebaseRegistration: body.beebaseRegistration ?? null,
+      registrationDate: body.registrationDate ?? null,
+      species: body.species ?? "honeybee",
+      isActive: body.isActive ?? true,
+      notes: body.notes ?? null,
+    }).returning();
+    res.json({ apiary: row });
+  } catch (err) {
+    console.error("[APIARIES POST]", err);
+    res.status(500).json({ error: "Failed to create apiary" });
+  }
+});
+
+router.put("/farms/:farmId/apiaries/:id", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  const body = sanitiseBody(req.body);
+  try {
+    await db.update(apiaryRegisterTable).set({
+      apiaryName: body.apiaryName,
+      location: body.location ?? null,
+      numberOfHives: body.numberOfHives ? Number(body.numberOfHives) : undefined,
+      beebaseRegistration: body.beebaseRegistration ?? null,
+      registrationDate: body.registrationDate ?? null,
+      species: body.species ?? undefined,
+      isActive: body.isActive ?? true,
+      notes: body.notes ?? null,
+    }).where(and(eq(apiaryRegisterTable.id, id), eq(apiaryRegisterTable.farmId, farmId)));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[APIARIES PUT]", err);
+    res.status(500).json({ error: "Failed to update apiary" });
+  }
+});
+
+router.delete("/farms/:farmId/apiaries/:id", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  try {
+    await db.delete(apiaryRegisterTable)
+      .where(and(eq(apiaryRegisterTable.id, id), eq(apiaryRegisterTable.farmId, farmId)));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[APIARIES DELETE]", err);
+    res.status(500).json({ error: "Failed to delete apiary" });
+  }
+});
+
+// ─── Beekeeping — Hive Inspections ────────────────────────────────────────────
+
+router.get("/farms/:farmId/apiary-inspections", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  try {
+    const inspections = await db.select().from(apiaryInspectionsTable)
+      .where(eq(apiaryInspectionsTable.farmId, farmId))
+      .orderBy(desc(apiaryInspectionsTable.inspectionDate));
+    res.json({ inspections });
+  } catch (err) {
+    console.error("[APIARY-INSPECTIONS GET]", err);
+    res.status(500).json({ error: "Failed to fetch inspections" });
+  }
+});
+
+router.post("/farms/:farmId/apiary-inspections", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  const body = sanitiseBody(req.body);
+  try {
+    const [row] = await db.insert(apiaryInspectionsTable).values({
+      farmId,
+      apiaryId: Number(body.apiaryId),
+      hiveRef: body.hiveRef ?? null,
+      inspectionDate: body.inspectionDate,
+      inspectedBy: body.inspectedBy ?? "unknown",
+      queenSeen: body.queenSeen ?? null,
+      queenCells: body.queenCells ?? null,
+      queenCellCount: body.queenCellCount ? Number(body.queenCellCount) : null,
+      broodPattern: body.broodPattern ?? null,
+      estimatedColonySize: body.estimatedColonySize ?? null,
+      storesAdequate: body.storesAdequate ?? null,
+      diseaseSigns: body.diseaseSigns ?? null,
+      varroaWashCount: body.varroaWashCount ? Number(body.varroaWashCount) : null,
+      temper: body.temper ?? null,
+      supersOnHive: body.supersOnHive ? Number(body.supersOnHive) : null,
+      actionsTaken: body.actionsTaken ?? null,
+      treatmentApplied: body.treatmentApplied ?? null,
+      nextInspectionDue: body.nextInspectionDue ?? null,
+      notificationSentToApha: body.notificationSentToApha ?? false,
+      notes: body.notes ?? null,
+    }).returning();
+    res.json({ inspection: row });
+  } catch (err) {
+    console.error("[APIARY-INSPECTIONS POST]", err);
+    res.status(500).json({ error: "Failed to create inspection" });
+  }
+});
+
+router.put("/farms/:farmId/apiary-inspections/:id", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  const body = sanitiseBody(req.body);
+  try {
+    await db.update(apiaryInspectionsTable).set({
+      apiaryId: Number(body.apiaryId),
+      hiveRef: body.hiveRef ?? null,
+      inspectionDate: body.inspectionDate ?? undefined,
+      inspectedBy: body.inspectedBy ?? undefined,
+      queenSeen: body.queenSeen ?? null,
+      queenCells: body.queenCells ?? null,
+      queenCellCount: body.queenCellCount ? Number(body.queenCellCount) : null,
+      broodPattern: body.broodPattern ?? null,
+      estimatedColonySize: body.estimatedColonySize ?? null,
+      storesAdequate: body.storesAdequate ?? null,
+      diseaseSigns: body.diseaseSigns ?? null,
+      varroaWashCount: body.varroaWashCount ? Number(body.varroaWashCount) : null,
+      temper: body.temper ?? null,
+      supersOnHive: body.supersOnHive ? Number(body.supersOnHive) : null,
+      actionsTaken: body.actionsTaken ?? null,
+      treatmentApplied: body.treatmentApplied ?? null,
+      nextInspectionDue: body.nextInspectionDue ?? null,
+      notificationSentToApha: body.notificationSentToApha ?? false,
+      notes: body.notes ?? null,
+    }).where(and(eq(apiaryInspectionsTable.id, id), eq(apiaryInspectionsTable.farmId, farmId)));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[APIARY-INSPECTIONS PUT]", err);
+    res.status(500).json({ error: "Failed to update inspection" });
+  }
+});
+
+router.delete("/farms/:farmId/apiary-inspections/:id", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  try {
+    await db.delete(apiaryInspectionsTable)
+      .where(and(eq(apiaryInspectionsTable.id, id), eq(apiaryInspectionsTable.farmId, farmId)));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[APIARY-INSPECTIONS DELETE]", err);
+    res.status(500).json({ error: "Failed to delete inspection" });
+  }
+});
+
+// ─── Beekeeping — Honey Records ───────────────────────────────────────────────
+
+router.get("/farms/:farmId/apiary-honey", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  try {
+    const records = await db.select().from(apiaryHoneyRecordsTable)
+      .where(eq(apiaryHoneyRecordsTable.farmId, farmId))
+      .orderBy(desc(apiaryHoneyRecordsTable.harvestDate));
+    res.json({ records });
+  } catch (err) {
+    console.error("[APIARY-HONEY GET]", err);
+    res.status(500).json({ error: "Failed to fetch honey records" });
+  }
+});
+
+router.post("/farms/:farmId/apiary-honey", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  const body = sanitiseBody(req.body);
+  try {
+    const [row] = await db.insert(apiaryHoneyRecordsTable).values({
+      farmId,
+      apiaryId: Number(body.apiaryId),
+      harvestDate: body.harvestDate,
+      quantityKg: String(body.quantityKg ?? "0"),
+      lotNumber: body.lotNumber ?? null,
+      moisturePercent: body.moisturePercent ? String(body.moisturePercent) : null,
+      sold: body.sold ?? false,
+      salePricePencePerKg: body.salePricePencePerKg ? Number(body.salePricePencePerKg) : null,
+      buyerName: body.buyerName ?? null,
+      notes: body.notes ?? null,
+    }).returning();
+    res.json({ record: row });
+  } catch (err) {
+    console.error("[APIARY-HONEY POST]", err);
+    res.status(500).json({ error: "Failed to create honey record" });
+  }
+});
+
+router.put("/farms/:farmId/apiary-honey/:id", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  const body = sanitiseBody(req.body);
+  try {
+    await db.update(apiaryHoneyRecordsTable).set({
+      apiaryId: Number(body.apiaryId),
+      harvestDate: body.harvestDate ?? undefined,
+      quantityKg: body.quantityKg ? String(body.quantityKg) : undefined,
+      lotNumber: body.lotNumber ?? null,
+      moisturePercent: body.moisturePercent ? String(body.moisturePercent) : null,
+      sold: body.sold ?? false,
+      salePricePencePerKg: body.salePricePencePerKg ? Number(body.salePricePencePerKg) : null,
+      buyerName: body.buyerName ?? null,
+      notes: body.notes ?? null,
+    }).where(and(eq(apiaryHoneyRecordsTable.id, id), eq(apiaryHoneyRecordsTable.farmId, farmId)));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[APIARY-HONEY PUT]", err);
+    res.status(500).json({ error: "Failed to update honey record" });
+  }
+});
+
+router.delete("/farms/:farmId/apiary-honey/:id", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  try {
+    await db.delete(apiaryHoneyRecordsTable)
+      .where(and(eq(apiaryHoneyRecordsTable.id, id), eq(apiaryHoneyRecordsTable.farmId, farmId)));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[APIARY-HONEY DELETE]", err);
+    res.status(500).json({ error: "Failed to delete honey record" });
+  }
+});
+
+// ─── Equine Register & Events (extended tables) ───────────────────────────────
+
+router.get("/farms/:farmId/equine-register", async (req, res) => {
+  const farmId = Number(req.params.farmId);
+  try {
+    const records = await db.execute(sql`
+      SELECT * FROM equine_register WHERE farm_id = ${farmId} ORDER BY name ASC
+    `);
+    res.json({ records: records.rows });
+  } catch (err) {
+    console.error("[EQUINE-REGISTER GET]", err);
+    res.status(500).json({ error: "Failed to fetch equine register" });
   }
 });

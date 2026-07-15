@@ -105,6 +105,13 @@ import CompliancePage from "@/pages/CompliancePage";
 import VetLedgerPage from "@/pages/VetLedgerPage";
 import SeasonReportsPage from "@/pages/SeasonReportsPage";
 import MultiFarmGroupPage from "@/pages/MultiFarmGroupPage";
+import TBTestingPage from "@/pages/TBTestingPage";
+import EquinePage from "@/pages/EquinePage";
+import AMRReportPage from "@/pages/AMRReportPage";
+import LambingRecordsPage from "@/pages/LambingRecordsPage";
+import PoultryNCPPage from "@/pages/PoultryNCPPage";
+import AHWRPage from "@/pages/AHWRPage";
+import BeekeepingPage from "@/pages/BeekeepingPage";
 import { NavHistoryProvider } from "@/context/NavHistoryContext";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -400,6 +407,13 @@ function ProtectedContent() {
         <Route path="/organic-arable" component={OrganicArablePage} />
         <Route path="/compliance" component={CompliancePageWrapper} />
         <Route path="/group-overview" component={MultiFarmGroupPage} />
+        <Route path="/tb-tests" component={TBTestingPage} />
+        <Route path="/equine" component={EquinePage} />
+        <Route path="/amr-report" component={AMRReportPage} />
+        <Route path="/lambing" component={LambingRecordsPage} />
+        <Route path="/poultry-ncp" component={PoultryNCPPage} />
+        <Route path="/ahwr" component={AHWRPage} />
+        <Route path="/beekeeping" component={BeekeepingPage} />
         <Route component={NotFound} />
       </Switch>
     </AuthGate>
@@ -525,6 +539,13 @@ function DevBypassContent() {
         <Route path="/organic-arable" component={OrganicArablePage} />
         <Route path="/compliance" component={CompliancePageWrapper} />
         <Route path="/group-overview" component={MultiFarmGroupPage} />
+        <Route path="/tb-tests" component={TBTestingPage} />
+        <Route path="/equine" component={EquinePage} />
+        <Route path="/amr-report" component={AMRReportPage} />
+        <Route path="/lambing" component={LambingRecordsPage} />
+        <Route path="/poultry-ncp" component={PoultryNCPPage} />
+        <Route path="/ahwr" component={AHWRPage} />
+        <Route path="/beekeeping" component={BeekeepingPage} />
         <Route component={NotFound} />
       </Switch>
     </RouteErrorBoundary>

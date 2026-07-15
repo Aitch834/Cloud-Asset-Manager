@@ -342,3 +342,30 @@ export const poultryPlacementQualityAssessmentsTable = pgTable("poultry_placemen
 
 export type PoultryPlacementQualityAssessment = typeof poultryPlacementQualityAssessmentsTable.$inferSelect;
 export type NewPoultryPlacementQualityAssessment = typeof poultryPlacementQualityAssessmentsTable.$inferInsert;
+
+// ─── Poultry NCP Salmonella Tests ─────────────────────────────────────────────
+// National Control Programme (NCP) mandatory Salmonella surveillance
+export const poultryNcpTestsTable = pgTable("poultry_ncp_tests", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  flockId: integer("flock_id").references(() => poultryFlocksTable.id),
+  flockRef: text("flock_ref"),            // house/pen reference
+  houseOrLocation: text("house_or_location"),
+  testDate: date("test_date").notNull(),
+  sampleType: text("sample_type").notNull(), // "boot_swab" | "environmental" | "blood" | "neck_skin" | "caecal"
+  samplingMethod: text("sampling_method"),   // "official" | "self_sampled"
+  laboratoryName: text("laboratory_name"),
+  sampleRef: text("sample_ref"),
+  result: text("result").notNull().default("pending"), // "negative" | "positive" | "inconclusive" | "pending"
+  serotypeIsolated: text("serotype_isolated"), // e.g. "S. Enteritidis", "S. Typhimurium"
+  notificationSentToApha: boolean("notification_sent_to_apha").notNull().default(false),
+  movementRestrictions: boolean("movement_restrictions").notNull().default(false),
+  actionsTaken: text("actions_taken"),
+  nextTestDueDate: date("next_test_due_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export type PoultryNcpTest = typeof poultryNcpTestsTable.$inferSelect;
+export type NewPoultryNcpTest = typeof poultryNcpTestsTable.$inferInsert;

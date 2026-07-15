@@ -55,3 +55,5 @@ export * from "./small-ruminant-dairy";
 export * from "./venison-production";
 export * from "./resources";
 export * from "./dairy-supplies";
+export * from "./equine";
+export * from "./beekeeping";

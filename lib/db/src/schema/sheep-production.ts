@@ -256,3 +256,31 @@ export const weighingEquipmentCalibrationsTable = pgTable("weighing_equipment_ca
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// ─── Lambing Records ──────────────────────────────────────────────────────────
+export const sheepLambingRecordsTable = pgTable("sheep_lambing_records", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  flockId: integer("flock_id").references(() => sheepFlocksTable.id),
+  lambingDate: date("lambing_date").notNull(),
+  eweEarTag: text("ewe_ear_tag"),
+  eweAgeYears: integer("ewe_age_years"),
+  eweBcs: numeric("ewe_bcs", { precision: 3, scale: 1 }), // body condition score
+  numberOfLambs: integer("number_of_lambs").notNull().default(1),
+  lambingEase: integer("lambing_ease"), // 1=unassisted, 2=easy pull, 3=hard pull, 4=caesarean, 5=vet
+  assistanceRequired: boolean("assistance_required").notNull().default(false),
+  assistanceType: text("assistance_type"),
+  lambEarTags: text("lamb_ear_tags"),   // comma-separated
+  sexOfLambs: text("sex_of_lambs"),     // "all_male" | "all_female" | "mixed"
+  birthWeightsKg: text("birth_weights_kg"), // comma-separated e.g. "4.2,3.8"
+  colostrumGiven: boolean("colostrum_given").notNull().default(true),
+  fostered: boolean("fostered").notNull().default(false),
+  fosterEweTag: text("foster_ewe_tag"),
+  mortalityCount: integer("mortality_count").notNull().default(0),
+  mortalityReasons: text("mortality_reasons"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type SheepLambingRecord = typeof sheepLambingRecordsTable.$inferSelect;
+export type NewSheepLambingRecord = typeof sheepLambingRecordsTable.$inferInsert;

@@ -113,6 +113,7 @@ const complianceNav: NavItem[] = [
   { name: "Accident Book", href: "/accident-book", icon: BookOpen, moduleKeys: ["risk-waste"] },
   { name: "Contractors H&S File", href: "/contractors", icon: ClipboardCheck, moduleKeys: ["risk-waste"] },
   { name: "Insurance", href: "/insurance", icon: ShieldCheck },
+  { name: "AMR Report", href: "/amr-report", icon: FlaskConical, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production", "pig-production", "poultry-production"] },
 ];
 
 const organicFarmingNav: NavItem[] = [
@@ -148,6 +149,9 @@ const livestockNav: NavItem[] = [
   { name: "Goat Dairy", href: "/goat-dairy", icon: Milk, moduleKeys: ["goat-dairy"] },
   { name: "Feed Management", href: "/feed", icon: Package, moduleKeys: ["feed-management"] },
   { name: "Vet Ledger", href: "/vet-ledger", icon: Stethoscope, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production", "pig-production", "poultry-production"], requiresLivestock: true },
+  { name: "TB Testing Register", href: "/tb-tests", icon: TestTube, moduleKeys: ["livestock-management", "beef-production", "sheep-production", "goat-production"], requiresLivestock: true },
+  { name: "Lambing Records", href: "/lambing", icon: Scissors, moduleKeys: ["sheep-production"] },
+  { name: "Annual Health Reviews", href: "/ahwr", icon: ClipboardList, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production", "pig-production", "poultry-production"] },
 ];
 
 const biofuelNav: NavItem[] = [
@@ -158,6 +162,7 @@ const biofuelNav: NavItem[] = [
 const specialistNav: NavItem[] = [
   { name: "Pig Production", href: "/pig-production", icon: PiggyBank, moduleKeys: ["pig-production"] },
   { name: "Poultry Production", href: "/poultry-production", icon: Bird, moduleKeys: ["poultry-production"] },
+  { name: "Poultry NCP / Salmonella", href: "/poultry-ncp", icon: FlaskConical, moduleKeys: ["poultry-production"] },
   { name: "Sheep Production", href: "/sheep-production", icon: Scissors, moduleKeys: ["sheep-production"] },
   { name: "Goat Production", href: "/goat-production", icon: HeartPulse, moduleKeys: ["goat-production"] },
   { name: "Venison Production", href: "/venison-production", icon: Crosshair, moduleKeys: ["venison-production"] },
@@ -166,6 +171,8 @@ const specialistNav: NavItem[] = [
   { name: "Viticulture", href: "/viticulture", icon: TreePine, moduleKeys: ["viticulture"] },
   { name: "Carbon & Sustainability", href: "/carbon", icon: Recycle, moduleKeys: ["carbon-sustainability"] },
   { name: "Farm Diversification", href: "/diversification", icon: Building2, moduleKeys: ["farm-diversification"] },
+  { name: "Equine", href: "/equine", icon: Zap, moduleKeys: ["farm-diversification", "equine"] },
+  { name: "Beekeeping", href: "/beekeeping", icon: Boxes, moduleKeys: ["beekeeping"] },
   { name: "Water & Irrigation", href: "/water-irrigation", icon: Waves, moduleKeys: ["water-irrigation"] },
 ];
 
