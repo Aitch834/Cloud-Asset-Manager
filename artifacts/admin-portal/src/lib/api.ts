@@ -133,6 +133,13 @@ export interface Subscription {
   currentPeriodEnd?: string;
 }
 
+export interface Module {
+  id: number;
+  key: string;
+  name: string;
+  monthlyPricePence: number;
+}
+
 export interface TenantUser {
   userId: string;
   email: string;
@@ -564,6 +571,19 @@ export const api = {
       { trialDays },
       secret,
     ),
+
+  getModules: (secret: string) =>
+    get<{ modules: Module[] }>("/admin/modules", secret),
+
+  addSubscription: (tenantId: number, farmId: number, moduleId: number, secret: string) =>
+    post<{ subscription: Subscription }>(
+      `/admin/tenants/${tenantId}/farms/${farmId}/subscriptions`,
+      { moduleId, status: "active" },
+      secret,
+    ),
+
+  removeSubscription: (tenantId: number, subId: number, secret: string) =>
+    del<{ success: boolean }>(`/admin/tenants/${tenantId}/subscriptions/${subId}`, secret),
 
   getHelpArticles: (secret: string) =>
     get<{ articles: HelpArticle[] }>("/admin/help-articles", secret),

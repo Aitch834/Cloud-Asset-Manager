@@ -1743,6 +1743,79 @@ router.post("/admin/tenants/:tenantId/farms/:farmId/start-trial", requireAuth, a
   res.json({ success: true, modulesProvisioned: toInsert.length, trialEndsAt: trialEnd.toISOString() });
 });
 
+// ─── Module Management ────────────────────────────────────────────────────────
+
+router.get("/admin/modules", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const modules = await db.select({
+    id: modulesTable.id,
+    key: modulesTable.key,
+    name: modulesTable.name,
+    monthlyPricePence: modulesTable.monthlyPricePence,
+  }).from(modulesTable).where(eq(modulesTable.isActive, true)).orderBy(modulesTable.name);
+  res.json({ modules });
+});
+
+router.post("/admin/tenants/:tenantId/farms/:farmId/subscriptions", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const tenantId = parseInt(req.params.tenantId as string, 10);
+  const farmId = parseInt(req.params.farmId as string, 10);
+  const { moduleId, status = "active", currentPeriodEnd } = req.body as { moduleId: number; status?: string; currentPeriodEnd?: string };
+
+  if (!moduleId) { res.status(400).json({ error: "moduleId required" }); return; }
+
+  const [farm] = await db.select().from(farmsTable)
+    .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, tenantId))).limit(1);
+  if (!farm) { res.status(404).json({ error: "Farm not found" }); return; }
+
+  const existing = await db.select().from(subscriptionsTable)
+    .where(and(
+      eq(subscriptionsTable.farmId, farmId),
+      eq(subscriptionsTable.tenantId, tenantId),
+      eq(subscriptionsTable.moduleId, moduleId),
+    )).limit(1);
+
+  if (existing.length > 0 && (existing[0].status === "active" || existing[0].status === "trial")) {
+    res.status(409).json({ error: "Module already active for this farm" });
+    return;
+  }
+
+  const now = new Date();
+  const periodEnd = currentPeriodEnd ? new Date(currentPeriodEnd) : (() => {
+    const d = new Date(); d.setFullYear(d.getFullYear() + 1); return d;
+  })();
+
+  let sub;
+  if (existing.length > 0) {
+    await db.update(subscriptionsTable).set({ status, currentPeriodStart: now, currentPeriodEnd: periodEnd })
+      .where(eq(subscriptionsTable.id, existing[0].id));
+    sub = { ...existing[0], status, currentPeriodStart: now, currentPeriodEnd: periodEnd };
+  } else {
+    const [inserted] = await db.insert(subscriptionsTable).values({
+      tenantId, farmId, moduleId, status,
+      currentPeriodStart: now, currentPeriodEnd: periodEnd,
+    }).returning();
+    sub = inserted;
+  }
+
+  await writeAuditLog(req.userId!, "add_module", { tenantId, farmId, moduleId, status }, tenantId, farmId);
+  res.status(201).json({ subscription: sub });
+});
+
+router.delete("/admin/tenants/:tenantId/subscriptions/:subId", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const tenantId = parseInt(req.params.tenantId as string, 10);
+  const subId = parseInt(req.params.subId as string, 10);
+
+  const [sub] = await db.select().from(subscriptionsTable)
+    .where(and(eq(subscriptionsTable.id, subId), eq(subscriptionsTable.tenantId, tenantId))).limit(1);
+  if (!sub) { res.status(404).json({ error: "Subscription not found" }); return; }
+
+  await db.update(subscriptionsTable).set({ status: "cancelled" }).where(eq(subscriptionsTable.id, subId));
+  await writeAuditLog(req.userId!, "remove_module", { tenantId, subId, moduleId: sub.moduleId, farmId: sub.farmId }, tenantId, sub.farmId);
+  res.json({ success: true });
+});
+
 router.post("/admin/seed-demo-data", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
   try {

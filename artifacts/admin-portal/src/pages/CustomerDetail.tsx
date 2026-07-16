@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "wouter";
-import { api, type Tenant, type Farm, type Subscription, type TenantUser } from "@/lib/api";
+import { api, type Tenant, type Farm, type Subscription, type TenantUser, type Module } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
 import {
   ArrowLeft, MapPin, CreditCard, Users, CheckCircle, XCircle, Building2,
   FileDown, Loader2, Mail, MailCheck, Bell, BellOff, Gift, Share2, Copy,
-  TrendingDown, RotateCcw, AlertTriangle, Zap,
+  TrendingDown, RotateCcw, AlertTriangle, Zap, Plus, Trash2, Package,
 } from "lucide-react";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -231,6 +231,11 @@ export default function CustomerDetail() {
   const [trialFarmId, setTrialFarmId] = useState<number | null>(null);
   const [trialLoading, setTrialLoading] = useState(false);
   const [trialResult, setTrialResult] = useState<{ farmId: number; success: boolean; endsAt?: string } | null>(null);
+  const [allModules, setAllModules] = useState<Module[]>([]);
+  const [addingForFarmId, setAddingForFarmId] = useState<number | null>(null);
+  const [selectedModuleId, setSelectedModuleId] = useState<Record<number, string>>({});
+  const [savingAddFarmId, setSavingAddFarmId] = useState<number | null>(null);
+  const [removingSubId, setRemovingSubId] = useState<number | null>(null);
 
   const activeModules = subscriptions.filter((s) => s.status === "active" || s.status === "trial");
 
@@ -254,17 +259,44 @@ export default function CustomerDetail() {
     Promise.all([
       api.getTenantDetail(tenantId, secret),
       api.getSystemRoles(secret),
+      api.getModules(secret),
     ])
-      .then(([d, r]) => {
+      .then(([d, r, m]) => {
         setTenant(d.tenant);
         setFarms(d.farms);
         setSubscriptions(d.subscriptions);
         setUsers(d.users);
         setSystemRoles(r.roles);
+        setAllModules(m.modules);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [tenantId]);
+
+  async function handleAddModule(farmId: number) {
+    const moduleId = parseInt(selectedModuleId[farmId] ?? "", 10);
+    if (!moduleId) return;
+    setSavingAddFarmId(farmId);
+    try {
+      await api.addSubscription(tenantId, farmId, moduleId, secret);
+      const d = await api.getTenantDetail(tenantId, secret);
+      setSubscriptions(d.subscriptions);
+      setSelectedModuleId((prev) => ({ ...prev, [farmId]: "" }));
+      setAddingForFarmId(null);
+    } catch { } finally {
+      setSavingAddFarmId(null);
+    }
+  }
+
+  async function handleRemoveModule(subId: number) {
+    setRemovingSubId(subId);
+    try {
+      await api.removeSubscription(tenantId, subId, secret);
+      setSubscriptions((prev) => prev.map((s) => s.id === subId ? { ...s, status: "cancelled" } : s));
+    } catch { } finally {
+      setRemovingSubId(null);
+    }
+  }
 
   const handleSendEmail = async (farm: Farm) => {
     setEmailingFarmId(farm.id);
@@ -491,36 +523,119 @@ export default function CustomerDetail() {
         </div>
       </Section>
 
-      {/* Module Adoption */}
-      <Section title={`Active Modules (${activeModules.length})`}>
-        {activeModules.length === 0 ? (
-          <div className="bg-card border border-border rounded-xl p-5 text-sm text-muted-foreground">
-            No active module subscriptions.
-          </div>
-        ) : (
-          <div className="bg-card border border-border rounded-xl overflow-hidden">
-            {activeModules.map((sub, i) => {
-              const farm = farms.find((f) => f.id === sub.farmId);
-              return (
-                <div
-                  key={sub.id}
-                  className={`px-5 py-3 flex items-center gap-3 ${i < activeModules.length - 1 ? "border-b border-border" : ""}`}
-                >
-                  <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{sub.moduleName}</p>
-                    {farm && <p className="text-xs text-muted-foreground">{farm.name}</p>}
-                  </div>
-                  {sub.currentPeriodEnd && (
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      Renews {new Date(sub.currentPeriodEnd).toLocaleDateString("en-GB")}
+      {/* Module Management */}
+      <Section title="Module Management">
+        <div className="space-y-4">
+          {farms.length === 0 && (
+            <div className="bg-card border border-border rounded-xl p-5 text-sm text-muted-foreground">
+              No farms registered.
+            </div>
+          )}
+          {farms.map((farm) => {
+            const farmActiveSubs = subscriptions.filter(
+              (s) => s.farmId === farm.id && (s.status === "active" || s.status === "trial"),
+            );
+            const activeModuleIds = new Set(farmActiveSubs.map((s) => s.moduleId));
+            const availableToAdd = allModules.filter((m) => !activeModuleIds.has(m.id));
+            const isAdding = addingForFarmId === farm.id;
+            const isSaving = savingAddFarmId === farm.id;
+
+            return (
+              <div key={farm.id} className="bg-card border border-border rounded-xl overflow-hidden">
+                {/* Farm header */}
+                <div className="px-5 py-3 bg-muted/40 border-b border-border flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <span className="font-semibold text-sm">{farm.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {farmActiveSubs.length} module{farmActiveSubs.length !== 1 ? "s" : ""}
                     </span>
+                  </div>
+                  {availableToAdd.length > 0 && (
+                    <button
+                      onClick={() => {
+                        setAddingForFarmId(isAdding ? null : farm.id);
+                        setSelectedModuleId((prev) => ({ ...prev, [farm.id]: "" }));
+                      }}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg px-2.5 py-1 hover:bg-primary/5 transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add Module
+                    </button>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        )}
+
+                {/* Add module row */}
+                {isAdding && (
+                  <div className="px-5 py-3 border-b border-border bg-blue-50/40 flex items-center gap-2 flex-wrap">
+                    <Package className="w-4 h-4 text-blue-500 shrink-0" />
+                    <select
+                      className="flex-1 text-sm border border-border rounded-lg px-3 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-ring min-w-[200px]"
+                      value={selectedModuleId[farm.id] ?? ""}
+                      onChange={(e) => setSelectedModuleId((prev) => ({ ...prev, [farm.id]: e.target.value }))}
+                    >
+                      <option value="">— Select a module —</option>
+                      {availableToAdd.map((m) => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => handleAddModule(farm.id)}
+                      disabled={isSaving || !selectedModuleId[farm.id]}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-white bg-primary rounded-lg px-3 py-1.5 hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                    >
+                      {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                      Confirm
+                    </button>
+                    <button
+                      onClick={() => setAddingForFarmId(null)}
+                      className="text-xs text-muted-foreground hover:text-foreground px-2 py-1.5 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+
+                {/* Module list */}
+                {farmActiveSubs.length === 0 ? (
+                  <div className="px-5 py-4 text-sm text-muted-foreground">
+                    No active modules. Use "Add Module" to enable access.
+                  </div>
+                ) : (
+                  farmActiveSubs.map((sub, i) => (
+                    <div
+                      key={sub.id}
+                      className={`px-5 py-2.5 flex items-center gap-3 ${i < farmActiveSubs.length - 1 ? "border-b border-border" : ""}`}
+                    >
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${sub.status === "trial" ? "bg-amber-400" : "bg-green-500"}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{sub.moduleName}</p>
+                      </div>
+                      {sub.status === "trial" && (
+                        <Badge variant="warning">Trial</Badge>
+                      )}
+                      {sub.currentPeriodEnd && (
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          {sub.status === "trial" ? "Ends" : "Renews"} {new Date(sub.currentPeriodEnd).toLocaleDateString("en-GB")}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => handleRemoveModule(sub.id)}
+                        disabled={removingSubId === sub.id}
+                        title="Remove this module"
+                        className="ml-1 p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40"
+                      >
+                        {removingSubId === sub.id
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          : <Trash2 className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            );
+          })}
+        </div>
       </Section>
 
       <Section title={`Farms (${farms.length})`}>
