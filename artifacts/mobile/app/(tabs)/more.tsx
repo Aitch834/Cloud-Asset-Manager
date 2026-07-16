@@ -1,10 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from "react-native";
@@ -21,6 +22,7 @@ import { useSync } from "@/lib/context/SyncContext";
 import { useApiModules } from "@/lib/hooks/useApiModules";
 import { getItem, removeItem, STORAGE_KEYS } from "@/lib/storage";
 import { getApiBase } from "@/lib/uploadPhoto";
+import * as Location from "expo-location";
 
 type LisStatus = {
   configured: boolean;
@@ -49,6 +51,58 @@ export default function MoreScreen() {
   const [lisStatus, setLisStatus] = useState<LisStatus>(null);
   const [lisSyncing, setLisSyncing] = useState(false);
   const [lisInboundCount, setLisInboundCount] = useState(0);
+
+  // ── Location sharing ────────────────────────────────────────────────────────
+  const [isSharing, setIsSharing] = useState(false);
+  const [sharingLastPing, setSharingLastPing] = useState<Date | null>(null);
+  const sharingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const shiftStartRef = useRef<Date | null>(null);
+
+  async function postLocationPing(sharing: boolean): Promise<void> {
+    if (!currentFarm?.id) return;
+    const token = await getItem<string>(STORAGE_KEYS.AUTH_TOKEN);
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const slug = (currentFarm as any).tenantSlug || (currentFarm as any).slug || "";
+    if (slug) headers["x-tenant-slug"] = slug;
+    const name = (user as any)?.fullName || (user as any)?.firstName || "Unknown";
+    const body: Record<string, unknown> = { isSharing: sharing, userName: name };
+    if (sharing) {
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      body.latitude = pos.coords.latitude;
+      body.longitude = pos.coords.longitude;
+      body.accuracyM = pos.coords.accuracy;
+      body.shiftStartedAt = shiftStartRef.current?.toISOString();
+    }
+    await fetch(`${getApiBase()}/api/farms/${currentFarm.id}/staff-location-ping`, {
+      method: "POST", headers, body: JSON.stringify(body),
+    });
+  }
+
+  useEffect(() => {
+    if (!isSharing) {
+      if (sharingIntervalRef.current) { clearInterval(sharingIntervalRef.current); sharingIntervalRef.current = null; }
+      postLocationPing(false).catch(() => {});
+      return;
+    }
+    shiftStartRef.current = new Date();
+    postLocationPing(true).then(() => setSharingLastPing(new Date())).catch(() => {});
+    sharingIntervalRef.current = setInterval(() => {
+      postLocationPing(true).then(() => setSharingLastPing(new Date())).catch(() => {});
+    }, 30_000);
+    return () => { if (sharingIntervalRef.current) { clearInterval(sharingIntervalRef.current); sharingIntervalRef.current = null; } };
+  }, [isSharing, currentFarm?.id]);
+
+  async function toggleSharing(value: boolean): Promise<void> {
+    if (value) {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission required", "Location permission is needed to share your position with the farm dashboard.");
+        return;
+      }
+    }
+    setIsSharing(value);
+  }
 
   useEffect(() => {
     if (!currentFarm?.id) return;
@@ -202,6 +256,38 @@ export default function MoreScreen() {
             icon="clock"
             showChevron={false}
           />
+        </View>
+
+        <SectionHeader title="Location Sharing" />
+        <View style={styles.section}>
+          <View style={[styles.listItemRow, { justifyContent: "space-between", alignItems: "center" }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.locationTitle}>Share My Location</Text>
+              <Text style={styles.locationSubtitle}>
+                {isSharing
+                  ? sharingLastPing
+                    ? `Active · last ping ${sharingLastPing.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
+                    : "Starting…"
+                  : "Off · your position is not visible to others"}
+              </Text>
+            </View>
+            <Switch
+              value={isSharing}
+              onValueChange={toggleSharing}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={"#fff"}
+            />
+          </View>
+          {isSharing && (
+            <>
+              <View style={styles.divider} />
+              <View style={{ paddingHorizontal: spacing.md, paddingVertical: spacing.sm }}>
+                <Text style={styles.locationNote}>
+                  Your GPS position is sent to the farm dashboard every 30 seconds while this is on. Turn off or close the app to stop sharing.
+                </Text>
+              </View>
+            </>
+          )}
         </View>
 
         <SectionHeader title="Livestock Integration (LIS)" />
@@ -684,5 +770,27 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: fontSize.xs,
     color: colors.textTertiary,
+  },
+  listItemRow: {
+    flexDirection: "row",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  locationTitle: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.md,
+    color: colors.text,
+  },
+  locationSubtitle: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  locationNote: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
 });

@@ -65,6 +65,7 @@ import EncampmentPage from "@/pages/EncampmentPage";
 import AccidentBookPage from "@/pages/AccidentBookPage";
 import FarmLocationsPage from "@/pages/FarmLocationsPage";
 import FarmMapPage from "@/pages/FarmMapPage";
+import ResourceMapPage from "@/pages/ResourceMapPage";
 import WeekAheadPage from "@/pages/WeekAheadPage";
 import TaskBoardPage from "@/pages/TaskBoardPage";
 import ResourcesPage from "@/pages/ResourcesPage";
@@ -340,6 +341,7 @@ function ProtectedContent() {
         <Route path="/coshh" component={CoshhPage} />
         <Route path="/farm-locations" component={FarmLocationsPage} />
         <Route path="/farm-map" component={FarmMapPage} />
+        <Route path="/resource-map" component={ResourceMapPage} />
         <Route path="/livestock" component={LivestockPage} />
         <Route path="/movements" component={MovementsPage} />
         <Route path="/medicine" component={MedicinePage} />
@@ -474,6 +476,7 @@ function DevBypassContent() {
         <Route path="/coshh" component={CoshhPage} />
         <Route path="/farm-locations" component={FarmLocationsPage} />
         <Route path="/farm-map" component={FarmMapPage} />
+        <Route path="/resource-map" component={ResourceMapPage} />
         <Route path="/livestock" component={LivestockPage} />
         <Route path="/movements" component={MovementsPage} />
         <Route path="/medicine" component={MedicinePage} />

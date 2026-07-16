@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { createHmac, timingSafeEqual } from "crypto";
-import { db, helpArticlesTable, farmResourcesTable, farmTaskResourceAllocationsTable } from "@workspace/db";
+import { db, helpArticlesTable, farmResourcesTable, farmTaskResourceAllocationsTable, staffLocationPingsTable } from "@workspace/db";
 import { sendSms } from "../lib/sms";
 import { sendAdminEmail } from "../lib/mailer";
 import { sanitiseBody } from "../lib/sanitise";
@@ -36150,5 +36150,68 @@ router.delete("/farms/:farmId/organic-poultry/derogations/:id", requireAuth, req
   } catch (err) {
     console.error("[ORGANIC-POULTRY-DEROG DELETE]", err);
     res.status(500).json({ error: "Failed to delete derogation" });
+  }
+});
+
+// ─── Staff Location Pings ─────────────────────────────────────────────────────
+
+router.post("/farms/:farmId/staff-location-ping", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const userId = (req as any).auth?.userId;
+  if (!userId) { res.status(401).json({ error: "Unauthenticated" }); return; }
+  const { userName, latitude, longitude, accuracyM, isSharing, shiftStartedAt } = req.body;
+  try {
+    if (isSharing && (latitude == null || longitude == null)) {
+      res.status(400).json({ error: "latitude and longitude required when isSharing is true" }); return;
+    }
+    await db.execute(sql`
+      INSERT INTO staff_location_pings (farm_id, user_id, user_name, latitude, longitude, accuracy_m, is_sharing, shift_started_at, last_seen_at)
+      VALUES (
+        ${farmId}, ${userId}, ${String(userName || "Unknown")},
+        ${isSharing ? String(latitude) : "0"}, ${isSharing ? String(longitude) : "0"},
+        ${accuracyM != null ? String(accuracyM) : null},
+        ${Boolean(isSharing)},
+        ${shiftStartedAt ? new Date(shiftStartedAt) : null},
+        now()
+      )
+      ON CONFLICT (farm_id, user_id) DO UPDATE SET
+        user_name       = EXCLUDED.user_name,
+        latitude        = CASE WHEN EXCLUDED.is_sharing THEN EXCLUDED.latitude ELSE staff_location_pings.latitude END,
+        longitude       = CASE WHEN EXCLUDED.is_sharing THEN EXCLUDED.longitude ELSE staff_location_pings.longitude END,
+        accuracy_m      = CASE WHEN EXCLUDED.is_sharing THEN EXCLUDED.accuracy_m ELSE staff_location_pings.accuracy_m END,
+        is_sharing      = EXCLUDED.is_sharing,
+        shift_started_at = CASE WHEN EXCLUDED.is_sharing AND EXCLUDED.shift_started_at IS NOT NULL THEN EXCLUDED.shift_started_at ELSE staff_location_pings.shift_started_at END,
+        last_seen_at    = now()
+    `);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[STAFF-LOC PING POST]", err);
+    res.status(500).json({ error: "Failed to record location ping" });
+  }
+});
+
+router.get("/farms/:farmId/staff-locations/live", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  try {
+    const rows = await db.execute(sql`
+      SELECT
+        user_id        AS "userId",
+        user_name      AS "userName",
+        latitude,
+        longitude,
+        accuracy_m     AS "accuracyM",
+        is_sharing     AS "isSharing",
+        shift_started_at AS "shiftStartedAt",
+        last_seen_at   AS "lastSeenAt"
+      FROM staff_location_pings
+      WHERE farm_id = ${farmId}
+        AND is_sharing = true
+        AND last_seen_at > now() - interval '2 hours'
+      ORDER BY user_name
+    `);
+    res.json({ pings: rows.rows });
+  } catch (err) {
+    console.error("[STAFF-LOC GET LIVE]", err);
+    res.status(500).json({ error: "Failed to fetch live staff locations" });
   }
 });
