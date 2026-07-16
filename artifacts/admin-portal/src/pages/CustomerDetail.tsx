@@ -232,6 +232,7 @@ export default function CustomerDetail() {
   const [trialLoading, setTrialLoading] = useState(false);
   const [trialResult, setTrialResult] = useState<{ farmId: number; success: boolean; endsAt?: string } | null>(null);
   const [allModules, setAllModules] = useState<Module[]>([]);
+  const [modulesLoading, setModulesLoading] = useState(true);
   const [addingForFarmId, setAddingForFarmId] = useState<number | null>(null);
   const [selectedModuleId, setSelectedModuleId] = useState<Record<number, string>>({});
   const [savingAddFarmId, setSavingAddFarmId] = useState<number | null>(null);
@@ -272,7 +273,8 @@ export default function CustomerDetail() {
 
     api.getModules(secret)
       .then((m) => setAllModules(m.modules))
-      .catch(console.error);
+      .catch(console.error)
+      .finally(() => setModulesLoading(false));
   }, [tenantId]);
 
   async function handleAddModule(farmId: number) {
@@ -476,55 +478,6 @@ export default function CustomerDetail() {
         </div>
       )}
 
-      {/* Referral Programme */}
-      <Section title="Referral Programme">
-        <div className="bg-card border border-border rounded-xl p-5">
-          <div className="flex items-start gap-3 mb-4">
-            <Gift className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-foreground mb-1">Referral Code</p>
-              <p className="text-xs text-muted-foreground">
-                Share this code with the customer so they can refer other farms. When a new customer signs up using their code, it will be attributed here.
-              </p>
-            </div>
-          </div>
-
-          {tenant.referralCode ? (
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-2 bg-muted rounded-lg px-4 py-2.5">
-                <Share2 className="w-4 h-4 text-muted-foreground" />
-                <span className="font-mono font-bold text-lg tracking-widest text-foreground">{tenant.referralCode}</span>
-              </div>
-              <button
-                onClick={handleCopyCode}
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg px-3 py-2 hover:bg-primary/5 transition-colors"
-              >
-                <Copy className="w-3.5 h-3.5" />
-                {codeCopied ? "Copied!" : "Copy Code"}
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={handleGenerateReferralCode}
-              disabled={generatingCode}
-              className="inline-flex items-center gap-2 text-sm font-medium text-primary border border-primary/30 rounded-lg px-4 py-2 hover:bg-primary/5 transition-colors disabled:opacity-50"
-            >
-              {generatingCode ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4" />}
-              {generatingCode ? "Generating…" : "Generate Referral Code"}
-            </button>
-          )}
-
-          {tenant.referredBy && (
-            <div className="mt-4 pt-4 border-t border-border">
-              <p className="text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">Referred by code:</span>{" "}
-                <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-foreground">{tenant.referredBy}</span>
-              </p>
-            </div>
-          )}
-        </div>
-      </Section>
-
       {/* Module Management */}
       <Section title="Module Management">
         <div className="space-y-4">
@@ -541,6 +494,7 @@ export default function CustomerDetail() {
             const availableToAdd = allModules.filter((m) => !activeModuleIds.has(m.id));
             const isAdding = addingForFarmId === farm.id;
             const isSaving = savingAddFarmId === farm.id;
+            const allAssigned = !modulesLoading && availableToAdd.length === 0;
 
             return (
               <div key={farm.id} className="bg-card border border-border rounded-xl overflow-hidden">
@@ -553,15 +507,18 @@ export default function CustomerDetail() {
                       {farmActiveSubs.length} module{farmActiveSubs.length !== 1 ? "s" : ""}
                     </span>
                   </div>
-                  {availableToAdd.length > 0 && (
+                  {allAssigned ? (
+                    <span className="text-xs text-muted-foreground">All modules assigned</span>
+                  ) : (
                     <button
                       onClick={() => {
                         setAddingForFarmId(isAdding ? null : farm.id);
                         setSelectedModuleId((prev) => ({ ...prev, [farm.id]: "" }));
                       }}
-                      className="inline-flex items-center gap-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg px-2.5 py-1 hover:bg-primary/5 transition-colors"
+                      disabled={modulesLoading}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg px-2.5 py-1 hover:bg-primary/5 transition-colors disabled:opacity-50"
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      {modulesLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                       Add Module
                     </button>
                   )}
@@ -637,6 +594,55 @@ export default function CustomerDetail() {
               </div>
             );
           })}
+        </div>
+      </Section>
+
+      {/* Referral Programme */}
+      <Section title="Referral Programme">
+        <div className="bg-card border border-border rounded-xl p-5">
+          <div className="flex items-start gap-3 mb-4">
+            <Gift className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-foreground mb-1">Referral Code</p>
+              <p className="text-xs text-muted-foreground">
+                Share this code with the customer so they can refer other farms. When a new customer signs up using their code, it will be attributed here.
+              </p>
+            </div>
+          </div>
+
+          {tenant.referralCode ? (
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2 bg-muted rounded-lg px-4 py-2.5">
+                <Share2 className="w-4 h-4 text-muted-foreground" />
+                <span className="font-mono font-bold text-lg tracking-widest text-foreground">{tenant.referralCode}</span>
+              </div>
+              <button
+                onClick={handleCopyCode}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg px-3 py-2 hover:bg-primary/5 transition-colors"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                {codeCopied ? "Copied!" : "Copy Code"}
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleGenerateReferralCode}
+              disabled={generatingCode}
+              className="inline-flex items-center gap-2 text-sm font-medium text-primary border border-primary/30 rounded-lg px-4 py-2 hover:bg-primary/5 transition-colors disabled:opacity-50"
+            >
+              {generatingCode ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4" />}
+              {generatingCode ? "Generating…" : "Generate Referral Code"}
+            </button>
+          )}
+
+          {tenant.referredBy && (
+            <div className="mt-4 pt-4 border-t border-border">
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Referred by code:</span>{" "}
+                <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-foreground">{tenant.referredBy}</span>
+              </p>
+            </div>
+          )}
         </div>
       </Section>
 
