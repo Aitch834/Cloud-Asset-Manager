@@ -35136,65 +35136,6 @@ router.delete("/farms/:farmId/dairy-supplies/restock-requests/:id", requireAuth,
   }
 });
 
-// ─── ADMIN: All-farm dairy restock overview ───────────────────────────────────
-router.get("/admin/dairy-restock-requests", async (req: Request, res: Response): Promise<void> => {
-  const secret = req.headers["x-admin-secret"] as string | undefined;
-  if (!secret || secret !== process.env.ADMIN_PORTAL_SECRET) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const status = (req.query.status as string) || "pending";
-  try {
-    const rows = await db.execute(sql`
-      SELECT r.*, f.name AS farm_name, f.id AS farm_id
-      FROM dairy_restock_requests r
-      JOIN farms f ON f.id = r.farm_id
-      WHERE (${status} = 'all' OR r.status = ${status})
-      ORDER BY
-        CASE r.urgency WHEN 'critical' THEN 1 WHEN 'urgent' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
-        r.created_at DESC
-      LIMIT 500
-    `);
-    res.json({ requests: (rows.rows as any[]).map(r => ({
-      id: Number(r.id), farmId: Number(r.farm_id), farmName: r.farm_name,
-      dairyType: r.dairy_type, requestDate: r.request_date, itemType: r.item_type,
-      itemName: r.item_name, requestedQty: r.requested_qty, unit: r.unit,
-      urgency: r.urgency, requestedBy: r.requested_by ?? null, reason: r.reason ?? null,
-      status: r.status, adminNotes: r.admin_notes ?? null, createdAt: r.created_at,
-    })) });
-  } catch (err) {
-    console.error("[ADMIN/DAIRY-RESTOCK]", err);
-    res.status(500).json({ error: "Failed to load requests" });
-  }
-});
-
-router.patch("/admin/dairy-restock-requests/:id", async (req: Request, res: Response): Promise<void> => {
-  const secret = req.headers["x-admin-secret"] as string | undefined;
-  if (!secret || secret !== process.env.ADMIN_PORTAL_SECRET) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  const id = Number(req.params.id);
-  const body = sanitiseBody(req.body);
-  const { status, adminNotes, resolvedBy } = body;
-  const resolvedStatuses = ["received", "rejected"];
-  const isResolved = status && resolvedStatuses.includes(status);
-  try {
-    await db.execute(sql`
-      UPDATE dairy_restock_requests SET
-        ${status ? sql`status = ${status},` : sql``}
-        ${adminNotes !== undefined ? sql`admin_notes = ${adminNotes},` : sql``}
-        ${resolvedBy ? sql`resolved_by = ${resolvedBy},` : sql``}
-        ${isResolved ? sql`resolved_at = NOW(),` : sql``}
-        updated_at = NOW()
-      WHERE id = ${id}
-    `);
-    res.json({ ok: true });
-  } catch (err) {
-    console.error("[ADMIN/DAIRY-RESTOCK PATCH]", err);
-    res.status(500).json({ error: "Failed to update request" });
-  }
-});
 
 // ─── Annual Health & Welfare Reviews (AHWR) ────────────────────────────────────
 

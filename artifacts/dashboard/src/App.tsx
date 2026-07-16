@@ -66,6 +66,7 @@ import AccidentBookPage from "@/pages/AccidentBookPage";
 import FarmLocationsPage from "@/pages/FarmLocationsPage";
 import FarmMapPage from "@/pages/FarmMapPage";
 import ResourceMapPage from "@/pages/ResourceMapPage";
+import DairyRestockPage from "@/pages/DairyRestockPage";
 import WeekAheadPage from "@/pages/WeekAheadPage";
 import TaskBoardPage from "@/pages/TaskBoardPage";
 import ResourcesPage from "@/pages/ResourcesPage";
@@ -342,6 +343,7 @@ function ProtectedContent() {
         <Route path="/farm-locations" component={FarmLocationsPage} />
         <Route path="/farm-map" component={FarmMapPage} />
         <Route path="/resource-map" component={ResourceMapPage} />
+        <Route path="/dairy-restock" component={DairyRestockPage} />
         <Route path="/livestock" component={LivestockPage} />
         <Route path="/movements" component={MovementsPage} />
         <Route path="/medicine" component={MedicinePage} />
@@ -477,6 +479,7 @@ function DevBypassContent() {
         <Route path="/farm-locations" component={FarmLocationsPage} />
         <Route path="/farm-map" component={FarmMapPage} />
         <Route path="/resource-map" component={ResourceMapPage} />
+        <Route path="/dairy-restock" component={DairyRestockPage} />
         <Route path="/livestock" component={LivestockPage} />
         <Route path="/movements" component={MovementsPage} />
         <Route path="/medicine" component={MedicinePage} />
