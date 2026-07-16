@@ -1,38 +1,39 @@
 ---
-name: Replit proxy cache — dashboard vite.config fix
-description: Replit's preview proxy caches module responses by URL path, ignoring Cache-Control headers. Fix applied to main dashboard vite.config.ts.
+name: Replit proxy cache — dashboard fix
+description: Replit's proxy layer ignores Cache-Control headers and caches JS files by URL. Vite dev mode serves files at fixed URLs so the only reliable fix is build+serve mode (content-hashed filenames).
 ---
 
 ## The problem
 
-Replit's preview proxy (`.replit.dev`) caches Vite module responses keyed on URL PATH only. It ignores `Cache-Control: no-store` headers. This means:
-- Code changes to source files are invisible to external browsers even after hard refresh or in private windows
-- `curl localhost:PORT/file` returns correct fresh content (bypasses proxy)
-- Browser through `.replit.dev` gets stale proxy-cached content
+Replit's preview proxy caches Vite module responses keyed on URL path, ignoring `Cache-Control: no-store`. In Vite **dev mode**, source files are served at fixed URLs (e.g. `/dashboard/src/components/layout/Sidebar.tsx`). Even after:
+- hard refresh
+- clearing `node_modules/.vite`
+- restarting the workflow
 
-Symptoms: user sees old UI (e.g. 7 tabs instead of 8) despite confirmed correct source on disk. Even private/incognito windows show old content.
+…the proxy still returns the stale cached version of those fixed URLs. Users see old UI despite correct code on disk.
 
-**Why:** The proxy, not the browser, is the cache layer. Browser cache-clearing has no effect.
+## The fix (confirmed working)
 
-## The fix (applied to `artifacts/dashboard/vite.config.ts`)
+Switch the dashboard from Vite dev mode to **build + serve mode**.
 
-Added `sessionCacheBustPlugin(basePath)` — modelled on the proven test-dashboard mechanism:
+`artifacts/dashboard/package.json` `dev` script:
+```
+"dev": "vite build --config vite.config.ts && vite preview --config vite.config.ts --host 0.0.0.0"
+```
 
-1. **Per-session token** generated at Vite startup (`Date.now().toString(36) + random`)
-2. **Middleware Layer 1**: intercepts `res.setHeader` and `res.writeHead` to force `Cache-Control: no-store` on ALL responses (overrides Vite's `max-age=immutable` on dep chunks)
-3. **Middleware Layer 2**: rewrites `@fs/` source-file URLs embedded in compiled JS to include the session token in the PATH: `/@td/TOKEN/@xfs-TOKEN/file` → proxy cache miss every session
-4. **Middleware Layer 3**: rewrites dep-chunk URLs similarly: `/@td/TOKEN/@deps-TOKEN/chunk.js`
-5. **Startup token endpoint** `/__startup_token__` returns current session token as JSON
-6. **`main.tsx`**: fetches `/__startup_token__` on `vite:ws:connect`; if token changed since last check, calls `window.location.reload()` to force fresh module fetch
+The workflow command `pnpm --filter @workspace/dashboard run dev` runs a full production build then `vite preview`. Content-hashed filenames (e.g. `index-CFJPqgUu.js`) mean every restart produces new URLs → proxy must fetch fresh.
 
-**Why it works:** The proxy cache key is the URL path. New session = new token = new path = guaranteed cache miss = Vite always serves current source.
+**Why it works:** Proxy cache key is the URL. New content hash = new URL = guaranteed cache miss.
 
 ## How to apply
 
-If the dashboard vite.config ever loses this plugin (e.g. after a merge), re-add `sessionCacheBustPlugin` and the `main.tsx` startup token check. The test-dashboard's `vite.config.ts` is the authoritative reference implementation.
+- Any dashboard code change now requires a workflow restart (~25s build) — HMR is gone but stale cache is also gone permanently.
+- The `test-dashboard` uses the same pattern: `pnpm run build && pnpm run serve`.
+- Do NOT revert to `vite --host 0.0.0.0` dev mode — proxy caching will immediately return.
 
-## What NOT to do
+## What does NOT work
 
-- Do NOT rely on `server.headers: { "Cache-Control": "no-store" }` alone — the proxy ignores it
-- Do NOT clear `node_modules/.vite` expecting it to fix proxy-cached source files — that only helps dep pre-bundling
-- Do NOT advise hard refresh or private window as a fix — the cache is proxy-side, not browser-side
+- `server.headers: { "Cache-Control": "no-store" }` alone — proxy ignores it
+- Clearing `node_modules/.vite` — only clears Vite's internal dep cache, not the proxy's URL cache
+- Session-token / startup-token plugins that only change the HTML entry point — downstream module URLs remain fixed and cached
+- Hard refresh / private window — cache is proxy-side, not browser-side
