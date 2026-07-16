@@ -38,8 +38,10 @@ export function Footer() {
               <li><Link href="/help" className="text-brand-pale/80 hover:text-white transition-colors">Help Centre</Link></li>
               <li><Link href="/register-interest" className="text-brand-pale/80 hover:text-white transition-colors">Register Interest</Link></li>
               <li><Link href="/contact" className="text-brand-pale/80 hover:text-white transition-colors">Contact Us</Link></li>
-              <li><Link href="/privacy" className="text-brand-pale/80 hover:text-white transition-colors">Privacy Policy</Link></li>
+              <li><Link href="/terms" className="text-brand-pale/80 hover:text-white transition-colors">Terms of Service</Link></li>
+              <li><Link href="/privacy" className="text-brand-pale/80 hover:text-white transition-colors">Privacy Policy &amp; DPA</Link></li>
               <li><Link href="/cookies" className="text-brand-pale/80 hover:text-white transition-colors">Cookie Policy</Link></li>
+              <li><Link href="/nda" className="text-brand-pale/80 hover:text-white transition-colors">NDA Template</Link></li>
               <li><Link href="/login" className="text-brand-pale/80 hover:text-white transition-colors">Client Login</Link></li>
               <li>
                 <button
