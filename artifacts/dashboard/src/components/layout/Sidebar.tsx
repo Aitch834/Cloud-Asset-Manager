@@ -86,10 +86,18 @@ const coreNav: NavItem[] = [
   { name: "Week Ahead", href: "/week-ahead", icon: CalendarDays },
   { name: "Task Board", href: "/task-board", icon: ClipboardList },
   { name: "Resource Planner", href: "/resources", icon: CalendarClock, moduleKeys: ["resource-planner"] },
+  { name: "Resource Map", href: "/resource-map", icon: Navigation },
+  { name: "Weather", href: "/weather", icon: CloudSun, moduleKeys: ["weather-tracking"] },
+];
+
+const peopleNav: NavItem[] = [
   { name: "Staff", href: "/staff", icon: Users },
   { name: "Departments", href: "/departments", icon: Building2 },
   { name: "Labour", href: "/labour", icon: Clock, moduleKeys: ["staff-training"] },
   { name: "Training", href: "/training", icon: GraduationCap, moduleKeys: ["staff-training"] },
+];
+
+const farmManagementNav: NavItem[] = [
   { name: "Fields & Crops", href: "/fields", icon: Sprout, moduleKeys: ["field-crop-management", "viticulture", "fresh-produce", "organic-compliance", "organic-fresh-produce", "organic-arable", "biofuel-rtfo"] },
   { name: "Harvest Records", href: "/harvest", icon: Wheat, moduleKeys: ["field-crop-management", "viticulture", "fresh-produce", "organic-arable"] },
   { name: "Field Operations", href: "/field-operations", icon: Shovel, moduleKeys: ["field-crop-management", "viticulture", "fresh-produce", "organic-arable"] },
@@ -104,6 +112,33 @@ const coreNav: NavItem[] = [
   { name: "Soil Tests", href: "/soil", icon: TestTube, moduleKeys: ["soil-management"] },
   { name: "Equipment", href: "/equipment", icon: Tractor, moduleKeys: ["equipment-management"] },
   { name: "Workshop", href: "/workshop", icon: Wrench, moduleKeys: ["workshop-management"] },
+];
+
+const livestockNav: NavItem[] = [
+  { name: "Herds & Animals", href: "/livestock", icon: HeartPulse, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production", "organic-livestock", "organic-dairy"], requiresLivestock: true },
+  { name: "Movements", href: "/movements", icon: Truck, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production", "pig-production"], requiresLivestock: true },
+  { name: "Medicine", href: "/medicine", icon: HeartPulse, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production", "pig-production", "poultry-production"], requiresLivestock: true },
+  { name: "Herd Health Register", href: "/herd-health-register", icon: ClipboardList, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production"], requiresLivestock: true },
+  { name: "Health Dashboard", href: "/livestock-health", icon: BarChart3, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production"], requiresLivestock: true },
+  { name: "Dairy Records", href: "/dairy", icon: Milk, moduleKeys: ["dairy-management", "organic-dairy"], requiresLivestock: true },
+  { name: "Dairy Restock", href: "/dairy-restock", icon: Package, moduleKeys: ["dairy-management", "sheep-dairy", "goat-dairy", "organic-dairy", "organic-sheep-dairy", "organic-goat-dairy"] },
+  { name: "Sheep Dairy", href: "/sheep-dairy", icon: Milk, moduleKeys: ["sheep-dairy"] },
+  { name: "Goat Dairy", href: "/goat-dairy", icon: Milk, moduleKeys: ["goat-dairy"] },
+  { name: "Feed Management", href: "/feed", icon: Package, moduleKeys: ["feed-management"] },
+  { name: "Vet Ledger", href: "/vet-ledger", icon: Stethoscope, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production", "pig-production", "poultry-production"], requiresLivestock: true },
+  { name: "TB Testing Register", href: "/tb-tests", icon: TestTube, moduleKeys: ["livestock-management", "beef-production", "sheep-production", "goat-production", "organic-livestock", "organic-dairy", "organic-sheep-dairy", "organic-goat-dairy"], requiresLivestock: true },
+  { name: "Lambing Records", href: "/lambing", icon: Scissors, moduleKeys: ["sheep-production", "organic-livestock", "organic-sheep-dairy"] },
+  { name: "Annual Health Reviews", href: "/ahwr", icon: ClipboardList, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production", "pig-production", "poultry-production", "organic-livestock", "organic-dairy", "organic-sheep-dairy", "organic-goat-dairy", "organic-venison"] },
+];
+
+const biosecurityNav: NavItem[] = [
+  { name: "Farm Map", href: "/farm-map", icon: Map, moduleKeys: ["biosecurity"] },
+  { name: "Farm Locations", href: "/farm-locations", icon: MapPin, moduleKeys: ["biosecurity"] },
+  { name: "Visitor Log", href: "/visitors", icon: Users, moduleKeys: ["biosecurity"] },
+  { name: "Pest Control", href: "/pest-control", icon: Bug, moduleKeys: ["biosecurity"] },
+  { name: "Cleaning", href: "/cleaning", icon: ShieldCheck, moduleKeys: ["biosecurity"] },
+  { name: "COSHH Assessments", href: "/coshh", icon: ShieldAlert, moduleKeys: ["biosecurity"] },
+  { name: "Compliance & Plans", href: "/compliance", icon: FileText, moduleKeys: ["biosecurity"] },
 ];
 
 const complianceNav: NavItem[] = [
@@ -131,39 +166,6 @@ const organicFarmingNav: NavItem[] = [
   { name: "Organic Poultry", href: "/organic-poultry", icon: Bird, moduleKeys: ["organic-poultry"] },
 ];
 
-const biosecurityNav: NavItem[] = [
-  { name: "Farm Map", href: "/farm-map", icon: Map, moduleKeys: ["biosecurity"] },
-  { name: "Resource Map", href: "/resource-map", icon: Navigation, moduleKeys: ["biosecurity"] },
-  { name: "Farm Locations", href: "/farm-locations", icon: MapPin, moduleKeys: ["biosecurity"] },
-  { name: "Visitor Log", href: "/visitors", icon: Users, moduleKeys: ["biosecurity"] },
-  { name: "Pest Control", href: "/pest-control", icon: Bug, moduleKeys: ["biosecurity"] },
-  { name: "Cleaning", href: "/cleaning", icon: ShieldCheck, moduleKeys: ["biosecurity"] },
-  { name: "COSHH Assessments", href: "/coshh", icon: ShieldAlert, moduleKeys: ["biosecurity"] },
-  { name: "Compliance & Plans", href: "/compliance", icon: FileText, moduleKeys: ["biosecurity"] },
-];
-
-const livestockNav: NavItem[] = [
-  { name: "Herds & Animals", href: "/livestock", icon: HeartPulse, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production", "organic-livestock", "organic-dairy"], requiresLivestock: true },
-  { name: "Movements", href: "/movements", icon: Truck, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production", "pig-production"], requiresLivestock: true },
-  { name: "Medicine", href: "/medicine", icon: HeartPulse, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production", "pig-production", "poultry-production"], requiresLivestock: true },
-  { name: "Herd Health Register", href: "/herd-health-register", icon: ClipboardList, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production"], requiresLivestock: true },
-  { name: "Health Dashboard", href: "/livestock-health", icon: BarChart3, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production"], requiresLivestock: true },
-  { name: "Dairy Records", href: "/dairy", icon: Milk, moduleKeys: ["dairy-management", "organic-dairy"], requiresLivestock: true },
-  { name: "Dairy Restock", href: "/dairy-restock", icon: Package, moduleKeys: ["dairy-management", "sheep-dairy", "goat-dairy", "organic-dairy", "organic-sheep-dairy", "organic-goat-dairy"] },
-  { name: "Sheep Dairy", href: "/sheep-dairy", icon: Milk, moduleKeys: ["sheep-dairy"] },
-  { name: "Goat Dairy", href: "/goat-dairy", icon: Milk, moduleKeys: ["goat-dairy"] },
-  { name: "Feed Management", href: "/feed", icon: Package, moduleKeys: ["feed-management"] },
-  { name: "Vet Ledger", href: "/vet-ledger", icon: Stethoscope, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production", "pig-production", "poultry-production"], requiresLivestock: true },
-  { name: "TB Testing Register", href: "/tb-tests", icon: TestTube, moduleKeys: ["livestock-management", "beef-production", "sheep-production", "goat-production", "organic-livestock", "organic-dairy", "organic-sheep-dairy", "organic-goat-dairy"], requiresLivestock: true },
-  { name: "Lambing Records", href: "/lambing", icon: Scissors, moduleKeys: ["sheep-production", "organic-livestock", "organic-sheep-dairy"] },
-  { name: "Annual Health Reviews", href: "/ahwr", icon: ClipboardList, moduleKeys: ["livestock-management", "sheep-production", "beef-production", "goat-production", "pig-production", "poultry-production", "organic-livestock", "organic-dairy", "organic-sheep-dairy", "organic-goat-dairy", "organic-venison"] },
-];
-
-const biofuelNav: NavItem[] = [
-  { name: "Biofuel / RTFO", href: "/biofuel", icon: Fuel, moduleKeys: ["biofuel-rtfo"] },
-  { name: "Fuel & Energy", href: "/fuel-energy", icon: Fuel, moduleKeys: ["fuel-energy"] },
-];
-
 const specialistNav: NavItem[] = [
   { name: "Pig Production", href: "/pig-production", icon: PiggyBank, moduleKeys: ["pig-production"] },
   { name: "Poultry Production", href: "/poultry-production", icon: Bird, moduleKeys: ["poultry-production"] },
@@ -174,31 +176,41 @@ const specialistNav: NavItem[] = [
   { name: "Beef Production", href: "/beef-production", icon: Scale, moduleKeys: ["beef-production"] },
   { name: "Fresh Produce", href: "/fresh-produce", icon: ShoppingBag, moduleKeys: ["fresh-produce"] },
   { name: "Viticulture", href: "/viticulture", icon: TreePine, moduleKeys: ["viticulture"] },
-  { name: "Carbon & Sustainability", href: "/carbon", icon: Recycle, moduleKeys: ["carbon-sustainability"] },
   { name: "Farm Diversification", href: "/diversification", icon: Building2, moduleKeys: ["farm-diversification"] },
   { name: "Equine", href: "/equine", icon: Zap, moduleKeys: ["farm-diversification", "equine"] },
   { name: "Beekeeping", href: "/beekeeping", icon: Boxes, moduleKeys: ["beekeeping"] },
   { name: "Water & Irrigation", href: "/water-irrigation", icon: Waves, moduleKeys: ["water-irrigation"] },
 ];
 
-const otherNav: NavItem[] = [
+const financeNav: NavItem[] = [
+  { name: "Financial", href: "/financial", icon: PoundSterling, moduleKeys: ["financial-records"], minRole: "manager" },
+  { name: "Sales & Trading", href: "/sales-trading", icon: TrendingUp, moduleKeys: ["financial-records"], minRole: "manager" },
+  { name: "Trade History", href: "/trade-history", icon: BarChart3, moduleKeys: ["financial-records"], minRole: "manager" },
   { name: "Trade Contacts & Stock", href: "/stock", icon: Package, moduleKeys: ["stock-suppliers"] },
   { name: "Farm Services", href: "/farm-services", icon: Building2 },
   { name: "SFI / ELM", href: "/sfi", icon: Leaf, moduleKeys: ["environmental"] },
   { name: "Grants & Funding", href: "/grants", icon: Landmark },
-  { name: "Financial", href: "/financial", icon: PoundSterling, moduleKeys: ["financial-records"], minRole: "manager" },
-  { name: "Sales & Trading", href: "/sales-trading", icon: TrendingUp, moduleKeys: ["financial-records"], minRole: "manager" },
-  { name: "Trade History", href: "/trade-history", icon: BarChart3, moduleKeys: ["financial-records"], minRole: "manager" },
-  { name: "Business Reports", href: "/business-reports", icon: BarChart3, moduleKeys: ["business-reports"], minRole: "manager" },
-  { name: "Environmental", href: "/environmental", icon: Leaf, moduleKeys: ["environmental"] },
   { name: "Haulage", href: "/haulage", icon: Truck, moduleKeys: ["haulage-transport"] },
-  { name: "Documents", href: "/documents", icon: FileText, moduleKeys: ["document-management"] },
-  { name: "Weather", href: "/weather", icon: CloudSun, moduleKeys: ["weather-tracking"] },
+];
+
+const environmentalNav: NavItem[] = [
+  { name: "Environmental", href: "/environmental", icon: Leaf, moduleKeys: ["environmental"] },
+  { name: "Carbon & Sustainability", href: "/carbon", icon: Recycle, moduleKeys: ["carbon-sustainability"] },
+  { name: "Biofuel / RTFO", href: "/biofuel", icon: Fuel, moduleKeys: ["biofuel-rtfo"] },
+  { name: "Fuel & Energy", href: "/fuel-energy", icon: Fuel, moduleKeys: ["fuel-energy"] },
+];
+
+const reportingNav: NavItem[] = [
+  { name: "Business Reports", href: "/business-reports", icon: BarChart3, moduleKeys: ["business-reports"], minRole: "manager" },
   { name: "Season Reports", href: "/season-reports", icon: FileBarChart2, moduleKeys: ["field-crop-management", "livestock-management"] },
   { name: "Harvest Dashboard", href: "/harvest-dashboard", icon: BarChart3, moduleKeys: ["field-crop-management"] },
   { name: "NVZ Status Board", href: "/nvz-dashboard", icon: Gauge, moduleKeys: ["sprays-inputs"] },
   { name: "Soil Health", href: "/soil-dashboard", icon: FlaskConical, moduleKeys: ["soil-management"] },
   { name: "Fleet Status", href: "/fleet-dashboard", icon: Wrench, moduleKeys: ["equipment-management"] },
+];
+
+const documentsNav: NavItem[] = [
+  { name: "Documents", href: "/documents", icon: FileText, moduleKeys: ["document-management"] },
 ];
 
 const ROLE_RANK: Record<FarmRole, number> = { operator: 0, senior: 1, manager: 2, owner: 3 };
@@ -262,19 +274,28 @@ interface TrialInfo {
   endsAt: string | null;
 }
 
-function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTractorId, filteredCoreNav, filteredComplianceNav, filteredOrganicFarmingNav, filteredBiosecurityNav, filteredLivestockNav, filteredBiofuelNav, filteredSpecialistNav, filteredOtherNav, filteredBottomNav, trialInfo }: {
+function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTractorId,
+  filteredCoreNav, filteredPeopleNav, filteredFarmManagementNav, filteredLivestockNav,
+  filteredBiosecurityNav, filteredComplianceNav, filteredOrganicFarmingNav,
+  filteredSpecialistNav, filteredFinanceNav, filteredEnvironmentalNav,
+  filteredReportingNav, filteredDocumentsNav, filteredBottomNav, trialInfo,
+}: {
   onNavClick?: () => void;
   onLogout: () => void;
   currentFarmName?: string;
   currentFarmRedTractorId?: string | null;
   filteredCoreNav: NavItem[];
+  filteredPeopleNav: NavItem[];
+  filteredFarmManagementNav: NavItem[];
+  filteredLivestockNav: NavItem[];
+  filteredBiosecurityNav: NavItem[];
   filteredComplianceNav: NavItem[];
   filteredOrganicFarmingNav: NavItem[];
-  filteredBiosecurityNav: NavItem[];
-  filteredLivestockNav: NavItem[];
-  filteredBiofuelNav: NavItem[];
   filteredSpecialistNav: NavItem[];
-  filteredOtherNav: NavItem[];
+  filteredFinanceNav: NavItem[];
+  filteredEnvironmentalNav: NavItem[];
+  filteredReportingNav: NavItem[];
+  filteredDocumentsNav: NavItem[];
   filteredBottomNav: NavItem[];
   trialInfo?: TrialInfo | null;
 }) {
@@ -338,13 +359,17 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
 
       <nav ref={navRef} className="flex-1 px-3 py-3 space-y-0 overflow-y-auto">
         <NavSection items={filteredCoreNav} onNavClick={onNavClick} />
-        <NavSection title="Compliance" items={filteredComplianceNav} onNavClick={onNavClick} />
-        <NavSection title="Organic Farming" items={filteredOrganicFarmingNav} onNavClick={onNavClick} />
+        <NavSection title="People & Workforce" items={filteredPeopleNav} onNavClick={onNavClick} />
+        <NavSection title="Farm Management" items={filteredFarmManagementNav} onNavClick={onNavClick} />
+        <NavSection title="Livestock & Dairy" items={filteredLivestockNav} onNavClick={onNavClick} />
         <NavSection title="Biosecurity" items={filteredBiosecurityNav} onNavClick={onNavClick} />
-        <NavSection title="Livestock" items={filteredLivestockNav} onNavClick={onNavClick} />
-        <NavSection title="Fuel & Energy" items={filteredBiofuelNav} onNavClick={onNavClick} />
+        <NavSection title="Compliance & Safety" items={filteredComplianceNav} onNavClick={onNavClick} />
+        <NavSection title="Organic Farming" items={filteredOrganicFarmingNav} onNavClick={onNavClick} />
         <NavSection title="Specialist Modules" items={filteredSpecialistNav} onNavClick={onNavClick} />
-        <NavSection title="Management" items={filteredOtherNav} onNavClick={onNavClick} />
+        <NavSection title="Finance & Commercial" items={filteredFinanceNav} onNavClick={onNavClick} />
+        <NavSection title="Environmental" items={filteredEnvironmentalNav} onNavClick={onNavClick} />
+        <NavSection title="Reporting" items={filteredReportingNav} onNavClick={onNavClick} />
+        <NavSection title="Documents" items={filteredDocumentsNav} onNavClick={onNavClick} />
       </nav>
 
       {trialInfo && (
@@ -483,13 +508,17 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   }, [dashboardData?.activeSubscriptions]);
 
   const filteredCoreNav = filterNavItems(coreNav, activeModuleKeys, farmSectors, userRole);
+  const filteredPeopleNav = filterNavItems(peopleNav, activeModuleKeys, farmSectors, userRole);
+  const filteredFarmManagementNav = filterNavItems(farmManagementNav, activeModuleKeys, farmSectors, userRole);
+  const filteredLivestockNav = filterNavItems(livestockNav, activeModuleKeys, farmSectors, userRole);
+  const filteredBiosecurityNav = filterNavItems(biosecurityNav, activeModuleKeys, farmSectors, userRole);
   const filteredComplianceNav = filterNavItems(complianceNav, activeModuleKeys, farmSectors, userRole);
   const filteredOrganicFarmingNav = filterNavItems(organicFarmingNav, activeModuleKeys, farmSectors, userRole);
-  const filteredBiosecurityNav = filterNavItems(biosecurityNav, activeModuleKeys, farmSectors, userRole);
-  const filteredLivestockNav = filterNavItems(livestockNav, activeModuleKeys, farmSectors, userRole);
-  const filteredBiofuelNav = filterNavItems(biofuelNav, activeModuleKeys, farmSectors, userRole);
   const filteredSpecialistNav = filterNavItems(specialistNav, activeModuleKeys, farmSectors, userRole);
-  const filteredOtherNav = filterNavItems(otherNav, activeModuleKeys, farmSectors, userRole);
+  const filteredFinanceNav = filterNavItems(financeNav, activeModuleKeys, farmSectors, userRole);
+  const filteredEnvironmentalNav = filterNavItems(environmentalNav, activeModuleKeys, farmSectors, userRole);
+  const filteredReportingNav = filterNavItems(reportingNav, activeModuleKeys, farmSectors, userRole);
+  const filteredDocumentsNav = filterNavItems(documentsNav, activeModuleKeys, farmSectors, userRole);
   const filteredBottomNav = filterNavItems(bottomNav, new Set(), { hasLivestock: true }, userRole);
 
   const handleLogout = () => {
@@ -504,13 +533,17 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     currentFarmName: currentFarm?.name,
     currentFarmRedTractorId: currentFarm?.redTractorId ?? null,
     filteredCoreNav,
+    filteredPeopleNav,
+    filteredFarmManagementNav,
+    filteredLivestockNav,
+    filteredBiosecurityNav,
     filteredComplianceNav,
     filteredOrganicFarmingNav,
-    filteredBiosecurityNav,
-    filteredLivestockNav,
-    filteredBiofuelNav,
     filteredSpecialistNav,
-    filteredOtherNav,
+    filteredFinanceNav,
+    filteredEnvironmentalNav,
+    filteredReportingNav,
+    filteredDocumentsNav,
     filteredBottomNav,
     trialInfo,
   };
