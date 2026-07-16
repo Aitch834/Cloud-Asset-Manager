@@ -41,7 +41,7 @@ export function Footer() {
               <li><Link href="/terms" className="text-brand-pale/80 hover:text-white transition-colors">Terms of Service</Link></li>
               <li><Link href="/privacy" className="text-brand-pale/80 hover:text-white transition-colors">Privacy Policy &amp; DPA</Link></li>
               <li><Link href="/cookies" className="text-brand-pale/80 hover:text-white transition-colors">Cookie Policy</Link></li>
-              <li><Link href="/nda" className="text-brand-pale/80 hover:text-white transition-colors">NDA Template</Link></li>
+
               <li><Link href="/login" className="text-brand-pale/80 hover:text-white transition-colors">Client Login</Link></li>
               <li>
                 <button

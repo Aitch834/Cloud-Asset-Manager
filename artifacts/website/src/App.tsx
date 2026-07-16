@@ -24,7 +24,6 @@ import Support from "./pages/Support";
 import Privacy from "./pages/Privacy";
 import Cookies from "./pages/Cookies";
 import Terms from "./pages/Terms";
-import NDA from "./pages/NDA";
 import Login from "./pages/Login";
 import Admin from "./pages/Admin";
 import HelpCentre from "./pages/HelpCentre";
@@ -44,7 +43,6 @@ function Router() {
       <Route path="/privacy" component={Privacy} />
       <Route path="/cookies" component={Cookies} />
       <Route path="/terms" component={Terms} />
-      <Route path="/nda" component={NDA} />
       <Route path="/login" component={Login} />
       <Route path="/admin" component={Admin} />
       <Route path="/help" component={HelpCentre} />
