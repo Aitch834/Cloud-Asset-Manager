@@ -259,18 +259,20 @@ export default function CustomerDetail() {
     Promise.all([
       api.getTenantDetail(tenantId, secret),
       api.getSystemRoles(secret),
-      api.getModules(secret),
     ])
-      .then(([d, r, m]) => {
+      .then(([d, r]) => {
         setTenant(d.tenant);
         setFarms(d.farms);
         setSubscriptions(d.subscriptions);
         setUsers(d.users);
         setSystemRoles(r.roles);
-        setAllModules(m.modules);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
+
+    api.getModules(secret)
+      .then((m) => setAllModules(m.modules))
+      .catch(console.error);
   }, [tenantId]);
 
   async function handleAddModule(farmId: number) {
