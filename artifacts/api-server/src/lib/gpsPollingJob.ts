@@ -1,11 +1,13 @@
 /**
- * Background job: poll Teltonika RMS every 5 minutes for all connected farms.
+ * Background job: poll GPS providers every 5 minutes for all connected farms.
+ * Currently supports: Teltonika RMS, John Deere Operations Center
  */
 
 import { db } from "@workspace/db";
 import { gpsIntegrationsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { pollTeltonikaFarm } from "./teltonika";
+import { pollJdFarm } from "./john_deere";
 
 export function startGpsPollingJob(): void {
   const INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -13,35 +15,41 @@ export function startGpsPollingJob(): void {
   async function runPoll(): Promise<void> {
     try {
       const rows = await db.select({
-        id: gpsIntegrationsTable.id,
-        farmId: gpsIntegrationsTable.farmId,
-        provider: gpsIntegrationsTable.provider,
-        status: gpsIntegrationsTable.status,
+        id:                   gpsIntegrationsTable.id,
+        farmId:               gpsIntegrationsTable.farmId,
+        provider:             gpsIntegrationsTable.provider,
+        status:               gpsIntegrationsTable.status,
         accessTokenEncrypted: gpsIntegrationsTable.accessTokenEncrypted,
-        refreshTokenEncrypted: gpsIntegrationsTable.refreshTokenEncrypted,
-        tokenExpiresAt: gpsIntegrationsTable.tokenExpiresAt,
+        refreshTokenEncrypted:gpsIntegrationsTable.refreshTokenEncrypted,
+        tokenExpiresAt:       gpsIntegrationsTable.tokenExpiresAt,
       }).from(gpsIntegrationsTable)
-        .where(and(
-          eq(gpsIntegrationsTable.provider, "teltonika"),
-          eq(gpsIntegrationsTable.status, "connected"),
-        ));
+        .where(
+          inArray(gpsIntegrationsTable.provider, ["teltonika", "john_deere"]),
+        );
 
-      if (rows.length === 0) return;
+      const connected = rows.filter(r => r.status === "connected");
+      if (connected.length === 0) return;
 
-      console.log(`[GPS-POLL] Polling ${rows.length} Teltonika integration(s)...`);
+      console.log(`[GPS-POLL] Polling ${connected.length} integration(s)...`);
 
-      await Promise.allSettled(rows.map(row => {
+      await Promise.allSettled(connected.map(row => {
         if (!row.accessTokenEncrypted || !row.refreshTokenEncrypted || !row.tokenExpiresAt) {
-          console.warn(`[GPS-POLL] Farm ${row.farmId}: missing OAuth tokens, skipping`);
+          console.warn(`[GPS-POLL] Farm ${row.farmId} / ${row.provider}: missing OAuth tokens, skipping`);
           return Promise.resolve();
         }
-        return pollTeltonikaFarm(
-          row.farmId,
-          row.id,
-          row.accessTokenEncrypted,
-          row.refreshTokenEncrypted,
-          row.tokenExpiresAt,
-        );
+        if (row.provider === "teltonika") {
+          return pollTeltonikaFarm(
+            row.farmId, row.id,
+            row.accessTokenEncrypted, row.refreshTokenEncrypted, row.tokenExpiresAt,
+          );
+        }
+        if (row.provider === "john_deere") {
+          return pollJdFarm(
+            row.farmId, row.id,
+            row.accessTokenEncrypted, row.refreshTokenEncrypted, row.tokenExpiresAt,
+          );
+        }
+        return Promise.resolve();
       }));
     } catch (err) {
       console.error("[GPS-POLL] Error:", err);
@@ -51,5 +59,5 @@ export function startGpsPollingJob(): void {
   // Run immediately on startup, then every 5 minutes
   runPoll();
   setInterval(runPoll, INTERVAL_MS);
-  console.log("[GPS-POLL] Teltonika polling job started (every 5 minutes)");
+  console.log("[GPS-POLL] GPS polling job started (every 5 minutes) — providers: Teltonika, John Deere");
 }

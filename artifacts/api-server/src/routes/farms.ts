@@ -463,6 +463,7 @@ import { submitMovement, testConnection, isSandboxMode } from "../lib/ctws";
 import { submitLisMovement, testLisConnection, fetchLisToken, refreshLisToken, isLisSandboxMode, callLisApi, buildLisAuthUrl, exchangeLisCode, reviewHoldingMovement, undoLisRequest } from "../lib/lis";
 import { buildLipAuthUrl, exchangeLipCode, getLipRedirectUri, signLipOAuthState, verifyLipOAuthState, probeLipApi, isLipSandboxMode, refreshLipToken, callLipApi, submitLipMovement, submitLipBirth, submitLipDeath, submitLipLostFound, confirmLipMovement, cancelLipMovement, getLipRejectionReasons, checkLipRequestStatus } from "../lib/lip";
 import { buildTeltonikaAuthUrl, verifyTeltonikaState, exchangeTeltonikaCode } from "../lib/teltonika";
+import { buildJdAuthUrl, verifyJdState, exchangeJdCode } from "../lib/john_deere";
 import { computeFieldFiveInFiveScore, computeFarmFiveInFiveSummary } from "../lib/blackgrassFiveInFive";
 
 const router: IRouter = Router();
@@ -36333,6 +36334,91 @@ router.get("/gps/teltonika/callback", async (req: Request, res: Response): Promi
     res.redirect(`${DASHBOARD_SETTINGS}?gps_connected=teltonika`);
   } catch (err) {
     console.error("[GPS-TELTONIKA] callback error:", err);
+    res.redirect(`${DASHBOARD_SETTINGS}?gps_error=token_exchange_failed`);
+  }
+});
+
+// ─── John Deere Operations Center OAuth ──────────────────────────────────────
+
+router.get("/gps/john_deere/authorize", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.query.farmId);
+  if (!farmId || isNaN(farmId)) {
+    res.status(400).json({ error: "farmId query param required" });
+    return;
+  }
+  if (!process.env.JD_CLIENT_ID) {
+    res.status(503).json({ error: "John Deere integration not yet configured on this server" });
+    return;
+  }
+  try {
+    const authUrl = buildJdAuthUrl(farmId);
+    res.redirect(authUrl);
+  } catch (err) {
+    console.error("[GPS-JD] authorize:", err);
+    res.status(500).json({ error: "Failed to build John Deere auth URL" });
+  }
+});
+
+router.get("/gps/john_deere/callback", async (req: Request, res: Response): Promise<void> => {
+  const { code, state, error: oauthError } = req.query as Record<string, string>;
+  const DASHBOARD_SETTINGS = "/dashboard/settings/farm";
+
+  if (oauthError) {
+    console.error("[GPS-JD] OAuth error from John Deere:", oauthError);
+    res.redirect(`${DASHBOARD_SETTINGS}?gps_error=${encodeURIComponent(oauthError)}`);
+    return;
+  }
+
+  if (!code || !state) {
+    res.redirect(`${DASHBOARD_SETTINGS}?gps_error=missing_code`);
+    return;
+  }
+
+  const farmId = verifyJdState(state);
+  if (!farmId) {
+    res.redirect(`${DASHBOARD_SETTINGS}?gps_error=invalid_state`);
+    return;
+  }
+
+  try {
+    const tokens = await exchangeJdCode(code);
+    const { eq: eqOp, and: andOp } = require("drizzle-orm");
+
+    const [existing] = await db.select({ id: gpsIntegrationsTable.id })
+      .from(gpsIntegrationsTable)
+      .where(andOp(
+        eqOp(gpsIntegrationsTable.farmId, farmId),
+        eqOp(gpsIntegrationsTable.provider, "john_deere"),
+      ));
+
+    const encAccess  = encryptCredential(tokens.accessToken);
+    const encRefresh = encryptCredential(tokens.refreshToken);
+
+    if (existing) {
+      await db.update(gpsIntegrationsTable).set({
+        accessTokenEncrypted:  encAccess,
+        refreshTokenEncrypted: encRefresh,
+        tokenExpiresAt:        tokens.expiresAt,
+        status:    "connected",
+        lastError: null,
+        updatedAt: new Date(),
+      }).where(eqOp(gpsIntegrationsTable.id, existing.id));
+    } else {
+      await db.insert(gpsIntegrationsTable).values({
+        farmId,
+        provider:              "john_deere",
+        status:                "connected",
+        accessTokenEncrypted:  encAccess,
+        refreshTokenEncrypted: encRefresh,
+        tokenExpiresAt:        tokens.expiresAt,
+        displayName:           "John Deere Operations Center",
+      });
+    }
+
+    console.log(`[GPS-JD] Farm ${farmId} connected successfully`);
+    res.redirect(`${DASHBOARD_SETTINGS}?gps_connected=john_deere`);
+  } catch (err) {
+    console.error("[GPS-JD] callback error:", err);
     res.redirect(`${DASHBOARD_SETTINGS}?gps_error=token_exchange_failed`);
   }
 });
