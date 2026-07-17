@@ -19,7 +19,7 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Redirect } from "wouter";
-import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw, Phone, UserRound, Eye, EyeOff, ShieldCheck, Shield, Wifi, WifiOff, Trash2, Building2, CreditCard, Upload, ImageIcon, X, Cpu, LogIn, LogOut } from "lucide-react";
+import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw, Phone, UserRound, Eye, EyeOff, ShieldCheck, Shield, Wifi, WifiOff, Trash2, Building2, CreditCard, Upload, ImageIcon, X, Cpu, LogIn, LogOut, Truck, Satellite, Key, Link2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const SECTORS = [
@@ -912,6 +912,326 @@ const PAYMENT_TERMS_OPTIONS = [
   { value: "60", label: "60 days" },
   { value: "90", label: "90 days" },
 ] as const;
+
+// ─── GPS Integration Card ─────────────────────────────────────────────────────
+
+type GpsIntegration = {
+  id: number; provider: string; status: string;
+  apiKeySet: boolean; webhookSecretSet: boolean;
+  last_sync_at: string | null; last_error: string | null; display_name: string | null;
+};
+
+const GPS_PROVIDER_META: Record<string, { label: string; logo: string; type: "apikey" | "oauth"; description: string }> = {
+  teltonika: {
+    label: "Teltonika",
+    logo: "T",
+    type: "apikey",
+    description: "Direct webhook feed from Teltonika FMBxxx devices. Your devices send position data to your unique webhook URL.",
+  },
+  samsara: {
+    label: "Samsara",
+    logo: "S",
+    type: "apikey",
+    description: "Connect your Samsara fleet account via API key. Vehicle positions update via Samsara webhooks.",
+  },
+  webfleet: {
+    label: "Webfleet (TomTom)",
+    logo: "W",
+    type: "oauth",
+    description: "Connect your Webfleet account via OAuth. Requires a free Webfleet developer account.",
+  },
+  john_deere: {
+    label: "John Deere Operations Center",
+    logo: "JD",
+    type: "oauth",
+    description: "Sync positions from John Deere machines with JDLink telematics. Requires John Deere developer approval.",
+  },
+  agco: {
+    label: "AGCO Connect (Fendt / MF)",
+    logo: "AG",
+    type: "oauth",
+    description: "Sync positions from AGCO machines with built-in telematics. Requires AGCO Connect developer approval.",
+  },
+};
+
+function GpsIntegrationCard({ farmId }: { farmId: number }) {
+  const { toast } = useToast();
+  const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
+  const [apiKeyInputs, setApiKeyInputs] = useState<Record<string, string>>({});
+  const [showKey, setShowKey] = useState<Record<string, boolean>>({});
+  const [saving, setSaving] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
+
+  const integrationsQ = useQuery<{ integrations: GpsIntegration[] }>({
+    queryKey: ["gps-integrations", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/gps-integrations`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
+  const integrationsByProvider = Object.fromEntries(
+    (integrationsQ.data?.integrations ?? []).map(i => [i.provider, i])
+  );
+
+  const webhookBaseUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/api/farms/${farmId}/gps/webhook`
+    : `/api/farms/${farmId}/gps/webhook`;
+
+  async function saveApiKey(provider: string) {
+    const apiKey = apiKeyInputs[provider] ?? "";
+    if (!apiKey.trim()) return;
+    setSaving(provider);
+    try {
+      const r = await fetch(`/api/farms/${farmId}/gps-integrations/${provider}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: apiKey.trim() }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      toast({ title: "GPS integration saved", description: `${GPS_PROVIDER_META[provider]?.label} connected.` });
+      setApiKeyInputs(p => ({ ...p, [provider]: "" }));
+      integrationsQ.refetch();
+    } catch {
+      toast({ title: "Save failed", description: "Could not save API key.", variant: "destructive" });
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function removeIntegration(provider: string) {
+    setRemoving(provider);
+    try {
+      await fetch(`/api/farms/${farmId}/gps-integrations/${provider}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      toast({ title: "GPS integration removed" });
+      integrationsQ.refetch();
+    } catch {
+      toast({ title: "Remove failed", variant: "destructive" });
+    } finally {
+      setRemoving(null);
+    }
+  }
+
+  return (
+    <Card>
+      <CardContent className="p-6 md:p-8 space-y-5">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
+            <Satellite size={20} className="text-blue-600" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-base">GPS Tracking Integration</h3>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Connect vehicle and plant GPS tracking providers to show live asset positions on the Resource Map.
+              Each holding can use one or more providers simultaneously.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {Object.entries(GPS_PROVIDER_META).map(([provider, meta]) => {
+            const existing = integrationsByProvider[provider];
+            const connected = existing?.status === "connected";
+            const isExpanded = expandedProvider === provider;
+            const isOAuth = meta.type === "oauth";
+
+            return (
+              <div key={provider} className={`rounded-lg border transition-colors ${connected ? "border-green-200 bg-green-50/40" : "border-gray-200 bg-white"}`}>
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-3 p-4 text-left"
+                  onClick={() => setExpandedProvider(isExpanded ? null : provider)}
+                >
+                  <div className={`w-9 h-9 rounded-md flex items-center justify-center text-xs font-bold shrink-0 ${connected ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"}`}>
+                    {meta.logo}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm">{meta.label}</p>
+                    <p className="text-xs text-muted-foreground truncate">{meta.description}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {connected ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                        <Wifi size={10} /> Connected
+                      </span>
+                    ) : isOAuth ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                        Pending registration
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                        <WifiOff size={10} /> Not configured
+                      </span>
+                    )}
+                    <svg className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </div>
+                </button>
+
+                {isExpanded && (
+                  <div className="px-4 pb-4 border-t border-gray-100 pt-4 space-y-4">
+                    {isOAuth ? (
+                      <div className="flex items-start gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-lg">
+                        <Link2 size={15} className="text-amber-600 mt-0.5 shrink-0" />
+                        <div className="text-sm text-amber-900">
+                          <p className="font-semibold mb-1">Developer registration required</p>
+                          <p className="text-xs">
+                            {provider === "webfleet" && "Register a free developer account at webfleet.com/connect — OAuth connection will be enabled here once your developer credentials are issued."}
+                            {provider === "john_deere" && "Apply at developer.deere.com — John Deere API access requires a formal application review (typically 2–4 weeks). OAuth connection will appear here once approved."}
+                            {provider === "agco" && "Apply via the AGCO Connect developer programme — approval typically takes 2–4 weeks. OAuth connection will appear here once issued."}
+                          </p>
+                          {existing?.last_sync_at && (
+                            <p className="text-xs mt-2 text-amber-700">Last sync: {new Date(existing.last_sync_at).toLocaleString("en-GB")}</p>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {/* API Key */}
+                        <div>
+                          <Label htmlFor={`gps-apikey-${provider}`} className="flex items-center gap-1.5">
+                            <Key size={12} />
+                            {provider === "teltonika" ? "Teltonika Cloud API Key" : "Samsara API Token"}
+                          </Label>
+                          {connected && !apiKeyInputs[provider] && (
+                            <div className="flex items-center gap-2 mt-1.5 p-2.5 bg-green-50 border border-green-200 rounded-md">
+                              <ShieldCheck size={14} className="text-green-600 shrink-0" />
+                              <span className="text-xs text-green-800 font-medium">API key is saved and encrypted</span>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="ml-auto text-xs h-7 text-green-700 hover:text-green-800"
+                                onClick={() => setApiKeyInputs(p => ({ ...p, [provider]: " " }))}
+                              >
+                                Replace
+                              </Button>
+                            </div>
+                          )}
+                          {(!connected || apiKeyInputs[provider] !== undefined) && (
+                            <div className="flex gap-2 mt-1.5">
+                              <div className="relative flex-1">
+                                <Input
+                                  id={`gps-apikey-${provider}`}
+                                  type={showKey[provider] ? "text" : "password"}
+                                  className="pr-9 font-mono text-sm"
+                                  placeholder={provider === "samsara" ? "samsara_api_XXXXXXXXX" : "Enter API key..."}
+                                  value={apiKeyInputs[provider] ?? ""}
+                                  onChange={e => setApiKeyInputs(p => ({ ...p, [provider]: e.target.value }))}
+                                />
+                                <button
+                                  type="button"
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                  onClick={() => setShowKey(p => ({ ...p, [provider]: !p[provider] }))}
+                                >
+                                  {showKey[provider] ? <EyeOff size={14} /> : <Eye size={14} />}
+                                </button>
+                              </div>
+                              <Button
+                                size="sm"
+                                onClick={() => saveApiKey(provider)}
+                                disabled={saving === provider || !(apiKeyInputs[provider] ?? "").trim()}
+                              >
+                                {saving === provider ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                <span className="ml-1">Save</span>
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Webhook URL (Teltonika) */}
+                        {provider === "teltonika" && (
+                          <div>
+                            <Label className="flex items-center gap-1.5 mb-1.5">
+                              <Link2 size={12} />
+                              Webhook URL — paste into Teltonika RMS
+                            </Label>
+                            <div className="flex items-center gap-2 p-2.5 bg-gray-50 border border-gray-200 rounded-md font-mono text-xs text-gray-700 break-all">
+                              <span className="flex-1">{webhookBaseUrl}/teltonika</span>
+                              <button
+                                type="button"
+                                className="shrink-0 text-gray-400 hover:text-gray-700"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(`${webhookBaseUrl}/teltonika`);
+                                  toast({ title: "Copied to clipboard" });
+                                }}
+                              >
+                                <Copy size={13} />
+                              </button>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1.5">
+                              In Teltonika RMS: open your device → Configuration → Codec → HTTP posting → paste this URL. Set <span className="font-mono bg-gray-100 px-1 rounded">Content-Type: application/json</span> and POST method.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Samsara webhook info */}
+                        {provider === "samsara" && (
+                          <div>
+                            <Label className="flex items-center gap-1.5 mb-1.5">
+                              <Link2 size={12} />
+                              Samsara Webhook URL
+                            </Label>
+                            <div className="flex items-center gap-2 p-2.5 bg-gray-50 border border-gray-200 rounded-md font-mono text-xs text-gray-700 break-all">
+                              <span className="flex-1">{webhookBaseUrl}/samsara</span>
+                              <button
+                                type="button"
+                                className="shrink-0 text-gray-400 hover:text-gray-700"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(`${webhookBaseUrl}/samsara`);
+                                  toast({ title: "Copied to clipboard" });
+                                }}
+                              >
+                                <Copy size={13} />
+                              </button>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1.5">
+                              In the Samsara Cloud developer portal: go to Webhooks → Add Webhook → paste this URL, select <span className="font-mono bg-gray-100 px-1 rounded">Vehicle Location</span> events.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Last sync + remove */}
+                        {connected && (
+                          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                            <p className="text-xs text-muted-foreground">
+                              {existing?.last_sync_at
+                                ? `Last data received: ${new Date(existing.last_sync_at).toLocaleString("en-GB")}`
+                                : "No data received yet — waiting for first position update"}
+                            </p>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-600 hover:text-red-700 h-7 text-xs"
+                              onClick={() => removeIntegration(provider)}
+                              disabled={removing === provider}
+                            >
+                              {removing === provider ? <Loader2 size={12} className="animate-spin mr-1" /> : <Trash2 size={12} className="mr-1" />}
+                              Remove
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex items-start gap-3 p-3.5 bg-blue-50 border border-blue-200 rounded-lg">
+          <Truck size={15} className="text-blue-600 mt-0.5 shrink-0" />
+          <p className="text-xs text-blue-800">
+            <strong>Multiple providers can be active simultaneously</strong> — a JD tractor via the OEM API, a Land Rover via Teltonika, and a hired machine via Samsara will all appear as separate pins on the Resource Map. Positions update in real-time via webhook.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Invoicing Card ───────────────────────────────────────────────────────────
 
 function InvoicingCard({
   farmId,
@@ -1874,6 +2194,9 @@ export default function FarmSettings() {
         {/* ── LIS / Livestock Information Service ── */}
         {farmId && <LisConnectionCard farmId={farmId} />}
         {farmId && <LipConnectionCard farmId={farmId} />}
+
+        {/* ── GPS Tracking Integration ── */}
+        {farmId && <GpsIntegrationCard farmId={farmId} />}
 
         {/* ── Viticulture Registrations — only shown when Viticulture sector is active ── */}
         {formData.sectors.sectorViticulture && (

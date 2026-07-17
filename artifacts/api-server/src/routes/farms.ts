@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { createHmac, timingSafeEqual } from "crypto";
-import { db, helpArticlesTable, farmResourcesTable, farmTaskResourceAllocationsTable, staffLocationPingsTable } from "@workspace/db";
+import { db, helpArticlesTable, farmResourcesTable, farmTaskResourceAllocationsTable, staffLocationPingsTable, gpsIntegrationsTable, gpsAssetPositionsTable } from "@workspace/db";
 import { sendSms } from "../lib/sms";
 import { sendAdminEmail } from "../lib/mailer";
 import { sanitiseBody } from "../lib/sanitise";
@@ -36154,5 +36154,262 @@ router.get("/farms/:farmId/staff-locations/live", requireAuth, requireTenant, as
   } catch (err) {
     console.error("[STAFF-LOC GET LIVE]", err);
     res.status(500).json({ error: "Failed to fetch live staff locations" });
+  }
+});
+
+// ─── GPS Integrations ─────────────────────────────────────────────────────────
+
+const GPS_PROVIDERS = ["teltonika", "samsara", "webfleet", "john_deere", "agco"] as const;
+type GpsProvider = typeof GPS_PROVIDERS[number];
+
+router.get("/farms/:farmId/gps-integrations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  try {
+    const rows = await db.execute<{
+      id: number; farm_id: number; provider: string; status: string;
+      api_key_encrypted: string | null; webhook_secret_encrypted: string | null;
+      last_sync_at: string | null; last_error: string | null; display_name: string | null;
+      created_at: string; updated_at: string;
+    }>(
+      require("drizzle-orm").sql`SELECT * FROM gps_integrations WHERE farm_id = ${farmId} ORDER BY provider`
+    );
+    const integrations = rows.rows.map(r => ({
+      ...r,
+      apiKeySet: !!r.api_key_encrypted,
+      webhookSecretSet: !!r.webhook_secret_encrypted,
+      api_key_encrypted: undefined,
+      webhook_secret_encrypted: undefined,
+    }));
+    res.json({ integrations });
+  } catch (err) {
+    console.error("[GPS] GET integrations:", err);
+    res.status(500).json({ error: "Failed to fetch GPS integrations" });
+  }
+});
+
+router.put("/farms/:farmId/gps-integrations/:provider", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const provider = req.params.provider as GpsProvider;
+  if (!(GPS_PROVIDERS as readonly string[]).includes(provider)) {
+    res.status(400).json({ error: "Invalid provider" });
+    return;
+  }
+  const { apiKey, webhookSecret, displayName } = req.body as { apiKey?: string; webhookSecret?: string; displayName?: string };
+  try {
+    const { sql: sqlTag, eq, and } = require("drizzle-orm");
+    const [existing] = await db.select({ id: gpsIntegrationsTable.id, apiKeyEncrypted: gpsIntegrationsTable.apiKeyEncrypted, webhookSecretEncrypted: gpsIntegrationsTable.webhookSecretEncrypted })
+      .from(gpsIntegrationsTable)
+      .where(and(eq(gpsIntegrationsTable.farmId, farmId), eq(gpsIntegrationsTable.provider, provider)));
+
+    const apiKeyEncrypted = apiKey !== undefined
+      ? (apiKey ? encryptCredential(apiKey) : null)
+      : (existing?.apiKeyEncrypted ?? null);
+    const webhookSecretEncrypted = webhookSecret !== undefined
+      ? (webhookSecret ? encryptCredential(webhookSecret) : null)
+      : (existing?.webhookSecretEncrypted ?? null);
+
+    const hasCredential = !!(apiKeyEncrypted || webhookSecretEncrypted);
+    const status = hasCredential ? "connected" : "disconnected";
+
+    if (existing) {
+      await db.update(gpsIntegrationsTable).set({
+        apiKeyEncrypted, webhookSecretEncrypted, status,
+        displayName: displayName ?? null,
+        updatedAt: new Date(),
+      }).where(eq(gpsIntegrationsTable.id, existing.id));
+    } else {
+      await db.insert(gpsIntegrationsTable).values({
+        farmId, provider, status, apiKeyEncrypted, webhookSecretEncrypted,
+        displayName: displayName ?? null,
+      });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[GPS] PUT integration:", err);
+    res.status(500).json({ error: "Failed to save GPS integration" });
+  }
+});
+
+router.delete("/farms/:farmId/gps-integrations/:provider", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const provider = req.params.provider;
+  try {
+    const { eq, and } = require("drizzle-orm");
+    await db.delete(gpsIntegrationsTable).where(
+      and(eq(gpsIntegrationsTable.farmId, farmId), eq(gpsIntegrationsTable.provider, provider))
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[GPS] DELETE integration:", err);
+    res.status(500).json({ error: "Failed to remove GPS integration" });
+  }
+});
+
+// ─── GPS Live Asset Positions ─────────────────────────────────────────────────
+
+router.get("/farms/:farmId/gps-assets/live", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  try {
+    const { sql: sqlTag } = require("drizzle-orm");
+    const rows = await db.execute<{
+      id: number; farm_id: number; integration_id: number | null; provider: string;
+      external_asset_id: string; asset_name: string | null; asset_type: string | null;
+      latitude: string; longitude: string; speed_kph: string | null; heading_deg: number | null;
+      accuracy_m: string | null; altitude_m: string | null; ignition_on: boolean | null;
+      last_seen_at: string;
+    }>(sqlTag`
+      SELECT
+        id, farm_id, integration_id, provider,
+        external_asset_id  AS "externalAssetId",
+        asset_name         AS "assetName",
+        asset_type         AS "assetType",
+        latitude, longitude,
+        speed_kph          AS "speedKph",
+        heading_deg        AS "headingDeg",
+        accuracy_m         AS "accuracyM",
+        altitude_m         AS "altitudeM",
+        ignition_on        AS "ignitionOn",
+        last_seen_at       AS "lastSeenAt"
+      FROM gps_asset_positions
+      WHERE farm_id = ${farmId}
+        AND last_seen_at > now() - interval '24 hours'
+      ORDER BY provider, asset_name
+    `);
+    res.json({ assets: rows.rows });
+  } catch (err) {
+    console.error("[GPS] GET live assets:", err);
+    res.status(500).json({ error: "Failed to fetch GPS asset positions" });
+  }
+});
+
+// ─── GPS Webhooks (device → BDE Farm Trac) ───────────────────────────────────
+
+router.post("/farms/:farmId/gps/webhook/teltonika", async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  try {
+    const { sql: sqlTag } = require("drizzle-orm");
+    const payload = req.body as {
+      deviceId?: string; deviceName?: string; assetType?: string;
+      latitude?: number; longitude?: number; speed?: number;
+      heading?: number; altitude?: number; ignitionOn?: boolean; timestamp?: string;
+    };
+
+    if (!payload.deviceId || payload.latitude == null || payload.longitude == null) {
+      res.status(400).json({ error: "Missing required fields: deviceId, latitude, longitude" });
+      return;
+    }
+
+    const lastSeenAt = payload.timestamp ? new Date(payload.timestamp) : new Date();
+
+    const [integration] = await db.select({ id: gpsIntegrationsTable.id })
+      .from(gpsIntegrationsTable)
+      .where(require("drizzle-orm").and(
+        require("drizzle-orm").eq(gpsIntegrationsTable.farmId, farmId),
+        require("drizzle-orm").eq(gpsIntegrationsTable.provider, "teltonika")
+      ));
+
+    await db.execute(sqlTag`
+      INSERT INTO gps_asset_positions
+        (farm_id, integration_id, provider, external_asset_id, asset_name, asset_type,
+         latitude, longitude, speed_kph, heading_deg, altitude_m, ignition_on, last_seen_at, updated_at)
+      VALUES (
+        ${farmId}, ${integration?.id ?? null}, 'teltonika',
+        ${payload.deviceId}, ${payload.deviceName ?? payload.deviceId},
+        ${payload.assetType ?? "vehicle"},
+        ${payload.latitude}, ${payload.longitude},
+        ${payload.speed ?? null}, ${payload.heading ?? null},
+        ${payload.altitude ?? null}, ${payload.ignitionOn ?? null},
+        ${lastSeenAt}, NOW()
+      )
+      ON CONFLICT (farm_id, provider, external_asset_id)
+      DO UPDATE SET
+        asset_name   = EXCLUDED.asset_name,
+        asset_type   = EXCLUDED.asset_type,
+        latitude     = EXCLUDED.latitude,
+        longitude    = EXCLUDED.longitude,
+        speed_kph    = EXCLUDED.speed_kph,
+        heading_deg  = EXCLUDED.heading_deg,
+        altitude_m   = EXCLUDED.altitude_m,
+        ignition_on  = EXCLUDED.ignition_on,
+        last_seen_at = EXCLUDED.last_seen_at,
+        updated_at   = NOW()
+    `);
+
+    await db.update(gpsIntegrationsTable).set({ lastSyncAt: new Date() })
+      .where(require("drizzle-orm").and(
+        require("drizzle-orm").eq(gpsIntegrationsTable.farmId, farmId),
+        require("drizzle-orm").eq(gpsIntegrationsTable.provider, "teltonika")
+      ));
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[GPS] Teltonika webhook:", err);
+    res.status(500).json({ error: "Failed to process Teltonika webhook" });
+  }
+});
+
+router.post("/farms/:farmId/gps/webhook/samsara", async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  try {
+    const { sql: sqlTag } = require("drizzle-orm");
+    const payload = req.body as {
+      eventType?: string;
+      data?: {
+        vehicle?: { id?: string; name?: string };
+        location?: { latitude?: number; longitude?: number; headingDegrees?: number; speedMilesPerHour?: number; revGeocoding?: { formattedLocation?: string } };
+        time?: string;
+      };
+    };
+
+    const vehicle = payload?.data?.vehicle;
+    const location = payload?.data?.location;
+
+    if (!vehicle?.id || location?.latitude == null || location?.longitude == null) {
+      res.status(200).json({ received: true, skipped: true });
+      return;
+    }
+
+    const lastSeenAt = payload.data?.time ? new Date(payload.data.time) : new Date();
+    const speedKph = location.speedMilesPerHour != null ? location.speedMilesPerHour * 1.60934 : null;
+
+    const [integration] = await db.select({ id: gpsIntegrationsTable.id })
+      .from(gpsIntegrationsTable)
+      .where(require("drizzle-orm").and(
+        require("drizzle-orm").eq(gpsIntegrationsTable.farmId, farmId),
+        require("drizzle-orm").eq(gpsIntegrationsTable.provider, "samsara")
+      ));
+
+    await db.execute(sqlTag`
+      INSERT INTO gps_asset_positions
+        (farm_id, integration_id, provider, external_asset_id, asset_name, asset_type,
+         latitude, longitude, speed_kph, heading_deg, last_seen_at, updated_at)
+      VALUES (
+        ${farmId}, ${integration?.id ?? null}, 'samsara',
+        ${vehicle.id}, ${vehicle.name ?? vehicle.id}, 'vehicle',
+        ${location.latitude}, ${location.longitude},
+        ${speedKph}, ${location.headingDegrees ?? null},
+        ${lastSeenAt}, NOW()
+      )
+      ON CONFLICT (farm_id, provider, external_asset_id)
+      DO UPDATE SET
+        asset_name   = EXCLUDED.asset_name,
+        latitude     = EXCLUDED.latitude,
+        longitude    = EXCLUDED.longitude,
+        speed_kph    = EXCLUDED.speed_kph,
+        heading_deg  = EXCLUDED.heading_deg,
+        last_seen_at = EXCLUDED.last_seen_at,
+        updated_at   = NOW()
+    `);
+
+    await db.update(gpsIntegrationsTable).set({ lastSyncAt: new Date() })
+      .where(require("drizzle-orm").and(
+        require("drizzle-orm").eq(gpsIntegrationsTable.farmId, farmId),
+        require("drizzle-orm").eq(gpsIntegrationsTable.provider, "samsara")
+      ));
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[GPS] Samsara webhook:", err);
+    res.status(500).json({ error: "Failed to process Samsara webhook" });
   }
 });

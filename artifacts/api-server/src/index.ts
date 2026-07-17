@@ -6,6 +6,7 @@ import { startTimesheetReminderJob } from "./lib/timesheetReminderJob";
 import { runPlannerMigrations } from "./lib/plannerMigrations";
 import { runResourceMigrations } from "./lib/resourceMigrations";
 import { runDairySuppliesMigrations } from "./lib/dairySuppliesMigrations";
+import { runGpsMigrations } from "./lib/gpsMigrations";
 
 interface EnvSpec {
   key: string;
@@ -88,5 +89,8 @@ app.listen(port, () => {
   });
   runDairySuppliesMigrations().catch((err) => {
     console.error("[DAIRY-SUPPLIES-MIGRATE] Failed:", err);
+  });
+  runGpsMigrations().catch((err) => {
+    console.error("[GPS-MIGRATE] Failed:", err);
   });
 });
