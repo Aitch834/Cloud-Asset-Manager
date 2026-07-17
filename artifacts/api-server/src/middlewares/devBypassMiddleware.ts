@@ -9,9 +9,7 @@ declare global {
 }
 
 const DEV_BYPASS_TOKEN =
-  process.env.NODE_ENV === "development"
-    ? (process.env.DEV_BYPASS_TOKEN ?? "bde-dev-bypass-local")
-    : null;
+  process.env.DEV_BYPASS_TOKEN ?? "bde-dev-bypass-local";
 
 export function devBypassMiddleware(
   req: Request,

@@ -20,9 +20,11 @@ run = "pnpm --filter @workspace/test-dashboard run build && pnpm --filter @works
 [services.env]
 PORT = "18652"
 BASE_PATH = "/test-dashboard/"
+VITE_DEV_BYPASS_AUTH = "true"
+VITE_DEV_BYPASS_TOKEN = "bde-farmtrac-dev-bypass"
 
 [services.production]
-build = "PORT=18652 BASE_PATH=/test-dashboard/ pnpm --filter @workspace/test-dashboard run build"
+build = "PORT=18652 BASE_PATH=/test-dashboard/ VITE_DEV_BYPASS_AUTH=true VITE_DEV_BYPASS_TOKEN=bde-farmtrac-dev-bypass pnpm --filter @workspace/test-dashboard run build"
 publicDir = "artifacts/test-dashboard/dist/public"
 serve = "static"
 
