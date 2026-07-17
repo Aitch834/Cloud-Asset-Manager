@@ -462,6 +462,7 @@ import { generateDispatchNoteHtml } from "../lib/dispatch-note-html";
 import { submitMovement, testConnection, isSandboxMode } from "../lib/ctws";
 import { submitLisMovement, testLisConnection, fetchLisToken, refreshLisToken, isLisSandboxMode, callLisApi, buildLisAuthUrl, exchangeLisCode, reviewHoldingMovement, undoLisRequest } from "../lib/lis";
 import { buildLipAuthUrl, exchangeLipCode, getLipRedirectUri, signLipOAuthState, verifyLipOAuthState, probeLipApi, isLipSandboxMode, refreshLipToken, callLipApi, submitLipMovement, submitLipBirth, submitLipDeath, submitLipLostFound, confirmLipMovement, cancelLipMovement, getLipRejectionReasons, checkLipRequestStatus } from "../lib/lip";
+import { buildTeltonikaAuthUrl, verifyTeltonikaState, exchangeTeltonikaCode } from "../lib/teltonika";
 import { computeFieldFiveInFiveScore, computeFarmFiveInFiveSummary } from "../lib/blackgrassFiveInFive";
 
 const router: IRouter = Router();
@@ -36168,6 +36169,8 @@ router.get("/farms/:farmId/gps-integrations", requireAuth, requireTenant, async 
     const rows = await db.execute<{
       id: number; farm_id: number; provider: string; status: string;
       api_key_encrypted: string | null; webhook_secret_encrypted: string | null;
+      access_token_encrypted: string | null; refresh_token_encrypted: string | null;
+      token_expires_at: string | null;
       last_sync_at: string | null; last_error: string | null; display_name: string | null;
       created_at: string; updated_at: string;
     }>(
@@ -36177,8 +36180,12 @@ router.get("/farms/:farmId/gps-integrations", requireAuth, requireTenant, async 
       ...r,
       apiKeySet: !!r.api_key_encrypted,
       webhookSecretSet: !!r.webhook_secret_encrypted,
+      accessTokenSet: !!r.access_token_encrypted,
+      tokenExpiresAt: r.token_expires_at ?? null,
       api_key_encrypted: undefined,
       webhook_secret_encrypted: undefined,
+      access_token_encrypted: undefined,
+      refresh_token_encrypted: undefined,
     }));
     res.json({ integrations });
   } catch (err) {
@@ -36242,6 +36249,91 @@ router.delete("/farms/:farmId/gps-integrations/:provider", requireAuth, requireT
   } catch (err) {
     console.error("[GPS] DELETE integration:", err);
     res.status(500).json({ error: "Failed to remove GPS integration" });
+  }
+});
+
+// ─── Teltonika OAuth ───────────────────────────────────────────────────────────
+
+router.get("/gps/teltonika/authorize", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.query.farmId);
+  if (!farmId || isNaN(farmId)) {
+    res.status(400).json({ error: "farmId query param required" });
+    return;
+  }
+  if (!process.env.TELTONIKA_CLIENT_ID) {
+    res.status(503).json({ error: "Teltonika integration not yet configured on this server" });
+    return;
+  }
+  try {
+    const authUrl = buildTeltonikaAuthUrl(farmId);
+    res.redirect(authUrl);
+  } catch (err) {
+    console.error("[GPS-TELTONIKA] authorize:", err);
+    res.status(500).json({ error: "Failed to build Teltonika auth URL" });
+  }
+});
+
+router.get("/gps/teltonika/callback", async (req: Request, res: Response): Promise<void> => {
+  const { code, state, error: oauthError } = req.query as Record<string, string>;
+  const DASHBOARD_SETTINGS = "/dashboard/settings/farm";
+
+  if (oauthError) {
+    console.error("[GPS-TELTONIKA] OAuth error from Teltonika:", oauthError);
+    res.redirect(`${DASHBOARD_SETTINGS}?gps_error=${encodeURIComponent(oauthError)}`);
+    return;
+  }
+
+  if (!code || !state) {
+    res.redirect(`${DASHBOARD_SETTINGS}?gps_error=missing_code`);
+    return;
+  }
+
+  const farmId = verifyTeltonikaState(state);
+  if (!farmId) {
+    res.redirect(`${DASHBOARD_SETTINGS}?gps_error=invalid_state`);
+    return;
+  }
+
+  try {
+    const tokens = await exchangeTeltonikaCode(code);
+    const { eq: eqOp, and: andOp } = require("drizzle-orm");
+
+    const [existing] = await db.select({ id: gpsIntegrationsTable.id })
+      .from(gpsIntegrationsTable)
+      .where(andOp(
+        eqOp(gpsIntegrationsTable.farmId, farmId),
+        eqOp(gpsIntegrationsTable.provider, "teltonika"),
+      ));
+
+    const encAccess = encryptCredential(tokens.accessToken);
+    const encRefresh = encryptCredential(tokens.refreshToken);
+
+    if (existing) {
+      await db.update(gpsIntegrationsTable).set({
+        accessTokenEncrypted: encAccess,
+        refreshTokenEncrypted: encRefresh,
+        tokenExpiresAt: tokens.expiresAt,
+        status: "connected",
+        lastError: null,
+        updatedAt: new Date(),
+      }).where(eqOp(gpsIntegrationsTable.id, existing.id));
+    } else {
+      await db.insert(gpsIntegrationsTable).values({
+        farmId,
+        provider: "teltonika",
+        status: "connected",
+        accessTokenEncrypted: encAccess,
+        refreshTokenEncrypted: encRefresh,
+        tokenExpiresAt: tokens.expiresAt,
+        displayName: "Teltonika RMS",
+      });
+    }
+
+    console.log(`[GPS-TELTONIKA] Farm ${farmId} connected successfully`);
+    res.redirect(`${DASHBOARD_SETTINGS}?gps_connected=teltonika`);
+  } catch (err) {
+    console.error("[GPS-TELTONIKA] callback error:", err);
+    res.redirect(`${DASHBOARD_SETTINGS}?gps_error=token_exchange_failed`);
   }
 });
 

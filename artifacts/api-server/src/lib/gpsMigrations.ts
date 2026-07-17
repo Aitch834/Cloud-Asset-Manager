@@ -44,5 +44,13 @@ export async function runGpsMigrations(): Promise<void> {
     );
   `);
 
+  // OAuth token columns added for Teltonika (and future OAuth providers)
+  await db.execute(sql`
+    ALTER TABLE gps_integrations
+      ADD COLUMN IF NOT EXISTS access_token_encrypted  TEXT,
+      ADD COLUMN IF NOT EXISTS refresh_token_encrypted TEXT,
+      ADD COLUMN IF NOT EXISTS token_expires_at        TIMESTAMPTZ;
+  `);
+
   console.log("[GPS-MIGRATE] Done.");
 }

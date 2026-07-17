@@ -918,15 +918,16 @@ const PAYMENT_TERMS_OPTIONS = [
 type GpsIntegration = {
   id: number; provider: string; status: string;
   apiKeySet: boolean; webhookSecretSet: boolean;
+  accessTokenSet: boolean; tokenExpiresAt: string | null;
   last_sync_at: string | null; last_error: string | null; display_name: string | null;
 };
 
-const GPS_PROVIDER_META: Record<string, { label: string; logo: string; type: "apikey" | "oauth"; description: string }> = {
+const GPS_PROVIDER_META: Record<string, { label: string; logo: string; type: "apikey" | "oauth" | "oauth_active"; description: string }> = {
   teltonika: {
-    label: "Teltonika",
+    label: "Teltonika RMS",
     logo: "T",
-    type: "apikey",
-    description: "Direct webhook feed from Teltonika FMBxxx devices. Your devices send position data to your unique webhook URL.",
+    type: "oauth_active",
+    description: "Connect your Teltonika RMS fleet account via OAuth. Live positions polled every 5 minutes from all linked devices.",
   },
   samsara: {
     label: "Samsara",
@@ -1036,6 +1037,7 @@ function GpsIntegrationCard({ farmId }: { farmId: number }) {
             const connected = existing?.status === "connected";
             const isExpanded = expandedProvider === provider;
             const isOAuth = meta.type === "oauth";
+            const isOAuthActive = meta.type === "oauth_active";
 
             return (
               <div key={provider} className={`rounded-lg border transition-colors ${connected ? "border-green-200 bg-green-50/40" : "border-gray-200 bg-white"}`}>
@@ -1071,7 +1073,74 @@ function GpsIntegrationCard({ farmId }: { farmId: number }) {
 
                 {isExpanded && (
                   <div className="px-4 pb-4 border-t border-gray-100 pt-4 space-y-4">
-                    {isOAuth ? (
+                    {isOAuthActive ? (
+                      /* ── Teltonika RMS — active OAuth provider ── */
+                      connected ? (
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-3 p-3.5 bg-green-50 border border-green-200 rounded-lg">
+                            <Wifi size={15} className="text-green-600 shrink-0" />
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-green-900">Connected to Teltonika RMS</p>
+                              <p className="text-xs text-green-700 mt-0.5">
+                                {existing?.last_sync_at
+                                  ? `Last sync: ${new Date(existing.last_sync_at).toLocaleString("en-GB")}`
+                                  : "Waiting for first poll (runs every 5 minutes)"}
+                              </p>
+                              {existing?.tokenExpiresAt && (
+                                <p className="text-xs text-green-600 mt-0.5">
+                                  Token valid until: {new Date(existing.tokenExpiresAt).toLocaleString("en-GB")}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          {existing?.last_error && (
+                            <div className="flex items-start gap-2 p-2.5 bg-red-50 border border-red-200 rounded-md text-xs text-red-800">
+                              <WifiOff size={12} className="shrink-0 mt-0.5" />
+                              <span>{existing.last_error}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                            <p className="text-xs text-muted-foreground">Positions polled every 5 minutes from all RMS devices</p>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-600 hover:text-red-700 h-7 text-xs"
+                              onClick={() => removeIntegration(provider)}
+                              disabled={removing === provider}
+                            >
+                              {removing === provider ? <Loader2 size={12} className="animate-spin mr-1" /> : <Trash2 size={12} className="mr-1" />}
+                              Disconnect
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="flex items-start gap-3 p-3.5 bg-blue-50 border border-blue-200 rounded-lg">
+                            <Link2 size={15} className="text-blue-600 mt-0.5 shrink-0" />
+                            <div className="text-sm text-blue-900">
+                              <p className="font-semibold mb-1">Connect your Teltonika RMS account</p>
+                              <p className="text-xs text-blue-800">
+                                Click the button below to sign in to Teltonika RMS and authorise BDE Farm Trac to read your device list and live positions. You&apos;ll be redirected back here automatically.
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                            onClick={() => {
+                              window.location.href = `/api/gps/teltonika/authorize?farmId=${farmId}`;
+                            }}
+                          >
+                            <Link2 size={14} />
+                            Connect with Teltonika RMS
+                          </Button>
+                          <div className="text-xs text-muted-foreground space-y-1 pt-1">
+                            <p className="font-medium">Scopes requested:</p>
+                            <p><span className="font-mono bg-gray-100 px-1 rounded">devices:read</span> — list your devices</p>
+                            <p><span className="font-mono bg-gray-100 px-1 rounded">device_location:read</span> — read live GPS positions</p>
+                          </div>
+                        </div>
+                      )
+                    ) : isOAuth ? (
                       <div className="flex items-start gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-lg">
                         <Link2 size={15} className="text-amber-600 mt-0.5 shrink-0" />
                         <div className="text-sm text-amber-900">
