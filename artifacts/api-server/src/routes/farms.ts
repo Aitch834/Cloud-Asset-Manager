@@ -464,6 +464,7 @@ import { submitLisMovement, testLisConnection, fetchLisToken, refreshLisToken, i
 import { buildLipAuthUrl, exchangeLipCode, getLipRedirectUri, signLipOAuthState, verifyLipOAuthState, probeLipApi, isLipSandboxMode, refreshLipToken, callLipApi, submitLipMovement, submitLipBirth, submitLipDeath, submitLipLostFound, confirmLipMovement, cancelLipMovement, getLipRejectionReasons, checkLipRequestStatus } from "../lib/lip";
 import { buildTeltonikaAuthUrl, verifyTeltonikaState, exchangeTeltonikaCode } from "../lib/teltonika";
 import { buildJdAuthUrl, verifyJdState, exchangeJdCode } from "../lib/john_deere";
+import { parseWebfleetCredentials } from "../lib/webfleet";
 import { computeFieldFiveInFiveScore, computeFarmFiveInFiveSummary } from "../lib/blackgrassFiveInFive";
 
 const router: IRouter = Router();
@@ -36420,6 +36421,57 @@ router.get("/gps/john_deere/callback", async (req: Request, res: Response): Prom
   } catch (err) {
     console.error("[GPS-JD] callback error:", err);
     res.redirect(`${DASHBOARD_SETTINGS}?gps_error=token_exchange_failed`);
+  }
+});
+
+// ─── Webfleet.connect credentials ────────────────────────────────────────────
+
+router.put("/farms/:farmId/gps-integrations/webfleet/credentials", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const { account, username, password } = req.body as { account?: string; username?: string; password?: string };
+
+  if (!account?.trim() || !username?.trim() || !password?.trim()) {
+    res.status(400).json({ error: "account, username and password are all required" });
+    return;
+  }
+
+  try {
+    const { eq: eqOp, and: andOp } = require("drizzle-orm");
+
+    // Store the 3 farmer credentials as an encrypted JSON blob in api_key_encrypted.
+    // The application API key (WEBFLEET_API_KEY) is held server-side as an env var.
+    const credsJson = JSON.stringify({ account: account.trim(), username: username.trim(), password: password.trim() });
+    const encryptedCreds = encryptCredential(credsJson);
+
+    const [existing] = await db.select({ id: gpsIntegrationsTable.id })
+      .from(gpsIntegrationsTable)
+      .where(andOp(
+        eqOp(gpsIntegrationsTable.farmId, farmId),
+        eqOp(gpsIntegrationsTable.provider, "webfleet"),
+      ));
+
+    if (existing) {
+      await db.update(gpsIntegrationsTable).set({
+        apiKeyEncrypted: encryptedCreds,
+        status:    "connected",
+        lastError: null,
+        updatedAt: new Date(),
+      }).where(eqOp(gpsIntegrationsTable.id, existing.id));
+    } else {
+      await db.insert(gpsIntegrationsTable).values({
+        farmId,
+        provider:        "webfleet",
+        status:          "connected",
+        apiKeyEncrypted: encryptedCreds,
+        displayName:     "Webfleet (TomTom)",
+      });
+    }
+
+    console.log(`[GPS-WEBFLEET] Farm ${farmId} credentials saved`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[GPS-WEBFLEET] credentials save error:", err);
+    res.status(500).json({ error: "Failed to save Webfleet credentials" });
   }
 });
 

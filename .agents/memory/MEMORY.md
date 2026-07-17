@@ -33,3 +33,4 @@
 - [SeedStorePage hoisted-mutations pattern](seedstore-hoisted-mutations.md) — useMutation calls moved to hook positions 5–12 via _mut ref bag; pattern for any page where late-positioned mutations crash
 - [Teltonika RMS OAuth integration](teltonika-oauth.md) — OAuth 2.0 (not webhook/API key); redirect URI = bdefarmtrac.co.uk/api/gps/teltonika/callback; app type = Confidential; scopes = devices:read device_location:read
 - [John Deere Operations Center OAuth](john-deere-oauth.md) — Basic Auth token exchange (not body params); scopes ag1+eq1+offline_access; orgs→machines→breadcrumbs poll chain; JD_CLIENT_ID/JD_CLIENT_SECRET pending approval
+- [Webfleet.connect integration](webfleet-integration.md) — credential-based NOT OAuth; account+username+password stored as encrypted JSON in api_key_encrypted; WEBFLEET_API_KEY is app-level env var

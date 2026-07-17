@@ -938,8 +938,8 @@ const GPS_PROVIDER_META: Record<string, { label: string; logo: string; type: "ap
   webfleet: {
     label: "Webfleet (TomTom)",
     logo: "W",
-    type: "oauth",
-    description: "Connect your Webfleet account via OAuth. Requires a free Webfleet developer account.",
+    type: "credentials",
+    description: "Connect using your Webfleet account credentials. Requires a Webfleet subscription with API access.",
   },
   john_deere: {
     label: "John Deere Operations Center",
@@ -962,6 +962,8 @@ function GpsIntegrationCard({ farmId }: { farmId: number }) {
   const [showKey, setShowKey] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [wfCreds, setWfCreds] = useState({ account: "", username: "", password: "" });
+  const [showWfPass, setShowWfPass] = useState(false);
 
   const integrationsQ = useQuery<{ integrations: GpsIntegration[] }>({
     queryKey: ["gps-integrations", farmId],
@@ -994,6 +996,27 @@ function GpsIntegrationCard({ farmId }: { farmId: number }) {
       integrationsQ.refetch();
     } catch {
       toast({ title: "Save failed", description: "Could not save API key.", variant: "destructive" });
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function saveWebfleetCreds() {
+    if (!wfCreds.account.trim() || !wfCreds.username.trim() || !wfCreds.password.trim()) return;
+    setSaving("webfleet");
+    try {
+      const r = await fetch(`/api/farms/${farmId}/gps-integrations/webfleet/credentials`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(wfCreds),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      toast({ title: "Webfleet connected", description: "Credentials saved — vehicles will appear on the map within 5 minutes." });
+      setWfCreds({ account: "", username: "", password: "" });
+      integrationsQ.refetch();
+    } catch {
+      toast({ title: "Save failed", description: "Could not save Webfleet credentials.", variant: "destructive" });
     } finally {
       setSaving(null);
     }
@@ -1038,6 +1061,7 @@ function GpsIntegrationCard({ farmId }: { farmId: number }) {
             const isExpanded = expandedProvider === provider;
             const isOAuth = meta.type === "oauth";
             const isOAuthActive = meta.type === "oauth_active";
+            const isCredentials = meta.type === "credentials";
 
             return (
               <div key={provider} className={`rounded-lg border transition-colors ${connected ? "border-green-200 bg-green-50/40" : "border-gray-200 bg-white"}`}>
@@ -1151,13 +1175,106 @@ function GpsIntegrationCard({ farmId }: { farmId: number }) {
                           </div>
                         </div>
                       )
+                    ) : isCredentials ? (
+                      /* ── Webfleet — 3-field credential form ── */
+                      connected ? (
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-3 p-3.5 bg-green-50 border border-green-200 rounded-lg">
+                            <Wifi size={15} className="text-green-600 shrink-0" />
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-green-900">Connected to Webfleet</p>
+                              <p className="text-xs text-green-700 mt-0.5">
+                                {existing?.last_sync_at
+                                  ? `Last sync: ${new Date(existing.last_sync_at).toLocaleString("en-GB")}`
+                                  : "Waiting for first poll (runs every 5 minutes)"}
+                              </p>
+                            </div>
+                          </div>
+                          {existing?.last_error && (
+                            <div className="flex items-start gap-2 p-2.5 bg-red-50 border border-red-200 rounded-md text-xs text-red-800">
+                              <WifiOff size={12} className="shrink-0 mt-0.5" />
+                              <span>{existing.last_error}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                            <p className="text-xs text-muted-foreground">Positions polled every 5 minutes via Webfleet.connect</p>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-600 hover:text-red-700 h-7 text-xs"
+                              onClick={() => removeIntegration(provider)}
+                              disabled={removing === provider}
+                            >
+                              {removing === provider ? <Loader2 size={12} className="animate-spin mr-1" /> : <Trash2 size={12} className="mr-1" />}
+                              Disconnect
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-3 p-3.5 bg-blue-50 border border-blue-200 rounded-lg">
+                            <Key size={15} className="text-blue-600 mt-0.5 shrink-0" />
+                            <div className="text-sm text-blue-900">
+                              <p className="font-semibold mb-1">Enter your Webfleet account credentials</p>
+                              <p className="text-xs text-blue-800">Use the same account name, username and password you log in to Webfleet with. Your credentials are stored encrypted and never shared.</p>
+                            </div>
+                          </div>
+                          <div>
+                            <Label className="text-xs mb-1 block">Webfleet Account Name</Label>
+                            <Input
+                              placeholder="e.g. mycompany"
+                              value={wfCreds.account}
+                              onChange={e => setWfCreds(p => ({ ...p, account: e.target.value }))}
+                              className="text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs mb-1 block">Username</Label>
+                            <Input
+                              placeholder="Webfleet username"
+                              value={wfCreds.username}
+                              onChange={e => setWfCreds(p => ({ ...p, username: e.target.value }))}
+                              className="text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs mb-1 block">Password</Label>
+                            <div className="relative">
+                              <Input
+                                type={showWfPass ? "text" : "password"}
+                                placeholder="Webfleet password"
+                                value={wfCreds.password}
+                                onChange={e => setWfCreds(p => ({ ...p, password: e.target.value }))}
+                                className="text-sm pr-9"
+                              />
+                              <button
+                                type="button"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                onClick={() => setShowWfPass(p => !p)}
+                              >
+                                {showWfPass ? <EyeOff size={14} /> : <Eye size={14} />}
+                              </button>
+                            </div>
+                          </div>
+                          <Button
+                            className="w-full gap-2"
+                            onClick={saveWebfleetCreds}
+                            disabled={saving === "webfleet" || !wfCreds.account.trim() || !wfCreds.username.trim() || !wfCreds.password.trim()}
+                          >
+                            {saving === "webfleet" ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                            Save & Connect Webfleet
+                          </Button>
+                          <p className="text-xs text-muted-foreground">
+                            Requires a Webfleet subscription with API access enabled. Contact your Webfleet account manager if API access is not available on your plan.
+                          </p>
+                        </div>
+                      )
                     ) : isOAuth ? (
                       <div className="flex items-start gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-lg">
                         <Link2 size={15} className="text-amber-600 mt-0.5 shrink-0" />
                         <div className="text-sm text-amber-900">
                           <p className="font-semibold mb-1">Developer registration required</p>
                           <p className="text-xs">
-                            {provider === "webfleet" && "Register a free developer account at webfleet.com/connect — OAuth connection will be enabled here once your developer credentials are issued."}
                             {provider === "john_deere" && "Apply at developer.deere.com — John Deere API access requires a formal application review (typically 2–4 weeks). OAuth connection will appear here once approved."}
                             {provider === "agco" && "Apply via the AGCO Connect developer programme — approval typically takes 2–4 weeks. OAuth connection will appear here once issued."}
                           </p>
