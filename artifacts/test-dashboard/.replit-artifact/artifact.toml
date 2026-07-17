@@ -22,7 +22,7 @@ PORT = "18652"
 BASE_PATH = "/test-dashboard/"
 
 [services.production]
-build = ["pnpm", "--filter", "@workspace/test-dashboard", "run", "build"]
+build = "PORT=18652 BASE_PATH=/test-dashboard/ pnpm --filter @workspace/test-dashboard run build"
 publicDir = "artifacts/test-dashboard/dist/public"
 serve = "static"
 

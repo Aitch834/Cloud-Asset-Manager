@@ -22,7 +22,7 @@ PORT = "25580"
 BASE_PATH = "/admin-portal/"
 
 [services.production]
-build = ["pnpm", "--filter", "@workspace/admin-portal", "run", "build"]
+build = "PORT=25580 BASE_PATH=/admin-portal/ pnpm --filter @workspace/admin-portal run build"
 publicDir = "artifacts/admin-portal/dist/public"
 serve = "static"
 

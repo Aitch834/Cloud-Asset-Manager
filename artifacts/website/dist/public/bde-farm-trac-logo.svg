@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  BDE Farm Trac — Master Vector Logo
+  ════════════════════════════════════════════════════════════
+
+  Brand Colours
+  ─────────────
+  Forest Green  #2D6A2E   RGB(45, 106, 46)    PMS 364 C (approx)
+  Sage Green    #7CB87C   RGB(124, 184, 124)
+  Dark Green    #1F4F1F   RGB(31, 79, 31)
+  Earth Brown   #8B5E3C   RGB(139, 94, 60)    PMS 7526 C (approx)
+  Warm Tan      #C49A6C   RGB(196, 154, 108)
+
+  Font: Inter ExtraBold (weight 800)
+  Download free: https://fonts.google.com/specimen/Inter
+
+  Print Production — IMPORTANT
+  ─────────────────────────────
+  Before sending to a print shop, sign maker, or embroidery supplier,
+  convert text to outlines so Inter is not required on their machine:
+    Inkscape    → Select all → Path > Object to Path
+    Illustrator → Select all → Type > Create Outlines
+  Then export as EPS or PDF (print), or keep SVG/AI for vinyl cutting.
+
+  Embroidery thread matches (3-colour):
+    Forest Green  → Madeira 1183  / Isacord 5534
+    Earth Brown   → Madeira 1357  / Isacord 1134
+    Warm Tan      → Madeira 1055  / Isacord 0922
+
+  viewBox: 820 × 185  (fully scalable — no quality loss at any size)
+  ════════════════════════════════════════════════════════════
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 820 185"
+     width="820" height="185"
+     role="img"
+     aria-label="BDE Farm Trac logo">
+
+  <defs>
+    <style>
+      @import url('https://fonts.google.com/css2?family=Inter:wght@800&amp;display=swap');
+    </style>
+  </defs>
+
+  <!-- Ground / earth shadow -->
+  <ellipse cx="94" cy="172" rx="86" ry="9"
+           fill="#8B5E3C" opacity="0.22"/>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  MAIN TRACTOR BODY — single filled path                -->
+  <!--  Silhouette: fender arch (left) + cab (centre) +       -->
+  <!--              engine hood (right, slopes down)           -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <path d="M 12,160
+           C -2,132 -2,80 10,52
+           C 22,28 42,22 64,22
+           L 80,10
+           L 122,10
+           L 122,76
+           L 175,92
+           L 173,114
+           L 114,110
+           L 112,132
+           Z"
+        fill="#2D6A2E"/>
+
+  <!-- Chassis beam — bridges hood bottom to front wheel area -->
+  <rect x="114" y="109" width="63" height="26" rx="4" fill="#2D6A2E"/>
+
+  <!-- ─── Rear wheel ─── -->
+  <circle cx="62"  cy="125" r="47" fill="#1F4F1F"/>
+  <circle cx="62"  cy="125" r="33" fill="#FFFFFF"/>
+  <circle cx="62"  cy="125" r="15" fill="#C49A6C"/>
+  <circle cx="62"  cy="125" r="5"  fill="#2D6A2E"/>
+
+  <!-- ─── Cab details ─── -->
+
+  <!-- Roof overhang (wider than cab; lighter sage green) -->
+  <rect x="68" y="10" width="60" height="14" rx="5" fill="#5A8F5A"/>
+
+  <!-- Windscreen / glass area (forward-facing, right side of cab) -->
+  <rect x="85" y="24" width="31" height="44" rx="3"
+        fill="#7CB87C" opacity="0.65"/>
+
+  <!-- Foot step below cab -->
+  <rect x="110" y="108" width="14" height="20" rx="2" fill="#5A8F5A"/>
+
+  <!-- ─── Exhaust pipes ─── -->
+  <!-- Left pipe (taller) -->
+  <rect x="117" y="2"  width="8" height="70" rx="4" fill="#C49A6C"/>
+  <ellipse cx="121" cy="2" rx="4.5" ry="2.5" fill="#8B5E3C"/>
+
+  <!-- Right pipe (shorter) -->
+  <rect x="129" y="14" width="6" height="58" rx="3" fill="#C49A6C"/>
+  <ellipse cx="132" cy="14" rx="3.5" ry="2"   fill="#8B5E3C"/>
+
+  <!-- ─── Front wheel ─── -->
+  <!-- Bottom y = 147 + 25 = 172 — same ground line as rear (62 + 47 = 172) -->
+  <circle cx="160" cy="147" r="25" fill="#1F4F1F"/>
+  <circle cx="160" cy="147" r="17" fill="#FFFFFF"/>
+  <circle cx="160" cy="147" r="8"  fill="#C49A6C"/>
+  <circle cx="160" cy="147" r="3"  fill="#2D6A2E"/>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  WORDMARK                                              -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+
+  <!-- BDE — Forest Green, large -->
+  <text
+    x="208" y="102"
+    font-family="Inter, 'Arial Black', sans-serif"
+    font-weight="800"
+    font-size="100"
+    fill="#2D6A2E">BDE</text>
+
+  <!-- FARM TRAC — Earth Brown, slightly smaller, gentle tracking -->
+  <text
+    x="208" y="177"
+    font-family="Inter, 'Arial Black', sans-serif"
+    font-weight="800"
+    font-size="74"
+    letter-spacing="5"
+    fill="#8B5E3C">FARM TRAC</text>
+
+</svg>
