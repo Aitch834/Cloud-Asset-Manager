@@ -36276,7 +36276,7 @@ router.get("/gps/teltonika/authorize", async (req: Request, res: Response): Prom
 
 router.get("/gps/teltonika/callback", async (req: Request, res: Response): Promise<void> => {
   const { code, state, error: oauthError } = req.query as Record<string, string>;
-  const DASHBOARD_SETTINGS = "/dashboard/settings/farm";
+  const DASHBOARD_SETTINGS = "/test-dashboard/settings/farm";
 
   if (oauthError) {
     console.error("[GPS-TELTONIKA] OAuth error from Teltonika:", oauthError);
@@ -36360,7 +36360,7 @@ router.get("/gps/john_deere/authorize", async (req: Request, res: Response): Pro
 
 router.get("/gps/john_deere/callback", async (req: Request, res: Response): Promise<void> => {
   const { code, state, error: oauthError } = req.query as Record<string, string>;
-  const DASHBOARD_SETTINGS = "/dashboard/settings/farm";
+  const DASHBOARD_SETTINGS = "/test-dashboard/settings/farm";
 
   if (oauthError) {
     console.error("[GPS-JD] OAuth error from John Deere:", oauthError);
@@ -36486,7 +36486,7 @@ router.get("/gps/agco/authorize", async (req: Request, res: Response): Promise<v
 });
 
 router.get("/gps/agco/callback", async (req: Request, res: Response): Promise<void> => {
-  const DASHBOARD_SETTINGS = "/dashboard/settings/farm";
+  const DASHBOARD_SETTINGS = "/test-dashboard/settings/farm";
 
   const oauthError = req.query.error as string | undefined;
   if (oauthError) {
