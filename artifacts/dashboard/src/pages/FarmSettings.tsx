@@ -962,7 +962,7 @@ function GpsIntegrationCard({ farmId }: { farmId: number }) {
   const [showKey, setShowKey] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
-  const [wfCreds, setWfCreds] = useState({ account: "", username: "", password: "" });
+  const [wfCreds, setWfCreds] = useState({ account: "", username: "", password: "", apiKey: "" });
   const [showWfPass, setShowWfPass] = useState(false);
 
   const integrationsQ = useQuery<{ integrations: GpsIntegration[] }>({
@@ -1002,7 +1002,7 @@ function GpsIntegrationCard({ farmId }: { farmId: number }) {
   }
 
   async function saveWebfleetCreds() {
-    if (!wfCreds.account.trim() || !wfCreds.username.trim() || !wfCreds.password.trim()) return;
+    if (!wfCreds.account.trim() || !wfCreds.username.trim() || !wfCreds.password.trim() || !wfCreds.apiKey.trim()) return;
     setSaving("webfleet");
     try {
       const r = await fetch(`/api/farms/${farmId}/gps-integrations/webfleet/credentials`, {
@@ -1256,10 +1256,22 @@ function GpsIntegrationCard({ farmId }: { farmId: number }) {
                               </button>
                             </div>
                           </div>
+                          <div>
+                            <Label className="text-xs mb-1 block">Webfleet API Key</Label>
+                            <Input
+                              placeholder="Your fleet API key from Webfleet"
+                              value={wfCreds.apiKey}
+                              onChange={e => setWfCreds(p => ({ ...p, apiKey: e.target.value }))}
+                              className="text-sm font-mono"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Find this in your Webfleet account under <span className="font-medium">Tools → Webfleet Integration → API key</span>
+                            </p>
+                          </div>
                           <Button
                             className="w-full gap-2"
                             onClick={saveWebfleetCreds}
-                            disabled={saving === "webfleet" || !wfCreds.account.trim() || !wfCreds.username.trim() || !wfCreds.password.trim()}
+                            disabled={saving === "webfleet" || !wfCreds.account.trim() || !wfCreds.username.trim() || !wfCreds.password.trim() || !wfCreds.apiKey.trim()}
                           >
                             {saving === "webfleet" ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                             Save & Connect Webfleet

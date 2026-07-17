@@ -2,21 +2,19 @@
  * Webfleet.connect integration helpers.
  *
  * Authentication model:
- *   NOT OAuth — uses a credential-based model:
- *     - WEBFLEET_API_KEY (env var) — our application API key issued by Webfleet
- *     - Per-farm: account name, username, password — stored as encrypted JSON in api_key_encrypted
+ *   NOT OAuth — each farmer uses their own Webfleet.connect credentials + per-fleet API key.
+ *   No application-level API key or partner registration required.
  *
  * API endpoint: https://csv.webfleet.com/extern
  * Relevant action: showVehicleReport — returns all vehicles with current GPS positions
  *
- * Env vars required:
- *   WEBFLEET_API_KEY — from Webfleet developer registration (developer.webfleet.com)
+ * No env vars required — all credentials are per-farm.
  *
  * Per-farm stored (encrypted JSON in api_key_encrypted):
- *   { account: string; username: string; password: string }
+ *   { account: string; username: string; password: string; apiKey: string }
  *
- * Registration: https://developer.webfleet.com — apply for a developer/partner account.
- *   Once approved, Webfleet issues an API key specific to BDE Farm Trac.
+ * Farmers obtain their API key from their Webfleet account:
+ *   Webfleet dashboard → Tools → Webfleet Integration → API key
  */
 
 import { db } from "@workspace/db";
@@ -31,15 +29,16 @@ export interface WebfleetCredentials {
   account:  string;
   username: string;
   password: string;
+  apiKey:   string;
 }
 
 export function parseWebfleetCredentials(encrypted: string): WebfleetCredentials {
   const json = decryptCredential(encrypted);
-  const parsed = JSON.parse(json) as { account?: string; username?: string; password?: string };
-  if (!parsed.account || !parsed.username || !parsed.password) {
-    throw new Error("Webfleet credentials missing account, username, or password");
+  const parsed = JSON.parse(json) as { account?: string; username?: string; password?: string; apiKey?: string };
+  if (!parsed.account || !parsed.username || !parsed.password || !parsed.apiKey) {
+    throw new Error("Webfleet credentials missing account, username, password, or apiKey");
   }
-  return { account: parsed.account, username: parsed.username, password: parsed.password };
+  return { account: parsed.account, username: parsed.username, password: parsed.password, apiKey: parsed.apiKey };
 }
 
 interface WebfleetVehicle {
@@ -94,12 +93,6 @@ export async function pollWebfleetFarm(
   integrationId: number,
   encCredentials: string,
 ): Promise<void> {
-  const appApiKey = process.env.WEBFLEET_API_KEY;
-  if (!appApiKey) {
-    console.warn(`[GPS-WEBFLEET] WEBFLEET_API_KEY not set — skipping farm ${farmId}`);
-    return;
-  }
-
   let creds: WebfleetCredentials;
   try {
     creds = parseWebfleetCredentials(encCredentials);
@@ -114,7 +107,7 @@ export async function pollWebfleetFarm(
   }
 
   try {
-    const vehicles = await fetchWebfleetVehicles(creds, appApiKey);
+    const vehicles = await fetchWebfleetVehicles(creds, creds.apiKey);
 
     for (const v of vehicles) {
       if (v.latitude == null || v.longitude == null) continue;

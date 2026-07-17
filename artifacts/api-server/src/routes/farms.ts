@@ -36428,19 +36428,19 @@ router.get("/gps/john_deere/callback", async (req: Request, res: Response): Prom
 
 router.put("/farms/:farmId/gps-integrations/webfleet/credentials", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const { account, username, password } = req.body as { account?: string; username?: string; password?: string };
+  const { account, username, password, apiKey } = req.body as { account?: string; username?: string; password?: string; apiKey?: string };
 
-  if (!account?.trim() || !username?.trim() || !password?.trim()) {
-    res.status(400).json({ error: "account, username and password are all required" });
+  if (!account?.trim() || !username?.trim() || !password?.trim() || !apiKey?.trim()) {
+    res.status(400).json({ error: "account, username, password and apiKey are all required" });
     return;
   }
 
   try {
     const { eq: eqOp, and: andOp } = require("drizzle-orm");
 
-    // Store the 3 farmer credentials as an encrypted JSON blob in api_key_encrypted.
-    // The application API key (WEBFLEET_API_KEY) is held server-side as an env var.
-    const credsJson = JSON.stringify({ account: account.trim(), username: username.trim(), password: password.trim() });
+    // Store all 4 farmer-supplied credentials as an encrypted JSON blob in api_key_encrypted.
+    // No application-level Webfleet API key is needed — each farmer uses their own fleet API key.
+    const credsJson = JSON.stringify({ account: account.trim(), username: username.trim(), password: password.trim(), apiKey: apiKey.trim() });
     const encryptedCreds = encryptCredential(credsJson);
 
     const [existing] = await db.select({ id: gpsIntegrationsTable.id })
