@@ -950,8 +950,8 @@ const GPS_PROVIDER_META: Record<string, { label: string; logo: string; type: "ap
   agco: {
     label: "AGCO Connect (Fendt / MF)",
     logo: "AG",
-    type: "oauth_active",
-    description: "Sync positions from Fendt, Massey Ferguson and other AGCO machines with built-in telematics via AGCO Connect.",
+    type: "oauth",
+    description: "Sync positions from Fendt, Massey Ferguson, Valtra and Challenger machines via AGCO Fuse telematics. Requires a direct API agreement with AGCO.",
   },
 };
 
