@@ -36177,7 +36177,7 @@ router.get("/farms/:farmId/gps-integrations", requireAuth, requireTenant, async 
       last_sync_at: string | null; last_error: string | null; display_name: string | null;
       created_at: string; updated_at: string;
     }>(
-      require("drizzle-orm").sql`SELECT * FROM gps_integrations WHERE farm_id = ${farmId} ORDER BY provider`
+      sql`SELECT * FROM gps_integrations WHERE farm_id = ${farmId} ORDER BY provider`
     );
     const integrations = rows.rows.map(r => ({
       ...r,
@@ -36206,7 +36206,6 @@ router.put("/farms/:farmId/gps-integrations/:provider", requireAuth, requireTena
   }
   const { apiKey, webhookSecret, displayName } = req.body as { apiKey?: string; webhookSecret?: string; displayName?: string };
   try {
-    const { sql: sqlTag, eq, and } = require("drizzle-orm");
     const [existing] = await db.select({ id: gpsIntegrationsTable.id, apiKeyEncrypted: gpsIntegrationsTable.apiKeyEncrypted, webhookSecretEncrypted: gpsIntegrationsTable.webhookSecretEncrypted })
       .from(gpsIntegrationsTable)
       .where(and(eq(gpsIntegrationsTable.farmId, farmId), eq(gpsIntegrationsTable.provider, provider)));
@@ -36242,9 +36241,8 @@ router.put("/farms/:farmId/gps-integrations/:provider", requireAuth, requireTena
 
 router.delete("/farms/:farmId/gps-integrations/:provider", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const provider = req.params.provider;
+  const provider = req.params.provider as string;
   try {
-    const { eq, and } = require("drizzle-orm");
     await db.delete(gpsIntegrationsTable).where(
       and(eq(gpsIntegrationsTable.farmId, farmId), eq(gpsIntegrationsTable.provider, provider))
     );
@@ -36257,7 +36255,7 @@ router.delete("/farms/:farmId/gps-integrations/:provider", requireAuth, requireT
 
 // ─── Teltonika OAuth ───────────────────────────────────────────────────────────
 
-router.get("/gps/teltonika/authorize", requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get("/gps/teltonika/authorize", async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.query.farmId);
   if (!farmId || isNaN(farmId)) {
     res.status(400).json({ error: "farmId query param required" });
@@ -36299,13 +36297,12 @@ router.get("/gps/teltonika/callback", async (req: Request, res: Response): Promi
 
   try {
     const tokens = await exchangeTeltonikaCode(code);
-    const { eq: eqOp, and: andOp } = require("drizzle-orm");
 
     const [existing] = await db.select({ id: gpsIntegrationsTable.id })
       .from(gpsIntegrationsTable)
-      .where(andOp(
-        eqOp(gpsIntegrationsTable.farmId, farmId),
-        eqOp(gpsIntegrationsTable.provider, "teltonika"),
+      .where(and(
+        eq(gpsIntegrationsTable.farmId, farmId),
+        eq(gpsIntegrationsTable.provider, "teltonika"),
       ));
 
     const encAccess = encryptCredential(tokens.accessToken);
@@ -36319,7 +36316,7 @@ router.get("/gps/teltonika/callback", async (req: Request, res: Response): Promi
         status: "connected",
         lastError: null,
         updatedAt: new Date(),
-      }).where(eqOp(gpsIntegrationsTable.id, existing.id));
+      }).where(eq(gpsIntegrationsTable.id, existing.id));
     } else {
       await db.insert(gpsIntegrationsTable).values({
         farmId,
@@ -36342,7 +36339,7 @@ router.get("/gps/teltonika/callback", async (req: Request, res: Response): Promi
 
 // ─── John Deere Operations Center OAuth ──────────────────────────────────────
 
-router.get("/gps/john_deere/authorize", requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get("/gps/john_deere/authorize", async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.query.farmId);
   if (!farmId || isNaN(farmId)) {
     res.status(400).json({ error: "farmId query param required" });
@@ -36384,13 +36381,12 @@ router.get("/gps/john_deere/callback", async (req: Request, res: Response): Prom
 
   try {
     const tokens = await exchangeJdCode(code);
-    const { eq: eqOp, and: andOp } = require("drizzle-orm");
 
     const [existing] = await db.select({ id: gpsIntegrationsTable.id })
       .from(gpsIntegrationsTable)
-      .where(andOp(
-        eqOp(gpsIntegrationsTable.farmId, farmId),
-        eqOp(gpsIntegrationsTable.provider, "john_deere"),
+      .where(and(
+        eq(gpsIntegrationsTable.farmId, farmId),
+        eq(gpsIntegrationsTable.provider, "john_deere"),
       ));
 
     const encAccess  = encryptCredential(tokens.accessToken);
@@ -36404,7 +36400,7 @@ router.get("/gps/john_deere/callback", async (req: Request, res: Response): Prom
         status:    "connected",
         lastError: null,
         updatedAt: new Date(),
-      }).where(eqOp(gpsIntegrationsTable.id, existing.id));
+      }).where(eq(gpsIntegrationsTable.id, existing.id));
     } else {
       await db.insert(gpsIntegrationsTable).values({
         farmId,
@@ -36437,7 +36433,6 @@ router.put("/farms/:farmId/gps-integrations/webfleet/credentials", requireAuth, 
   }
 
   try {
-    const { eq: eqOp, and: andOp } = require("drizzle-orm");
 
     // Store all 4 farmer-supplied credentials as an encrypted JSON blob in api_key_encrypted.
     // No application-level Webfleet API key is needed — each farmer uses their own fleet API key.
@@ -36446,9 +36441,9 @@ router.put("/farms/:farmId/gps-integrations/webfleet/credentials", requireAuth, 
 
     const [existing] = await db.select({ id: gpsIntegrationsTable.id })
       .from(gpsIntegrationsTable)
-      .where(andOp(
-        eqOp(gpsIntegrationsTable.farmId, farmId),
-        eqOp(gpsIntegrationsTable.provider, "webfleet"),
+      .where(and(
+        eq(gpsIntegrationsTable.farmId, farmId),
+        eq(gpsIntegrationsTable.provider, "webfleet"),
       ));
 
     if (existing) {
@@ -36457,7 +36452,7 @@ router.put("/farms/:farmId/gps-integrations/webfleet/credentials", requireAuth, 
         status:    "connected",
         lastError: null,
         updatedAt: new Date(),
-      }).where(eqOp(gpsIntegrationsTable.id, existing.id));
+      }).where(eq(gpsIntegrationsTable.id, existing.id));
     } else {
       await db.insert(gpsIntegrationsTable).values({
         farmId,
@@ -36478,7 +36473,7 @@ router.put("/farms/:farmId/gps-integrations/webfleet/credentials", requireAuth, 
 
 // ─── AGCO Connect OAuth 2.0 ───────────────────────────────────────────────────
 
-router.get("/gps/agco/authorize", requireAuth, async (req: Request, res: Response): Promise<void> => {
+router.get("/gps/agco/authorize", async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.query.farmId);
   if (!farmId) { res.status(400).json({ error: "farmId required" }); return; }
   try {
@@ -36492,7 +36487,6 @@ router.get("/gps/agco/authorize", requireAuth, async (req: Request, res: Respons
 
 router.get("/gps/agco/callback", async (req: Request, res: Response): Promise<void> => {
   const DASHBOARD_SETTINGS = "/dashboard/settings/farm";
-  const { eq: eqOp, and: andOp } = require("drizzle-orm");
 
   const oauthError = req.query.error as string | undefined;
   if (oauthError) {
@@ -36522,9 +36516,9 @@ router.get("/gps/agco/callback", async (req: Request, res: Response): Promise<vo
 
     const [existing] = await db.select({ id: gpsIntegrationsTable.id })
       .from(gpsIntegrationsTable)
-      .where(andOp(
-        eqOp(gpsIntegrationsTable.farmId, farmId),
-        eqOp(gpsIntegrationsTable.provider, "agco"),
+      .where(and(
+        eq(gpsIntegrationsTable.farmId, farmId),
+        eq(gpsIntegrationsTable.provider, "agco"),
       ));
 
     if (existing) {
@@ -36535,7 +36529,7 @@ router.get("/gps/agco/callback", async (req: Request, res: Response): Promise<vo
         status:                "connected",
         lastError:             null,
         updatedAt:             new Date(),
-      }).where(eqOp(gpsIntegrationsTable.id, existing.id));
+      }).where(eq(gpsIntegrationsTable.id, existing.id));
     } else {
       await db.insert(gpsIntegrationsTable).values({
         farmId,
@@ -36561,14 +36555,13 @@ router.get("/gps/agco/callback", async (req: Request, res: Response): Promise<vo
 router.get("/farms/:farmId/gps-assets/live", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   try {
-    const { sql: sqlTag } = require("drizzle-orm");
     const rows = await db.execute<{
       id: number; farm_id: number; integration_id: number | null; provider: string;
       external_asset_id: string; asset_name: string | null; asset_type: string | null;
       latitude: string; longitude: string; speed_kph: string | null; heading_deg: number | null;
       accuracy_m: string | null; altitude_m: string | null; ignition_on: boolean | null;
       last_seen_at: string;
-    }>(sqlTag`
+    }>(sql`
       SELECT
         id, farm_id, integration_id, provider,
         external_asset_id  AS "externalAssetId",
@@ -36598,7 +36591,6 @@ router.get("/farms/:farmId/gps-assets/live", requireAuth, requireTenant, async (
 router.post("/farms/:farmId/gps/webhook/teltonika", async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   try {
-    const { sql: sqlTag } = require("drizzle-orm");
     const payload = req.body as {
       deviceId?: string; deviceName?: string; assetType?: string;
       latitude?: number; longitude?: number; speed?: number;
@@ -36614,12 +36606,12 @@ router.post("/farms/:farmId/gps/webhook/teltonika", async (req: Request, res: Re
 
     const [integration] = await db.select({ id: gpsIntegrationsTable.id })
       .from(gpsIntegrationsTable)
-      .where(require("drizzle-orm").and(
-        require("drizzle-orm").eq(gpsIntegrationsTable.farmId, farmId),
-        require("drizzle-orm").eq(gpsIntegrationsTable.provider, "teltonika")
+      .where(and(
+        eq(gpsIntegrationsTable.farmId, farmId),
+        eq(gpsIntegrationsTable.provider, "teltonika")
       ));
 
-    await db.execute(sqlTag`
+    await db.execute(sql`
       INSERT INTO gps_asset_positions
         (farm_id, integration_id, provider, external_asset_id, asset_name, asset_type,
          latitude, longitude, speed_kph, heading_deg, altitude_m, ignition_on, last_seen_at, updated_at)
@@ -36647,9 +36639,9 @@ router.post("/farms/:farmId/gps/webhook/teltonika", async (req: Request, res: Re
     `);
 
     await db.update(gpsIntegrationsTable).set({ lastSyncAt: new Date() })
-      .where(require("drizzle-orm").and(
-        require("drizzle-orm").eq(gpsIntegrationsTable.farmId, farmId),
-        require("drizzle-orm").eq(gpsIntegrationsTable.provider, "teltonika")
+      .where(and(
+        eq(gpsIntegrationsTable.farmId, farmId),
+        eq(gpsIntegrationsTable.provider, "teltonika")
       ));
 
     res.json({ success: true });
@@ -36662,7 +36654,6 @@ router.post("/farms/:farmId/gps/webhook/teltonika", async (req: Request, res: Re
 router.post("/farms/:farmId/gps/webhook/samsara", async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   try {
-    const { sql: sqlTag } = require("drizzle-orm");
     const payload = req.body as {
       eventType?: string;
       data?: {
@@ -36685,12 +36676,12 @@ router.post("/farms/:farmId/gps/webhook/samsara", async (req: Request, res: Resp
 
     const [integration] = await db.select({ id: gpsIntegrationsTable.id })
       .from(gpsIntegrationsTable)
-      .where(require("drizzle-orm").and(
-        require("drizzle-orm").eq(gpsIntegrationsTable.farmId, farmId),
-        require("drizzle-orm").eq(gpsIntegrationsTable.provider, "samsara")
+      .where(and(
+        eq(gpsIntegrationsTable.farmId, farmId),
+        eq(gpsIntegrationsTable.provider, "samsara")
       ));
 
-    await db.execute(sqlTag`
+    await db.execute(sql`
       INSERT INTO gps_asset_positions
         (farm_id, integration_id, provider, external_asset_id, asset_name, asset_type,
          latitude, longitude, speed_kph, heading_deg, last_seen_at, updated_at)
@@ -36713,9 +36704,9 @@ router.post("/farms/:farmId/gps/webhook/samsara", async (req: Request, res: Resp
     `);
 
     await db.update(gpsIntegrationsTable).set({ lastSyncAt: new Date() })
-      .where(require("drizzle-orm").and(
-        require("drizzle-orm").eq(gpsIntegrationsTable.farmId, farmId),
-        require("drizzle-orm").eq(gpsIntegrationsTable.provider, "samsara")
+      .where(and(
+        eq(gpsIntegrationsTable.farmId, farmId),
+        eq(gpsIntegrationsTable.provider, "samsara")
       ));
 
     res.json({ success: true });
