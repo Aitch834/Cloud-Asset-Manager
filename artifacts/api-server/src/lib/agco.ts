@@ -1,24 +1,32 @@
 /**
  * AGCO Connect OAuth 2.0 integration helpers.
  *
+ * Access to the AGCO Connect API is managed through the PTx Trimble Partner Portal.
+ * Apply at: https://developer.trimble.com (PTx Trimble API Resource Center)
+ * AGCO does not offer a standalone developer programme — Trimble manages API access
+ * for all AGCO brands (Massey Ferguson, Fendt, Valtra, Challenger).
+ *
  * Flow:
- *   1. User clicks "Connect" → redirect to AGCO Connect OAuth authorize URL
+ *   1. User clicks "Connect" → redirect to AGCO/Trimble OAuth authorize URL
  *      (state = HMAC-signed farmId)
- *   2. User grants access in AGCO Connect
- *   3. AGCO redirects to /api/gps/agco/callback
+ *   2. User grants access in AGCO Connect / PTx Trimble
+ *   3. Trimble redirects to /api/gps/agco/callback
  *   4. We exchange code for tokens (client_credentials in body), store encrypted
  *   5. Background job polls organizations → machines → telemetry every 5 min
  *
  * Env vars required:
- *   AGCO_CLIENT_ID     — from AGCO Connect developer programme
- *   AGCO_CLIENT_SECRET — from AGCO Connect developer programme
+ *   AGCO_CLIENT_ID     — from PTx Trimble Partner Portal
+ *   AGCO_CLIENT_SECRET — from PTx Trimble Partner Portal
  *
- * Redirect URI registered in AGCO developer portal:
+ * Redirect URI to register in PTx Trimble Portal:
  *   https://bdefarmtrac.co.uk/api/gps/agco/callback
  *
  * Scopes: openid offline_access
  *
- * AGCO Connect uses Okta as the authorization server.
+ * NOTE: AGCO_AUTH_BASE below uses the known Okta endpoint pattern.
+ * PTx Trimble may issue a different auth server URL — update AGCO_AUTH_BASE
+ * once credentials are received from the partner portal.
+ *
  * API base: https://api.agconet.com/v1
  */
 
