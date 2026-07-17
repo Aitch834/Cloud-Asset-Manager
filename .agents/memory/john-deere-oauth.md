@@ -12,7 +12,7 @@ description: JD uses Basic Auth for token exchange (not body params); poll chain
 - Accept header required: `application/vnd.deere.axiom.v3+json`
 
 ## Registration details
-- **Redirect URI**: `https://bdefarmtrac.co.uk/api/gps/john_deere/callback`
+- **Redirect URI**: `https://api.bdefarmtrac.co.uk/api/gps/john_deere/callback`
 - **Scopes**: `ag1`, `eq1`, `offline_access`
 - **APIs selected**: Precision Tech → Equipment (Breadcrumbs Read + Location History Read) + Organization/User (Organizations Read)
 - **Status**: Pending JD manual approval (submitted via developer.deere.com)

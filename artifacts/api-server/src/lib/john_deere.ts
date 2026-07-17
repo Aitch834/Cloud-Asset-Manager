@@ -30,7 +30,7 @@ const JD_AUTH_BASE  = "https://signin.johndeere.com/oauth2/v1";
 const JD_API_BASE   = "https://partnerapi.deere.com/platforms";
 const JD_ACCEPT     = "application/vnd.deere.axiom.v3+json";
 
-export const JD_REDIRECT_URI = "https://bdefarmtrac.co.uk/api/gps/john_deere/callback";
+export const JD_REDIRECT_URI = "https://api.bdefarmtrac.co.uk/api/gps/john_deere/callback";
 
 function stateSecret(): string {
   return process.env.CREDENTIAL_ENCRYPTION_KEY?.slice(0, 32) ?? "fallback-state-secret-32-chars!!";
