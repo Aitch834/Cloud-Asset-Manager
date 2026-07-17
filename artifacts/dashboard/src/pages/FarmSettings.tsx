@@ -922,7 +922,7 @@ type GpsIntegration = {
   last_sync_at: string | null; last_error: string | null; display_name: string | null;
 };
 
-const GPS_PROVIDER_META: Record<string, { label: string; logo: string; type: "apikey" | "oauth" | "oauth_active"; description: string }> = {
+const GPS_PROVIDER_META: Record<string, { label: string; logo: string; type: "apikey" | "oauth" | "oauth_active" | "credentials"; description: string }> = {
   teltonika: {
     label: "Teltonika RMS",
     logo: "T",
@@ -1013,7 +1013,7 @@ function GpsIntegrationCard({ farmId }: { farmId: number }) {
       });
       if (!r.ok) throw new Error(await r.text());
       toast({ title: "Webfleet connected", description: "Credentials saved — vehicles will appear on the map within 5 minutes." });
-      setWfCreds({ account: "", username: "", password: "" });
+      setWfCreds({ account: "", username: "", password: "", apiKey: "" });
       integrationsQ.refetch();
     } catch {
       toast({ title: "Save failed", description: "Could not save Webfleet credentials.", variant: "destructive" });
