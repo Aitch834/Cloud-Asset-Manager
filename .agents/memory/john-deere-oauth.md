@@ -1,6 +1,6 @@
 ---
 name: John Deere Operations Center OAuth
-description: JD uses Basic Auth for token exchange (not body params); poll chain is orgs→machines→breadcrumbs; credentials pending manual JD approval.
+description: JD OAuth WORKING end-to-end. Customer Okta at johndeerecustomer.okta.com; scopes openid+offline_access; Basic Auth token exchange; callback at api.bdefarmtrac.co.uk.
 ---
 
 ## Key facts
@@ -18,7 +18,7 @@ description: JD uses Basic Auth for token exchange (not body params); poll chain
 - **APIs approved**: Precision Tech → Operations Center - Machine Locations + Operations Center - Organizations (both Approved in developer.deere.com)
 - **Status**: APPROVED — app is live in developer.deere.com
 
-## Env vars required (add when JD approval arrives)
+## Env vars (both set in production secrets)
 - `JD_CLIENT_ID`
 - `JD_CLIENT_SECRET`
 
