@@ -465,6 +465,7 @@ import { buildLipAuthUrl, exchangeLipCode, getLipRedirectUri, signLipOAuthState,
 import { buildTeltonikaAuthUrl, verifyTeltonikaState, exchangeTeltonikaCode } from "../lib/teltonika";
 import { buildJdAuthUrl, verifyJdState, exchangeJdCode } from "../lib/john_deere";
 import { parseWebfleetCredentials } from "../lib/webfleet";
+import { buildAgcoAuthUrl, verifyAgcoState, exchangeAgcoCode } from "../lib/agco";
 import { computeFieldFiveInFiveScore, computeFarmFiveInFiveSummary } from "../lib/blackgrassFiveInFive";
 
 const router: IRouter = Router();
@@ -36472,6 +36473,86 @@ router.put("/farms/:farmId/gps-integrations/webfleet/credentials", requireAuth, 
   } catch (err) {
     console.error("[GPS-WEBFLEET] credentials save error:", err);
     res.status(500).json({ error: "Failed to save Webfleet credentials" });
+  }
+});
+
+// ─── AGCO Connect OAuth 2.0 ───────────────────────────────────────────────────
+
+router.get("/gps/agco/authorize", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.query.farmId);
+  if (!farmId) { res.status(400).json({ error: "farmId required" }); return; }
+  try {
+    const authUrl = buildAgcoAuthUrl(farmId);
+    res.redirect(authUrl);
+  } catch (err) {
+    console.error("[GPS-AGCO] authorize error:", err);
+    res.status(500).json({ error: "AGCO_CLIENT_ID not configured or build failed" });
+  }
+});
+
+router.get("/gps/agco/callback", async (req: Request, res: Response): Promise<void> => {
+  const DASHBOARD_SETTINGS = "/dashboard/settings/farm";
+  const { eq: eqOp, and: andOp } = require("drizzle-orm");
+
+  const oauthError = req.query.error as string | undefined;
+  if (oauthError) {
+    res.redirect(`${DASHBOARD_SETTINGS}?gps_error=${encodeURIComponent(oauthError)}`);
+    return;
+  }
+
+  const code  = req.query.code  as string | undefined;
+  const state = req.query.state as string | undefined;
+
+  if (!code) {
+    res.redirect(`${DASHBOARD_SETTINGS}?gps_error=missing_code`);
+    return;
+  }
+
+  const farmId = verifyAgcoState(state ?? "");
+  if (!farmId) {
+    res.redirect(`${DASHBOARD_SETTINGS}?gps_error=invalid_state`);
+    return;
+  }
+
+  try {
+    const tokens = await exchangeAgcoCode(code);
+
+    const encAccess  = encryptCredential(tokens.accessToken);
+    const encRefresh = encryptCredential(tokens.refreshToken);
+
+    const [existing] = await db.select({ id: gpsIntegrationsTable.id })
+      .from(gpsIntegrationsTable)
+      .where(andOp(
+        eqOp(gpsIntegrationsTable.farmId, farmId),
+        eqOp(gpsIntegrationsTable.provider, "agco"),
+      ));
+
+    if (existing) {
+      await db.update(gpsIntegrationsTable).set({
+        accessTokenEncrypted:  encAccess,
+        refreshTokenEncrypted: encRefresh,
+        tokenExpiresAt:        tokens.expiresAt,
+        status:                "connected",
+        lastError:             null,
+        updatedAt:             new Date(),
+      }).where(eqOp(gpsIntegrationsTable.id, existing.id));
+    } else {
+      await db.insert(gpsIntegrationsTable).values({
+        farmId,
+        provider:             "agco",
+        status:               "connected",
+        displayName:          "AGCO Connect",
+        accessTokenEncrypted:  encAccess,
+        refreshTokenEncrypted: encRefresh,
+        tokenExpiresAt:        tokens.expiresAt,
+      });
+    }
+
+    console.log(`[GPS-AGCO] Farm ${farmId} connected successfully`);
+    res.redirect(`${DASHBOARD_SETTINGS}?gps_connected=agco`);
+  } catch (err) {
+    console.error("[GPS-AGCO] callback error:", err);
+    res.redirect(`${DASHBOARD_SETTINGS}?gps_error=token_exchange_failed`);
   }
 });
 

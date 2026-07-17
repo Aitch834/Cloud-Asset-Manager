@@ -1,6 +1,6 @@
 /**
  * Background job: poll GPS providers every 5 minutes for all connected farms.
- * Currently supports: Teltonika RMS, John Deere Operations Center, Webfleet.connect
+ * Currently supports: Teltonika RMS, John Deere Operations Center, Webfleet.connect, AGCO Connect
  */
 
 import { db } from "@workspace/db";
@@ -9,6 +9,7 @@ import { inArray } from "drizzle-orm";
 import { pollTeltonikaFarm } from "./teltonika";
 import { pollJdFarm } from "./john_deere";
 import { pollWebfleetFarm } from "./webfleet";
+import { pollAgcoFarm } from "./agco";
 
 export function startGpsPollingJob(): void {
   const INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -26,7 +27,7 @@ export function startGpsPollingJob(): void {
         tokenExpiresAt:        gpsIntegrationsTable.tokenExpiresAt,
       }).from(gpsIntegrationsTable)
         .where(
-          inArray(gpsIntegrationsTable.provider, ["teltonika", "john_deere", "webfleet"]),
+          inArray(gpsIntegrationsTable.provider, ["teltonika", "john_deere", "webfleet", "agco"]),
         );
 
       const connected = rows.filter(r => r.status === "connected");
@@ -65,6 +66,17 @@ export function startGpsPollingJob(): void {
           return pollWebfleetFarm(row.farmId, row.id, row.apiKeyEncrypted);
         }
 
+        if (row.provider === "agco") {
+          if (!row.accessTokenEncrypted || !row.refreshTokenEncrypted || !row.tokenExpiresAt) {
+            console.warn(`[GPS-POLL] Farm ${row.farmId} / agco: missing OAuth tokens, skipping`);
+            return Promise.resolve();
+          }
+          return pollAgcoFarm(
+            row.farmId, row.id,
+            row.accessTokenEncrypted, row.refreshTokenEncrypted, row.tokenExpiresAt,
+          );
+        }
+
         return Promise.resolve();
       }));
     } catch (err) {
@@ -75,5 +87,5 @@ export function startGpsPollingJob(): void {
   // Run immediately on startup, then every 5 minutes
   runPoll();
   setInterval(runPoll, INTERVAL_MS);
-  console.log("[GPS-POLL] GPS polling job started (every 5 minutes) — providers: Teltonika, John Deere, Webfleet");
+  console.log("[GPS-POLL] GPS polling job started (every 5 minutes) — providers: Teltonika, John Deere, Webfleet, AGCO Connect");
 }
