@@ -5,17 +5,18 @@ description: JD uses Basic Auth for token exchange (not body params); poll chain
 
 ## Key facts
 - John Deere Operations Center uses **OAuth 2.0 Authorization Code** (confidential client)
-- **Token exchange uses HTTP Basic Auth** — client_id:client_secret as `Authorization: Basic base64(...)` header, NOT sent in the request body. This is different from Teltonika which sends them in the body.
-- Authorization URL: `https://signin.johndeere.com/oauth2/v1/authorize`
-- Token URL: `https://signin.johndeere.com/oauth2/v1/token`
+- **Token exchange uses HTTP Basic Auth** — client_id:client_secret as `Authorization: Basic base64(...)` header, NOT sent in the request body.
+- **Auth server**: `https://johndeerecustomer.okta.com/oauth2/default/v1` — NOT `signin.johndeere.com` which is JD's employee SSO and rejects custom scopes
+- Authorization URL: `https://johndeerecustomer.okta.com/oauth2/default/v1/authorize`
+- Token URL: `https://johndeerecustomer.okta.com/oauth2/default/v1/token`
 - API base: `https://partnerapi.deere.com/platforms`
 - Accept header required: `application/vnd.deere.axiom.v3+json`
 
 ## Registration details
 - **Redirect URI**: `https://api.bdefarmtrac.co.uk/api/gps/john_deere/callback`
-- **Scopes**: `ag1`, `eq1`, `offline_access`
-- **APIs selected**: Precision Tech → Equipment (Breadcrumbs Read + Location History Read) + Organization/User (Organizations Read)
-- **Status**: Pending JD manual approval (submitted via developer.deere.com)
+- **Scopes**: `openid offline_access` — JD controls API access at client-ID approval level (developer.deere.com), NOT via OAuth scope strings. `ag1`/`eq1` are NOT valid scope names.
+- **APIs approved**: Precision Tech → Operations Center - Machine Locations + Operations Center - Organizations (both Approved in developer.deere.com)
+- **Status**: APPROVED — app is live in developer.deere.com
 
 ## Env vars required (add when JD approval arrives)
 - `JD_CLIENT_ID`

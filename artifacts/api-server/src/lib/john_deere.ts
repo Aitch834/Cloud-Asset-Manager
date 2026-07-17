@@ -14,9 +14,14 @@
  *   JD_CLIENT_SECRET — from developer.deere.com application
  *
  * Redirect URI registered in JD developer portal:
- *   https://bdefarmtrac.co.uk/api/gps/john_deere/callback
+ *   https://api.bdefarmtrac.co.uk/api/gps/john_deere/callback
  *
- * Scopes: ag1  eq1  offline_access
+ * Scopes: openid  offline_access
+ *   (JD controls API access at client-ID approval level in developer.deere.com,
+ *    not through OAuth scope strings. ag1/eq1 are NOT valid scope names.)
+ *
+ * Auth server: johndeerecustomer.okta.com (NOT signin.johndeere.com which is
+ *   the employee SSO and only accepts standard OIDC scopes).
  */
 
 import { createHmac, timingSafeEqual } from "crypto";
@@ -26,7 +31,7 @@ import { eq, and } from "drizzle-orm";
 import { sql as drizzleSql } from "drizzle-orm";
 import { encryptCredential, decryptCredential } from "./encrypt";
 
-const JD_AUTH_BASE  = "https://signin.johndeere.com/oauth2/v1";
+const JD_AUTH_BASE  = "https://johndeerecustomer.okta.com/oauth2/default/v1";
 const JD_API_BASE   = "https://partnerapi.deere.com/platforms";
 const JD_ACCEPT     = "application/vnd.deere.axiom.v3+json";
 
@@ -78,7 +83,7 @@ export function buildJdAuthUrl(farmId: number): string {
     response_type: "code",
     client_id:     clientId,
     redirect_uri:  JD_REDIRECT_URI,
-    scope:         "ag1 eq1 offline_access",
+    scope:         "openid offline_access",
     state,
   });
   return `${JD_AUTH_BASE}/authorize?${params.toString()}`;
