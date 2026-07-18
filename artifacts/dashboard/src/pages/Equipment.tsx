@@ -16,7 +16,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useEquipment, useAddEquipment } from "@/hooks/use-equipment";
-import { Plus, Search, Tractor, Camera, X, Pencil, Loader2, Printer, Trash2, Wrench, AlertTriangle, CheckCircle2, Clock, ChevronDown, PackageX, RotateCcw, Eye, EyeOff, QrCode, ClipboardList, BarChart3 } from "lucide-react";
+import { Plus, Search, Tractor, Camera, X, Pencil, Loader2, Printer, Trash2, Wrench, AlertTriangle, CheckCircle2, Clock, ChevronDown, PackageX, RotateCcw, Eye, EyeOff, QrCode, ClipboardList, BarChart3, Signal, SignalZero } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { useForm } from "react-hook-form";
@@ -55,6 +55,7 @@ interface EquipmentRecord {
   disposalBuyerOrContractor?: string | null;
   wasteTransferNoteRef?: string | null;
   disposalNotes?: string | null;
+  gpsTracked?: boolean | null;
   complianceCategory?: string | null;
   puwerLastAssessmentDate?: string | null;
   puwerNextReviewDate?: string | null;
@@ -639,6 +640,8 @@ export default function EquipmentPage() {
   const [tab, setTab] = useState<"equipment" | "defects" | "analytics">("equipment");
   const [viewRecord, setViewRecord] = useState<any>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [addGpsTracked, setAddGpsTracked] = useState(false);
+  const [editGpsTracked, setEditGpsTracked] = useState(false);
   const [managingItem, setManagingItem] = useState<EquipmentRecord | null>(null);
   const [manageTab, setManageTab] = useState<"details" | "service" | "compliance">("details");
   const [compForm, setCompForm] = useState<any>({});
@@ -653,6 +656,7 @@ export default function EquipmentPage() {
   const [showDisposed, setShowDisposed] = useState(false);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [gpsFilter, setGpsFilter] = useState<"all" | "tracked" | "untracked">("all");
   const [qrItem, setQrItem] = useState<EquipmentRecord | null>(null);
   const [disposeItem, setDisposeItem] = useState<EquipmentRecord | null>(null);
   const [disposeForm, setDisposeForm] = useState(EMPTY_DISPOSE_FORM);
@@ -808,6 +812,7 @@ export default function EquipmentPage() {
           ...formValues,
           yearOfManufacture: formValues.yearOfManufacture ? parseInt(formValues.yearOfManufacture, 10) : undefined,
           photos: addPhotos.length ? JSON.stringify(addPhotos) : undefined,
+          gpsTracked: addGpsTracked,
         },
       },
       {
@@ -815,6 +820,7 @@ export default function EquipmentPage() {
           setIsAddOpen(false);
           reset();
           setAddPhotos([]);
+          setAddGpsTracked(false);
           toast({ title: "Equipment registered" });
         },
         onError: () => {
@@ -832,6 +838,7 @@ export default function EquipmentPage() {
     setServiceForm(EMPTY_SERVICE_FORM);
     setDeletingLogId(null);
     setEditPhotos(parsePhotos(item.photos));
+    setEditGpsTracked(item.gpsTracked ?? false);
     resetEdit({
       name: item.name ?? "",
       type: item.type ?? "",
@@ -852,6 +859,7 @@ export default function EquipmentPage() {
       ...formValues,
       yearOfManufacture: formValues.yearOfManufacture ? parseInt(formValues.yearOfManufacture, 10) : undefined,
       photos: JSON.stringify(editPhotos),
+      gpsTracked: editGpsTracked,
     };
     if (managingItem.status === "disposed") delete body.status;
     updateMutation.mutate({ id: managingItem.id, body });
@@ -871,7 +879,8 @@ export default function EquipmentPage() {
       || (e.registrationNumber ?? "").toLowerCase().includes(sq)
       || (e.assetNumber ?? "").toLowerCase().includes(sq);
     const matchType = !typeFilter || e.type === typeFilter;
-    return matchSearch && matchType;
+    const matchGps = gpsFilter === "all" || (gpsFilter === "tracked" ? e.gpsTracked : !e.gpsTracked);
+    return matchSearch && matchType && matchGps;
   });
 
   const availableTypes = EQUIPMENT_TYPES.filter(t => equipment.some(e => e.type === t.value));
@@ -1050,6 +1059,26 @@ export default function EquipmentPage() {
                   />
                 </div>
                 <div className="col-span-2">
+                  <label className="flex items-center gap-3 cursor-pointer select-none group">
+                    <div
+                      role="checkbox"
+                      aria-checked={addGpsTracked}
+                      tabIndex={0}
+                      onClick={() => setAddGpsTracked(v => !v)}
+                      onKeyDown={e => (e.key === " " || e.key === "Enter") && setAddGpsTracked(v => !v)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary/30 ${addGpsTracked ? "bg-green-500 border-green-500" : "bg-gray-200 border-gray-200"}`}
+                    >
+                      <span className={`pointer-events-none inline-block h-4 w-4 mt-0.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${addGpsTracked ? "translate-x-5" : "translate-x-0.5"}`} />
+                    </div>
+                    <span className="flex items-center gap-1.5 text-sm font-medium">
+                      {addGpsTracked
+                        ? <><Signal className="w-4 h-4 text-green-600" /><span className="text-green-700">GPS Tracked</span></>
+                        : <><SignalZero className="w-4 h-4 text-gray-400" /><span className="text-gray-500">Not GPS Tracked</span></>}
+                    </span>
+                  </label>
+                  <p className="mt-1 text-xs text-foreground/50 ml-14">Mark this item as having an active GPS tracker fitted.</p>
+                </div>
+                <div className="col-span-2">
                   <Label className="mb-2 block">Photos (optional)</Label>
                   <PhotoUploader photos={addPhotos} onChange={setAddPhotos} />
                 </div>
@@ -1087,6 +1116,23 @@ export default function EquipmentPage() {
               </button>
             );
           })}
+        </div>
+      )}
+
+      {equipment.some(e => e.gpsTracked) && (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-xs text-foreground/50 font-medium uppercase tracking-wide">GPS:</span>
+          {(["all", "tracked", "untracked"] as const).map(opt => (
+            <button
+              key={opt}
+              onClick={() => setGpsFilter(opt)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${gpsFilter === opt ? "bg-green-600 text-white border-green-600" : "bg-white text-foreground/60 border-border hover:border-green-500 hover:text-green-700"}`}
+            >
+              {opt === "all" && "All"}
+              {opt === "tracked" && <><Signal className="w-3 h-3" />GPS Tracked</>}
+              {opt === "untracked" && <><SignalZero className="w-3 h-3" />Not Tracked</>}
+            </button>
+          ))}
         </div>
       )}
 
@@ -1161,6 +1207,11 @@ export default function EquipmentPage() {
                       <p className={isDisposed ? "line-through text-foreground/50" : ""}>{item.name || `Asset #${item.id}`}</p>
                       {(item.make || item.model) && (
                         <p className="text-xs text-foreground/50">{[item.make, item.model].filter(Boolean).join(" ")}</p>
+                      )}
+                      {item.gpsTracked && (
+                        <span className="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700">
+                          <Signal className="w-2.5 h-2.5" />GPS
+                        </span>
                       )}
                     </div>
                   </div>
@@ -1329,6 +1380,26 @@ export default function EquipmentPage() {
                 <div className="col-span-2">
                   <Label>Notes</Label>
                   <textarea {...regEdit("notes")} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-y" />
+                </div>
+                <div className="col-span-2">
+                  <label className="flex items-center gap-3 cursor-pointer select-none group">
+                    <div
+                      role="checkbox"
+                      aria-checked={editGpsTracked}
+                      tabIndex={0}
+                      onClick={() => setEditGpsTracked(v => !v)}
+                      onKeyDown={e => (e.key === " " || e.key === "Enter") && setEditGpsTracked(v => !v)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary/30 ${editGpsTracked ? "bg-green-500 border-green-500" : "bg-gray-200 border-gray-200"}`}
+                    >
+                      <span className={`pointer-events-none inline-block h-4 w-4 mt-0.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${editGpsTracked ? "translate-x-5" : "translate-x-0.5"}`} />
+                    </div>
+                    <span className="flex items-center gap-1.5 text-sm font-medium">
+                      {editGpsTracked
+                        ? <><Signal className="w-4 h-4 text-green-600" /><span className="text-green-700">GPS Tracked</span></>
+                        : <><SignalZero className="w-4 h-4 text-gray-400" /><span className="text-gray-500">Not GPS Tracked</span></>}
+                    </span>
+                  </label>
+                  <p className="mt-1 text-xs text-foreground/50 ml-14">Mark this item as having an active GPS tracker fitted.</p>
                 </div>
                 <div className="col-span-2">
                   <Label className="mb-2 block">Photos</Label>

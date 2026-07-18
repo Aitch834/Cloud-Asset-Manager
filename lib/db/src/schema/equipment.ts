@@ -56,6 +56,7 @@ export const equipmentTable = pgTable("equipment", {
   insurancePremiumPence: integer("insurance_premium_pence"),
   depreciationMethod: text("depreciation_method"),
   depreciationRatePct: integer("depreciation_rate_pct"),
+  gpsTracked: boolean("gps_tracked").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
