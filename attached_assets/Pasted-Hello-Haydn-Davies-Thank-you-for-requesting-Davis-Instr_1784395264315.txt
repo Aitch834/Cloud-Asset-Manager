@@ -1,0 +1,26 @@
+Hello Haydn Davies,
+
+Thank you for requesting Davis Instruments API access. I have provided examples for both JSON and XML formats below.
+
+Please do not distribute your code to anyone outside of your private business. Note that your unique apiToken will be used with the EnviroMonitor Gateway, Vantage Connect or WeatherLink IP DID into “user=” and system owners Password into “pass=” as demonstrated below. The API call for an EnviroMonitor system will only output the Sensor Suite data that is attached to the EnviroMonitor Gateway.
+
+Here is an example of the API call and a link to the XML format using a sample apiToken. Data will be available at a rate equal to your Archive Interval or Service Plan Update Interval. We request a maximum poll rate of ten minutes per station through the API. Please note that the password required in the API calls below is the password of the system owner, not shared users.
+
+https://api.weatherlink.com/v1/NoaaExt.xml?user=DID&pass=ownerPW&apiToken=tokenID
+
+Also, here is an example of the API call for station status info and meta data and a link to the XML format. The station status should not be polled but can be grabbed when needed for human initiated setup or diagnostic efforts.
+
+https://api.weatherlink.com/v1/StationStatus.xml?user=DID&pass=ownerPW&apiToken=tokenID
+
+Here is an example of the API call and link to the JSON format using a sample apiToken. Data will be available at a rate equal to your Archive Interval or Service Plan Update Interval. We request a maximum poll rate of ten minutes per station through the API. Please note that the password required in the API calls below is the password of the system owner, not shared users.
+
+https://api.weatherlink.com/v1/NoaaExt.json?user=DID&pass=ownerPW&apiToken=tokenID
+
+Also, here is an example of the API call for station status info and meta data and a link to the JSON format. The station status should not be polled but can be grabbed when needed for human initiated setup or diagnostic efforts.
+
+https://api.weatherlink.com/v1/StationStatus.json?user=DID&pass=ownerPW&apiToken=tokenID
+
+Please let us know if you have any difficulties or any other questions about this API.
+
+Many Thanks,
+Tech Support
