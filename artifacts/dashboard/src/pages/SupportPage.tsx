@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useSafeUser } from "@/hooks/use-safe-clerk";
-import { CheckCircle2, Loader2, LifeBuoy, Clock, MessageSquare, Hash } from "lucide-react";
+import { CheckCircle2, Loader2, LifeBuoy, Clock, MessageSquare, Hash, Paperclip, X, FileText, Image } from "lucide-react";
 
 const CATEGORIES = [
   { value: "technical", label: "Technical Issue" },
@@ -17,6 +17,17 @@ const CATEGORIES = [
   { value: "data", label: "Data & Records" },
   { value: "general", label: "General Enquiry" },
 ];
+
+const MAX_FILES = 5;
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+const ALLOWED_TYPES = [
+  "image/jpeg", "image/png", "image/gif", "image/webp",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/plain",
+];
+const ALLOWED_LABEL = "Images (JPG, PNG, GIF, WebP), PDF, Word documents, or text files";
 
 interface FormState {
   name: string;
@@ -33,6 +44,17 @@ const EMPTY: FormState = {
   subject: "",
   description: "",
 };
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function FileIcon({ type }: { type: string }) {
+  if (type.startsWith("image/")) return <Image className="w-3.5 h-3.5 text-blue-500" />;
+  return <FileText className="w-3.5 h-3.5 text-muted-foreground" />;
+}
 
 function InfoCard({ icon: Icon, title, body }: { icon: React.ComponentType<{className?: string}>; title: string; body: string }) {
   return (
@@ -55,6 +77,9 @@ export default function SupportPage() {
   const [errors, setErrors] = useState<Partial<FormState>>({});
   const [submitting, setSubmitting] = useState(false);
   const [ticketRef, setTicketRef] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -70,6 +95,36 @@ export default function SupportPage() {
   function set(field: keyof FormState, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: undefined }));
+  }
+
+  function handleFiles(selected: FileList | null) {
+    if (!selected) return;
+    setAttachmentError(null);
+    const incoming = Array.from(selected);
+    const combined = [...attachments];
+    for (const file of incoming) {
+      if (combined.length >= MAX_FILES) {
+        setAttachmentError(`Maximum ${MAX_FILES} files allowed.`);
+        break;
+      }
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        setAttachmentError(`"${file.name}" is not an allowed file type. ${ALLOWED_LABEL}.`);
+        continue;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        setAttachmentError(`"${file.name}" exceeds the 5 MB limit (${formatBytes(file.size)}).`);
+        continue;
+      }
+      if (combined.find(f => f.name === file.name && f.size === file.size)) continue;
+      combined.push(file);
+    }
+    setAttachments(combined);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function removeAttachment(index: number) {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+    setAttachmentError(null);
   }
 
   function validate(): boolean {
@@ -88,19 +143,22 @@ export default function SupportPage() {
     setSubmitting(true);
     try {
       const categoryLabel = CATEGORIES.find(c => c.value === form.category)?.label ?? form.category;
-      const body = {
-        name: form.name.trim(),
-        email: form.email.trim(),
-        subject: `[${categoryLabel}] ${form.subject.trim()}`,
-        description: form.description.trim(),
-        source: "app",
-        ...(farmId ? { farmId } : {}),
-        ...(tenantSlug ? { tenantSlug } : {}),
-      };
+
+      const fd = new FormData();
+      fd.append("name", form.name.trim());
+      fd.append("email", form.email.trim());
+      fd.append("subject", `[${categoryLabel}] ${form.subject.trim()}`);
+      fd.append("description", form.description.trim());
+      fd.append("source", "app");
+      if (farmId) fd.append("farmId", String(farmId));
+      if (tenantSlug) fd.append("tenantSlug", tenantSlug);
+      for (const file of attachments) {
+        fd.append("attachments", file, file.name);
+      }
+
       const res = await fetch("/api/support/tickets", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: fd,
       });
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
@@ -147,7 +205,7 @@ export default function SupportPage() {
                 <p className="text-muted-foreground text-xs mb-6">
                   Keep your reference number handy — include it in any follow-up emails.
                 </p>
-                <Button variant="outline" onClick={() => { setForm(prev => ({ ...EMPTY, name: prev.name, email: prev.email })); setTicketRef(null); }}>
+                <Button variant="outline" onClick={() => { setForm(prev => ({ ...EMPTY, name: prev.name, email: prev.email })); setTicketRef(null); setAttachments([]); }}>
                   Submit Another
                 </Button>
               </Card>
@@ -213,6 +271,63 @@ export default function SupportPage() {
                     />
                     {errors.description && <p className="text-xs text-destructive">{errors.description}</p>}
                     <p className="text-xs text-muted-foreground">{form.description.length} characters</p>
+                  </div>
+
+                  {/* Attachments */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Attachments <span className="font-normal text-muted-foreground">(optional)</span></label>
+
+                    {attachments.length > 0 && (
+                      <ul className="space-y-1.5">
+                        {attachments.map((file, i) => (
+                          <li key={i} className="flex items-center gap-2 px-3 py-2 rounded-md border border-border bg-muted/40 text-sm">
+                            <FileIcon type={file.type} />
+                            <span className="flex-1 truncate text-foreground">{file.name}</span>
+                            <span className="text-xs text-muted-foreground shrink-0">{formatBytes(file.size)}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeAttachment(i)}
+                              className="ml-1 rounded hover:bg-destructive/10 p-0.5 text-muted-foreground hover:text-destructive transition-colors"
+                              aria-label={`Remove ${file.name}`}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {attachments.length < MAX_FILES && (
+                      <>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          multiple
+                          accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.txt"
+                          className="sr-only"
+                          onChange={(e) => handleFiles(e.target.files)}
+                          id="support-attachments"
+                        />
+                        <label
+                          htmlFor="support-attachments"
+                          className="flex items-center gap-2 px-3 py-2.5 rounded-md border border-dashed border-border bg-background hover:bg-muted/40 cursor-pointer transition-colors text-sm text-muted-foreground"
+                        >
+                          <Paperclip className="w-4 h-4 shrink-0" />
+                          <span>
+                            {attachments.length === 0
+                              ? "Attach screenshots or documents"
+                              : `Add more files (${MAX_FILES - attachments.length} remaining)`}
+                          </span>
+                        </label>
+                      </>
+                    )}
+
+                    {attachmentError && (
+                      <p className="text-xs text-destructive">{attachmentError}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Up to {MAX_FILES} files · 5 MB each · {ALLOWED_LABEL}
+                    </p>
                   </div>
 
                   <Button type="submit" className="w-full h-11" disabled={submitting}>

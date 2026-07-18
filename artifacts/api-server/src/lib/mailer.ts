@@ -94,6 +94,7 @@ export async function sendNewTicketInternalAlert(opts: {
   source: string;
   tenantSlug?: string | null;
   farmId?: number | null;
+  attachments?: Array<{ filename: string; content: Buffer; contentType: string }>;
 }): Promise<{ sent: boolean; reason?: string }> {
   const notifyAddress = process.env.SUPPORT_NOTIFY_EMAIL ?? "hello@bdefarmtrac.co.uk";
   const farmInfo = opts.tenantSlug
@@ -128,6 +129,7 @@ export async function sendNewTicketInternalAlert(opts: {
     to: notifyAddress,
     subject: `New Support Ticket ${opts.ticketRef} — ${opts.subject}`,
     body,
+    ...(opts.attachments?.length ? { attachments: opts.attachments } : {}),
   });
 }
 
