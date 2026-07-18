@@ -53,6 +53,14 @@ const CATEGORIES: Category[] = [
         title: "Smart Date Validation — how date fields work across the platform",
         summary: "Dates default to today on new records. Future dates are blocked on most record types. Treatment withdrawal dates calculate forward automatically from the application date and product withholding period.",
       },
+      {
+        title: "Location sharing — sharing your live position with the dashboard",
+        summary: "Go to the More tab and tap 'Location Sharing'. Toggle it on to start sharing your GPS position. Your location updates automatically while you are active in the app. Managers can see all sharing staff as colour-coded pins on the Resource Map on the web dashboard in real time — hover any pin to see your name and last-seen time, click for full detail. Location sharing stops automatically when you close the app or toggle it off.",
+      },
+      {
+        title: "Resource Map — live view of staff and GPS-tracked equipment",
+        summary: "The Resource Map is on the web dashboard (not mobile) under the Resource Map menu item. It shows live positions for staff sharing location and any machinery connected via a GPS provider integration (Teltonika RMS, Webfleet, John Deere Operations Center, AGCO Connect). Each asset type has its own icon — tractors, combine harvesters, sprayers, vehicles, plant/excavators, trailers, and ATVs — inside a colour-coded pin. Use the filter toggles at the top to show only the asset types you need.",
+      },
     ],
   },
   {

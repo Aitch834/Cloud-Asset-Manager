@@ -7,7 +7,7 @@ import {
   Search, ChevronDown, ChevronUp, BookOpen, Loader2, Info,
   Rocket, Droplets, ArrowRightLeft, Pill, ClipboardCheck,
   Tractor, GraduationCap, Leaf, Tag, Egg, Wrench, Shield,
-  CheckCircle2, HeartPulse, type LucideIcon,
+  CheckCircle2, HeartPulse, Navigation, MapPin, type LucideIcon,
 } from "lucide-react";
 import { useAppStore } from "@/hooks/use-app-store";
 
@@ -225,6 +225,34 @@ const WORKFLOWS: Workflow[] = [
       { title: "Record biosecurity measures taken", detail: "Note any PPE requirements, disinfection applied or access restrictions." },
       { title: "Log any follow-up actions", detail: "If a disease risk is identified, record the action taken and the person responsible." },
       { title: "Save the record", detail: "All events are timestamped and contribute to your biosecurity audit trail." },
+    ],
+  },
+  {
+    id: "resource-map",
+    title: "Using the Resource Map",
+    icon: Navigation,
+    moduleKey: null,
+    steps: [
+      { title: "Open the Resource Map", detail: "Click Resource Map in the left-hand navigation sidebar. The map loads and displays all staff currently sharing their location and any GPS-connected equipment from your integrated providers." },
+      { title: "Understand the icons", detail: "Each asset type has its own recognisable SVG icon inside a colour-coded pin: brown for tractors, dark amber for combine harvesters, dark green for sprayers, navy for vehicles, deep orange for plant/excavators, grey for trailers, purple for ATVs. Staff appear as name initials inside a coloured circle." },
+      { title: "Hover for a quick summary", detail: "Hover any marker to see a concise tooltip: the asset or staff name, category, and last-seen time. If the machine is moving, its current speed is shown too." },
+      { title: "Click for full detail", detail: "Click any marker to open the full detail popup — showing ignition state, GPS accuracy, provider name, asset ID, and a precise last-seen timestamp for assets; shift start time and accuracy for staff." },
+      { title: "Filter by category", detail: "Use the toggle pills at the top of the page to show or hide specific asset types. Only categories with at least one active asset appear. Use the 'Show all assets' or 'Hide all assets' shortcut to switch everything on or off at once." },
+      { title: "Connect a GPS provider", detail: "If no assets appear, go to Settings → Farm Settings → GPS Tracking Integration. Choose a provider (Teltonika RMS, Webfleet, John Deere Operations Center, or AGCO Connect) and follow the authorisation steps. Once connected, live positions update automatically." },
+    ],
+  },
+  {
+    id: "gps-equipment",
+    title: "Marking Equipment as GPS Tracked",
+    icon: MapPin,
+    moduleKey: ["equipment-management", "equipment-workshop"],
+    steps: [
+      { title: "Open Equipment & Machinery", detail: "Navigate to the Equipment section from the main menu." },
+      { title: "Add or edit an asset", detail: "Click Add New to register a new machine, or click the Edit (pencil) icon on an existing entry." },
+      { title: "Toggle the GPS Tracked switch", detail: "Find the GPS Tracked toggle in the form. Switch it on for any machine that has a GPS device fitted or is tracked via a connected GPS provider integration." },
+      { title: "Save the record", detail: "Save the form. A coloured GPS badge now appears alongside the asset on the equipment list, confirming it is flagged as tracked." },
+      { title: "Filter GPS-tracked assets", detail: "On the Equipment list, use the GPS filter button in the filter bar to show only GPS-tracked machines — useful for quickly auditing fleet coverage on large farms." },
+      { title: "View live on the Resource Map", detail: "GPS-tracked machines connected to a live provider integration appear on the Resource Map with real-time location, speed, and ignition status." },
     ],
   },
 ];
