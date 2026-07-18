@@ -59,3 +59,4 @@ export * from "./equine";
 export * from "./beekeeping";
 export * from "./organic-poultry";
 export * from "./gps-tracking";
+export * from "./sensor-integrations";

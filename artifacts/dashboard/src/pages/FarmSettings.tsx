@@ -1442,6 +1442,439 @@ function GpsIntegrationCard({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Sensor Integration Card ──────────────────────────────────────────────────
+
+type SensorIntegration = {
+  id: number;
+  provider: string;
+  status: string;
+  hasApiKey: boolean;
+  hasApiKey2: boolean;
+  hasAccessToken: boolean;
+  tokenExpiresAt?: string | null;
+  lastSyncAt?: string | null;
+  lastError?: string | null;
+};
+
+const SENSOR_PROVIDER_META: Record<string, {
+  label: string;
+  logo: string;
+  type: "two_keys" | "one_token" | "oauth_active";
+  key1Label: string;
+  key1Placeholder: string;
+  key2Label?: string;
+  key2Placeholder?: string;
+  description: string;
+  helpText: string;
+}> = {
+  fieldclimate: {
+    label: "FieldClimate (Pessl/METOS)",
+    logo: "FC",
+    type: "two_keys",
+    key1Label: "Public Key",
+    key1Placeholder: "Your FieldClimate public key",
+    key2Label: "Private Key",
+    key2Placeholder: "Your FieldClimate private key",
+    description: "Covers soil sensors and weather stations. Very common in UK/EU commercial farming.",
+    helpText: "Find your API credentials in FieldClimate → Settings → API. Both the Public Key and Private Key are required.",
+  },
+  davis: {
+    label: "Davis WeatherLink",
+    logo: "DW",
+    type: "two_keys",
+    key1Label: "API Key",
+    key1Placeholder: "Your WeatherLink API key",
+    key2Label: "API Secret",
+    key2Placeholder: "Your WeatherLink API secret",
+    description: "Davis weather stations via WeatherLink Live hub. Popular standalone weather station brand.",
+    helpText: "Log in to weatherlink.com → My Account → API Keys to generate your API Key and Secret.",
+  },
+  zentra: {
+    label: "METER ZENTRA Cloud",
+    logo: "ZC",
+    type: "one_token",
+    key1Label: "API Token",
+    key1Placeholder: "Your ZENTRA Cloud API token",
+    description: "METER/Decagon soil sensors — the standard in research-grade UK soil monitoring.",
+    helpText: "In ZENTRA Cloud: Settings → API Access → Generate Token. Copy the token here.",
+  },
+  sencrop: {
+    label: "Sencrop",
+    logo: "SC",
+    type: "oauth_active",
+    key1Label: "",
+    key1Placeholder: "",
+    description: "Agricultural weather sensor network with strong UK presence. Measures rainfall, temperature, wind and leaf wetness.",
+    helpText: "Click Connect to authorise BDE Farm Trac to read your Sencrop station data.",
+  },
+};
+
+function SensorIntegrationCard({ farmId }: { farmId: number }) {
+  const { toast } = useToast();
+  const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
+  const [key1, setKey1] = useState<Record<string, string>>({});
+  const [key2, setKey2] = useState<Record<string, string>>({});
+  const [showKey1, setShowKey1] = useState<Record<string, boolean>>({});
+  const [showKey2, setShowKey2] = useState<Record<string, boolean>>({});
+  const [saving, setSaving] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
+
+  const integrationsQ = useQuery<{ integrations: SensorIntegration[] }>({
+    queryKey: ["sensor-integrations", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/sensor-integrations`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
+  const integrationsByProvider = Object.fromEntries(
+    (integrationsQ.data?.integrations ?? []).map(i => [i.provider, i])
+  );
+
+  async function saveCredentials(provider: string) {
+    const meta = SENSOR_PROVIDER_META[provider];
+    if (!meta) return;
+    const k1 = (key1[provider] ?? "").trim();
+    const k2 = (key2[provider] ?? "").trim();
+    if (!k1) return;
+    if (meta.type === "two_keys" && !k2) return;
+    setSaving(provider);
+    try {
+      let body: Record<string, string> = {};
+      if (provider === "fieldclimate") body = { publicKey: k1, privateKey: k2 };
+      else if (provider === "davis") body = { apiKey: k1, apiSecret: k2 };
+      else if (provider === "zentra") body = { apiToken: k1 };
+
+      const r = await fetch(`/api/farms/${farmId}/sensor-integrations/${provider}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      toast({ title: "Integration saved", description: `${meta.label} connected.` });
+      setKey1(p => ({ ...p, [provider]: "" }));
+      setKey2(p => ({ ...p, [provider]: "" }));
+      integrationsQ.refetch();
+    } catch {
+      toast({ title: "Save failed", description: "Could not save credentials.", variant: "destructive" });
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function triggerSync(provider: string) {
+    setSyncing(provider);
+    try {
+      const r = await fetch(`/api/farms/${farmId}/sensor-integrations/${provider}/sync`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!r.ok) throw new Error(await r.text());
+      toast({ title: "Sync triggered", description: "Latest readings are being fetched." });
+      setTimeout(() => integrationsQ.refetch(), 3000);
+    } catch {
+      toast({ title: "Sync failed", variant: "destructive" });
+    } finally {
+      setSyncing(null);
+    }
+  }
+
+  async function removeIntegration(provider: string) {
+    setRemoving(provider);
+    try {
+      await fetch(`/api/farms/${farmId}/sensor-integrations/${provider}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      toast({ title: "Integration removed" });
+      integrationsQ.refetch();
+    } catch {
+      toast({ title: "Remove failed", variant: "destructive" });
+    } finally {
+      setRemoving(null);
+    }
+  }
+
+  return (
+    <Card>
+      <CardContent className="p-6 md:p-8 space-y-5">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
+            <Cpu size={20} className="text-emerald-600" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-base">Soil Sensors & Weather Station Integration</h3>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Connect third-party sensor platforms to pull soil moisture, temperature, and weather readings automatically every 30 minutes.
+              Readings feed into the Soil Management module.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {Object.entries(SENSOR_PROVIDER_META).map(([provider, meta]) => {
+            const existing = integrationsByProvider[provider];
+            const connected = existing?.status === "connected";
+            const isExpanded = expandedProvider === provider;
+            const isOAuth = meta.type === "oauth_active";
+            const isTwoKeys = meta.type === "two_keys";
+
+            const hasExistingKey1 = existing?.hasApiKey ?? false;
+            const hasExistingKey2 = existing?.hasApiKey2 ?? false;
+            const hasExistingToken = existing?.hasAccessToken ?? false;
+
+            return (
+              <div key={provider} className={`rounded-lg border transition-colors ${connected ? "border-green-200 bg-green-50/40" : "border-gray-200 bg-white"}`}>
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-3 p-4 text-left"
+                  onClick={() => setExpandedProvider(isExpanded ? null : provider)}
+                >
+                  <div className={`w-9 h-9 rounded-md flex items-center justify-center text-xs font-bold shrink-0 ${connected ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"}`}>
+                    {meta.logo}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm">{meta.label}</p>
+                    <p className="text-xs text-muted-foreground truncate">{meta.description}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {connected ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                        <Wifi size={10} /> Connected
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                        <WifiOff size={10} /> Not configured
+                      </span>
+                    )}
+                    <svg className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </div>
+                </button>
+
+                {isExpanded && (
+                  <div className="px-4 pb-4 border-t border-gray-100 pt-4 space-y-4">
+                    {isOAuth ? (
+                      connected ? (
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-3 p-3.5 bg-green-50 border border-green-200 rounded-lg">
+                            <Wifi size={15} className="text-green-600 shrink-0" />
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-green-900">Connected to {meta.label}</p>
+                              <p className="text-xs text-green-700 mt-0.5">
+                                {existing?.lastSyncAt
+                                  ? `Last sync: ${new Date(existing.lastSyncAt).toLocaleString("en-GB")}`
+                                  : "Waiting for first poll (runs every 30 minutes)"}
+                              </p>
+                              {existing?.tokenExpiresAt && (
+                                <p className="text-xs text-green-600 mt-0.5">
+                                  Token valid until: {new Date(existing.tokenExpiresAt).toLocaleString("en-GB")}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          {existing?.lastError && (
+                            <div className="flex items-start gap-2 p-2.5 bg-red-50 border border-red-200 rounded-md text-xs text-red-800">
+                              <WifiOff size={12} className="shrink-0 mt-0.5" />
+                              <span>{existing.lastError}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs gap-1"
+                              onClick={() => triggerSync(provider)}
+                              disabled={syncing === provider}
+                            >
+                              {syncing === provider ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                              Sync now
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-600 hover:text-red-700 h-7 text-xs"
+                              onClick={() => removeIntegration(provider)}
+                              disabled={removing === provider}
+                            >
+                              {removing === provider ? <Loader2 size={12} className="animate-spin mr-1" /> : <Trash2 size={12} className="mr-1" />}
+                              Disconnect
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="flex items-start gap-3 p-3.5 bg-blue-50 border border-blue-200 rounded-lg">
+                            <Link2 size={15} className="text-blue-600 mt-0.5 shrink-0" />
+                            <div className="text-sm text-blue-900">
+                              <p className="font-semibold mb-1">Connect your {meta.label} account</p>
+                              <p className="text-xs text-blue-800">{meta.helpText}</p>
+                            </div>
+                          </div>
+                          <Button
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                            onClick={() => {
+                              window.location.href = `/api/sensors/${provider}/authorize?farmId=${farmId}`;
+                            }}
+                          >
+                            <Link2 size={14} />
+                            Connect with {meta.label}
+                          </Button>
+                          <p className="text-xs text-muted-foreground">
+                            Requires an approved Sencrop partner account. Contact <span className="font-medium">hello@sencrop.com</span> to request developer access.
+                          </p>
+                        </div>
+                      )
+                    ) : (
+                      /* Credential-based providers (FieldClimate, Davis, ZENTRA) */
+                      <div className="space-y-4">
+                        <div className="flex items-start gap-3 p-3.5 bg-blue-50 border border-blue-200 rounded-lg">
+                          <Key size={15} className="text-blue-600 mt-0.5 shrink-0" />
+                          <p className="text-xs text-blue-800">{meta.helpText}</p>
+                        </div>
+
+                        {/* Key 1 */}
+                        <div>
+                          <Label className="text-xs mb-1 block flex items-center gap-1.5">
+                            <Key size={11} />
+                            {meta.key1Label}
+                          </Label>
+                          {connected && hasExistingKey1 && !key1[provider] ? (
+                            <div className="flex items-center gap-2 p-2.5 bg-green-50 border border-green-200 rounded-md">
+                              <ShieldCheck size={14} className="text-green-600 shrink-0" />
+                              <span className="text-xs text-green-800 font-medium">{meta.key1Label} saved & encrypted</span>
+                              <Button
+                                size="sm" variant="ghost"
+                                className="ml-auto text-xs h-7 text-green-700 hover:text-green-800"
+                                onClick={() => setKey1(p => ({ ...p, [provider]: " " }))}
+                              >Replace</Button>
+                            </div>
+                          ) : (
+                            <div className="relative">
+                              <Input
+                                type={showKey1[provider] ? "text" : "password"}
+                                className="pr-9 font-mono text-sm"
+                                placeholder={meta.key1Placeholder}
+                                value={key1[provider] ?? ""}
+                                onChange={e => setKey1(p => ({ ...p, [provider]: e.target.value }))}
+                              />
+                              <button
+                                type="button"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                onClick={() => setShowKey1(p => ({ ...p, [provider]: !p[provider] }))}
+                              >
+                                {showKey1[provider] ? <EyeOff size={14} /> : <Eye size={14} />}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Key 2 (two_keys providers only) */}
+                        {isTwoKeys && (
+                          <div>
+                            <Label className="text-xs mb-1 block flex items-center gap-1.5">
+                              <Key size={11} />
+                              {meta.key2Label}
+                            </Label>
+                            {connected && hasExistingKey2 && !key2[provider] ? (
+                              <div className="flex items-center gap-2 p-2.5 bg-green-50 border border-green-200 rounded-md">
+                                <ShieldCheck size={14} className="text-green-600 shrink-0" />
+                                <span className="text-xs text-green-800 font-medium">{meta.key2Label} saved & encrypted</span>
+                                <Button
+                                  size="sm" variant="ghost"
+                                  className="ml-auto text-xs h-7 text-green-700 hover:text-green-800"
+                                  onClick={() => setKey2(p => ({ ...p, [provider]: " " }))}
+                                >Replace</Button>
+                              </div>
+                            ) : (
+                              <div className="relative">
+                                <Input
+                                  type={showKey2[provider] ? "text" : "password"}
+                                  className="pr-9 font-mono text-sm"
+                                  placeholder={meta.key2Placeholder ?? ""}
+                                  value={key2[provider] ?? ""}
+                                  onChange={e => setKey2(p => ({ ...p, [provider]: e.target.value }))}
+                                />
+                                <button
+                                  type="button"
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                  onClick={() => setShowKey2(p => ({ ...p, [provider]: !p[provider] }))}
+                                >
+                                  {showKey2[provider] ? <EyeOff size={14} /> : <Eye size={14} />}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <Button
+                          className="w-full gap-2"
+                          onClick={() => saveCredentials(provider)}
+                          disabled={
+                            saving === provider ||
+                            !(key1[provider] ?? "").trim() ||
+                            (isTwoKeys && !(key2[provider] ?? "").trim())
+                          }
+                        >
+                          {saving === provider ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                          Save & Connect {meta.label}
+                        </Button>
+
+                        {connected && (
+                          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                            <div>
+                              <p className="text-xs text-muted-foreground">
+                                {existing?.lastSyncAt
+                                  ? `Last sync: ${new Date(existing.lastSyncAt).toLocaleString("en-GB")}`
+                                  : "Waiting for first poll (runs every 30 minutes)"}
+                              </p>
+                              {existing?.lastError && (
+                                <p className="text-xs text-red-600 mt-0.5">{existing.lastError}</p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs gap-1"
+                                onClick={() => triggerSync(provider)}
+                                disabled={syncing === provider}
+                              >
+                                {syncing === provider ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                                Sync now
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-red-600 hover:text-red-700 h-7 text-xs"
+                                onClick={() => removeIntegration(provider)}
+                                disabled={removing === provider}
+                              >
+                                {removing === provider ? <Loader2 size={12} className="animate-spin mr-1" /> : <Trash2 size={12} className="mr-1" />}
+                                Disconnect
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex items-start gap-3 p-3.5 bg-emerald-50 border border-emerald-200 rounded-lg">
+          <Cpu size={15} className="text-emerald-600 mt-0.5 shrink-0" />
+          <p className="text-xs text-emerald-800">
+            <strong>Multiple providers can be active simultaneously</strong> — a FieldClimate weather station, METER soil probes, and a Davis rain gauge will all sync readings independently. Data appears in the Soil Management module under each sensor&apos;s station name.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Invoicing Card ───────────────────────────────────────────────────────────
 
 function InvoicingCard({
@@ -2408,6 +2841,9 @@ export default function FarmSettings() {
 
         {/* ── GPS Tracking Integration ── */}
         {farmId && <GpsIntegrationCard farmId={farmId} />}
+
+        {/* ── Soil Sensors & Weather Station Integration ── */}
+        {farmId && <SensorIntegrationCard farmId={farmId} />}
 
         {/* ── Viticulture Registrations — only shown when Viticulture sector is active ── */}
         {formData.sectors.sectorViticulture && (

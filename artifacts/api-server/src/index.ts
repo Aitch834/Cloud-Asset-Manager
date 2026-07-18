@@ -8,6 +8,8 @@ import { runResourceMigrations } from "./lib/resourceMigrations";
 import { runDairySuppliesMigrations } from "./lib/dairySuppliesMigrations";
 import { runGpsMigrations } from "./lib/gpsMigrations";
 import { startGpsPollingJob } from "./lib/gpsPollingJob";
+import { runSensorMigrations } from "./lib/sensorMigrations";
+import { startSensorPollingJob } from "./lib/sensorPollingJob";
 
 interface EnvSpec {
   key: string;
@@ -95,5 +97,10 @@ app.listen(port, () => {
     startGpsPollingJob();
   }).catch((err) => {
     console.error("[GPS-MIGRATE] Failed:", err);
+  });
+  runSensorMigrations().then(() => {
+    startSensorPollingJob();
+  }).catch((err) => {
+    console.error("[SENSOR-MIGRATE] Failed:", err);
   });
 });

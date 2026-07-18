@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { createHmac, timingSafeEqual } from "crypto";
-import { db, helpArticlesTable, farmResourcesTable, farmTaskResourceAllocationsTable, staffLocationPingsTable, gpsIntegrationsTable, gpsAssetPositionsTable } from "@workspace/db";
+import { db, helpArticlesTable, farmResourcesTable, farmTaskResourceAllocationsTable, staffLocationPingsTable, gpsIntegrationsTable, gpsAssetPositionsTable, sensorIntegrationsTable, apiSensorReadingsTable } from "@workspace/db";
 import { sendSms } from "../lib/sms";
 import { sendAdminEmail } from "../lib/mailer";
 import { sanitiseBody } from "../lib/sanitise";
@@ -466,6 +466,10 @@ import { buildTeltonikaAuthUrl, verifyTeltonikaState, exchangeTeltonikaCode } fr
 import { buildJdAuthUrl, verifyJdState, exchangeJdCode } from "../lib/john_deere";
 import { parseWebfleetCredentials } from "../lib/webfleet";
 import { buildAgcoAuthUrl, verifyAgcoState, exchangeAgcoCode } from "../lib/agco";
+import { buildSencropAuthUrl, verifySencropState, exchangeSencropCode, pollSencropFarm } from "../lib/sencrop";
+import { pollFieldClimateFarm, testFieldClimateCredentials } from "../lib/fieldclimate";
+import { pollDavisFarm, testDavisCredentials } from "../lib/davis";
+import { pollZentraFarm, testZentraCredentials } from "../lib/zentra";
 import { computeFieldFiveInFiveScore, computeFarmFiveInFiveSummary } from "../lib/blackgrassFiveInFive";
 
 const router: IRouter = Router();
@@ -13053,8 +13057,8 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <h3>Deleting Probes and Readings</h3>
 <p>To delete an individual reading, click the red bin icon on the right of any row in the Readings table. To delete an entire probe and all its readings, click the bin icon on the probe card header — you will be asked to confirm before anything is deleted, as this cannot be undone.</p>
 
-<h3>Planning for API Integration</h3>
-<p>If you use Pessl Instruments (METOS/FieldClimate), METER Group (ZENTRA Cloud), or Sentek (DataStore), these platforms offer REST APIs that can export your sensor data automatically. BDE Farm Trac's data model is already structured to receive readings tagged as "api" source — a future integration update will allow you to connect your account with one of these platforms and have readings pulled in automatically on a schedule, eliminating manual CSV exports altogether. Contact your BDE Farm Trac account manager to discuss early access to this integration.</p>`,
+<h3>API Integration — Live in Farm Settings</h3>
+<p>If you use <strong>FieldClimate (Pessl/METOS)</strong>, <strong>METER ZENTRA Cloud</strong>, <strong>Davis WeatherLink</strong>, or <strong>Sencrop</strong>, you can now connect your account directly in <strong>Farm Settings → Soil Sensors &amp; Weather Station Integration</strong>. Once connected, readings are pulled automatically every 30 minutes and stored alongside your manual probe entries. No CSV exports needed — soil moisture, temperature, rainfall and wind readings appear in this module under each station name. Sencrop uses OAuth sign-in; FieldClimate, Davis and ZENTRA use API key authentication.</p>`,
     },
     {
       id: 10052,
@@ -36714,5 +36718,280 @@ router.post("/farms/:farmId/gps/webhook/samsara", async (req: Request, res: Resp
   } catch (err) {
     console.error("[GPS] Samsara webhook:", err);
     res.status(500).json({ error: "Failed to process Samsara webhook" });
+  }
+});
+
+// ─── Soil Sensor & Weather Station Integrations ───────────────────────────────
+
+const SENSOR_PROVIDERS = ["fieldclimate", "davis", "zentra", "sencrop"] as const;
+type SensorProvider = typeof SENSOR_PROVIDERS[number];
+
+router.get("/farms/:farmId/sensor-integrations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  try {
+    const rows = await db.select({
+      id:             sensorIntegrationsTable.id,
+      provider:       sensorIntegrationsTable.provider,
+      status:         sensorIntegrationsTable.status,
+      hasApiKey:      sensorIntegrationsTable.apiKeyEncrypted,
+      hasApiKey2:     sensorIntegrationsTable.apiKey2Encrypted,
+      hasAccessToken: sensorIntegrationsTable.accessTokenEncrypted,
+      tokenExpiresAt: sensorIntegrationsTable.tokenExpiresAt,
+      lastSyncAt:     sensorIntegrationsTable.lastSyncAt,
+      lastError:      sensorIntegrationsTable.lastError,
+    }).from(sensorIntegrationsTable)
+      .where(eq(sensorIntegrationsTable.farmId, farmId));
+
+    res.json({
+      integrations: rows.map(r => ({
+        ...r,
+        hasApiKey:      !!r.hasApiKey,
+        hasApiKey2:     !!r.hasApiKey2,
+        hasAccessToken: !!r.hasAccessToken,
+      })),
+    });
+  } catch (err) {
+    console.error("[SENSOR] GET integrations:", err);
+    res.status(500).json({ error: "Failed to fetch sensor integrations" });
+  }
+});
+
+router.put("/farms/:farmId/sensor-integrations/:provider", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const provider = req.params.provider as SensorProvider;
+  if (!(SENSOR_PROVIDERS as readonly string[]).includes(provider)) {
+    res.status(400).json({ error: "Invalid sensor provider" });
+    return;
+  }
+
+  const { publicKey, privateKey, apiKey, apiSecret, apiToken } = req.body as {
+    publicKey?: string;
+    privateKey?: string;
+    apiKey?: string;
+    apiSecret?: string;
+    apiToken?: string;
+  };
+
+  try {
+    const [existing] = await db.select({
+      id:             sensorIntegrationsTable.id,
+      apiKeyEncrypted: sensorIntegrationsTable.apiKeyEncrypted,
+      apiKey2Encrypted: sensorIntegrationsTable.apiKey2Encrypted,
+    }).from(sensorIntegrationsTable)
+      .where(and(
+        eq(sensorIntegrationsTable.farmId, farmId),
+        eq(sensorIntegrationsTable.provider, provider),
+      ));
+
+    let apiKeyEncrypted: string | null = existing?.apiKeyEncrypted ?? null;
+    let apiKey2Encrypted: string | null = existing?.apiKey2Encrypted ?? null;
+
+    if (provider === "fieldclimate") {
+      if (publicKey !== undefined) {
+        apiKeyEncrypted = publicKey ? encryptCredential(publicKey) : null;
+      }
+      if (privateKey !== undefined) {
+        apiKey2Encrypted = privateKey ? encryptCredential(privateKey) : null;
+      }
+    } else if (provider === "davis") {
+      if (apiKey !== undefined) {
+        apiKeyEncrypted = apiKey ? encryptCredential(apiKey) : null;
+      }
+      if (apiSecret !== undefined) {
+        apiKey2Encrypted = apiSecret ? encryptCredential(apiSecret) : null;
+      }
+    } else if (provider === "zentra") {
+      if (apiToken !== undefined) {
+        apiKeyEncrypted = apiToken ? encryptCredential(apiToken) : null;
+      }
+    }
+
+    const isConnected = provider === "zentra"
+      ? !!apiKeyEncrypted
+      : !!(apiKeyEncrypted && apiKey2Encrypted);
+    const status = isConnected ? "connected" : "disconnected";
+
+    if (existing) {
+      await db.update(sensorIntegrationsTable).set({
+        apiKeyEncrypted, apiKey2Encrypted, status, updatedAt: new Date(),
+      }).where(eq(sensorIntegrationsTable.id, existing.id));
+    } else {
+      await db.insert(sensorIntegrationsTable).values({
+        farmId, provider, status, apiKeyEncrypted, apiKey2Encrypted,
+      });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[SENSOR] PUT integration:", err);
+    res.status(500).json({ error: "Failed to save sensor integration" });
+  }
+});
+
+router.delete("/farms/:farmId/sensor-integrations/:provider", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const provider = req.params.provider as string;
+  try {
+    await db.delete(sensorIntegrationsTable).where(
+      and(
+        eq(sensorIntegrationsTable.farmId, farmId),
+        eq(sensorIntegrationsTable.provider, provider),
+      ),
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[SENSOR] DELETE integration:", err);
+    res.status(500).json({ error: "Failed to remove sensor integration" });
+  }
+});
+
+router.post("/farms/:farmId/sensor-integrations/:provider/sync", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const provider = req.params.provider as SensorProvider;
+  if (!(SENSOR_PROVIDERS as readonly string[]).includes(provider)) {
+    res.status(400).json({ error: "Invalid sensor provider" });
+    return;
+  }
+
+  try {
+    const [row] = await db.select().from(sensorIntegrationsTable)
+      .where(and(
+        eq(sensorIntegrationsTable.farmId, farmId),
+        eq(sensorIntegrationsTable.provider, provider),
+      ));
+
+    if (!row || row.status !== "connected") {
+      res.status(404).json({ error: "Sensor integration not found or not connected" });
+      return;
+    }
+
+    if (provider === "fieldclimate" && row.apiKeyEncrypted && row.apiKey2Encrypted) {
+      await pollFieldClimateFarm(farmId, row.id, row.apiKeyEncrypted, row.apiKey2Encrypted);
+    } else if (provider === "davis" && row.apiKeyEncrypted && row.apiKey2Encrypted) {
+      await pollDavisFarm(farmId, row.id, row.apiKeyEncrypted, row.apiKey2Encrypted);
+    } else if (provider === "zentra" && row.apiKeyEncrypted) {
+      await pollZentraFarm(farmId, row.id, row.apiKeyEncrypted);
+    } else if (provider === "sencrop" && row.accessTokenEncrypted && row.refreshTokenEncrypted && row.tokenExpiresAt) {
+      await pollSencropFarm(farmId, row.id, row.accessTokenEncrypted, row.refreshTokenEncrypted, row.tokenExpiresAt);
+    } else {
+      res.status(400).json({ error: "Missing credentials for sync" });
+      return;
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[SENSOR] Manual sync:", err);
+    res.status(500).json({ error: "Sync failed" });
+  }
+});
+
+router.get("/farms/:farmId/sensor-readings", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const category = req.query.category as string | undefined;
+  const limit = Math.min(Number(req.query.limit ?? 100), 500);
+
+  try {
+    const rows = await db.select({
+      id:             apiSensorReadingsTable.id,
+      provider:       apiSensorReadingsTable.provider,
+      stationId:      apiSensorReadingsTable.stationId,
+      stationName:    apiSensorReadingsTable.stationName,
+      sensorCategory: apiSensorReadingsTable.sensorCategory,
+      parameter:      apiSensorReadingsTable.parameter,
+      value:          apiSensorReadingsTable.value,
+      unit:           apiSensorReadingsTable.unit,
+      depthCm:        apiSensorReadingsTable.depthCm,
+      latitude:       apiSensorReadingsTable.latitude,
+      longitude:      apiSensorReadingsTable.longitude,
+      recordedAt:     apiSensorReadingsTable.recordedAt,
+    }).from(apiSensorReadingsTable)
+      .where(and(
+        eq(apiSensorReadingsTable.farmId, farmId),
+        category ? eq(apiSensorReadingsTable.sensorCategory, category) : undefined,
+      ))
+      .orderBy(desc(apiSensorReadingsTable.recordedAt))
+      .limit(limit);
+
+    res.json({ readings: rows });
+  } catch (err) {
+    console.error("[SENSOR] GET readings:", err);
+    res.status(500).json({ error: "Failed to fetch sensor readings" });
+  }
+});
+
+// ─── Sencrop OAuth ────────────────────────────────────────────────────────────
+
+router.get("/sensors/sencrop/authorize", async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.query.farmId);
+  if (!farmId || isNaN(farmId)) {
+    res.status(400).send("Missing farmId");
+    return;
+  }
+  try {
+    const url = buildSencropAuthUrl(farmId);
+    res.redirect(url);
+  } catch (err) {
+    console.error("[SENCROP] Authorize:", err);
+    res.status(500).send("Sencrop OAuth not configured — SENCROP_CLIENT_ID missing");
+  }
+});
+
+router.get("/sensors/sencrop/callback", async (req: Request, res: Response): Promise<void> => {
+  const { code, state, error } = req.query as Record<string, string>;
+
+  if (error) {
+    res.redirect(`/settings?tab=integrations&sensor_error=${encodeURIComponent(error)}`);
+    return;
+  }
+
+  if (!code || !state) {
+    res.status(400).send("Missing code or state");
+    return;
+  }
+
+  const farmId = verifySencropState(state);
+  if (!farmId) {
+    res.status(400).send("Invalid or expired OAuth state");
+    return;
+  }
+
+  try {
+    const tokens = await exchangeSencropCode(code);
+    if (!tokens.access_token) {
+      res.status(400).send("No access token received from Sencrop");
+      return;
+    }
+
+    const expiresAt = new Date(Date.now() + ((tokens.expires_in ?? 3600) - 60) * 1000);
+
+    const [existing] = await db.select({ id: sensorIntegrationsTable.id })
+      .from(sensorIntegrationsTable)
+      .where(and(
+        eq(sensorIntegrationsTable.farmId, farmId),
+        eq(sensorIntegrationsTable.provider, "sencrop"),
+      ));
+
+    const vals = {
+      status: "connected" as const,
+      accessTokenEncrypted:  encryptCredential(tokens.access_token),
+      refreshTokenEncrypted: tokens.refresh_token ? encryptCredential(tokens.refresh_token) : null,
+      tokenExpiresAt: expiresAt,
+      updatedAt: new Date(),
+    };
+
+    if (existing) {
+      await db.update(sensorIntegrationsTable).set(vals)
+        .where(eq(sensorIntegrationsTable.id, existing.id));
+    } else {
+      await db.insert(sensorIntegrationsTable).values({
+        farmId,
+        provider: "sencrop",
+        ...vals,
+      });
+    }
+
+    res.redirect("/settings?tab=integrations&sensor_connected=sencrop");
+  } catch (err) {
+    console.error("[SENCROP] Callback error:", err);
+    res.redirect(`/settings?tab=integrations&sensor_error=${encodeURIComponent(String(err))}`);
   }
 });
