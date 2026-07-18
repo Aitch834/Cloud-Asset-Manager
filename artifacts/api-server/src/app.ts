@@ -59,6 +59,15 @@ app.use(
         return callback(null, true);
       }
 
+      // Production domains — always permitted.
+      if (
+        origin === "https://bdefarmtrac.co.uk" ||
+        origin === "https://www.bdefarmtrac.co.uk" ||
+        origin.endsWith(".bdefarmtrac.co.uk")
+      ) {
+        return callback(null, true);
+      }
+
       // Localhost variants — permitted in non-production only.
       if (process.env.NODE_ENV !== "production") {
         if (
