@@ -9,12 +9,13 @@ description: Webfleet uses credential-based auth (NOT OAuth); per-farm creds sto
 - Response: JSON array of vehicle objects (direct, no `values` wrapper)
 
 ## Credential model
-- `WEBFLEET_API_KEY` (env var) — our application API key, issued by Webfleet after developer.webfleet.com registration. Shared across all farms.
-- Per-farm: `{ account, username, password }` stored as `encryptCredential(JSON.stringify(...))` in `api_key_encrypted` column (no schema migration needed)
+- **No app-level env var or developer.webfleet.com registration required**
+- Per-farm: `{ account, username, password, apiKey }` stored as `encryptCredential(JSON.stringify(...))` in `api_key_encrypted` column
+- `apiKey` is the farmer's OWN Webfleet API key — found in their Webfleet dashboard under Tools → Webfleet Integration → API key
 
 ## Registration
-- Register at developer.webfleet.com to get `WEBFLEET_API_KEY`
-- Farmers provide their own Webfleet account credentials in Farm Settings → GPS card
+- None required from BDE. Farmers provide all 4 credentials themselves in Farm Settings → GPS card.
+- Requires farmer's Webfleet subscription to have API access enabled (they contact their Webfleet account manager if not)
 
 ## API response shape
 ```json
