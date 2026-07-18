@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite build --config vite.config.ts && node serve.mjs",
+    "dev": "node -e \"const fs=require('fs');if(!fs.existsSync('dist/public/index.html')){const{execSync}=require('child_process');execSync('pnpm run build',{stdio:'inherit'})}\" && node serve.mjs",
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=4096 tsc -p tsconfig.json --noEmit"
