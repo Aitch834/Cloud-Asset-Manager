@@ -1,7 +1,11 @@
 ---
 name: Teltonika RMS OAuth integration
-description: Teltonika uses OAuth 2.0 Authorization Code (not webhooks or API keys); full flow details and env vars documented here.
+description: Teltonika uses OAuth 2.0 Authorization Code (not webhooks or API keys); FULLY LIVE — redirect URI corrected, TELTONIKA_CLIENT_ID and TELTONIKA_CLIENT_SECRET confirmed correct in secrets.
 ---
+
+## Status: FULLY LIVE
+- Redirect URI corrected to `https://api.bdefarmtrac.co.uk/api/gps/teltonika/callback` ✓
+- `TELTONIKA_CLIENT_ID` and `TELTONIKA_CLIENT_SECRET` set and verified in secrets ✓
 
 ## Key facts
 - Teltonika RMS uses **OAuth 2.0 Authorization Code** flow, NOT API keys or device-push webhooks
@@ -10,15 +14,10 @@ description: Teltonika uses OAuth 2.0 Authorization Code (not webhooks or API ke
 - Token URL: `POST https://rms.teltonika-networks.com/account/token`
 - API base: `https://rms.teltonika-networks.com/api/v1`
 
-## Registration details (for Teltonika RMS "Create application" form)
+## Registration details
 - **Redirect URI**: `https://api.bdefarmtrac.co.uk/api/gps/teltonika/callback`
-- NOTE: was previously registered as `bdefarmtrac.co.uk/api/...` (marketing domain — WRONG). Must be updated in Teltonika RMS developer account to `api.bdefarmtrac.co.uk`.
 - **Scopes**: `devices:read`, `device_location:read`
 - **Application type**: Confidential
-
-## Env vars required (add after creating app in Teltonika RMS)
-- `TELTONIKA_CLIENT_ID`
-- `TELTONIKA_CLIENT_SECRET`
 
 ## Implementation files
 - `artifacts/api-server/src/lib/teltonika.ts` — OAuth helpers + polling
