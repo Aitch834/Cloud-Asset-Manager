@@ -31,9 +31,26 @@ The workflow command `pnpm --filter @workspace/dashboard run dev` runs a full pr
 - The `test-dashboard` uses the same pattern: `pnpm run build && pnpm run serve`.
 - Do NOT revert to `vite --host 0.0.0.0` dev mode — proxy caching will immediately return.
 
+## Additional fix required: preview headers
+
+The `server.headers` block only applies to the Vite **dev** server. For build+preview mode the equivalent must also be set on `preview.headers`:
+
+```ts
+preview: {
+  port,
+  host: "0.0.0.0",
+  allowedHosts: true,
+  headers: {
+    "Cache-Control": "no-store",
+  },
+},
+```
+
+Without this, `index.html` (served at a fixed URL by vite preview) gets proxy-cached even though the JS bundle filenames change. Hard refresh doesn't help — cache is proxy-side. Result: user loads stale HTML → loads old JS bundle → new components invisible.
+
 ## What does NOT work
 
-- `server.headers: { "Cache-Control": "no-store" }` alone — proxy ignores it
+- `server.headers: { "Cache-Control": "no-store" }` alone — only affects dev mode, not preview mode
 - Clearing `node_modules/.vite` — only clears Vite's internal dep cache, not the proxy's URL cache
 - Session-token / startup-token plugins that only change the HTML entry point — downstream module URLs remain fixed and cached
 - Hard refresh / private window — cache is proxy-side, not browser-side
