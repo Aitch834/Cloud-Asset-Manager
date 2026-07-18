@@ -14,6 +14,7 @@ const FARM_TYPES = [
   "Beef",
   "Sheep",
   "Pigs",
+  "Deer / Venison",
   "Poultry",
   "Mixed (Arable & Livestock)",
   "Organic",

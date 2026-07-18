@@ -46,6 +46,7 @@ export const farmsTable = pgTable("farms", {
   sectorEquine: boolean("sector_equine").notNull().default(false),
   sectorViticulture: boolean("sector_viticulture").notNull().default(false),
   sectorFreshProduce: boolean("sector_fresh_produce").notNull().default(false),
+  sectorDeer: boolean("sector_deer").notNull().default(false),
   redTractorId: text("red_tractor_id"),
   sbiNumber: text("sbi_number"),
   totalHectares: numeric("total_hectares", { precision: 10, scale: 2 }),

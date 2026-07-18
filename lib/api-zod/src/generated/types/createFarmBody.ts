@@ -19,4 +19,11 @@ export interface CreateFarmBody {
   sectorPigs?: boolean;
   sectorPoultry?: boolean;
   sectorHorticulture?: boolean;
+  sectorSheep?: boolean;
+  sectorEggs?: boolean;
+  sectorGoats?: boolean;
+  sectorEquine?: boolean;
+  sectorViticulture?: boolean;
+  sectorFreshProduce?: boolean;
+  sectorDeer?: boolean;
 }

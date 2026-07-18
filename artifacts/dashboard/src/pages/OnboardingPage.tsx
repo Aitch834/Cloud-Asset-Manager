@@ -25,6 +25,7 @@ const SECTORS = [
   { key: "sectorHorticulture", label: "Horticulture" },
   { key: "sectorViticulture", label: "Viticulture" },
   { key: "sectorFreshProduce", label: "Fresh Produce" },
+  { key: "sectorDeer", label: "Deer / Venison" },
 ] as const;
 
 const MODULE_KEY_TO_SECTOR: Record<string, string> = {
@@ -38,6 +39,7 @@ const MODULE_KEY_TO_SECTOR: Record<string, string> = {
   "goat-production": "sectorGoats",
   "goat-dairy": "sectorGoats",
   "organic-goat-dairy": "sectorGoats",
+  "venison-production": "sectorDeer",
   "field-crop-management": "sectorArable",
   "organic-arable": "sectorArable",
 };
