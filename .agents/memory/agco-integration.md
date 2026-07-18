@@ -18,7 +18,7 @@ description: OAuth 2.0 via Okta (id.agconet.com); credentials in POST body (not 
 ## Env vars (pending)
 - `AGCO_CLIENT_ID`
 - `AGCO_CLIENT_SECRET`
-- Redirect URI to register: `https://bdefarmtrac.co.uk/api/gps/agco/callback`
+- Redirect URI to register: `https://api.bdefarmtrac.co.uk/api/gps/agco/callback`
 
 ## Registration
 - AGCO Connect developer programme (formal application, similar to JD)

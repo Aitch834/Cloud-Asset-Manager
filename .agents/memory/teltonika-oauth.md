@@ -11,7 +11,8 @@ description: Teltonika uses OAuth 2.0 Authorization Code (not webhooks or API ke
 - API base: `https://rms.teltonika-networks.com/api/v1`
 
 ## Registration details (for Teltonika RMS "Create application" form)
-- **Redirect URI**: `https://bdefarmtrac.co.uk/api/gps/teltonika/callback`
+- **Redirect URI**: `https://api.bdefarmtrac.co.uk/api/gps/teltonika/callback`
+- NOTE: was previously registered as `bdefarmtrac.co.uk/api/...` (marketing domain — WRONG). Must be updated in Teltonika RMS developer account to `api.bdefarmtrac.co.uk`.
 - **Scopes**: `devices:read`, `device_location:read`
 - **Application type**: Confidential
 

@@ -14,7 +14,7 @@
  *   TELTONIKA_CLIENT_SECRET — from Teltonika RMS "Create application"
  *
  * Redirect URI to register in Teltonika RMS:
- *   https://bdefarmtrac.co.uk/api/gps/teltonika/callback
+ *   https://api.bdefarmtrac.co.uk/api/gps/teltonika/callback
  */
 
 import { createHmac, timingSafeEqual } from "crypto";
@@ -27,7 +27,7 @@ import { encryptCredential, decryptCredential } from "./encrypt";
 const RMS_BASE = "https://rms.teltonika-networks.com";
 const RMS_API = `${RMS_BASE}/api/v1`;
 
-export const TELTONIKA_REDIRECT_URI = "https://bdefarmtrac.co.uk/api/gps/teltonika/callback";
+export const TELTONIKA_REDIRECT_URI = "https://api.bdefarmtrac.co.uk/api/gps/teltonika/callback";
 
 function stateSecret(): string {
   return process.env.CREDENTIAL_ENCRYPTION_KEY?.slice(0, 32) ?? "fallback-state-secret-32-chars!!";

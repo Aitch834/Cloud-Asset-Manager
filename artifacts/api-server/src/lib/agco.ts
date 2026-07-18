@@ -19,7 +19,7 @@
  *   AGCO_CLIENT_SECRET — from PTx Trimble Partner Portal
  *
  * Redirect URI to register in PTx Trimble Portal:
- *   https://bdefarmtrac.co.uk/api/gps/agco/callback
+ *   https://api.bdefarmtrac.co.uk/api/gps/agco/callback
  *
  * Scopes: openid offline_access
  *
@@ -40,7 +40,7 @@ import { encryptCredential, decryptCredential } from "./encrypt";
 const AGCO_AUTH_BASE  = "https://id.agconet.com/oauth2/ausde7tkyIXBBuaLb357/v1";
 const AGCO_API_BASE   = "https://api.agconet.com/v1";
 
-export const AGCO_REDIRECT_URI = "https://bdefarmtrac.co.uk/api/gps/agco/callback";
+export const AGCO_REDIRECT_URI = "https://api.bdefarmtrac.co.uk/api/gps/agco/callback";
 
 function stateSecret(): string {
   return process.env.CREDENTIAL_ENCRYPTION_KEY?.slice(0, 32) ?? "fallback-state-secret-32-chars!!";
