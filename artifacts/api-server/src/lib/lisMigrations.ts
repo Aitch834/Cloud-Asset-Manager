@@ -383,6 +383,86 @@ export async function runLisMigrations(): Promise<void> {
     ALTER TABLE organic_certification ADD COLUMN IF NOT EXISTS scope text
   `);
 
+  // ─── EIDCymru (Wales — sheep & goat movement reporting) ───────────────────
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS eidcymru_farm_tokens (
+      id serial primary key,
+      farm_id integer not null unique references farms(id),
+      api_key_encrypted text,
+      flock_number text,
+      is_configured boolean not null default false,
+      sandbox_mode boolean not null default true,
+      test_status text,
+      test_message text,
+      last_tested_at timestamptz,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS eidcymru_submissions (
+      id serial primary key,
+      farm_id integer not null references farms(id),
+      movement_id integer references livestock_movements(id),
+      submission_type text not null,
+      status text not null default 'pending',
+      sandbox_mode boolean not null default true,
+      eidcymru_reference text,
+      error_message text,
+      request_payload jsonb,
+      response_payload jsonb,
+      retry_count integer not null default 0,
+      submitted_by_user_id integer,
+      submitted_at timestamptz,
+      acknowledged_at timestamptz,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `);
+
+  await db.execute(sql`ALTER TABLE livestock_movements ADD COLUMN IF NOT EXISTS eidcymru_submission_ref text`);
+
+  // ─── ScotEID (Scotland — all livestock species) ───────────────────────────
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS scoteid_farm_tokens (
+      id serial primary key,
+      farm_id integer not null unique references farms(id),
+      api_key_encrypted text,
+      holding_number text,
+      is_configured boolean not null default false,
+      sandbox_mode boolean not null default true,
+      test_status text,
+      test_message text,
+      last_tested_at timestamptz,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS scoteid_submissions (
+      id serial primary key,
+      farm_id integer not null references farms(id),
+      movement_id integer references livestock_movements(id),
+      submission_type text not null,
+      status text not null default 'pending',
+      sandbox_mode boolean not null default true,
+      scoteid_reference text,
+      error_message text,
+      request_payload jsonb,
+      response_payload jsonb,
+      retry_count integer not null default 0,
+      submitted_by_user_id integer,
+      submitted_at timestamptz,
+      acknowledged_at timestamptz,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `);
+
+  await db.execute(sql`ALTER TABLE livestock_movements ADD COLUMN IF NOT EXISTS scoteid_submission_ref text`);
+
   // SCC Test Equipment register — per-farm, per-species device + calibration log
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS scc_test_equipment (

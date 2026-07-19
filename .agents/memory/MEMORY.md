@@ -35,3 +35,5 @@
 - [John Deere Operations Center OAuth](john-deere-oauth.md) — Basic Auth token exchange (not body params); scopes ag1+eq1+offline_access; orgs→machines→breadcrumbs poll chain; JD_CLIENT_ID/JD_CLIENT_SECRET pending approval
 - [Webfleet.connect integration](webfleet-integration.md) — credential-based NOT OAuth; account+username+password stored as encrypted JSON in api_key_encrypted; WEBFLEET_API_KEY is app-level env var
 - [AGCO Connect integration](agco-integration.md) — OAuth 2.0 via Okta (id.agconet.com); client creds in POST body (not Basic Auth); location in location/lastKnownLocation/telemetry.location variants
+- [EIDCymru + ScotEID integration scaffold](eidcymru-scoteid-scaffold.md) — Wales/Scotland livestock submission adapters; sandbox-first; tables in lisMigrations.ts; routes appended to farms.ts; Movements.tsx tabs gated on farmData.country
+- [lib/db rebuild command](lib-db-rebuild.md) — correct command after schema changes: `cd lib/db && npx tsc --build tsconfig.json`; not `pnpm --filter @workspace/db run build` (no build script exists)

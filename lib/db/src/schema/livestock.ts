@@ -127,6 +127,8 @@ export const livestockMovementsTable = pgTable("livestock_movements", {
   lisSource: text("lis_source"),              // 'approved' | 'transfer_request' | 'movement_review'
   lisRawData: jsonb("lis_raw_data"),          // raw LIS API response for this movement
   lisImportedAt: timestamp("lis_imported_at", { withTimezone: true }), // when this record was last synced from LIS
+  eidcymruSubmissionRef: text("eidcymru_submission_ref"), // EIDCymru Wales acknowledgement reference
+  scoteidSubmissionRef: text("scoteid_submission_ref"),   // ScotEID Scotland acknowledgement reference
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -1240,3 +1242,79 @@ export const annualHealthWelfareReviewsTable = pgTable("annual_health_welfare_re
 
 export type AnnualHealthWelfareReview = typeof annualHealthWelfareReviewsTable.$inferSelect;
 export type NewAnnualHealthWelfareReview = typeof annualHealthWelfareReviewsTable.$inferInsert;
+
+// ─── EIDCymru (Wales — sheep & goat movements) ───────────────────────────────
+export const eidcymruFarmTokensTable = pgTable("eidcymru_farm_tokens", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id).unique(),
+  apiKeyEncrypted: text("api_key_encrypted"),
+  flockNumber: text("flock_number"),
+  isConfigured: boolean("is_configured").notNull().default(false),
+  sandboxMode: boolean("sandbox_mode").notNull().default(true),
+  testStatus: text("test_status"),
+  testMessage: text("test_message"),
+  lastTestedAt: timestamp("last_tested_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export type EidcymruFarmToken = typeof eidcymruFarmTokensTable.$inferSelect;
+
+export const eidcymruSubmissionsTable = pgTable("eidcymru_submissions", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  movementId: integer("movement_id").references(() => livestockMovementsTable.id),
+  submissionType: text("submission_type").notNull(),
+  status: text("status").notNull().default("pending"),
+  sandboxMode: boolean("sandbox_mode").notNull().default(true),
+  eidcymruReference: text("eidcymru_reference"),
+  errorMessage: text("error_message"),
+  requestPayload: jsonb("request_payload"),
+  responsePayload: jsonb("response_payload"),
+  retryCount: integer("retry_count").notNull().default(0),
+  submittedByUserId: integer("submitted_by_user_id"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export type EidcymruSubmission = typeof eidcymruSubmissionsTable.$inferSelect;
+
+// ─── ScotEID (Scotland — all livestock species) ───────────────────────────────
+export const scoteidFarmTokensTable = pgTable("scoteid_farm_tokens", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id).unique(),
+  apiKeyEncrypted: text("api_key_encrypted"),
+  holdingNumber: text("holding_number"),
+  isConfigured: boolean("is_configured").notNull().default(false),
+  sandboxMode: boolean("sandbox_mode").notNull().default(true),
+  testStatus: text("test_status"),
+  testMessage: text("test_message"),
+  lastTestedAt: timestamp("last_tested_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export type ScoteidFarmToken = typeof scoteidFarmTokensTable.$inferSelect;
+
+export const scoteidSubmissionsTable = pgTable("scoteid_submissions", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  movementId: integer("movement_id").references(() => livestockMovementsTable.id),
+  submissionType: text("submission_type").notNull(),
+  status: text("status").notNull().default("pending"),
+  sandboxMode: boolean("sandbox_mode").notNull().default(true),
+  scoteidReference: text("scoteid_reference"),
+  errorMessage: text("error_message"),
+  requestPayload: jsonb("request_payload"),
+  responsePayload: jsonb("response_payload"),
+  retryCount: integer("retry_count").notNull().default(0),
+  submittedByUserId: integer("submitted_by_user_id"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export type ScoteidSubmission = typeof scoteidSubmissionsTable.$inferSelect;

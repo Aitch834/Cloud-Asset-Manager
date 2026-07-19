@@ -80,6 +80,10 @@ import {
   lisSubmissionsTable,
   lipSubmissionsTable,
   lipLostFoundTable,
+  eidcymruFarmTokensTable,
+  eidcymruSubmissionsTable,
+  scoteidFarmTokensTable,
+  scoteidSubmissionsTable,
   bcmsFarmCredentialsTable,
   bcmsSubmissionsTable,
   livestockMedicineRecordsTable,
@@ -462,6 +466,8 @@ import { generateDispatchNoteHtml } from "../lib/dispatch-note-html";
 import { submitMovement, testConnection, isSandboxMode } from "../lib/ctws";
 import { submitLisMovement, testLisConnection, fetchLisToken, refreshLisToken, isLisSandboxMode, callLisApi, buildLisAuthUrl, exchangeLisCode, reviewHoldingMovement, undoLisRequest } from "../lib/lis";
 import { buildLipAuthUrl, exchangeLipCode, getLipRedirectUri, signLipOAuthState, verifyLipOAuthState, probeLipApi, isLipSandboxMode, refreshLipToken, callLipApi, submitLipMovement, submitLipBirth, submitLipDeath, submitLipLostFound, confirmLipMovement, cancelLipMovement, getLipRejectionReasons, checkLipRequestStatus } from "../lib/lip";
+import { submitEidcymruMovement, testEidcymruConnection, isEidcymruSandbox } from "../lib/eidcymru";
+import { submitScoteidMovement, testScoteidConnection, isScoteidSandbox } from "../lib/scoteid";
 import { buildTeltonikaAuthUrl, verifyTeltonikaState, exchangeTeltonikaCode } from "../lib/teltonika";
 import { buildJdAuthUrl, verifyJdState, exchangeJdCode } from "../lib/john_deere";
 import { parseWebfleetCredentials } from "../lib/webfleet";
@@ -36998,4 +37004,271 @@ router.get("/sensors/sencrop/callback", async (req: Request, res: Response): Pro
     console.error("[SENCROP] Callback error:", err);
     res.redirect(`/settings?tab=integrations&sensor_error=${encodeURIComponent(String(err))}`);
   }
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EIDCymru — Wales sheep & goat movement submission
+// ═══════════════════════════════════════════════════════════════════════════════
+
+router.get("/farms/:farmId/eidcymru-credentials", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [token] = await db.select().from(eidcymruFarmTokensTable).where(eq(eidcymruFarmTokensTable.farmId, farmId));
+  if (!token) {
+    res.json({ configured: false, sandboxMode: isEidcymruSandbox() });
+    return;
+  }
+  res.json({
+    configured: token.isConfigured,
+    sandboxMode: isEidcymruSandbox(),
+    flockNumber: token.flockNumber,
+    lastTestedAt: token.lastTestedAt,
+    testStatus: token.testStatus,
+    testMessage: token.testMessage,
+  });
+});
+
+router.put("/farms/:farmId/eidcymru-credentials", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { apiKey, flockNumber } = req.body as { apiKey?: string; flockNumber?: string };
+  const [existing] = await db.select().from(eidcymruFarmTokensTable).where(eq(eidcymruFarmTokensTable.farmId, farmId));
+  const keyToStore = apiKey ? encryptCredential(apiKey) : existing?.apiKeyEncrypted;
+  const data = {
+    apiKeyEncrypted: keyToStore,
+    flockNumber: flockNumber ?? existing?.flockNumber,
+    isConfigured: !!(apiKey || existing?.apiKeyEncrypted) || isEidcymruSandbox(),
+    sandboxMode: isEidcymruSandbox(),
+    updatedAt: new Date(),
+  };
+  let record;
+  if (existing) {
+    [record] = await db.update(eidcymruFarmTokensTable).set(data).where(eq(eidcymruFarmTokensTable.farmId, farmId)).returning();
+  } else {
+    [record] = await db.insert(eidcymruFarmTokensTable).values({ ...data, farmId }).returning();
+  }
+  res.json({ success: true, configured: record.isConfigured });
+});
+
+router.delete("/farms/:farmId/eidcymru-credentials", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(eidcymruFarmTokensTable).where(eq(eidcymruFarmTokensTable.farmId, farmId));
+  res.json({ success: true });
+});
+
+router.post("/farms/:farmId/eidcymru-credentials/test", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const result = await testEidcymruConnection();
+  const status = result.success ? "ok" : "failed";
+  await db.update(eidcymruFarmTokensTable)
+    .set({ testStatus: status, testMessage: result.message, lastTestedAt: new Date(), updatedAt: new Date() })
+    .where(eq(eidcymruFarmTokensTable.farmId, farmId));
+  res.json(result);
+});
+
+router.get("/farms/:farmId/eidcymru-submissions", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const submissions = await db.select().from(eidcymruSubmissionsTable)
+    .where(eq(eidcymruSubmissionsTable.farmId, farmId))
+    .orderBy(desc(eidcymruSubmissionsTable.createdAt))
+    .limit(200);
+  res.json({ submissions });
+});
+
+router.post("/farms/:farmId/eidcymru-submit/:movementId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const movementId = Number(req.params.movementId);
+  if (!movementId) { res.status(400).json({ error: "Invalid movementId" }); return; }
+
+  const [movement] = await db.select().from(livestockMovementsTable)
+    .where(and(eq(livestockMovementsTable.id, movementId), eq(livestockMovementsTable.farmId, farmId)));
+  if (!movement) { res.status(404).json({ error: "Movement not found" }); return; }
+
+  const [farmRow] = await db.select({ cphNumber: farmsTable.cphNumber, eidCymruNumber: farmsTable.eidCymruNumber })
+    .from(farmsTable).where(eq(farmsTable.id, farmId));
+
+  const earTags = movement.earTagNumbers
+    ? movement.earTagNumbers.split(",").map((t: string) => t.trim()).filter(Boolean)
+    : [];
+
+  const payload = {
+    movementDate: movement.movementDate ? new Date(movement.movementDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+    movementType: (movement.movementType ?? "off") as "on" | "off" | "between" | "birth" | "death",
+    departureCph: movement.fromLocation ?? farmRow?.cphNumber ?? "",
+    destinationCph: movement.toLocation ?? "",
+    species: (movement.species?.toLowerCase() ?? "sheep") as "sheep" | "goat",
+    numberOfAnimals: movement.numberOfAnimals ?? earTags.length ?? 1,
+    flockNumber: farmRow?.eidCymruNumber ?? undefined,
+    earTags,
+    licenceNumber: movement.licenceNumber ?? undefined,
+    transporterName: movement.haulierCompany ?? movement.driverName ?? undefined,
+    vehicleRegistration: movement.vehicleRegistration ?? undefined,
+    reason: movement.reason ?? undefined,
+  };
+
+  const [sub] = await db.insert(eidcymruSubmissionsTable).values({
+    farmId,
+    movementId,
+    submissionType: "movement",
+    status: "pending",
+    sandboxMode: isEidcymruSandbox(),
+    requestPayload: payload,
+  }).returning();
+
+  const result = await submitEidcymruMovement(payload);
+
+  await db.update(eidcymruSubmissionsTable).set({
+    status: result.success ? "submitted" : "failed",
+    eidcymruReference: result.reference,
+    responsePayload: (result.rawResponse as any) ?? null,
+    errorMessage: result.errorMessage,
+    submittedAt: new Date(),
+    updatedAt: new Date(),
+  }).where(eq(eidcymruSubmissionsTable.id, sub.id));
+
+  if (result.success && result.reference) {
+    await db.update(livestockMovementsTable).set({
+      eidcymruSubmissionRef: result.reference,
+    }).where(eq(livestockMovementsTable.id, movementId));
+  }
+
+  res.json({ success: result.success, sandbox: result.sandboxMode, reference: result.reference, errorMessage: result.errorMessage });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ScotEID — Scotland all-species movement submission
+// ═══════════════════════════════════════════════════════════════════════════════
+
+router.get("/farms/:farmId/scoteid-credentials", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [token] = await db.select().from(scoteidFarmTokensTable).where(eq(scoteidFarmTokensTable.farmId, farmId));
+  if (!token) {
+    res.json({ configured: false, sandboxMode: isScoteidSandbox() });
+    return;
+  }
+  res.json({
+    configured: token.isConfigured,
+    sandboxMode: isScoteidSandbox(),
+    holdingNumber: token.holdingNumber,
+    lastTestedAt: token.lastTestedAt,
+    testStatus: token.testStatus,
+    testMessage: token.testMessage,
+  });
+});
+
+router.put("/farms/:farmId/scoteid-credentials", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { apiKey, holdingNumber } = req.body as { apiKey?: string; holdingNumber?: string };
+  const [existing] = await db.select().from(scoteidFarmTokensTable).where(eq(scoteidFarmTokensTable.farmId, farmId));
+  const keyToStore = apiKey ? encryptCredential(apiKey) : existing?.apiKeyEncrypted;
+  const data = {
+    apiKeyEncrypted: keyToStore,
+    holdingNumber: holdingNumber ?? existing?.holdingNumber,
+    isConfigured: !!(apiKey || existing?.apiKeyEncrypted) || isScoteidSandbox(),
+    sandboxMode: isScoteidSandbox(),
+    updatedAt: new Date(),
+  };
+  let record;
+  if (existing) {
+    [record] = await db.update(scoteidFarmTokensTable).set(data).where(eq(scoteidFarmTokensTable.farmId, farmId)).returning();
+  } else {
+    [record] = await db.insert(scoteidFarmTokensTable).values({ ...data, farmId }).returning();
+  }
+  res.json({ success: true, configured: record.isConfigured });
+});
+
+router.delete("/farms/:farmId/scoteid-credentials", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(scoteidFarmTokensTable).where(eq(scoteidFarmTokensTable.farmId, farmId));
+  res.json({ success: true });
+});
+
+router.post("/farms/:farmId/scoteid-credentials/test", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const result = await testScoteidConnection();
+  const status = result.success ? "ok" : "failed";
+  await db.update(scoteidFarmTokensTable)
+    .set({ testStatus: status, testMessage: result.message, lastTestedAt: new Date(), updatedAt: new Date() })
+    .where(eq(scoteidFarmTokensTable.farmId, farmId));
+  res.json(result);
+});
+
+router.get("/farms/:farmId/scoteid-submissions", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const submissions = await db.select().from(scoteidSubmissionsTable)
+    .where(eq(scoteidSubmissionsTable.farmId, farmId))
+    .orderBy(desc(scoteidSubmissionsTable.createdAt))
+    .limit(200);
+  res.json({ submissions });
+});
+
+router.post("/farms/:farmId/scoteid-submit/:movementId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const movementId = Number(req.params.movementId);
+  if (!movementId) { res.status(400).json({ error: "Invalid movementId" }); return; }
+
+  const [movement] = await db.select().from(livestockMovementsTable)
+    .where(and(eq(livestockMovementsTable.id, movementId), eq(livestockMovementsTable.farmId, farmId)));
+  if (!movement) { res.status(404).json({ error: "Movement not found" }); return; }
+
+  const [farmRow] = await db.select({ cphNumber: farmsTable.cphNumber, scotEidNumber: farmsTable.scotEidNumber })
+    .from(farmsTable).where(eq(farmsTable.id, farmId));
+
+  const earTags = movement.earTagNumbers
+    ? movement.earTagNumbers.split(",").map((t: string) => t.trim()).filter(Boolean)
+    : [];
+
+  const payload = {
+    movementDate: movement.movementDate ? new Date(movement.movementDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+    movementType: (movement.movementType ?? "off") as "on" | "off" | "between" | "birth" | "death",
+    departureCph: movement.fromLocation ?? farmRow?.cphNumber ?? "",
+    destinationCph: movement.toLocation ?? "",
+    species: (movement.species?.toLowerCase() ?? "sheep") as "cattle" | "sheep" | "goat" | "pig" | "deer",
+    numberOfAnimals: movement.numberOfAnimals ?? earTags.length ?? 1,
+    holdingNumber: farmRow?.scotEidNumber ?? undefined,
+    earTags,
+    licenceNumber: movement.licenceNumber ?? undefined,
+    transporterName: movement.haulierCompany ?? movement.driverName ?? undefined,
+    vehicleRegistration: movement.vehicleRegistration ?? undefined,
+    reason: movement.reason ?? undefined,
+  };
+
+  const [sub] = await db.insert(scoteidSubmissionsTable).values({
+    farmId,
+    movementId,
+    submissionType: "movement",
+    status: "pending",
+    sandboxMode: isScoteidSandbox(),
+    requestPayload: payload,
+  }).returning();
+
+  const result = await submitScoteidMovement(payload);
+
+  await db.update(scoteidSubmissionsTable).set({
+    status: result.success ? "submitted" : "failed",
+    scoteidReference: result.reference,
+    responsePayload: (result.rawResponse as any) ?? null,
+    errorMessage: result.errorMessage,
+    submittedAt: new Date(),
+    updatedAt: new Date(),
+  }).where(eq(scoteidSubmissionsTable.id, sub.id));
+
+  if (result.success && result.reference) {
+    await db.update(livestockMovementsTable).set({
+      scoteidSubmissionRef: result.reference,
+    }).where(eq(livestockMovementsTable.id, movementId));
+  }
+
+  res.json({ success: result.success, sandbox: result.sandboxMode, reference: result.reference, errorMessage: result.errorMessage });
 });

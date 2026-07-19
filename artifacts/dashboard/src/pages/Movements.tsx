@@ -1078,6 +1078,55 @@ function exportMovementsCsv(records: Movement[], farmCph: string) {
   );
 }
 
+function exportMovementsEaml2(records: Movement[], farm: { cphNumber?: string | null; name?: string | null }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const timestamp = new Date().toISOString().slice(0, 19);
+  const esc = (s: string | null | undefined) => (s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const movXml = records.map(r => {
+    const tags = r.earTagNumbers
+      ? r.earTagNumbers.split(",").map(t => t.trim()).filter(Boolean)
+      : [];
+    const animalsXml = tags.length > 0
+      ? `\n        <Animals>${tags.map(t => `\n          <Animal><EarTag>${esc(t)}</EarTag></Animal>`).join("")}\n        </Animals>`
+      : "";
+    return `
+    <Movement>
+      <MovementDate>${esc(r.movementDate?.slice(0, 10))}</MovementDate>
+      <MovementType>${esc(r.movementType)}</MovementType>
+      <Species>${esc(r.species)}</Species>
+      <NumberOfAnimals>${r.numberOfAnimals ?? ""}</NumberOfAnimals>
+      <DepartureCPH>${esc(r.fromLocation)}</DepartureCPH>
+      <DestinationCPH>${esc(r.toLocation)}</DestinationCPH>
+      <LicenceNumber>${esc(r.licenceNumber)}</LicenceNumber>
+      <TransporterName>${esc(r.haulierCompany ?? r.driverName)}</TransporterName>
+      <VehicleRegistration>${esc(r.vehicleRegistration)}</VehicleRegistration>${animalsXml}
+    </Movement>`;
+  }).join("");
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<MovementDocument xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Version="2.0">
+  <Header>
+    <HoldingCPH>${esc(farm.cphNumber)}</HoldingCPH>
+    <HoldingName>${esc(farm.name)}</HoldingName>
+    <ExportDate>${today}</ExportDate>
+    <ExportTimestamp>${timestamp}</ExportTimestamp>
+    <ExportedBy>BDE Farm Trac</ExportedBy>
+    <RecordCount>${records.length}</RecordCount>
+  </Header>
+  <Movements>${movXml}
+  </Movements>
+</MovementDocument>`;
+
+  const blob = new Blob([xml], { type: "application/xml" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `livestock-movements-eaml2-${farm.cphNumber?.replace(/\//g, "-") ?? "export"}-${today}.xml`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function Movements() {
   const { farmId } = useAppStore();
   const queryClient = useQueryClient();
@@ -1092,7 +1141,7 @@ export default function Movements() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [printRecord, setPrintRecord] = useState<Movement | null>(null);
   const [expandedAttachments, setExpandedAttachments] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<"movements" | "mortality" | "bcms-submissions" | "lis-submissions" | "lip-submissions" | "lip-lost-found">("movements");
+  const [activeTab, setActiveTab] = useState<"movements" | "mortality" | "bcms-submissions" | "lis-submissions" | "lip-submissions" | "lip-lost-found" | "eidcymru-submissions" | "scoteid-submissions">("movements");
   const [lipActionDialog, setLipActionDialog] = useState<{ type: "confirm" | "reject" | "cancel"; submissionId: number; lipReference: string } | null>(null);
   const [lipActionReason, setLipActionReason] = useState("");
   const [lipRejectionReasonId, setLipRejectionReasonId] = useState("");
@@ -1114,6 +1163,10 @@ export default function Movements() {
   const [lisUndoConfirmId, setLisUndoConfirmId] = useState<number | null>(null);
   const [lipSubmitConfirmId, setLipSubmitConfirmId] = useState<number | null>(null);
   const [lipSubmittingId, setLipSubmittingId] = useState<number | null>(null);
+  const [eidcymruSubmitConfirmId, setEidcymruSubmitConfirmId] = useState<number | null>(null);
+  const [eidcymruSubmittingId, setEidcymruSubmittingId] = useState<number | null>(null);
+  const [scoteidSubmitConfirmId, setScoteidSubmitConfirmId] = useState<number | null>(null);
+  const [scoteidSubmittingId, setScoteidSubmittingId] = useState<number | null>(null);
   const [linkedAnimalIds, setLinkedAnimalIds] = useState<number[]>([]);
   const [incomingAnimalTags, setIncomingAnimalTags] = useState("");
   const [incomingAnimalBreed, setIncomingAnimalBreed] = useState("");
@@ -1274,6 +1327,39 @@ export default function Movements() {
   });
   const lipConfigured = !!lipCredsData?.configured;
 
+  const isWales = farmData?.country === "wales";
+  const isScotland = farmData?.country === "scotland";
+
+  const { data: eidcymruCredsData } = useQuery({
+    queryKey: ["eidcymru-credentials", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/eidcymru-credentials`).then(r => r.json()),
+    enabled: !!farmId && isWales,
+  });
+  const eidcymruConfigured = !!eidcymruCredsData?.configured;
+
+  const { data: eidcymruSubmissionsData, refetch: refetchEidcymruSubmissions } = useQuery({
+    queryKey: ["eidcymru-submissions", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/eidcymru-submissions`).then(r => r.json()),
+    enabled: !!farmId && isWales,
+    select: (d: any) => d.submissions ?? [],
+  });
+  const eidcymruSubmissions: any[] = eidcymruSubmissionsData ?? [];
+
+  const { data: scoteidCredsData } = useQuery({
+    queryKey: ["scoteid-credentials", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/scoteid-credentials`).then(r => r.json()),
+    enabled: !!farmId && isScotland,
+  });
+  const scoteidConfigured = !!scoteidCredsData?.configured;
+
+  const { data: scoteidSubmissionsData, refetch: refetchScoteidSubmissions } = useQuery({
+    queryKey: ["scoteid-submissions", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/scoteid-submissions`).then(r => r.json()),
+    enabled: !!farmId && isScotland,
+    select: (d: any) => d.submissions ?? [],
+  });
+  const scoteidSubmissions: any[] = scoteidSubmissionsData ?? [];
+
   const { data: lipRejectionReasonsData } = useQuery({
     queryKey: ["lip-rejection-reasons", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/lip-rejection-reasons`).then(r => r.json()),
@@ -1385,6 +1471,42 @@ export default function Movements() {
       }
     },
     onError: () => toast({ title: "Failed to save record", variant: "destructive" }),
+  });
+
+  const submitEidcymruMut = useMutation({
+    mutationFn: (movementId: number) =>
+      fetch(`/api/farms/${farmId}/eidcymru-submit/${movementId}`, { method: "POST" }).then(r => r.json()),
+    onMutate: (id) => setEidcymruSubmittingId(id),
+    onSuccess: (d) => {
+      setEidcymruSubmittingId(null);
+      setEidcymruSubmitConfirmId(null);
+      queryClient.invalidateQueries({ queryKey: ["movements", farmId] });
+      refetchEidcymruSubmissions();
+      if (d.success) {
+        toast({ title: d.sandbox ? "Submitted to EIDCymru (sandbox)" : "Submitted to EIDCymru", description: d.sandbox ? `Sandbox ref: ${d.reference}` : `EIDCymru ref: ${d.reference}` });
+      } else {
+        toast({ title: "EIDCymru submission failed", description: d.errorMessage, variant: "destructive" });
+      }
+    },
+    onError: () => { setEidcymruSubmittingId(null); toast({ title: "EIDCymru submission error", variant: "destructive" }); },
+  });
+
+  const submitScoteidMut = useMutation({
+    mutationFn: (movementId: number) =>
+      fetch(`/api/farms/${farmId}/scoteid-submit/${movementId}`, { method: "POST" }).then(r => r.json()),
+    onMutate: (id) => setScoteidSubmittingId(id),
+    onSuccess: (d) => {
+      setScoteidSubmittingId(null);
+      setScoteidSubmitConfirmId(null);
+      queryClient.invalidateQueries({ queryKey: ["movements", farmId] });
+      refetchScoteidSubmissions();
+      if (d.success) {
+        toast({ title: d.sandbox ? "Submitted to ScotEID (sandbox)" : "Submitted to ScotEID", description: d.sandbox ? `Sandbox ref: ${d.reference}` : `ScotEID ref: ${d.reference}` });
+      } else {
+        toast({ title: "ScotEID submission failed", description: d.errorMessage, variant: "destructive" });
+      }
+    },
+    onError: () => { setScoteidSubmittingId(null); toast({ title: "ScotEID submission error", variant: "destructive" }); },
   });
 
   const submitLisMut = useMutation({
@@ -1685,6 +1807,22 @@ export default function Movements() {
             {lostFoundRecords.length > 0 && <span className="text-xs opacity-60">({lostFoundRecords.length})</span>}
           </span>
         </TabButton>
+        {isWales && (
+          <TabButton active={activeTab === "eidcymru-submissions"} onClick={() => setActiveTab("eidcymru-submissions")}>
+            <span className="flex items-center gap-1.5">
+              <Send className="w-3.5 h-3.5" />EIDCymru
+              {eidcymruSubmissions.length > 0 && <span className="text-xs opacity-60">({eidcymruSubmissions.length})</span>}
+            </span>
+          </TabButton>
+        )}
+        {isScotland && (
+          <TabButton active={activeTab === "scoteid-submissions"} onClick={() => setActiveTab("scoteid-submissions")}>
+            <span className="flex items-center gap-1.5">
+              <Send className="w-3.5 h-3.5" />ScotEID
+              {scoteidSubmissions.length > 0 && <span className="text-xs opacity-60">({scoteidSubmissions.length})</span>}
+            </span>
+          </TabButton>
+        )}
       </TabBar>
 
       {activeTab === "movements" && (<>
@@ -1846,6 +1984,15 @@ export default function Movements() {
             title="Download all movements as CSV for eAML2 / BCMS reference"
           >
             <Download className="w-4 h-4 mr-1" /> Export CSV
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => exportMovementsEaml2(records, { cphNumber: farmData?.cphNumber, name: farmData?.name })}
+            disabled={records.length === 0}
+            title="Download movements as eAML2-compatible XML (upload to eAML2.org.uk)"
+          >
+            <Download className="w-4 h-4 mr-1" /> eAML2 XML
           </Button>
           <Button size="sm" onClick={openAdd}>
             <Plus className="w-4 h-4 mr-1" /> Add Movement
@@ -2368,7 +2515,31 @@ export default function Movements() {
                               </button>
                             ) : null;
 
-                            return <>{bcmsBtn}{lisBtn}{lipBtn}</>;
+                            const isEidcymruSpecies = (r.species === "Sheep" || r.species === "Goat") && isWales && isSubmittableType;
+                            const eidcymruBtn = isEidcymruSpecies ? (
+                              <button
+                                onClick={() => setEidcymruSubmitConfirmId(r.id)}
+                                disabled={eidcymruSubmittingId === r.id}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.7rem", padding: "2px 8px", borderRadius: 6, border: "1px solid #bbf7d0", background: "#f0fdf4", color: "#166534", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
+                              >
+                                {eidcymruSubmittingId === r.id ? <Loader2 size={10} className="animate-spin" /> : <Send size={10} />}
+                                {eidcymruCredsData?.sandboxMode !== false ? "Test (EIDCymru)" : "Submit EIDCymru"}
+                              </button>
+                            ) : null;
+
+                            const isScoteidSubmittable = isScotland && isSubmittableType;
+                            const scoteidBtn = isScoteidSubmittable ? (
+                              <button
+                                onClick={() => setScoteidSubmitConfirmId(r.id)}
+                                disabled={scoteidSubmittingId === r.id}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.7rem", padding: "2px 8px", borderRadius: 6, border: "1px solid #fed7aa", background: "#fff7ed", color: "#c2410c", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
+                              >
+                                {scoteidSubmittingId === r.id ? <Loader2 size={10} className="animate-spin" /> : <Send size={10} />}
+                                {scoteidCredsData?.sandboxMode !== false ? "Test (ScotEID)" : "Submit ScotEID"}
+                              </button>
+                            ) : null;
+
+                            return <>{bcmsBtn}{lisBtn}{lipBtn}{eidcymruBtn}{scoteidBtn}</>;
                           })()}
                         </div>
                       </td>
@@ -3483,6 +3654,194 @@ export default function Movements() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* ═══ EIDCymru Submissions Tab ═══════════════════════════════════════ */}
+      {activeTab === "eidcymru-submissions" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
+            <div>
+              <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "#1f2937", marginBottom: 2 }}>EIDCymru — Wales Sheep &amp; Goat Submissions</h3>
+              <p style={{ fontSize: "0.82rem", color: "#6b7280" }}>
+                Sheep and goat movement notifications submitted to EIDCymru on behalf of this Wales holding.
+                {eidcymruCredsData?.sandboxMode !== false && (
+                  <span style={{ marginLeft: 8, color: "#b45309", fontWeight: 600 }}>⚠ Sandbox mode — submissions are simulated (EIDCYMRU_API_KEY not configured)</span>
+                )}
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => refetchEidcymruSubmissions()}>Refresh</Button>
+          </div>
+
+          {!eidcymruConfigured && (
+            <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "1rem 1.25rem", marginBottom: "1rem", fontSize: "0.875rem", color: "#92400e" }}>
+              <strong>EIDCymru not configured.</strong> Go to Farm Settings → Integrations to enter your EIDCymru flock number. In sandbox mode all submissions are simulated automatically.
+            </div>
+          )}
+
+          {eidcymruSubmissions.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "3rem 0", color: "#9ca3af" }}>
+              <Send className="w-8 h-8 mx-auto mb-3 opacity-30" />
+              <p style={{ fontWeight: 600, marginBottom: 4 }}>No EIDCymru submissions yet</p>
+              <p style={{ fontSize: "0.82rem" }}>Use the "Test (EIDCymru)" button on a sheep or goat movement to submit it.</p>
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid #e5e7eb", textAlign: "left" }}>
+                    <th style={{ padding: "8px 12px", fontWeight: 600, color: "#374151" }}>Date</th>
+                    <th style={{ padding: "8px 12px", fontWeight: 600, color: "#374151" }}>Type</th>
+                    <th style={{ padding: "8px 12px", fontWeight: 600, color: "#374151" }}>Status</th>
+                    <th style={{ padding: "8px 12px", fontWeight: 600, color: "#374151" }}>Reference</th>
+                    <th style={{ padding: "8px 12px", fontWeight: 600, color: "#374151" }}>Mode</th>
+                    <th style={{ padding: "8px 12px", fontWeight: 600, color: "#374151" }}>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {eidcymruSubmissions.map((s: any) => (
+                    <tr key={s.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                      <td style={{ padding: "8px 12px", color: "#374151" }}>{s.submittedAt ? new Date(s.submittedAt).toLocaleDateString("en-GB") : new Date(s.createdAt).toLocaleDateString("en-GB")}</td>
+                      <td style={{ padding: "8px 12px", color: "#374151", textTransform: "capitalize" }}>{s.submissionType}</td>
+                      <td style={{ padding: "8px 12px" }}>
+                        <span style={{
+                          padding: "2px 8px", borderRadius: 999, fontSize: "0.75rem", fontWeight: 600,
+                          background: s.status === "submitted" ? "#d1fae5" : s.status === "failed" ? "#fee2e2" : "#fef3c7",
+                          color: s.status === "submitted" ? "#065f46" : s.status === "failed" ? "#991b1b" : "#92400e",
+                        }}>{s.status}</span>
+                      </td>
+                      <td style={{ padding: "8px 12px", color: "#374151", fontFamily: "monospace", fontSize: "0.78rem" }}>{s.eidcymruReference ?? "—"}</td>
+                      <td style={{ padding: "8px 12px" }}>
+                        <span style={{ fontSize: "0.72rem", padding: "1px 6px", borderRadius: 999, background: s.sandboxMode ? "#fef3c7" : "#d1fae5", color: s.sandboxMode ? "#92400e" : "#065f46" }}>
+                          {s.sandboxMode ? "Sandbox" : "Live"}
+                        </span>
+                      </td>
+                      <td style={{ padding: "8px 12px", color: "#6b7280", fontSize: "0.78rem", maxWidth: 200, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.errorMessage ?? ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ ScotEID Submissions Tab ═════════════════════════════════════════ */}
+      {activeTab === "scoteid-submissions" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
+            <div>
+              <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "#1f2937", marginBottom: 2 }}>ScotEID — Scotland Livestock Submissions</h3>
+              <p style={{ fontSize: "0.82rem", color: "#6b7280" }}>
+                All-species movement notifications submitted to ScotEID on behalf of this Scotland holding.
+                {scoteidCredsData?.sandboxMode !== false && (
+                  <span style={{ marginLeft: 8, color: "#b45309", fontWeight: 600 }}>⚠ Sandbox mode — submissions are simulated (SCOTEID_API_KEY not configured)</span>
+                )}
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => refetchScoteidSubmissions()}>Refresh</Button>
+          </div>
+
+          {!scoteidConfigured && (
+            <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "1rem 1.25rem", marginBottom: "1rem", fontSize: "0.875rem", color: "#92400e" }}>
+              <strong>ScotEID not configured.</strong> Go to Farm Settings → Integrations to enter your ScotEID holding number. In sandbox mode all submissions are simulated automatically.
+            </div>
+          )}
+
+          {scoteidSubmissions.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "3rem 0", color: "#9ca3af" }}>
+              <Send className="w-8 h-8 mx-auto mb-3 opacity-30" />
+              <p style={{ fontWeight: 600, marginBottom: 4 }}>No ScotEID submissions yet</p>
+              <p style={{ fontSize: "0.82rem" }}>Use the "Test (ScotEID)" button on a movement to submit it.</p>
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid #e5e7eb", textAlign: "left" }}>
+                    <th style={{ padding: "8px 12px", fontWeight: 600, color: "#374151" }}>Date</th>
+                    <th style={{ padding: "8px 12px", fontWeight: 600, color: "#374151" }}>Type</th>
+                    <th style={{ padding: "8px 12px", fontWeight: 600, color: "#374151" }}>Status</th>
+                    <th style={{ padding: "8px 12px", fontWeight: 600, color: "#374151" }}>Reference</th>
+                    <th style={{ padding: "8px 12px", fontWeight: 600, color: "#374151" }}>Mode</th>
+                    <th style={{ padding: "8px 12px", fontWeight: 600, color: "#374151" }}>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scoteidSubmissions.map((s: any) => (
+                    <tr key={s.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                      <td style={{ padding: "8px 12px", color: "#374151" }}>{s.submittedAt ? new Date(s.submittedAt).toLocaleDateString("en-GB") : new Date(s.createdAt).toLocaleDateString("en-GB")}</td>
+                      <td style={{ padding: "8px 12px", color: "#374151", textTransform: "capitalize" }}>{s.submissionType}</td>
+                      <td style={{ padding: "8px 12px" }}>
+                        <span style={{
+                          padding: "2px 8px", borderRadius: 999, fontSize: "0.75rem", fontWeight: 600,
+                          background: s.status === "submitted" ? "#d1fae5" : s.status === "failed" ? "#fee2e2" : "#fef3c7",
+                          color: s.status === "submitted" ? "#065f46" : s.status === "failed" ? "#991b1b" : "#92400e",
+                        }}>{s.status}</span>
+                      </td>
+                      <td style={{ padding: "8px 12px", color: "#374151", fontFamily: "monospace", fontSize: "0.78rem" }}>{s.scoteidReference ?? "—"}</td>
+                      <td style={{ padding: "8px 12px" }}>
+                        <span style={{ fontSize: "0.72rem", padding: "1px 6px", borderRadius: 999, background: s.sandboxMode ? "#fef3c7" : "#d1fae5", color: s.sandboxMode ? "#92400e" : "#065f46" }}>
+                          {s.sandboxMode ? "Sandbox" : "Live"}
+                        </span>
+                      </td>
+                      <td style={{ padding: "8px 12px", color: "#6b7280", fontSize: "0.78rem", maxWidth: 200, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.errorMessage ?? ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* EIDCymru submit confirm dialog */}
+      <Dialog open={eidcymruSubmitConfirmId !== null} onOpenChange={o => { if (!o) setEidcymruSubmitConfirmId(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Submit to EIDCymru</DialogTitle>
+            <DialogDescription>
+              {eidcymruCredsData?.sandboxMode !== false
+                ? "EIDCymru is in sandbox mode. This will log a simulated submission without contacting the live EIDCymru service."
+                : "This will submit the movement notification to the live EIDCymru service on behalf of this holding."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEidcymruSubmitConfirmId(null)}>Cancel</Button>
+            <Button
+              disabled={submitEidcymruMut.isPending}
+              onClick={() => { if (eidcymruSubmitConfirmId) submitEidcymruMut.mutate(eidcymruSubmitConfirmId); }}
+              style={{ background: "#166534", color: "#fff" }}
+            >
+              {submitEidcymruMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+              {eidcymruCredsData?.sandboxMode !== false ? "Test Submit (Sandbox)" : "Submit to EIDCymru"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ScotEID submit confirm dialog */}
+      <Dialog open={scoteidSubmitConfirmId !== null} onOpenChange={o => { if (!o) setScoteidSubmitConfirmId(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Submit to ScotEID</DialogTitle>
+            <DialogDescription>
+              {scoteidCredsData?.sandboxMode !== false
+                ? "ScotEID is in sandbox mode. This will log a simulated submission without contacting the live ScotEID service."
+                : "This will submit the movement notification to the live ScotEID service on behalf of this holding."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScoteidSubmitConfirmId(null)}>Cancel</Button>
+            <Button
+              disabled={submitScoteidMut.isPending}
+              onClick={() => { if (scoteidSubmitConfirmId) submitScoteidMut.mutate(scoteidSubmitConfirmId); }}
+              style={{ background: "#c2410c", color: "#fff" }}
+            >
+              {submitScoteidMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+              {scoteidCredsData?.sandboxMode !== false ? "Test Submit (Sandbox)" : "Submit to ScotEID"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </AppLayout>
   );
 }
