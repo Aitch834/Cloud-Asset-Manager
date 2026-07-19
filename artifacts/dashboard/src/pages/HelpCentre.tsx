@@ -7,7 +7,7 @@ import {
   Search, ChevronDown, ChevronUp, BookOpen, Loader2, Info,
   Rocket, Droplets, ArrowRightLeft, Pill, ClipboardCheck,
   Tractor, GraduationCap, Leaf, Tag, Egg, Wrench, Shield,
-  CheckCircle2, HeartPulse, Navigation, MapPin, type LucideIcon,
+  CheckCircle2, HeartPulse, Navigation, MapPin, Globe, type LucideIcon,
 } from "lucide-react";
 import { useAppStore } from "@/hooks/use-app-store";
 
@@ -70,8 +70,8 @@ const WORKFLOWS: Workflow[] = [
       { title: "Select movement type", detail: "Choose On, Off, or Standstill depending on the nature of the movement." },
       { title: "Enter animal details", detail: "Log the number of animals, species, breed and tag or batch reference." },
       { title: "Record destination or source", detail: "Add the destination CPH or departure holding details." },
-      { title: "Set the movement date", detail: "Confirm the date the animals moved. BCMS reporting is automatic if LIS is linked." },
-      { title: "Submit and retain paperwork", detail: "Save the record and print a movement document if required for your herd or flock register." },
+      { title: "Set the movement date", detail: "Confirm the date the animals moved. For England cattle, BCMS is submitted via CTS Web Services. For England sheep/goats/deer, LIS or LIS LIP handles submission. For Wales farms, EIDCymru submission is available. For Scotland farms, ScotEID covers all species." },
+      { title: "Submit and retain paperwork", detail: "Save the record, then use the relevant submission tab (LIS, LIP, EIDCymru, or ScotEID) to submit with one click. For pig movements in England, use the eAML2 XML button to export a compliant file for upload to eAML2.org.uk. Print a movement document if required for your herd or flock register." },
     ],
   },
   {
@@ -169,7 +169,7 @@ const WORKFLOWS: Workflow[] = [
       { title: "Enter pig details", detail: "Log the number of pigs and their average or range of weights." },
       { title: "Record source or destination", detail: "Add the holding number or slaughterhouse details." },
       { title: "Confirm the movement date", detail: "Enter the date the pigs moved." },
-      { title: "Save and note eAML2 requirements", detail: "Save the record and note any eAML2 submission obligations if applicable." },
+      { title: "Export eAML2 XML and submit", detail: "Save the record, then click the eAML2 XML button above the Movements table to download a compliant XML file. Upload the file directly to eAML2.org.uk to obtain your Animal Movement Licence. No API credentials are needed — this works for all farms today." },
     ],
   },
   {
@@ -253,6 +253,20 @@ const WORKFLOWS: Workflow[] = [
       { title: "Save the record", detail: "Save the form. A coloured GPS badge now appears alongside the asset on the equipment list, confirming it is flagged as tracked." },
       { title: "Filter GPS-tracked assets", detail: "On the Equipment list, use the GPS filter button in the filter bar to show only GPS-tracked machines — useful for quickly auditing fleet coverage on large farms." },
       { title: "View live on the Resource Map", detail: "GPS-tracked machines connected to a live provider integration appear on the Resource Map with real-time location, speed, and ignition status." },
+    ],
+  },
+  {
+    id: "govt-submission",
+    title: "Submitting Movements to Government Livestock Databases",
+    icon: Globe,
+    moduleKey: "livestock-management",
+    steps: [
+      { title: "Identify your submission route", detail: "England cattle movements → BCMS via CTS Web Services. England cattle movements/births/deaths → LIS LIP. England sheep, goat & deer movements → LIS CLA API. Wales sheep, goat & deer movements → EIDCymru API. Scotland all-species movements → ScotEID API. England pig movements → eAML2 XML export to eAML2.org.uk." },
+      { title: "Connect your credentials in Farm Settings", detail: "Go to Settings → Farm Settings. For BCMS enter your CTS Web Services username and password. For LIS, click the OAuth link to sign in to your Livestock Information Service account. For LIS LIP, complete the delegated OAuth sign-in. For EIDCymru (Wales farms), paste in your EIDCymru API key. For ScotEID (Scotland farms), paste in your ScotEID API key. Each credential is stored securely per farm." },
+      { title: "Open Livestock → Movements", detail: "Navigate to Livestock → Movements. Submission tabs appear above the table based on your farm's country — you will see LIS, LIP, EIDCymru, or ScotEID tabs alongside the main movements list. Tabs not applicable to your farm's country are hidden automatically." },
+      { title: "Submit with one click", detail: "On the relevant submission tab, each movement row has a Submit button. Click it to open a confirmation dialog showing the full payload before it is sent. Confirm to submit. The government reference number is stored back against the movement record automatically." },
+      { title: "Export eAML2 XML for pig movements (England)", detail: "For pig movements, click the eAML2 XML button above the Movements table. The system generates a standards-compliant XML file for that movement. Download it and upload directly to eAML2.org.uk to obtain your Animal Movement Licence. No API credentials are needed." },
+      { title: "Review submission history", detail: "Each submission tab maintains a full history showing every submission attempt with its status (Pending, Submitted, or Rejected), the government reference number, the date submitted, and the raw response payload. Rejected submissions show the error reason so you can correct and resubmit." },
     ],
   },
 ];
