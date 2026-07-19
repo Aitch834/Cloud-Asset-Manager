@@ -100,6 +100,30 @@ export function PigEnterpriseReport({ farmId }: { farmId: number }) {
     ? d.killRecords.reduce((s, r) => s + (parseFloat(String(r.averageP2BackfatMm)) || 0), 0) / d.killRecords.filter(r => r.averageP2BackfatMm).length
     : null;
 
+  const fcrChartData = useMemo(() => {
+    if (!d) return [];
+    const map: Record<string, { feedKg: number; dwtKg: number }> = {};
+    d.feedDeliveries.forEach(f => {
+      const m = f.deliveryDate.slice(0, 7);
+      if (!map[m]) map[m] = { feedKg: 0, dwtKg: 0 };
+      map[m].feedKg += parseFloat(String(f.quantityKg)) || 0;
+    });
+    d.killRecords.forEach(r => {
+      const m = r.killDate.slice(0, 7);
+      if (!map[m]) map[m] = { feedKg: 0, dwtKg: 0 };
+      map[m].dwtKg += parseFloat(String(r.totalDeadweightKg)) || 0;
+    });
+    return Object.entries(map)
+      .sort()
+      .map(([m, v]) => ({
+        label: monthLabel(m),
+        "Feed (kg)": Math.round(v.feedKg),
+        "Deadweight (kg)": Math.round(v.dwtKg),
+        fcr: v.dwtKg > 0 ? parseFloat((v.feedKg / v.dwtKg).toFixed(2)) : null,
+      }))
+      .filter(v => v["Feed (kg)"] > 0 || v["Deadweight (kg)"] > 0);
+  }, [d]);
+
   return (
     <div id={PRINT_ID} className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3 no-print">
@@ -166,6 +190,44 @@ export function PigEnterpriseReport({ farmId }: { farmId: number }) {
                     <Bar dataKey="Feed Cost" fill="#f59e0b" radius={[3, 3, 0, 0]} maxBarSize={36} />
                     <Bar dataKey="Purchases" fill="#f97316" radius={[3, 3, 0, 0]} maxBarSize={36} />
                     <Line type="monotone" dataKey="Gross Margin" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {fcrChartData.length > 1 && (
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="px-4 py-3 border-b border-border bg-muted/30">
+                <h3 className="text-sm font-semibold">FCR Trend — Feed vs Deadweight (kg/month)</h3>
+                <p className="text-xs text-foreground/40 mt-0.5">Feed conversion ratio = feed delivered ÷ deadweight produced in the same month</p>
+              </div>
+              <div className="p-4">
+                <ResponsiveContainer width="100%" height={220}>
+                  <ComposedChart data={fcrChartData} margin={{ top: 4, right: 56, bottom: 4, left: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis yAxisId="left" tick={{ fontSize: 11 }} width={55} tickFormatter={v => `${v.toLocaleString("en-GB")} kg`} />
+                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} width={42} domain={[0, "auto"]} label={{ value: "FCR", angle: 90, position: "insideRight", offset: 10, fontSize: 11 }} />
+                    <Tooltip
+                      content={({ active, payload, label }: any) => {
+                        if (!active || !payload?.length) return null;
+                        return (
+                          <div className="bg-white border border-border rounded-lg p-3 text-xs shadow-md space-y-1">
+                            <p className="font-semibold mb-1">{label}</p>
+                            {payload.map((p: any) => (
+                              <p key={p.name} style={{ color: p.color }}>
+                                {p.name === "FCR" ? `FCR: ${p.value ?? "—"}` : `${p.name}: ${(p.value ?? 0).toLocaleString("en-GB")} kg`}
+                              </p>
+                            ))}
+                          </div>
+                        );
+                      }}
+                    />
+                    <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                    <Bar yAxisId="left" dataKey="Feed (kg)" fill="#f59e0b" radius={[3, 3, 0, 0]} maxBarSize={36} />
+                    <Bar yAxisId="left" dataKey="Deadweight (kg)" fill="#10b981" radius={[3, 3, 0, 0]} maxBarSize={36} />
+                    <Line yAxisId="right" type="monotone" dataKey="fcr" name="FCR" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} connectNulls />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>

@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2, Loader2, Eye, Crosshair, ShoppingCart, Users, Hea
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { DocAttach } from "@/components/DocAttach";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from "recharts";
+import { VenisonEnterpriseReport } from "@/components/VenisonEnterpriseReport";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1213,7 +1214,7 @@ function VenisonAnalyticsTab({ farmId }: { farmId: number }) {
 export default function VenisonProductionPage() {
   const { selectedFarm } = useAppStore();
   const farmId = selectedFarm?.id;
-  const [tab, setTab] = useState<"herds" | "cull" | "sales" | "monitoring" | "health" | "firearms" | "analytics">("herds");
+  const [tab, setTab] = useState<"herds" | "cull" | "sales" | "monitoring" | "health" | "firearms" | "analytics" | "enterprise">("herds");
 
   if (!farmId) {
     return (
@@ -1238,6 +1239,7 @@ export default function VenisonProductionPage() {
           <VPTabButton active={tab === "health"} onClick={() => setTab("health")}><HeartPulse className="w-3.5 h-3.5" />Health</VPTabButton>
           <VPTabButton active={tab === "firearms"} onClick={() => setTab("firearms")}><ShieldCheck className="w-3.5 h-3.5" />Firearms & Licences</VPTabButton>
           <VPTabButton active={tab === "analytics"} onClick={() => setTab("analytics")}><BarChart3 className="w-3.5 h-3.5" />Analytics</VPTabButton>
+          <VPTabButton active={tab === "enterprise"} onClick={() => setTab("enterprise")}><BarChart3 className="w-3.5 h-3.5" />Enterprise Report</VPTabButton>
         </VPTabBar>
         <div className="rounded-md border p-4 bg-card">
           {tab === "herds" && <HerdsTab farmId={farmId} />}
@@ -1247,6 +1249,7 @@ export default function VenisonProductionPage() {
           {tab === "health" && <HealthRecordsTab farmId={farmId} />}
           {tab === "firearms" && <FirearmsRegisterTab farmId={farmId} />}
           {tab === "analytics" && <VenisonAnalyticsTab farmId={farmId} />}
+          {tab === "enterprise" && <VenisonEnterpriseReport farmId={farmId} />}
         </div>
       </div>
     </AppLayout>

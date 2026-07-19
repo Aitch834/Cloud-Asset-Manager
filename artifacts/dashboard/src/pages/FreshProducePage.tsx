@@ -2,7 +2,8 @@ import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { LabSelector } from "@/components/ui/LabSelector";
 import { BlockBoundaryMapDialog } from "@/components/fields/BlockBoundaryMapDialog";
-import { Plus, Pencil, Trash2, Loader2, LayoutGrid, Leaf, Droplets, Package, Eye, Warehouse, AlertTriangle, Thermometer, Map, Archive, RotateCcw, XCircle } from "lucide-react";
+import { FreshProduceReports } from "@/components/FreshProduceReports";
+import { Plus, Pencil, Trash2, Loader2, LayoutGrid, Leaf, Droplets, Package, Eye, Warehouse, AlertTriangle, Thermometer, Map, Archive, RotateCcw, XCircle, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -1317,14 +1318,14 @@ export function AllergenTab({ farmId }: { farmId: number }) {
 
 // ── PAGE ───────────────────────────────────────────────────────────────────
 
-type Tab = "blocks" | "crops" | "water" | "harvest" | "intake" | "packhouse" | "allergen";
+type Tab = "blocks" | "crops" | "water" | "harvest" | "intake" | "packhouse" | "allergen" | "reports";
 
 export default function FreshProducePage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<Tab>(() => {
     const p = new URLSearchParams(window.location.search);
     const t = p.get("tab") as Tab | null;
-    const valid: Tab[] = ["blocks", "crops", "water", "harvest", "intake", "packhouse", "allergen"];
+    const valid: Tab[] = ["blocks", "crops", "water", "harvest", "intake", "packhouse", "allergen", "reports"];
     return t && valid.includes(t) ? t : "blocks";
   });
   if (!farmId) return <Redirect to="/" />;
@@ -1339,6 +1340,7 @@ export default function FreshProducePage() {
           <TabButton active={tab === "intake"} onClick={() => setTab("intake")}><Thermometer className="w-3.5 h-3.5 mr-1" />Intake</TabButton>
           <TabButton active={tab === "packhouse"} onClick={() => setTab("packhouse")}><Warehouse className="w-3.5 h-3.5 mr-1" />Packhouse</TabButton>
           <TabButton active={tab === "allergen"} onClick={() => setTab("allergen")}><AlertTriangle className="w-3.5 h-3.5 mr-1" />Allergens</TabButton>
+          <TabButton active={tab === "reports"} onClick={() => setTab("reports")}><TrendingUp className="w-3.5 h-3.5 mr-1" />Season Report</TabButton>
         </TabBar>
         <Card><CardContent className="pt-4">
           {tab === "blocks" && <BlocksTab farmId={farmId} />}
@@ -1348,6 +1350,7 @@ export default function FreshProducePage() {
           {tab === "intake" && <IntakeTab farmId={farmId} />}
           {tab === "packhouse" && <PackhouseTab farmId={farmId} />}
           {tab === "allergen" && <AllergenTab farmId={farmId} />}
+          {tab === "reports" && <FreshProduceReports farmId={farmId} />}
         </CardContent></Card>
       </div>
     </AppLayout>
