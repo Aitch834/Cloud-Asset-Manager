@@ -99,6 +99,7 @@ export default function WeatherEntryScreen() {
   const [stationError, setStationError] = useState<string | null>(null);
   const [stationFetchedAt, setStationFetchedAt] = useState<Date | null>(null);
   const [stationLocation, setStationLocation] = useState<string | null>(null);
+  const [stationSource, setStationSource] = useState<"sensor" | "open-meteo" | null>(null);
 
   useEffect(() => {
     if (!vehicleMode || !currentFarm?.id) return;
@@ -141,6 +142,64 @@ export default function WeatherEntryScreen() {
     setStationError(null);
 
     try {
+      // 1. Try connected API sensor stations first
+      if (currentFarm?.id) {
+        try {
+          const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
+          let token: string | null = null;
+          if (Platform.OS !== "web") {
+            const SecureStore = await import("expo-secure-store");
+            token = await SecureStore.getItemAsync("auth_session_token");
+          } else {
+            try { token = localStorage.getItem("auth_session_token"); } catch { }
+          }
+          const { kvGet } = await import("@/lib/database");
+          const raw = await kvGet("bde_current_farm");
+          const farm = raw ? JSON.parse(raw) : null;
+          const tenantSlug = farm ? (farm.tenantSlug || farm.slug || "") : "";
+          const headers: Record<string, string> = { "x-tenant-slug": tenantSlug };
+          if (token) headers["Authorization"] = `Bearer ${token}`;
+          const res = await fetch(
+            `https://${apiDomain}/api/farms/${currentFarm.id}/sensor-readings?category=weather&limit=50`,
+            { headers },
+          );
+          if (res.ok) {
+            const data = await res.json();
+            const readings: any[] = data.readings ?? [];
+            if (readings.length > 0) {
+              const latestByParam = new Map<string, any>();
+              for (const r of [...readings].sort(
+                (a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime()
+              )) {
+                if (!latestByParam.has(r.parameter)) latestByParam.set(r.parameter, r);
+              }
+              const getVal = (p: string) => latestByParam.get(p)?.value;
+              const temp    = getVal("air_temperature") ?? getVal("temperature");
+              const wind    = getVal("wind_speed");
+              const windDir = getVal("wind_direction");
+              const hum     = getVal("humidity") ?? getVal("relative_humidity");
+              const rain    = getVal("rainfall") ?? getVal("precipitation");
+              const pres    = getVal("pressure");
+              if (temp != null || wind != null) {
+                if (temp    != null) setTemperatureHigh(String(Math.round(Number(temp) * 10) / 10));
+                if (wind    != null) setWindSpeed(String(Math.round(Number(wind))));
+                if (windDir != null) setWindDirection(degreesToCompass(Number(windDir)));
+                if (hum     != null) setHumidity(String(Math.round(Number(hum))));
+                if (rain    != null) setRainfall(String(Math.round(Number(rain) * 10) / 10));
+                if (pres    != null) setPressure(String(Math.round(Number(pres))));
+                const stationName = readings[0]?.stationName ?? readings[0]?.stationId ?? "Connected Station";
+                setStationFetchedAt(new Date());
+                setStationLocation(stationName);
+                setStationSource("sensor");
+                setFetchingStation(false);
+                return;
+              }
+            }
+          }
+        } catch { /* fall through to Open-Meteo */ }
+      }
+
+      // 2. Fall back to Open-Meteo via geolocation
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         setStationError("Location permission is required to fetch weather data. Please enable it in Settings.");
@@ -159,9 +218,7 @@ export default function WeatherEntryScreen() {
         `&wind_speed_unit=mph&temperature_unit=celsius&precipitation_unit=mm&timezone=auto`;
 
       const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Open-Meteo returned ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`Open-Meteo returned ${response.status}`);
 
       const data: OpenMeteoResponse = await response.json();
       const c = data.current;
@@ -175,17 +232,17 @@ export default function WeatherEntryScreen() {
       setWindDirection(c.wind_direction_10m != null ? degreesToCompass(c.wind_direction_10m) : "");
       setPressure(c.pressure_msl != null ? String(Math.round(c.pressure_msl)) : "");
       setConditions(wmoCodeToCondition(c.weather_code));
-
       setStationFetchedAt(new Date());
       setStationLocation(`${latitude.toFixed(3)}°N, ${Math.abs(longitude).toFixed(3)}°${longitude < 0 ? "W" : "E"}`);
+      setStationSource("open-meteo");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unknown error";
-      console.warn("Open-Meteo fetch failed:", msg);
+      console.warn("Weather fetch failed:", msg);
       setStationError("Could not fetch weather data. Check your internet connection and try again.");
     } finally {
       setFetchingStation(false);
     }
-  }, []);
+  }, [currentFarm?.id]);
 
   const handleModeChange = (mode: "manual" | "station") => {
     Haptics.selectionAsync();
@@ -313,7 +370,7 @@ export default function WeatherEntryScreen() {
               {fetchingStation ? (
                 <View style={styles.stationBannerRow}>
                   <ActivityIndicator size="small" color={colors.primary} />
-                  <Text style={styles.stationBannerText}>Fetching weather from Open-Meteo…</Text>
+                  <Text style={styles.stationBannerText}>Fetching weather data…</Text>
                 </View>
               ) : stationError ? (
                 <>
@@ -331,7 +388,7 @@ export default function WeatherEntryScreen() {
                   <Feather name="check-circle" size={14} color={colors.success} />
                   <View style={styles.flex}>
                     <Text style={[styles.stationBannerText, { color: colors.success }]}>
-                      Data from Open-Meteo · {stationLocation}
+                      {stationSource === "sensor" ? `Connected Station: ${stationLocation}` : `Open-Meteo · ${stationLocation}`}
                     </Text>
                     <Text style={styles.stationBannerSub}>
                       Fetched at {stationFetchedAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} · Fields are editable

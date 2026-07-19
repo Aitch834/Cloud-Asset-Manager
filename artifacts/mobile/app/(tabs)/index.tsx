@@ -56,6 +56,66 @@ export default function HomeScreen() {
     soilSamples: 0,
   });
 
+  const [liveWeather, setLiveWeather] = useState<{
+    temperature: string;
+    conditions: string;
+    windSpeed: string;
+    rainfall: string;
+    source: string;
+  } | null>(null);
+
+  const fetchLiveWeather = useCallback(async () => {
+    if (!currentFarm?.id) return;
+    try {
+      const { kvGet } = await import("@/lib/database");
+      const domain = process.env.EXPO_PUBLIC_DOMAIN || "";
+      const token = await kvGet("bde_auth_token");
+      const tenantRaw = await kvGet("bde_current_farm");
+      const tenantParsed = tenantRaw ? JSON.parse(tenantRaw) : null;
+      const tenantSlug = tenantParsed ? (tenantParsed.tenantSlug || tenantParsed.slug || "") : "";
+      const headers: Record<string, string> = { "x-tenant-slug": tenantSlug };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const res = await fetch(
+        `${domain}/api/farms/${currentFarm.id}/sensor-readings?category=weather&limit=50`,
+        { headers },
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const readings: any[] = data.readings ?? [];
+        if (readings.length > 0) {
+          const latestByParam = new Map<string, any>();
+          for (const r of [...readings].sort(
+            (a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime()
+          )) {
+            if (!latestByParam.has(r.parameter)) latestByParam.set(r.parameter, r);
+          }
+          const getVal = (p: string) => latestByParam.get(p)?.value;
+          const temp    = getVal("air_temperature") ?? getVal("temperature");
+          const wind    = getVal("wind_speed");
+          const windDir = getVal("wind_direction");
+          const rain    = getVal("rainfall") ?? getVal("precipitation");
+          if (temp != null || wind != null) {
+            const dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+            const compass = windDir != null ? dirs[Math.round(Number(windDir) / 22.5) % 16] : "";
+            const stationName = readings[0]?.stationName ?? "Station";
+            setLiveWeather({
+              temperature: temp != null ? `${Math.round(Number(temp) * 10) / 10}°C` : "—",
+              conditions: "From station",
+              windSpeed: wind != null ? `${Math.round(Number(wind))} km/h${compass ? " " + compass : ""}` : "—",
+              rainfall: rain != null ? `${Math.round(Number(rain) * 10) / 10} mm` : "0 mm",
+              source: stationName,
+            });
+            return;
+          }
+        }
+      }
+    } catch { /* ignore */ }
+  }, [currentFarm?.id]);
+
+  useEffect(() => {
+    fetchLiveWeather();
+  }, [fetchLiveWeather]);
+
   const loadData = useCallback(async () => {
     const farmId = currentFarm?.id;
     const [sprays, weather, visitors, crops, soil] = await Promise.all([
@@ -114,9 +174,9 @@ export default function HomeScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([loadData(), triggerSync()]);
+    await Promise.all([loadData(), triggerSync(), fetchLiveWeather()]);
     setRefreshing(false);
-  }, [loadData, triggerSync]);
+  }, [loadData, triggerSync, fetchLiveWeather]);
 
   const totalRecords = Object.values(recordCounts).reduce((a, b) => a + b, 0);
 
@@ -251,12 +311,12 @@ export default function HomeScreen() {
           />
         </ScrollView>
 
-        <SectionHeader title="Today's Weather" />
+        <SectionHeader title={liveWeather ? `Today's Weather · ${liveWeather.source}` : "Today's Weather"} />
         <WeatherWidget
-          temperature="14°C"
-          conditions="Cloudy"
-          windSpeed="12 mph NW"
-          rainfall="2mm"
+          temperature={liveWeather?.temperature ?? "—"}
+          conditions={liveWeather?.conditions ?? "Loading…"}
+          windSpeed={liveWeather?.windSpeed ?? "—"}
+          rainfall={liveWeather?.rainfall ?? "—"}
         />
 
         <SectionHeader title="Farm Overview" />
