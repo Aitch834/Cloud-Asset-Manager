@@ -6,7 +6,7 @@ import {
   Plus, Trash2, Loader2, Eye, Grape, Leaf, ClipboardList, Sprout,
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
-  Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen,
+  Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -50,6 +50,162 @@ function exportCSV(rows: Record<string, unknown>[], filename: string, cols: { ke
   const blob = new Blob(["\uFEFF" + header + "\n" + body], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
+}
+
+function printExciseReturn(record: Record<string, unknown>, farmName: string, licenceNo?: string) {
+  const d = (v: unknown) => v ? new Date(v as string).toLocaleDateString("en-GB") : "—";
+  const n = (v: unknown, dp = 1) => v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp);
+  const spr = !!record.smallProducerRelief;
+  const dutiableL = (parseFloat(String(record.totalLitresRemovedUK ?? 0)) || 0)
+    + (parseFloat(String(record.totalLitresDomesticConsumption ?? 0)) || 0)
+    + (parseFloat(String(record.totalLitresTastings ?? 0)) || 0);
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+  <title>HMRC Alcohol Duty Return — ${farmName}</title>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #111; margin: 40px; }
+    h1 { font-size: 18px; margin-bottom: 2px; }
+    h2 { font-size: 13px; font-weight: 700; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin: 18px 0 8px; color: #333; text-transform: uppercase; letter-spacing: 0.04em; }
+    .header { display: flex; justify-content: space-between; border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 20px; }
+    .meta { font-size: 12px; color: #555; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+    td { padding: 5px 8px; border: 1px solid #ddd; }
+    td:first-child { font-weight: 500; width: 58%; background: #f7f7f7; }
+    td:last-child { text-align: right; }
+    .total-row td { font-weight: 700; background: #eef2ff; border-color: #a5b4fc; }
+    .duty-row td { font-weight: 700; background: #1e3a5f; color: #fff; border-color: #1e3a5f; font-size: 14px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+    .badge-spr { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+    .badge-std { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    .notice { background: #fffbeb; border: 1px solid #fde68a; padding: 8px 12px; border-radius: 4px; font-size: 12px; margin-bottom: 16px; }
+    .footer { margin-top: 28px; font-size: 11px; color: #666; border-top: 1px solid #ccc; padding-top: 8px; }
+    @media print { body { margin: 20px; } button { display: none; } }
+  </style></head><body>
+  <div class="header">
+    <div>
+      <h1>HMRC Alcohol Duty Return</h1>
+      <div class="meta">
+        <strong>${farmName}</strong>${licenceNo ? ` &nbsp;&middot;&nbsp; Winery Licence: ${licenceNo}` : ""}<br>
+        Return Period: <strong>${d(record.periodStart)} &ndash; ${d(record.periodEnd)}</strong>
+      </div>
+    </div>
+    <div style="text-align:right">
+      <div class="meta">Printed: ${new Date().toLocaleDateString("en-GB")}</div>
+      ${record.hmrcReturnRef ? `<div class="meta" style="margin-top:4px">HMRC Ref: <strong>${String(record.hmrcReturnRef)}</strong></div>` : ""}
+      <div class="meta" style="margin-top:6px;font-size:13px">Status: <strong>${String(record.status ?? "draft").toUpperCase()}</strong></div>
+    </div>
+  </div>
+
+  <div class="notice">
+    <strong>How to submit:</strong> Log in to your HMRC Business Tax Account at
+    <strong>https://www.tax.service.gov.uk/alcohol-duty</strong> and enter the figures below.
+    Excise Notice 163 applies. Payment is due by the last working day of the month following the return period.
+  </div>
+
+  <h2>Section 1 &mdash; Stock Account (litres)</h2>
+  <table>
+    <tr><td>Opening Stock (start of period)</td><td>${n(record.openingStockL)} L</td></tr>
+    <tr><td>Add: Total Produced This Period</td><td>+ ${n(record.totalLitresProduced)} L</td></tr>
+    <tr><td>Less: Removed to UK Market <em>(dutiable on removal)</em></td><td>&minus; ${n(record.totalLitresRemovedUK)} L</td></tr>
+    <tr><td>Less: Exported <em>(duty-suspended &mdash; not included in duty)</em></td><td>&minus; ${n(record.totalLitresExported)} L</td></tr>
+    <tr><td>Less: Domestic Consumption <em>(grower&rsquo;s own use &mdash; dutiable)</em></td><td>&minus; ${n(record.totalLitresDomesticConsumption)} L</td></tr>
+    <tr><td>Less: Tastings / Samples <em>(all tasting volumes are dutiable)</em></td><td>&minus; ${n(record.totalLitresTastings)} L</td></tr>
+    <tr class="total-row"><td>= Closing Stock (end of period)</td><td>${n(record.closingStockL)} L</td></tr>
+  </table>
+
+  <h2>Section 2 &mdash; Duty Calculation (HMRC August 2023 Rates)</h2>
+  <table>
+    <tr><td>Wine Type &amp; ABV</td><td>${n(record.nominalAbvPct, 2)}% ABV &mdash; Still wine</td></tr>
+    <tr><td>Rolling 12-Month Production</td><td>${record.annualProductionL ? `${n(record.annualProductionL, 0)} L &nbsp;(${(parseFloat(String(record.annualProductionL ?? 0)) / 100).toFixed(1)} hl)` : "&mdash;"}</td></tr>
+    <tr><td>Small Producer Relief (SPR)</td><td>${spr ? '<span class="badge badge-spr">&#10003; SPR Claimed &mdash; Reduced Rate</span>' : '<span class="badge badge-std">Not Claimed &mdash; Standard Rate</span>'}</td></tr>
+    <tr><td>Dutiable Litres <em>(UK removals + domestic + tastings)</em></td><td><strong>${dutiableL.toFixed(1)} L</strong></td></tr>
+    <tr><td>Effective Duty Rate</td><td>&pound;${n(record.dutyRatePer100L, 2)} per 100 L</td></tr>
+    <tr class="duty-row"><td>TOTAL ALCOHOL DUTY PAYABLE</td><td>&pound;${n(record.totalDutyPayable, 2)}</td></tr>
+  </table>
+
+  <h2>Section 3 &mdash; Filing Dates</h2>
+  <table>
+    <tr><td>Submitted to HMRC</td><td>${d(record.submittedDate)}</td></tr>
+    <tr><td>Duty Paid</td><td>${d(record.paidDate)}</td></tr>
+  </table>
+
+  ${record.notes ? `<h2>Notes</h2><p style="font-size:12px;color:#444;margin:0">${String(record.notes)}</p>` : ""}
+
+  <div class="footer">
+    Prepared by BDE Farm Trac &nbsp;&middot;&nbsp; Excise Notice 163 &nbsp;&middot;&nbsp;
+    Submit: https://www.tax.service.gov.uk/alcohol-duty &nbsp;&middot;&nbsp;
+    SPR threshold: 4,500 hl / year &nbsp;&middot;&nbsp; Standard still wine rate (8.5&ndash;22% ABV): &pound;28.50/LPA
+  </div>
+  </body></html>`;
+
+  const win = window.open("", "_blank", "width=820,height=1060");
+  if (!win) return;
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => { setTimeout(() => win.print(), 200); };
+}
+
+function printOrganicWineRecords(records: Record<string, unknown>[], farmName: string) {
+  const n = (v: unknown, dp = 1) => v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp);
+  const vintages = [...new Set(records.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse().join(", ");
+  const rows = records.map(r => `
+    <tr>
+      <td>${String(r.vintageYear ?? "—")}</td>
+      <td>${String(r.wineColour ?? "—")}</td>
+      <td style="text-align:right">${r.volumeLitres ? `${n(r.volumeLitres, 0)} L` : "—"}</td>
+      <td style="text-align:center">${r.certifiedOrganic === 1 || r.certifiedOrganic === "1" ? "&#10003; Yes" : "No"}</td>
+      <td>${String(r.certifierRef ?? "—")}</td>
+      <td>${String(r.additiveName ?? "—")}</td>
+      <td>${String(r.additiveType ?? "—")}</td>
+      <td>${r.quantityUsed ? `${String(r.quantityUsed)} ${String(r.quantityUnit ?? "")}`.trim() : "—"}</td>
+      <td style="text-align:right">${r.actualSO2MgL ? `${n(r.actualSO2MgL, 0)}` : "—"}</td>
+      <td style="text-align:right">${r.maxSO2MgL ? `${n(r.maxSO2MgL, 0)}` : "—"}</td>
+      <td style="text-align:center;${r.so2Compliant === 1 || r.so2Compliant === "1" ? "color:#065f46;font-weight:600" : "color:#991b1b;font-weight:600"}">${r.so2Compliant === 1 || r.so2Compliant === "1" ? "&#10003; Compliant" : "&#10007; Exceeds"}</td>
+    </tr>
+  `).join("");
+
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+  <title>Organic Wine Production Register &mdash; ${farmName}</title>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 11.5px; color: #111; margin: 32px; }
+    h1 { font-size: 17px; margin-bottom: 4px; }
+    .meta { font-size: 12px; color: #555; margin-bottom: 14px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+    th { background: #3b1a6b; color: white; padding: 6px 5px; text-align: left; white-space: nowrap; }
+    td { padding: 5px 5px; border: 1px solid #ddd; vertical-align: top; }
+    tr:nth-child(even) td { background: #f9f7ff; }
+    .notice { background: #f5f3ff; border: 1px solid #c4b5fd; padding: 8px 12px; border-radius: 4px; font-size: 11.5px; margin-bottom: 14px; }
+    .footer { margin-top: 20px; font-size: 11px; color: #666; border-top: 1px solid #ccc; padding-top: 8px; }
+    @media print { body { margin: 15px; } }
+  </style></head><body>
+  <h1>Organic Wine Production Register</h1>
+  <div class="meta">
+    <strong>${farmName}</strong> &nbsp;&middot;&nbsp; Vintages: ${vintages || "All"} &nbsp;&middot;&nbsp; Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record(s)
+  </div>
+  <div class="notice">
+    <strong>SO&#8322; limits for organic wine (UK-retained Reg 203/2012):</strong>
+    Red wine &mdash; 100 mg/L total SO&#8322;. White &amp; ros&eacute; &mdash; 150 mg/L.
+    These limits are lower than for conventional wine.
+    This register supports organic certification audits and is required evidence for your certifying body.
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Vintage</th><th>Colour</th><th>Volume</th><th>Organic</th><th>Certifier Ref</th>
+        <th>Additive</th><th>Type</th><th>Quantity</th><th>SO&#8322; Actual (mg/L)</th><th>SO&#8322; Max (mg/L)</th><th>SO&#8322; Status</th>
+      </tr>
+    </thead>
+    <tbody>${rows || "<tr><td colspan='11' style='text-align:center;color:#888'>No records</td></tr>"}</tbody>
+  </table>
+  <div class="footer">
+    Prepared by BDE Farm Trac &nbsp;&middot;&nbsp; UK-retained EU Reg 203/2012 &nbsp;&middot;&nbsp; Retain for certification audit purposes
+  </div>
+  </body></html>`;
+
+  const win = window.open("", "_blank", "width=1100,height=900");
+  if (!win) return;
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => { setTimeout(() => win.print(), 200); };
 }
 
 const PRESSURE_LABELS: Record<number, { label: string; color: string }> = {
@@ -1900,6 +2056,16 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
     enabled: !!farmId,
   });
 
+  // Farm name for print header
+  const { data: farmsData } = useQuery<{ records?: Record<string, unknown>[] }>({
+    queryKey: ["farms-list"],
+    queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
+    staleTime: 300_000,
+  });
+  const farmName = (Array.isArray(farmsData?.records)
+    ? (farmsData.records.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name
+    : undefined) as string | undefined;
+
   const openAdd = () => {
     setForm({ vintageYear: String(new Date().getFullYear()), certifiedOrganic: "1", so2Compliant: "1" });
     setShowAdd(true);
@@ -1949,9 +2115,16 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-gray-600">Record organic wine production additive use and SO₂ compliance per vintage. UK-retained EU Reg 203/2012 sets SO₂ limits: 100 mg/L red, 150 mg/L white/rosé.</p>
-        <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Record</Button>
+        <div className="flex gap-2 shrink-0">
+          {records.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => printOrganicWineRecords(records, farmName ?? `Farm ${farmId}`)}>
+              <Printer className="h-3.5 w-3.5 mr-1.5" />Print Register
+            </Button>
+          )}
+          <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Record</Button>
+        </div>
       </div>
       <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-purple-900">
         <strong>SO₂ limits for organic wine (UK-retained Reg 203/2012):</strong> Red wine — 100 mg/L total SO₂. White and rosé wine — 150 mg/L. These limits are lower than for conventional wine. Sparkling and sweet wine may have higher permitted levels — check your certifier guidance.
@@ -2213,6 +2386,23 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
     staleTime: 60_000,
   });
 
+  // Fetch farm name and first winery licence number for print header
+  const { data: farmsData } = useQuery<{ records?: Record<string, unknown>[] }>({
+    queryKey: ["farms-list"],
+    queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
+    staleTime: 300_000,
+  });
+  const farmName = (Array.isArray(farmsData?.records)
+    ? (farmsData.records.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name
+    : undefined) as string | undefined;
+  const { data: licencesData } = useQuery<{ records?: Record<string, unknown>[] }>({
+    queryKey: ["winery-licences", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/winery-licences`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 300_000,
+  });
+  const firstLicenceNo = (licencesData?.records ?? [])[0]?.licenceNumber as string | undefined;
+
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, unknown>>({});
@@ -2366,7 +2556,12 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
                 <RecordAttachments farmId={farmId} recordType="winery-excise-return" recordId={view.id} />
               </div>
             )}
-            <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => printExciseReturn(view, farmName ?? `Farm ${farmId}`, firstLicenceNo)}>
+                <Printer className="w-3.5 h-3.5 mr-1.5" />Print Return
+              </Button>
+              <Button onClick={() => setView(null)}>Close</Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
