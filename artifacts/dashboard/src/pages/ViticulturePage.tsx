@@ -6,8 +6,13 @@ import {
   Plus, Trash2, Loader2, Eye, Grape, Leaf, ClipboardList, Sprout,
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
-  Droplet, FlaskConical, ChevronRight, Package,
+  Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen,
 } from "lucide-react";
+import {
+  ViticulturalAnalyticsTab,
+  VintageSeasonReportTab,
+  ViticulturalEnterpriseReport,
+} from "@/components/ViticulturalReports";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -4133,6 +4138,9 @@ const TABS = [
   { id: "winery-stock", label: "Winery Stock", icon: Package },
   { id: "spray-diary", label: "Spray Diary", icon: Droplet },
   { id: "soil-analysis", label: "Soil & Leaf Analysis", icon: FlaskConical },
+  { id: "analytics", label: "Analytics", icon: BarChart3 },
+  { id: "vintage-report", label: "Vintage Report", icon: BookOpen },
+  { id: "enterprise-report", label: "Enterprise Report", icon: TrendingUp },
 ];
 
 export default function ViticulturePage() {
@@ -4187,6 +4195,9 @@ export default function ViticulturePage() {
           {tab === "winery-stock" && <WineryStockTab farmId={selectedFarmId} />}
           {tab === "spray-diary" && <SprayDiaryTab farmId={selectedFarmId} blocks={blocks.data} />}
           {tab === "soil-analysis" && <SoilAnalysisTab farmId={selectedFarmId} blocks={blocks.data} />}
+          {tab === "analytics" && <ViticulturalAnalyticsTab farmId={selectedFarmId} />}
+          {tab === "vintage-report" && <VintageSeasonReportTab farmId={selectedFarmId} />}
+          {tab === "enterprise-report" && <ViticulturalEnterpriseReport farmId={selectedFarmId} />}
         </div>
       </div>
       <RaiseTaskDialog
