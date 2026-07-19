@@ -2956,7 +2956,7 @@ function StaffHoursCrossRefTab({ farmId, staffNames }: { farmId: number; staffNa
     enabled: !!farmId,
   });
 
-  const foQ = useQuery<FieldOpRecord[]>({
+  const foQ = useQuery<{ records: FieldOpRecord[] }>({
     queryKey: ["field-operations", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/field-operations`).then(r => r.json()),
     enabled: !!farmId,
@@ -3008,7 +3008,7 @@ function StaffHoursCrossRefTab({ farmId, staffNames }: { farmId: number; staffNa
 
   const { rows, summaryTimesheet, summaryFieldOps, summaryMismatch } = useMemo(() => {
     const allTs = (tsQ.data?.entries ?? []).filter(e => e.date >= weekStart && e.date <= weekEnd);
-    const allFo = (foQ.data ?? []).filter(
+    const allFo = (foQ.data?.records ?? []).filter(
       (r: FieldOpRecord) => r.operationDate >= weekStart && r.operationDate <= weekEnd && !r.isContractor && r.operator && r.labourHours && parseFloat(r.labourHours) > 0,
     );
 
