@@ -647,11 +647,41 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
 
   async function fetchWeatherForDate(date: string) {
     if (!date || !farmId) return;
+    const target = new Date(date).getTime();
     try {
+      // 1. Try API-connected weather stations first
+      try {
+        const sensorData = await fetch(`/api/farms/${farmId}/sensor-readings?category=weather&limit=200`).then(r => r.json());
+        const sensorReadings: any[] = sensorData.readings ?? [];
+        if (sensorReadings.length > 0) {
+          const sorted = [...sensorReadings].sort((a, b) =>
+            Math.abs(new Date(a.recordedAt).getTime() - target) - Math.abs(new Date(b.recordedAt).getTime() - target)
+          );
+          const closestTs = new Date(sorted[0].recordedAt).getTime();
+          if (Math.abs(closestTs - target) < 86400000 * 2) {
+            const window = sensorReadings.filter(r => Math.abs(new Date(r.recordedAt).getTime() - closestTs) < 30 * 60000);
+            const getVal = (param: string) => window.find((r: any) => r.parameter === param)?.value;
+            const temp    = getVal("air_temperature") ?? getVal("temperature");
+            const wind    = getVal("wind_speed");
+            const windDir = getVal("wind_direction");
+            if (temp != null || wind != null) {
+              setForm((f: any) => ({
+                ...f,
+                temperatureC:  temp    != null ? String(Math.round(Number(temp) * 10) / 10) : f.temperatureC,
+                windSpeedKmh:  wind    != null ? String(Math.round(Number(wind)))             : f.windSpeedKmh,
+                windDirection: windDir != null ? degreesToCompass(Number(windDir))             : f.windDirection,
+              }));
+              setWeatherAutoFilled(true);
+              return;
+            }
+          }
+        }
+      } catch { /* fall through */ }
+
+      // 2. Fall back to manually logged weather readings
       const data = await fetch(`/api/farms/${farmId}/weather-readings`).then(r => r.json());
       const readings: any[] = data.records ?? [];
       if (readings.length === 0) return;
-      const target = new Date(date).getTime();
       let closest: any = null;
       let closestDiff = Infinity;
       for (const r of readings) {
@@ -662,9 +692,9 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
       if (closest && closestDiff < 86400000 * 2) {
         setForm((f: any) => ({
           ...f,
-          windSpeedKmh: closest.windSpeedKmh != null ? String(closest.windSpeedKmh) : f.windSpeedKmh,
-          windDirection: closest.windDirection || f.windDirection,
-          temperatureC: closest.temperatureC != null ? String(closest.temperatureC) : f.temperatureC,
+          windSpeedKmh:  closest.windSpeedKmh  != null ? String(closest.windSpeedKmh)  : f.windSpeedKmh,
+          windDirection: closest.windDirection  || f.windDirection,
+          temperatureC:  closest.temperatureC  != null ? String(closest.temperatureC)  : f.temperatureC,
         }));
         setWeatherAutoFilled(true);
       }

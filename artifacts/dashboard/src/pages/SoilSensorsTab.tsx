@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer,
@@ -732,6 +732,199 @@ function ProbePanel({ probe, farmId, fields }: { probe: SoilSensorProbe; farmId:
 }
 
 // ─── Main tab export ──────────────────────────────────────────────────────────
+// ─── API Connected Soil Sensors ───────────────────────────────────────────────
+
+interface ApiSoilReading {
+  id: number;
+  provider: string;
+  stationId: string;
+  stationName: string | null;
+  parameter: string;
+  value: string | null;
+  unit: string | null;
+  depthCm: number | null;
+  recordedAt: string;
+}
+
+const SOIL_PARAM_META: Record<string, { label: string; color: string }> = {
+  soil_moisture_1:          { label: "Soil Moisture 1",       color: "#3b82f6" },
+  soil_moisture_2:          { label: "Soil Moisture 2",       color: "#60a5fa" },
+  soil_moisture_3:          { label: "Soil Moisture 3",       color: "#93c5fd" },
+  soil_moisture_4:          { label: "Soil Moisture 4",       color: "#bfdbfe" },
+  soil_temperature_1:       { label: "Soil Temp 1",           color: "#f97316" },
+  soil_temperature_2:       { label: "Soil Temp 2",           color: "#fb923c" },
+  soil_temperature_3:       { label: "Soil Temp 3",           color: "#fdba74" },
+  soil_temperature_4:       { label: "Soil Temp 4",           color: "#fed7aa" },
+  volumetric_water_content: { label: "Vol. Water Content",    color: "#06b6d4" },
+  soil_temperature:         { label: "Soil Temperature",      color: "#f97316" },
+  electrical_conductivity:  { label: "Electrical Conductivity", color: "#8b5cf6" },
+  water_potential:          { label: "Water Potential",        color: "#14b8a6" },
+  dielectric_permittivity:  { label: "Dielec. Permittivity",  color: "#6b7280" },
+};
+
+function ApiConnectedSoilSensors({ farmId }: { farmId: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const [days, setDays] = useState<"7" | "14" | "30">("7");
+  const [selectedStation, setSelectedStation] = useState<string | null>(null);
+  const [selectedParam, setSelectedParam] = useState<string>("");
+
+  const from = new Date(Date.now() - Number(days) * 86400000).toISOString();
+
+  const { data, isLoading } = useQuery<{ readings: ApiSoilReading[] }>({
+    queryKey: ["sensor-readings-soil", farmId, days],
+    queryFn: async () => {
+      const res = await fetch(`/api/farms/${farmId}/sensor-readings?category=soil&from=${encodeURIComponent(from)}&limit=2000`);
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    enabled: expanded,
+  });
+
+  const readings = data?.readings ?? [];
+
+  const stationMap = new Map<string, { name: string; readings: ApiSoilReading[] }>();
+  for (const r of readings) {
+    if (!stationMap.has(r.stationId)) stationMap.set(r.stationId, { name: r.stationName ?? r.stationId, readings: [] });
+    stationMap.get(r.stationId)!.readings.push(r);
+  }
+  const stations = Array.from(stationMap.entries());
+
+  useEffect(() => {
+    if (stations.length > 0 && !selectedStation) setSelectedStation(stations[0][0]);
+  }, [stations.length]);
+
+  const stationData = selectedStation ? stationMap.get(selectedStation) : null;
+  const availableParams = Array.from(new Set(stationData?.readings.map(r => r.parameter) ?? []));
+
+  useEffect(() => {
+    if (availableParams.length > 0 && !selectedParam) {
+      const pref =
+        availableParams.find(p => p === "volumetric_water_content") ??
+        availableParams.find(p => p === "soil_moisture_1") ??
+        availableParams[0];
+      setSelectedParam(pref);
+    }
+  }, [availableParams.join(",")]);
+
+  const latestByParam = new Map<string, ApiSoilReading>();
+  for (const r of [...(stationData?.readings ?? [])].sort(
+    (a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime()
+  )) {
+    if (!latestByParam.has(r.parameter)) latestByParam.set(r.parameter, r);
+  }
+
+  const chartData = (stationData?.readings ?? [])
+    .filter(r => r.parameter === selectedParam)
+    .sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime())
+    .map(r => ({
+      t: new Date(r.recordedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+      v: r.value != null ? Number(r.value) : null,
+    }));
+
+  return (
+    <div className="mt-8 border-t border-gray-100 pt-6">
+      <button onClick={() => setExpanded(e => !e)} className="flex items-center gap-2 w-full text-left mb-1">
+        <Cpu className="w-4 h-4 text-green-600" />
+        <h2 className="text-base font-semibold text-gray-800">API Connected Soil Sensors</h2>
+        <span className="text-xs text-gray-400 ml-1">(Davis, ZENTRA, FieldClimate, Sencrop)</span>
+        <ChevronDown className={`w-4 h-4 text-gray-400 ml-auto transition-transform ${expanded ? "rotate-180" : ""}`} />
+      </button>
+      <p className="text-xs text-gray-500 mb-3">Readings collected automatically from connected sensor APIs every 30 minutes.</p>
+
+      {expanded && (
+        <div>
+          {isLoading ? (
+            <div className="flex items-center gap-2 text-gray-400 py-8 justify-center">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+            </div>
+          ) : stations.length === 0 ? (
+            <div className="text-center py-10 text-sm text-gray-400">
+              No soil sensor readings found. Connect a soil sensor integration in{" "}
+              <strong className="text-gray-600">Farm Settings → Sensor Integrations</strong>.
+            </div>
+          ) : (
+            <div>
+              <div className="flex flex-wrap items-center gap-3 mb-4">
+                {stations.length > 1 && (
+                  <select
+                    value={selectedStation ?? ""}
+                    onChange={e => { setSelectedStation(e.target.value); setSelectedParam(""); }}
+                    className="text-xs border border-gray-200 rounded px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
+                    {stations.map(([id, s]) => <option key={id} value={id}>{s.name}</option>)}
+                  </select>
+                )}
+                {stations.length === 1 && <span className="text-sm font-medium text-gray-700">{stations[0][1].name}</span>}
+                <select value={days} onChange={e => setDays(e.target.value as "7" | "14" | "30")}
+                  className="text-xs border border-gray-200 rounded px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
+                  <option value="7">Last 7 days</option>
+                  <option value="14">Last 14 days</option>
+                  <option value="30">Last 30 days</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mb-5">
+                {availableParams.map(param => {
+                  const r = latestByParam.get(param);
+                  const meta = SOIL_PARAM_META[param];
+                  const isSelected = selectedParam === param;
+                  if (!r) return null;
+                  return (
+                    <button key={param} onClick={() => setSelectedParam(param)}
+                      className={`rounded border p-2.5 text-left transition-all text-xs ${isSelected ? "border-green-500 bg-green-50 ring-1 ring-green-400" : "border-gray-200 bg-white hover:border-gray-300"}`}>
+                      <div className="text-gray-500 mb-1 truncate">
+                        {meta?.label ?? param}{r.depthCm ? ` (${r.depthCm} cm)` : ""}
+                      </div>
+                      <div className="text-base font-semibold text-gray-800">
+                        {Number(r.value).toFixed(1)}
+                        <span className="text-xs font-normal text-gray-500 ml-0.5">{r.unit}</span>
+                      </div>
+                      <div className="text-gray-400 mt-0.5">
+                        {new Date(r.recordedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {chartData.length > 0 && (
+                <div className="bg-white border border-gray-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs font-medium text-gray-600">
+                      {SOIL_PARAM_META[selectedParam]?.label ?? selectedParam}
+                    </span>
+                    <select value={selectedParam} onChange={e => setSelectedParam(e.target.value)}
+                      className="text-xs border border-gray-200 rounded px-2 py-0.5 bg-white focus:outline-none ml-auto">
+                      {availableParams.map(p => <option key={p} value={p}>{SOIL_PARAM_META[p]?.label ?? p}</option>)}
+                    </select>
+                  </div>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={chartData} margin={{ top: 2, right: 12, left: 0, bottom: 2 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="t" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
+                      <YAxis tick={{ fontSize: 9 }} width={45} />
+                      <Tooltip
+                        formatter={(v: number) => [
+                          `${v} ${latestByParam.get(selectedParam)?.unit ?? ""}`,
+                          SOIL_PARAM_META[selectedParam]?.label ?? selectedParam,
+                        ]}
+                      />
+                      <Line
+                        type="monotone" dataKey="v"
+                        stroke={SOIL_PARAM_META[selectedParam]?.color ?? "#3b82f6"}
+                        dot={false} strokeWidth={2} connectNulls
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SoilSensorsTab({ farmId }: { farmId: number }) {
   const { data: fieldsData } = useQuery<{ records: FieldRecord[] }>({
     queryKey: ["fields", farmId],
@@ -875,6 +1068,7 @@ export function SoilSensorsTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
+      <ApiConnectedSoilSensors farmId={farmId} />
       {showAdd && <ProbeDialog open farmId={farmId} fields={fields} onClose={() => setShowAdd(false)} />}
       {editProbe && <ProbeDialog open probe={editProbe} farmId={farmId} fields={fields} onClose={() => setEditProbe(null)} />}
     </div>

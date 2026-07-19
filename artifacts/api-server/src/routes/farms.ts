@@ -36887,7 +36887,9 @@ router.post("/farms/:farmId/sensor-integrations/:provider/sync", requireAuth, re
 router.get("/farms/:farmId/sensor-readings", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const category = req.query.category as string | undefined;
-  const limit = Math.min(Number(req.query.limit ?? 100), 500);
+  const from     = req.query.from as string | undefined;
+  const to       = req.query.to   as string | undefined;
+  const limit    = Math.min(Number(req.query.limit ?? 500), 2000);
 
   try {
     const rows = await db.select({
@@ -36907,6 +36909,8 @@ router.get("/farms/:farmId/sensor-readings", requireAuth, requireTenant, async (
       .where(and(
         eq(apiSensorReadingsTable.farmId, farmId),
         category ? eq(apiSensorReadingsTable.sensorCategory, category) : undefined,
+        from     ? gte(apiSensorReadingsTable.recordedAt, new Date(from)) : undefined,
+        to       ? lte(apiSensorReadingsTable.recordedAt, new Date(to))   : undefined,
       ))
       .orderBy(desc(apiSensorReadingsTable.recordedAt))
       .limit(limit);

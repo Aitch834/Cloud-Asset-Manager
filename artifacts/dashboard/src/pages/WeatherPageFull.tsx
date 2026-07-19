@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -39,7 +39,7 @@ function wmoToCondition(code: number): string {
   return "Variable";
 }
 
-type Tab = "readings" | "chart" | "vehicle" | "devices";
+type Tab = "readings" | "chart" | "vehicle" | "devices" | "stations";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -877,6 +877,225 @@ function DevicesTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Connected Stations Tab ────────────────────────────────────────────────────
+
+interface SensorReading {
+  id: number;
+  provider: string;
+  stationId: string;
+  stationName: string | null;
+  sensorCategory: string;
+  parameter: string;
+  value: string | null;
+  unit: string | null;
+  depthCm: number | null;
+  recordedAt: string;
+}
+
+const WEATHER_PARAM_META: Record<string, { label: string; color: string }> = {
+  air_temperature:   { label: "Temperature",    color: "#f97316" },
+  temp_indoor:       { label: "Indoor Temp",    color: "#fb923c" },
+  humidity:          { label: "Humidity",       color: "#3b82f6" },
+  rainfall:          { label: "Rainfall",       color: "#06b6d4" },
+  rain_rate:         { label: "Rain Rate",      color: "#0284c7" },
+  wind_speed:        { label: "Wind Speed",     color: "#8b5cf6" },
+  wind_direction:    { label: "Wind Dir",       color: "#6b7280" },
+  pressure:          { label: "Pressure",       color: "#10b981" },
+  solar_radiation:   { label: "Solar Rad.",     color: "#eab308" },
+  uv_index:          { label: "UV Index",       color: "#f59e0b" },
+  dew_point:         { label: "Dew Point",      color: "#14b8a6" },
+  wet_bulb_temp:     { label: "Wet Bulb",       color: "#06b6d4" },
+  temperature:       { label: "Temperature",    color: "#f97316" },
+  relative_humidity: { label: "Humidity",       color: "#3b82f6" },
+  precipitation:     { label: "Precipitation",  color: "#06b6d4" },
+  wind_gust:         { label: "Wind Gust",      color: "#7c3aed" },
+  leaf_wetness:      { label: "Leaf Wetness",   color: "#22c55e" },
+};
+
+const SUMMARY_PARAMS = [
+  "air_temperature", "temperature", "humidity", "relative_humidity",
+  "rainfall", "precipitation", "wind_speed", "pressure", "solar_radiation",
+];
+
+function ConnectedStationsTab({ farmId }: { farmId: number }) {
+  const [days, setDays] = useState<"7" | "14" | "30">("7");
+  const [selectedStation, setSelectedStation] = useState<string | null>(null);
+  const [selectedParam, setSelectedParam] = useState<string>("");
+
+  const from = new Date(Date.now() - Number(days) * 86400000).toISOString();
+
+  const { data, isLoading } = useQuery<{ readings: SensorReading[] }>({
+    queryKey: ["sensor-readings-weather", farmId, days],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/farms/${farmId}/sensor-readings?category=weather&from=${encodeURIComponent(from)}&limit=2000`
+      );
+      if (!res.ok) throw new Error("Failed to load station data");
+      return res.json();
+    },
+  });
+
+  const readings = data?.readings ?? [];
+
+  const stationMap = new Map<string, { name: string; readings: SensorReading[] }>();
+  for (const r of readings) {
+    if (!stationMap.has(r.stationId))
+      stationMap.set(r.stationId, { name: r.stationName ?? r.stationId, readings: [] });
+    stationMap.get(r.stationId)!.readings.push(r);
+  }
+  const stations = Array.from(stationMap.entries());
+
+  useEffect(() => {
+    if (stations.length > 0 && !selectedStation) setSelectedStation(stations[0][0]);
+  }, [stations.length]);
+
+  const stationData = selectedStation ? stationMap.get(selectedStation) : null;
+  const availableParams = Array.from(new Set(stationData?.readings.map(r => r.parameter) ?? []));
+
+  useEffect(() => {
+    if (availableParams.length > 0 && !selectedParam) {
+      const pref =
+        availableParams.find(p => p === "air_temperature") ??
+        availableParams.find(p => p === "temperature") ??
+        availableParams[0];
+      setSelectedParam(pref);
+    }
+  }, [availableParams.join(",")]);
+
+  const latestByParam = new Map<string, SensorReading>();
+  for (const r of [...(stationData?.readings ?? [])].sort(
+    (a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime()
+  )) {
+    if (!latestByParam.has(r.parameter)) latestByParam.set(r.parameter, r);
+  }
+
+  const chartData = (stationData?.readings ?? [])
+    .filter(r => r.parameter === selectedParam)
+    .sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime())
+    .map(r => ({
+      t: new Date(r.recordedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+      v: r.value != null ? Number(r.value) : null,
+    }));
+
+  if (isLoading) return (
+    <div className="flex items-center gap-2 text-gray-400 py-16 justify-center">
+      <Loader2 className="w-5 h-5 animate-spin" /> Loading station data…
+    </div>
+  );
+
+  if (stations.length === 0) return (
+    <div className="text-center py-16">
+      <Cpu className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+      <p className="font-medium text-gray-600 mb-1">No connected weather stations</p>
+      <p className="text-sm text-gray-400 max-w-sm mx-auto">
+        Connect a Davis WeatherLink, Sencrop, or FieldClimate station in{" "}
+        <strong>Farm Settings → Sensor Integrations</strong> to see live data here.
+      </p>
+    </div>
+  );
+
+  const summaryParams = SUMMARY_PARAMS.filter(p => latestByParam.has(p));
+
+  return (
+    <div>
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        {stations.length > 1 && (
+          <select
+            value={selectedStation ?? ""}
+            onChange={e => { setSelectedStation(e.target.value); setSelectedParam(""); }}
+            className="text-sm border border-gray-200 rounded px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-green-400">
+            {stations.map(([id, s]) => <option key={id} value={id}>{s.name}</option>)}
+          </select>
+        )}
+        {stations.length === 1 && (
+          <span className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+            <Cpu size={14} className="text-green-600" />{stations[0][1].name}
+          </span>
+        )}
+        <select value={days} onChange={e => setDays(e.target.value as "7" | "14" | "30")}
+          className="text-sm border border-gray-200 rounded px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-green-400">
+          <option value="7">Last 7 days</option>
+          <option value="14">Last 14 days</option>
+          <option value="30">Last 30 days</option>
+        </select>
+        <span className="text-xs text-gray-400 ml-auto">
+          {stationData?.readings.length ?? 0} readings synced
+        </span>
+      </div>
+
+      {/* Summary cards — click a card to chart that parameter */}
+      {summaryParams.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+          {summaryParams.map(param => {
+            const r = latestByParam.get(param)!;
+            const meta = WEATHER_PARAM_META[param];
+            const isSelected = selectedParam === param;
+            return (
+              <button key={param} onClick={() => setSelectedParam(param)}
+                className={`rounded-lg border p-3 text-left transition-all w-full ${
+                  isSelected
+                    ? "border-green-500 bg-green-50 ring-1 ring-green-400"
+                    : "border-gray-200 bg-white hover:border-gray-300"
+                }`}>
+                <div className="text-xs text-gray-500 mb-1 truncate">{meta?.label ?? param}</div>
+                <div className="text-xl font-semibold text-gray-800">
+                  {Number(r.value).toFixed(1)}
+                  <span className="text-xs font-normal text-gray-500 ml-0.5">{r.unit}</span>
+                </div>
+                <div className="text-xs text-gray-400 mt-0.5">
+                  {new Date(r.recordedAt).toLocaleString("en-GB", {
+                    day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                  })}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Chart */}
+      <div className="bg-white border border-gray-200 rounded-lg p-4">
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <span className="text-sm font-medium text-gray-700">
+            {WEATHER_PARAM_META[selectedParam]?.label ?? selectedParam}
+          </span>
+          <select value={selectedParam} onChange={e => setSelectedParam(e.target.value)}
+            className="text-xs border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-green-400 ml-auto">
+            {availableParams.map(p => (
+              <option key={p} value={p}>{WEATHER_PARAM_META[p]?.label ?? p}</option>
+            ))}
+          </select>
+        </div>
+        {chartData.length === 0 ? (
+          <div className="text-center text-gray-400 py-12 text-sm">
+            No data for selected parameter and date range
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="t" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 10 }} width={52} />
+              <Tooltip
+                formatter={(v: number) => [
+                  `${v} ${latestByParam.get(selectedParam)?.unit ?? ""}`,
+                  WEATHER_PARAM_META[selectedParam]?.label ?? selectedParam,
+                ]}
+              />
+              <Line
+                type="monotone" dataKey="v"
+                stroke={WEATHER_PARAM_META[selectedParam]?.color ?? "#10b981"}
+                dot={false} strokeWidth={2} connectNulls
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function WeatherPageFull() {
@@ -894,11 +1113,13 @@ export default function WeatherPageFull() {
           <TabButton active={tab === "chart"} onClick={() => setTab("chart")}><TrendingUp size={14} className="mr-1" />Chart</TabButton>
           <TabButton active={tab === "vehicle"} onClick={() => setTab("vehicle")}><Truck size={14} className="mr-1" />Vehicle Stations</TabButton>
           <TabButton active={tab === "devices"} onClick={() => setTab("devices")}><Cpu size={14} className="mr-1" />Device Register</TabButton>
+          <TabButton active={tab === "stations"} onClick={() => setTab("stations")}><Cpu size={14} className="mr-1" />Connected Stations</TabButton>
         </TabBar>
         {farmId && tab === "readings" && <ReadingsTab farmId={farmId} />}
         {farmId && tab === "chart" && <ChartTab farmId={farmId} />}
         {farmId && tab === "vehicle" && <VehicleReadingsTab farmId={farmId} />}
         {farmId && tab === "devices" && <DevicesTab farmId={farmId} />}
+        {farmId && tab === "stations" && <ConnectedStationsTab farmId={farmId} />}
       </div>
     </AppLayout>
   );
