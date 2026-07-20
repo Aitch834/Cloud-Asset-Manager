@@ -307,6 +307,9 @@ const TITLES: [string, string][] = [
   ["Assigning Resources to Tasks — Gantt View, Drag-and-Drop and Conflict Detection", "Resource Planner"],
   ["Dairy Supplies — PPE & Chemical Drawdown Recording", "Livestock"],
   ["Dairy Supplies — Restock Request Workflow", "Livestock"],
+  ["Silage & Haylage Stock Tracking — Cut Records, Yield and Clamp Balance", "Environmental"],
+  ["Straw Bale Inventory — Bale Batches, Moisture Checks and Biomass Contracts", "Fields & Crops"],
+  ["Season Reports — Forage & Straw Tab", "Dashboards"],
 ];
 
 const CONTENT: [string, string][] = [
@@ -5819,6 +5822,99 @@ The Livestock Information Service has confirmed that LIP Cattle API submissions 
 <p>The BDE admin team manages all incoming requests through the <strong>Dairy Restock</strong> page in the Admin Portal. Requests can be filtered by status and urgency, and the admin team updates the status (Approve, Mark Ordered, Mark Received, or Reject with reason) from there. Critical-urgency requests are highlighted to ensure prompt action.</p>
 <h3>When to use Urgent or Critical</h3>
 <p>Use <strong>Urgent</strong> when you have a few days' stock remaining but cannot wait for the next routine order cycle. Use <strong>Critical</strong> when you have zero stock and operations are at risk — for example, no teat dip ahead of milking or no gloves available for DCT. Critical requests are flagged prominently in the admin portal.</p>`,
+  ],
+  // 279 — Silage & Haylage Stock Tracking — Cut Records, Yield and Clamp Balance
+  [
+    "How to record silage and haylage cut events with yield data, track the running stock balance per clamp, and log usage drawdowns in BDE Farm Trac.",
+    `<h2>Silage &amp; Haylage Stock Tracking — Cut Records, Yield and Clamp Balance</h2>
+<p>BDE Farm Trac's <strong>Environmental module → Silage &amp; Haylage</strong> section includes a dedicated <strong>Stock</strong> tab that sits alongside Additive Records, Quality Tests, and Clamp Inspections. It gives you a live forage inventory — showing how many tonnes went into each clamp and how much has been drawn out — without any separate spreadsheet.</p>
+<h3>Recording a cut</h3>
+<p>Navigate to <strong>Environmental → Silage &amp; Haylage → Cut Records</strong> and click <strong>New Cut Record</strong>. Each entry captures:</p>
+<ul>
+<li><strong>Forage type</strong> — Grass Silage, Maize Silage, Wholecrop, or Haylage</li>
+<li><strong>Cut number</strong> — e.g. 1st, 2nd, 3rd cut of the season</li>
+<li><strong>Cutting date</strong> — defaults to today</li>
+<li><strong>Field</strong> — selected from your registered field list</li>
+<li><strong>Cutting method</strong> — mower, mower-conditioner, forage harvester, or other</li>
+<li><strong>Area cut (ha)</strong></li>
+<li><strong>Yield (t/ha)</strong> — used to calculate Total Yield automatically</li>
+<li><strong>Total yield (t)</strong> — can also be entered directly if you have a weighbridge figure</li>
+<li><strong>Additive used</strong> — links to an existing Additive Record or records none</li>
+<li><strong>Dry matter %</strong> — at time of cutting if known; can be updated from a Quality Test later</li>
+<li><strong>Destination clamp</strong> — the registered Silage Clamp store the cut goes into</li>
+<li><strong>Notes</strong></li>
+</ul>
+<p>Saving the cut record adds the total yield in tonnes to the selected clamp's stock balance automatically.</p>
+<h3>Stock balance per clamp</h3>
+<p>The <strong>Stock</strong> tab shows a summary card per registered silage clamp. Each card displays:</p>
+<ul>
+<li><strong>Total in</strong> — sum of all cut record yields directed to that clamp</li>
+<li><strong>Total used</strong> — sum of all usage events recorded against that clamp</li>
+<li><strong>Current balance</strong> — In minus Used, updated in real time as records are saved</li>
+</ul>
+<p>A colour-coded balance badge turns amber when the clamp is below 20% of its registered capacity, and red when it reaches zero — giving you an early warning to arrange feed purchases or plan the next cut.</p>
+<h3>Recording usage (drawdown)</h3>
+<p>Each time you remove silage or haylage from a clamp, log a <strong>Usage Record</strong> on the Stock tab. The form captures the clamp, date, recipient (livestock group, enterprise, or free text), quantity removed in tonnes, and any notes. The running balance updates immediately. Usage records give you a complete clamp-to-animal feeding trail — useful for feed budget reviews and for demonstrating feed provenance in organic certification audits.</p>
+<h3>Connecting to Season Reports</h3>
+<p>The <strong>Season Reports → Forage tab</strong> aggregates all cut records for the selected harvest year, grouped by forage type and cut number, alongside straw bale totals. This gives you a full forage production balance sheet at the end of each season without any re-entry.</p>`,
+  ],
+  // 280 — Straw Bale Inventory — Bale Batches, Moisture Checks and Biomass Contracts
+  [
+    "How to record straw bale batches, log moisture checks, and track biomass contract fields in the BDE Farm Trac Straw Bale Inventory.",
+    `<h2>Straw Bale Inventory — Bale Batches, Moisture Checks and Biomass Contracts</h2>
+<p>The <strong>Straw Bale Inventory</strong> (accessible from the Straw Management section in the dashboard) records every bale batch produced on the farm, tracks moisture and condition, and captures the biomass contract details required by energy schemes such as Drax and farm-scale AD plants.</p>
+<h3>Recording a bale batch</h3>
+<p>Click <strong>New Bale Batch</strong>. The form captures:</p>
+<ul>
+<li><strong>Crop</strong> — the harvested crop the straw came from (wheat, barley, oilseed rape straw, etc.)</li>
+<li><strong>Bale type</strong> — Round or Square</li>
+<li><strong>Quantity</strong> — number of bales in the batch</li>
+<li><strong>Weight per bale (kg)</strong> — used to calculate total batch weight automatically</li>
+<li><strong>Storage location</strong> — field, yard, or building where the bales are stacked</li>
+<li><strong>Date baled</strong></li>
+<li><strong>Estimated moisture %</strong> — at time of baling; can be updated when a moisture check is carried out</li>
+<li><strong>Notes</strong></li>
+</ul>
+<h3>Moisture checks</h3>
+<p>Moisture is critical for storage life and combustion quality. Log a moisture check against an existing batch by opening the batch record and clicking <strong>Add Moisture Check</strong>. Record the check date, moisture % reading, measurement method (probe, NIR, lab analysis), and who carried it out. Multiple checks can be recorded against a single batch across the storage period — the most recent reading is displayed on the batch card.</p>
+<h3>Biomass contract fields</h3>
+<p>If bales are sold or supplied under a biomass energy scheme, the batch record includes three additional fields:</p>
+<ul>
+<li><strong>Biomass contract</strong> — toggle to flag the batch as contracted for biomass use</li>
+<li><strong>Scheme name</strong> — the name of the energy scheme or buyer (e.g. Drax, local AD plant, RTFO-accredited scheme)</li>
+<li><strong>Unique bale reference</strong> — the scheme-specific reference number assigned to this batch; required by some schemes for traceability reporting</li>
+</ul>
+<p>These fields are available on both the dashboard and the mobile app, so contractors and operators can enter scheme references in the field at time of loading or delivery.</p>
+<h3>Mobile capture</h3>
+<p>The Straw Bales screen in the mobile app (More → Straw Management → Straw Bales) mirrors the full batch form including all biomass contract fields. Records save offline and sync to the dashboard automatically when connectivity is restored. This allows lorry drivers or yard staff to log bale movements and update moisture readings without returning to an office.</p>
+<h3>Usage and balance</h3>
+<p>As bales are used or sold, log a usage event against the batch. The remaining balance (bales and tonnes) updates automatically. Season totals appear in the <strong>Season Reports → Forage &amp; Straw tab</strong> alongside silage production figures.</p>`,
+  ],
+  // 281 — Season Reports — Forage & Straw Tab
+  [
+    "How the Season Reports Forage & Straw tab aggregates silage, haylage, and straw bale production for the selected harvest year.",
+    `<h2>Season Reports — Forage &amp; Straw Tab</h2>
+<p>The <strong>Forage &amp; Straw</strong> tab on the Season Reports page (Field &amp; Crop Management → Season Reports) provides a complete forage and straw production balance sheet for the selected harvest year. It draws automatically from Silage &amp; Haylage Cut Records and the Straw Bale Inventory — no separate data entry is needed once those records are kept up to date.</p>
+<h3>What the tab shows</h3>
+<p>The tab is split into two sections:</p>
+<h4>Silage &amp; Haylage production</h4>
+<ul>
+<li>All cut records for the selected season, grouped by forage type (Grass Silage, Maize Silage, Wholecrop, Haylage) and cut number</li>
+<li>Area cut (ha), yield (t/ha), and total yield (t) per cut event</li>
+<li>Season totals per forage type and an overall total for the year</li>
+<li>Average dry matter % per forage type (where DM readings have been recorded on cut or quality-test records)</li>
+</ul>
+<h4>Straw bale summary</h4>
+<ul>
+<li>All bale batches baled in the selected harvest year, grouped by crop</li>
+<li>Bale count and estimated total weight (tonnes) per batch</li>
+<li>Biomass contract batches are highlighted with a scheme badge so contracted stock is immediately distinguishable from on-farm or open-market straw</li>
+<li>Season totals: total bales and total tonnes across all crops</li>
+</ul>
+<h3>Selecting the season</h3>
+<p>Use the season year selector at the top of the Season Reports page to switch between harvest years. The Forage &amp; Straw tab updates automatically — all other Season Reports tabs (Crop Gross Margin, IPM Summary, Compliance) update in the same switch, so your full season review is always in one place.</p>
+<h3>Exporting</h3>
+<p>Click <strong>Export CSV</strong> on the Forage &amp; Straw tab to download a spreadsheet of all silage cut records and straw bale batches for the selected year. The export includes all fields — area, yield, DM%, forage type, cut number, field, and biomass contract details — formatted for use in feed budget spreadsheets or scheme reporting.</p>`,
   ],
 ];
 
