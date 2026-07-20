@@ -52,4 +52,9 @@ export async function runDairySuppliesMigrations(): Promise<void> {
   `);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_dairy_restock_requests_farm ON dairy_restock_requests(farm_id)`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_dairy_restock_requests_status ON dairy_restock_requests(farm_id, status)`);
+
+  await db.execute(sql`ALTER TABLE dairy_restock_requests ADD COLUMN IF NOT EXISTS supplier_name text`);
+  await db.execute(sql`ALTER TABLE dairy_restock_requests ADD COLUMN IF NOT EXISTS supplier_order_ref text`);
+  await db.execute(sql`ALTER TABLE dairy_restock_requests ADD COLUMN IF NOT EXISTS qty_received numeric(10,2)`);
+  await db.execute(sql`ALTER TABLE dairy_restock_requests ADD COLUMN IF NOT EXISTS received_by text`);
 }

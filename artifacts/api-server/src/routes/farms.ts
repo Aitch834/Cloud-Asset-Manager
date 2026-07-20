@@ -35081,6 +35081,8 @@ router.get("/farms/:farmId/dairy-supplies/restock-requests", requireAuth, requir
       requestedBy: r.requested_by ?? null, reason: r.reason ?? null,
       status: r.status, adminNotes: r.admin_notes ?? null,
       resolvedBy: r.resolved_by ?? null, resolvedAt: r.resolved_at ?? null, createdAt: r.created_at,
+      supplierName: r.supplier_name ?? null, supplierOrderRef: r.supplier_order_ref ?? null,
+      qtyReceived: r.qty_received ?? null, receivedBy: r.received_by ?? null,
     })) });
   } catch (err) {
     console.error("[DAIRY-SUPPLIES/RESTOCK GET]", err);
@@ -35091,7 +35093,7 @@ router.get("/farms/:farmId/dairy-supplies/restock-requests", requireAuth, requir
 router.post("/farms/:farmId/dairy-supplies/restock-requests", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const body = sanitiseBody(req.body);
-  const { dairyType, requestDate, itemType, itemName, ppeStockItemId, chemStockItemId, requestedQty, unit, urgency, requestedBy, reason } = body;
+  const { dairyType, requestDate, itemType, itemName, ppeStockItemId, chemStockItemId, requestedQty, unit, urgency, requestedBy, supplierName, reason } = body;
   if (!dairyType || !requestDate || !itemType || !itemName || !requestedQty || !unit) {
     res.status(400).json({ error: "Missing required fields" });
     return;
@@ -35099,16 +35101,32 @@ router.post("/farms/:farmId/dairy-supplies/restock-requests", requireAuth, requi
   try {
     const result = await db.execute(sql`
       INSERT INTO dairy_restock_requests
-        (farm_id, dairy_type, request_date, item_type, item_name, ppe_stock_item_id, chem_stock_item_id, requested_qty, unit, urgency, requested_by, reason, status)
+        (farm_id, dairy_type, request_date, item_type, item_name, ppe_stock_item_id, chem_stock_item_id, requested_qty, unit, urgency, requested_by, supplier_name, reason, status)
       VALUES
         (${farmId}, ${dairyType}, ${new Date(requestDate)}, ${itemType}, ${itemName},
          ${ppeStockItemId ? Number(ppeStockItemId) : null},
          ${chemStockItemId ? Number(chemStockItemId) : null},
          ${Number(requestedQty)}, ${unit}, ${urgency || "normal"},
-         ${requestedBy || null}, ${reason || null}, 'pending')
+         ${requestedBy || null}, ${supplierName || null}, ${reason || null}, 'pending')
       RETURNING id
     `);
-    res.status(201).json({ id: Number((result.rows[0] as any)?.id) });
+    const newId = Number((result.rows[0] as any)?.id);
+
+    if (urgency === "urgent" || urgency === "critical") {
+      try {
+        const [manager] = await db.select({ phone: farmMembersTable.phone, firstName: farmMembersTable.firstName })
+          .from(farmMembersTable)
+          .where(and(eq(farmMembersTable.farmId, farmId), or(eq(farmMembersTable.farmRole, "admin"), eq(farmMembersTable.farmRole, "manager"), eq(farmMembersTable.farmRole, "owner"))))
+          .orderBy(farmMembersTable.id).limit(1);
+        if (manager?.phone) {
+          const urgencyLabel = urgency === "critical" ? "CRITICAL" : "Urgent";
+          const msg = `BDE Farm Trac: ${urgencyLabel} restock request raised — ${itemName} (${requestedQty} ${unit}). Log in to Dairy Supplies → Restock Requests to action.`;
+          await sendSms(manager.phone, msg).catch(() => {});
+        }
+      } catch (_e) {}
+    }
+
+    res.status(201).json({ id: newId });
   } catch (err) {
     console.error("[DAIRY-SUPPLIES/RESTOCK POST]", err);
     res.status(500).json({ error: "Failed to create restock request" });
@@ -35119,7 +35137,7 @@ router.patch("/farms/:farmId/dairy-supplies/restock-requests/:id", requireAuth, 
   const farmId = Number(req.params.farmId);
   const id = Number(req.params.id);
   const body = sanitiseBody(req.body);
-  const { status, adminNotes, resolvedBy } = body;
+  const { status, adminNotes, resolvedBy, supplierOrderRef, qtyReceived, receivedBy } = body;
   const resolvedStatuses = ["received", "rejected"];
   const isResolved = status && resolvedStatuses.includes(status);
   try {
@@ -35128,10 +35146,41 @@ router.patch("/farms/:farmId/dairy-supplies/restock-requests/:id", requireAuth, 
         ${status ? sql`status = ${status},` : sql``}
         ${adminNotes !== undefined ? sql`admin_notes = ${adminNotes},` : sql``}
         ${resolvedBy ? sql`resolved_by = ${resolvedBy},` : sql``}
+        ${supplierOrderRef !== undefined ? sql`supplier_order_ref = ${supplierOrderRef || null},` : sql``}
+        ${qtyReceived != null ? sql`qty_received = ${Number(qtyReceived)},` : sql``}
+        ${receivedBy ? sql`received_by = ${receivedBy},` : sql``}
         ${isResolved ? sql`resolved_at = NOW(),` : sql``}
         updated_at = NOW()
       WHERE id = ${id} AND farm_id = ${farmId}
     `);
+
+    if (status === "received" && qtyReceived != null) {
+      const qty = Number(qtyReceived);
+      const rows = (await db.execute(sql`
+        SELECT ppe_stock_item_id, chem_stock_item_id FROM dairy_restock_requests WHERE id = ${id} AND farm_id = ${farmId}
+      `)).rows as any[];
+      const row = rows[0];
+      if (row?.ppe_stock_item_id) {
+        await db.execute(sql`
+          UPDATE ppe_stock_items
+          SET quantity_in_stock = quantity_in_stock + ${Math.round(qty)}, updated_at = NOW()
+          WHERE id = ${Number(row.ppe_stock_item_id)} AND farm_id = ${farmId}
+        `);
+      }
+      if (row?.chem_stock_item_id) {
+        const cid = Number(row.chem_stock_item_id);
+        await db.execute(sql`
+          UPDATE stock_levels
+          SET current_quantity = current_quantity + ${qty}, last_updated = NOW()
+          WHERE stock_item_id = ${cid} AND farm_id = ${farmId}
+        `);
+        await db.execute(sql`
+          INSERT INTO stock_movements (farm_id, stock_item_id, movement_type, quantity_change, reference_type, reference_id, performed_by, notes, moved_at)
+          VALUES (${farmId}, ${cid}, 'restock', ${qty}, 'dairy-restock', ${id}, ${receivedBy || null}, 'Dairy restock request received', NOW())
+        `);
+      }
+    }
+
     res.json({ ok: true });
   } catch (err) {
     console.error("[DAIRY-SUPPLIES/RESTOCK PATCH]", err);

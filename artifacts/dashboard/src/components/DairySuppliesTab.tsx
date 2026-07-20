@@ -27,6 +27,8 @@ interface Drawdown {
 interface RestockRequest {
   id: number; dairyType: string; requestDate: string; itemType: string; itemName: string;
   requestedQty: string; unit: string; urgency: string; requestedBy: string | null;
+  supplierName: string | null; supplierOrderRef: string | null;
+  qtyReceived: string | null; receivedBy: string | null;
   reason: string | null; status: string; adminNotes: string | null; resolvedBy: string | null; createdAt: string;
 }
 
@@ -88,13 +90,23 @@ export function DairySuppliesTab({ farmId, dairyType }: { farmId: number; dairyT
   const blankDrawdown = { drawdownDate: today(), itemType: "ppe", itemName: "", ppeStockItemId: "", chemStockItemId: "", quantityUsed: "", unit: "items", usedBy: "", usageContext: "", notes: "" };
   const [dForm, setDForm] = useState<typeof blankDrawdown>(blankDrawdown);
 
-  const blankRestock = { requestDate: today(), itemType: "ppe", itemName: "", ppeStockItemId: "", chemStockItemId: "", requestedQty: "", unit: "items", urgency: "normal", requestedBy: "", reason: "" };
+  const blankRestock = { requestDate: today(), itemType: "ppe", itemName: "", ppeStockItemId: "", chemStockItemId: "", requestedQty: "", unit: "items", urgency: "normal", requestedBy: "", supplierName: "", reason: "" };
   const [rForm, setRForm] = useState<typeof blankRestock>(blankRestock);
 
   const stockQ = useQuery<AvailableStock>({
     queryKey: ["dairy-supplies-stock", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/dairy-supplies/stock`)).then(r => r.json()),
   });
+  const staffQ = useQuery<{ names: string[] }>({
+    queryKey: ["dairy-staff-names", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/dairy/staff-names`), { credentials: "include" }).then(r => r.json()),
+  });
+  const staffNames = staffQ.data?.names ?? [];
+  const abrSuppliersQ = useQuery<{ id: number; companyName: string }[]>({
+    queryKey: ["dairy-abr-suppliers", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/dairy/abr-suppliers`), { credentials: "include" }).then(r => r.json()),
+  });
+  const supplierNames = (Array.isArray(abrSuppliersQ.data) ? abrSuppliersQ.data : []).map((s: { companyName: string }) => s.companyName);
   const drawdownsQ = useQuery<{ drawdowns: Drawdown[] }>({
     queryKey: ["dairy-supplies-drawdowns", farmId, dairyType],
     queryFn: () => fetch(api(`farms/${farmId}/dairy-supplies/drawdowns?dairyType=${dairyType}`)).then(r => r.json()),
@@ -527,7 +539,16 @@ export function DairySuppliesTab({ farmId, dairyType }: { farmId: number; dairyT
                 </SelectContent>
               </Select>
             </div>
-            <div><Label className="text-xs">Requested By</Label><Input placeholder="Your name" value={rForm.requestedBy} onChange={e => setRForm(p => ({ ...p, requestedBy: e.target.value }))} /></div>
+            <div>
+              <Label className="text-xs">Requested By</Label>
+              <datalist id="ds-restock-staff">{staffNames.map(n => <option key={n} value={n} />)}</datalist>
+              <Input list="ds-restock-staff" placeholder="Select or type name…" value={rForm.requestedBy} onChange={e => setRForm(p => ({ ...p, requestedBy: e.target.value }))} />
+            </div>
+            <div>
+              <Label className="text-xs">Preferred Supplier <span className="text-muted-foreground text-xs">(optional)</span></Label>
+              <datalist id="ds-restock-supplier">{supplierNames.map(n => <option key={n} value={n} />)}</datalist>
+              <Input list="ds-restock-supplier" placeholder="Supplier name" value={rForm.supplierName} onChange={e => setRForm(p => ({ ...p, supplierName: e.target.value }))} />
+            </div>
             <div><Label className="text-xs">Reason / Notes</Label><Textarea rows={2} placeholder="Why is this needed? Current stock level?" value={rForm.reason} onChange={e => setRForm(p => ({ ...p, reason: e.target.value }))} /></div>
           </div>
           <DialogFooter>
