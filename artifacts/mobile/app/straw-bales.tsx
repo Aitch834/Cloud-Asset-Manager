@@ -80,6 +80,9 @@ export default function StrawBalesScreen() {
   );
   const [storageLocation, setStorageLocation] = useState("");
   const [redTractorCertified, setRedTractorCertified] = useState(false);
+  const [biomassContract, setBiomassContract] = useState(false);
+  const [biomassScheme, setBiomassScheme] = useState("");
+  const [biomassUniqueBaleRef, setBiomassUniqueBaleRef] = useState("");
   const [notes, setNotes] = useState("");
 
   // ── Moisture form ─────────────────────────────────────────────────────────
@@ -119,6 +122,9 @@ export default function StrawBalesScreen() {
         harvestDate: harvestDate || null,
         storageLocation: storageLocation || null,
         redTractorCertified,
+        biomassContract,
+        biomassScheme: biomassContract ? (biomassScheme || null) : null,
+        biomassUniqueBaleRef: biomassContract ? (biomassUniqueBaleRef || null) : null,
         status: "in-store",
         notes: notes || null,
         createdAt: new Date().toISOString(),
@@ -350,6 +356,43 @@ export default function StrawBalesScreen() {
                 Red Tractor Certified (Combinable Crops & Sugar Beet Standard)
               </Text>
             </Pressable>
+
+            {/* Biomass / Energy Contract toggle */}
+            <Pressable
+              style={styles.toggleRow}
+              onPress={() => setBiomassContract((v) => !v)}
+            >
+              <View
+                style={[
+                  styles.checkbox,
+                  biomassContract && { backgroundColor: "#16a34a", borderColor: "#16a34a" },
+                ]}
+              >
+                {biomassContract && (
+                  <Feather name="check" size={12} color="#fff" />
+                )}
+              </View>
+              <Text style={styles.toggleLabel}>
+                Biomass / Energy Contract (BECS, AD plant, etc.)
+              </Text>
+            </Pressable>
+
+            {biomassContract && (
+              <>
+                <Input
+                  label="Scheme / Buyer"
+                  value={biomassScheme}
+                  onChangeText={setBiomassScheme}
+                  placeholder="e.g. BECS, Drax, AD plant name"
+                />
+                <Input
+                  label="Unique Bale Reference"
+                  value={biomassUniqueBaleRef}
+                  onChangeText={setBiomassUniqueBaleRef}
+                  placeholder="Scheme reference number"
+                />
+              </>
+            )}
 
             <Input
               label="Notes"
