@@ -12,6 +12,21 @@ description: LIS CLA API secrets, confirmed working auth endpoint, OAuth flow st
 - `LIS_B2C_PRIMARY_SECRET` / `LIS_B2C_SECONDARY_SECRET` — client secrets for CLA app registration
 - `LIS_CLA_REDIRECT_URI` — (optional) OAuth callback URI; if not set, constructed from request host
 
+## Production Registration Status (July 2026)
+- BDE Farm Trac registered in CLA **Production** area — status: **Submitted** (20 Jul 2026)
+- Redirect URI submitted to LIS for approval
+- Awaiting LIS to issue production subscription keys
+- Support incident reopened (parallel track) — awaiting LIS response
+- Still using sandbox B2C client ID (`91afad18-…`) until production client ID received from LIS
+
+**Go-live checklist (when LIS responds):**
+1. Set `LIS_B2C_CLIENT_ID` to production client ID
+2. Set `LIS_SUBSCRIPTION_KEY` to production subscription key (if different from current)
+3. Confirm `LIS_CLA_REDIRECT_URI` = `https://api.bdefarmtrac.co.uk/api/lis/callback` in Replit secrets
+4. Update B2C authorize/token URLs from sandbox to production tenant (if different)
+5. Flip `isLisSandboxMode()` check — currently relies on `LIS_SUBSCRIPTION_KEY` being set; will auto-resolve
+6. Ask farms to re-authorise (Farm 1 token 5 days expired; Farm 2 ~39 days expired as of 20 Jul 2026)
+
 ## OAuth Authorization Code Flow — IMPLEMENTED (June 2026)
 
 LIS support confirmed ROPC (username/password) is NOT supported. Delegated access via
