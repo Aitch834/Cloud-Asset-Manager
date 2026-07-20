@@ -1,0 +1,38 @@
+Dear hello
+
+You may or may not have seen communication from Sarah shared on 2nd June. But we wanted to share an important update on the migration to LUIS API Version 2.0 & LIP Cattle API & ALPHA Developer Hub to help you plan your work.
+
+LUIS API V2.0
+
+To ensure a smooth migration and avoid unnecessary rework, we are asking ETMs to pause any further development for the time being. This is because the LUIS service is planned to transition back to the LIS tenant later this year, with completion currently expected by the end of October 2026.The planned window for all migrations to be completed is by Q1 2027. The timeline has been planned to ensure all integrations are in place ahead of the BEID mandate in 2027.
+
+We will provide further guidance, including the revised migration approach and next steps in September/October 2026. We also plan to hold further technical drop-in sessions to support you as you prepare to restart migration activities.
+
+We recognise that some of you will already have invested time in planning or beginning this work and we are grateful for your continued support and patience. 
+
+We will keep you informed as further information becomes available.
+
+LIP Cattle API & ALPHA Developer Hub
+
+Further to Defra's recent update on the revised timeline for the new English cattle traceability service, we would like to provide an update regarding the current LIP Cattle APIs and the ALPHA Developer Hub.
+
+At this stage, we ask that you pause any further development against the current LIP Cattle APIs until further notice.
+
+As part of this change, the ALPHA Developer Hub for Cattle will no longer be available. Further information on this timeline and any actions required will be shared in due course.
+
+Going forward, Defra will be responsible for communicating updates on the future cattle service, including technical guidance and implementation plans as these become available.  We will continue to work with Defra to support a smooth transition.
+
+Please note that as part of these changes, the Alpha Developer Hub will no longer be available from Tuesday 21 July. This does not affect CLA/Sheep APIs, as this still continues.
+
+Thank you for your continued support and collaboration.
+
+Kind regards
+
+LI Development Support Team
+
+Livestock Information Service
+
+c/o Defra
+PO Box 407
+Worksop
+S80 9HP
