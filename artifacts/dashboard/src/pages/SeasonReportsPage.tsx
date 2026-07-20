@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { buildProReport, printProReport } from "@/lib/print-report";
 
-type Tab = "arable" | "livestock" | "ipm" | "organic";
+type Tab = "arable" | "livestock" | "ipm" | "organic" | "forage";
 
 const fmt2 = (n: number | null | undefined, dp = 2) => {
   if (n == null || isNaN(n)) return "—";
@@ -552,9 +552,9 @@ export default function SeasonReportsPage() {
           </div>
         )}
 
-        {!isLoading && !isError && (data || tab === "ipm" || tab === "organic") && (
+        {!isLoading && !isError && (data || tab === "ipm" || tab === "organic" || tab === "forage") && (
           <>
-            {(farmSummary != null || tab === "ipm" || tab === "organic") && (
+            {(farmSummary != null || tab === "ipm" || tab === "organic" || tab === "forage") && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: "1.25rem" }}>
                 {tab === "arable" && farmSummary ? (
                   <>
@@ -586,6 +586,13 @@ export default function SeasonReportsPage() {
                     <StatCard label={`Harvests ${year}`} value={String(oaHarvestForYear.length)} color="#0f766e" bg="#f0fdfa" border="#99f6e4" />
                     <StatCard label={`Inputs ${year}`} value={String(oaInputForYear.length)} color="#7c3aed" bg="#f5f3ff" border="#ddd6fe" />
                   </>
+                ) : tab === "forage" && data?.forageSummary ? (
+                  <>
+                    <StatCard label="Straw Batches" value={String(data.forageSummary.strawBatchCount)} sub={data.forageSummary.strawTotalBales > 0 ? `${data.forageSummary.strawTotalBales} bales in` : undefined} color="#92400e" bg="#fffbeb" border="#fde68a" />
+                    <StatCard label="Straw Remaining" value={String(data.forageSummary.strawBalesRemaining)} sub="bales" color="#d97706" bg="#fff7ed" border="#fed7aa" />
+                    <StatCard label="Silage Entries" value={String(data.forageSummary.silageEntries)} sub={data.forageSummary.silageTotalTonnes > 0 ? `${fmt2(data.forageSummary.silageTotalTonnes, 1)} t` : undefined} color="#166534" bg="#f0fdf4" border="#bbf7d0" />
+                    <StatCard label="Haylage Batches" value={String(data.forageSummary.haylageEntries)} color="#0f766e" bg="#f0fdfa" border="#99f6e4" />
+                  </>
                 ) : null}
               </div>
             )}
@@ -606,6 +613,12 @@ export default function SeasonReportsPage() {
               <TabButton active={tab === "organic"} onClick={() => setTab("organic")}>
                 <Leaf className="w-4 h-4 mr-1.5" />Organic Arable
                 {oaConv.length > 0 && <span style={{ marginLeft: 6, fontSize: "0.72rem", background: tab === "organic" ? "#fff" : "#e5e7eb", color: tab === "organic" ? "#1a3a1a" : "#6b7280", padding: "1px 6px", borderRadius: 4 }}>{oaConv.length}</span>}
+              </TabButton>
+              <TabButton active={tab === "forage"} onClick={() => setTab("forage")}>
+                <Sprout className="w-4 h-4 mr-1.5" />Forage &amp; Straw
+                {data?.forageSummary && (data.forageSummary.strawBatchCount + data.forageSummary.silageEntries) > 0 && (
+                  <span style={{ marginLeft: 6, fontSize: "0.72rem", background: tab === "forage" ? "#fff" : "#e5e7eb", color: tab === "forage" ? "#1a3a1a" : "#6b7280", padding: "1px 6px", borderRadius: 4 }}>{data.forageSummary.strawBatchCount + data.forageSummary.silageEntries}</span>
+                )}
               </TabButton>
             </TabBar>
 
@@ -889,6 +902,100 @@ export default function SeasonReportsPage() {
                     <Leaf className="w-10 h-10 mx-auto mb-3 opacity-30" />
                     <p style={{ fontWeight: 500, color: "#374151", marginBottom: 4 }}>No organic arable records found</p>
                     <p style={{ fontSize: "0.82rem" }}>Add field conversion status, harvest declarations and approved input records under <strong>Organic Arable</strong> in the main menu.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {tab === "forage" && (
+              <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+                {/* ── Straw Bale Inventory ──────────────────────────────────── */}
+                {data?.strawBales && data.strawBales.length > 0 ? (
+                  <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+                    <div style={{ padding: "0.65rem 1rem", background: "#92400e", display: "flex", alignItems: "center", gap: 8 }}>
+                      <Wheat className="w-4 h-4 text-amber-200" />
+                      <span style={{ color: "#fff", fontWeight: 600, fontSize: "0.875rem" }}>Straw Bale Inventory — {year}</span>
+                      <span style={{ marginLeft: "auto", fontSize: "0.78rem", color: "#fde68a" }}>{data.strawBales.length} batch{data.strawBales.length !== 1 ? "es" : ""}</span>
+                    </div>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ background: "#f9fafb" }}>
+                          {["Batch Ref", "Type", "Format", "Harvest", "Bales In", "Remaining", "Storage", "Biomass"].map(h => (
+                            <th key={h} style={{ padding: "7px 12px", textAlign: "left", fontSize: "0.72rem", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.strawBales.map((b: any, i: number) => (
+                          <tr key={b.id ?? i} style={{ borderTop: i > 0 ? "1px solid #f3f4f6" : "none" }}>
+                            <td style={{ padding: "8px 12px", fontWeight: 600, color: "#1f2937", fontSize: "0.82rem" }}>{b.batchRef ?? `Batch ${i + 1}`}</td>
+                            <td style={{ padding: "8px 12px", color: "#374151", fontSize: "0.82rem" }}>{b.strawType ?? "—"}</td>
+                            <td style={{ padding: "8px 12px", color: "#6b7280", fontSize: "0.82rem" }}>{b.baleFormat ?? "—"}</td>
+                            <td style={{ padding: "8px 12px", color: "#6b7280", fontSize: "0.82rem", whiteSpace: "nowrap" }}>{b.harvestDate ? new Date(b.harvestDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "—"}</td>
+                            <td style={{ padding: "8px 12px", color: "#374151", fontSize: "0.82rem" }}>{b.quantityBales ?? "—"}</td>
+                            <td style={{ padding: "8px 12px", fontSize: "0.82rem" }}>
+                              <span style={{ color: (b.quantityRemaining ?? b.quantityBales) > 0 ? "#166534" : "#6b7280", fontWeight: 600 }}>{b.quantityRemaining ?? b.quantityBales ?? "—"}</span>
+                            </td>
+                            <td style={{ padding: "8px 12px", color: "#6b7280", fontSize: "0.82rem" }}>{b.storageLocation ?? "—"}</td>
+                            <td style={{ padding: "8px 12px", fontSize: "0.82rem" }}>{b.biomassContract ? <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 4, fontSize: "0.72rem", fontWeight: 600, background: "#dcfce7", color: "#166534" }}>Yes</span> : <span style={{ color: "#9ca3af" }}>—</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "1.25rem 1.5rem", textAlign: "center" }}>
+                    <Wheat className="w-8 h-8 mx-auto mb-2 text-amber-400 opacity-60" />
+                    <p style={{ fontWeight: 500, color: "#92400e", marginBottom: 4, fontSize: "0.9rem" }}>No straw bale inventory for {year}</p>
+                    <p style={{ fontSize: "0.8rem", color: "#d97706" }}>Add batches under Straw Management.</p>
+                  </div>
+                )}
+
+                {/* ── Silage & Haylage Stock ────────────────────────────────── */}
+                {data?.silageStock && data.silageStock.length > 0 ? (
+                  <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+                    <div style={{ padding: "0.65rem 1rem", background: "#166534", display: "flex", alignItems: "center", gap: 8 }}>
+                      <Sprout className="w-4 h-4 text-green-200" />
+                      <span style={{ color: "#fff", fontWeight: 600, fontSize: "0.875rem" }}>Silage &amp; Haylage Stock — {year}</span>
+                      <span style={{ marginLeft: "auto", fontSize: "0.78rem", color: "#bbf7d0" }}>{data.silageStock.length} entr{data.silageStock.length !== 1 ? "ies" : "y"}</span>
+                    </div>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ background: "#f9fafb" }}>
+                          {["Type", "Cut", "Source Field", "Harvest", "Qty In", "Used", "Remaining", "DM%", "Clamp"].map(h => (
+                            <th key={h} style={{ padding: "7px 12px", textAlign: "left", fontSize: "0.72rem", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.silageStock.map((s: any, i: number) => {
+                          const isBales = s.quantityBales != null;
+                          const qtyIn = isBales ? `${s.quantityBales ?? 0} bales` : s.quantityTonnes != null ? `${fmt2(parseFloat(String(s.quantityTonnes)), 1)} t` : "—";
+                          const used = isBales ? `${s.usedBales ?? 0} bales` : `${fmt2(s.usedTonnes ?? 0, 1)} t`;
+                          const rem = isBales ? (s.remainingBales != null ? `${s.remainingBales} bales` : "—") : (s.remainingTonnes != null ? `${fmt2(parseFloat(String(s.remainingTonnes)), 1)} t` : "—");
+                          const low = isBales ? (s.quantityBales && (s.remainingBales ?? s.quantityBales) / s.quantityBales < 0.2) : (s.quantityTonnes && (s.remainingTonnes ?? s.quantityTonnes) / parseFloat(String(s.quantityTonnes)) < 0.2);
+                          return (
+                            <tr key={s.id ?? i} style={{ borderTop: i > 0 ? "1px solid #f3f4f6" : "none" }}>
+                              <td style={{ padding: "8px 12px", fontWeight: 600, color: "#1f2937", fontSize: "0.82rem" }}>{s.cropType ?? "—"}</td>
+                              <td style={{ padding: "8px 12px", color: "#6b7280", fontSize: "0.82rem" }}>{s.cutNumber ? `${s.cutNumber}` : "—"}</td>
+                              <td style={{ padding: "8px 12px", color: "#6b7280", fontSize: "0.82rem" }}>{s.fieldOfOrigin ?? "—"}</td>
+                              <td style={{ padding: "8px 12px", color: "#6b7280", fontSize: "0.82rem", whiteSpace: "nowrap" }}>{s.harvestDate ? new Date(s.harvestDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "—"}</td>
+                              <td style={{ padding: "8px 12px", color: "#374151", fontSize: "0.82rem" }}>{qtyIn}</td>
+                              <td style={{ padding: "8px 12px", color: "#d97706", fontSize: "0.82rem" }}>{used}</td>
+                              <td style={{ padding: "8px 12px", fontWeight: 600, color: low ? "#dc2626" : "#166534", fontSize: "0.82rem" }}>{rem}</td>
+                              <td style={{ padding: "8px 12px", color: "#374151", fontSize: "0.82rem" }}>{s.dryMatterPercent != null ? `${s.dryMatterPercent}%` : "—"}</td>
+                              <td style={{ padding: "8px 12px", color: "#6b7280", fontSize: "0.82rem" }}>{s.storeName ?? "—"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "1.25rem 1.5rem", textAlign: "center" }}>
+                    <Sprout className="w-8 h-8 mx-auto mb-2 text-green-400 opacity-60" />
+                    <p style={{ fontWeight: 500, color: "#166534", marginBottom: 4, fontSize: "0.9rem" }}>No silage or haylage stock recorded for {year}</p>
+                    <p style={{ fontSize: "0.8rem", color: "#15803d" }}>Log cuts via Silage &amp; Haylage in the Environmental module or via the mobile app.</p>
                   </div>
                 )}
               </div>

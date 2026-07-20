@@ -1,5 +1,6 @@
 import { pgTable, text, serial, integer, timestamp, numeric, boolean, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
+import { fieldsTable } from "./fields-crops";
 
 // ─── Straw Bale Inventory ─────────────────────────────────────────────────────
 // Commercial harvested straw bales (wheat/barley/oat) — NOT AI semen straws.
@@ -12,7 +13,8 @@ export const strawBaleInventoryTable = pgTable("straw_bale_inventory", {
   strawType: text("straw_type").notNull(),              // Wheat | Barley | Oat | Oilseed Rape
   baleFormat: text("bale_format").notNull(),            // Small Rectangular | Big Round | Big Square
   harvestDate: date("harvest_date"),
-  fieldOfOrigin: text("field_of_origin"),               // free text or field name lookup
+  fieldId: integer("field_id").references(() => fieldsTable.id, { onDelete: "set null" }),
+  fieldOfOrigin: text("field_of_origin"),               // free text fallback / display name
   cropVariety: text("crop_variety"),
   // Quantity
   quantityBales: integer("quantity_bales").notNull().default(0),
@@ -33,6 +35,10 @@ export const strawBaleInventoryTable = pgTable("straw_bale_inventory", {
   // Status
   status: text("status").notNull().default("in_stock"), // in_stock | sold | used_on_farm | disposed
   quantityRemaining: integer("quantity_remaining"),
+  // Biomass / energy straw contract fields (Drax ROC, RHI, RTFO sustainability)
+  biomassContract: boolean("biomass_contract").notNull().default(false),
+  biomassSchemeName: text("biomass_scheme_name"),       // e.g. "Drax ROC", "Lynemouth"
+  biomassUniqueBaleRef: text("biomass_unique_bale_ref"), // scheme-assigned unique ID
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

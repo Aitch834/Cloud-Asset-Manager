@@ -107,6 +107,7 @@ function InventoryDialog({ open, onClose, farmId, editRow }: { open: boolean; on
     storageLocation: "", storageType: "Indoor", stackingStartDate: today(),
     redTractorCertified: false, combinableCropsPassportRef: "",
     pppResidueRisk: "Low", fusariumRiskAssessed: false,
+    biomassContract: false, biomassScheme: "", biomassUniqueBaleRef: "",
     status: "in_stock", quantityRemaining: "", notes: "",
   };
 
@@ -133,6 +134,9 @@ function InventoryDialog({ open, onClose, farmId, editRow }: { open: boolean; on
           combinableCropsPassportRef: editRow.combinableCropsPassportRef ?? "",
           pppResidueRisk: editRow.pppResidueRisk ?? "Low",
           fusariumRiskAssessed: editRow.fusariumRiskAssessed ?? false,
+          biomassContract: editRow.biomassContract ?? false,
+          biomassScheme: editRow.biomassScheme ?? "",
+          biomassUniqueBaleRef: editRow.biomassUniqueBaleRef ?? "",
           status: editRow.status ?? "in_stock",
           quantityRemaining: editRow.quantityRemaining ?? "",
           notes: editRow.notes ?? "",
@@ -178,6 +182,9 @@ function InventoryDialog({ open, onClose, farmId, editRow }: { open: boolean; on
     redTractorCertified: form.redTractorCertified,
     combinableCropsPassportRef: form.combinableCropsPassportRef || null,
     pppResidueRisk: form.pppResidueRisk, fusariumRiskAssessed: form.fusariumRiskAssessed,
+    biomassContract: form.biomassContract,
+    biomassScheme: form.biomassScheme || null,
+    biomassUniqueBaleRef: form.biomassUniqueBaleRef || null,
     status: form.status, quantityRemaining: form.quantityRemaining ? num(form.quantityRemaining) : null,
     notes: form.notes || null,
   });
@@ -279,6 +286,29 @@ function InventoryDialog({ open, onClose, farmId, editRow }: { open: boolean; on
                 Red Tractor requires a Fusarium mycotoxin risk assessment for wheat straw.
               </p>
             )}
+          </div>
+
+          {/* Biomass Contract */}
+          <div className="col-span-2 border-t pt-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Biomass / Energy Contract</p>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="flex items-center gap-2 pt-1">
+                <Checkbox id="bmc" checked={form.biomassContract} onCheckedChange={v => f("biomassContract")(!!v)} />
+                <Label htmlFor="bmc" className="cursor-pointer">Biomass Contract</Label>
+              </div>
+              {form.biomassContract && (
+                <>
+                  <div>
+                    <Label>Scheme / Buyer</Label>
+                    <Input placeholder="e.g. BECS, Drax, AD plant" value={form.biomassScheme} onChange={e => f("biomassScheme")(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Unique Bale Ref</Label>
+                    <Input placeholder="Scheme reference" value={form.biomassUniqueBaleRef} onChange={e => f("biomassUniqueBaleRef")(e.target.value)} />
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>

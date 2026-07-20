@@ -459,6 +459,8 @@ import {
   strawBaleInventoryTable,
   strawSalesRecordsTable,
   strawMoistureChecksTable,
+  silageHaylageStockTable,
+  silageHaylageUsageTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createDairyAbrBorderlineNotification, createDairyAbrInvalidNotification, resolveAbrNotificationsForRecord, createMobilityLamenessAlert, createMobilityScore2Advisory, createBngComplianceNotification, createFpIntakeRejectionNotification, createFpPoorConditionNotification, createFpCheckMissingNotification, createFpPreCoolingPendingNotification, createRiddorNotification, createBcmsMortalityPendingNotification, createBiosecurityDeclarationMissingNotification, createHerdHealthFollowUpNotification, createIpmThresholdBreachedNotification, createReportableDiseaseNotification } from "../lib/alertingJob";
@@ -22957,6 +22959,92 @@ router.delete("/farms/:farmId/silage-quality-tests/:id", requireAuth, requireTen
   res.json({ success: true });
 });
 
+// ─── Silage & Haylage Stock ──────────────────────────────────────────────────
+router.get("/farms/:farmId/silage-haylage-stock", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(silageHaylageStockTable)
+    .where(eq(silageHaylageStockTable.farmId, farmId))
+    .orderBy(desc(silageHaylageStockTable.harvestDate));
+  res.json({ records: rows });
+});
+
+router.post("/farms/:farmId/silage-haylage-stock", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(silageHaylageStockTable).values({ ...body, farmId } as any).returning();
+  res.status(201).json(row);
+});
+
+router.put("/farms/:farmId/silage-haylage-stock/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.update(silageHaylageStockTable).set({ ...body, updatedAt: new Date() } as any)
+    .where(and(eq(silageHaylageStockTable.id, id), eq(silageHaylageStockTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/silage-haylage-stock/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(silageHaylageStockTable).where(and(eq(silageHaylageStockTable.id, id), eq(silageHaylageStockTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Silage & Haylage Usage / Drawdowns ──────────────────────────────────────
+router.get("/farms/:farmId/silage-haylage-usage", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(silageHaylageUsageTable)
+    .where(eq(silageHaylageUsageTable.farmId, farmId))
+    .orderBy(desc(silageHaylageUsageTable.usageDate));
+  res.json({ records: rows });
+});
+
+router.post("/farms/:farmId/silage-haylage-usage", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(silageHaylageUsageTable).values({ ...body, farmId } as any).returning();
+  res.status(201).json(row);
+});
+
+router.put("/farms/:farmId/silage-haylage-usage/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.update(silageHaylageUsageTable).set({ ...body } as any)
+    .where(and(eq(silageHaylageUsageTable.id, id), eq(silageHaylageUsageTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/silage-haylage-usage/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(silageHaylageUsageTable).where(and(eq(silageHaylageUsageTable.id, id), eq(silageHaylageUsageTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Silage & Haylage Stock Balance ──────────────────────────────────────────
+router.get("/farms/:farmId/silage-haylage-balance", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const stockRows = await db.select().from(silageHaylageStockTable).where(eq(silageHaylageStockTable.farmId, farmId));
+  const usageRows = await db.select().from(silageHaylageUsageTable).where(eq(silageHaylageUsageTable.farmId, farmId));
+  const balance = stockRows.map(s => {
+    const used = usageRows.filter(u => u.stockId === s.id);
+    const usedTonnes = used.reduce((acc, u) => acc + parseFloat(String(u.quantityTonnes ?? "0")), 0);
+    const usedBales = used.reduce((acc, u) => acc + (u.quantityBales ?? 0), 0);
+    return {
+      ...s,
+      usedTonnes,
+      usedBales,
+      remainingTonnes: s.quantityTonnes != null ? parseFloat(String(s.quantityTonnes)) - usedTonnes : null,
+      remainingBales: s.quantityBales != null ? s.quantityBales - usedBales : null,
+    };
+  });
+  res.json({ records: balance });
+});
+
 router.get("/farms/:farmId/slurry-spreading-records", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db
@@ -28450,6 +28538,35 @@ router.get("/farms/:farmId/reports/season-report", requireAuth, requireTenant, a
       .orderBy(asc(livestockFeedRecordsTable.feedDate)),
   ]);
 
+  const [strawBales, silageStock, silageUsage] = await Promise.all([
+    db.select({ id: strawBaleInventoryTable.id, batchRef: strawBaleInventoryTable.batchRef, strawType: strawBaleInventoryTable.strawType, baleFormat: strawBaleInventoryTable.baleFormat, harvestDate: strawBaleInventoryTable.harvestDate, fieldId: strawBaleInventoryTable.fieldId, fieldOfOrigin: strawBaleInventoryTable.fieldOfOrigin, quantityBales: strawBaleInventoryTable.quantityBales, baleWeightKg: strawBaleInventoryTable.baleWeightKg, status: strawBaleInventoryTable.status, quantityRemaining: strawBaleInventoryTable.quantityRemaining, redTractorCertified: strawBaleInventoryTable.redTractorCertified, biomassContract: strawBaleInventoryTable.biomassContract, storageLocation: strawBaleInventoryTable.storageLocation })
+      .from(strawBaleInventoryTable)
+      .where(and(eq(strawBaleInventoryTable.farmId, farmId), sql`extract(year from ${strawBaleInventoryTable.harvestDate}) = ${year}`))
+      .orderBy(asc(strawBaleInventoryTable.harvestDate)),
+    db.select().from(silageHaylageStockTable)
+      .where(and(eq(silageHaylageStockTable.farmId, farmId), sql`extract(year from ${silageHaylageStockTable.harvestDate}) = ${year}`))
+      .orderBy(asc(silageHaylageStockTable.harvestDate)),
+    db.select().from(silageHaylageUsageTable)
+      .where(and(eq(silageHaylageUsageTable.farmId, farmId), sql`extract(year from ${silageHaylageUsageTable.usageDate}) = ${year}`)),
+  ]);
+
+  const silageStockWithBalance = silageStock.map(s => {
+    const used = silageUsage.filter(u => u.stockId === s.id);
+    const usedTonnes = used.reduce((a, u) => a + parseFloat(String(u.quantityTonnes ?? "0")), 0);
+    const usedBales = used.reduce((a, u) => a + (u.quantityBales ?? 0), 0);
+    return { ...s, usedTonnes, usedBales, remainingTonnes: s.quantityTonnes != null ? parseFloat(String(s.quantityTonnes)) - usedTonnes : null, remainingBales: s.quantityBales != null ? s.quantityBales - usedBales : null };
+  });
+
+  const forageSummary = {
+    strawBatchCount: strawBales.length,
+    strawTotalBales: strawBales.reduce((a, s) => a + (s.quantityBales ?? 0), 0),
+    strawBalesRemaining: strawBales.reduce((a, s) => a + (s.quantityRemaining ?? s.quantityBales ?? 0), 0),
+    silageEntries: silageStock.length,
+    silageTotalTonnes: silageStock.reduce((a, s) => a + parseFloat(String(s.quantityTonnes ?? "0")), 0),
+    haylageEntries: silageStock.filter(s => s.cropType === "Haylage" || s.cropType === "Hay").length,
+    haylage총Bales: silageStock.filter(s => s.cropType === "Haylage" || s.cropType === "Hay").reduce((a, s) => a + (s.quantityBales ?? 0), 0),
+  };
+
   const arableFields = fields.map(field => {
     const fieldAssignments = assignments.filter(a => a.fieldId === field.id);
     const fieldSprays = sprays.filter(s => s.fieldId === field.id);
@@ -28521,7 +28638,7 @@ router.get("/farms/:farmId/reports/season-report", requireAuth, requireTenant, a
     },
   };
 
-  res.json({ year, farm, farmSummary, arableFields, livestockHerds });
+  res.json({ year, farm, farmSummary, arableFields, livestockHerds, strawBales, silageStock: silageStockWithBalance, forageSummary });
 });
 
 // ═══════════════════════════════════════════════════════════

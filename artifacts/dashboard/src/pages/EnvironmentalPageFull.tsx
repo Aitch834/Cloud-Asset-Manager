@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, Leaf, TreePine, MapPin, Printer, ClipboardCheck, CalendarDays, Pencil, Eye, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Leaf, TreePine, MapPin, Printer, ClipboardCheck, CalendarDays, Pencil, Eye, AlertTriangle, Droplets } from "lucide-react";
 import { StorageLocationMapPicker } from "@/components/storage/StorageLocationMapPicker";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -4540,6 +4540,51 @@ function SilageTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
+  // ── Stock tracking state ──
+  const [stockOpen, setStockOpen] = useState(false);
+  const [editingStock, setEditingStock] = useState<any>(null);
+  const [stockForm, setStockForm] = useState<any>({});
+  const [deleteStockId, setDeleteStockId] = useState<number | null>(null);
+  const [usageOpen, setUsageOpen] = useState(false);
+  const [usageForStock, setUsageForStock] = useState<any>(null);
+  const [usageForm, setUsageForm] = useState<any>({});
+
+  const stockQ = useQuery({
+    queryKey: ["silage-haylage-balance", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/silage-haylage-balance`, { credentials: "include" }).then(r => r.json()),
+    select: (d: any) => (d.records ?? []) as any[],
+  });
+  const stockRows = stockQ.data ?? [];
+
+  const saveStockMut = useMutation({
+    mutationFn: async (body: any) => {
+      const url = editingStock
+        ? `/api/farms/${farmId}/silage-haylage-stock/${editingStock.id}`
+        : `/api/farms/${farmId}/silage-haylage-stock`;
+      const r = await fetch(url, { method: editingStock ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+      if (!r.ok) throw new Error("Failed");
+      return r.json();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["silage-haylage-balance", farmId] }); setStockOpen(false); setEditingStock(null); setStockForm({}); toast({ title: editingStock ? "Stock updated" : "Batch logged" }); },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const deleteStockMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/silage-haylage-stock/${id}`, { method: "DELETE", credentials: "include" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["silage-haylage-balance", farmId] }); setDeleteStockId(null); toast({ title: "Batch deleted" }); },
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  const saveUsageMut = useMutation({
+    mutationFn: async (body: any) => {
+      const r = await fetch(`/api/farms/${farmId}/silage-haylage-usage`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+      if (!r.ok) throw new Error("Failed");
+      return r.json();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["silage-haylage-balance", farmId] }); setUsageOpen(false); setUsageForStock(null); setUsageForm({}); toast({ title: "Drawdown recorded" }); },
+    onError: () => toast({ title: "Failed to record drawdown", variant: "destructive" }),
+  });
+
   const additives = additivesQ.data ?? [];
   const qualityTests = qualityQ.data ?? [];
 
@@ -4548,6 +4593,74 @@ function SilageTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-6">
+      {/* ══ Silage & Haylage Stock ════════════════════════════════════════════ */}
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <h3 className="font-semibold">Silage &amp; Haylage Stock</h3>
+          <Button size="sm" onClick={() => { setEditingStock(null); setStockForm({ harvestDate: today, status: "in-store" }); setStockOpen(true); }}>
+            <Plus className="w-4 h-4 mr-2" /> Log Batch
+          </Button>
+        </div>
+        <div className="bg-white rounded-xl border border-border/50 shadow-sm overflow-x-auto">
+          {stockQ.isLoading ? (
+            <div className="text-sm text-muted-foreground p-4">Loading…</div>
+          ) : stockRows.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic py-6 text-center">No silage or haylage batches logged yet.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-black/5 border-b">
+                <tr>
+                  {["Type", "Cut", "Source Field", "Harvest Date", "Qty In", "Used", "Remaining", "DM%", "Clamp", ""].map(h => (
+                    <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {stockRows.map((r: any) => {
+                  const isBales = r.quantityBales != null;
+                  const qtyIn = isBales ? `${r.quantityBales ?? 0} bales` : r.quantityTonnes != null ? `${parseFloat(String(r.quantityTonnes)).toFixed(1)} t` : "—";
+                  const usedDisplay = isBales ? `${r.usedBales ?? 0} bales` : `${(r.usedTonnes ?? 0).toFixed(1)} t`;
+                  const rem = isBales
+                    ? (r.remainingBales != null ? `${r.remainingBales} bales` : "—")
+                    : (r.remainingTonnes != null ? `${parseFloat(String(r.remainingTonnes)).toFixed(1)} t` : "—");
+                  const remPct = isBales && r.quantityBales
+                    ? Math.max(0, Math.min(100, ((r.remainingBales ?? r.quantityBales) / r.quantityBales) * 100))
+                    : !isBales && r.quantityTonnes
+                    ? Math.max(0, Math.min(100, ((r.remainingTonnes ?? r.quantityTonnes) / parseFloat(String(r.quantityTonnes))) * 100))
+                    : null;
+                  return (
+                    <tr key={r.id} className="hover:bg-black/5">
+                      <td className="px-4 py-3 font-medium">{r.cropType ?? "—"}</td>
+                      <td className="px-4 py-3">{r.cutNumber ? `${r.cutNumber}` : "—"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{r.fieldOfOrigin ?? "—"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{r.harvestDate ? new Date(r.harvestDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
+                      <td className="px-4 py-3">{qtyIn}</td>
+                      <td className="px-4 py-3 text-amber-700">{usedDisplay}</td>
+                      <td className="px-4 py-3">
+                        <span className={remPct != null && remPct < 20 ? "text-red-700 font-semibold" : remPct != null && remPct < 40 ? "text-amber-700" : "text-green-700"}>{rem}</span>
+                      </td>
+                      <td className="px-4 py-3">{r.dryMatterPercent != null ? `${r.dryMatterPercent}%` : "—"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{r.storeName ?? "—"}</td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <Button size="icon" variant="ghost" title="Record drawdown" onClick={() => { setUsageForStock(r); setUsageForm({ stockId: r.id, usageDate: today }); setUsageOpen(true); }}>
+                          <Droplets className="w-4 h-4 text-blue-500" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={() => { setEditingStock(r); setStockForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setStockOpen(true); }}>
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={() => setDeleteStockId(r.id)}>
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
       {/* ══ Silage Additive Records ═══════════════════════════════════════════ */}
       <div className="space-y-3">
         <div className="flex justify-between items-center">
@@ -4986,6 +5099,83 @@ function SilageTab({ farmId }: { farmId: number }) {
             >
               {qualityMode === "log" ? "Log Sample" : qualityMode === "result" ? "Save Results" : "Save Changes"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══ Stock Log / Edit Dialog ═══════════════════════════════════════════ */}
+      <Dialog open={stockOpen} onOpenChange={v => { if (!v) { setStockOpen(false); setEditingStock(null); setStockForm({}); } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editingStock ? "Edit Batch" : "Log Silage / Haylage Batch"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-2">
+            <div className="col-span-2">
+              <Label>Crop Type *</Label>
+              <Select value={stockForm.cropType ?? ""} onValueChange={v => setStockForm((p: any) => ({ ...p, cropType: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                <SelectContent>
+                  {["Grass Silage", "Maize Silage", "Wholecrop", "Haylage", "Hay", "Other"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Cut Number</Label>
+              <Select value={stockForm.cutNumber ? String(stockForm.cutNumber) : ""} onValueChange={v => setStockForm((p: any) => ({ ...p, cutNumber: Number(v) }))}>
+                <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+                <SelectContent>{[1,2,3,4,5].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Harvest Date</Label><Input type="date" value={stockForm.harvestDate ?? ""} onChange={e => setStockForm((p: any) => ({ ...p, harvestDate: e.target.value }))} /></div>
+            <div><Label>Source Field</Label><Input placeholder="Field name or reference" value={stockForm.fieldOfOrigin ?? ""} onChange={e => setStockForm((p: any) => ({ ...p, fieldOfOrigin: e.target.value }))} /></div>
+            <div><Label>Quantity (tonnes)</Label><Input type="number" step="0.1" placeholder="e.g. 120" value={stockForm.quantityTonnes ?? ""} onChange={e => setStockForm((p: any) => ({ ...p, quantityTonnes: e.target.value }))} /></div>
+            <div><Label>Number of Bales</Label><Input type="number" placeholder="for baled crops" value={stockForm.quantityBales ?? ""} onChange={e => setStockForm((p: any) => ({ ...p, quantityBales: e.target.value }))} /></div>
+            <div><Label>Bale Weight (kg)</Label><Input type="number" placeholder="e.g. 550" value={stockForm.baleWeightKg ?? ""} onChange={e => setStockForm((p: any) => ({ ...p, baleWeightKg: e.target.value }))} /></div>
+            <div><Label>Dry Matter %</Label><Input type="number" step="0.1" placeholder="e.g. 30" value={stockForm.dryMatterPercent ?? ""} onChange={e => setStockForm((p: any) => ({ ...p, dryMatterPercent: e.target.value }))} /></div>
+            <div className="col-span-2"><Label>Clamp / Store Name</Label><Input placeholder="e.g. Main clamp, North yard" value={stockForm.storeName ?? ""} onChange={e => setStockForm((p: any) => ({ ...p, storeName: e.target.value }))} /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={stockForm.notes ?? ""} onChange={e => setStockForm((p: any) => ({ ...p, notes: e.target.value }))} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setStockOpen(false); setEditingStock(null); setStockForm({}); }}>Cancel</Button>
+            <Button disabled={saveStockMut.isPending || !stockForm.cropType} onClick={() => saveStockMut.mutate({ cropType: stockForm.cropType, cutNumber: stockForm.cutNumber ? Number(stockForm.cutNumber) : null, harvestDate: stockForm.harvestDate || null, fieldOfOrigin: stockForm.fieldOfOrigin || null, quantityTonnes: stockForm.quantityTonnes ? parseFloat(stockForm.quantityTonnes) : null, quantityBales: stockForm.quantityBales ? parseInt(stockForm.quantityBales) : null, baleWeightKg: stockForm.baleWeightKg ? parseFloat(stockForm.baleWeightKg) : null, dryMatterPercent: stockForm.dryMatterPercent ? parseFloat(stockForm.dryMatterPercent) : null, storeName: stockForm.storeName || null, status: stockForm.status || "in-store", notes: stockForm.notes || null })}>
+              {saveStockMut.isPending && <Plus className="w-4 h-4 mr-1 animate-spin" />}{editingStock ? "Save Changes" : "Log Batch"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══ Drawdown Dialog ═══════════════════════════════════════════════════ */}
+      <Dialog open={usageOpen} onOpenChange={v => { if (!v) { setUsageOpen(false); setUsageForStock(null); setUsageForm({}); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Record Drawdown — {usageForStock?.cropType ?? "Batch"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-2">
+            <div><Label>Date</Label><Input type="date" value={usageForm.usageDate ?? ""} onChange={e => setUsageForm((p: any) => ({ ...p, usageDate: e.target.value }))} /></div>
+            <div><Label>Quantity (tonnes)</Label><Input type="number" step="0.1" value={usageForm.quantityTonnes ?? ""} onChange={e => setUsageForm((p: any) => ({ ...p, quantityTonnes: e.target.value }))} /></div>
+            <div><Label>Quantity (bales)</Label><Input type="number" value={usageForm.quantityBales ?? ""} onChange={e => setUsageForm((p: any) => ({ ...p, quantityBales: e.target.value }))} /></div>
+            <div><Label>Purpose</Label>
+              <Select value={usageForm.purpose ?? ""} onValueChange={v => setUsageForm((p: any) => ({ ...p, purpose: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select purpose" /></SelectTrigger>
+                <SelectContent>
+                  {["feeding", "bedding", "sold", "waste"].map(p => <SelectItem key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2"><Label>Herd / Livestock Group</Label><Input placeholder="e.g. Dairy herd, Flock 1" value={usageForm.herdName ?? ""} onChange={e => setUsageForm((p: any) => ({ ...p, herdName: e.target.value }))} /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={usageForm.notes ?? ""} onChange={e => setUsageForm((p: any) => ({ ...p, notes: e.target.value }))} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setUsageOpen(false); setUsageForStock(null); setUsageForm({}); }}>Cancel</Button>
+            <Button disabled={saveUsageMut.isPending} onClick={() => saveUsageMut.mutate({ stockId: usageForStock?.id, usageDate: usageForm.usageDate || null, quantityTonnes: usageForm.quantityTonnes ? parseFloat(usageForm.quantityTonnes) : null, quantityBales: usageForm.quantityBales ? parseInt(usageForm.quantityBales) : null, purpose: usageForm.purpose || null, herdName: usageForm.herdName || null, notes: usageForm.notes || null })}>Record Drawdown</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══ Delete Stock confirm ══════════════════════════════════════════════ */}
+      <Dialog open={deleteStockId !== null} onOpenChange={o => { if (!o) setDeleteStockId(null); }}>
+        <DialogContent style={{ maxWidth: 400 }}>
+          <DialogHeader><DialogTitle>Delete Stock Batch</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">Delete this silage / haylage batch? All drawdown records for this batch will also be removed.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteStockId(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={deleteStockMut.isPending} onClick={() => deleteStockId !== null && deleteStockMut.mutate(deleteStockId)}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

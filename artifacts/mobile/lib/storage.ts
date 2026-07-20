@@ -234,4 +234,5 @@ export const STORAGE_KEYS = {
   HIVE_INSPECTIONS: "bde_hive_inspections",
   STRAW_BALE_INVENTORY: "bde_straw_bale_inventory",
   STRAW_MOISTURE_CHECKS: "bde_straw_moisture_checks",
+  SILAGE_HAYLAGE_STOCK: "bde_silage_haylage_stock",
 } as const;

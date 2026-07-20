@@ -393,6 +393,17 @@ const recordOptions: RecordOption[] = [
     requiresSectors: ["livestock"],
   },
   {
+    id: "silage-cut-record",
+    title: "Silage / Haylage Cut",
+    description: "Record each cut or wrapped-bale batch going into store — quantity, DM%, clamp name and source field for stock balance tracking",
+    icon: "wind",
+    color: "#15803d",
+    bgColor: "#dcfce7",
+    route: "/silage-cut-record",
+    moduleKeys: ["field-crop-management", "environmental"],
+    requiresSectors: ["arable", "livestock"],
+  },
+  {
     id: "straw-bales",
     title: "Straw Bale Record",
     description: "Log bale batches into inventory and record moisture checks — fire safety monitoring and Red Tractor traceability",
