@@ -743,7 +743,7 @@ const sections: Section[] = [
         color: "bg-indigo-50 text-indigo-700 border-indigo-100",
         badge: "module",
         features: [
-          "SMS Text Alerts — receive critical compliance alerts by text message; unnotified livestock movements, expired staff certificates, water quality failures, overdue inspections, upcoming key dates, and farm shop out-of-stock events delivered instantly to any UK mobile number",
+          "SMS Text Alerts — receive critical compliance alerts by text message; unnotified livestock movements, expired staff certificates, water quality failures, overdue inspections, medicine withdrawal periods ending within three days (cattle, sheep, goats, deer, and pigs), upcoming key dates, and farm shop out-of-stock events delivered instantly to any UK mobile number",
           "Push notifications — staff receive an instant push notification on their mobile app device when a task is assigned to them; tapping the notification opens the Task Inbox directly; delivered alongside the SMS so workers are alerted even if they do not have the app open",
           "Permanent advisor accounts — give agronomists, vets, and FACTS advisers their own login with access scoped to only the modules you choose",
           "Time-limited inspection sessions — generate a secure, expiring link for Red Tractor certification body assessors to view your records during an audit visit",

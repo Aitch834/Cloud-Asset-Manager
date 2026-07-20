@@ -704,9 +704,11 @@ const CONTENT: [string, string][] = [
 <li><strong>Administering person and veterinary authorisation reference.</strong></li>
 <li><strong>Withdrawal period (days):</strong> pre-filled from the product's label for meat and milk.</li>
 <li><strong>Withdrawal end date:</strong> calculated automatically. Animals cannot be sold for slaughter or milk supplied before this date.</li>
+<li><strong>Link to stock register (optional):</strong> select a product from your veterinary medicine store; the quantity used is deducted from stock levels automatically when the record is saved, keeping your medicine inventory in step with your treatment book without a separate manual adjustment.</li>
+<li><strong>Link to vet prescription (optional):</strong> choose the authorising written prescription from the Vet Prescriptions register; vet name, dispensing date, and prescription reference auto-populate for a complete medicines audit trail.</li>
 </ul>
 <h3>Withdrawal period alerts</h3>
-<p>Animals with an active withdrawal period are flagged in the Individual Animal Register with an amber badge. An SMS alert is sent when the withdrawal period is within three days of ending so movements and milk supply can be reinstated promptly.</p>
+<p>Animals with an active withdrawal period are flagged in the Individual Animal Register with an amber badge. An automated check runs hourly across all livestock medicine records — cattle, sheep, goats, deer, and pigs. A warning notification is raised for every active withdrawal period, escalating to critical (with an SMS alert) when the period is within three days of ending, so movements and milk supply can be reinstated promptly.</p>
 <h3>Vet authorisation</h3>
 <p>For medicines used under a Veterinary Written Direction (VWD) or Cascade prescription, attach the vet's written authorisation to the treatment record. The Vet Prescriptions tab provides a dedicated register for all outstanding prescriptions with their expiry dates.</p>
 <h3>Adverse Drug Reaction (ADR) recording and VMD SARSS reporting</h3>
@@ -2152,7 +2154,7 @@ const CONTENT: [string, string][] = [
 <li>Records retained for a minimum of five years.</li>
 </ul>
 <h3>How BDE Farm Trac meets these requirements</h3>
-<p>BDE Farm Trac's Medicine Records module captures all required fields for each treatment. Batch numbers are mandatory fields — the record cannot be saved without one. Withdrawal periods are calculated automatically from the product's label data. VWD references link to the Vet Prescriptions register. Stock levels are tracked via the Trade Contacts &amp; Stock module against product batches received in Goods Received Notes, providing the medicine stock record alongside the treatment book.</p>`,
+<p>BDE Farm Trac's Medicine Records module captures all required fields for each treatment. Batch numbers are mandatory fields — the record cannot be saved without one. Withdrawal periods are calculated automatically from the product's label data. VWD references link to the Vet Prescriptions register. Stock levels are tracked via the Trade Contacts &amp; Stock module against product batches received in Goods Received Notes, providing the medicine stock record alongside the treatment book. Treatment records can also be directly linked to a stock item in the veterinary medicine register — selecting the stock item and entering the quantity used on the treatment form deducts the amount from the stock level automatically when the record is saved, so usage and stock balance are always in agreement without a separate manual adjustment.</p>`,
   ],
   // 102 — SFI / ELMs Actions & Agreements — Environmental Module
   // 98 — SFI / ELMs Actions & Agreements — Environmental Module
