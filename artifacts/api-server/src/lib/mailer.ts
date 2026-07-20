@@ -160,6 +160,46 @@ export async function sendTicketReplyEmail(opts: {
   });
 }
 
+export async function sendCustomerReplyAlert(opts: {
+  ticketRef: string;
+  ticketId: number;
+  customerName: string;
+  subject: string;
+  replyText: string;
+  tenantSlug?: string | null;
+  farmId?: number | null;
+}): Promise<{ sent: boolean; reason?: string }> {
+  const notifyAddress = process.env.SUPPORT_NOTIFY_EMAIL ?? "hello@bdefarmtrac.co.uk";
+  const farmInfo = opts.tenantSlug
+    ? `<p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">Farm / Tenant</p>
+       <p style="margin:0 0 12px;font-size:14px;color:#374151;">${opts.tenantSlug}${opts.farmId ? ` (Farm ID: ${opts.farmId})` : ""}</p>`
+    : "";
+  const body = `
+    <p>A customer has replied to an existing support ticket via the BDE Farm Trac dashboard.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;border-radius:6px;margin:20px 0;">
+      <tr><td style="padding:20px 24px;">
+        <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">Ticket Reference</p>
+        <p style="margin:0 0 12px;font-size:22px;font-weight:bold;color:#1a1a1a;">${opts.ticketRef}</p>
+        <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">From</p>
+        <p style="margin:0 0 12px;font-size:14px;color:#374151;">${opts.customerName}</p>
+        <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">Subject</p>
+        <p style="margin:0 0 12px;font-size:14px;color:#374151;">${opts.subject}</p>
+        ${farmInfo}
+        <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">Customer Reply</p>
+        <p style="margin:0;font-size:14px;color:#1a1a1a;line-height:1.6;white-space:pre-wrap;">${opts.replyText}</p>
+      </td></tr>
+    </table>
+    <p style="margin:24px 0;">
+      <a href="https://bdefarmtrac.co.uk/admin-portal/support" style="display:inline-block;padding:12px 24px;background:#1a6b3a;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;">View in Admin Portal →</a>
+    </p>
+  `;
+  return sendAdminEmail({
+    to: notifyAddress,
+    subject: `Customer Reply — ${opts.ticketRef} · ${opts.subject}`,
+    body,
+  });
+}
+
 function wrapInBrandedLayout(content: string): string {
   return `<!DOCTYPE html>
 <html lang="en">

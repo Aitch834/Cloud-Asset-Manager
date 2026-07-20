@@ -1,8 +1,8 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { createHmac, timingSafeEqual } from "crypto";
-import { db, helpArticlesTable, farmResourcesTable, farmTaskResourceAllocationsTable, staffLocationPingsTable, gpsIntegrationsTable, gpsAssetPositionsTable, sensorIntegrationsTable, apiSensorReadingsTable } from "@workspace/db";
+import { db, helpArticlesTable, farmResourcesTable, farmTaskResourceAllocationsTable, staffLocationPingsTable, gpsIntegrationsTable, gpsAssetPositionsTable, sensorIntegrationsTable, apiSensorReadingsTable, supportTicketsTable, supportTicketMessagesTable } from "@workspace/db";
 import { sendSms } from "../lib/sms";
-import { sendAdminEmail } from "../lib/mailer";
+import { sendAdminEmail, sendCustomerReplyAlert } from "../lib/mailer";
 import { sanitiseBody } from "../lib/sanitise";
 import { encryptCredential, decryptCredential } from "../lib/encrypt";
 
@@ -32341,6 +32341,84 @@ router.delete("/farms/:farmId/organic-arable/seed-movements/:id", requireAuth, r
   }
   await db.delete(organicArableSeedMovementsTable).where(and(eq(organicArableSeedMovementsTable.id, id), eq(organicArableSeedMovementsTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ── Customer-facing support ticket routes ───────────────────────────────────
+
+router.get("/farms/:farmId/support-tickets", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  try {
+    const tickets = await db.select().from(supportTicketsTable)
+      .where(eq(supportTicketsTable.farmId, farmId))
+      .orderBy(desc(supportTicketsTable.createdAt));
+    res.json({ tickets });
+  } catch (err) {
+    console.error("[SUPPORT] List tickets error:", err);
+    res.status(500).json({ error: "Failed to load tickets" });
+  }
+});
+
+router.get("/farms/:farmId/support-tickets/:ticketId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const ticketId = parseInt(req.params.ticketId as string, 10);
+  if (isNaN(ticketId)) { res.status(400).json({ error: "Invalid ticket ID" }); return; }
+  try {
+    const [ticket] = await db.select().from(supportTicketsTable)
+      .where(and(eq(supportTicketsTable.id, ticketId), eq(supportTicketsTable.farmId, farmId)))
+      .limit(1);
+    if (!ticket) { res.status(404).json({ error: "Ticket not found" }); return; }
+    const messages = await db.select().from(supportTicketMessagesTable)
+      .where(eq(supportTicketMessagesTable.ticketId, ticketId))
+      .orderBy(supportTicketMessagesTable.createdAt);
+    res.json({ ticket, messages });
+  } catch (err) {
+    console.error("[SUPPORT] Get ticket error:", err);
+    res.status(500).json({ error: "Failed to load ticket" });
+  }
+});
+
+router.post("/farms/:farmId/support-tickets/:ticketId/reply", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const ticketId = parseInt(req.params.ticketId as string, 10);
+  if (isNaN(ticketId)) { res.status(400).json({ error: "Invalid ticket ID" }); return; }
+  const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+  if (!message) { res.status(400).json({ error: "Message is required" }); return; }
+  try {
+    const [ticket] = await db.select().from(supportTicketsTable)
+      .where(and(eq(supportTicketsTable.id, ticketId), eq(supportTicketsTable.farmId, farmId)))
+      .limit(1);
+    if (!ticket) { res.status(404).json({ error: "Ticket not found" }); return; }
+
+    // Re-open resolved/closed tickets when customer replies
+    if (ticket.status === "resolved" || ticket.status === "closed") {
+      await db.update(supportTicketsTable).set({ status: "open" }).where(eq(supportTicketsTable.id, ticketId));
+    }
+
+    const [reply] = await db.insert(supportTicketMessagesTable).values({
+      ticketId,
+      senderType: "customer",
+      senderId: (req as any).userId ?? null,
+      message,
+    }).returning();
+
+    sendCustomerReplyAlert({
+      ticketRef: ticket.ticketRef ?? `#${ticketId}`,
+      ticketId,
+      customerName: ticket.name,
+      subject: ticket.subject,
+      replyText: message,
+      tenantSlug: ticket.tenantSlug,
+      farmId,
+    }).catch((e) => console.warn("[SUPPORT] Customer reply alert failed:", e));
+
+    res.status(201).json({ message: reply });
+  } catch (err) {
+    console.error("[SUPPORT] Customer reply error:", err);
+    res.status(500).json({ error: "Failed to send reply" });
+  }
 });
 
 export default router;
