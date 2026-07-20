@@ -5410,6 +5410,10 @@ const CONTENT: [string, string][] = [
   [
     "How to connect each farm's LIS account to BDE Farm Trac and submit cattle movements, births, and deaths directly to the Livestock Information Platform (LIP) API.",
     `<h2>LIS LIP One-Click Cattle Submission — Connecting via LIS Account Sign-In</h2>
+<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:0.875rem 1rem;margin-bottom:1rem">
+<strong>⚠ Service temporarily paused — effective 21 July 2026</strong><br>
+The Livestock Information Service has confirmed that LIP Cattle API submissions are temporarily paused while cattle traceability services transition to a new Defra-operated service. New LIP cattle submissions cannot be made at this time. Please continue reporting cattle movements via <strong>BCMS (CTS Web Services)</strong> as usual. LIS will provide further guidance and a revised migration approach in September/October 2026 ahead of the BEID mandate in 2027. This article is retained for reference — the LIP integration will resume once the new Defra service is available.
+</div>
 <p>BDE Farm Trac integrates with the Livestock Information Platform (LIP), the government cattle movement and recording system operated by the Livestock Information Service (LIS). Once connected, cattle movements, births, and deaths can be submitted directly to the LIP API with a single click from the Livestock Movements page — without leaving the dashboard.</p>
 <p>LIP uses a delegated <strong>per-farm OAuth sign-in</strong>. Each farm holding connects its own LIS account independently, meaning the farmer signs in with their existing LIS credentials rather than entering API keys. This mirrors how a farmer would log in to the LIS online portal, but the authorisation is held securely by BDE Farm Trac so submissions can be made on their behalf.</p>
 <h3>Connecting a farm's LIS account</h3>

@@ -2505,14 +2505,13 @@ export default function Movements() {
 
                             const isLipSubmittable = isCattle && r.movementType !== "birth" && lipConfigured;
                             const lipBtn = isLipSubmittable ? (
-                              <button
-                                onClick={() => setLipSubmitConfirmId(r.id)}
-                                disabled={lipSubmittingId === r.id}
-                                style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.7rem", padding: "2px 8px", borderRadius: 6, border: "1px solid #e9d5ff", background: "#f5f3ff", color: "#6d28d9", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
+                              <span
+                                title="LIS Cattle API submissions are temporarily paused from 21 July 2026 while LIS transitions cattle traceability services. Please use BCMS (CTS Web Services) for cattle movements in the meantime."
+                                style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.7rem", padding: "2px 8px", borderRadius: 6, border: "1px solid #e5e7eb", background: "#f9fafb", color: "#9ca3af", cursor: "not-allowed", fontWeight: 600, whiteSpace: "nowrap" }}
                               >
-                                {lipSubmittingId === r.id ? <Loader2 size={10} className="animate-spin" /> : <Send size={10} />}
-                                {lipCredsData?.sandboxMode !== false ? "Test Submit (LIP)" : "Submit to LIP"}
-                              </button>
+                                <WifiOff size={10} />
+                                LIP Paused
+                              </span>
                             ) : null;
 
                             const isEidcymruSpecies = (r.species === "Sheep" || r.species === "Goat") && isWales && isSubmittableType;
@@ -3148,11 +3147,21 @@ export default function Movements() {
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               {lipCredsData && (
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: lipConfigured ? "#f5f3ff" : "#f9fafb", border: `1px solid ${lipConfigured ? "#e9d5ff" : "#e5e7eb"}`, borderRadius: 8, padding: "6px 12px", fontSize: "0.75rem", fontWeight: 600, color: lipConfigured ? "#6d28d9" : "#6b7280" }}>
-                  {lipConfigured ? <ShieldCheck size={13} /> : <WifiOff size={13} />}
-                  {lipConfigured ? (lipCredsData.sandboxMode ? "Sandbox mode" : "Live mode") : "Not connected"}
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "6px 12px", fontSize: "0.75rem", fontWeight: 600, color: "#92400e" }}>
+                  <AlertTriangle size={13} />
+                  Service paused
                 </div>
               )}
+            </div>
+          </div>
+
+          <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "1rem 1.25rem", marginBottom: "1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <AlertTriangle size={15} style={{ color: "#92400e", flexShrink: 0, marginTop: 2 }} />
+            <div>
+              <p style={{ fontSize: "0.85rem", fontWeight: 700, color: "#92400e", marginBottom: 4 }}>LIS Cattle API — Temporarily Paused from 21 July 2026</p>
+              <p style={{ fontSize: "0.8rem", color: "#78350f", lineHeight: 1.5 }}>
+                The Livestock Information Service has confirmed that LIP Cattle API submissions are temporarily paused while cattle traceability services transition to a new Defra-operated service. <strong>New cattle submissions via LIP cannot be made at this time.</strong> Existing submission records below are preserved for audit purposes. Please continue reporting cattle movements via <strong>BCMS (CTS Web Services)</strong> as usual. LIS will provide further guidance in September/October 2026.
+              </p>
             </div>
           </div>
 
@@ -3161,7 +3170,7 @@ export default function Movements() {
               <Shield size={16} style={{ color: "#6d28d9", flexShrink: 0, marginTop: 2 }} />
               <div>
                 <p style={{ fontSize: "0.85rem", fontWeight: 600, color: "#6d28d9", marginBottom: 4 }}>LIP account not connected</p>
-                <p style={{ fontSize: "0.8rem", color: "#5b21b6" }}>To enable one-click submissions for cattle movements, births and deaths, go to <strong>Farm Settings → LIS LIP Integration</strong> and sign in with your LIS account. The "Test Submit (LIP)" button will then appear on each cattle movement row.</p>
+                <p style={{ fontSize: "0.8rem", color: "#5b21b6" }}>LIS Cattle API submissions are temporarily paused from 21 July 2026 while LIS transitions cattle traceability services. New connections are not available at this time. Please report cattle movements via <strong>BCMS (CTS Web Services)</strong> in the meantime.</p>
               </div>
             </div>
           )}
@@ -3207,7 +3216,7 @@ export default function Movements() {
             <div style={{ textAlign: "center", padding: "3rem", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10 }}>
               <Send size={32} style={{ margin: "0 auto 12px", opacity: 0.3, color: "#6b7280" }} />
               <p style={{ fontWeight: 600, color: "#374151", marginBottom: 4 }}>No LIP submissions yet</p>
-              <p style={{ fontSize: "0.875rem", color: "#9ca3af" }}>Connect your LIS account in Farm Settings, then use the "Test Submit (LIP)" button on any cattle movement row.</p>
+              <p style={{ fontSize: "0.875rem", color: "#9ca3af" }}>LIS Cattle API submissions are temporarily paused. Please report cattle movements via BCMS (CTS Web Services) in the meantime. Submission history will appear here once the LIS service resumes.</p>
             </div>
           ) : (
             <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>

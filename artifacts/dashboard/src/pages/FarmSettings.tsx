@@ -19,7 +19,7 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Redirect } from "wouter";
-import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw, Phone, UserRound, Eye, EyeOff, ShieldCheck, Shield, Wifi, WifiOff, Trash2, Building2, CreditCard, Upload, ImageIcon, X, Cpu, LogIn, LogOut, Truck, Satellite, Key, Link2 } from "lucide-react";
+import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw, Phone, UserRound, Eye, EyeOff, ShieldCheck, Shield, Wifi, WifiOff, Trash2, Building2, CreditCard, Upload, ImageIcon, X, Cpu, LogIn, LogOut, Truck, Satellite, Key, Link2, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const SECTORS = [
@@ -484,11 +484,21 @@ function LipConnectionCard({ farmId }: { farmId: number }) {
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
           <SectionHeader
             title="LIS Cattle (LIP) Integration"
-            description="Livestock Information Platform (LIP) is the new cattle tracing API from LIS, currently in Alpha. It will enable one-click cattle birth, death, and movement notifications directly from BDE Farm Trac."
+            description="LIS Cattle (LIP) API submissions are temporarily paused from 21 July 2026 while the Livestock Information Service transitions cattle traceability services. Existing records are preserved. Further guidance expected from LIS in September/October 2026."
           />
-          <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4, background: "#f5f3ff", color: "#7c3aed", border: "1px solid #ddd6fe", borderRadius: 6, padding: "3px 10px", fontSize: "0.72rem", fontWeight: 700 }}>
-            <Cpu size={10} /> Alpha
+          <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4, background: "#fffbeb", color: "#92400e", border: "1px solid #fde68a", borderRadius: 6, padding: "3px 10px", fontSize: "0.72rem", fontWeight: 700 }}>
+            <AlertTriangle size={10} /> Paused
           </span>
+        </div>
+
+        <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "0.875rem 1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <AlertTriangle size={15} color="#92400e" style={{ marginTop: 2, flexShrink: 0 }} />
+          <div>
+            <p style={{ fontSize: "0.82rem", fontWeight: 700, color: "#92400e", marginBottom: 4 }}>Service Temporarily Paused — Effective 21 July 2026</p>
+            <p style={{ fontSize: "0.78rem", color: "#78350f", lineHeight: 1.5 }}>
+              The Livestock Information Service has confirmed that the LIP Cattle API and Alpha Developer Hub are pausing while cattle traceability services transition to a new service operated by Defra. <strong>New cattle submissions via LIP are not available at this time.</strong> Please continue reporting cattle movements via <strong>BCMS (CTS Web Services)</strong> as usual. LIS will provide further guidance and a revised migration approach in September/October 2026 ahead of the BEID mandate in 2027.
+            </p>
+          </div>
         </div>
 
         {isConnected ? (
@@ -537,20 +547,14 @@ function LipConnectionCard({ farmId }: { farmId: number }) {
         )}
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {creds?.platformReady && (
-            <button
-              onClick={handleSignIn}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#7c3aed", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: "0.82rem", fontWeight: 600, cursor: "pointer" }}
-            >
-              <LogIn size={13} />
-              {creds?.configured ? "Re-sign in with LIS" : "Sign in with LIS"}
-            </button>
-          )}
-          {!creds?.platformReady && (
-            <p style={{ fontSize: "0.78rem", color: "#9ca3af", fontStyle: "italic" }}>
-              Awaiting LIS LIP sandbox approval from DEFRA — sign-in will be enabled once active.
-            </p>
-          )}
+          <button
+            disabled
+            title="LIS Cattle API sign-in is temporarily unavailable during the service transition"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#e5e7eb", color: "#9ca3af", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: "0.82rem", fontWeight: 600, cursor: "not-allowed" }}
+          >
+            <LogIn size={13} />
+            Sign in with LIS
+          </button>
           <button
             onClick={() => testMut.mutate()}
             disabled={testMut.isPending || credsQ.isLoading}
@@ -577,7 +581,7 @@ function LipConnectionCard({ farmId }: { farmId: number }) {
         )}
 
         <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: "1rem" }}>
-          <p style={{ fontSize: "0.78rem", fontWeight: 600, color: "#374151", marginBottom: 6 }}>What LIP will enable once fully live:</p>
+          <p style={{ fontSize: "0.78rem", fontWeight: 600, color: "#374151", marginBottom: 6 }}>What LIP will enable once the LIS service transition is complete (expected Q1 2027):</p>
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 5 }}>
             {[
               "One-click cattle movement notifications (replacing manual BCMS Online entry)",
