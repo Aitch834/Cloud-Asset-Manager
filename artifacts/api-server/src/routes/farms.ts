@@ -456,6 +456,9 @@ import {
   organicPoultryAccessRecordsTable,
   organicPoultryFeedRecordsTable,
   organicPoultryDerogationsTable,
+  strawBaleInventoryTable,
+  strawSalesRecordsTable,
+  strawMoistureChecksTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createDairyAbrBorderlineNotification, createDairyAbrInvalidNotification, resolveAbrNotificationsForRecord, createMobilityLamenessAlert, createMobilityScore2Advisory, createBngComplianceNotification, createFpIntakeRejectionNotification, createFpPoorConditionNotification, createFpCheckMissingNotification, createFpPreCoolingPendingNotification, createRiddorNotification, createBcmsMortalityPendingNotification, createBiosecurityDeclarationMissingNotification, createHerdHealthFollowUpNotification, createIpmThresholdBreachedNotification, createReportableDiseaseNotification } from "../lib/alertingJob";
@@ -32419,6 +32422,176 @@ router.post("/farms/:farmId/support-tickets/:ticketId/reply", requireAuth, requi
     console.error("[SUPPORT] Customer reply error:", err);
     res.status(500).json({ error: "Failed to send reply" });
   }
+});
+
+// ─── Straw Bale Inventory ─────────────────────────────────────────────────────
+router.get("/farms/:farmId/straw-bale-inventory", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(strawBaleInventoryTable)
+    .where(eq(strawBaleInventoryTable.farmId, farmId))
+    .orderBy(desc(strawBaleInventoryTable.createdAt));
+  res.json(rows);
+});
+
+router.post("/farms/:farmId/straw-bale-inventory", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(strawBaleInventoryTable).values({ ...body, farmId }).returning();
+  res.status(201).json(row);
+});
+
+router.patch("/farms/:farmId/straw-bale-inventory/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.update(strawBaleInventoryTable).set({ ...body, updatedAt: new Date() })
+    .where(and(eq(strawBaleInventoryTable.id, id), eq(strawBaleInventoryTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/straw-bale-inventory/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  await db.delete(strawBaleInventoryTable).where(and(eq(strawBaleInventoryTable.id, id), eq(strawBaleInventoryTable.farmId, farmId)));
+  res.status(204).end();
+});
+
+// ─── Straw Sales Records ──────────────────────────────────────────────────────
+router.get("/farms/:farmId/straw-sales", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(strawSalesRecordsTable)
+    .where(eq(strawSalesRecordsTable.farmId, farmId))
+    .orderBy(desc(strawSalesRecordsTable.saleDate));
+  res.json(rows);
+});
+
+router.post("/farms/:farmId/straw-sales", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(strawSalesRecordsTable).values({ ...body, farmId }).returning();
+  res.status(201).json(row);
+});
+
+router.patch("/farms/:farmId/straw-sales/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.update(strawSalesRecordsTable).set({ ...body, updatedAt: new Date() })
+    .where(and(eq(strawSalesRecordsTable.id, id), eq(strawSalesRecordsTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/straw-sales/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  await db.delete(strawSalesRecordsTable).where(and(eq(strawSalesRecordsTable.id, id), eq(strawSalesRecordsTable.farmId, farmId)));
+  res.status(204).end();
+});
+
+// ─── Straw Moisture Checks ────────────────────────────────────────────────────
+router.get("/farms/:farmId/straw-moisture-checks", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(strawMoistureChecksTable)
+    .where(eq(strawMoistureChecksTable.farmId, farmId))
+    .orderBy(desc(strawMoistureChecksTable.checkDate));
+  res.json(rows);
+});
+
+router.post("/farms/:farmId/straw-moisture-checks", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(strawMoistureChecksTable).values({ ...body, farmId }).returning();
+  res.status(201).json(row);
+});
+
+router.patch("/farms/:farmId/straw-moisture-checks/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.update(strawMoistureChecksTable).set(body)
+    .where(and(eq(strawMoistureChecksTable.id, id), eq(strawMoistureChecksTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/straw-moisture-checks/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  await db.delete(strawMoistureChecksTable).where(and(eq(strawMoistureChecksTable.id, id), eq(strawMoistureChecksTable.farmId, farmId)));
+  res.status(204).end();
+});
+
+// ─── Straw Analytics ──────────────────────────────────────────────────────────
+router.get("/farms/:farmId/straw-analytics", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+
+  const [inventoryByType, salesByUse, vatSummary, monthlySales, complianceCounts] = await Promise.all([
+    db.select({
+      strawType: strawBaleInventoryTable.strawType,
+      totalBales: sql<number>`COALESCE(SUM(COALESCE(${strawBaleInventoryTable.quantityRemaining}, ${strawBaleInventoryTable.quantityBales})), 0)::int`,
+    }).from(strawBaleInventoryTable)
+      .where(and(eq(strawBaleInventoryTable.farmId, farmId), eq(strawBaleInventoryTable.status, "in_stock")))
+      .groupBy(strawBaleInventoryTable.strawType),
+
+    db.select({
+      intendedUse: strawSalesRecordsTable.intendedUse,
+      count: sql<number>`COUNT(*)::int`,
+      totalNetPence: sql<number>`COALESCE(SUM(${strawSalesRecordsTable.totalValuePence}), 0)::int`,
+    }).from(strawSalesRecordsTable)
+      .where(eq(strawSalesRecordsTable.farmId, farmId))
+      .groupBy(strawSalesRecordsTable.intendedUse),
+
+    db.select({
+      vatClassification: strawSalesRecordsTable.vatClassification,
+      count: sql<number>`COUNT(*)::int`,
+      totalNetPence: sql<number>`COALESCE(SUM(${strawSalesRecordsTable.totalValuePence}), 0)::int`,
+      totalVatPence: sql<number>`COALESCE(SUM(${strawSalesRecordsTable.vatAmountPence}), 0)::int`,
+    }).from(strawSalesRecordsTable)
+      .where(eq(strawSalesRecordsTable.farmId, farmId))
+      .groupBy(strawSalesRecordsTable.vatClassification),
+
+    db.select({
+      month: sql<string>`TO_CHAR(${strawSalesRecordsTable.saleDate}, 'Mon YY')`,
+      totalPence: sql<number>`COALESCE(SUM(${strawSalesRecordsTable.totalValuePence}), 0)::int`,
+    }).from(strawSalesRecordsTable)
+      .where(eq(strawSalesRecordsTable.farmId, farmId))
+      .groupBy(sql`TO_CHAR(${strawSalesRecordsTable.saleDate}, 'Mon YY'), DATE_TRUNC('month', ${strawSalesRecordsTable.saleDate})`)
+      .orderBy(sql`DATE_TRUNC('month', ${strawSalesRecordsTable.saleDate})`),
+
+    db.select({
+      redTractorCount: sql<number>`COUNT(*) FILTER (WHERE ${strawBaleInventoryTable.redTractorCertified} = true)::int`,
+      fusariumCount: sql<number>`COUNT(*) FILTER (WHERE ${strawBaleInventoryTable.fusariumRiskAssessed} = true)::int`,
+    }).from(strawBaleInventoryTable).where(eq(strawBaleInventoryTable.farmId, farmId)),
+  ]);
+
+  const passportCount = await db.select({ count: sql<number>`COUNT(*)::int` })
+    .from(strawSalesRecordsTable)
+    .where(and(eq(strawSalesRecordsTable.farmId, farmId), eq(strawSalesRecordsTable.passportIssued, true)));
+
+  res.json({
+    inventoryByType,
+    salesByUse,
+    vatSummary,
+    monthlySales,
+    redTractorCount: complianceCounts[0]?.redTractorCount ?? 0,
+    fusariumCount: complianceCounts[0]?.fusariumCount ?? 0,
+    passportCount: passportCount[0]?.count ?? 0,
+  });
 });
 
 export default router;

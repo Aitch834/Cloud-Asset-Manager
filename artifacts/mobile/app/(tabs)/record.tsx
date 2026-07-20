@@ -393,6 +393,17 @@ const recordOptions: RecordOption[] = [
     requiresSectors: ["livestock"],
   },
   {
+    id: "straw-bales",
+    title: "Straw Bale Record",
+    description: "Log bale batches into inventory and record moisture checks — fire safety monitoring and Red Tractor traceability",
+    icon: "layers",
+    color: "#d97706",
+    bgColor: "#fef3c7",
+    route: "/straw-bales",
+    moduleKeys: ["field-crop-management"],
+    requiresSectors: ["arable"],
+  },
+  {
     id: "lambing-record",
     title: "Lambing Record",
     description: "Record birth details, lambing ease score, up to 4 lambs, colostrum management, and fostering — Red Tractor Sheep Assurance required",

@@ -52,6 +52,7 @@ import WeatherPageFull from "@/pages/WeatherPageFull";
 import HaulagePageFull from "@/pages/HaulagePageFull";
 import CropStockPage from "@/pages/CropStockPage";
 import SeedStorePage from "@/pages/SeedStorePage";
+import StrawManagementPage from "@/pages/StrawManagementPage";
 import EnvironmentalPageFull from "@/pages/EnvironmentalPageFull";
 import StorageLocationsPage from "@/pages/StorageLocationsPage";
 import AccountSettings from "@/pages/AccountSettings";
@@ -322,6 +323,7 @@ function ProtectedContent() {
         <Route path="/resources" component={ResourcesPage} />
         <Route path="/fields" component={FieldsPage} />
         <Route path="/crop-trials" component={CropTrialsPage} />
+        <Route path="/straw-management" component={StrawManagementPage} />
         <Route path="/harvest" component={HarvestPage} />
         <Route path="/storage-locations" component={StorageLocationsPage} />
         <Route path="/equipment" component={EquipmentPage} />
@@ -458,6 +460,7 @@ function DevBypassContent() {
         <Route path="/resources" component={ResourcesPage} />
         <Route path="/fields" component={FieldsPage} />
         <Route path="/crop-trials" component={CropTrialsPage} />
+        <Route path="/straw-management" component={StrawManagementPage} />
         <Route path="/harvest" component={HarvestPage} />
         <Route path="/storage-locations" component={StorageLocationsPage} />
         <Route path="/equipment" component={EquipmentPage} />
