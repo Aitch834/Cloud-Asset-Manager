@@ -1261,6 +1261,10 @@ export interface HorticultureRecord {
   areaM2: string;
   rowsOrBeds: string;
   plantingDensity: string;
+  plantingMethod?: string;
+  quantityPlanted?: string;
+  plantSupplier?: string;
+  nurseryBatchRef?: string;
   seedLotNumber: string;
   seedSupplier: string;
   harvestWeightKg: string;
@@ -1269,6 +1273,25 @@ export interface HorticultureRecord {
   notes: string;
   latitude?: number;
   longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface FreshProduceIntakeRecord {
+  id: string;
+  farmId: string;
+  intakeDate: string;
+  harvestBatchRef: string;
+  productName: string;
+  blockOrField: string;
+  quantityKg: string;
+  conditionOnArrival: string;
+  intakeTemperatureC: string;
+  targetStorageTemperatureC: string;
+  preCoolingStartTime: string;
+  preCoolingEndTime: string;
+  inspector: string;
+  notes: string;
   createdAt: string;
   synced: boolean;
 }

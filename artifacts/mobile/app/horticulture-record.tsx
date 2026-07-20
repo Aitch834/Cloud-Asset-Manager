@@ -53,6 +53,10 @@ export default function HorticultureRecordScreen() {
   const [areaM2, setAreaM2] = useState("");
   const [rowsOrBeds, setRowsOrBeds] = useState("");
   const [plantingDensity, setPlantingDensity] = useState("");
+  const [plantingMethod, setPlantingMethod] = useState("");
+  const [quantityPlanted, setQuantityPlanted] = useState("");
+  const [plantSupplier, setPlantSupplier] = useState("");
+  const [nurseryBatchRef, setNurseryBatchRef] = useState("");
   const [seedLotNumber, setSeedLotNumber] = useState("");
   const [seedSupplier, setSeedSupplier] = useState("");
   const [harvestWeightKg, setHarvestWeightKg] = useState("");
@@ -64,6 +68,8 @@ export default function HorticultureRecordScreen() {
 
   const isPlanting = activityType === "planting" || activityType === "transplanting";
   const isHarvest = activityType === "harvest";
+  const isSeedMethod = !plantingMethod || plantingMethod === "Direct Seed";
+  const isNurseryMethod = !!plantingMethod && plantingMethod !== "Direct Seed" && plantingMethod !== "Seedling (own propagation)";
 
   const handleGps = async () => {
     try {
@@ -96,6 +102,10 @@ export default function HorticultureRecordScreen() {
       areaM2: areaM2.trim(),
       rowsOrBeds: rowsOrBeds.trim(),
       plantingDensity: plantingDensity.trim(),
+      plantingMethod: plantingMethod || undefined,
+      quantityPlanted: quantityPlanted.trim() || undefined,
+      plantSupplier: plantSupplier.trim() || undefined,
+      nurseryBatchRef: nurseryBatchRef.trim() || undefined,
       seedLotNumber: seedLotNumber.trim(),
       seedSupplier: seedSupplier.trim(),
       harvestWeightKg: harvestWeightKg.trim(),
@@ -158,10 +168,38 @@ export default function HorticultureRecordScreen() {
 
           {isPlanting && (
             <>
-              <Text style={styles.sectionTitle}>Seed / Plant Details</Text>
-              <Input label="Planting Density (plants/m²)" value={plantingDensity} onChangeText={setPlantingDensity} placeholder="e.g. 5" keyboardType="decimal-pad" />
-              <Input label="Seed / Plant Lot Number" value={seedLotNumber} onChangeText={setSeedLotNumber} placeholder="Traceability lot reference" />
-              <Input label="Seed / Plug Supplier" value={seedSupplier} onChangeText={setSeedSupplier} placeholder="Supplier name" />
+              <Text style={styles.sectionTitle}>Planting Method</Text>
+              <View style={styles.chipRow}>
+                {["Direct Seed", "Seedling (own propagation)", "Plug Plant (nursery)", "Bare Root Cane", "Crown / Rootstock", "Sapling", "Other"].map((m) => (
+                  <Pressable key={m} onPress={() => setPlantingMethod(plantingMethod === m ? "" : m)} style={[styles.chip, plantingMethod === m && { borderColor: "#16a34a", backgroundColor: "#dcfce7" }]}>
+                    <Text style={[styles.chipText, plantingMethod === m && { color: "#16a34a", fontFamily: fonts.semiBold }]}>{m}</Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <Text style={styles.sectionTitle}>Planting Details</Text>
+              <View style={styles.row}>
+                <View style={{ flex: 1 }}>
+                  <Input label="Quantity Planted" value={quantityPlanted} onChangeText={setQuantityPlanted} placeholder="No. of plants / canes" keyboardType="decimal-pad" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Input label="Density (plants/m²)" value={plantingDensity} onChangeText={setPlantingDensity} placeholder="e.g. 5" keyboardType="decimal-pad" />
+                </View>
+              </View>
+
+              {isNurseryMethod && (
+                <>
+                  <Input label="Nursery / Plant Supplier" value={plantSupplier} onChangeText={setPlantSupplier} placeholder="Supplier name" />
+                  <Input label="Nursery Batch / Delivery Ref" value={nurseryBatchRef} onChangeText={setNurseryBatchRef} placeholder="Delivery or batch reference" />
+                </>
+              )}
+
+              {isSeedMethod && (
+                <>
+                  <Input label="Seed Supplier" value={seedSupplier} onChangeText={setSeedSupplier} placeholder="Supplier name" />
+                  <Input label="Seed Lot Number" value={seedLotNumber} onChangeText={setSeedLotNumber} placeholder="Traceability lot reference" />
+                </>
+              )}
             </>
           )}
 

@@ -1490,6 +1490,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["fresh-produce"],
   },
   {
+    id: "fresh-produce-intake",
+    title: "Fresh Produce Intake QC",
+    description: "Log incoming produce condition, temperature, pre-cooling times and lot traceability at the packhouse door",
+    icon: "clipboard",
+    color: "#0891b2",
+    bgColor: "#e0f2fe",
+    route: "/fresh-produce-intake",
+    moduleKeys: ["fresh-produce"],
+  },
+  {
     id: "cold-store-temp",
     title: "Cold Store Temperature Log",
     description: "Daily cold store and blast chiller temperature readings with out-of-range alerts and corrective action",

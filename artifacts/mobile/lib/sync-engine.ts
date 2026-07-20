@@ -387,6 +387,7 @@ function getSyncEndpoint(recordType: string, farmId: string, data?: Record<strin
     bde_maintenance_logs: `/farms/${farmId}/maintenance-logs`,
     bde_horticulture_records: `/farms/${farmId}/horticulture-records`,
     bde_horticulture_harvest_grades: `/farms/${farmId}/horticulture-harvest-grades`,
+    bde_fresh_produce_intake_records: `/farms/${farmId}/fresh-produce-intake`,
     bde_cold_store_temp_readings: `/farms/${farmId}/cold-store-readings`,
     bde_carbon_entries: `/farms/${farmId}/carbon-entries`,
     bde_diversification_records: `/farms/${farmId}/diversification-records`,

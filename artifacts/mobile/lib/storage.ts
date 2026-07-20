@@ -182,6 +182,7 @@ export const STORAGE_KEYS = {
   MAINTENANCE_LOGS: "bde_maintenance_logs",
   HORTICULTURE_RECORDS: "bde_horticulture_records",
   HORTICULTURE_HARVEST_GRADES: "bde_horticulture_harvest_grades",
+  FRESH_PRODUCE_INTAKE_RECORDS: "bde_fresh_produce_intake_records",
   COLD_STORE_TEMP_READINGS: "bde_cold_store_temp_readings",
   CARBON_ENTRIES: "bde_carbon_entries",
   DIVERSIFICATION_RECORDS: "bde_diversification_records",
