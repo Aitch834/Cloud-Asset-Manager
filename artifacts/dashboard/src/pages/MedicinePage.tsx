@@ -9,6 +9,7 @@ import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect } from "wouter";
 import {
   Plus, Search, Loader2, Pencil, Trash2, HeartPulse, Printer,
@@ -147,6 +148,9 @@ const EMPTY_FORM = {
   reportedToVetDate: "",
   vetReportedToVmdDate: "",
   vmdSarssRef: "",
+  // Stock register linkage — deducts from stock_levels when stockItemId provided
+  stockItemId: "" as string | number,
+  stockQuantityUsed: "",
 };
 const ADMIN_ROUTES = ["Oral", "Subcutaneous injection", "Intramuscular injection", "Intravenous injection", "Intramammary", "Topical / Pour-on", "Intrauterine", "Ocular", "Nasal", "Other"];
 
@@ -917,6 +921,16 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
     queryKey: ["vet-prescriptions", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/vet-prescriptions`, { credentials: "include" }).then(r => r.json()),
   });
+  const stockItemsQ = useQuery<{ records: Array<{ id: number; name: string; category: string | null; unit: string | null; isActive: boolean }> }>({
+    queryKey: ["stock-items", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/stock-items`, { credentials: "include" }).then(r => r.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+  const allStockItems = (stockItemsQ.data?.records ?? []).filter(s => s.isActive);
+  const medicineStockItems = allStockItems.filter(s =>
+    !s.category || ["medic", "vet", "pharma", "drug", "treatment"].some(k => s.category!.toLowerCase().includes(k))
+  );
+  const stockItemsForPicker = medicineStockItems.length > 0 ? medicineStockItems : allStockItems;
 
   const farm: Farm = farmQ.data?.record ?? { id: farmId, name: "Farm", address: null, postcode: null, cphNumber: null, redTractorId: null };
   const herds: Herd[] = herdsQ.data?.records ?? [];
@@ -1056,6 +1070,8 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
       reportedToVetDate: r.reportedToVetDate ? new Date(r.reportedToVetDate).toISOString().slice(0, 10) : "",
       vetReportedToVmdDate: r.vetReportedToVmdDate ? new Date(r.vetReportedToVmdDate).toISOString().slice(0, 10) : "",
       vmdSarssRef: r.vmdSarssRef ?? "",
+      stockItemId: "",
+      stockQuantityUsed: "",
     };
     setForm(newForm);
     // If editing a group record that already has tags, pre-validate them
@@ -1091,6 +1107,8 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
       certifierNotified: form.certifierNotified ?? false,
       certifierNotifiedDate: form.certifierNotified && form.certifierNotifiedDate ? new Date(form.certifierNotifiedDate).toISOString() : null,
       prescriptionId: form.prescriptionId ? Number(form.prescriptionId) : null,
+      stockItemId: form.stockItemId ? Number(form.stockItemId) : undefined,
+      stockQuantityUsed: form.stockQuantityUsed ? Number(form.stockQuantityUsed) : undefined,
     };
   }
 
@@ -1714,6 +1732,60 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
                     </div>
                   );
                 })()}
+              </div>
+
+              {/* ── Stock Register Link ── */}
+              <div className="col-span-full pt-3 border-t border-border/50">
+                <label className="flex items-center gap-2 text-sm font-semibold text-foreground/80 mb-2">
+                  <Tag className="w-3.5 h-3.5" />
+                  Link to Stock Register
+                  <span className="ml-1 text-xs font-normal text-foreground/40">— optional, auto-deducts from inventory</span>
+                </label>
+                {stockItemsForPicker.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Stock item</p>
+                      <Select
+                        value={String(form.stockItemId ?? "")}
+                        onValueChange={v => setForm(f => ({
+                          ...f,
+                          stockItemId: v,
+                          medicineName: v ? (stockItemsForPicker.find(s => String(s.id) === v)?.name ?? f.medicineName) : f.medicineName,
+                        }))}
+                      >
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue placeholder="Select item from stock register…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">— Not linked —</SelectItem>
+                          {stockItemsForPicker.map(s => (
+                            <SelectItem key={s.id} value={String(s.id)}>
+                              {s.name}{s.unit ? ` (${s.unit})` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Quantity used from stock</p>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="h-8 text-sm"
+                        placeholder="e.g. 10"
+                        value={form.stockQuantityUsed}
+                        onChange={e => setForm(f => ({ ...f, stockQuantityUsed: e.target.value }))}
+                        disabled={!form.stockItemId}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    No stock items found. Add medicines to your{" "}
+                    <a href="/stock" className="underline text-blue-600">Stock Register</a> to enable automatic inventory deductions.
+                  </p>
+                )}
               </div>
 
               {/* ── Adverse Drug Reaction (VMR 2013 Reg 58 / SARSS) ── */}

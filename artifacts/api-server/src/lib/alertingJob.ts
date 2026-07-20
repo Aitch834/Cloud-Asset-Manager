@@ -1,6 +1,6 @@
 import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconformanceRecordsTable, subscriptionsTable, modulesTable, poultryTreatmentsTable, poultrySchemeRecordsTable, poultryBroilerWelfareTable, pigMedicineTreatmentsTable, pigRedTractorChecklistTable, pigTailBitingRisksTable } from "@workspace/db";
 import { usersTable, userTenantsTable } from "@workspace/db/schema";
-import { livestockMovementsTable, staffCertificatesTable, sprayApplicationsTable, sprayProductsTable, riskAssessmentsTable, pestControlRecordsTable, cleaningDisinfectionRecordsTable } from "@workspace/db/schema";
+import { livestockMovementsTable, livestockMedicineRecordsTable, staffCertificatesTable, sprayApplicationsTable, sprayProductsTable, riskAssessmentsTable, pestControlRecordsTable, cleaningDisinfectionRecordsTable } from "@workspace/db/schema";
 import { feedContingencyPlansTable, feedStockLevelsTable, feedStockTargetsTable, feedPurchaseOrdersTable } from "@workspace/db/schema";
 import { vetHealthPlanActionsTable, vetHealthPlansTable } from "@workspace/db/schema";
 import { ppeRiskAssessmentsTable } from "@workspace/db/schema";
@@ -10,7 +10,7 @@ import { sendWeeklyDigestEmail, type WeeklyDigestItem } from "./mailer";
 
 const ESCALATION_DAYS = 7;
 
-const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated", "water_quality_fail", "pest_control_overdue", "cleaning_overdue", "shop_stock_out", "dairy_lab_concern", "dairy_abr_positive", "dairy_mobility_lameness", "scouting_xylella", "scouting_phytophthora", "scouting_vine_weevil", "scouting_high_disease", "scouting_high_pest", "bng_compliance_breach", "fp_intake_rejected"]);
+const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated", "water_quality_fail", "pest_control_overdue", "cleaning_overdue", "shop_stock_out", "dairy_lab_concern", "dairy_abr_positive", "dairy_mobility_lameness", "scouting_xylella", "scouting_phytophthora", "scouting_vine_weevil", "scouting_high_disease", "scouting_high_pest", "bng_compliance_breach", "fp_intake_rejected", "livestock_withdrawal_active"]);
 
 async function tenantHasSmsModule(tenantId: number): Promise<boolean> {
   const [smsModule] = await db
@@ -1697,6 +1697,56 @@ export async function createScoutingAlerts(params: {
   }
 }
 
+async function checkLivestockMedicineWithdrawal() {
+  const today = new Date();
+  const todayIso = today.toISOString().slice(0, 10);
+
+  const active = await db
+    .select({
+      id: livestockMedicineRecordsTable.id,
+      farmId: livestockMedicineRecordsTable.farmId,
+      medicineName: livestockMedicineRecordsTable.medicineName,
+      withdrawalEndDate: livestockMedicineRecordsTable.withdrawalEndDate,
+    })
+    .from(livestockMedicineRecordsTable)
+    .where(sql`${livestockMedicineRecordsTable.withdrawalEndDate} >= CURRENT_DATE`);
+
+  for (const tx of active) {
+    if (!tx.withdrawalEndDate) continue;
+
+    const [farm] = await db
+      .select({ tenantId: farmsTable.tenantId })
+      .from(farmsTable)
+      .where(eq(farmsTable.id, tx.farmId))
+      .limit(1);
+    if (!farm) continue;
+
+    const clearDate = new Date(tx.withdrawalEndDate);
+    const daysRemaining = Math.ceil((clearDate.getTime() - today.getTime()) / 86400000);
+    const clearDateStr = clearDate.toLocaleDateString("en-GB");
+
+    await upsertNotification({
+      tenantId: farm.tenantId,
+      farmId: tx.farmId,
+      type: "livestock_withdrawal_active",
+      severity: daysRemaining <= 3 ? "critical" : "warning",
+      title: `Withdrawal Period Active — ${tx.medicineName}`,
+      message: `${tx.medicineName} has an active withdrawal period. Treated livestock must NOT be sold for slaughter or have milk enter the food chain before ${clearDateStr} (${daysRemaining} day${daysRemaining !== 1 ? "s" : ""} remaining). Check animal records before any movements off farm.`,
+      relatedModule: "livestock-management",
+      relatedId: tx.id,
+      dedupeKey: `livestock-withdrawal-active-${tx.id}-${todayIso}`,
+    });
+
+    if (daysRemaining <= 3) {
+      await dispatchSmsForCriticalAlert(
+        farm.tenantId,
+        `Withdrawal Period Ending Soon — ${tx.medicineName}`,
+        `${tx.medicineName} withdrawal ends ${clearDateStr} (${daysRemaining} day${daysRemaining !== 1 ? "s" : ""} remaining). Do NOT sell treated animals or supply milk/eggs until then.`
+      );
+    }
+  }
+}
+
 export async function runAlertingJob() {
   try {
     await checkEscalations();
@@ -1717,6 +1767,7 @@ export async function runAlertingJob() {
     await checkPigWithdrawalPeriods();
     await checkPigRedTractorExpiry();
     await checkPigTailBitingOutbreaks();
+    await checkLivestockMedicineWithdrawal();
     console.log("[ALERTS] Alerting job completed");
   } catch (err) {
     console.error("[ALERTS] Alerting job error:", err);
