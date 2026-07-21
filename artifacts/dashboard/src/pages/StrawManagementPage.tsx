@@ -18,7 +18,7 @@ import {
 } from "recharts";
 import {
   Plus, Pencil, Trash2, Eye, TrendingUp, AlertTriangle, CheckCircle2,
-  Package, DollarSign, FileText, Thermometer, Droplets, ShieldCheck,
+  Package, PoundSterling, FileText, Thermometer, Droplets, ShieldCheck,
   Wheat, BarChart3, Scale, Calendar, AlertCircle, Info, Loader2,
   Truck, FileCheck, X
 } from "lucide-react";
@@ -95,14 +95,14 @@ function ConditionBadge({ cond }: { cond: string }) {
 }
 
 // ─── Inventory Dialog ─────────────────────────────────────────────────────────
-function InventoryDialog({ open, onClose, farmId, editRow }: { open: boolean; onClose: () => void; farmId: number; editRow?: any }) {
+function InventoryDialog({ open, onClose, farmId, editRow, existingInventory }: { open: boolean; onClose: () => void; farmId: number; editRow?: any; existingInventory: any[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const isEdit = !!editRow;
 
   const init = {
     batchRef: "", strawType: "Wheat Straw", baleFormat: "Big Round",
-    harvestDate: today(), fieldOfOrigin: "", cropVariety: "",
+    harvestDate: today(), fieldId: "", fieldOfOrigin: "", cropVariety: "",
     quantityBales: "", baleWeightKg: "", moistureAtBaling: "",
     storageLocation: "", storageType: "Indoor", stackingStartDate: today(),
     redTractorCertified: false, combinableCropsPassportRef: "",
@@ -114,6 +114,39 @@ function InventoryDialog({ open, onClose, farmId, editRow }: { open: boolean; on
   const [form, setForm] = useState<typeof init>(init);
   const f = (k: keyof typeof init) => (v: any) => setForm(p => ({ ...p, [k]: v }));
 
+  // ── Lookups ──────────────────────────────────────────────────────────────────
+  const { data: fields = [] } = useQuery<any[]>({
+    queryKey: ["fields", farmId],
+    queryFn: async () => {
+      const r = await fetch(`/api/farms/${farmId}/fields`, { credentials: "include" });
+      return r.ok ? r.json() : [];
+    },
+    enabled: open && !!farmId,
+    staleTime: 60_000,
+  });
+
+  const { data: fieldCrops = [] } = useQuery<any[]>({
+    queryKey: ["field-crops", farmId],
+    queryFn: async () => {
+      const r = await fetch(`/api/farms/${farmId}/field-crops`, { credentials: "include" });
+      return r.ok ? r.json() : [];
+    },
+    enabled: open && !!farmId,
+    staleTime: 60_000,
+  });
+
+  // Unique storage locations previously used for straw, with their most-used storage type
+  const knownLocations = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const row of existingInventory) {
+      if (row.storageLocation && !map.has(row.storageLocation)) {
+        map.set(row.storageLocation, row.storageType ?? "Indoor");
+      }
+    }
+    return Array.from(map.entries()).map(([name, type]) => ({ name, type }));
+  }, [existingInventory]);
+
+  // ── Populate form ────────────────────────────────────────────────────────────
   React.useEffect(() => {
     if (open) {
       if (editRow) {
@@ -122,6 +155,7 @@ function InventoryDialog({ open, onClose, farmId, editRow }: { open: boolean; on
           strawType: editRow.strawType ?? "Wheat Straw",
           baleFormat: editRow.baleFormat ?? "Big Round",
           harvestDate: editRow.harvestDate ?? today(),
+          fieldId: editRow.fieldId != null ? String(editRow.fieldId) : "",
           fieldOfOrigin: editRow.fieldOfOrigin ?? "",
           cropVariety: editRow.cropVariety ?? "",
           quantityBales: editRow.quantityBales ?? "",
@@ -147,8 +181,36 @@ function InventoryDialog({ open, onClose, farmId, editRow }: { open: boolean; on
     }
   }, [open, editRow]);
 
+  // When field is selected → auto-populate field name + crop variety
+  React.useEffect(() => {
+    if (!form.fieldId) return;
+    const field = fields.find((fld: any) => fld.id === Number(form.fieldId));
+    if (!field) return;
+    setForm(p => ({ ...p, fieldOfOrigin: field.name ?? p.fieldOfOrigin }));
+    // Find the most recent active crop assignment for this field
+    const crops: any[] = fieldCrops.filter((c: any) => c.fieldId === Number(form.fieldId));
+    if (crops.length > 0) {
+      const latest = crops.sort((a: any, b: any) => (b.harvestYear ?? 0) - (a.harvestYear ?? 0))[0];
+      const variety = latest.varietyName || latest.cropVariety || "";
+      if (variety) setForm(p => ({ ...p, cropVariety: variety }));
+    }
+  }, [form.fieldId, fields, fieldCrops]);
+
+  // Auto-populate Quantity Remaining = total bales on new records (user can override)
+  React.useEffect(() => {
+    if (!isEdit && form.quantityBales) {
+      setForm(p => ({ ...p, quantityRemaining: form.quantityBales }));
+    }
+  }, [form.quantityBales, isEdit]);
+
   const moisture = num(form.moistureAtBaling);
   const risk = getMoistureRisk(moisture, form.baleFormat);
+
+  // Storage location change — auto-populate storage type from known locations
+  const handleStorageLocation = (val: string) => {
+    const known = knownLocations.find(l => l.name === val);
+    setForm(p => ({ ...p, storageLocation: val, ...(known ? { storageType: known.type } : {}) }));
+  };
 
   const mut = useMutation({
     mutationFn: async (body: any) => {
@@ -171,7 +233,9 @@ function InventoryDialog({ open, onClose, farmId, editRow }: { open: boolean; on
   const submit = () => mut.mutate({
     batchRef: form.batchRef || null,
     strawType: form.strawType, baleFormat: form.baleFormat,
-    harvestDate: form.harvestDate || null, fieldOfOrigin: form.fieldOfOrigin || null,
+    harvestDate: form.harvestDate || null,
+    fieldId: form.fieldId ? Number(form.fieldId) : null,
+    fieldOfOrigin: form.fieldOfOrigin || null,
     cropVariety: form.cropVariety || null,
     quantityBales: num(form.quantityBales) ?? 0,
     baleWeightKg: form.baleWeightKg || null,
@@ -213,13 +277,73 @@ function InventoryDialog({ open, onClose, farmId, editRow }: { open: boolean; on
           </div>
 
           <div><Label>Harvest Date</Label><Input type="date" value={form.harvestDate} onChange={e => f("harvestDate")(e.target.value)} /></div>
-          <div><Label>Field of Origin</Label><Input placeholder="e.g. North Field" value={form.fieldOfOrigin} onChange={e => f("fieldOfOrigin")(e.target.value)} /></div>
-          <div><Label>Crop Variety</Label><Input placeholder="e.g. Skyfall, Crusoe" value={form.cropVariety} onChange={e => f("cropVariety")(e.target.value)} /></div>
-          <div><Label>Quantity (Bales) *</Label><Input type="number" min={0} value={form.quantityBales} onChange={e => f("quantityBales")(e.target.value)} /></div>
-          <div><Label>Approx. Weight / Bale (kg)</Label><Input type="number" min={0} step={0.1} placeholder="e.g. 250" value={form.baleWeightKg} onChange={e => f("baleWeightKg")(e.target.value)} /></div>
+
+          {/* Field of Origin — Select from registered fields if available */}
           <div>
-            <Label>Quantity Remaining</Label>
-            <Input type="number" min={0} placeholder="If different from total" value={form.quantityRemaining} onChange={e => f("quantityRemaining")(e.target.value)} />
+            <Label>Field of Origin</Label>
+            {fields.length > 0 ? (
+              <Select
+                value={form.fieldId || "__other__"}
+                onValueChange={v => {
+                  if (v === "__other__") {
+                    setForm(p => ({ ...p, fieldId: "", fieldOfOrigin: "" }));
+                  } else {
+                    f("fieldId")(v);
+                  }
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Select field…" /></SelectTrigger>
+                <SelectContent>
+                  {fields.map((fld: any) => (
+                    <SelectItem key={fld.id} value={String(fld.id)}>
+                      {fld.name}{fld.fieldReference ? ` (${fld.fieldReference})` : ""}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="__other__">Other / not in field list</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input placeholder="e.g. North Field" value={form.fieldOfOrigin} onChange={e => f("fieldOfOrigin")(e.target.value)} />
+            )}
+            {/* Show/edit free-text name when "Other" or after a field is selected */}
+            {fields.length > 0 && (
+              <Input
+                className="mt-1.5"
+                placeholder={form.fieldId && form.fieldId !== "__other__" ? "Field name (auto-filled)" : "Enter field name"}
+                value={form.fieldOfOrigin}
+                onChange={e => f("fieldOfOrigin")(e.target.value)}
+              />
+            )}
+          </div>
+
+          {/* Crop Variety — auto-populated from field crop assignment, editable */}
+          <div>
+            <Label>Crop Variety</Label>
+            <Input
+              placeholder="e.g. Skyfall, Crusoe"
+              value={form.cropVariety}
+              onChange={e => f("cropVariety")(e.target.value)}
+            />
+            {form.fieldId && form.cropVariety && (
+              <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                <Info size={11} />Auto-populated from field crop records. Edit if needed.
+              </p>
+            )}
+          </div>
+
+          {/* Quantity (Bales) — total batch size from this harvest */}
+          <div>
+            <Label>Total Batch Size (Bales) *</Label>
+            <Input type="number" min={0} value={form.quantityBales} onChange={e => f("quantityBales")(e.target.value)} />
+            <p className="text-xs text-gray-500 mt-1">Total bales produced from this field harvest</p>
+          </div>
+          <div><Label>Approx. Weight / Bale (kg)</Label><Input type="number" min={0} step={0.1} placeholder="e.g. 250" value={form.baleWeightKg} onChange={e => f("baleWeightKg")(e.target.value)} /></div>
+
+          {/* Quantity Remaining — auto-set from total, lower if some already moved */}
+          <div>
+            <Label>Quantity Remaining (Bales)</Label>
+            <Input type="number" min={0} value={form.quantityRemaining} onChange={e => f("quantityRemaining")(e.target.value)} />
+            <p className="text-xs text-gray-500 mt-1">Auto-set from total. Reduce if bales already used or moved.</p>
           </div>
 
           {/* Moisture — fire risk intelligence */}
@@ -234,14 +358,35 @@ function InventoryDialog({ open, onClose, farmId, editRow }: { open: boolean; on
             )}
           </div>
 
-          <div><Label>Storage Location</Label><Input placeholder="e.g. Barn 2, Home Farm" value={form.storageLocation} onChange={e => f("storageLocation")(e.target.value)} /></div>
+          {/* Storage Location — combobox from previously used locations */}
+          <div>
+            <Label>Storage Location</Label>
+            <input
+              list="straw-locations-list"
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              placeholder={knownLocations.length > 0 ? "Select or type a location…" : "e.g. Barn 2, Home Farm Yard"}
+              value={form.storageLocation}
+              onChange={e => handleStorageLocation(e.target.value)}
+            />
+            {knownLocations.length > 0 && (
+              <datalist id="straw-locations-list">
+                {knownLocations.map(l => <option key={l.name} value={l.name} />)}
+              </datalist>
+            )}
+          </div>
+
+          {/* Storage Type — auto-populated from known location history */}
           <div>
             <Label>Storage Type</Label>
             <Select value={form.storageType} onValueChange={f("storageType")}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>{STORAGE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
             </Select>
+            {knownLocations.some(l => l.name === form.storageLocation) && (
+              <p className="text-xs text-gray-500 mt-1 flex items-center gap-1"><Info size={11} />Auto-set from previous records for this location.</p>
+            )}
           </div>
+
           <div><Label>Stacking Start Date</Label><Input type="date" value={form.stackingStartDate} onChange={e => f("stackingStartDate")(e.target.value)} /></div>
           <div>
             <Label>Status</Label>
@@ -780,7 +925,7 @@ export default function StrawManagementPage() {
             <div className="text-2xl font-bold">{totalBalesInStock.toLocaleString()}</div>
           </div>
           <div className="bg-white rounded-xl border p-4">
-            <div className="flex items-center gap-2 mb-1"><DollarSign size={16} className="text-green-600" /><span className="text-xs text-gray-500 font-medium">Total Sales (net)</span></div>
+            <div className="flex items-center gap-2 mb-1"><PoundSterling size={16} className="text-green-600" /><span className="text-xs text-gray-500 font-medium">Total Sales (net)</span></div>
             <div className="text-2xl font-bold">{pToGBP(totalSalesValue)}</div>
           </div>
           <div className={`bg-white rounded-xl border p-4 ${actionRequired > 0 ? "border-amber-300" : ""}`}>
@@ -796,7 +941,7 @@ export default function StrawManagementPage() {
         {/* Tabs */}
         <TabBar className="mb-4">
           <TabButton active={tab === "inventory"} onClick={() => setTab("inventory")}><Package size={14} className="mr-1" />Inventory</TabButton>
-          <TabButton active={tab === "sales"} onClick={() => setTab("sales")}><DollarSign size={14} className="mr-1" />Sales</TabButton>
+          <TabButton active={tab === "sales"} onClick={() => setTab("sales")}><PoundSterling size={14} className="mr-1" />Sales</TabButton>
           <TabButton active={tab === "monitoring"} onClick={() => setTab("monitoring")}><Thermometer size={14} className="mr-1" />Fire Safety</TabButton>
           <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}><BarChart3 size={14} className="mr-1" />Analytics</TabButton>
         </TabBar>
@@ -860,7 +1005,7 @@ export default function StrawManagementPage() {
           <div className="bg-white rounded-xl border overflow-hidden">
             {loadSales ? <div className="p-8 text-center text-gray-400"><Loader2 size={24} className="animate-spin mx-auto mb-2" />Loading…</div> : sales.length === 0 ? (
               <div className="p-12 text-center text-gray-400">
-                <DollarSign size={36} className="mx-auto mb-3 opacity-30" />
+                <PoundSterling size={36} className="mx-auto mb-3 opacity-30" />
                 <p className="font-medium">No straw sales recorded</p>
                 <p className="text-sm mt-1">Record your first sale to track revenue, VAT, and buyer traceability.</p>
                 <Button className="mt-4" onClick={() => setSaleDlg({ open: true })}><Plus size={15} className="mr-1" />Record First Sale</Button>
@@ -994,7 +1139,7 @@ export default function StrawManagementPage() {
                 {analytics.salesByUse?.length > 0 && (
                   <div className="grid grid-cols-2 gap-6">
                     <div className="bg-white rounded-xl border p-5">
-                      <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2"><DollarSign size={16} />Sales Revenue by Intended Use (Net)</h3>
+                      <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2"><PoundSterling size={16} />Sales Revenue by Intended Use (Net)</h3>
                       <ResponsiveContainer width="100%" height={200}>
                         <PieChart>
                           <Pie data={analytics.salesByUse} dataKey="totalNetPence" nameKey="intendedUse" cx="50%" cy="50%" outerRadius={75} label={({ intendedUse, percent }: any) => `${intendedUse} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
@@ -1066,7 +1211,7 @@ export default function StrawManagementPage() {
       </div>
 
       {/* Dialogs */}
-      <InventoryDialog open={invDlg.open} onClose={() => setInvDlg({ open: false })} farmId={farmId} editRow={invDlg.row} />
+      <InventoryDialog open={invDlg.open} onClose={() => setInvDlg({ open: false })} farmId={farmId} editRow={invDlg.row} existingInventory={inventory} />
       <SalesDialog open={saleDlg.open} onClose={() => setSaleDlg({ open: false })} farmId={farmId} editRow={saleDlg.row} inventory={inventory} />
       <MoistureDialog open={moistDlg.open} onClose={() => setMoistDlg({ open: false })} farmId={farmId} editRow={moistDlg.row} inventory={inventory} />
     </AppLayout>
