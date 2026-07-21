@@ -32773,11 +32773,12 @@ router.post("/farms/:farmId/straw-moisture-checks", requireAuth, requireTenant, 
       try {
         const [farm] = await db.select({ name: farmsTable.name, tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId));
         if (!farm) return;
+        const { userTenantsTable: utTable, usersTable: uTable } = await import("@workspace/db");
         const managers = await db
-          .select({ phone: usersTable.phoneNumber })
-          .from(userTenantsTable)
-          .innerJoin(usersTable, eq(userTenantsTable.userId, usersTable.id))
-          .where(and(eq(userTenantsTable.tenantId, farm.tenantId), isNotNull(usersTable.phoneNumber), ne(usersTable.smsOptIn, "none")));
+          .select({ phone: uTable.phoneNumber })
+          .from(utTable)
+          .innerJoin(uTable, eq(utTable.userId, uTable.id))
+          .where(and(eq(utTable.tenantId, farm.tenantId), isNotNull(uTable.phoneNumber), ne(uTable.smsOptIn, "none")));
         const batchInfo = row.batchRef ? ` (Batch: ${row.batchRef})` : "";
         const msg = row.odourObserved
           ? `BDE Farm Trac FIRE RISK: Odour observed during straw monitoring check at ${farm.name}${batchInfo}. Caramel/musty odour indicates heating. Immediate inspection required.`
