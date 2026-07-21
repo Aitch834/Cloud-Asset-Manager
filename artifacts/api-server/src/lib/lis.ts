@@ -111,6 +111,14 @@ export interface LisMovementRequest {
   licenceNumber?: string;
   fromLocation?: string;
   toLocation?: string;
+  /**
+   * Override the userHolding value in the CLA payload.
+   * Normally calculated automatically (source CPH for movement_off, destination CPH for
+   * movement_on). Override needed when the authenticated user owns BOTH the source and
+   * destination holding (e.g. test accounts that own both a farm and an abattoir CPH),
+   * in which case LIS returns error 21165 and requires the destination to be specified.
+   */
+  userHoldingOverride?: string;
 }
 
 export interface LisResult {
@@ -453,7 +461,11 @@ function buildMovementPayload(req: LisMovementRequest): object {
 
   // userHolding = the holding that belongs to this user (the farm submitting).
   // For movement_off the farm is the source; for movement_on the farm is the destination.
-  const userHolding = req.movementType === "movement_on" ? destinationCph : departureCph;
+  // Exception: if the authenticated user owns BOTH source and destination (e.g. a test account
+  // that owns both a farm CPH and an abattoir CPH), LIS returns error 21165 and requires an
+  // explicit value — pass userHoldingOverride in that case.
+  const userHolding = req.userHoldingOverride
+    ?? (req.movementType === "movement_on" ? destinationCph : departureCph);
 
   const animalCount = req.numberOfAnimals;
 

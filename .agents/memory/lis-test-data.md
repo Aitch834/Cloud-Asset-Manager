@@ -62,3 +62,11 @@ Passwords are in attached_assets/testData_1781087138915.json — do not paste he
 - API env: LIS_USE_SANDBOX_API=true → routes to api.sandbox.cla.livestockinformation.org.uk
 
 **Why:** These are unique sandbox records — no pre-existing movements, all clean slate for testing.
+
+## userHolding quirk — abattoir/assembly centre (test sandbox only)
+
+testcphholder1 owns **both** the source farm CPH (01/100/0257) and the abattoir (01/100/0253) / assembly centre (01/100/0254). When both sides belong to the same user, LIS returns error **21165**. Fix: pass `userHoldingOverride: destinationCph` in `submitLisMovement`. Not needed in production (farmers never own the abattoir).
+
+## Animals REST API not available in ext-cla sandbox
+
+`POST /animals` (birth) and `PUT /animals/{identifier}` (death) return HTTP 404 from the API gateway in sandbox — the Animals REST API is not enabled in ext-cla. Code and payload are correct per spec. Ask LIS to enable `/animals` in ext-cla for test accounts, or test on production credentials at go-live.
