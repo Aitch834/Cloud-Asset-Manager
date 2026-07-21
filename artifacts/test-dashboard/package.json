@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node -e \"const fs=require('fs');try{fs.rmSync('node_modules/.vite',{recursive:true,force:true})}catch(e){}\" && vite --config vite.config.ts --host 0.0.0.0",
     "build": "vite build --config vite.config.ts",
-    "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
+    "serve": "node serve.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
