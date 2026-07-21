@@ -1553,6 +1553,7 @@ export default function StrawManagementPage() {
   const [calDlg, setCalDlg] = useState<{ open: boolean; meter?: any; editRow?: any }>({ open: false });
   const [expandedOpId, setExpandedOpId] = useState<number | null>(null);
   const [expandedMeterId, setExpandedMeterId] = useState<number | null>(null);
+  const [yearFilter, setYearFilter] = useState<string>("all");
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -1622,13 +1623,39 @@ export default function StrawManagementPage() {
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
-  // Summary stats
-  const totalBalesInField = useMemo(() => balingOps.filter((op: any) => op.status === "open").reduce((s: number, op: any) => s + (op.balingBalance ?? 0), 0), [balingOps]);
-  const totalBalesInStock = useMemo(() => inventory.filter((r: any) => r.status === "in_stock").reduce((s: number, r: any) => s + (r.quantityRemaining ?? r.quantityBales ?? 0), 0), [inventory]);
-  const totalSalesValue = useMemo(() => sales.reduce((s: number, r: any) => s + (r.totalValuePence ?? 0), 0), [sales]);
-  const unpaidSales = useMemo(() => sales.filter((r: any) => r.paymentStatus === "unpaid" || r.paymentStatus === "overdue").reduce((s: number, r: any) => s + (r.totalValuePence ?? 0), 0), [sales]);
-  const actionRequired = useMemo(() => inventory.filter((r: any) => r.moistureStatus === "Action Required" || r.moistureStatus === "Warning").length, [inventory]);
-  const openOps = useMemo(() => balingOps.filter((op: any) => op.status === "open").length, [balingOps]);
+  // ── Year filter helpers ───────────────────────────────────────────────────
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    balingOps.forEach((op: any) => { if (op.operationDate) years.add(new Date(op.operationDate).getFullYear().toString()); });
+    inventory.forEach((r: any) => { if (r.harvestDate) years.add(new Date(r.harvestDate).getFullYear().toString()); });
+    sales.forEach((r: any) => { if (r.saleDate) years.add(new Date(r.saleDate).getFullYear().toString()); });
+    moisture.forEach((r: any) => { if (r.checkDate) years.add(new Date(r.checkDate).getFullYear().toString()); });
+    return Array.from(years).sort((a, b) => Number(b) - Number(a));
+  }, [balingOps, inventory, sales, moisture]);
+
+  const filteredBalingOps = useMemo(() =>
+    yearFilter === "all" ? balingOps : balingOps.filter((op: any) => op.operationDate && new Date(op.operationDate).getFullYear().toString() === yearFilter),
+  [balingOps, yearFilter]);
+
+  const filteredInventory = useMemo(() =>
+    yearFilter === "all" ? inventory : inventory.filter((r: any) => r.harvestDate && new Date(r.harvestDate).getFullYear().toString() === yearFilter),
+  [inventory, yearFilter]);
+
+  const filteredSales = useMemo(() =>
+    yearFilter === "all" ? sales : sales.filter((r: any) => r.saleDate && new Date(r.saleDate).getFullYear().toString() === yearFilter),
+  [sales, yearFilter]);
+
+  const filteredMoisture = useMemo(() =>
+    yearFilter === "all" ? moisture : moisture.filter((r: any) => r.checkDate && new Date(r.checkDate).getFullYear().toString() === yearFilter),
+  [moisture, yearFilter]);
+
+  // Summary stats — use filtered data so cards reflect the active year
+  const totalBalesInField = useMemo(() => filteredBalingOps.filter((op: any) => op.status === "open").reduce((s: number, op: any) => s + (op.balingBalance ?? 0), 0), [filteredBalingOps]);
+  const totalBalesInStock = useMemo(() => filteredInventory.filter((r: any) => r.status === "in_stock").reduce((s: number, r: any) => s + (r.quantityRemaining ?? r.quantityBales ?? 0), 0), [filteredInventory]);
+  const totalSalesValue = useMemo(() => filteredSales.reduce((s: number, r: any) => s + (r.totalValuePence ?? 0), 0), [filteredSales]);
+  const unpaidSales = useMemo(() => filteredSales.filter((r: any) => r.paymentStatus === "unpaid" || r.paymentStatus === "overdue").reduce((s: number, r: any) => s + (r.totalValuePence ?? 0), 0), [filteredSales]);
+  const actionRequired = useMemo(() => filteredInventory.filter((r: any) => r.moistureStatus === "Action Required" || r.moistureStatus === "Warning").length, [filteredInventory]);
+  const openOps = useMemo(() => filteredBalingOps.filter((op: any) => op.status === "open").length, [filteredBalingOps]);
 
   return (
     <AppLayout>
@@ -1671,14 +1698,34 @@ export default function StrawManagementPage() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <TabBar className="mb-4">
-          <TabButton active={tab === "baling"} onClick={() => setTab("baling")}><Tractor size={14} className="mr-1" />Baling</TabButton>
-          <TabButton active={tab === "inventory"} onClick={() => setTab("inventory")}><Package size={14} className="mr-1" />Inventory (Batches)</TabButton>
-          <TabButton active={tab === "sales"} onClick={() => setTab("sales")}><PoundSterling size={14} className="mr-1" />Sales</TabButton>
-          <TabButton active={tab === "monitoring"} onClick={() => setTab("monitoring")}><Thermometer size={14} className="mr-1" />Fire Safety</TabButton>
-          <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}><BarChart3 size={14} className="mr-1" />Analytics</TabButton>
-        </TabBar>
+        {/* Year filter + Tabs row */}
+        <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+          <TabBar className="mb-0">
+            <TabButton active={tab === "baling"} onClick={() => setTab("baling")}><Tractor size={14} className="mr-1" />Baling</TabButton>
+            <TabButton active={tab === "inventory"} onClick={() => setTab("inventory")}><Package size={14} className="mr-1" />Inventory (Batches)</TabButton>
+            <TabButton active={tab === "sales"} onClick={() => setTab("sales")}><PoundSterling size={14} className="mr-1" />Sales</TabButton>
+            <TabButton active={tab === "monitoring"} onClick={() => setTab("monitoring")}><Thermometer size={14} className="mr-1" />Fire Safety</TabButton>
+            <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}><BarChart3 size={14} className="mr-1" />Analytics</TabButton>
+          </TabBar>
+          <div className="flex items-center gap-2 shrink-0">
+            <Calendar size={14} className="text-gray-400" />
+            <span className="text-xs text-gray-500 font-medium">Harvest year:</span>
+            <Select value={yearFilter} onValueChange={v => setYearFilter(v)}>
+              <SelectTrigger className="h-8 text-xs w-[130px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All years</SelectItem>
+                {availableYears.map(y => (
+                  <SelectItem key={y} value={y}>{y} harvest</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {yearFilter !== "all" && (
+              <button onClick={() => setYearFilter("all")} className="text-xs text-blue-600 hover:underline">Clear</button>
+            )}
+          </div>
+        </div>
 
         {/* ── Baling Operations tab ── */}
         {tab === "baling" && (
@@ -1698,12 +1745,12 @@ export default function StrawManagementPage() {
             <div className="bg-white rounded-xl border overflow-hidden">
               {loadBaling ? (
                 <div className="p-8 text-center text-gray-400"><Loader2 size={24} className="animate-spin mx-auto mb-2" />Loading…</div>
-              ) : balingOps.length === 0 ? (
+              ) : filteredBalingOps.length === 0 ? (
                 <div className="p-12 text-center text-gray-400">
                   <Tractor size={36} className="mx-auto mb-3 opacity-30" />
-                  <p className="font-medium">No baling operations recorded</p>
-                  <p className="text-sm mt-1">Start by recording your first baling session on a field.</p>
-                  <Button className="mt-4" onClick={() => setBalingDlg({ open: true })}><Plus size={15} className="mr-1" />Record First Baling Op</Button>
+                  <p className="font-medium">{yearFilter !== "all" ? `No baling operations for ${yearFilter} harvest` : "No baling operations recorded"}</p>
+                  <p className="text-sm mt-1">{yearFilter !== "all" ? "Try 'All years' or select a different harvest year." : "Start by recording your first baling session on a field."}</p>
+                  {yearFilter === "all" && <Button className="mt-4" onClick={() => setBalingDlg({ open: true })}><Plus size={15} className="mr-1" />Record First Baling Op</Button>}
                 </div>
               ) : (
                 <div>
@@ -1714,7 +1761,7 @@ export default function StrawManagementPage() {
                       ))}</tr>
                     </thead>
                     <tbody>
-                      {balingOps.map((op: any) => {
+                      {filteredBalingOps.map((op: any) => {
                         const isExpanded = expandedOpId === op.id;
                         return (
                           <React.Fragment key={op.id}>
@@ -1784,13 +1831,22 @@ export default function StrawManagementPage() {
 
         {/* ── Inventory tab ── */}
         {tab === "inventory" && (
-          <div className="bg-white rounded-xl border overflow-hidden">
-            {loadInv ? <div className="p-8 text-center text-gray-400"><Loader2 size={24} className="animate-spin mx-auto mb-2" />Loading…</div> : inventory.length === 0 ? (
+          <div className="space-y-3">
+            {/* Multi-year storage + Red Tractor mixing advisory */}
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-900 flex gap-3">
+              <Info size={18} className="shrink-0 mt-0.5 text-blue-600" />
+              <div className="space-y-1">
+                <p><strong>Multi-year storage:</strong> Straw bales stored dry and covered routinely carry over one or two harvests — this is normal practice. Each batch retains its own harvest year in the records so you can track age and traceability separately.</p>
+                <p><strong>Red Tractor / EC 178/2002 mixing rules:</strong> There is no rule against holding different harvest years in the same building, but if bales from different <em>types</em> (e.g. wheat vs. barley straw) or harvest years are physically combined into one stack they can no longer be sold with individual identity claims. Keep separate stacks or bays and record each as a distinct batch. For seed-crop straw, variety identity must be maintained throughout.</p>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border overflow-hidden">
+            {loadInv ? <div className="p-8 text-center text-gray-400"><Loader2 size={24} className="animate-spin mx-auto mb-2" />Loading…</div> : filteredInventory.length === 0 ? (
               <div className="p-12 text-center text-gray-400">
                 <Package size={36} className="mx-auto mb-3 opacity-30" />
-                <p className="font-medium">No straw batches recorded</p>
-                <p className="text-sm mt-1">Batches are typically created from a baling operation via the Baling tab — or add one manually here.</p>
-                <Button className="mt-4" onClick={() => setInvDlg({ open: true })}><Plus size={15} className="mr-1" />Add Batch</Button>
+                <p className="font-medium">{yearFilter !== "all" ? `No straw batches for ${yearFilter} harvest` : "No straw batches recorded"}</p>
+                <p className="text-sm mt-1">{yearFilter !== "all" ? "Try 'All years' — prior-year batches still in stock will appear there." : "Batches are typically created from a baling operation via the Baling tab — or add one manually here."}</p>
+                {yearFilter === "all" && <Button className="mt-4" onClick={() => setInvDlg({ open: true })}><Plus size={15} className="mr-1" />Add Batch</Button>}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -1799,7 +1855,7 @@ export default function StrawManagementPage() {
                     <tr>{["Batch Ref", "Type", "Format", "Harvest Date", "Qty (Total)", "Remaining", "Moisture", "Storage", "Status", "RT", ""].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600">{h}</th>)}</tr>
                   </thead>
                   <tbody className="divide-y">
-                    {inventory.map((r: any) => {
+                    {filteredInventory.map((r: any) => {
                       const risk = getMoistureRisk(r.moistureAtBaling ? Number(r.moistureAtBaling) : null, r.baleFormat);
                       return (
                         <tr key={r.id} className="hover:bg-gray-50">
@@ -1833,18 +1889,19 @@ export default function StrawManagementPage() {
                 </table>
               </div>
             )}
+            </div>
           </div>
         )}
 
         {/* ── Sales tab ── */}
         {tab === "sales" && (
           <div className="bg-white rounded-xl border overflow-hidden">
-            {loadSales ? <div className="p-8 text-center text-gray-400"><Loader2 size={24} className="animate-spin mx-auto mb-2" />Loading…</div> : sales.length === 0 ? (
+            {loadSales ? <div className="p-8 text-center text-gray-400"><Loader2 size={24} className="animate-spin mx-auto mb-2" />Loading…</div> : filteredSales.length === 0 ? (
               <div className="p-12 text-center text-gray-400">
                 <PoundSterling size={36} className="mx-auto mb-3 opacity-30" />
-                <p className="font-medium">No straw sales recorded</p>
-                <p className="text-sm mt-1">Record your first sale to track revenue, VAT, and buyer traceability.</p>
-                <Button className="mt-4" onClick={() => setSaleDlg({ open: true })}><Plus size={15} className="mr-1" />Record First Sale</Button>
+                <p className="font-medium">{yearFilter !== "all" ? `No sales for ${yearFilter} harvest` : "No straw sales recorded"}</p>
+                <p className="text-sm mt-1">{yearFilter !== "all" ? "Try 'All years' to see sales from all harvests." : "Record your first sale to track revenue, VAT, and buyer traceability."}</p>
+                {yearFilter === "all" && <Button className="mt-4" onClick={() => setSaleDlg({ open: true })}><Plus size={15} className="mr-1" />Record First Sale</Button>}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -1853,7 +1910,7 @@ export default function StrawManagementPage() {
                     <tr>{["Invoice", "Date", "Type / Format", "Qty", "Buyer", "Use / VAT", "Net Value", "VAT", "Gross", "Transport", "Payment", "Passport", ""].map(h => <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-600">{h}</th>)}</tr>
                   </thead>
                   <tbody className="divide-y">
-                    {sales.map((r: any) => {
+                    {filteredSales.map((r: any) => {
                       const vat = deriveVatClassification(r.intendedUse);
                       const gross = (r.totalValuePence ?? 0) + (r.vatAmountPence ?? 0);
                       return (
@@ -1905,11 +1962,11 @@ export default function StrawManagementPage() {
 
             {/* Moisture Checks Table */}
             <div className="bg-white rounded-xl border overflow-hidden">
-              {loadMoist ? <div className="p-8 text-center text-gray-400"><Loader2 size={24} className="animate-spin mx-auto mb-2" />Loading…</div> : moisture.length === 0 ? (
+              {loadMoist ? <div className="p-8 text-center text-gray-400"><Loader2 size={24} className="animate-spin mx-auto mb-2" />Loading…</div> : filteredMoisture.length === 0 ? (
                 <div className="p-12 text-center text-gray-400">
                   <Thermometer size={36} className="mx-auto mb-3 opacity-30" />
-                  <p className="font-medium">No monitoring checks recorded</p>
-                  <Button className="mt-4" onClick={() => setMoistDlg({ open: true })}><Plus size={15} className="mr-1" />Record First Check</Button>
+                  <p className="font-medium">{yearFilter !== "all" ? `No monitoring checks for ${yearFilter} harvest` : "No monitoring checks recorded"}</p>
+                  {yearFilter === "all" && <Button className="mt-4" onClick={() => setMoistDlg({ open: true })}><Plus size={15} className="mr-1" />Record First Check</Button>}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -1918,7 +1975,7 @@ export default function StrawManagementPage() {
                       <tr>{["Batch", "Date", "Day #", "Moisture", "Temp (°C)", "Odour", "Condition", "Action Taken", "Checked By", "Device", "Next Due", ""].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600">{h}</th>)}</tr>
                     </thead>
                     <tbody className="divide-y">
-                      {moisture.map((r: any) => (
+                      {filteredMoisture.map((r: any) => (
                         <tr key={r.id} className="hover:bg-gray-50">
                           <td className="px-4 py-3 font-mono text-xs">{r.batchRef || "—"}</td>
                           <td className="px-4 py-3">{fmtDate(r.checkDate)}</td>
@@ -2063,10 +2120,10 @@ export default function StrawManagementPage() {
                   <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2"><ShieldCheck size={16} />Compliance Summary</h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {[
-                      { label: "RT Certified Batches", value: analytics.redTractorCount ?? 0, total: inventory.length, icon: <ShieldCheck size={16} className="text-green-600" /> },
-                      { label: "Passports Issued", value: analytics.passportCount ?? 0, total: sales.length, icon: <FileCheck size={16} className="text-blue-600" /> },
-                      { label: "Fusarium Assessed", value: analytics.fusariumCount ?? 0, total: inventory.filter((r: any) => r.strawType === "Wheat Straw").length, icon: <CheckCircle2 size={16} className="text-amber-600" /> },
-                      { label: "Fire Risk Alerts", value: actionRequired, total: inventory.length, icon: <AlertTriangle size={16} className={actionRequired > 0 ? "text-red-600" : "text-gray-400"} /> },
+                      { label: "RT Certified Batches", value: analytics.redTractorCount ?? 0, total: filteredInventory.length, icon: <ShieldCheck size={16} className="text-green-600" /> },
+                      { label: "Passports Issued", value: analytics.passportCount ?? 0, total: filteredSales.length, icon: <FileCheck size={16} className="text-blue-600" /> },
+                      { label: "Fusarium Assessed", value: analytics.fusariumCount ?? 0, total: filteredInventory.filter((r: any) => r.strawType === "Wheat Straw").length, icon: <CheckCircle2 size={16} className="text-amber-600" /> },
+                      { label: "Fire Risk Alerts", value: actionRequired, total: filteredInventory.length, icon: <AlertTriangle size={16} className={actionRequired > 0 ? "text-red-600" : "text-gray-400"} /> },
                     ].map(c => (
                       <div key={c.label} className="bg-gray-50 rounded-lg p-3">
                         <div className="flex items-center gap-2 mb-1">{c.icon}<span className="text-xs text-gray-600 font-medium">{c.label}</span></div>
