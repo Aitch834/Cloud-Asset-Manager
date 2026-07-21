@@ -21,8 +21,9 @@ import {
   Package, PoundSterling, FileText, Thermometer, ShieldCheck,
   Wheat, BarChart3, Scale, AlertCircle, Info, Loader2,
   Truck, FileCheck, X, ChevronDown, ChevronRight, ArrowRight,
-  CloudSun, Tractor, MapPin
+  CloudSun, Tractor, MapPin, Gauge, Calendar, BadgeCheck
 } from "lucide-react";
+import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STRAW_TYPES = ["Wheat Straw", "Barley Straw", "Oat Straw", "Oilseed Rape Straw"];
@@ -63,6 +64,14 @@ const pToGBP = (p: number | null | undefined) =>
   p == null ? "—" : `£${(p / 100).toLocaleString("en-GB", { minimumFractionDigits: 2 })}`;
 const num = (v: any) => (v == null || v === "" ? null : Number(v));
 const today = () => new Date().toISOString().slice(0, 10);
+
+function meterCalStatus(nextDue: string | null | undefined): { label: string; colour: string } {
+  if (!nextDue) return { label: "No Cal", colour: "gray" };
+  const days = Math.floor((new Date(nextDue).getTime() - Date.now()) / 86400000);
+  if (days < 0) return { label: "Overdue", colour: "red" };
+  if (days <= 30) return { label: `Due ${fmtDate(nextDue)}`, colour: "amber" };
+  return { label: "Current", colour: "green" };
+}
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
@@ -1091,15 +1100,62 @@ function SalesDialog({ open, onClose, farmId, editRow, inventory }: { open: bool
   );
 }
 
-// ─── Moisture Check Dialog ─────────────────────────────────────────────────────
-function MoistureDialog({ open, onClose, farmId, editRow, inventory }: { open: boolean; onClose: () => void; farmId: number; editRow?: any; inventory: any[] }) {
+// ─── Meter Calibration History ────────────────────────────────────────────────
+function MeterCalHistory({ farmId, meter, onLogCal, onEdit, onDelete }: {
+  farmId: number; meter: any;
+  onLogCal: () => void; onEdit: (row: any) => void; onDelete: (id: number) => void;
+}) {
+  const { data: cals = [], isLoading } = useQuery<any[]>({
+    queryKey: ["straw-meter-cals", farmId, meter.id],
+    queryFn: () => fetch(`/api/farms/${farmId}/straw-moisture-meters/${meter.id}/calibrations`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  if (isLoading) return <div className="px-12 py-3 text-center text-xs text-gray-400"><Loader2 size={13} className="animate-spin inline mr-1" />Loading…</div>;
+  return (
+    <div className="bg-gray-50 border-t px-5 py-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-semibold text-gray-600">Calibration History</span>
+        <button onClick={onLogCal} className="text-xs text-blue-600 hover:underline flex items-center gap-1"><Plus size={11} />Log Calibration</button>
+      </div>
+      {cals.length === 0 ? (
+        <p className="text-xs text-gray-400 italic">No calibrations recorded yet.</p>
+      ) : (
+        <table className="w-full text-xs">
+          <thead><tr className="text-gray-500">{["Date", "Performed By", "Method", "Result", "Cert Ref", "Next Due", ""].map(h => <th key={h} className="text-left pb-1 pr-3 font-medium">{h}</th>)}</tr></thead>
+          <tbody className="divide-y divide-gray-100">
+            {cals.map((c: any) => (
+              <tr key={c.id} className="hover:bg-white">
+                <td className="py-1.5 pr-3">{fmtDate(c.calibrationDate)}</td>
+                <td className="py-1.5 pr-3 text-gray-600">{c.performedBy || "—"}</td>
+                <td className="py-1.5 pr-3 text-gray-600">{c.method || "—"}</td>
+                <td className="py-1.5 pr-3">
+                  <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${c.result === "Pass" ? "bg-green-100 text-green-700" : c.result === "Fail" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>{c.result}</span>
+                </td>
+                <td className="py-1.5 pr-3 text-gray-600">{c.certificateRef || "—"}</td>
+                <td className="py-1.5 pr-3">{fmtDate(c.nextDue)}</td>
+                <td className="py-1.5">
+                  <div className="flex gap-1">
+                    <button onClick={() => onEdit(c)} className="p-0.5 rounded hover:bg-gray-200 text-gray-500"><Pencil size={11} /></button>
+                    <button onClick={() => { if (confirm("Delete this calibration record?")) onDelete(c.id); }} className="p-0.5 rounded hover:bg-red-100 text-gray-400 hover:text-red-500"><Trash2 size={11} /></button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// ─── Meter Register Dialog ─────────────────────────────────────────────────────
+function MeterDialog({ open, onClose, farmId, editRow }: { open: boolean; onClose: () => void; farmId: number; editRow?: any }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const isEdit = !!editRow;
   const init = {
-    baleInventoryId: "", batchRef: "", checkDate: today(), daysFromStacking: "",
-    moisturePercent: "", temperatureCelsius: "", odourObserved: false, odourDescription: "",
-    overallCondition: "Good", actionTaken: "", checkedBy: "", nextCheckDue: "", notes: "",
+    deviceName: "", make: "", model: "", serialNumber: "", purchaseDate: "",
+    lastCalibrationDate: "", nextCalibrationDue: "", calibrationIntervalMonths: "12", notes: "", isActive: true,
   };
   const [form, setForm] = useState<typeof init>(init);
   const f = (k: keyof typeof init) => (v: any) => setForm(p => ({ ...p, [k]: v }));
@@ -1108,10 +1164,194 @@ function MoistureDialog({ open, onClose, farmId, editRow, inventory }: { open: b
     if (open) {
       if (editRow) {
         setForm({
+          deviceName: editRow.deviceName ?? "", make: editRow.make ?? "", model: editRow.model ?? "",
+          serialNumber: editRow.serialNumber ?? "", purchaseDate: editRow.purchaseDate ?? "",
+          lastCalibrationDate: editRow.lastCalibrationDate ?? "", nextCalibrationDue: editRow.nextCalibrationDue ?? "",
+          calibrationIntervalMonths: editRow.calibrationIntervalMonths != null ? String(editRow.calibrationIntervalMonths) : "12",
+          notes: editRow.notes ?? "", isActive: editRow.isActive ?? true,
+        });
+      } else { setForm(init); }
+    }
+  }, [open, editRow]);
+
+  React.useEffect(() => {
+    if (form.lastCalibrationDate && form.calibrationIntervalMonths) {
+      const d = new Date(form.lastCalibrationDate);
+      d.setMonth(d.getMonth() + Number(form.calibrationIntervalMonths));
+      setForm(p => ({ ...p, nextCalibrationDue: d.toISOString().slice(0, 10) }));
+    }
+  }, [form.lastCalibrationDate, form.calibrationIntervalMonths]);
+
+  const mut = useMutation({
+    mutationFn: async (body: any) => {
+      const url = isEdit ? `/api/farms/${farmId}/straw-moisture-meters/${editRow.id}` : `/api/farms/${farmId}/straw-moisture-meters`;
+      const r = await fetch(url, { method: isEdit ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+      if (!r.ok) throw new Error((await r.json()).error ?? "Failed");
+      return r.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["straw-meters", farmId] });
+      toast({ title: isEdit ? "Meter updated" : "Meter added to register" });
+      onClose();
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const submit = () => {
+    if (!form.deviceName.trim()) { toast({ title: "Device name is required", variant: "destructive" }); return; }
+    mut.mutate({
+      deviceName: form.deviceName.trim(), make: form.make || null, model: form.model || null,
+      serialNumber: form.serialNumber || null, purchaseDate: form.purchaseDate || null,
+      lastCalibrationDate: form.lastCalibrationDate || null, nextCalibrationDue: form.nextCalibrationDue || null,
+      calibrationIntervalMonths: form.calibrationIntervalMonths ? Number(form.calibrationIntervalMonths) : 12,
+      notes: form.notes || null, isActive: form.isActive,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>{isEdit ? "Edit" : "Add"} Moisture Meter</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <Label>Device Name / Label *</Label>
+            <Input placeholder="e.g. Barn Meter 1, Field Kit" value={form.deviceName} onChange={e => f("deviceName")(e.target.value)} />
+          </div>
+          <div><Label>Make</Label><Input placeholder="e.g. Wile, Protimeter" value={form.make} onChange={e => f("make")(e.target.value)} /></div>
+          <div><Label>Model</Label><Input placeholder="e.g. Wile 55" value={form.model} onChange={e => f("model")(e.target.value)} /></div>
+          <div className="col-span-2"><Label>Serial Number</Label><Input value={form.serialNumber} onChange={e => f("serialNumber")(e.target.value)} /></div>
+          <div><Label>Purchase Date</Label><Input type="date" value={form.purchaseDate} onChange={e => f("purchaseDate")(e.target.value)} /></div>
+          <div><Label>Cal. Interval (months)</Label><Input type="number" min={1} max={120} value={form.calibrationIntervalMonths} onChange={e => f("calibrationIntervalMonths")(e.target.value)} /></div>
+          <div><Label>Last Calibration Date</Label><Input type="date" value={form.lastCalibrationDate} onChange={e => f("lastCalibrationDate")(e.target.value)} /></div>
+          <div><Label>Next Calibration Due</Label><Input type="date" value={form.nextCalibrationDue} onChange={e => f("nextCalibrationDue")(e.target.value)} /></div>
+          <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
+          <div className="col-span-2 flex items-center gap-3">
+            <Checkbox id="mtr-active" checked={form.isActive} onCheckedChange={v => f("isActive")(!!v)} />
+            <Label htmlFor="mtr-active" className="cursor-pointer">Active (available for selection in moisture checks)</Label>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={submit} disabled={mut.isPending}>{mut.isPending && <Loader2 size={14} className="mr-1 animate-spin" />}{isEdit ? "Save" : "Add Meter"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Calibration Log Dialog ────────────────────────────────────────────────────
+const CAL_METHODS = ["Internal", "External Lab", "Manufacturer Service"];
+const CAL_RESULTS = ["Pass", "Fail", "Advisory"];
+
+function CalibrationDialog({ open, onClose, farmId, meter, editRow }: {
+  open: boolean; onClose: () => void; farmId: number; meter: any; editRow?: any;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const isEdit = !!editRow;
+  const init = { calibrationDate: today(), performedBy: "", method: "Internal", result: "Pass", certificateRef: "", nextDue: "", notes: "" };
+  const [form, setForm] = useState<typeof init>(init);
+  const f = (k: keyof typeof init) => (v: any) => setForm(p => ({ ...p, [k]: v }));
+
+  React.useEffect(() => {
+    if (open) {
+      if (editRow) {
+        setForm({
+          calibrationDate: editRow.calibrationDate ?? today(), performedBy: editRow.performedBy ?? "",
+          method: editRow.method ?? "Internal", result: editRow.result ?? "Pass",
+          certificateRef: editRow.certificateRef ?? "", nextDue: editRow.nextDue ?? "", notes: editRow.notes ?? "",
+        });
+      } else { setForm(init); }
+    }
+  }, [open, editRow]);
+
+  const mut = useMutation({
+    mutationFn: async (body: any) => {
+      const url = isEdit
+        ? `/api/farms/${farmId}/straw-moisture-meter-calibrations/${editRow.id}`
+        : `/api/farms/${farmId}/straw-moisture-meters/${meter?.id}/calibrations`;
+      const r = await fetch(url, { method: isEdit ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+      if (!r.ok) throw new Error((await r.json()).error ?? "Failed");
+      return r.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["straw-meters", farmId] });
+      qc.invalidateQueries({ queryKey: ["straw-meter-cals", farmId, meter?.id] });
+      toast({ title: isEdit ? "Calibration updated" : "Calibration recorded" });
+      onClose();
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const submit = () => mut.mutate({
+    calibrationDate: form.calibrationDate, performedBy: form.performedBy || null,
+    method: form.method || null, result: form.result,
+    certificateRef: form.certificateRef || null, nextDue: form.nextDue || null, notes: form.notes || null,
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>{isEdit ? "Edit" : "Log"} Calibration{meter ? ` — ${meter.deviceName}` : ""}</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label>Calibration Date *</Label><Input type="date" value={form.calibrationDate} onChange={e => f("calibrationDate")(e.target.value)} /></div>
+          <div>
+            <Label>Result *</Label>
+            <Select value={form.result} onValueChange={f("result")}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{CAL_RESULTS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="col-span-2"><Label>Performed By</Label><Input value={form.performedBy} onChange={e => f("performedBy")(e.target.value)} /></div>
+          <div className="col-span-2">
+            <Label>Method</Label>
+            <Select value={form.method} onValueChange={f("method")}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{CAL_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div><Label>Certificate Ref</Label><Input value={form.certificateRef} onChange={e => f("certificateRef")(e.target.value)} /></div>
+          <div><Label>Next Due</Label><Input type="date" value={form.nextDue} onChange={e => f("nextDue")(e.target.value)} /></div>
+          <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={submit} disabled={mut.isPending}>{mut.isPending && <Loader2 size={14} className="mr-1 animate-spin" />}{isEdit ? "Save" : "Log Calibration"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Moisture Check Dialog ─────────────────────────────────────────────────────
+function MoistureDialog({ open, onClose, farmId, editRow, inventory, activeMeters }: {
+  open: boolean; onClose: () => void; farmId: number; editRow?: any; inventory: any[]; activeMeters: any[];
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const isEdit = !!editRow;
+  const init = {
+    baleInventoryId: "", batchRef: "", checkDate: today(), daysFromStacking: "",
+    moisturePercent: "", temperatureCelsius: "", odourObserved: false, odourDescription: "",
+    deviceUsed: "", overallCondition: "Good", actionTaken: "", checkedBy: "", nextCheckDue: "", notes: "",
+  };
+  const [form, setForm] = useState<typeof init>(init);
+  const f = (k: keyof typeof init) => (v: any) => setForm(p => ({ ...p, [k]: v }));
+  const nextCheckManual = React.useRef(false);
+
+  const { data: membersData } = useFarmMembers(farmId);
+  const members = membersData?.members ?? [];
+
+  React.useEffect(() => {
+    if (open) {
+      nextCheckManual.current = false;
+      if (editRow) {
+        setForm({
           baleInventoryId: editRow.baleInventoryId ?? "", batchRef: editRow.batchRef ?? "",
           checkDate: editRow.checkDate ?? today(), daysFromStacking: editRow.daysFromStacking ?? "",
           moisturePercent: editRow.moisturePercent ?? "", temperatureCelsius: editRow.temperatureCelsius ?? "",
           odourObserved: editRow.odourObserved ?? false, odourDescription: editRow.odourDescription ?? "",
+          deviceUsed: editRow.deviceUsed ?? "",
           overallCondition: editRow.overallCondition ?? "Good", actionTaken: editRow.actionTaken ?? "",
           checkedBy: editRow.checkedBy ?? "", nextCheckDue: editRow.nextCheckDue ?? "", notes: editRow.notes ?? "",
         });
@@ -1131,10 +1371,38 @@ function MoistureDialog({ open, onClose, farmId, editRow, inventory }: { open: b
     }
   }, [form.baleInventoryId, form.checkDate]);
 
+  // B: Auto-calculate next check due from risk level (new records, respects manual override)
+  React.useEffect(() => {
+    if (!open || isEdit || nextCheckManual.current || !form.checkDate) return;
+    const moisture = form.moisturePercent ? Number(form.moisturePercent) : null;
+    const daysFromStack = form.daysFromStacking ? Number(form.daysFromStacking) : null;
+    let addDays = 14;
+    if (moisture != null && moisture > 18) addDays = 1;
+    else if (moisture != null && moisture > 16) addDays = 3;
+    else if (daysFromStack != null && daysFromStack <= 14) addDays = 1;
+    else if (daysFromStack != null && daysFromStack <= 21) addDays = 3;
+    else if (moisture != null) addDays = 7;
+    const next = new Date(form.checkDate);
+    next.setDate(next.getDate() + addDays);
+    setForm(p => ({ ...p, nextCheckDue: next.toISOString().slice(0, 10) }));
+  }, [open, isEdit, form.checkDate, form.moisturePercent, form.daysFromStacking]);
+
   const m = num(form.moisturePercent);
   const selectedBatch = inventory.find((r: any) => r.id === Number(form.baleInventoryId));
   const risk = m != null && selectedBatch ? getMoistureRisk(m, selectedBatch.baleFormat) : null;
   const days = num(form.daysFromStacking);
+  const willAlert = !isEdit && (form.odourObserved || (m != null && m > 18));
+
+  const suggestedDaysLabel = (() => {
+    const moisture = form.moisturePercent ? Number(form.moisturePercent) : null;
+    const daysFromStack = form.daysFromStacking ? Number(form.daysFromStacking) : null;
+    if (moisture != null && moisture > 18) return "daily — red risk";
+    if (moisture != null && moisture > 16) return "every 3 days — amber risk";
+    if (daysFromStack != null && daysFromStack <= 14) return "daily — critical window";
+    if (daysFromStack != null && daysFromStack <= 21) return "every 3 days — post-critical";
+    if (moisture != null) return "weekly";
+    return null;
+  })();
 
   const mut = useMutation({
     mutationFn: async (body: any) => {
@@ -1157,6 +1425,7 @@ function MoistureDialog({ open, onClose, farmId, editRow, inventory }: { open: b
     daysFromStacking: form.daysFromStacking ? num(form.daysFromStacking) : null,
     moisturePercent: form.moisturePercent || null, temperatureCelsius: form.temperatureCelsius || null,
     odourObserved: form.odourObserved, odourDescription: form.odourDescription || null,
+    deviceUsed: form.deviceUsed || null,
     overallCondition: form.overallCondition, actionTaken: form.actionTaken || null,
     checkedBy: form.checkedBy || null, nextCheckDue: form.nextCheckDue || null, notes: form.notes || null,
   });
@@ -1193,11 +1462,35 @@ function MoistureDialog({ open, onClose, farmId, editRow, inventory }: { open: b
               <span><strong>{risk.status}:</strong> {risk.message}</span>
             </div>
           )}
+          {willAlert && (
+            <div className="col-span-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded p-2 flex gap-1.5 items-start">
+              <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+              SMS alert will be sent to farm managers on save.
+            </div>
+          )}
           <div className="col-span-2 flex items-center gap-3">
             <Checkbox id="odour" checked={form.odourObserved} onCheckedChange={v => f("odourObserved")(!!v)} />
             <Label htmlFor="odour" className="cursor-pointer">Odour Observed (caramel / musty = heating)</Label>
           </div>
           {form.odourObserved && <div className="col-span-2"><Label>Odour Description</Label><Input value={form.odourDescription} onChange={e => f("odourDescription")(e.target.value)} /></div>}
+
+          {/* C: Device Used */}
+          <div className="col-span-2">
+            <Label>Device Used</Label>
+            {activeMeters.length > 0 && (
+              <Select value={activeMeters.some((mtr: any) => mtr.deviceName === form.deviceUsed) ? form.deviceUsed : ""}
+                onValueChange={v => { if (v) f("deviceUsed")(v); }}>
+                <SelectTrigger className="mb-1.5 text-sm"><SelectValue placeholder="Quick-fill from registered meter…" /></SelectTrigger>
+                <SelectContent>
+                  {activeMeters.map((mtr: any) => (
+                    <SelectItem key={mtr.id} value={mtr.deviceName}>{mtr.deviceName}{mtr.make ? ` (${mtr.make}${mtr.model ? ` ${mtr.model}` : ""})` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Input placeholder="e.g. Wile 55, Protimeter BLD5800" value={form.deviceUsed} onChange={e => f("deviceUsed")(e.target.value)} />
+          </div>
+
           <div className="col-span-2">
             <Label>Overall Condition</Label>
             <Select value={form.overallCondition} onValueChange={f("overallCondition")}>
@@ -1206,8 +1499,35 @@ function MoistureDialog({ open, onClose, farmId, editRow, inventory }: { open: b
             </Select>
           </div>
           <div className="col-span-2"><Label>Action Taken</Label><Input value={form.actionTaken} onChange={e => f("actionTaken")(e.target.value)} /></div>
-          <div><Label>Checked By</Label><Input value={form.checkedBy} onChange={e => f("checkedBy")(e.target.value)} /></div>
-          <div><Label>Next Check Due</Label><Input type="date" value={form.nextCheckDue} onChange={e => f("nextCheckDue")(e.target.value)} /></div>
+
+          {/* A: Checked By — staff member lookup */}
+          <div>
+            <Label>Checked By</Label>
+            {members.length > 0 ? (
+              <Select value={form.checkedBy} onValueChange={f("checkedBy")}>
+                <SelectTrigger><SelectValue placeholder="Select staff member" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">— Not specified —</SelectItem>
+                  {members.filter((mbr: any) => mbr.isActive).map((mbr: any) => (
+                    <SelectItem key={mbr.id} value={memberFullName(mbr)}>{memberFullName(mbr)}{mbr.jobTitle ? ` — ${mbr.jobTitle}` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input value={form.checkedBy} onChange={e => f("checkedBy")(e.target.value)} placeholder="Name" />
+            )}
+          </div>
+
+          {/* B: Next Check Due — auto-calculated, user can override */}
+          <div>
+            <Label>
+              Next Check Due
+              {suggestedDaysLabel && <span className="text-xs text-gray-400 font-normal ml-1">({suggestedDaysLabel})</span>}
+            </Label>
+            <Input type="date" value={form.nextCheckDue}
+              onChange={e => { nextCheckManual.current = true; f("nextCheckDue")(e.target.value); }} />
+          </div>
+
           <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
         </div>
         <DialogFooter>
@@ -1229,7 +1549,10 @@ export default function StrawManagementPage() {
   const [invDlg, setInvDlg] = useState<{ open: boolean; row?: any; balingOp?: any }>({ open: false });
   const [saleDlg, setSaleDlg] = useState<{ open: boolean; row?: any }>({ open: false });
   const [moistDlg, setMoistDlg] = useState<{ open: boolean; row?: any }>({ open: false });
+  const [meterDlg, setMeterDlg] = useState<{ open: boolean; row?: any }>({ open: false });
+  const [calDlg, setCalDlg] = useState<{ open: boolean; meter?: any; editRow?: any }>({ open: false });
   const [expandedOpId, setExpandedOpId] = useState<number | null>(null);
+  const [expandedMeterId, setExpandedMeterId] = useState<number | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -1257,10 +1580,29 @@ export default function StrawManagementPage() {
     enabled: !!farmId,
   });
 
+  const { data: meters = [] } = useQuery<any[]>({
+    queryKey: ["straw-meters", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/straw-moisture-meters`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
   const { data: analytics } = useQuery<any>({
     queryKey: ["straw-analytics", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/straw-analytics`, { credentials: "include" }).then(r => r.json()),
     enabled: !!farmId,
+  });
+
+  const delCalMut = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(`/api/farms/${farmId}/straw-moisture-meter-calibrations/${id}`, { method: "DELETE", credentials: "include" });
+      if (!r.ok) throw new Error("Delete failed");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["straw-meter-cals", farmId] });
+      qc.invalidateQueries({ queryKey: ["straw-meters", farmId] });
+      toast({ title: "Calibration record deleted" });
+    },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const delMut = useMutation({
@@ -1273,6 +1615,7 @@ export default function StrawManagementPage() {
       if (type === "straw-bale-inventory") qc.invalidateQueries({ queryKey: ["straw-inventory", farmId] });
       if (type === "straw-sales") qc.invalidateQueries({ queryKey: ["straw-sales", farmId] });
       if (type === "straw-moisture-checks") qc.invalidateQueries({ queryKey: ["straw-moisture", farmId] });
+      if (type === "straw-moisture-meters") qc.invalidateQueries({ queryKey: ["straw-meters", farmId] });
       qc.invalidateQueries({ queryKey: ["straw-analytics", farmId] });
       toast({ title: "Deleted" });
     },
@@ -1300,7 +1643,7 @@ export default function StrawManagementPage() {
             {tab === "baling" && <Button onClick={() => setBalingDlg({ open: true })}><Plus size={15} className="mr-1" />Record Baling Op</Button>}
             {tab === "inventory" && <Button onClick={() => setInvDlg({ open: true })}><Plus size={15} className="mr-1" />Add Batch</Button>}
             {tab === "sales" && <Button onClick={() => setSaleDlg({ open: true })}><Plus size={15} className="mr-1" />Record Sale</Button>}
-            {tab === "monitoring" && <Button onClick={() => setMoistDlg({ open: true })}><Plus size={15} className="mr-1" />Record Check</Button>}
+            {tab === "monitoring" && <><Button variant="outline" onClick={() => setMeterDlg({ open: true })}><Gauge size={15} className="mr-1" />Add Meter</Button><Button onClick={() => setMoistDlg({ open: true })}><Plus size={15} className="mr-1" />Record Check</Button></>}
           </div>
         </div>
 
@@ -1556,9 +1899,11 @@ export default function StrawManagementPage() {
               <AlertTriangle size={18} className="shrink-0 mt-0.5 text-amber-600" />
               <div>
                 <strong>HSE INDG125 — Fire Safety Monitoring</strong><br />
-                Monitor straw bales for the first <strong>10–14 days</strong> from stacking (spontaneous combustion window). Safe moisture limits: <strong>≤22%</strong> for small rectangular bales, <strong>≤18%</strong> for large round or square. Record checks daily initially, then every 2–3 days.
+                Monitor straw bales for the first <strong>10–14 days</strong> from stacking (spontaneous combustion window). Safe moisture limits: <strong>≤22%</strong> for small rectangular bales, <strong>≤18%</strong> for large round or square. Record checks daily initially, then every 2–3 days. SMS alerts fire automatically to farm managers on red moisture or odour events.
               </div>
             </div>
+
+            {/* Moisture Checks Table */}
             <div className="bg-white rounded-xl border overflow-hidden">
               {loadMoist ? <div className="p-8 text-center text-gray-400"><Loader2 size={24} className="animate-spin mx-auto mb-2" />Loading…</div> : moisture.length === 0 ? (
                 <div className="p-12 text-center text-gray-400">
@@ -1570,7 +1915,7 @@ export default function StrawManagementPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b">
-                      <tr>{["Batch", "Date", "Day #", "Moisture", "Temp (°C)", "Odour", "Condition", "Action Taken", "Checked By", "Next Due", ""].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600">{h}</th>)}</tr>
+                      <tr>{["Batch", "Date", "Day #", "Moisture", "Temp (°C)", "Odour", "Condition", "Action Taken", "Checked By", "Device", "Next Due", ""].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600">{h}</th>)}</tr>
                     </thead>
                     <tbody className="divide-y">
                       {moisture.map((r: any) => (
@@ -1584,6 +1929,7 @@ export default function StrawManagementPage() {
                           <td className="px-4 py-3"><ConditionBadge cond={r.overallCondition} /></td>
                           <td className="px-4 py-3 max-w-[160px] truncate text-gray-600">{r.actionTaken || "—"}</td>
                           <td className="px-4 py-3 text-gray-600">{r.checkedBy || "—"}</td>
+                          <td className="px-4 py-3 text-xs text-gray-500">{r.deviceUsed || "—"}</td>
                           <td className="px-4 py-3">{fmtDate(r.nextCheckDue)}</td>
                           <td className="px-4 py-3">
                             <div className="flex gap-1">
@@ -1595,6 +1941,56 @@ export default function StrawManagementPage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </div>
+
+            {/* Moisture Meter Register */}
+            <div className="bg-white rounded-xl border overflow-hidden">
+              <div className="px-5 py-4 border-b flex items-center justify-between">
+                <h3 className="font-semibold text-gray-700 flex items-center gap-2"><Gauge size={16} className="text-blue-600" />Moisture Meter Register</h3>
+                <Button size="sm" variant="outline" onClick={() => setMeterDlg({ open: true })}><Plus size={14} className="mr-1" />Add Meter</Button>
+              </div>
+              {meters.length === 0 ? (
+                <div className="p-8 text-center text-gray-400">
+                  <Gauge size={28} className="mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">No meters registered. Add your moisture measurement devices to maintain a calibration audit trail.</p>
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {meters.map((mtr: any) => {
+                    const calSt = meterCalStatus(mtr.nextCalibrationDue);
+                    const isExpanded = expandedMeterId === mtr.id;
+                    return (
+                      <div key={mtr.id}>
+                        <div className="px-5 py-3 flex items-center gap-3 hover:bg-gray-50">
+                          <button onClick={() => setExpandedMeterId(isExpanded ? null : mtr.id)} className="text-gray-400 hover:text-gray-600">
+                            {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm">{mtr.deviceName}{!mtr.isActive && <span className="ml-2 text-xs text-gray-400">(inactive)</span>}</div>
+                            <div className="text-xs text-gray-500">{[mtr.make, mtr.model, mtr.serialNumber ? `S/N: ${mtr.serialNumber}` : null].filter(Boolean).join(" · ")}</div>
+                          </div>
+                          <div className="text-xs text-gray-500 hidden sm:block"><Calendar size={11} className="inline mr-1" />Last cal: {fmtDate(mtr.lastCalibrationDate) || "—"}</div>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${calSt.colour === "green" ? "bg-green-100 text-green-700" : calSt.colour === "amber" ? "bg-amber-100 text-amber-700" : calSt.colour === "red" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-500"}`}>{calSt.label}</span>
+                          <div className="flex gap-1 shrink-0">
+                            <button onClick={() => setCalDlg({ open: true, meter: mtr })} title="Log Calibration" className="p-1.5 rounded hover:bg-blue-50 text-blue-500"><BadgeCheck size={14} /></button>
+                            <button onClick={() => setMeterDlg({ open: true, row: mtr })} className="p-1.5 rounded hover:bg-gray-100 text-gray-500"><Pencil size={14} /></button>
+                            <button onClick={() => { if (confirm("Remove this meter from the register?")) delMut.mutate({ type: "straw-moisture-meters", id: mtr.id }); }} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
+                          </div>
+                        </div>
+                        {isExpanded && (
+                          <MeterCalHistory
+                            farmId={farmId}
+                            meter={mtr}
+                            onLogCal={() => setCalDlg({ open: true, meter: mtr })}
+                            onEdit={(row) => setCalDlg({ open: true, meter: mtr, editRow: row })}
+                            onDelete={(id) => delCalMut.mutate(id)}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1702,7 +2098,9 @@ export default function StrawManagementPage() {
         balingOp={invDlg.balingOp}
       />
       <SalesDialog open={saleDlg.open} onClose={() => setSaleDlg({ open: false })} farmId={farmId} editRow={saleDlg.row} inventory={inventory} />
-      <MoistureDialog open={moistDlg.open} onClose={() => setMoistDlg({ open: false })} farmId={farmId} editRow={moistDlg.row} inventory={inventory} />
+      <MoistureDialog open={moistDlg.open} onClose={() => setMoistDlg({ open: false })} farmId={farmId} editRow={moistDlg.row} inventory={inventory} activeMeters={meters.filter((m: any) => m.isActive !== false)} />
+      <MeterDialog open={meterDlg.open} onClose={() => setMeterDlg({ open: false })} farmId={farmId} editRow={meterDlg.row} />
+      <CalibrationDialog open={calDlg.open} onClose={() => setCalDlg({ open: false })} farmId={farmId} meter={calDlg.meter} editRow={calDlg.editRow} />
     </AppLayout>
   );
 }

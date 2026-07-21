@@ -170,11 +170,46 @@ export const strawMoistureChecksTable = pgTable("straw_moisture_checks", {
   temperatureCelsius: numeric("temperature_celsius", { precision: 5, scale: 2 }),
   odourObserved: boolean("odour_observed").default(false),    // caramel/musty = heating
   odourDescription: text("odour_description"),
+  deviceUsed: text("device_used"),                           // moisture meter device identifier
   // Condition
   overallCondition: text("overall_condition").notNull().default("Good"), // Good | Monitor | Action Required | Unsafe
   actionTaken: text("action_taken"),
   checkedBy: text("checked_by"),
   nextCheckDue: date("next_check_due"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ─── Moisture Meter Register ──────────────────────────────────────────────────
+// Calibration register for moisture measurement devices (Red Tractor / HSE audit trail).
+export const strawMoistureMeterTable = pgTable("straw_moisture_meters", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  deviceName: text("device_name").notNull(),             // e.g. "Barn Meter 1"
+  make: text("make"),                                    // e.g. "Wile"
+  model: text("model"),                                  // e.g. "Wile 55"
+  serialNumber: text("serial_number"),
+  purchaseDate: date("purchase_date"),
+  lastCalibrationDate: date("last_calibration_date"),
+  nextCalibrationDue: date("next_calibration_due"),
+  calibrationIntervalMonths: integer("calibration_interval_months").default(12),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+// ─── Moisture Meter Calibration Log ──────────────────────────────────────────
+export const strawMoistureMeterCalibrationTable = pgTable("straw_moisture_meter_calibrations", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  meterId: integer("meter_id").notNull().references(() => strawMoistureMeterTable.id, { onDelete: "cascade" }),
+  calibrationDate: date("calibration_date").notNull(),
+  performedBy: text("performed_by"),
+  method: text("method"),                               // Internal | External Lab | Manufacturer Service
+  result: text("result").notNull().default("Pass"),     // Pass | Fail | Advisory
+  certificateRef: text("certificate_ref"),
+  nextDue: date("next_due"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

@@ -461,6 +461,8 @@ import {
   strawBaleInventoryTable,
   strawSalesRecordsTable,
   strawMoistureChecksTable,
+  strawMoistureMeterTable,
+  strawMoistureMeterCalibrationTable,
   silageHaylageStockTable,
   silageHaylageUsageTable,
 } from "@workspace/db";
@@ -32763,6 +32765,30 @@ router.post("/farms/:farmId/straw-moisture-checks", requireAuth, requireTenant, 
   const body = sanitiseBody(req.body as Record<string, unknown>);
   const [row] = await db.insert(strawMoistureChecksTable).values({ ...body, farmId }).returning();
   res.status(201).json(row);
+
+  // D: Fire SMS alert if odour observed or moisture exceeds safe limit (>18%)
+  const shouldAlert = row.odourObserved || (row.moisturePercent != null && Number(row.moisturePercent) > 18);
+  if (shouldAlert) {
+    void (async () => {
+      try {
+        const [farm] = await db.select({ name: farmsTable.name, tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId));
+        if (!farm) return;
+        const managers = await db
+          .select({ phone: usersTable.phoneNumber })
+          .from(userTenantsTable)
+          .innerJoin(usersTable, eq(userTenantsTable.userId, usersTable.id))
+          .where(and(eq(userTenantsTable.tenantId, farm.tenantId), isNotNull(usersTable.phoneNumber), ne(usersTable.smsOptIn, "none")));
+        const batchInfo = row.batchRef ? ` (Batch: ${row.batchRef})` : "";
+        const msg = row.odourObserved
+          ? `BDE Farm Trac FIRE RISK: Odour observed during straw monitoring check at ${farm.name}${batchInfo}. Caramel/musty odour indicates heating. Immediate inspection required.`
+          : `BDE Farm Trac FIRE RISK: High moisture (${row.moisturePercent}%) recorded for straw at ${farm.name}${batchInfo}. Check storage and monitor daily — risk of spontaneous combustion.`;
+        const seen = new Set<string>();
+        for (const m of managers) {
+          if (m.phone && !seen.has(m.phone)) { seen.add(m.phone); await sendSms(m.phone, msg); }
+        }
+      } catch (err) { console.error("[Straw Moisture SMS]", err); }
+    })();
+  }
 });
 
 router.patch("/farms/:farmId/straw-moisture-checks/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
@@ -32781,6 +32807,86 @@ router.delete("/farms/:farmId/straw-moisture-checks/:id", requireAuth, requireTe
   if (!farmId) return;
   const id = Number(req.params.id);
   await db.delete(strawMoistureChecksTable).where(and(eq(strawMoistureChecksTable.id, id), eq(strawMoistureChecksTable.farmId, farmId)));
+  res.status(204).end();
+});
+
+// ─── Moisture Meter Register ──────────────────────────────────────────────────
+router.get("/farms/:farmId/straw-moisture-meters", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(strawMoistureMeterTable)
+    .where(eq(strawMoistureMeterTable.farmId, farmId))
+    .orderBy(asc(strawMoistureMeterTable.deviceName));
+  res.json(rows);
+});
+
+router.post("/farms/:farmId/straw-moisture-meters", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(strawMoistureMeterTable).values({ ...body, farmId }).returning();
+  res.status(201).json(row);
+});
+
+router.patch("/farms/:farmId/straw-moisture-meters/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.update(strawMoistureMeterTable).set({ ...body, updatedAt: new Date() })
+    .where(and(eq(strawMoistureMeterTable.id, id), eq(strawMoistureMeterTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/straw-moisture-meters/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  await db.delete(strawMoistureMeterTable).where(and(eq(strawMoistureMeterTable.id, id), eq(strawMoistureMeterTable.farmId, farmId)));
+  res.status(204).end();
+});
+
+router.get("/farms/:farmId/straw-moisture-meters/:meterId/calibrations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const meterId = Number(req.params.meterId);
+  const rows = await db.select().from(strawMoistureMeterCalibrationTable)
+    .where(and(eq(strawMoistureMeterCalibrationTable.meterId, meterId), eq(strawMoistureMeterCalibrationTable.farmId, farmId)))
+    .orderBy(desc(strawMoistureMeterCalibrationTable.calibrationDate));
+  res.json(rows);
+});
+
+router.post("/farms/:farmId/straw-moisture-meters/:meterId/calibrations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const meterId = Number(req.params.meterId);
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(strawMoistureMeterCalibrationTable).values({ ...body, farmId, meterId }).returning();
+  if (row.calibrationDate) {
+    await db.update(strawMoistureMeterTable)
+      .set({ lastCalibrationDate: row.calibrationDate as string, nextCalibrationDue: (row.nextDue as string | null) ?? null, updatedAt: new Date() })
+      .where(and(eq(strawMoistureMeterTable.id, meterId), eq(strawMoistureMeterTable.farmId, farmId)));
+  }
+  res.status(201).json(row);
+});
+
+router.patch("/farms/:farmId/straw-moisture-meter-calibrations/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.update(strawMoistureMeterCalibrationTable).set(body)
+    .where(and(eq(strawMoistureMeterCalibrationTable.id, id), eq(strawMoistureMeterCalibrationTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/straw-moisture-meter-calibrations/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  await db.delete(strawMoistureMeterCalibrationTable).where(and(eq(strawMoistureMeterCalibrationTable.id, id), eq(strawMoistureMeterCalibrationTable.farmId, farmId)));
   res.status(204).end();
 });
 
