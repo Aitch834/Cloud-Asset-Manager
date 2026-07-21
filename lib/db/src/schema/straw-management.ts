@@ -213,3 +213,71 @@ export const strawMoistureMeterCalibrationTable = pgTable("straw_moisture_meter_
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ─── Straw Store Fire Compliance ──────────────────────────────────────────────
+// One record per farm (upsert). Records key compliance dates required under
+// Red Tractor FA.10 and Regulatory Reform (Fire Safety) Order 2005.
+export const strawFireComplianceTable = pgTable("straw_fire_compliance", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id).unique(),
+  // Fire Risk Assessment (Red Tractor FA.10 + FSO 2005)
+  lastFireRiskAssessmentDate: date("last_fire_risk_assessment_date"),
+  nextFireRiskAssessmentDue: date("next_fire_risk_assessment_due"),
+  assessmentConductedBy: text("assessment_conducted_by"),
+  assessmentRef: text("assessment_ref"),
+  // HSE INDG125 checklist confirmations (reviewed annually)
+  separationDistancesOk: boolean("separation_distances_ok").default(false),
+  smokingSignsDisplayed: boolean("smoking_signs_displayed").default(false),
+  vehicleExhaustRuleInPlace: boolean("vehicle_exhaust_rule_in_place").default(false),
+  hotWorksPermitSystemInPlace: boolean("hot_works_permit_system_in_place").default(false),
+  emergencyAccessClear: boolean("emergency_access_clear").default(false),
+  checklistLastReviewedDate: date("checklist_last_reviewed_date"),
+  checklistReviewedBy: text("checklist_reviewed_by"),
+  // Electrical inspection (Electricity at Work Regulations 1989)
+  lastElectricalInspectionDate: date("last_electrical_inspection_date"),
+  nextElectricalInspectionDue: date("next_electrical_inspection_due"),
+  electricalInspectorName: text("electrical_inspector_name"),
+  electricalCertificateRef: text("electrical_certificate_ref"),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+// ─── Straw Store Firefighting Equipment Register ──────────────────────────────
+// List of extinguishers, hose reels, sand bins etc. in/around straw stores.
+// Red Tractor FA.10 requires firefighting equipment to be available and maintained.
+export const strawFireEquipmentTable = pgTable("straw_fire_equipment", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  equipmentType: text("equipment_type").notNull(),
+  location: text("location").notNull(),
+  description: text("description"),
+  serialNumber: text("serial_number"),
+  lastServiceDate: date("last_service_date"),
+  nextServiceDue: date("next_service_due"),
+  serviceIntervalMonths: integer("service_interval_months").default(12),
+  isActive: boolean("is_active").notNull().default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+// ─── Straw Store Hot Works Permits ───────────────────────────────────────────
+// Log of permits for grinding, welding, cutting etc. near straw stores.
+// HSE INDG125: no hot work within 10 m of straw without formal authorisation.
+export const strawHotWorksPermitsTable = pgTable("straw_hot_works_permits", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  permitDate: date("permit_date").notNull(),
+  workDescription: text("work_description").notNull(),
+  location: text("location"),
+  conductedBy: text("conducted_by"),
+  supervisorName: text("supervisor_name"),
+  precautionsTaken: text("precautions_taken"),
+  fireWatchDurationMins: integer("fire_watch_duration_mins"),
+  postWorkInspectionDone: boolean("post_work_inspection_done").default(false),
+  postWorkInspectionNotes: text("post_work_inspection_notes"),
+  workCompletedAt: text("work_completed_at"),
+  closedBy: text("closed_by"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

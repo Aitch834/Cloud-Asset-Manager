@@ -21,7 +21,8 @@ import {
   Package, PoundSterling, FileText, Thermometer, ShieldCheck,
   Wheat, BarChart3, Scale, AlertCircle, Info, Loader2,
   Truck, FileCheck, X, ChevronDown, ChevronRight, ArrowRight,
-  CloudSun, Tractor, MapPin, Gauge, Calendar, BadgeCheck
+  CloudSun, Tractor, MapPin, Gauge, Calendar, BadgeCheck,
+  Flame, Zap, HardHat, ClipboardList, SquareCheck
 } from "lucide-react";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 
@@ -1551,6 +1552,9 @@ export default function StrawManagementPage() {
   const [moistDlg, setMoistDlg] = useState<{ open: boolean; row?: any }>({ open: false });
   const [meterDlg, setMeterDlg] = useState<{ open: boolean; row?: any }>({ open: false });
   const [calDlg, setCalDlg] = useState<{ open: boolean; meter?: any; editRow?: any }>({ open: false });
+  const [complianceDlg, setComplianceDlg] = useState(false);
+  const [equipDlg, setEquipDlg] = useState<{ open: boolean; row?: any }>({ open: false });
+  const [permitDlg, setPermitDlg] = useState<{ open: boolean; row?: any }>({ open: false });
   const [expandedOpId, setExpandedOpId] = useState<number | null>(null);
   const [expandedMeterId, setExpandedMeterId] = useState<number | null>(null);
   const [yearFilter, setYearFilter] = useState<string>("all");
@@ -1591,6 +1595,74 @@ export default function StrawManagementPage() {
     queryKey: ["straw-analytics", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/straw-analytics`, { credentials: "include" }).then(r => r.json()),
     enabled: !!farmId,
+  });
+
+  const { data: fireComplianceRec } = useQuery<any>({
+    queryKey: ["straw-fire-compliance", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/straw-fire-compliance`, { credentials: "include" }).then(r => r.json()).then(d => d.record),
+    enabled: !!farmId,
+  });
+
+  const { data: fireEquipment = [] } = useQuery<any[]>({
+    queryKey: ["straw-fire-equipment", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/straw-fire-equipment`, { credentials: "include" }).then(r => r.json()).then(d => d.items ?? []),
+    enabled: !!farmId,
+  });
+
+  const { data: hotWorksPermits = [] } = useQuery<any[]>({
+    queryKey: ["straw-hot-works-permits", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/straw-hot-works-permits`, { credentials: "include" }).then(r => r.json()).then(d => d.permits ?? []),
+    enabled: !!farmId,
+  });
+
+  const saveComplianceMut = useMutation({
+    mutationFn: async (body: Record<string, unknown>) => {
+      const r = await fetch(`/api/farms/${farmId}/straw-fire-compliance`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!r.ok) throw new Error("Save failed");
+      return r.json();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["straw-fire-compliance", farmId] }); setComplianceDlg(false); toast({ title: "Fire compliance record saved" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
+  });
+
+  const saveEquipMut = useMutation({
+    mutationFn: async ({ id, body }: { id?: number; body: Record<string, unknown> }) => {
+      const url = id ? `/api/farms/${farmId}/straw-fire-equipment/${id}` : `/api/farms/${farmId}/straw-fire-equipment`;
+      const r = await fetch(url, { method: id ? "PATCH" : "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!r.ok) throw new Error("Save failed");
+      return r.json();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["straw-fire-equipment", farmId] }); setEquipDlg({ open: false }); toast({ title: "Equipment record saved" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
+  });
+
+  const delEquipMut = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(`/api/farms/${farmId}/straw-fire-equipment/${id}`, { method: "DELETE", credentials: "include" });
+      if (!r.ok) throw new Error("Delete failed");
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["straw-fire-equipment", farmId] }); toast({ title: "Equipment removed" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
+  });
+
+  const savePermitMut = useMutation({
+    mutationFn: async ({ id, body }: { id?: number; body: Record<string, unknown> }) => {
+      const url = id ? `/api/farms/${farmId}/straw-hot-works-permits/${id}` : `/api/farms/${farmId}/straw-hot-works-permits`;
+      const r = await fetch(url, { method: id ? "PATCH" : "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!r.ok) throw new Error("Save failed");
+      return r.json();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["straw-hot-works-permits", farmId] }); setPermitDlg({ open: false }); toast({ title: "Hot works permit saved" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
+  });
+
+  const delPermitMut = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(`/api/farms/${farmId}/straw-hot-works-permits/${id}`, { method: "DELETE", credentials: "include" });
+      if (!r.ok) throw new Error("Delete failed");
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["straw-hot-works-permits", farmId] }); toast({ title: "Permit deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const delCalMut = useMutation({
@@ -2051,6 +2123,193 @@ export default function StrawManagementPage() {
                 </div>
               )}
             </div>
+
+            {/* ── Straw Store Fire Compliance Records ── */}
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-800 flex gap-3">
+              <ShieldCheck size={18} className="shrink-0 mt-0.5 text-red-600" />
+              <div>
+                <strong>Straw Store Fire Compliance — RT FA.10 &amp; FSO 2005</strong><br />
+                Red Tractor requires a current fire risk assessment for all straw stores, with annual review. Records below provide the audit evidence trail for RT FA.10, the Regulatory Reform (Fire Safety) Order 2005, and your insurer.
+              </div>
+            </div>
+
+            {/* Fire Risk Assessment + Electrical Inspection */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Fire Risk Assessment */}
+              <div className="bg-white rounded-xl border p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold text-sm flex items-center gap-2"><Flame size={15} className="text-red-500" />Fire Risk Assessment <span className="text-xs font-normal text-gray-400">(RT FA.10)</span></h4>
+                  <Button size="sm" variant="outline" onClick={() => setComplianceDlg(true)}><Pencil size={13} className="mr-1" />{fireComplianceRec ? "Update" : "Record"}</Button>
+                </div>
+                {fireComplianceRec?.lastFireRiskAssessmentDate ? (
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between"><span className="text-gray-500">Last assessment</span><span className="font-medium">{fmtDate(fireComplianceRec.lastFireRiskAssessmentDate)}</span></div>
+                    {fireComplianceRec.assessmentConductedBy && <div className="flex justify-between"><span className="text-gray-500">Conducted by</span><span>{fireComplianceRec.assessmentConductedBy}</span></div>}
+                    {fireComplianceRec.assessmentRef && <div className="flex justify-between"><span className="text-gray-500">Ref</span><span className="font-mono text-xs">{fireComplianceRec.assessmentRef}</span></div>}
+                    {fireComplianceRec.nextFireRiskAssessmentDue && (() => {
+                      const due = new Date(fireComplianceRec.nextFireRiskAssessmentDue);
+                      const today = new Date(); today.setHours(0,0,0,0);
+                      const daysLeft = Math.ceil((due.getTime() - today.getTime()) / 86400000);
+                      const colour = daysLeft < 0 ? "red" : daysLeft <= 30 ? "amber" : "green";
+                      return <div className="flex justify-between items-center"><span className="text-gray-500">Next review due</span><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colour === "red" ? "bg-red-100 text-red-700" : colour === "amber" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>{fmtDate(fireComplianceRec.nextFireRiskAssessmentDue)}{daysLeft < 0 ? " — OVERDUE" : daysLeft <= 30 ? ` — due in ${daysLeft}d` : ""}</span></div>;
+                    })()}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-gray-400">
+                    <Flame size={24} className="mx-auto mb-2 opacity-30" />
+                    <p className="text-xs">No fire risk assessment recorded.<br />Red Tractor requires annual assessment.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Electrical Inspection */}
+              <div className="bg-white rounded-xl border p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold text-sm flex items-center gap-2"><Zap size={15} className="text-yellow-500" />Electrical Inspection <span className="text-xs font-normal text-gray-400">(Electricity at Work Regs 1989)</span></h4>
+                  {!fireComplianceRec && <Button size="sm" variant="outline" onClick={() => setComplianceDlg(true)}><Pencil size={13} className="mr-1" />Record</Button>}
+                </div>
+                {fireComplianceRec?.lastElectricalInspectionDate ? (
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between"><span className="text-gray-500">Last inspection</span><span className="font-medium">{fmtDate(fireComplianceRec.lastElectricalInspectionDate)}</span></div>
+                    {fireComplianceRec.electricalInspectorName && <div className="flex justify-between"><span className="text-gray-500">Inspector</span><span>{fireComplianceRec.electricalInspectorName}</span></div>}
+                    {fireComplianceRec.electricalCertificateRef && <div className="flex justify-between"><span className="text-gray-500">Certificate ref</span><span className="font-mono text-xs">{fireComplianceRec.electricalCertificateRef}</span></div>}
+                    {fireComplianceRec.nextElectricalInspectionDue && (() => {
+                      const due = new Date(fireComplianceRec.nextElectricalInspectionDue);
+                      const today = new Date(); today.setHours(0,0,0,0);
+                      const daysLeft = Math.ceil((due.getTime() - today.getTime()) / 86400000);
+                      const colour = daysLeft < 0 ? "red" : daysLeft <= 30 ? "amber" : "green";
+                      return <div className="flex justify-between items-center"><span className="text-gray-500">Next inspection due</span><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colour === "red" ? "bg-red-100 text-red-700" : colour === "amber" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>{fmtDate(fireComplianceRec.nextElectricalInspectionDue)}{daysLeft < 0 ? " — OVERDUE" : daysLeft <= 30 ? ` — due in ${daysLeft}d` : ""}</span></div>;
+                    })()}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-gray-400">
+                    <Zap size={24} className="mx-auto mb-2 opacity-30" />
+                    <p className="text-xs">No electrical inspection recorded.<br />Annual inspection required for buildings storing straw.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* INDG125 Safety Checklist */}
+            <div className="bg-white rounded-xl border p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-semibold text-sm flex items-center gap-2"><ClipboardList size={15} className="text-blue-600" />HSE INDG125 Safety Checklist</h4>
+                <div className="flex items-center gap-3">
+                  {fireComplianceRec?.checklistLastReviewedDate && <span className="text-xs text-gray-400">Last reviewed: {fmtDate(fireComplianceRec.checklistLastReviewedDate)}{fireComplianceRec.checklistReviewedBy ? ` by ${fireComplianceRec.checklistReviewedBy}` : ""}</span>}
+                  <Button size="sm" variant="outline" onClick={() => setComplianceDlg(true)}><Pencil size={13} className="mr-1" />Update</Button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {[
+                  { key: "separationDistancesOk", label: "Separation distances ≥6 m from buildings/boundaries", ref: "INDG125 §3" },
+                  { key: "smokingSignsDisplayed", label: "No smoking signs displayed at all straw store entrances", ref: "INDG125 §5" },
+                  { key: "vehicleExhaustRuleInPlace", label: "Vehicle/machinery exhaust rule in place near straw", ref: "INDG125 §6" },
+                  { key: "hotWorksPermitSystemInPlace", label: "Hot works permit system in place (no work within 10 m)", ref: "INDG125 §7" },
+                  { key: "emergencyAccessClear", label: "Emergency vehicle access to all stacks kept clear", ref: "INDG125 §8" },
+                ].map(({ key, label, ref }) => {
+                  const checked = !!fireComplianceRec?.[key];
+                  return (
+                    <div key={key} className={`flex items-start gap-2 p-3 rounded-lg border ${checked ? "bg-green-50 border-green-200" : "bg-gray-50 border-gray-200"}`}>
+                      {checked ? <CheckCircle2 size={16} className="text-green-600 shrink-0 mt-0.5" /> : <AlertCircle size={16} className="text-gray-400 shrink-0 mt-0.5" />}
+                      <div>
+                        <p className={`text-xs font-medium leading-snug ${checked ? "text-green-800" : "text-gray-600"}`}>{label}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{ref}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {!fireComplianceRec && <p className="text-center text-xs text-gray-400 mt-3">Click <strong>Update</strong> to record your checklist confirmations.</p>}
+            </div>
+
+            {/* Firefighting Equipment Register */}
+            <div className="bg-white rounded-xl border overflow-hidden">
+              <div className="px-5 py-4 border-b flex items-center justify-between">
+                <h4 className="font-semibold text-gray-700 flex items-center gap-2"><Flame size={16} className="text-orange-500" />Firefighting Equipment Register <span className="text-xs font-normal text-gray-400 ml-1">(RT FA.10)</span></h4>
+                <Button size="sm" variant="outline" onClick={() => setEquipDlg({ open: true })}><Plus size={14} className="mr-1" />Add Equipment</Button>
+              </div>
+              {fireEquipment.length === 0 ? (
+                <div className="p-8 text-center text-gray-400">
+                  <Flame size={28} className="mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">No firefighting equipment registered. Record extinguishers, hose reels and sand bins to maintain your RT FA.10 audit trail.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b">
+                      <tr>{["Type", "Location", "Description / S/N", "Last Service", "Next Service Due", "Status", ""].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600">{h}</th>)}</tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {fireEquipment.map((eq: any) => {
+                        const svcDue = eq.nextServiceDue ? new Date(eq.nextServiceDue) : null;
+                        const today = new Date(); today.setHours(0,0,0,0);
+                        const daysLeft = svcDue ? Math.ceil((svcDue.getTime() - today.getTime()) / 86400000) : null;
+                        const svcColour = daysLeft == null ? "gray" : daysLeft < 0 ? "red" : daysLeft <= 30 ? "amber" : "green";
+                        return (
+                          <tr key={eq.id} className={`hover:bg-gray-50 ${!eq.isActive ? "opacity-50" : ""}`}>
+                            <td className="px-4 py-3 font-medium">{eq.equipmentType}</td>
+                            <td className="px-4 py-3 text-gray-600">{eq.location}</td>
+                            <td className="px-4 py-3 text-gray-500 text-xs">{[eq.description, eq.serialNumber ? `S/N: ${eq.serialNumber}` : null].filter(Boolean).join(" · ") || "—"}</td>
+                            <td className="px-4 py-3">{fmtDate(eq.lastServiceDate) || "—"}</td>
+                            <td className="px-4 py-3">{fmtDate(eq.nextServiceDue) || "—"}</td>
+                            <td className="px-4 py-3">
+                              {!eq.isActive ? <span className="text-xs text-gray-400">Inactive</span> : <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${svcColour === "red" ? "bg-red-100 text-red-700" : svcColour === "amber" ? "bg-amber-100 text-amber-700" : svcColour === "green" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>{daysLeft == null ? "No date set" : daysLeft < 0 ? "Service overdue" : daysLeft <= 30 ? `Due in ${daysLeft}d` : "Current"}</span>}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex gap-1">
+                                <button onClick={() => setEquipDlg({ open: true, row: eq })} className="p-1.5 rounded hover:bg-gray-100 text-gray-500"><Pencil size={14} /></button>
+                                <button onClick={() => { if (confirm("Remove this equipment record?")) delEquipMut.mutate(eq.id); }} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Hot Works Permits Log */}
+            <div className="bg-white rounded-xl border overflow-hidden">
+              <div className="px-5 py-4 border-b flex items-center justify-between">
+                <h4 className="font-semibold text-gray-700 flex items-center gap-2"><HardHat size={16} className="text-orange-600" />Hot Works Permit Log <span className="text-xs font-normal text-gray-400 ml-1">(HSE INDG125 — no hot work within 10 m of straw without permit)</span></h4>
+                <Button size="sm" variant="outline" onClick={() => setPermitDlg({ open: true })}><Plus size={14} className="mr-1" />Issue Permit</Button>
+              </div>
+              {hotWorksPermits.length === 0 ? (
+                <div className="p-8 text-center text-gray-400">
+                  <HardHat size={28} className="mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">No hot works permits recorded. Issue a permit before any grinding, welding, or cutting work near straw stores.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b">
+                      <tr>{["Date", "Work Description", "Location", "Conducted By", "Supervisor", "Fire Watch", "Post-Work Check", ""].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600">{h}</th>)}</tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {hotWorksPermits.map((p: any) => (
+                        <tr key={p.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 whitespace-nowrap">{fmtDate(p.permitDate)}</td>
+                          <td className="px-4 py-3 max-w-[180px] truncate">{p.workDescription}</td>
+                          <td className="px-4 py-3 text-gray-500">{p.location || "—"}</td>
+                          <td className="px-4 py-3 text-gray-600">{p.conductedBy || "—"}</td>
+                          <td className="px-4 py-3 text-gray-600">{p.supervisorName || "—"}</td>
+                          <td className="px-4 py-3">{p.fireWatchDurationMins ? `${p.fireWatchDurationMins} min` : "—"}</td>
+                          <td className="px-4 py-3">{p.postWorkInspectionDone ? <span className="text-xs text-green-700 font-medium">Done</span> : <span className="text-xs text-gray-400">Pending</span>}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-1">
+                              <button onClick={() => setPermitDlg({ open: true, row: p })} className="p-1.5 rounded hover:bg-gray-100 text-gray-500"><Pencil size={14} /></button>
+                              <button onClick={() => { if (confirm("Delete this permit record?")) delPermitMut.mutate(p.id); }} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -2158,6 +2417,244 @@ export default function StrawManagementPage() {
       <MoistureDialog open={moistDlg.open} onClose={() => setMoistDlg({ open: false })} farmId={farmId} editRow={moistDlg.row} inventory={inventory} activeMeters={meters.filter((m: any) => m.isActive !== false)} />
       <MeterDialog open={meterDlg.open} onClose={() => setMeterDlg({ open: false })} farmId={farmId} editRow={meterDlg.row} />
       <CalibrationDialog open={calDlg.open} onClose={() => setCalDlg({ open: false })} farmId={farmId} meter={calDlg.meter} editRow={calDlg.editRow} />
+
+      {/* ── Fire Compliance Dialog ── */}
+      {complianceDlg && (
+        <FireComplianceDialog
+          open={complianceDlg}
+          initial={fireComplianceRec}
+          onClose={() => setComplianceDlg(false)}
+          onSave={(body) => saveComplianceMut.mutate(body)}
+          saving={saveComplianceMut.isPending}
+        />
+      )}
+
+      {/* ── Equipment Dialog ── */}
+      {equipDlg.open && (
+        <FireEquipmentDialog
+          open={equipDlg.open}
+          row={equipDlg.row}
+          onClose={() => setEquipDlg({ open: false })}
+          onSave={(body) => saveEquipMut.mutate({ id: equipDlg.row?.id, body })}
+          saving={saveEquipMut.isPending}
+        />
+      )}
+
+      {/* ── Hot Works Permit Dialog ── */}
+      {permitDlg.open && (
+        <HotWorksDialog
+          open={permitDlg.open}
+          row={permitDlg.row}
+          onClose={() => setPermitDlg({ open: false })}
+          onSave={(body) => savePermitMut.mutate({ id: permitDlg.row?.id, body })}
+          saving={savePermitMut.isPending}
+        />
+      )}
     </AppLayout>
+  );
+}
+
+// ─── Fire Compliance Dialog ────────────────────────────────────────────────────
+function FireComplianceDialog({ open, initial, onClose, onSave, saving }: { open: boolean; initial: any; onClose: () => void; onSave: (b: Record<string, unknown>) => void; saving: boolean }) {
+  const blank = {
+    lastFireRiskAssessmentDate: "", nextFireRiskAssessmentDue: "", assessmentConductedBy: "", assessmentRef: "",
+    separationDistancesOk: false, smokingSignsDisplayed: false, vehicleExhaustRuleInPlace: false, hotWorksPermitSystemInPlace: false, emergencyAccessClear: false,
+    checklistLastReviewedDate: "", checklistReviewedBy: "",
+    lastElectricalInspectionDate: "", nextElectricalInspectionDue: "", electricalInspectorName: "", electricalCertificateRef: "",
+    notes: "",
+  };
+  const toStr = (v: unknown) => v ? String(v).slice(0, 10) : "";
+  const [form, setForm] = useState(() => initial ? {
+    lastFireRiskAssessmentDate: toStr(initial.lastFireRiskAssessmentDate),
+    nextFireRiskAssessmentDue: toStr(initial.nextFireRiskAssessmentDue),
+    assessmentConductedBy: initial.assessmentConductedBy ?? "",
+    assessmentRef: initial.assessmentRef ?? "",
+    separationDistancesOk: !!initial.separationDistancesOk,
+    smokingSignsDisplayed: !!initial.smokingSignsDisplayed,
+    vehicleExhaustRuleInPlace: !!initial.vehicleExhaustRuleInPlace,
+    hotWorksPermitSystemInPlace: !!initial.hotWorksPermitSystemInPlace,
+    emergencyAccessClear: !!initial.emergencyAccessClear,
+    checklistLastReviewedDate: toStr(initial.checklistLastReviewedDate),
+    checklistReviewedBy: initial.checklistReviewedBy ?? "",
+    lastElectricalInspectionDate: toStr(initial.lastElectricalInspectionDate),
+    nextElectricalInspectionDue: toStr(initial.nextElectricalInspectionDue),
+    electricalInspectorName: initial.electricalInspectorName ?? "",
+    electricalCertificateRef: initial.electricalCertificateRef ?? "",
+    notes: initial.notes ?? "",
+  } : blank);
+  const f = (k: string) => (v: string) => setForm(p => ({ ...p, [k]: v }));
+  const fb = (k: string) => (v: boolean) => setForm(p => ({ ...p, [k]: v }));
+  const submit = () => onSave(form);
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Fire Compliance Record — RT FA.10 &amp; FSO 2005</DialogTitle></DialogHeader>
+        <div className="space-y-5">
+          {/* Fire Risk Assessment */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase mb-3 flex items-center gap-2"><Flame size={13} className="text-red-500" />Fire Risk Assessment</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>Last Assessment Date</Label><Input type="date" value={form.lastFireRiskAssessmentDate} onChange={e => f("lastFireRiskAssessmentDate")(e.target.value)} /></div>
+              <div><Label>Next Review Due</Label><Input type="date" value={form.nextFireRiskAssessmentDue} onChange={e => f("nextFireRiskAssessmentDue")(e.target.value)} /></div>
+              <div><Label>Conducted By</Label><Input placeholder="Name / company" value={form.assessmentConductedBy} onChange={e => f("assessmentConductedBy")(e.target.value)} /></div>
+              <div><Label>Document Reference</Label><Input placeholder="e.g. FRA-2026-01" value={form.assessmentRef} onChange={e => f("assessmentRef")(e.target.value)} /></div>
+            </div>
+          </div>
+
+          {/* INDG125 Checklist */}
+          <div className="border-t pt-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase mb-3 flex items-center gap-2"><ClipboardList size={13} className="text-blue-500" />HSE INDG125 Checklist Confirmations</p>
+            <div className="grid grid-cols-1 gap-2.5">
+              {[
+                { key: "separationDistancesOk", label: "Separation distances ≥6 m maintained from buildings, other stacks, and boundaries" },
+                { key: "smokingSignsDisplayed", label: "No smoking signs displayed at all straw store entrances" },
+                { key: "vehicleExhaustRuleInPlace", label: "Rule in place — no parking vehicles/machinery with hot exhausts near straw" },
+                { key: "hotWorksPermitSystemInPlace", label: "Hot works permit system in place (no grinding/welding within 10 m without permit)" },
+                { key: "emergencyAccessClear", label: "Emergency vehicle access route to all stacks kept clear at all times" },
+              ].map(({ key, label }) => (
+                <div key={key} className="flex items-center gap-3 p-2.5 rounded-lg border bg-gray-50">
+                  <Checkbox checked={!!(form as any)[key]} onCheckedChange={v => fb(key)(!!v)} />
+                  <span className="text-sm text-gray-700">{label}</span>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-4 mt-3">
+              <div><Label>Checklist Last Reviewed</Label><Input type="date" value={form.checklistLastReviewedDate} onChange={e => f("checklistLastReviewedDate")(e.target.value)} /></div>
+              <div><Label>Reviewed By</Label><Input placeholder="Name" value={form.checklistReviewedBy} onChange={e => f("checklistReviewedBy")(e.target.value)} /></div>
+            </div>
+          </div>
+
+          {/* Electrical Inspection */}
+          <div className="border-t pt-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase mb-3 flex items-center gap-2"><Zap size={13} className="text-yellow-500" />Electrical Inspection (Electricity at Work Regulations 1989)</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>Last Inspection Date</Label><Input type="date" value={form.lastElectricalInspectionDate} onChange={e => f("lastElectricalInspectionDate")(e.target.value)} /></div>
+              <div><Label>Next Inspection Due</Label><Input type="date" value={form.nextElectricalInspectionDue} onChange={e => f("nextElectricalInspectionDue")(e.target.value)} /></div>
+              <div><Label>Inspector Name / Company</Label><Input placeholder="e.g. Smith Electrical Ltd" value={form.electricalInspectorName} onChange={e => f("electricalInspectorName")(e.target.value)} /></div>
+              <div><Label>Certificate Reference</Label><Input placeholder="e.g. EICR-2026-Farm" value={form.electricalCertificateRef} onChange={e => f("electricalCertificateRef")(e.target.value)} /></div>
+            </div>
+          </div>
+
+          <div className="border-t pt-3"><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={submit} disabled={saving}>{saving && <Loader2 size={14} className="mr-1 animate-spin" />}Save Record</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Fire Equipment Dialog ─────────────────────────────────────────────────────
+const EQUIP_TYPES = ["CO₂ Extinguisher", "Water Extinguisher", "Dry Powder Extinguisher", "Foam Extinguisher", "Sand Bin", "Hose Reel", "Fire Blanket", "Other"];
+
+function FireEquipmentDialog({ open, row, onClose, onSave, saving }: { open: boolean; row?: any; onClose: () => void; onSave: (b: Record<string, unknown>) => void; saving: boolean }) {
+  const [form, setForm] = useState({
+    equipmentType: row?.equipmentType ?? "",
+    location: row?.location ?? "",
+    description: row?.description ?? "",
+    serialNumber: row?.serialNumber ?? "",
+    lastServiceDate: row?.lastServiceDate ? String(row.lastServiceDate).slice(0, 10) : "",
+    nextServiceDue: row?.nextServiceDue ? String(row.nextServiceDue).slice(0, 10) : "",
+    serviceIntervalMonths: row?.serviceIntervalMonths ?? 12,
+    isActive: row ? !!row.isActive : true,
+    notes: row?.notes ?? "",
+  });
+  const f = (k: string) => (v: string | number | boolean) => setForm(p => ({ ...p, [k]: v }));
+  const submit = () => {
+    if (!form.equipmentType || !form.location) return;
+    onSave(form);
+  };
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader><DialogTitle>{row ? "Edit" : "Add"} Firefighting Equipment</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2">
+            <Label>Equipment Type *</Label>
+            <Select value={form.equipmentType} onValueChange={v => f("equipmentType")(v)}>
+              <SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger>
+              <SelectContent>{EQUIP_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="col-span-2"><Label>Location *</Label><Input placeholder="e.g. Main Straw Barn — entrance door" value={form.location} onChange={e => f("location")(e.target.value)} /></div>
+          <div><Label>Description / Brand</Label><Input placeholder="e.g. 6kg Britannia CO₂" value={form.description} onChange={e => f("description")(e.target.value)} /></div>
+          <div><Label>Serial Number</Label><Input placeholder="Serial / ID number" value={form.serialNumber} onChange={e => f("serialNumber")(e.target.value)} /></div>
+          <div><Label>Last Service Date</Label><Input type="date" value={form.lastServiceDate} onChange={e => f("lastServiceDate")(e.target.value)} /></div>
+          <div><Label>Next Service Due</Label><Input type="date" value={form.nextServiceDue} onChange={e => f("nextServiceDue")(e.target.value)} /></div>
+          <div><Label>Service Interval (months)</Label><Input type="number" min={1} value={form.serviceIntervalMonths} onChange={e => f("serviceIntervalMonths")(Number(e.target.value))} /></div>
+          <div className="flex items-center gap-3 pt-6">
+            <Checkbox checked={form.isActive} onCheckedChange={v => f("isActive")(!!v)} />
+            <Label>Active / in service</Label>
+          </div>
+          <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={submit} disabled={saving || !form.equipmentType || !form.location}>{saving && <Loader2 size={14} className="mr-1 animate-spin" />}{row ? "Save" : "Add Equipment"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Hot Works Permit Dialog ───────────────────────────────────────────────────
+function HotWorksDialog({ open, row, onClose, onSave, saving }: { open: boolean; row?: any; onClose: () => void; onSave: (b: Record<string, unknown>) => void; saving: boolean }) {
+  const [form, setForm] = useState({
+    permitDate: row?.permitDate ? String(row.permitDate).slice(0, 10) : new Date().toISOString().slice(0, 10),
+    workDescription: row?.workDescription ?? "",
+    location: row?.location ?? "",
+    conductedBy: row?.conductedBy ?? "",
+    supervisorName: row?.supervisorName ?? "",
+    precautionsTaken: row?.precautionsTaken ?? "",
+    fireWatchDurationMins: row?.fireWatchDurationMins ?? 60,
+    postWorkInspectionDone: !!row?.postWorkInspectionDone,
+    postWorkInspectionNotes: row?.postWorkInspectionNotes ?? "",
+    workCompletedAt: row?.workCompletedAt ?? "",
+    closedBy: row?.closedBy ?? "",
+    notes: row?.notes ?? "",
+  });
+  const f = (k: string) => (v: string | number | boolean) => setForm(p => ({ ...p, [k]: v }));
+  const submit = () => {
+    if (!form.permitDate || !form.workDescription) return;
+    onSave(form);
+  };
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>{row ? "Edit" : "Issue"} Hot Works Permit</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-800 flex gap-2">
+            <HardHat size={16} className="shrink-0 mt-0.5 text-orange-600" />
+            <span>HSE INDG125 requires no grinding, welding or cutting within <strong>10 m</strong> of straw stores without formal authorisation. Complete this permit before work begins.</span>
+          </div>
+          <div><Label>Permit Date *</Label><Input type="date" value={form.permitDate} onChange={e => f("permitDate")(e.target.value)} /></div>
+          <div><Label>Work Completed At (time)</Label><Input type="time" value={form.workCompletedAt} onChange={e => f("workCompletedAt")(e.target.value)} /></div>
+          <div className="col-span-2"><Label>Work Description *</Label><Input placeholder="e.g. Welding barn door hinge, 8 m from straw stack" value={form.workDescription} onChange={e => f("workDescription")(e.target.value)} /></div>
+          <div className="col-span-2"><Label>Location</Label><Input placeholder="e.g. North straw barn — west gable end" value={form.location} onChange={e => f("location")(e.target.value)} /></div>
+          <div><Label>Conducted By</Label><Input placeholder="Operator name" value={form.conductedBy} onChange={e => f("conductedBy")(e.target.value)} /></div>
+          <div><Label>Authorised / Supervised By</Label><Input placeholder="Responsible person" value={form.supervisorName} onChange={e => f("supervisorName")(e.target.value)} /></div>
+          <div className="col-span-2"><Label>Precautions Taken</Label><Textarea rows={2} placeholder="e.g. Area cleared of loose straw; extinguisher positioned within 3 m; straw covered with fire blanket" value={form.precautionsTaken} onChange={e => f("precautionsTaken")(e.target.value)} /></div>
+          <div>
+            <Label>Post-Work Fire Watch (minutes)</Label>
+            <Input type="number" min={0} value={form.fireWatchDurationMins} onChange={e => f("fireWatchDurationMins")(Number(e.target.value))} />
+            <p className="text-xs text-gray-400 mt-1">HSE recommends minimum 60 minutes</p>
+          </div>
+          <div className="flex items-center gap-3 pt-6">
+            <Checkbox checked={form.postWorkInspectionDone} onCheckedChange={v => f("postWorkInspectionDone")(!!v)} />
+            <Label>Post-work inspection completed</Label>
+          </div>
+          {form.postWorkInspectionDone && <div className="col-span-2"><Label>Post-Inspection Notes</Label><Textarea rows={2} value={form.postWorkInspectionNotes} onChange={e => f("postWorkInspectionNotes")(e.target.value)} /></div>}
+          <div><Label>Closed By</Label><Input placeholder="Name" value={form.closedBy} onChange={e => f("closedBy")(e.target.value)} /></div>
+          <div></div>
+          <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={submit} disabled={saving || !form.permitDate || !form.workDescription}>{saving && <Loader2 size={14} className="mr-1 animate-spin" />}{row ? "Save" : "Issue Permit"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

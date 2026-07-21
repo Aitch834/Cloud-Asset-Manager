@@ -463,6 +463,9 @@ import {
   strawMoistureChecksTable,
   strawMoistureMeterTable,
   strawMoistureMeterCalibrationTable,
+  strawFireComplianceTable,
+  strawFireEquipmentTable,
+  strawHotWorksPermitsTable,
   silageHaylageStockTable,
   silageHaylageUsageTable,
 } from "@workspace/db";
@@ -33029,6 +33032,120 @@ router.get("/farms/:farmId/straw-analytics", requireAuth, requireTenant, async (
     fusariumCount: complianceCounts[0]?.fusariumCount ?? 0,
     passportCount: passportCount[0]?.count ?? 0,
   });
+});
+
+// ─── Straw Store Fire Compliance (single record per farm, upsert) ─────────────
+router.get("/farms/:farmId/straw-fire-compliance", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.select().from(strawFireComplianceTable).where(eq(strawFireComplianceTable.farmId, farmId));
+  res.json({ record: record ?? null });
+});
+
+router.put("/farms/:farmId/straw-fire-compliance", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const values = {
+    ...body,
+    farmId,
+    lastFireRiskAssessmentDate: body.lastFireRiskAssessmentDate ? new Date(body.lastFireRiskAssessmentDate as string) : null,
+    nextFireRiskAssessmentDue: body.nextFireRiskAssessmentDue ? new Date(body.nextFireRiskAssessmentDue as string) : null,
+    checklistLastReviewedDate: body.checklistLastReviewedDate ? new Date(body.checklistLastReviewedDate as string) : null,
+    lastElectricalInspectionDate: body.lastElectricalInspectionDate ? new Date(body.lastElectricalInspectionDate as string) : null,
+    nextElectricalInspectionDue: body.nextElectricalInspectionDue ? new Date(body.nextElectricalInspectionDue as string) : null,
+    updatedAt: new Date(),
+  };
+  const [record] = await db.insert(strawFireComplianceTable).values(values as typeof strawFireComplianceTable.$inferInsert)
+    .onConflictDoUpdate({ target: strawFireComplianceTable.farmId, set: { ...values } })
+    .returning();
+  res.json({ record });
+});
+
+// ─── Straw Firefighting Equipment Register ────────────────────────────────────
+router.get("/farms/:farmId/straw-fire-equipment", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const items = await db.select().from(strawFireEquipmentTable).where(eq(strawFireEquipmentTable.farmId, farmId)).orderBy(asc(strawFireEquipmentTable.id));
+  res.json({ items });
+});
+
+router.post("/farms/:farmId/straw-fire-equipment", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [item] = await db.insert(strawFireEquipmentTable).values({
+    ...body,
+    farmId,
+    lastServiceDate: body.lastServiceDate ? new Date(body.lastServiceDate as string) : null,
+    nextServiceDue: body.nextServiceDue ? new Date(body.nextServiceDue as string) : null,
+  } as typeof strawFireEquipmentTable.$inferInsert).returning();
+  res.status(201).json({ item });
+});
+
+router.patch("/farms/:farmId/straw-fire-equipment/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [item] = await db.update(strawFireEquipmentTable).set({
+    ...body,
+    lastServiceDate: body.lastServiceDate ? new Date(body.lastServiceDate as string) : null,
+    nextServiceDue: body.nextServiceDue ? new Date(body.nextServiceDue as string) : null,
+  } as Partial<typeof strawFireEquipmentTable.$inferInsert>)
+    .where(and(eq(strawFireEquipmentTable.id, id), eq(strawFireEquipmentTable.farmId, farmId)))
+    .returning();
+  res.json({ item });
+});
+
+router.delete("/farms/:farmId/straw-fire-equipment/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  await db.delete(strawFireEquipmentTable).where(and(eq(strawFireEquipmentTable.id, id), eq(strawFireEquipmentTable.farmId, farmId)));
+  res.status(204).end();
+});
+
+// ─── Straw Hot Works Permits ──────────────────────────────────────────────────
+router.get("/farms/:farmId/straw-hot-works-permits", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const permits = await db.select().from(strawHotWorksPermitsTable).where(eq(strawHotWorksPermitsTable.farmId, farmId)).orderBy(desc(strawHotWorksPermitsTable.permitDate));
+  res.json({ permits });
+});
+
+router.post("/farms/:farmId/straw-hot-works-permits", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [permit] = await db.insert(strawHotWorksPermitsTable).values({
+    ...body,
+    farmId,
+    permitDate: new Date(body.permitDate as string),
+  } as typeof strawHotWorksPermitsTable.$inferInsert).returning();
+  res.status(201).json({ permit });
+});
+
+router.patch("/farms/:farmId/straw-hot-works-permits/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [permit] = await db.update(strawHotWorksPermitsTable).set({
+    ...body,
+    ...(body.permitDate ? { permitDate: new Date(body.permitDate as string) } : {}),
+  } as Partial<typeof strawHotWorksPermitsTable.$inferInsert>)
+    .where(and(eq(strawHotWorksPermitsTable.id, id), eq(strawHotWorksPermitsTable.farmId, farmId)))
+    .returning();
+  res.json({ permit });
+});
+
+router.delete("/farms/:farmId/straw-hot-works-permits/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  await db.delete(strawHotWorksPermitsTable).where(and(eq(strawHotWorksPermitsTable.id, id), eq(strawHotWorksPermitsTable.farmId, farmId)));
+  res.status(204).end();
 });
 
 export default router;
