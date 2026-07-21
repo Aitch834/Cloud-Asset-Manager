@@ -27,6 +27,7 @@ import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { useToast } from "@/hooks/use-toast";
 import { useFarmMembers } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
+import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 
 type MainTab = "visitors" | "pest-control" | "cleaning" | "coshh" | "biosecurity-plan";
 
@@ -927,7 +928,7 @@ const EMPTY_CLEANING = {
   area: "", cleaningType: "", productsUsed: "", dilutionRate: "", contactTime: "",
   cleanedBy: "", cleanedDate: new Date().toISOString().slice(0, 10), nextDueDate: "",
   verifiedBy: "", notes: "",
-  performedByContractor: false, contractorName: "", contractorOwnSupplies: false,
+  performedByContractor: false, contractorName: "", contractorSupplierId: null as number | null, contractorOwnSupplies: false,
   costPence: "" as string | number,
   invoiceRef: "", ramsId: "" as string | number,
 };
@@ -1173,7 +1174,7 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
       cleanedBy: c.cleanedBy ?? "", cleanedDate: c.cleanedDate?.slice(0, 10) ?? "",
       nextDueDate: c.nextDueDate?.slice(0, 10) ?? "", verifiedBy: c.verifiedBy ?? "", notes: c.notes ?? "",
       performedByContractor: c.performedByContractor ?? false,
-      contractorName: c.contractorName ?? "", contractorOwnSupplies: c.contractorOwnSupplies ?? false,
+      contractorName: c.contractorName ?? "", contractorSupplierId: (c as any).contractorSupplierId ?? null, contractorOwnSupplies: c.contractorOwnSupplies ?? false,
       costPence: c.costPence ? String(c.costPence / 100) : "", invoiceRef: c.invoiceRef ?? "",
       ramsId: c.ramsId ?? "",
     });
@@ -1214,6 +1215,7 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
       costPence: !isNaN(costPenceVal as number) ? costPenceVal : null,
       invoiceRef: form.invoiceRef || null,
       contractorName: form.contractorName || null,
+      contractorSupplierId: (form as any).contractorSupplierId ?? null,
     };
     if (editing) { updateM.mutate({ id: editing.id, body }); } else { createM.mutate(body); }
   }
@@ -1427,7 +1429,7 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-sm font-medium text-foreground/70 mb-1 block">Contractor Name <span className="text-red-500">*</span></label>
-                      <Input placeholder="e.g. Countrywide Cleaning Ltd" value={form.contractorName} onChange={e => setForm(f => ({ ...f, contractorName: e.target.value }))} required={form.performedByContractor} />
+                      <BuyerCombobox farmId={farmId!} types={["contractor", "general"]} valueId={(form as any).contractorSupplierId ?? null} valueName={form.contractorName} onChange={(id, name) => setForm(f => ({ ...f, contractorSupplierId: id, contractorName: name }))} />
                     </div>
                     <div className="flex items-end pb-1">
                       <label className="flex items-center gap-2 cursor-pointer select-none">

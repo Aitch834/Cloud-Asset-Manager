@@ -1,5 +1,6 @@
 import { pgTable, text, serial, integer, timestamp, numeric, boolean, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
+import { suppliersTable } from "./stock-suppliers";
 
 export const carbonAuditsTable = pgTable("carbon_audits", {
   id: serial("id").primaryKey(),
@@ -118,6 +119,7 @@ export const biodiversityNetGainTable = pgTable("biodiversity_net_gain", {
   assessorType: text("assessor_type"),
   assessorName: text("assessor_name"),
   assessorOrganisation: text("assessor_organisation"),
+  assessorSupplierId: integer("assessor_supplier_id").references(() => suppliersTable.id),
   assessmentTool: text("assessment_tool").notNull().default("Defra Metric 4.0"),
   // Habitat
   habitatType: text("habitat_type").notNull(),

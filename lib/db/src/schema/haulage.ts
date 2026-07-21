@@ -38,6 +38,7 @@ export const haulageRecordsTable = pgTable("haulage_records", {
   vehicleRegistration: text("vehicle_registration"),
   driverName: text("driver_name"),
   haulierCompany: text("haulier_company"),
+  haulierSupplierId: integer("haulier_supplier_id").references(() => suppliersTable.id),
   origin: text("origin"),
   destination: text("destination"),
   departureDate: timestamp("departure_date", { withTimezone: true }).notNull(),

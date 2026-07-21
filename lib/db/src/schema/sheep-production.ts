@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, timestamp, numeric, boolean, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { herdFlockRegisterTable } from "./livestock";
+import { suppliersTable } from "./stock-suppliers";
 
 // ─── Sheep Flock Register ─────────────────────────────────────────────────────
 export const sheepFlocksTable = pgTable("sheep_flocks", {
@@ -181,6 +182,7 @@ export const sheepRedTractorChecklistTable = pgTable("sheep_red_tractor_checklis
   assessmentDate: date("assessment_date").notNull(),
   assessorName: text("assessor_name"),
   assessorOrganisation: text("assessor_organisation"),
+  assessorSupplierId: integer("assessor_supplier_id").references(() => suppliersTable.id),
   certificateNumber: text("certificate_number"),
   certificateExpiryDate: date("certificate_expiry_date"),
   // ─── Section A: Identification & Traceability
@@ -235,6 +237,7 @@ export const weighingEquipmentTable = pgTable("weighing_equipment", {
   lastCalibrationDate: date("last_calibration_date"),
   lastCalibrationResult: text("last_calibration_result"),
   calibratedBy: text("calibrated_by"),
+  calibratedBySupplierId: integer("calibrated_by_supplier_id").references(() => suppliersTable.id),
   nextCalibrationDue: date("next_calibration_due"),
   calibrationIntervalMonths: integer("calibration_interval_months").default(12),
   location: text("location"),
@@ -251,6 +254,7 @@ export const weighingEquipmentCalibrationsTable = pgTable("weighing_equipment_ca
   calibrationDate: date("calibration_date").notNull(),
   result: text("result").notNull(),
   calibratedBy: text("calibrated_by"),
+  calibratedBySupplierId: integer("calibrated_by_supplier_id").references(() => suppliersTable.id),
   certificateRef: text("certificate_ref"),
   nextDueDate: date("next_due_date"),
   notes: text("notes"),

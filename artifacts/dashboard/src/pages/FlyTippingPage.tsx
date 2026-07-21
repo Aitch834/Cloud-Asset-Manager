@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertTriangle, Plus, MapPin, Printer, ChevronDown, ChevronUp, Camera, ClipboardList, ExternalLink } from "lucide-react";
 import { PhotoPanel } from "./fly-tipping/PhotoPanel";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
+import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 
 function parseWasteTypes(raw: string | null | undefined): string[] {
   if (!raw) return [];
@@ -82,6 +83,7 @@ interface Incident {
   eaRefNumber: string | null;
   clearanceStatus: string;
   clearanceContractor: string | null;
+  clearanceContractorSupplierId?: number | null;
   clearanceDate: string | null;
   wasteTransferNoteRef: string | null;
   insuranceClaimMade: boolean;
@@ -158,6 +160,7 @@ const EMPTY: Omit<Incident, "id" | "farmId" | "photos"> = {
   eaRefNumber: null,
   clearanceStatus: "pending",
   clearanceContractor: null,
+  clearanceContractorSupplierId: null as number | null,
   clearanceDate: null,
   wasteTransferNoteRef: null,
   insuranceClaimMade: false,
@@ -246,6 +249,7 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
       eaRefNumber: r.eaRefNumber ?? null,
       clearanceStatus: r.clearanceStatus ?? "pending",
       clearanceContractor: r.clearanceContractor ?? null,
+      clearanceContractorSupplierId: (r as any).clearanceContractorSupplierId ?? null,
       clearanceDate: r.clearanceDate?.slice(0, 10) ?? null,
       wasteTransferNoteRef: r.wasteTransferNoteRef ?? null,
       insuranceClaimMade: r.insuranceClaimMade ?? false,
@@ -654,7 +658,7 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                     <div>
                       <Label>Clearance Contractor</Label>
-                      <Input className="mt-1" value={form.clearanceContractor ?? ""} onChange={e => setForm(f => ({ ...f, clearanceContractor: e.target.value || null }))} placeholder="Contractor name" />
+                      {farmId && <BuyerCombobox farmId={farmId} types={["contractor", "general"]} valueId={(form as any).clearanceContractorSupplierId ?? null} valueName={form.clearanceContractor ?? ""} onChange={(id, name) => setForm(f => ({ ...f, clearanceContractorSupplierId: id, clearanceContractor: name || null }))} />}
                     </div>
                     <div>
                       <Label>Clearance Date</Label>

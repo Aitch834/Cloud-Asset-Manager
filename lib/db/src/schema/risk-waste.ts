@@ -24,6 +24,7 @@ export const flyTippingIncidentsTable = pgTable("fly_tipping_incidents", {
   eaRefNumber: text("ea_ref_number"),
   clearanceStatus: text("clearance_status").notNull().default("pending"),
   clearanceContractor: text("clearance_contractor"),
+  clearanceContractorSupplierId: integer("clearance_contractor_supplier_id").references(() => suppliersTable.id),
   clearanceDate: text("clearance_date"),
   wasteTransferNoteRef: text("waste_transfer_note_ref"),
   insuranceClaimMade: boolean("insurance_claim_made").notNull().default(false),

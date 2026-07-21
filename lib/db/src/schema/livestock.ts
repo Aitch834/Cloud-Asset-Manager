@@ -95,6 +95,7 @@ export const livestockMovementsTable = pgTable("livestock_movements", {
   vehicleRegistration: text("vehicle_registration"),
   driverName: text("driver_name"),
   haulierCompany: text("haulier_company"),
+  haulierSupplierId: integer("haulier_supplier_id").references(() => suppliersTable.id),
   operatorLicenceNo: text("operator_licence_no"),
   // ─── Dispatch compliance checklist ───────────────────────────────────────
   fciCompleted: boolean("fci_completed"),

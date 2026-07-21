@@ -2731,7 +2731,7 @@ router.get("/farms/:farmId/field-operations", requireAuth, requireTenant, requir
 router.post("/farms/:farmId/field-operations", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { operationDate, operationType, fieldName, fieldId, vehicleId, vehicleDescription, implement, implementId, workingDepthCm, passes, areaHa, quantity, quantityUnit, operator, machineHours, labourHours, machineRatePence, labourRatePence, isContractor, contractorName, contractorCostPence, notes } = req.body;
+  const { operationDate, operationType, fieldName, fieldId, vehicleId, vehicleDescription, implement, implementId, workingDepthCm, passes, areaHa, quantity, quantityUnit, operator, machineHours, labourHours, machineRatePence, labourRatePence, isContractor, contractorName, contractorSupplierId, contractorCostPence, notes } = req.body;
   if (!(await checkFieldAreaLimit(farmId, fieldId ? parseInt(fieldId) : null, areaHa ? Number(areaHa) : null, res, "Area"))) return;
   const [record] = await db.insert(fieldOperationsTable).values({
     farmId,
@@ -2755,6 +2755,7 @@ router.post("/farms/:farmId/field-operations", requireAuth, requireTenant, requi
     labourRatePence: labourRatePence ? parseInt(labourRatePence) : null,
     isContractor: isContractor ? true : false,
     contractorName: contractorName || null,
+    contractorSupplierId: contractorSupplierId ? parseInt(contractorSupplierId) : null,
     contractorCostPence: contractorCostPence ? parseInt(contractorCostPence) : null,
     notes: notes || null,
   }).returning();
@@ -2765,7 +2766,7 @@ router.put("/farms/:farmId/field-operations/:recordId", requireAuth, requireTena
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = parseInt(req.params.recordId as string);
-  const { operationDate, operationType, fieldName, fieldId, vehicleId, vehicleDescription, implement, implementId, workingDepthCm, passes, areaHa, quantity, quantityUnit, operator, machineHours, labourHours, machineRatePence, labourRatePence, isContractor, contractorName, contractorCostPence, notes } = req.body;
+  const { operationDate, operationType, fieldName, fieldId, vehicleId, vehicleDescription, implement, implementId, workingDepthCm, passes, areaHa, quantity, quantityUnit, operator, machineHours, labourHours, machineRatePence, labourRatePence, isContractor, contractorName, contractorSupplierId, contractorCostPence, notes } = req.body;
   if (!(await checkFieldAreaLimit(farmId, fieldId ? parseInt(fieldId) : null, areaHa ? Number(areaHa) : null, res, "Area"))) return;
   const [record] = await db.update(fieldOperationsTable).set({
     fieldId: fieldId ? parseInt(fieldId) : null,
@@ -2788,6 +2789,7 @@ router.put("/farms/:farmId/field-operations/:recordId", requireAuth, requireTena
     labourRatePence: labourRatePence ? parseInt(labourRatePence) : null,
     isContractor: isContractor ? true : false,
     contractorName: contractorName || null,
+    contractorSupplierId: contractorSupplierId ? parseInt(contractorSupplierId) : null,
     contractorCostPence: contractorCostPence ? parseInt(contractorCostPence) : null,
     notes: notes || null,
   }).where(and(eq(fieldOperationsTable.id, recordId), eq(fieldOperationsTable.farmId, farmId))).returning();
@@ -4775,6 +4777,10 @@ router.post("/farms/:farmId/livestock-movements", requireAuth, requireTenant, re
     licenceNumber: body.licenceNumber ?? null,
     bcmsSubmissionRef: body.bcmsSubmissionRef ?? null,
     herdId: body.herdId ? Number(body.herdId) : null,
+    haulierCompany: body.haulierCompany ?? null,
+    haulierSupplierId: body.haulierSupplierId ? Number(body.haulierSupplierId) : null,
+    vehicleRegistration: body.vehicleRegistration ?? null,
+    driverName: body.driverName ?? null,
     notes: body.notes ?? null,
   }).returning();
   res.json({ movement });
@@ -30369,7 +30375,7 @@ router.put("/farms/:farmId/weighing-equipment/:id", requireAuth, requireTenant, 
   if (!farmId) return;
   const id = parseInt(req.params.id as string, 10);
   const b = req.body as Record<string, unknown>;
-  const wfields = ["name","type","manufacturer","model","serialNumber","purchaseDate","lastCalibrationDate","lastCalibrationResult","calibratedBy","nextCalibrationDue","calibrationIntervalMonths","location","notes","status"];
+  const wfields = ["name","type","manufacturer","model","serialNumber","purchaseDate","lastCalibrationDate","lastCalibrationResult","calibratedBy","calibratedBySupplierId","nextCalibrationDue","calibrationIntervalMonths","location","notes","status"];
   const updates: Record<string, unknown> = {};
   for (const wf of wfields) { if (b[wf] !== undefined) updates[wf] = b[wf] === "" ? null : b[wf]; }
   const [row] = await db.update(weighingEquipmentTable).set(updates).where(and(eq(weighingEquipmentTable.id, id), eq(weighingEquipmentTable.farmId, farmId))).returning();

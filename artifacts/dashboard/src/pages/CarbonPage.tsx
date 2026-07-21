@@ -17,6 +17,7 @@ import { useLookupStrings } from "@/hooks/use-lookup";
 import { Redirect } from "wouter";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 
 const api = (path: string) => `/api/${path}`;
@@ -2873,6 +2874,7 @@ function BngTab({ farmId }: { farmId: number }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [assessorSupplierId, setAssessorSupplierId] = useState<number | null>(null);
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["bng", farmId],
@@ -2883,7 +2885,7 @@ function BngTab({ farmId }: { farmId: number }) {
       editing ? api(`farms/${farmId}/biodiversity-net-gain/${editing.id}`) : api(`farms/${farmId}/biodiversity-net-gain`),
       { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
     ),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bng", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bng", farmId] }); setOpen(false); setForm({}); setEditing(null); setAssessorSupplierId(null); },
   });
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/biodiversity-net-gain/${id}`), { method: "DELETE", credentials: "include" }),
@@ -2908,10 +2910,12 @@ function BngTab({ farmId }: { farmId: number }) {
   const handleOpen = (editRec?: Record<string, unknown>) => {
     if (editRec) {
       setEditing(editRec);
-      setForm(Object.fromEntries(Object.entries(editRec).map(([k, v]) => [k, v == null ? "" : String(v)])));
+      setForm(Object.fromEntries(Object.entries(editRec).filter(([k]) => k !== "assessorSupplierId").map(([k, v]) => [k, v == null ? "" : String(v)])));
+      setAssessorSupplierId(editRec.assessorSupplierId != null ? Number(editRec.assessorSupplierId) : null);
     } else {
       setEditing(null);
       setForm({ assessmentTool: "Defra Metric 4.0", recordType: "baseline", status: "active" });
+      setAssessorSupplierId(null);
     }
     setOpen(true);
   };
@@ -2987,7 +2991,7 @@ function BngTab({ farmId }: { farmId: number }) {
             </div>
             <div>
               <Label>Assessor Organisation / Firm</Label>
-              <Input value={form.assessorOrganisation ?? ""} onChange={e => setForm(f => ({ ...f, assessorOrganisation: e.target.value }))} placeholder="Company or practice name" />
+              <BuyerCombobox farmId={farmId!} types={["contractor", "general"]} valueId={assessorSupplierId} valueName={form.assessorOrganisation ?? ""} onChange={(id, name) => { setAssessorSupplierId(id); setForm(f => ({ ...f, assessorOrganisation: name })); }} />
             </div>
             <div>
               <Label>Assessment Tool</Label>
@@ -3190,7 +3194,7 @@ function BngTab({ farmId }: { farmId: number }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setOpen(false); setEditing(null); }}>Cancel</Button>
-            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button>
+            <Button onClick={() => save.mutate({ ...form, assessorSupplierId: assessorSupplierId ?? null })} disabled={save.isPending}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

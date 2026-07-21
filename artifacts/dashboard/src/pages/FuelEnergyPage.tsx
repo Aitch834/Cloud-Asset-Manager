@@ -23,6 +23,7 @@ import { ResponsiveContainer, BarChart, Bar, LineChart, Line, XAxis, YAxis, Cart
 import { useUpload } from "@workspace/object-storage-web";
 import { IMPLEMENT_TYPES } from "@/lib/equipmentTypes";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
+import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 
 function getCropYear(date: Date): { label: string; start: Date; end: Date } {
   const aug = new Date(date.getFullYear(), 7, 1);
@@ -609,7 +610,7 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
   const [subTab, setSubTab] = useState<SolarSubTab>("installations");
   const [analyticInstallId, setAnalyticInstallId] = useState<string>("__all__");
 
-  const EMPTY_INSTALL = { installationName: "", technologyType: "solar_pv", installedCapacityKw: "", installationDate: "", installerName: "", gridConnectionRef: "", fitOrSegContractRef: "", tariffProvider: "", tariffRatePence: "", maintenanceContractor: "", nextServiceDate: "", notes: "", panelCount: "", mcsCertificateNumber: "", installerMcsNumber: "", buildingName: "", locationId: null as number | null, locationIdType: "" };
+  const EMPTY_INSTALL = { installationName: "", technologyType: "solar_pv", installedCapacityKw: "", installationDate: "", installerName: "", installerSupplierId: null as number | null, gridConnectionRef: "", fitOrSegContractRef: "", tariffProvider: "", tariffRatePence: "", maintenanceContractor: "", maintenanceContractorSupplierId: null as number | null, nextServiceDate: "", notes: "", panelCount: "", mcsCertificateNumber: "", installerMcsNumber: "", buildingName: "", locationId: null as number | null, locationIdType: "" };
   const EMPTY_GEN = { readingDate: "", installationId: "", generationKwh: "", exportKwh: "", selfConsumedKwh: "", fitPaymentPeriod: "", fitPaymentAmount: "", meterReference: "", notes: "" };
   const EMPTY_PAYMENT = { paymentDate: "", installationId: "", periodFrom: "", periodTo: "", exportKwh: "", rateUsedPencePerKwh: "", paymentAmountPence: "", paymentReference: "", supplierName: "", notes: "" };
 
@@ -1172,8 +1173,7 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
               <div><Label>Installation date</Label><Input type="date" value={installForm.installationDate ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, installationDate: e.target.value }))} /></div>
               <div>
                 <Label>Installer name</Label>
-                <Input list="installer-suggestions" value={installForm.installerName ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, installerName: e.target.value }))} placeholder="Installer company" />
-                <datalist id="installer-suggestions">{suggestionsList.map(s => <option key={s} value={s} />)}</datalist>
+                {farmId && <BuyerCombobox farmId={farmId} types={["contractor", "general"]} valueId={(installForm as any).installerSupplierId ?? null} valueName={installForm.installerName ?? ""} onChange={(id, name) => setInstallForm((f: any) => ({ ...f, installerSupplierId: id, installerName: name }))} />}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -1191,8 +1191,7 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Maintenance contractor</Label>
-                <Input list="contractor-suggestions" value={installForm.maintenanceContractor ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, maintenanceContractor: e.target.value }))} placeholder="Contractor company" />
-                <datalist id="contractor-suggestions">{suggestionsList.map(s => <option key={s} value={s} />)}</datalist>
+                {farmId && <BuyerCombobox farmId={farmId} types={["contractor", "general"]} valueId={(installForm as any).maintenanceContractorSupplierId ?? null} valueName={installForm.maintenanceContractor ?? ""} onChange={(id, name) => setInstallForm((f: any) => ({ ...f, maintenanceContractorSupplierId: id, maintenanceContractor: name }))} />}
               </div>
               <div><Label>Next service date</Label><Input type="date" value={installForm.nextServiceDate ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, nextServiceDate: e.target.value }))} /></div>
             </div>

@@ -16,6 +16,7 @@ import {
   Building2, Phone, Mail, Users,
 } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
+import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 
 const PRODUCT_TYPES: { value: string; label: string; isOrganic: boolean; isLiquid: boolean }[] = [
   { value: "synthetic-n", label: "Synthetic N (AN/Urea/UAN)", isOrganic: false, isLiquid: false },
@@ -441,7 +442,7 @@ export default function NVZPage() {
   const [raViewItem, setRaViewItem] = useState<any>(null);
   const [raEditItem, setRaEditItem] = useState<any>(null);
   const [raDeleteId, setRaDeleteId] = useState<number | null>(null);
-  const emptyRaForm = { assessmentDate: "", assessedBy: "", assessorName: "", assessorOrganisation: "", assessorContactId: "", soilType: "", drainageRisk: "", slopeRisk: "", distanceToWatercourse: "", floodRisk: "", organicMatterLevel: "", applicationRestrictionsIdentified: "", mitigationMeasures: "", overallRiskLevel: "", nextReviewDate: "", notes: "" };
+  const emptyRaForm = { assessmentDate: "", assessedBy: "", assessorName: "", assessorOrganisation: "", assessorSupplierId: null as number | null, assessorContactId: "", soilType: "", drainageRisk: "", slopeRisk: "", distanceToWatercourse: "", floodRisk: "", organicMatterLevel: "", applicationRestrictionsIdentified: "", mitigationMeasures: "", overallRiskLevel: "", nextReviewDate: "", notes: "" };
   const [raFieldIds, setRaFieldIds] = useState<number[]>([]);
   const [raForm, setRaForm] = useState({ ...emptyRaForm });
 
@@ -1251,7 +1252,7 @@ export default function NVZPage() {
                             <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => {
                               setRaEditItem(r);
                               setRaFieldIds(r.fieldIds ? (() => { try { return JSON.parse(r.fieldIds); } catch { return []; } })() : []);
-                              setRaForm({ assessmentDate: r.assessmentDate ? r.assessmentDate.slice(0, 10) : "", assessedBy: r.assessedBy ?? "", assessorName: r.assessorName ?? "", assessorOrganisation: r.assessorOrganisation ?? "", assessorContactId: r.assessorContactId ? String(r.assessorContactId) : "", soilType: r.soilType ?? "", drainageRisk: r.drainageRisk ?? "", slopeRisk: r.slopeRisk ?? "", distanceToWatercourse: r.distanceToWatercourse ?? "", floodRisk: r.floodRisk ?? "", organicMatterLevel: r.organicMatterLevel ?? "", applicationRestrictionsIdentified: r.applicationRestrictionsIdentified ?? "", mitigationMeasures: r.mitigationMeasures ?? "", overallRiskLevel: r.overallRiskLevel ?? "", nextReviewDate: r.nextReviewDate ? r.nextReviewDate.slice(0, 10) : "", notes: r.notes ?? "" });
+                              setRaForm({ assessmentDate: r.assessmentDate ? r.assessmentDate.slice(0, 10) : "", assessedBy: r.assessedBy ?? "", assessorName: r.assessorName ?? "", assessorOrganisation: r.assessorOrganisation ?? "", assessorSupplierId: (r as any).assessorSupplierId ?? null, assessorContactId: r.assessorContactId ? String(r.assessorContactId) : "", soilType: r.soilType ?? "", drainageRisk: r.drainageRisk ?? "", slopeRisk: r.slopeRisk ?? "", distanceToWatercourse: r.distanceToWatercourse ?? "", floodRisk: r.floodRisk ?? "", organicMatterLevel: r.organicMatterLevel ?? "", applicationRestrictionsIdentified: r.applicationRestrictionsIdentified ?? "", mitigationMeasures: r.mitigationMeasures ?? "", overallRiskLevel: r.overallRiskLevel ?? "", nextReviewDate: r.nextReviewDate ? r.nextReviewDate.slice(0, 10) : "", notes: r.notes ?? "" });
                             }}><Pencil style={{ width: 11, height: 11 }} /></Button>
                             <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#ef4444", borderColor: "#fca5a5" }} onClick={() => setRaDeleteId(r.id)}><Trash2 style={{ width: 11, height: 11 }} /></Button>
                           </div>
@@ -1340,7 +1341,7 @@ export default function NVZPage() {
               setRaViewItem(null);
               setRaEditItem(r);
               setRaFieldIds(r.fieldIds ? (() => { try { return JSON.parse(r.fieldIds); } catch { return []; } })() : []);
-              setRaForm({ assessmentDate: r.assessmentDate ? r.assessmentDate.slice(0, 10) : "", assessedBy: r.assessedBy ?? "", assessorName: r.assessorName ?? "", assessorOrganisation: r.assessorOrganisation ?? "", assessorContactId: r.assessorContactId ? String(r.assessorContactId) : "", soilType: r.soilType ?? "", drainageRisk: r.drainageRisk ?? "", slopeRisk: r.slopeRisk ?? "", distanceToWatercourse: r.distanceToWatercourse ?? "", floodRisk: r.floodRisk ?? "", organicMatterLevel: r.organicMatterLevel ?? "", applicationRestrictionsIdentified: r.applicationRestrictionsIdentified ?? "", mitigationMeasures: r.mitigationMeasures ?? "", overallRiskLevel: r.overallRiskLevel ?? "", nextReviewDate: r.nextReviewDate ? r.nextReviewDate.slice(0, 10) : "", notes: r.notes ?? "" });
+              setRaForm({ assessmentDate: r.assessmentDate ? r.assessmentDate.slice(0, 10) : "", assessedBy: r.assessedBy ?? "", assessorName: r.assessorName ?? "", assessorOrganisation: r.assessorOrganisation ?? "", assessorSupplierId: (r as any).assessorSupplierId ?? null, assessorContactId: r.assessorContactId ? String(r.assessorContactId) : "", soilType: r.soilType ?? "", drainageRisk: r.drainageRisk ?? "", slopeRisk: r.slopeRisk ?? "", distanceToWatercourse: r.distanceToWatercourse ?? "", floodRisk: r.floodRisk ?? "", organicMatterLevel: r.organicMatterLevel ?? "", applicationRestrictionsIdentified: r.applicationRestrictionsIdentified ?? "", mitigationMeasures: r.mitigationMeasures ?? "", overallRiskLevel: r.overallRiskLevel ?? "", nextReviewDate: r.nextReviewDate ? r.nextReviewDate.slice(0, 10) : "", notes: r.notes ?? "" });
             }}>Edit Assessment</Button>
           </DialogFooter>
         </DialogContent>
@@ -1372,7 +1373,7 @@ export default function NVZPage() {
             )}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div><label className="text-sm font-medium mb-1.5 block">Assessor Name</label><Input value={raForm.assessorName} onChange={e => setRaForm(f => ({ ...f, assessorName: e.target.value }))} placeholder="Full name" /></div>
-              <div><label className="text-sm font-medium mb-1.5 block">Assessor Organisation</label><Input value={raForm.assessorOrganisation} onChange={e => setRaForm(f => ({ ...f, assessorOrganisation: e.target.value }))} placeholder="Company / firm" /></div>
+              <div><label className="text-sm font-medium mb-1.5 block">Assessor Organisation</label><BuyerCombobox farmId={farmId!} types={["contractor", "general"]} valueId={raForm.assessorSupplierId ?? null} valueName={raForm.assessorOrganisation} onChange={(id, name) => setRaForm(f => ({ ...f, assessorSupplierId: id, assessorOrganisation: name }))} /></div>
             </div>
             {fields.length > 0 && (
               <div>

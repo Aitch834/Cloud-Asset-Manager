@@ -1,7 +1,7 @@
 import { pgTable, text, serial, integer, timestamp, boolean, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { riskAssessmentsTable } from "./risk-waste";
-import { stockItemsTable } from "./stock-suppliers";
+import { stockItemsTable, suppliersTable } from "./stock-suppliers";
 
 export const visitorContractorLogTable = pgTable("visitor_contractor_log", {
   id: serial("id").primaryKey(),
@@ -54,6 +54,7 @@ export const cleaningDisinfectionRecordsTable = pgTable("cleaning_disinfection_r
   // Contractor vs farm staff
   performedByContractor: boolean("performed_by_contractor").notNull().default(false),
   contractorName: text("contractor_name"),
+  contractorSupplierId: integer("contractor_supplier_id").references(() => suppliersTable.id),
   contractorOwnSupplies: boolean("contractor_own_supplies").notNull().default(false),
   // Stock & cost
   quantityUsed: text("quantity_used"),

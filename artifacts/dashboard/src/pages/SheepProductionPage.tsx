@@ -20,6 +20,7 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFarmMembers } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
+import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 
 const api = (path: string) => `/api/${path}`;
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
@@ -667,7 +668,7 @@ function WeighingEquipmentTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [calOpen, setCalOpen] = useState(false);
-  const [calForm, setCalForm] = useState<Record<string, string>>({});
+  const [calForm, setCalForm] = useState<Record<string, unknown>>({});
   const [form, setForm] = useState<Record<string, string>>({});
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -885,7 +886,7 @@ function WeighingEquipmentTab({ farmId }: { farmId: number }) {
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Contractor / Supplier"><Input placeholder="Name of contractor or supplier" value={calForm.calibratedBy ?? ""} onChange={e => setCalForm(f => ({ ...f, calibratedBy: e.target.value }))} /></Field>
+            <Field label="Contractor / Supplier"><BuyerCombobox farmId={farmId!} types={["contractor", "general"]} valueId={(calForm.calibratedBySupplierId as number) ?? null} valueName={String(calForm.calibratedBy ?? "")} onChange={(id, name) => setCalForm(f => ({ ...f, calibratedBySupplierId: id, calibratedBy: name }))} /></Field>
             <Field label="Certificate / Reference No."><Input value={calForm.certificateRef ?? ""} onChange={e => setCalForm(f => ({ ...f, certificateRef: e.target.value }))} /></Field>
             <Field label="Next Due Date">
               <Input type="date" value={calForm.nextDueDate ?? ""} onChange={e => setCalForm(f => ({ ...f, nextDueDate: e.target.value }))} />

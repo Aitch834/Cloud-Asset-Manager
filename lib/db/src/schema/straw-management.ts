@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, timestamp, numeric, boolean, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { fieldsTable } from "./fields-crops";
+import { suppliersTable } from "./stock-suppliers";
 
 // ─── Straw Baling Operations ──────────────────────────────────────────────────
 // Phase 1 of the straw workflow: records the baling event on a field.
@@ -140,6 +141,7 @@ export const strawSalesRecordsTable = pgTable("straw_sales_records", {
   // Transport
   transportedBy: text("transported_by"),               // Own transport | Buyer collects | Third-party haulier
   haulierName: text("haulier_name"),
+  haulierSupplierId: integer("haulier_supplier_id").references(() => suppliersTable.id),
   vehicleReg: text("vehicle_reg"),
   // Red Tractor passport
   passportIssued: boolean("passport_issued").default(false),
@@ -206,6 +208,7 @@ export const strawMoistureMeterCalibrationTable = pgTable("straw_moisture_meter_
   meterId: integer("meter_id").notNull().references(() => strawMoistureMeterTable.id, { onDelete: "cascade" }),
   calibrationDate: date("calibration_date").notNull(),
   performedBy: text("performed_by"),
+  performedBySupplierId: integer("performed_by_supplier_id").references(() => suppliersTable.id),
   method: text("method"),                               // Internal | External Lab | Manufacturer Service
   result: text("result").notNull().default("Pass"),     // Pass | Fail | Advisory
   certificateRef: text("certificate_ref"),
@@ -224,6 +227,7 @@ export const strawFireComplianceTable = pgTable("straw_fire_compliance", {
   lastFireRiskAssessmentDate: date("last_fire_risk_assessment_date"),
   nextFireRiskAssessmentDue: date("next_fire_risk_assessment_due"),
   assessmentConductedBy: text("assessment_conducted_by"),
+  assessmentConductedBySupplierId: integer("assessment_conducted_by_supplier_id").references(() => suppliersTable.id),
   assessmentRef: text("assessment_ref"),
   // HSE INDG125 checklist confirmations (reviewed annually)
   separationDistancesOk: boolean("separation_distances_ok").default(false),
@@ -237,6 +241,7 @@ export const strawFireComplianceTable = pgTable("straw_fire_compliance", {
   lastElectricalInspectionDate: date("last_electrical_inspection_date"),
   nextElectricalInspectionDue: date("next_electrical_inspection_due"),
   electricalInspectorName: text("electrical_inspector_name"),
+  electricalInspectorSupplierId: integer("electrical_inspector_supplier_id").references(() => suppliersTable.id),
   electricalCertificateRef: text("electrical_certificate_ref"),
   notes: text("notes"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

@@ -1,5 +1,6 @@
 import { pgTable, text, serial, integer, timestamp, numeric, boolean, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
+import { suppliersTable } from "./stock-suppliers";
 
 export const diversificationActivitiesTable = pgTable("diversification_activities", {
   id: serial("id").primaryKey(),
@@ -181,11 +182,13 @@ export const renewableEnergyInstallationsTable = pgTable("renewable_energy_insta
   installedCapacityKw: numeric("installed_capacity_kw", { precision: 8, scale: 2 }),
   installationDate: date("installation_date"),
   installerName: text("installer_name"),
+  installerSupplierId: integer("installer_supplier_id").references(() => suppliersTable.id),
   gridConnectionRef: text("grid_connection_ref"),
   fitOrSegContractRef: text("fit_or_seg_contract_ref"),
   tariffProvider: text("tariff_provider"),
   tariffRatePence: numeric("tariff_rate_pence", { precision: 6, scale: 2 }),
   maintenanceContractor: text("maintenance_contractor"),
+  maintenanceContractorSupplierId: integer("maintenance_contractor_supplier_id").references(() => suppliersTable.id),
   nextServiceDate: date("next_service_date"),
   notes: text("notes"),
   panelCount: integer("panel_count"),

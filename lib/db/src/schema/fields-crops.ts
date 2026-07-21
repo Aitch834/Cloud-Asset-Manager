@@ -352,6 +352,7 @@ export const fieldOperationsTable = pgTable("field_operations", {
   labourRatePence: integer("labour_rate_pence"),
   isContractor: boolean("is_contractor").notNull().default(false),
   contractorName: text("contractor_name"),
+  contractorSupplierId: integer("contractor_supplier_id").references(() => suppliersTable.id),
   contractorCostPence: integer("contractor_cost_pence"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -428,6 +429,7 @@ export const nvzRiskAssessmentsTable = pgTable("nvz_risk_assessments", {
   // Split assessor fields
   assessorName: text("assessor_name"),
   assessorOrganisation: text("assessor_organisation"),
+  assessorSupplierId: integer("assessor_supplier_id").references(() => suppliersTable.id),
   assessorContactId: integer("assessor_contact_id"), // soft-ref to farmContactsTable.id
   // Location: JSON array of field IDs this assessment covers, e.g. "[1,3,7]"
   fieldIds: text("field_ids"),

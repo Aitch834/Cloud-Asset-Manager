@@ -25,6 +25,7 @@ import {
   Flame, Zap, HardHat, ClipboardList, SquareCheck
 } from "lucide-react";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
+import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STRAW_TYPES = ["Wheat Straw", "Barley Straw", "Oat Straw", "Oilseed Rape Straw"];
@@ -905,7 +906,7 @@ function SalesDialog({ open, onClose, farmId, editRow, inventory }: { open: bool
     strawType: "Wheat Straw", baleFormat: "Big Round", quantitySold: "", batchRef: "",
     intendedUse: "Animal Feed", pricePerBalePence: "", buyerName: "",
     buyerAddress: "", buyerPostcode: "", buyerPhone: "", buyerEmail: "",
-    buyerType: "Farmer", transportedBy: "Buyer Collects", haulierName: "", vehicleReg: "",
+    buyerType: "Farmer", transportedBy: "Buyer Collects", haulierName: "", haulierSupplierId: null as number | null, vehicleReg: "",
     passportIssued: false, passportRef: "", paymentStatus: "unpaid", paymentDate: "", notes: "",
   };
   const [form, setForm] = useState<typeof init>(init);
@@ -925,7 +926,7 @@ function SalesDialog({ open, onClose, farmId, editRow, inventory }: { open: bool
           buyerPostcode: editRow.buyerPostcode ?? "", buyerPhone: editRow.buyerPhone ?? "",
           buyerEmail: editRow.buyerEmail ?? "", buyerType: editRow.buyerType ?? "Farmer",
           transportedBy: editRow.transportedBy ?? "Buyer Collects",
-          haulierName: editRow.haulierName ?? "", vehicleReg: editRow.vehicleReg ?? "",
+          haulierName: editRow.haulierName ?? "", haulierSupplierId: editRow.haulierSupplierId ?? null, vehicleReg: editRow.vehicleReg ?? "",
           passportIssued: editRow.passportIssued ?? false, passportRef: editRow.passportRef ?? "",
           paymentStatus: editRow.paymentStatus ?? "unpaid", paymentDate: editRow.paymentDate ?? "",
           notes: editRow.notes ?? "",
@@ -975,7 +976,7 @@ function SalesDialog({ open, onClose, farmId, editRow, inventory }: { open: bool
     buyerName: form.buyerName, buyerAddress: form.buyerAddress || null,
     buyerPostcode: form.buyerPostcode || null, buyerPhone: form.buyerPhone || null,
     buyerEmail: form.buyerEmail || null, buyerType: form.buyerType || null,
-    transportedBy: form.transportedBy || null, haulierName: form.haulierName || null,
+    transportedBy: form.transportedBy || null, haulierName: form.haulierName || null, haulierSupplierId: form.haulierSupplierId ?? null,
     vehicleReg: form.vehicleReg || null, passportIssued: form.passportIssued,
     passportRef: form.passportRef || null, paymentStatus: form.paymentStatus,
     paymentDate: form.paymentDate || null, notes: form.notes || null,
@@ -1068,7 +1069,7 @@ function SalesDialog({ open, onClose, farmId, editRow, inventory }: { open: bool
                 </Select>
               </div>
               {form.transportedBy === "Third-Party Haulier" && (<>
-                <div><Label>Haulier Name</Label><Input value={form.haulierName} onChange={e => f("haulierName")(e.target.value)} /></div>
+                <div><Label>Haulier Name</Label><BuyerCombobox farmId={farmId} types={["contractor", "general"]} valueId={form.haulierSupplierId ?? null} valueName={form.haulierName} onChange={(id, name) => setForm(p => ({ ...p, haulierSupplierId: id, haulierName: name }))} /></div>
                 <div><Label>Vehicle Reg</Label><Input value={form.vehicleReg} onChange={e => f("vehicleReg")(e.target.value)} /></div>
               </>)}
             </div>
@@ -2579,10 +2580,10 @@ function FireComplianceDialog({ open, initial, onClose, onSave, saving, farmId }
   const { data: membersData } = useFarmMembers(farmId);
   const members = membersData?.members ?? [];
   const blank = {
-    lastFireRiskAssessmentDate: "", nextFireRiskAssessmentDue: "", assessmentConductedBy: "", assessmentRef: "",
+    lastFireRiskAssessmentDate: "", nextFireRiskAssessmentDue: "", assessmentConductedBy: "", assessmentConductedBySupplierId: null as number | null, assessmentRef: "",
     separationDistancesOk: false, smokingSignsDisplayed: false, vehicleExhaustRuleInPlace: false, hotWorksPermitSystemInPlace: false, emergencyAccessClear: false,
     checklistLastReviewedDate: "", checklistReviewedBy: "",
-    lastElectricalInspectionDate: "", nextElectricalInspectionDue: "", electricalInspectorName: "", electricalCertificateRef: "",
+    lastElectricalInspectionDate: "", nextElectricalInspectionDue: "", electricalInspectorName: "", electricalInspectorSupplierId: null as number | null, electricalCertificateRef: "",
     notes: "",
   };
   const toStr = (v: unknown) => v ? String(v).slice(0, 10) : "";
@@ -2590,6 +2591,7 @@ function FireComplianceDialog({ open, initial, onClose, onSave, saving, farmId }
     lastFireRiskAssessmentDate: toStr(initial.lastFireRiskAssessmentDate),
     nextFireRiskAssessmentDue: toStr(initial.nextFireRiskAssessmentDue),
     assessmentConductedBy: initial.assessmentConductedBy ?? "",
+    assessmentConductedBySupplierId: initial.assessmentConductedBySupplierId ?? null,
     assessmentRef: initial.assessmentRef ?? "",
     separationDistancesOk: !!initial.separationDistancesOk,
     smokingSignsDisplayed: !!initial.smokingSignsDisplayed,
@@ -2601,6 +2603,7 @@ function FireComplianceDialog({ open, initial, onClose, onSave, saving, farmId }
     lastElectricalInspectionDate: toStr(initial.lastElectricalInspectionDate),
     nextElectricalInspectionDue: toStr(initial.nextElectricalInspectionDue),
     electricalInspectorName: initial.electricalInspectorName ?? "",
+    electricalInspectorSupplierId: initial.electricalInspectorSupplierId ?? null,
     electricalCertificateRef: initial.electricalCertificateRef ?? "",
     notes: initial.notes ?? "",
   } : blank);
@@ -2618,7 +2621,7 @@ function FireComplianceDialog({ open, initial, onClose, onSave, saving, farmId }
             <div className="grid grid-cols-2 gap-4">
               <div><Label>Last Assessment Date</Label><Input type="date" value={form.lastFireRiskAssessmentDate} onChange={e => f("lastFireRiskAssessmentDate")(e.target.value)} /></div>
               <div><Label>Next Review Due</Label><Input type="date" value={form.nextFireRiskAssessmentDue} onChange={e => f("nextFireRiskAssessmentDue")(e.target.value)} /></div>
-              <div><Label>Conducted By</Label><Input placeholder="Name / company (external assessor)" value={form.assessmentConductedBy} onChange={e => f("assessmentConductedBy")(e.target.value)} /></div>
+              <div><Label>Conducted By</Label><BuyerCombobox farmId={farmId} types={["contractor", "general"]} valueId={form.assessmentConductedBySupplierId ?? null} valueName={form.assessmentConductedBy} onChange={(id, name) => setForm(p => ({ ...p, assessmentConductedBySupplierId: id, assessmentConductedBy: name }))} /></div>
               <div><Label>Document Reference</Label><Input placeholder="e.g. FRA-2026-01" value={form.assessmentRef} onChange={e => f("assessmentRef")(e.target.value)} /></div>
             </div>
           </div>
@@ -2652,7 +2655,7 @@ function FireComplianceDialog({ open, initial, onClose, onSave, saving, farmId }
             <div className="grid grid-cols-2 gap-4">
               <div><Label>Last Inspection Date</Label><Input type="date" value={form.lastElectricalInspectionDate} onChange={e => f("lastElectricalInspectionDate")(e.target.value)} /></div>
               <div><Label>Next Inspection Due</Label><Input type="date" value={form.nextElectricalInspectionDue} onChange={e => f("nextElectricalInspectionDue")(e.target.value)} /></div>
-              <div><Label>Inspector Name / Company</Label><Input placeholder="e.g. Smith Electrical Ltd" value={form.electricalInspectorName} onChange={e => f("electricalInspectorName")(e.target.value)} /></div>
+              <div><Label>Inspector Name / Company</Label><BuyerCombobox farmId={farmId} types={["contractor", "general"]} valueId={form.electricalInspectorSupplierId ?? null} valueName={form.electricalInspectorName} onChange={(id, name) => setForm(p => ({ ...p, electricalInspectorSupplierId: id, electricalInspectorName: name }))} /></div>
               <div><Label>Certificate Reference</Label><Input placeholder="e.g. EICR-2026-Farm" value={form.electricalCertificateRef} onChange={e => f("electricalCertificateRef")(e.target.value)} /></div>
             </div>
           </div>

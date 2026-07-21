@@ -24,6 +24,7 @@ import { Redirect } from "wouter";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFarmMembers } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
+import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 import { FlocksTab } from "./poultry/FlocksTab";
 import { PoultryFlockReport } from "@/components/PoultryFlockReport";
 
@@ -1603,7 +1604,7 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
               </div>
               {form.performedByContractor ? (
                 <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Contractor Name *</Label><Input placeholder="e.g. County Poultry Services" value={String(form.contractorName ?? "")} onChange={e => setForm(f => ({ ...f, contractorName: e.target.value }))} /></div>
+                  <div><Label>Contractor Name *</Label><BuyerCombobox farmId={farmId!} types={["contractor", "general"]} valueId={(form.contractorSupplierId as number) ?? null} valueName={String(form.contractorName ?? "")} onChange={(id, name) => setForm(f => ({ ...f, contractorSupplierId: id, contractorName: name }))} /></div>
                   <div className="flex items-end pb-1">
                     <label className="flex items-center gap-2 cursor-pointer select-none">
                       <Checkbox checked={Boolean(form.contractorOwnSupplies)} onCheckedChange={v => setForm(f => ({ ...f, contractorOwnSupplies: Boolean(v) }))} />

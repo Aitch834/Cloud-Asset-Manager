@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, timestamp, numeric, boolean, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { herdFlockRegisterTable } from "./livestock";
+import { suppliersTable } from "./stock-suppliers";
 
 export const poultryHousesTable = pgTable("poultry_houses", {
   id: serial("id").primaryKey(),
@@ -98,6 +99,7 @@ export const poultryHouseCleanoutsTable = pgTable("poultry_house_cleanouts", {
   standingTimeDays: integer("standing_time_days"),
   performedByContractor: boolean("performed_by_contractor").notNull().default(false),
   contractorName: text("contractor_name"),
+  contractorSupplierId: integer("contractor_supplier_id").references(() => suppliersTable.id),
   contractorOwnSupplies: boolean("contractor_own_supplies").notNull().default(false),
   completedBy: text("completed_by"),
   verifiedBy: text("verified_by"),

@@ -17,6 +17,7 @@ import { Plus, Trash2, Truck, Building2, Wheat, BarChart3, Pencil, Eye, CheckCir
 import { useUpload } from "@workspace/object-storage-web";
 import { useFarmMembers } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
+import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 
 type Tab = "plans" | "dispatches" | "transfers" | "grain-position" | "invoices" | "directory";
 
@@ -184,7 +185,7 @@ function DispatchesTab({ farmId }: { farmId: number }) {
     binId: null as number | null, binName: "",
     buyerId: null as number | null, buyerName: "",
     customerRef: "",
-    haulierRegisteredId: null as number | null, haulierCompany: "",
+    haulierRegisteredId: null as number | null, haulierCompany: "", haulierSupplierId: null as number | null,
     deliveryStatus: "booked",
     weightTonnes: "", vehicleRegistration: "", driverName: "",
     origin: "", destination: "",
@@ -703,7 +704,7 @@ function DispatchesTab({ farmId }: { farmId: number }) {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input placeholder="Haulier company name" value={form.haulierCompany} onChange={e => setForm((f: any) => ({ ...f, haulierCompany: e.target.value }))} />
+                    <BuyerCombobox farmId={farmId!} types={["contractor", "general"]} valueId={form.haulierSupplierId ?? null} valueName={form.haulierCompany} onChange={(id, name) => setForm((f: any) => ({ ...f, haulierSupplierId: id, haulierCompany: name }))} />
                   )}
                 </div>
                 <div><Label>Waybill / Docket Ref</Label><Input value={form.waybillNumber} onChange={e => setForm((f: any) => ({ ...f, waybillNumber: e.target.value }))} /></div>

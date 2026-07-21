@@ -16,6 +16,7 @@ import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
+import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 import { VEHICLE_TYPES, IMPLEMENT_TYPES } from "@/lib/equipmentTypes";
 
 const fmt = (d: string | null | undefined) => {
@@ -203,6 +204,7 @@ const blank = () => ({
   labourRatePence: "",
   isContractor: false as boolean,
   contractorName: "",
+  contractorSupplierId: null as number | null,
   contractorCostPence: "",
   notes: "",
 });
@@ -400,6 +402,7 @@ export default function FieldOperationsPage() {
       labourRatePence: r.labourRatePence?.toString() ?? "",
       isContractor: r.isContractor ?? false,
       contractorName: r.contractorName ?? "",
+      contractorSupplierId: (r as any).contractorSupplierId ?? null,
       contractorCostPence: r.contractorCostPence?.toString() ?? "",
       notes: r.notes ?? "",
     });
@@ -1136,11 +1139,7 @@ export default function FieldOperationsPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "1rem" }}>
                   <div className="space-y-1.5">
                     <Label>Contractor Name</Label>
-                    <Input
-                      placeholder="e.g. Smith Agri Services"
-                      value={form.contractorName}
-                      onChange={(e) => setForm((f) => ({ ...f, contractorName: e.target.value }))}
-                    />
+                    {farmId && <BuyerCombobox farmId={farmId} types={["contractor", "general"]} valueId={form.contractorSupplierId ?? null} valueName={form.contractorName} onChange={(id, name) => setForm(f => ({ ...f, contractorSupplierId: id, contractorName: name }))} />}
                   </div>
                   <div className="space-y-1.5">
                     <Label>Total Contractor Cost (£)</Label>
