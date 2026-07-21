@@ -10,6 +10,7 @@ import { runGpsMigrations } from "./lib/gpsMigrations";
 import { startGpsPollingJob } from "./lib/gpsPollingJob";
 import { runSensorMigrations } from "./lib/sensorMigrations";
 import { startSensorPollingJob } from "./lib/sensorPollingJob";
+import { runStrawMigrations } from "./lib/strawMigrations";
 
 interface EnvSpec {
   key: string;
@@ -102,5 +103,8 @@ app.listen(port, () => {
     startSensorPollingJob();
   }).catch((err) => {
     console.error("[SENSOR-MIGRATE] Failed:", err);
+  });
+  runStrawMigrations().catch((err) => {
+    console.error("[STRAW-MIGRATE] Failed:", err);
   });
 });

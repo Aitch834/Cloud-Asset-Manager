@@ -456,6 +456,8 @@ import {
   organicPoultryAccessRecordsTable,
   organicPoultryFeedRecordsTable,
   organicPoultryDerogationsTable,
+  strawBalingOperationsTable,
+  strawCartageJourneysTable,
   strawBaleInventoryTable,
   strawSalesRecordsTable,
   strawMoistureChecksTable,
@@ -32539,6 +32541,136 @@ router.post("/farms/:farmId/support-tickets/:ticketId/reply", requireAuth, requi
     console.error("[SUPPORT] Customer reply error:", err);
     res.status(500).json({ error: "Failed to send reply" });
   }
+});
+
+// ─── Straw Baling Operations ─────────────────────────────────────────────────
+// Phase 1: records the baling machine's output per field session.
+// Auto-creates a mirrored field_operations record for field history.
+
+router.get("/farms/:farmId/straw-baling-operations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const ops = await db.select().from(strawBalingOperationsTable)
+    .where(eq(strawBalingOperationsTable.farmId, farmId))
+    .orderBy(desc(strawBalingOperationsTable.operationDate));
+  const totals = await db.select({
+    balingOperationId: strawCartageJourneysTable.balingOperationId,
+    balesMoved: sql<number>`COALESCE(SUM(${strawCartageJourneysTable.balesMoved}), 0)::int`,
+  }).from(strawCartageJourneysTable)
+    .where(eq(strawCartageJourneysTable.farmId, farmId))
+    .groupBy(strawCartageJourneysTable.balingOperationId);
+  const totalsMap = new Map(totals.map(t => [t.balingOperationId, t.balesMoved ?? 0]));
+  res.json(ops.map(op => ({
+    ...op,
+    balesMoved: totalsMap.get(op.id) ?? 0,
+    balingBalance: (op.totalBalesProduced ?? 0) - (totalsMap.get(op.id) ?? 0),
+  })));
+});
+
+router.post("/farms/:farmId/straw-baling-operations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [op] = await db.insert(strawBalingOperationsTable).values({ ...body, farmId } as any).returning();
+  let fieldOpId: number | null = null;
+  try {
+    const fieldName = (body.fieldOfOrigin as string) || (body.fieldId ? `Field #${body.fieldId}` : "Unknown Field");
+    const [fieldOp] = await db.insert(fieldOperationsTable).values({
+      farmId,
+      fieldId: (body.fieldId as number | null) ?? null,
+      fieldName,
+      operationDate: new Date(body.operationDate as string),
+      operationType: "Baling",
+      vehicleId: (body.tractorVehicleId as number | null) ?? null,
+      vehicleDescription: (body.tractorDescription as string) || null,
+      implement: (body.balerDescription as string) || null,
+      implementId: (body.balerImplementId as number | null) ?? null,
+      operator: (body.operatorName as string) || null,
+      machineHours: body.machineHours != null ? String(body.machineHours) : null,
+      labourHours: body.labourHours != null ? String(body.labourHours) : null,
+      areaHa: body.areaHa != null ? String(body.areaHa) : null,
+      quantity: body.totalBalesProduced != null ? String(body.totalBalesProduced) : null,
+      quantityUnit: "bales",
+      notes: (body.notes as string) || null,
+    } as any).returning();
+    fieldOpId = fieldOp.id;
+    await db.update(strawBalingOperationsTable).set({ fieldOperationId: fieldOpId } as any).where(eq(strawBalingOperationsTable.id, op.id));
+  } catch (e) {
+    console.warn("[STRAW] Field operation mirror failed:", e);
+  }
+  res.status(201).json({ ...op, fieldOperationId: fieldOpId, balesMoved: 0, balingBalance: op.totalBalesProduced ?? 0 });
+});
+
+router.patch("/farms/:farmId/straw-baling-operations/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.update(strawBalingOperationsTable).set({ ...body, updatedAt: new Date() } as any)
+    .where(and(eq(strawBalingOperationsTable.id, id), eq(strawBalingOperationsTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/straw-baling-operations/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  await db.delete(strawBalingOperationsTable).where(and(eq(strawBalingOperationsTable.id, id), eq(strawBalingOperationsTable.farmId, farmId)));
+  res.status(204).end();
+});
+
+// ─── Straw Cartage Journeys ───────────────────────────────────────────────────
+// Phase 2: individual trailer journeys field → storage.
+
+router.get("/farms/:farmId/straw-baling-operations/:balingOpId/journeys", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const balingOpId = Number(req.params.balingOpId);
+  const rows = await db.select().from(strawCartageJourneysTable)
+    .where(and(eq(strawCartageJourneysTable.farmId, farmId), eq(strawCartageJourneysTable.balingOperationId, balingOpId)))
+    .orderBy(asc(strawCartageJourneysTable.journeyDate), asc(strawCartageJourneysTable.createdAt));
+  res.json(rows);
+});
+
+router.post("/farms/:farmId/straw-baling-operations/:balingOpId/journeys", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const balingOpId = Number(req.params.balingOpId);
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(strawCartageJourneysTable).values({ ...body, farmId, balingOperationId: balingOpId } as any).returning();
+  // Auto-complete the baling op if all bales have been carted
+  try {
+    const [op] = await db.select({ totalBalesProduced: strawBalingOperationsTable.totalBalesProduced })
+      .from(strawBalingOperationsTable).where(and(eq(strawBalingOperationsTable.id, balingOpId), eq(strawBalingOperationsTable.farmId, farmId)));
+    if (op) {
+      const [agg] = await db.select({ balesMoved: sql<number>`COALESCE(SUM(${strawCartageJourneysTable.balesMoved}), 0)::int` })
+        .from(strawCartageJourneysTable).where(eq(strawCartageJourneysTable.balingOperationId, balingOpId));
+      if ((agg?.balesMoved ?? 0) >= (op.totalBalesProduced ?? 0)) {
+        await db.update(strawBalingOperationsTable).set({ status: "complete" } as any).where(eq(strawBalingOperationsTable.id, balingOpId));
+      }
+    }
+  } catch (e) { console.warn("[STRAW] Auto-complete check failed:", e); }
+  res.status(201).json(row);
+});
+
+router.patch("/farms/:farmId/straw-cartage-journeys/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.update(strawCartageJourneysTable).set(body as any)
+    .where(and(eq(strawCartageJourneysTable.id, id), eq(strawCartageJourneysTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/straw-cartage-journeys/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  await db.delete(strawCartageJourneysTable).where(and(eq(strawCartageJourneysTable.id, id), eq(strawCartageJourneysTable.farmId, farmId)));
+  res.status(204).end();
 });
 
 // ─── Straw Bale Inventory ─────────────────────────────────────────────────────
