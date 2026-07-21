@@ -2837,11 +2837,33 @@ export default function FarmSettings() {
         </Card>
 
         {/* ── BCMS / CTS One-Click Submission ── */}
-        {farmId && <BcmsCredentialsCard farmId={farmId} bcmsHoldingNumber={formData.bcmsHoldingNumber || undefined} />}
+        {/* Greyed out: BCMS vendor registration is on hold pending LITP review. Code preserved. */}
+        {farmId && (
+          <div style={{ position: "relative" }}>
+            <div style={{ position: "absolute", inset: 0, borderRadius: 12, background: "rgba(249,250,251,0.6)", zIndex: 10, pointerEvents: "all", cursor: "not-allowed" }} />
+            <div style={{ position: "absolute", top: 14, right: 14, zIndex: 11, display: "inline-flex", alignItems: "center", gap: 5, background: "#f3f4f6", color: "#6b7280", border: "1px solid #e5e7eb", borderRadius: 6, padding: "4px 10px", fontSize: "0.72rem", fontWeight: 700 }}>
+              <AlertTriangle size={10} style={{ color: "#f59e0b" }} /> Temporarily unavailable
+            </div>
+            <div style={{ opacity: 0.45, pointerEvents: "none", userSelect: "none" }}>
+              <BcmsCredentialsCard farmId={farmId} bcmsHoldingNumber={formData.bcmsHoldingNumber || undefined} />
+            </div>
+          </div>
+        )}
 
         {/* ── LIS / Livestock Information Service ── */}
         {farmId && <LisConnectionCard farmId={farmId} />}
-        {farmId && <LipConnectionCard farmId={farmId} />}
+        {/* LIP Cattle: greyed out — LIS LIP Cattle postponed to late 2027. Code preserved. */}
+        {farmId && (
+          <div style={{ position: "relative" }}>
+            <div style={{ position: "absolute", inset: 0, borderRadius: 12, background: "rgba(249,250,251,0.6)", zIndex: 10, pointerEvents: "all", cursor: "not-allowed" }} />
+            <div style={{ position: "absolute", top: 14, right: 14, zIndex: 11, display: "inline-flex", alignItems: "center", gap: 5, background: "#f3f4f6", color: "#6b7280", border: "1px solid #e5e7eb", borderRadius: 6, padding: "4px 10px", fontSize: "0.72rem", fontWeight: 700 }}>
+              <AlertTriangle size={10} style={{ color: "#f59e0b" }} /> Temporarily unavailable
+            </div>
+            <div style={{ opacity: 0.45, pointerEvents: "none", userSelect: "none" }}>
+              <LipConnectionCard farmId={farmId} />
+            </div>
+          </div>
+        )}
 
         {/* ── GPS Tracking Integration ── */}
         {farmId && <GpsIntegrationCard farmId={farmId} />}
