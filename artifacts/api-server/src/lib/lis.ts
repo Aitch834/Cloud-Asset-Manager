@@ -371,14 +371,14 @@ export async function refreshLisToken(refreshToken: string): Promise<LisTokenRes
   }
 
   // ── Direct B2C token refresh (fallback or no proxy configured) ───────────────
-  // Try multiple B2C endpoints — we try sandbox policy first (most likely for beta
-  // users whose accounts are in livestockinformationb2cprod), then production
-  // standard AAD endpoint, then sandbox standard AAD endpoint.
+  // IMPORTANT: Only use the B2C *policy* endpoints (b2clogin.com/B2C_1A_SIGNIN).
+  // The standard AAD endpoints (login.microsoftonline.com) may accept the refresh
+  // token but issue a token without the CLA APIM user_impersonation scope, which
+  // causes 401 "Unauthorized. Access token is missing or invalid." on every CLA
+  // API call. Do NOT fall back to login.microsoftonline.com for LIS tokens.
   const refreshEndpoints = [
     { url: LIS_B2C_TOKEN_URL_POLICY_SANDBOX, scope: LIS_B2C_SCOPE_SANDBOX, sandbox: true },
     { url: LIS_B2C_TOKEN_URL_POLICY_PROD,    scope: LIS_B2C_SCOPE_PROD,    sandbox: false },
-    { url: LIS_B2C_TOKEN_URL_SANDBOX,        scope: LIS_B2C_SCOPE_SANDBOX, sandbox: true },
-    { url: LIS_B2C_TOKEN_URL_PROD,           scope: LIS_B2C_SCOPE_PROD,    sandbox: false },
   ];
 
   let lastError = "Token refresh failed — no B2C endpoint accepted the refresh token";
@@ -544,6 +544,8 @@ export async function submitLisMovement(req: LisMovementRequest): Promise<LisRes
 
     const responseData = result.data as any;
     const reference =
+      responseData?.movementDocument?.movementDocumentRef ??          // Official CLA document ref (preferred)
+      responseData?.content?.movementDocument?.movementDocumentRef ?? // content-wrapped variant
       responseData?.content?.requestId ??
       responseData?.content?.id ??
       responseData?.requestId ??

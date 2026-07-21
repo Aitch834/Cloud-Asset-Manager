@@ -37,6 +37,19 @@ const B2C_TOKEN_URL = USE_SANDBOX
   ? "https://login.microsoftonline.com/livestockinformationb2cprod.onmicrosoft.com/oauth2/v2.0/token"
   : "https://login.microsoftonline.com/livestockinformation.onmicrosoft.com/oauth2/v2.0/token";
 
+// B2C *policy* endpoint — used for token refresh.
+// Refresh tokens obtained via OAuth code flow (b2clogin.com/B2C_1A_SIGNIN) must be
+// refreshed at the same policy endpoint to receive a properly-scoped CLA API token.
+// The standard AAD endpoint (login.microsoftonline.com) may succeed but issues a token
+// without the user_impersonation scope, causing 401 on every CLA API call.
+const B2C_POLICY_TOKEN_URL = USE_SANDBOX
+  ? "https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/token"
+  : "https://livestockinformation.b2clogin.com/livestockinformation.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/token";
+
+const B2C_REFRESH_SCOPE = USE_SANDBOX
+  ? "https://livestockinformationb2cprod.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access"
+  : "https://livestockinformation.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access";
+
 // Correct CLA API gateway confirmed from LIS Developer Hub (api-url field, June 2026).
 // The /v1.0 version prefix is part of the base — do NOT include /v1/ in individual paths.
 const CLA_API_BASE = USE_SANDBOX
@@ -143,15 +156,19 @@ app.post("/lis/token/refresh", requireSecret, async (req, res) => {
     return res.status(400).json({ error: "refreshToken is required" });
   }
 
+  // Use the B2C policy endpoint (b2clogin.com/B2C_1A_SIGNIN) with the CLA API scope.
+  // The standard AAD endpoint (login.microsoftonline.com) returns a token without the
+  // user_impersonation scope, causing 401 on every subsequent CLA API call.
   const body = new URLSearchParams({
     grant_type: "refresh_token",
     client_id: LIS_B2C_CLIENT_ID,
     refresh_token: refreshToken,
+    scope: B2C_REFRESH_SCOPE,
   });
   if (LIS_B2C_CLIENT_SECRET) body.append("client_secret", LIS_B2C_CLIENT_SECRET);
 
   try {
-    const upstream = await fetch(B2C_TOKEN_URL, {
+    const upstream = await fetch(B2C_POLICY_TOKEN_URL, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: body.toString(),

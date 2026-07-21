@@ -26662,6 +26662,12 @@ router.post("/farms/:farmId/lis-submit/:movementId", requireAuth, requireTenant,
   const [movement] = await db.select().from(livestockMovementsTable).where(and(eq(livestockMovementsTable.id, movementId), eq(livestockMovementsTable.farmId, farmId)));
   if (!movement) { res.status(404).json({ error: "Movement not found" }); return; }
 
+  // Prevent duplicate submissions — if already successfully submitted, reject with 409
+  if (movement.legalNotificationSubmitted) {
+    res.status(409).json({ error: `This movement has already been successfully submitted to LIS (ref: ${movement.bcmsSubmissionRef ?? "unknown"}). Use the Undo option on the movement record if a correction is needed.` });
+    return;
+  }
+
   const species = (movement.species ?? "").toLowerCase();
   const lisSpecies = species.includes("goat") ? "GOAT" : species.includes("deer") ? "DEER" : "SHEEP";
 
@@ -26729,63 +26735,88 @@ router.post("/farms/:farmId/lis-submit/:movementId", requireAuth, requireTenant,
     //   movements → POST /TransferRequests (unchanged)
     const sex = ((req.body as any)?.sex as "male" | "female" | undefined);
 
-    let result: LisResult;
+    // ── Submission with 401 auto-retry ────────────────────────────────────────
+    // On a first-attempt 401 from LIS, refresh the token once and retry.
+    let result!: LisResult;
 
-    if (submissionType === "birth") {
-      const earTags = (movement.earTagNumbers ?? "").split(/[\s,]+/).filter(Boolean);
-      if (earTags.length === 0) {
-        await db.update(lisSubmissionsTable).set({ status: "failed", errorMessage: "Birth registration requires individual ear tag numbers — none found on this movement record", updatedAt: new Date() }).where(eq(lisSubmissionsTable.id, submission.id));
-        res.status(400).json({ error: "Birth registration requires individual ear tag numbers" });
-        return;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (submissionType === "birth") {
+        const earTags = (movement.earTagNumbers ?? "").split(/[\s,]+/).filter(Boolean);
+        if (earTags.length === 0) {
+          await db.update(lisSubmissionsTable).set({ status: "failed", errorMessage: "Birth registration requires individual ear tag numbers — none found on this movement record", updatedAt: new Date() }).where(eq(lisSubmissionsTable.id, submission.id));
+          res.status(400).json({ error: "Birth registration requires individual ear tag numbers" });
+          return;
+        }
+        const holdingCph = movement.toLocation ?? movement.fromLocation ?? "";
+        const birthResults = await Promise.all(earTags.map(earTag => submitLisBirth({
+          accessToken: accessToken ?? "",
+          holdingCph,
+          birthDate: movDate,
+          species: lisSpecies,
+          earTag,
+          sex,
+          multipleBirth: earTags.length > 1,
+        })));
+        const firstFailed = birthResults.find(r => !r.success);
+        result = firstFailed ?? { ...birthResults[0], reference: birthResults.map(r => r.reference).filter(Boolean).join(", ") };
+
+      } else if (submissionType === "death") {
+        const earTags = (movement.earTagNumbers ?? "").split(/[\s,]+/).filter(Boolean);
+        if (earTags.length === 0) {
+          await db.update(lisSubmissionsTable).set({ status: "failed", errorMessage: "Death registration requires individual ear tag numbers — none found on this movement record", updatedAt: new Date() }).where(eq(lisSubmissionsTable.id, submission.id));
+          res.status(400).json({ error: "Death registration requires individual ear tag numbers" });
+          return;
+        }
+        const holdingCph = movement.fromLocation ?? movement.toLocation ?? "";
+        const deathResults = await Promise.all(earTags.map(earTag => submitLisDeath({
+          accessToken: accessToken ?? "",
+          holdingCph,
+          deathDate: movDate,
+          species: lisSpecies,
+          earTag,
+          sex,
+        })));
+        const firstFailed = deathResults.find(r => !r.success);
+        result = firstFailed ?? { ...deathResults[0], reference: deathResults.map(r => r.reference).filter(Boolean).join(", ") };
+
+      } else {
+        result = await submitLisMovement({
+          lisUsername: creds?.lisUsername ?? "",
+          lisPassword: password,
+          accessToken,
+          movementType: submissionType,
+          movementDate: movDate,
+          species: lisSpecies,
+          numberOfAnimals: movement.numberOfAnimals ?? 1,
+          departureCph: movement.fromLocation ?? undefined,
+          destinationCph: movement.toLocation ?? undefined,
+          earTagNumbers: movement.earTagNumbers ?? undefined,
+          licenceNumber: movement.licenceNumber ?? undefined,
+          fromLocation: movement.fromLocation ?? undefined,
+          toLocation: movement.toLocation ?? undefined,
+        });
       }
-      const holdingCph = movement.toLocation ?? movement.fromLocation ?? "";
-      const birthResults = await Promise.all(earTags.map(earTag => submitLisBirth({
-        accessToken: accessToken ?? "",
-        holdingCph,
-        birthDate: movDate,
-        species: lisSpecies,
-        earTag,
-        sex,
-        multipleBirth: earTags.length > 1,
-      })));
-      const firstFailed = birthResults.find(r => !r.success);
-      result = firstFailed ?? { ...birthResults[0], reference: birthResults.map(r => r.reference).filter(Boolean).join(", ") };
 
-    } else if (submissionType === "death") {
-      const earTags = (movement.earTagNumbers ?? "").split(/[\s,]+/).filter(Boolean);
-      if (earTags.length === 0) {
-        await db.update(lisSubmissionsTable).set({ status: "failed", errorMessage: "Death registration requires individual ear tag numbers — none found on this movement record", updatedAt: new Date() }).where(eq(lisSubmissionsTable.id, submission.id));
-        res.status(400).json({ error: "Death registration requires individual ear tag numbers" });
-        return;
+      // On first attempt: if LIS returned 401/auth-error, refresh token and retry once
+      if (attempt === 0 && !result.success && !isLisSandboxMode() && creds?.refreshToken) {
+        const indicates401 = /401|Unauthorized|token.*expired|invalid.*token|AADSTS/i.test(
+          (result.errorMessage ?? "") + (result.responsePayload ?? "")
+        );
+        if (indicates401) {
+          const retryRefresh = await refreshLisToken(creds.refreshToken);
+          if (retryRefresh.success && retryRefresh.accessToken) {
+            accessToken = retryRefresh.accessToken;
+            await db.update(lisFarmTokensTable).set({
+              accessToken,
+              refreshToken: retryRefresh.refreshToken ?? undefined,
+              tokenExpiresAt: retryRefresh.expiresIn ? new Date(Date.now() + retryRefresh.expiresIn * 1000) : undefined,
+              updatedAt: new Date(),
+            }).where(eq(lisFarmTokensTable.farmId, farmId));
+            continue; // retry with fresh token
+          }
+        }
       }
-      const holdingCph = movement.fromLocation ?? movement.toLocation ?? "";
-      const deathResults = await Promise.all(earTags.map(earTag => submitLisDeath({
-        accessToken: accessToken ?? "",
-        holdingCph,
-        deathDate: movDate,
-        species: lisSpecies,
-        earTag,
-        sex,
-      })));
-      const firstFailed = deathResults.find(r => !r.success);
-      result = firstFailed ?? { ...deathResults[0], reference: deathResults.map(r => r.reference).filter(Boolean).join(", ") };
-
-    } else {
-      result = await submitLisMovement({
-        lisUsername: creds?.lisUsername ?? "",
-        lisPassword: password,
-        accessToken,
-        movementType: submissionType,
-        movementDate: movDate,
-        species: lisSpecies,
-        numberOfAnimals: movement.numberOfAnimals ?? 1,
-        departureCph: movement.fromLocation ?? undefined,
-        destinationCph: movement.toLocation ?? undefined,
-        earTagNumbers: movement.earTagNumbers ?? undefined,
-        licenceNumber: movement.licenceNumber ?? undefined,
-        fromLocation: movement.fromLocation ?? undefined,
-        toLocation: movement.toLocation ?? undefined,
-      });
+      break; // success, non-401 failure, or no refresh token available
     }
 
     const status = result.success ? "submitted" : "failed";
