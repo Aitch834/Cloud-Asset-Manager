@@ -768,6 +768,12 @@ export async function submitLisBirth(params: LisBirthParams): Promise<LisResult>
       return { sandbox: false, success: false, requestPayload: payloadStr, responsePayload: result.raw, errorMessage: errMsg };
     }
     const d = result.data as any;
+    if (result.status === 202) {
+      // Async accepted — poll GET /requeststatus/{requestId} for final result.
+      // We return success=true with the requestId so the caller can track it.
+      const requestId = d?.requestId ?? d?.id ?? "pending";
+      return { sandbox: false, success: true, reference: `async:${requestId}`, requestPayload: payloadStr, responsePayload: result.raw };
+    }
     const ref = d?.identifier ?? d?.reference ?? d?.id ?? params.earTag;
     return { sandbox: false, success: true, reference: String(ref), requestPayload: payloadStr, responsePayload: result.raw };
   } catch (err: any) {
@@ -831,6 +837,11 @@ export async function submitLisDeath(params: LisDeathParams): Promise<LisResult>
       return { sandbox: false, success: false, requestPayload: payloadStr, responsePayload: result.raw, errorMessage: errMsg };
     }
     const d = result.data as any;
+    if (result.status === 202) {
+      // Async accepted — poll GET /requeststatus/{requestId} for final result.
+      const requestId = d?.requestId ?? d?.id ?? "pending";
+      return { sandbox: false, success: true, reference: `async:${requestId}`, requestPayload: payloadStr, responsePayload: result.raw };
+    }
     const ref = d?.identifier ?? d?.reference ?? params.earTag;
     return { sandbox: false, success: true, reference: String(ref), requestPayload: payloadStr, responsePayload: result.raw };
   } catch (err: any) {
