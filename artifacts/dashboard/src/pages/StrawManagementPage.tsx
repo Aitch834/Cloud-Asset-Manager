@@ -1729,6 +1729,35 @@ export default function StrawManagementPage() {
   const actionRequired = useMemo(() => filteredInventory.filter((r: any) => r.moistureStatus === "Action Required" || r.moistureStatus === "Warning").length, [filteredInventory]);
   const openOps = useMemo(() => filteredBalingOps.filter((op: any) => op.status === "open").length, [filteredBalingOps]);
 
+  // ── Annual production summary (all years, unfiltered — for the by-year table) ──
+  const allStrawTypes = useMemo(() => {
+    const types = new Set<string>();
+    balingOps.forEach((op: any) => { if (op.strawType) types.add(op.strawType); });
+    return Array.from(types).sort();
+  }, [balingOps]);
+
+  const annualSummary = useMemo(() => {
+    const byYear: Record<string, { balesByType: Record<string, number>; totalBales: number; revenuePence: number; soldBales: number }> = {};
+    balingOps.forEach((op: any) => {
+      if (!op.operationDate) return;
+      const year = new Date(op.operationDate).getFullYear().toString();
+      if (!byYear[year]) byYear[year] = { balesByType: {}, totalBales: 0, revenuePence: 0, soldBales: 0 };
+      const type = op.strawType || "Unknown";
+      byYear[year].balesByType[type] = (byYear[year].balesByType[type] ?? 0) + (op.totalBalesProduced ?? 0);
+      byYear[year].totalBales += op.totalBalesProduced ?? 0;
+    });
+    sales.forEach((s: any) => {
+      if (!s.saleDate) return;
+      const year = new Date(s.saleDate).getFullYear().toString();
+      if (!byYear[year]) byYear[year] = { balesByType: {}, totalBales: 0, revenuePence: 0, soldBales: 0 };
+      byYear[year].revenuePence += s.totalValuePence ?? 0;
+      byYear[year].soldBales += s.quantitySold ?? 0;
+    });
+    return Object.entries(byYear)
+      .sort(([a], [b]) => Number(b) - Number(a))
+      .map(([year, data]) => ({ year, ...data }));
+  }, [balingOps, sales]);
+
   return (
     <AppLayout>
       <div className="p-6 max-w-7xl mx-auto">
@@ -1761,8 +1790,9 @@ export default function StrawManagementPage() {
             <div className="text-2xl font-bold">{totalBalesInStock.toLocaleString()}</div>
           </div>
           <div className="bg-white rounded-xl border p-4">
-            <div className="flex items-center gap-2 mb-1"><PoundSterling size={16} className="text-blue-600" /><span className="text-xs text-gray-500 font-medium">Total Sales (net)</span></div>
+            <div className="flex items-center gap-2 mb-1"><PoundSterling size={16} className="text-blue-600" /><span className="text-xs text-gray-500 font-medium">{yearFilter !== "all" ? `${yearFilter} Sales (net)` : "Total Sales (net)"}</span></div>
             <div className="text-2xl font-bold">{pToGBP(totalSalesValue)}</div>
+            {yearFilter === "all" && <div className="text-xs text-gray-400 mt-0.5">all years</div>}
           </div>
           <div className={`bg-white rounded-xl border p-4 ${actionRequired > 0 ? "border-red-300" : ""}`}>
             <div className="flex items-center gap-2 mb-1"><AlertTriangle size={16} className={actionRequired > 0 ? "text-red-600" : "text-gray-400"} /><span className="text-xs text-gray-500 font-medium">Fire Risk Alerts</span></div>
@@ -2316,6 +2346,61 @@ export default function StrawManagementPage() {
         {/* ── Analytics tab ── */}
         {tab === "analytics" && (
           <div className="space-y-6">
+            {/* Annual Production Summary — always shown, client-side from loaded data */}
+            {annualSummary.length > 0 && (
+              <div className="bg-white rounded-xl border overflow-hidden">
+                <div className="px-5 py-4 border-b">
+                  <h3 className="font-semibold text-gray-700 flex items-center gap-2"><BarChart3 size={16} className="text-amber-600" />Annual Production &amp; Revenue Summary</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Bales produced on-holding by harvest year and crop type, with total sales revenue booked in that calendar year</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Year</th>
+                        {allStrawTypes.map(t => <th key={t} className="px-4 py-3 text-right text-xs font-semibold text-gray-600">{t.replace(" Straw", "").replace("Oilseed Rape", "OSR")}</th>)}
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">Total Bales</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">Bales Sold</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">Sales Revenue (net)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {annualSummary.map(row => (
+                        <tr key={row.year} className="hover:bg-amber-50 cursor-pointer" onClick={() => setYearFilter(row.year)}>
+                          <td className="px-4 py-3">
+                            <span className="font-semibold text-amber-700">{row.year}</span>
+                            <span className="text-xs text-gray-400 ml-1">harvest</span>
+                          </td>
+                          {allStrawTypes.map(t => (
+                            <td key={t} className="px-4 py-3 text-right text-gray-700">{row.balesByType[t] ? row.balesByType[t].toLocaleString() : <span className="text-gray-300">—</span>}</td>
+                          ))}
+                          <td className="px-4 py-3 text-right font-semibold">{row.totalBales.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right text-gray-600">{row.soldBales > 0 ? row.soldBales.toLocaleString() : <span className="text-gray-300">—</span>}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-blue-700">{row.revenuePence > 0 ? pToGBP(row.revenuePence) : <span className="text-gray-300">—</span>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    {annualSummary.length > 1 && (
+                      <tfoot className="bg-gray-50 border-t">
+                        <tr>
+                          <td className="px-4 py-3 font-semibold text-xs text-gray-500 uppercase">All years</td>
+                          {allStrawTypes.map(t => (
+                            <td key={t} className="px-4 py-3 text-right font-semibold text-xs">
+                              {annualSummary.reduce((s, r) => s + (r.balesByType[t] ?? 0), 0).toLocaleString()}
+                            </td>
+                          ))}
+                          <td className="px-4 py-3 text-right font-bold">{annualSummary.reduce((s, r) => s + r.totalBales, 0).toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right font-semibold">{annualSummary.reduce((s, r) => s + r.soldBales, 0).toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right font-bold text-blue-700">{pToGBP(annualSummary.reduce((s, r) => s + r.revenuePence, 0))}</td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+                <div className="px-5 py-2.5 bg-gray-50 border-t text-xs text-gray-400">Click a row to filter the whole page to that harvest year</div>
+              </div>
+            )}
+
             {!analytics ? (
               <div className="p-8 text-center text-gray-400"><Loader2 size={24} className="animate-spin mx-auto" /></div>
             ) : (
