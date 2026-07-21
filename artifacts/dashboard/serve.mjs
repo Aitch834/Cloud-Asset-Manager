@@ -8,14 +8,12 @@ const dist = path.join(__dirname, "dist/public");
 const port = Number(process.env.PORT) || 3000;
 const base = (process.env.BASE_PATH || "/dashboard/").replace(/\/$/, "");
 
+// A new token every restart → proxy sees new asset URLs → guaranteed cache miss
+const startupToken = Date.now().toString(36);
+
 const app = express();
 
-// Read index.html and pad it to >500KB so the Replit proxy never caches it
-const rawHtml = fs.readFileSync(path.join(dist, "index.html"), "utf8");
-const pad = "<!-- replit-no-cache: " + "x".repeat(600000) + " -->";
-const html = rawHtml.replace("</body>", pad + "\n</body>");
-
-// No-cache headers on every response
+// No-cache headers on every response (belt-and-braces)
 app.use((_req, res, next) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   res.setHeader("Pragma", "no-cache");
@@ -24,15 +22,25 @@ app.use((_req, res, next) => {
   next();
 });
 
-// Hashed static assets
+// Serve hashed static assets — Express strips the query string automatically,
+// so requests for index-abc.js?v=<token> still resolve to index-abc.js on disk.
 app.use(base, express.static(dist, { etag: false, lastModified: false, index: false }));
 
-// SPA fallback — all routes serve padded index.html
-app.use((req, res) => {
+// Build the SPA HTML once on startup.
+// Rewrite every .js and .css asset URL to include the startup token so the
+// proxy is forced to fetch fresh on every server restart.
+const rawHtml = fs.readFileSync(path.join(dist, "index.html"), "utf8");
+const html = rawHtml
+  .replace(/(src|href)="([^"]+\.(js|css))"/g, `$1="$2?v=${startupToken}"`)
+  // pad to >500 KB as a secondary defence against proxy size-based caching
+  .replace("</body>", `<!-- v:${startupToken} ${"x".repeat(520000)} -->\n</body>`);
+
+// SPA fallback — all routes serve the token-stamped HTML
+app.use((_req, res) => {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(html);
 });
 
 app.listen(port, "0.0.0.0", () => {
-  console.log(`Dashboard serving on port ${port} at ${base}`);
+  console.log(`Dashboard serving on port ${port} at ${base} (token: ${startupToken})`);
 });
