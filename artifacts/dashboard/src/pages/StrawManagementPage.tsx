@@ -1698,6 +1698,10 @@ export default function StrawManagementPage() {
   // ── Year filter helpers ───────────────────────────────────────────────────
   const availableYears = useMemo(() => {
     const years = new Set<string>();
+    // Always include current year and 4 previous harvest years as baseline
+    const thisYear = new Date().getFullYear();
+    for (let y = thisYear; y >= thisYear - 4; y--) years.add(y.toString());
+    // Add any years found in actual records
     balingOps.forEach((op: any) => { if (op.operationDate) years.add(new Date(op.operationDate).getFullYear().toString()); });
     inventory.forEach((r: any) => { if (r.harvestDate) years.add(new Date(r.harvestDate).getFullYear().toString()); });
     sales.forEach((r: any) => { if (r.saleDate) years.add(new Date(r.saleDate).getFullYear().toString()); });
