@@ -675,6 +675,155 @@ export async function reviewHoldingMovement(
   return { ok: true };
 }
 
+// ─── Animal Registration — Births & Deaths ───────────────────────────────────
+//
+// LIS CLA REST API: births → POST /animals, deaths → PUT /animals/{identifier}.
+// These are DIFFERENT from the OData TransferRequests endpoint used for movements.
+// Confirmed by LIS CLA support (July 2026):
+//   "Births will be under registering a new Animal"
+//   "Death are covered under Updating an animal"
+//
+// Species enum (REST API — all lowercase, matches OpenAPI spec):
+//   "sheep" | "goats" | "deer" | "cattle" | "bison" | "buffalo"
+// Note: "goats" is PLURAL in the spec (unlike movements OData which uses "Goats").
+
+const CLA_ANIMAL_SPECIES_MAP: Record<LisSpecies, string> = {
+  SHEEP: "sheep",
+  GOAT:  "goats",  // plural — matches spec enum
+  DEER:  "deer",
+};
+
+export interface LisBirthParams {
+  accessToken: string;
+  holdingCph: string;          // CPH of holding where animal was born
+  birthDate: string;           // YYYY-MM-DD
+  species: LisSpecies;
+  earTag: string;              // single UK ear tag — submit one per animal
+  sex?: "male" | "female";    // required by spec — defaults to "female" if unknown
+  assistedBirth?: boolean;
+  multipleBirth?: boolean;     // true for twins / triplets
+  breed?: string;              // breed code from GET /breeds
+}
+
+/**
+ * Register a livestock birth with the LIS CLA Animals API.
+ * Endpoint: POST /animals
+ * One call per ear tag; caller loops over tags for multiple births.
+ */
+export async function submitLisBirth(params: LisBirthParams): Promise<LisResult> {
+  const speciesValue = CLA_ANIMAL_SPECIES_MAP[params.species] ?? params.species.toLowerCase();
+  const site = { identifiers: [{ identifier: params.holdingCph }] };
+
+  const payloadObj: Record<string, unknown> = {
+    animal: {
+      identifier: params.earTag,
+      species: speciesValue,
+      sex: params.sex ?? "female",
+    },
+    ...(params.breed ? { breed: { code: params.breed } } : {}),
+    birth: {
+      site,
+      date: params.birthDate,
+      year: parseInt(params.birthDate.slice(0, 4), 10),
+      assistedBirthFlag:  params.assistedBirth  ?? false,
+      multipleBirthsFlag: params.multipleBirth   ?? false,
+      embryoTransferFlag: false,
+    },
+    registration: {
+      site,
+      date: params.birthDate,
+      category: "birthRegistration",
+    },
+  };
+  const payloadStr = JSON.stringify(payloadObj, null, 2);
+
+  if (isLisSandboxMode()) {
+    console.log("[LIS SANDBOX] Birth payload:", payloadStr);
+    return {
+      sandbox: true, success: true,
+      reference: simulatedReference(),
+      requestPayload: payloadStr,
+      responsePayload: JSON.stringify({ status: "SANDBOX_OK" }),
+    };
+  }
+
+  try {
+    const result = await callLisApi(params.accessToken, "/animals", "POST", payloadObj);
+    if (!result.ok) {
+      const errMsg = (result.data as any)?.message ?? result.raw.slice(0, 300) ?? `HTTP ${result.status}`;
+      return { sandbox: false, success: false, requestPayload: payloadStr, responsePayload: result.raw, errorMessage: errMsg };
+    }
+    const d = result.data as any;
+    const ref = d?.identifier ?? d?.reference ?? d?.id ?? params.earTag;
+    return { sandbox: false, success: true, reference: String(ref), requestPayload: payloadStr, responsePayload: result.raw };
+  } catch (err: any) {
+    return { sandbox: false, success: false, requestPayload: payloadStr, errorMessage: err?.message ?? "Network error" };
+  }
+}
+
+export interface LisDeathParams {
+  accessToken: string;
+  holdingCph: string;          // CPH of holding where animal died
+  deathDate: string;           // YYYY-MM-DD
+  species: LisSpecies;
+  earTag: string;              // single UK ear tag — used as path identifier
+  sex?: "male" | "female";    // required by spec — defaults to "female" if unknown
+  deathReasonId?: string;      // UUID from GET /deathreasons
+}
+
+/**
+ * Record a livestock death with the LIS CLA Animals API.
+ * Endpoint: PUT /animals/{identifier}
+ * One call per ear tag; caller loops over tags for batch deaths.
+ */
+export async function submitLisDeath(params: LisDeathParams): Promise<LisResult> {
+  const speciesValue = CLA_ANIMAL_SPECIES_MAP[params.species] ?? params.species.toLowerCase();
+  const site = { identifiers: [{ identifier: params.holdingCph }] };
+
+  const payloadObj: Record<string, unknown> = {
+    animal: {
+      identifier: params.earTag,
+      species: speciesValue,
+      sex: params.sex ?? "female",
+    },
+    registration: {
+      site,
+      date: params.deathDate,
+      category: "registration",
+    },
+    death: {
+      site,
+      date: params.deathDate,
+      ...(params.deathReasonId ? { reason: { id: params.deathReasonId } } : {}),
+    },
+  };
+  const payloadStr = JSON.stringify(payloadObj, null, 2);
+
+  if (isLisSandboxMode()) {
+    console.log("[LIS SANDBOX] Death payload:", payloadStr);
+    return {
+      sandbox: true, success: true,
+      reference: simulatedReference(),
+      requestPayload: payloadStr,
+      responsePayload: JSON.stringify({ status: "SANDBOX_OK" }),
+    };
+  }
+
+  const identifier = encodeURIComponent(params.earTag);
+  try {
+    const result = await callLisApi(params.accessToken, `/animals/${identifier}`, "PUT", payloadObj);
+    if (!result.ok) {
+      const errMsg = (result.data as any)?.message ?? result.raw.slice(0, 300) ?? `HTTP ${result.status}`;
+      return { sandbox: false, success: false, requestPayload: payloadStr, responsePayload: result.raw, errorMessage: errMsg };
+    }
+    const d = result.data as any;
+    const ref = d?.identifier ?? d?.reference ?? params.earTag;
+    return { sandbox: false, success: true, reference: String(ref), requestPayload: payloadStr, responsePayload: result.raw };
+  } catch (err: any) {
+    return { sandbox: false, success: false, requestPayload: payloadStr, errorMessage: err?.message ?? "Network error" };
+  }
+}
+
 /**
  * POST /UndoRequests
  * Withdraw (undo) a previously submitted TransferRequest.

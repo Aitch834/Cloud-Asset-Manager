@@ -473,7 +473,7 @@ import { farmRlsMiddleware } from "../middlewares/farmRlsMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
 import { generateDispatchNoteHtml } from "../lib/dispatch-note-html";
 import { submitMovement, testConnection, isSandboxMode } from "../lib/ctws";
-import { submitLisMovement, testLisConnection, fetchLisToken, refreshLisToken, isLisSandboxMode, callLisApi, buildLisAuthUrl, exchangeLisCode, reviewHoldingMovement, undoLisRequest } from "../lib/lis";
+import { submitLisMovement, submitLisBirth, submitLisDeath, testLisConnection, fetchLisToken, refreshLisToken, isLisSandboxMode, callLisApi, buildLisAuthUrl, exchangeLisCode, reviewHoldingMovement, undoLisRequest, type LisResult } from "../lib/lis";
 import { buildLipAuthUrl, exchangeLipCode, getLipRedirectUri, signLipOAuthState, verifyLipOAuthState, probeLipApi, isLipSandboxMode, refreshLipToken, callLipApi, submitLipMovement, submitLipBirth, submitLipDeath, submitLipLostFound, confirmLipMovement, cancelLipMovement, getLipRejectionReasons, checkLipRequestStatus } from "../lib/lip";
 import { submitEidcymruMovement, testEidcymruConnection, isEidcymruSandbox } from "../lib/eidcymru";
 import { submitScoteidMovement, testScoteidConnection, isScoteidSandbox } from "../lib/scoteid";
@@ -26722,21 +26722,71 @@ router.post("/farms/:farmId/lis-submit/:movementId", requireAuth, requireTenant,
   }).returning();
 
   try {
-    const result = await submitLisMovement({
-      lisUsername: creds?.lisUsername ?? "",
-      lisPassword: password,
-      accessToken,
-      movementType: submissionType,
-      movementDate: movDate,
-      species: lisSpecies,
-      numberOfAnimals: movement.numberOfAnimals ?? 1,
-      departureCph: movement.fromLocation ?? undefined,
-      destinationCph: movement.toLocation ?? undefined,
-      earTagNumbers: movement.earTagNumbers ?? undefined,
-      licenceNumber: movement.licenceNumber ?? undefined,
-      fromLocation: movement.fromLocation ?? undefined,
-      toLocation: movement.toLocation ?? undefined,
-    });
+    // ── Route births/deaths to the Animals REST API; movements to TransferRequests ──
+    // LIS CLA confirmed (July 2026):
+    //   births → POST /animals ("Registering a new Animal")
+    //   deaths → PUT  /animals/{identifier} ("Updating an animal")
+    //   movements → POST /TransferRequests (unchanged)
+    const sex = ((req.body as any)?.sex as "male" | "female" | undefined);
+
+    let result: LisResult;
+
+    if (submissionType === "birth") {
+      const earTags = (movement.earTagNumbers ?? "").split(/[\s,]+/).filter(Boolean);
+      if (earTags.length === 0) {
+        await db.update(lisSubmissionsTable).set({ status: "failed", errorMessage: "Birth registration requires individual ear tag numbers — none found on this movement record", updatedAt: new Date() }).where(eq(lisSubmissionsTable.id, submission.id));
+        res.status(400).json({ error: "Birth registration requires individual ear tag numbers" });
+        return;
+      }
+      const holdingCph = movement.toLocation ?? movement.fromLocation ?? "";
+      const birthResults = await Promise.all(earTags.map(earTag => submitLisBirth({
+        accessToken: accessToken ?? "",
+        holdingCph,
+        birthDate: movDate,
+        species: lisSpecies,
+        earTag,
+        sex,
+        multipleBirth: earTags.length > 1,
+      })));
+      const firstFailed = birthResults.find(r => !r.success);
+      result = firstFailed ?? { ...birthResults[0], reference: birthResults.map(r => r.reference).filter(Boolean).join(", ") };
+
+    } else if (submissionType === "death") {
+      const earTags = (movement.earTagNumbers ?? "").split(/[\s,]+/).filter(Boolean);
+      if (earTags.length === 0) {
+        await db.update(lisSubmissionsTable).set({ status: "failed", errorMessage: "Death registration requires individual ear tag numbers — none found on this movement record", updatedAt: new Date() }).where(eq(lisSubmissionsTable.id, submission.id));
+        res.status(400).json({ error: "Death registration requires individual ear tag numbers" });
+        return;
+      }
+      const holdingCph = movement.fromLocation ?? movement.toLocation ?? "";
+      const deathResults = await Promise.all(earTags.map(earTag => submitLisDeath({
+        accessToken: accessToken ?? "",
+        holdingCph,
+        deathDate: movDate,
+        species: lisSpecies,
+        earTag,
+        sex,
+      })));
+      const firstFailed = deathResults.find(r => !r.success);
+      result = firstFailed ?? { ...deathResults[0], reference: deathResults.map(r => r.reference).filter(Boolean).join(", ") };
+
+    } else {
+      result = await submitLisMovement({
+        lisUsername: creds?.lisUsername ?? "",
+        lisPassword: password,
+        accessToken,
+        movementType: submissionType,
+        movementDate: movDate,
+        species: lisSpecies,
+        numberOfAnimals: movement.numberOfAnimals ?? 1,
+        departureCph: movement.fromLocation ?? undefined,
+        destinationCph: movement.toLocation ?? undefined,
+        earTagNumbers: movement.earTagNumbers ?? undefined,
+        licenceNumber: movement.licenceNumber ?? undefined,
+        fromLocation: movement.fromLocation ?? undefined,
+        toLocation: movement.toLocation ?? undefined,
+      });
+    }
 
     const status = result.success ? "submitted" : "failed";
     await db.update(lisSubmissionsTable).set({
