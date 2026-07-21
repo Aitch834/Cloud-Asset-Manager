@@ -2515,6 +2515,7 @@ export default function StrawManagementPage() {
           onClose={() => setComplianceDlg(false)}
           onSave={(body) => saveComplianceMut.mutate(body)}
           saving={saveComplianceMut.isPending}
+          farmId={farmId}
         />
       )}
 
@@ -2526,6 +2527,7 @@ export default function StrawManagementPage() {
           onClose={() => setEquipDlg({ open: false })}
           onSave={(body) => saveEquipMut.mutate({ id: equipDlg.row?.id, body })}
           saving={saveEquipMut.isPending}
+          farmId={farmId}
         />
       )}
 
@@ -2537,14 +2539,45 @@ export default function StrawManagementPage() {
           onClose={() => setPermitDlg({ open: false })}
           onSave={(body) => savePermitMut.mutate({ id: permitDlg.row?.id, body })}
           saving={savePermitMut.isPending}
+          farmId={farmId}
         />
       )}
     </AppLayout>
   );
 }
 
+// ─── Shared: member-or-manual name picker ─────────────────────────────────────
+// Shows a Select populated with farm members; choosing "— Not listed —" reveals
+// a free-text Input underneath for external contractors / non-member staff.
+function MemberOrManualInput({ label, value, onChange, members, placeholder, required }: {
+  label: string; value: string; onChange: (v: string) => void;
+  members: any[]; placeholder?: string; required?: boolean;
+}) {
+  const memberNames: string[] = members.map((m: any) => memberFullName(m));
+  const [manual, setManual] = useState(() => !!(value && !memberNames.includes(value)));
+  const selectVal = manual ? "__manual__" : (value || "");
+  return (
+    <div>
+      <Label>{label}{required ? " *" : ""}</Label>
+      <Select value={selectVal} onValueChange={v => {
+        if (v === "__manual__") { setManual(true); onChange(""); }
+        else { setManual(false); onChange(v); }
+      }}>
+        <SelectTrigger><SelectValue placeholder={members.length ? "Select person…" : "Loading…"} /></SelectTrigger>
+        <SelectContent>
+          {members.map((m: any) => <SelectItem key={m.id} value={memberFullName(m)}>{memberFullName(m)}{m.jobTitle ? ` — ${m.jobTitle}` : ""}</SelectItem>)}
+          <SelectItem value="__manual__">— Not listed (enter below) —</SelectItem>
+        </SelectContent>
+      </Select>
+      {manual && <Input className="mt-2" placeholder={placeholder ?? "Name / company"} value={value} onChange={e => onChange(e.target.value)} />}
+    </div>
+  );
+}
+
 // ─── Fire Compliance Dialog ────────────────────────────────────────────────────
-function FireComplianceDialog({ open, initial, onClose, onSave, saving }: { open: boolean; initial: any; onClose: () => void; onSave: (b: Record<string, unknown>) => void; saving: boolean }) {
+function FireComplianceDialog({ open, initial, onClose, onSave, saving, farmId }: { open: boolean; initial: any; onClose: () => void; onSave: (b: Record<string, unknown>) => void; saving: boolean; farmId: number }) {
+  const { data: membersData } = useFarmMembers(farmId);
+  const members = membersData?.members ?? [];
   const blank = {
     lastFireRiskAssessmentDate: "", nextFireRiskAssessmentDue: "", assessmentConductedBy: "", assessmentRef: "",
     separationDistancesOk: false, smokingSignsDisplayed: false, vehicleExhaustRuleInPlace: false, hotWorksPermitSystemInPlace: false, emergencyAccessClear: false,
@@ -2585,7 +2618,7 @@ function FireComplianceDialog({ open, initial, onClose, onSave, saving }: { open
             <div className="grid grid-cols-2 gap-4">
               <div><Label>Last Assessment Date</Label><Input type="date" value={form.lastFireRiskAssessmentDate} onChange={e => f("lastFireRiskAssessmentDate")(e.target.value)} /></div>
               <div><Label>Next Review Due</Label><Input type="date" value={form.nextFireRiskAssessmentDue} onChange={e => f("nextFireRiskAssessmentDue")(e.target.value)} /></div>
-              <div><Label>Conducted By</Label><Input placeholder="Name / company" value={form.assessmentConductedBy} onChange={e => f("assessmentConductedBy")(e.target.value)} /></div>
+              <div><Label>Conducted By</Label><Input placeholder="Name / company (external assessor)" value={form.assessmentConductedBy} onChange={e => f("assessmentConductedBy")(e.target.value)} /></div>
               <div><Label>Document Reference</Label><Input placeholder="e.g. FRA-2026-01" value={form.assessmentRef} onChange={e => f("assessmentRef")(e.target.value)} /></div>
             </div>
           </div>
@@ -2609,7 +2642,7 @@ function FireComplianceDialog({ open, initial, onClose, onSave, saving }: { open
             </div>
             <div className="grid grid-cols-2 gap-4 mt-3">
               <div><Label>Checklist Last Reviewed</Label><Input type="date" value={form.checklistLastReviewedDate} onChange={e => f("checklistLastReviewedDate")(e.target.value)} /></div>
-              <div><Label>Reviewed By</Label><Input placeholder="Name" value={form.checklistReviewedBy} onChange={e => f("checklistReviewedBy")(e.target.value)} /></div>
+              <MemberOrManualInput label="Reviewed By" value={form.checklistReviewedBy} onChange={v => f("checklistReviewedBy")(v)} members={members} placeholder="Name" />
             </div>
           </div>
 
@@ -2637,8 +2670,15 @@ function FireComplianceDialog({ open, initial, onClose, onSave, saving }: { open
 
 // ─── Fire Equipment Dialog ─────────────────────────────────────────────────────
 const EQUIP_TYPES = ["CO₂ Extinguisher", "Water Extinguisher", "Dry Powder Extinguisher", "Foam Extinguisher", "Sand Bin", "Hose Reel", "Fire Blanket", "Other"];
+const SERVICE_INTERVAL_OPTIONS = [
+  { value: 6,  label: "6 months" },
+  { value: 12, label: "12 months (annual)" },
+  { value: 24, label: "24 months (2 years)" },
+  { value: 36, label: "36 months (3 years)" },
+  { value: 48, label: "48 months (4 years)" },
+];
 
-function FireEquipmentDialog({ open, row, onClose, onSave, saving }: { open: boolean; row?: any; onClose: () => void; onSave: (b: Record<string, unknown>) => void; saving: boolean }) {
+function FireEquipmentDialog({ open, row, onClose, onSave, saving, farmId: _farmId }: { open: boolean; row?: any; onClose: () => void; onSave: (b: Record<string, unknown>) => void; saving: boolean; farmId: number }) {
   const [form, setForm] = useState({
     equipmentType: row?.equipmentType ?? "",
     location: row?.location ?? "",
@@ -2668,11 +2708,19 @@ function FireEquipmentDialog({ open, row, onClose, onSave, saving }: { open: boo
             </Select>
           </div>
           <div className="col-span-2"><Label>Location *</Label><Input placeholder="e.g. Main Straw Barn — entrance door" value={form.location} onChange={e => f("location")(e.target.value)} /></div>
-          <div><Label>Description / Brand</Label><Input placeholder="e.g. 6kg Britannia CO₂" value={form.description} onChange={e => f("description")(e.target.value)} /></div>
+          <div><Label>Description / Brand</Label><Input placeholder="e.g. 6 kg Britannia CO₂" value={form.description} onChange={e => f("description")(e.target.value)} /></div>
           <div><Label>Serial Number</Label><Input placeholder="Serial / ID number" value={form.serialNumber} onChange={e => f("serialNumber")(e.target.value)} /></div>
           <div><Label>Last Service Date</Label><Input type="date" value={form.lastServiceDate} onChange={e => f("lastServiceDate")(e.target.value)} /></div>
           <div><Label>Next Service Due</Label><Input type="date" value={form.nextServiceDue} onChange={e => f("nextServiceDue")(e.target.value)} /></div>
-          <div><Label>Service Interval (months)</Label><Input type="number" min={1} value={form.serviceIntervalMonths} onChange={e => f("serviceIntervalMonths")(Number(e.target.value))} /></div>
+          <div>
+            <Label>Service Interval</Label>
+            <Select value={String(form.serviceIntervalMonths)} onValueChange={v => f("serviceIntervalMonths")(Number(v))}>
+              <SelectTrigger><SelectValue placeholder="Select interval…" /></SelectTrigger>
+              <SelectContent>
+                {SERVICE_INTERVAL_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex items-center gap-3 pt-6">
             <Checkbox checked={form.isActive} onCheckedChange={v => f("isActive")(!!v)} />
             <Label>Active / in service</Label>
@@ -2689,14 +2737,49 @@ function FireEquipmentDialog({ open, row, onClose, onSave, saving }: { open: boo
 }
 
 // ─── Hot Works Permit Dialog ───────────────────────────────────────────────────
-function HotWorksDialog({ open, row, onClose, onSave, saving }: { open: boolean; row?: any; onClose: () => void; onSave: (b: Record<string, unknown>) => void; saving: boolean }) {
+const FIRE_WATCH_OPTIONS = [
+  { value: 30,  label: "30 minutes" },
+  { value: 45,  label: "45 minutes" },
+  { value: 60,  label: "60 minutes (HSE minimum)" },
+  { value: 90,  label: "90 minutes" },
+  { value: 120, label: "120 minutes (2 hours)" },
+];
+
+const STD_PRECAUTIONS = [
+  "Area cleared of loose straw and combustible material within 10 m",
+  "Dry powder extinguisher (min. 9 kg) positioned within 3 m of work area",
+  "Straw stacks covered with fire blanket where practicable",
+  "Water source / hose available nearby",
+  "Hot surfaces and spark zone inspected immediately after work stops",
+  "Mobile phone / radio carried for emergency contact",
+];
+
+function parsePrecautions(raw: string): { checked: Set<string>; additional: string } {
+  if (!raw) return { checked: new Set(), additional: "" };
+  const lines = raw.split("\n").map(l => l.replace(/^[•\-]\s*/, "").trim()).filter(Boolean);
+  const checked = new Set<string>();
+  const extra: string[] = [];
+  for (const line of lines) {
+    if (STD_PRECAUTIONS.includes(line)) checked.add(line);
+    else extra.push(line);
+  }
+  return { checked, additional: extra.join("\n") };
+}
+
+function HotWorksDialog({ open, row, onClose, onSave, saving, farmId }: { open: boolean; row?: any; onClose: () => void; onSave: (b: Record<string, unknown>) => void; saving: boolean; farmId: number }) {
+  const { data: membersData } = useFarmMembers(farmId);
+  const members = membersData?.members ?? [];
+
+  const parsed = parsePrecautions(row?.precautionsTaken ?? "");
+  const [checkedPrecautions, setCheckedPrecautions] = useState<Set<string>>(() => parsed.checked);
+  const [additionalPrecautions, setAdditionalPrecautions] = useState(() => parsed.additional);
+
   const [form, setForm] = useState({
     permitDate: row?.permitDate ? String(row.permitDate).slice(0, 10) : new Date().toISOString().slice(0, 10),
     workDescription: row?.workDescription ?? "",
     location: row?.location ?? "",
     conductedBy: row?.conductedBy ?? "",
     supervisorName: row?.supervisorName ?? "",
-    precautionsTaken: row?.precautionsTaken ?? "",
     fireWatchDurationMins: row?.fireWatchDurationMins ?? 60,
     postWorkInspectionDone: !!row?.postWorkInspectionDone,
     postWorkInspectionNotes: row?.postWorkInspectionNotes ?? "",
@@ -2705,10 +2788,22 @@ function HotWorksDialog({ open, row, onClose, onSave, saving }: { open: boolean;
     notes: row?.notes ?? "",
   });
   const f = (k: string) => (v: string | number | boolean) => setForm(p => ({ ...p, [k]: v }));
+
+  const togglePrecaution = (item: string) => {
+    setCheckedPrecautions(prev => {
+      const next = new Set(prev);
+      next.has(item) ? next.delete(item) : next.add(item);
+      return next;
+    });
+  };
+
   const submit = () => {
     if (!form.permitDate || !form.workDescription) return;
-    onSave(form);
+    const precautionLines = STD_PRECAUTIONS.filter(p => checkedPrecautions.has(p)).map(p => `• ${p}`);
+    if (additionalPrecautions.trim()) precautionLines.push(additionalPrecautions.trim());
+    onSave({ ...form, precautionsTaken: precautionLines.join("\n") });
   };
+
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
       <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
@@ -2722,20 +2817,41 @@ function HotWorksDialog({ open, row, onClose, onSave, saving }: { open: boolean;
           <div><Label>Work Completed At (time)</Label><Input type="time" value={form.workCompletedAt} onChange={e => f("workCompletedAt")(e.target.value)} /></div>
           <div className="col-span-2"><Label>Work Description *</Label><Input placeholder="e.g. Welding barn door hinge, 8 m from straw stack" value={form.workDescription} onChange={e => f("workDescription")(e.target.value)} /></div>
           <div className="col-span-2"><Label>Location</Label><Input placeholder="e.g. North straw barn — west gable end" value={form.location} onChange={e => f("location")(e.target.value)} /></div>
-          <div><Label>Conducted By</Label><Input placeholder="Operator name" value={form.conductedBy} onChange={e => f("conductedBy")(e.target.value)} /></div>
-          <div><Label>Authorised / Supervised By</Label><Input placeholder="Responsible person" value={form.supervisorName} onChange={e => f("supervisorName")(e.target.value)} /></div>
-          <div className="col-span-2"><Label>Precautions Taken</Label><Textarea rows={2} placeholder="e.g. Area cleared of loose straw; extinguisher positioned within 3 m; straw covered with fire blanket" value={form.precautionsTaken} onChange={e => f("precautionsTaken")(e.target.value)} /></div>
+          <MemberOrManualInput label="Conducted By" value={form.conductedBy} onChange={v => f("conductedBy")(v)} members={members} placeholder="Operator name" />
+          <MemberOrManualInput label="Authorised / Supervised By" value={form.supervisorName} onChange={v => f("supervisorName")(v)} members={members} placeholder="Responsible person" />
+
+          {/* Precautions checklist */}
+          <div className="col-span-2">
+            <Label className="mb-2 block">Precautions Taken</Label>
+            <div className="space-y-2">
+              {STD_PRECAUTIONS.map(item => (
+                <div key={item} className="flex items-start gap-3 p-2.5 rounded-lg border bg-gray-50">
+                  <Checkbox checked={checkedPrecautions.has(item)} onCheckedChange={() => togglePrecaution(item)} className="mt-0.5 shrink-0" />
+                  <span className="text-sm text-gray-700">{item}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-2">
+              <Label className="text-xs text-gray-500">Additional precautions (optional)</Label>
+              <Textarea rows={2} placeholder="Any other precautions taken…" value={additionalPrecautions} onChange={e => setAdditionalPrecautions(e.target.value)} />
+            </div>
+          </div>
+
           <div>
-            <Label>Post-Work Fire Watch (minutes)</Label>
-            <Input type="number" min={0} value={form.fireWatchDurationMins} onChange={e => f("fireWatchDurationMins")(Number(e.target.value))} />
-            <p className="text-xs text-gray-400 mt-1">HSE recommends minimum 60 minutes</p>
+            <Label>Post-Work Fire Watch</Label>
+            <Select value={String(form.fireWatchDurationMins)} onValueChange={v => f("fireWatchDurationMins")(Number(v))}>
+              <SelectTrigger><SelectValue placeholder="Select duration…" /></SelectTrigger>
+              <SelectContent>
+                {FIRE_WATCH_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex items-center gap-3 pt-6">
             <Checkbox checked={form.postWorkInspectionDone} onCheckedChange={v => f("postWorkInspectionDone")(!!v)} />
             <Label>Post-work inspection completed</Label>
           </div>
           {form.postWorkInspectionDone && <div className="col-span-2"><Label>Post-Inspection Notes</Label><Textarea rows={2} value={form.postWorkInspectionNotes} onChange={e => f("postWorkInspectionNotes")(e.target.value)} /></div>}
-          <div><Label>Closed By</Label><Input placeholder="Name" value={form.closedBy} onChange={e => f("closedBy")(e.target.value)} /></div>
+          <MemberOrManualInput label="Closed By" value={form.closedBy} onChange={v => f("closedBy")(v)} members={members} placeholder="Name" />
           <div></div>
           <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
         </div>
