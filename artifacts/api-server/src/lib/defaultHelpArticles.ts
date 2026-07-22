@@ -400,9 +400,9 @@ const CONTENT: [string, string][] = [
   // 4 — Livestock Movement Records
   // 4 — Livestock Movement Records
   [
-    "How to record on-farm and off-farm livestock movements in BDE Farm Trac to comply with BCMS, ScotEID, and APHA reporting requirements.",
+    "How to record on-farm and off-farm livestock movements in BDE Farm Trac to comply with BCMS, LIS, ScotEID, and APHA reporting requirements.",
     `<h2>Livestock Movement Records</h2>
-<p>Every movement of cattle, sheep, pigs, or goats on or off your holding must be recorded and, for cattle and pigs, reported to the relevant authority within the required reporting window. BDE Farm Trac captures the movement data needed for BCMS (cattle), CTS/ScotMoves (Scotland), LIS (sheep in England and Wales), and AML (pig) compliance.</p>
+<p>Every movement of cattle, sheep, pigs, or goats on or off your holding must be recorded and, for cattle and pigs, reported to the relevant authority within the required reporting window. BDE Farm Trac captures the movement data needed for all UK government livestock reporting databases.</p>
 <h3>Recording a movement</h3>
 <p>Navigate to <strong>Livestock &amp; Feed Management → Movements</strong> and click <strong>New Movement</strong>. Select the movement type:</p>
 <ul>
@@ -412,8 +412,16 @@ const CONTENT: [string, string][] = [
 <li><strong>Off — Death:</strong> animals that have died or been culled on farm.</li>
 </ul>
 <p>Record the species, number of animals, the origin or destination CPH, the movement date, the vehicle registration, the haulier name, and the AML licence number where applicable. For sheep movements, the flock tag prefix is captured. For cattle, individual ear tag numbers are entered or scanned.</p>
-<h3>Reporting deadlines</h3>
+<h3>Reporting deadlines and submission routes</h3>
 <p>Cattle movements must be reported to BCMS within three days of the event. Pig movements must be reported using an eAML2 document within three days. The platform flags outstanding movement records that are approaching or past their reporting deadline with an amber or red badge.</p>
+<p>Submission routes by species and country:</p>
+<ul>
+<li><strong>England cattle (on/off/birth/death):</strong> Submit the movement on <strong>BCMS Online</strong> (www.bcms.gov.uk), then use the amber <strong>Record BCMS Ref</strong> button on the movement row to log your confirmation reference. The automated CTS Web Services API integration is in development (pending DEFRA vendor registration) — the manual portal ref route provides a complete audit trail in the meantime. The LIS LIP cattle API is temporarily paused while Defra transitions cattle traceability to a new service.</li>
+<li><strong>England sheep, goats &amp; deer (on/off):</strong> Use the <strong>LIS tab</strong> in Livestock → Movements. Each row shows a Submit button that sends the movement to the LIS CLA API. Note: the LIS CLA v1.0 API does not support birth or death registration — for births and deaths, register on the LIS keeper portal (cla.livestockinformation.org.uk) and use the <strong>Register via LIS portal</strong> button on the row to record your confirmation reference.</li>
+<li><strong>Wales sheep, goats &amp; deer:</strong> Use the <strong>EIDCymru tab</strong> — enter your EIDCymru API key in Farm Settings to activate.</li>
+<li><strong>Scotland all species:</strong> Use the <strong>ScotEID tab</strong> — enter your ScotEID API key in Farm Settings to activate.</li>
+<li><strong>England pigs:</strong> Click the <strong>eAML2 XML</strong> button above the Movements table to download a compliant XML file for upload to eAML2.org.uk. No credentials required.</li>
+</ul>
 <h3>Linking to sales records</h3>
 <p>Off-farm movements can be linked to deadweight kill sheets or mart sale records in the Finance &amp; Business module, creating a complete chain from BCMS movement to settlement document for Red Tractor traceability requirements.</p>`,
   ],
@@ -5415,7 +5423,7 @@ const CONTENT: [string, string][] = [
     `<h2>LIS LIP One-Click Cattle Submission — Connecting via LIS Account Sign-In</h2>
 <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:0.875rem 1rem;margin-bottom:1rem">
 <strong>⚠ Service temporarily paused — effective 21 July 2026</strong><br>
-The Livestock Information Service has confirmed that LIP Cattle API submissions are temporarily paused while cattle traceability services transition to a new Defra-operated service. New LIP cattle submissions cannot be made at this time. Please continue reporting cattle movements via <strong>BCMS (CTS Web Services)</strong> as usual. LIS will provide further guidance and a revised migration approach in September/October 2026 ahead of the BEID mandate in 2027. This article is retained for reference — the LIP integration will resume once the new Defra service is available.
+The Livestock Information Service has confirmed that LIP Cattle API submissions are temporarily paused while cattle traceability services transition to a new Defra-operated service. New LIP cattle submissions cannot be made at this time. Please continue reporting cattle movements by submitting on <strong>BCMS Online</strong> (www.bcms.gov.uk) and using the <strong>Record BCMS Ref</strong> button on each cattle movement row in the dashboard to log your confirmation reference. LIS will provide further guidance and a revised migration approach in September/October 2026 ahead of the BEID mandate in 2027. This article is retained for reference — the LIP integration will resume once the new Defra service is available.
 </div>
 <p>BDE Farm Trac integrates with the Livestock Information Platform (LIP), the government cattle movement and recording system operated by the Livestock Information Service (LIS). Once connected, cattle movements, births, and deaths can be submitted directly to the LIP API with a single click from the Livestock Movements page — without leaving the dashboard.</p>
 <p>LIP uses a delegated <strong>per-farm OAuth sign-in</strong>. Each farm holding connects its own LIS account independently, meaning the farmer signs in with their existing LIS credentials rather than entering API keys. This mirrors how a farmer would log in to the LIS online portal, but the authorisation is held securely by BDE Farm Trac so submissions can be made on their behalf.</p>
@@ -5446,7 +5454,7 @@ The Livestock Information Service has confirmed that LIP Cattle API submissions 
 <h3>Sandbox mode</h3>
 <p>During initial setup and testing, LIP connections operate in <strong>sandbox mode</strong>. Submissions in sandbox mode are sent to the LIS test environment and do not affect live government records. All sandbox submissions are clearly labelled in the LIP Submissions tab. Sandbox mode is automatically used while the LIS LIP Alpha and sandbox APIs are the active environment; production mode will be available once LIS publish their production API endpoint.</p>
 <h3>Relationship to BCMS</h3>
-<p>LIP and BCMS (CTS Web Services) are two separate cattle reporting routes. LIP is the newer LIS-operated platform; BCMS/CTS is the existing British Cattle Movement Service operated by APHA. BDE Farm Trac supports both in parallel — use whichever route is appropriate for your holding. Both are accessible from the same movement row in Livestock → Movements.</p>`,
+<p>LIP and BCMS are two separate cattle reporting routes. LIP is the newer LIS-operated platform; BCMS is the existing British Cattle Movement Service operated by APHA. BDE Farm Trac supports both — LIP submissions will resume once the Defra service transition is complete; in the meantime use BCMS Online with the Record BCMS Ref button on each movement row.</p>`,
   ],
   // 263 — Black-grass Five-in-Five Tracker — Cultural Control Scoring and Herbicide Resistance Risk
   // Black-grass Five-in-Five Tracker — Cultural Control Scoring and Herbicide Resistance Risk

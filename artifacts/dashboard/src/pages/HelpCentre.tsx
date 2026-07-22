@@ -70,8 +70,8 @@ const WORKFLOWS: Workflow[] = [
       { title: "Select movement type", detail: "Choose On, Off, or Standstill depending on the nature of the movement." },
       { title: "Enter animal details", detail: "Log the number of animals, species, breed and tag or batch reference." },
       { title: "Record destination or source", detail: "Add the destination CPH or departure holding details." },
-      { title: "Set the movement date", detail: "Confirm the date the animals moved. For England cattle, BCMS is submitted via CTS Web Services. For England sheep/goats/deer, LIS or LIS LIP handles submission. For Wales farms, EIDCymru submission is available. For Scotland farms, ScotEID covers all species." },
-      { title: "Submit and retain paperwork", detail: "Save the record, then use the relevant submission tab (LIS, LIP, EIDCymru, or ScotEID) to submit with one click. For pig movements in England, use the eAML2 XML button to export a compliant file for upload to eAML2.org.uk. Print a movement document if required for your herd or flock register." },
+      { title: "Set the movement date", detail: "Confirm the date the animals moved. For England cattle, save the record then submit on BCMS Online (www.bcms.gov.uk) and use the amber 'Record BCMS Ref' button on the row to log your confirmation reference — the automated CTS Web Services API is pending DEFRA vendor approval. For England sheep, goats, and deer, LIS CLA handles on/off submissions; births and deaths require a manual LIS keeper portal reference. For Wales farms, EIDCymru submission is available. For Scotland farms, ScotEID covers all species." },
+      { title: "Submit and retain paperwork", detail: "Save the record, then use the relevant submission tab (LIS, EIDCymru, or ScotEID) to submit with one click. For England cattle, use the 'Record BCMS Ref' button on each movement row after submitting on BCMS Online — the LIS LIP tab is temporarily paused. For pig movements in England, use the eAML2 XML button to export a compliant file for upload to eAML2.org.uk. Print a movement document if required for your herd or flock register." },
     ],
   },
   {
