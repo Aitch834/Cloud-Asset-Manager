@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, Loader2, ScrollText, BarChart3, Drill, Droplets, Tractor, CloudRain, AlertTriangle, FileCheck, Eye, ClipboardList, Play, Upload, FileText, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -184,6 +184,31 @@ function MeterReadingsTab({ farmId }: { farmId: number }) {
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/water-meter-readings`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["water-readings", farmId] }); setOpen(false); setForm({}); } });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/water-meter-readings/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["water-readings", farmId] }) });
   const allReadings = readings as Record<string, unknown>[];
+
+  useEffect(() => {
+    const licId = form.licenceId;
+    const reading = parseFloat(form.meterReading);
+    if (!licId || isNaN(reading) || !form.meterReading) return;
+    const licence = (licences as Record<string, unknown>[]).find(l => String(l.id) === licId);
+    const licReadings = allReadings
+      .filter(r => String(r.licenceId) === licId)
+      .sort((a, b) => String(a.readingDate ?? "").localeCompare(String(b.readingDate ?? "")));
+    const prevReading = licReadings.length > 0 ? parseFloat(String(licReadings[licReadings.length - 1]?.meterReading ?? "0")) : 0;
+    const volume = Math.max(0, reading - prevReading);
+    const yearStr = (form.readingDate ?? new Date().toISOString()).slice(0, 4);
+    const ytdBefore = licReadings
+      .filter(r => String(r.readingDate ?? "").startsWith(yearStr))
+      .reduce((s, r) => s + parseFloat(String(r.volumeAbstractedM3 ?? "0")), 0);
+    const cumYtd = ytdBefore + volume;
+    const annualVol = parseFloat(String((licence as Record<string, unknown>)?.annualLicencedVolumeM3 ?? "0"));
+    setForm(f => ({
+      ...f,
+      volumeAbstractedM3: volume.toFixed(2),
+      cumulativeYtdM3: cumYtd.toFixed(2),
+      percentOfAnnualAllocation: annualVol > 0 ? ((cumYtd / annualVol) * 100).toFixed(1) : f.percentOfAnnualAllocation,
+    }));
+  }, [form.licenceId, form.meterReading, form.readingDate]);
+
   const [yearFilter, setYearFilter] = useState("all");
   const years = useMemo(() => Array.from(new Set(allReadings.map(r => String(r.readingDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allReadings]);
   const filteredReadings = yearFilter === "all" ? allReadings : allReadings.filter(r => String(r.readingDate ?? "").startsWith(yearFilter));
@@ -224,9 +249,9 @@ function MeterReadingsTab({ farmId }: { farmId: number }) {
               </Select>
             </div>
             <div><Label>Meter Reading *</Label><Input type="number" step="0.01" value={form.meterReading ?? ""} onChange={e => setForm(f => ({ ...f, meterReading: e.target.value }))} /></div>
-            <div><Label>Volume Abstracted (m³)</Label><Input type="number" step="0.01" value={form.volumeAbstractedM3 ?? ""} onChange={e => setForm(f => ({ ...f, volumeAbstractedM3: e.target.value }))} /></div>
-            <div><Label>YTD Cumulative (m³)</Label><Input type="number" step="0.01" value={form.cumulativeYtdM3 ?? ""} onChange={e => setForm(f => ({ ...f, cumulativeYtdM3: e.target.value }))} /></div>
-            <div><Label>% of Annual Allocation</Label><Input type="number" step="0.1" value={form.percentOfAnnualAllocation ?? ""} onChange={e => setForm(f => ({ ...f, percentOfAnnualAllocation: e.target.value }))} /></div>
+            <div><Label>Volume Abstracted (m³) <span className="text-xs text-muted-foreground">(auto)</span></Label><Input type="number" step="0.01" value={form.volumeAbstractedM3 ?? ""} onChange={e => setForm(f => ({ ...f, volumeAbstractedM3: e.target.value }))} placeholder="Auto-calculated from reading" /></div>
+            <div><Label>YTD Cumulative (m³) <span className="text-xs text-muted-foreground">(auto)</span></Label><Input type="number" step="0.01" value={form.cumulativeYtdM3 ?? ""} onChange={e => setForm(f => ({ ...f, cumulativeYtdM3: e.target.value }))} placeholder="Auto-calculated" /></div>
+            <div><Label>% of Annual Allocation <span className="text-xs text-muted-foreground">(auto)</span></Label><Input type="number" step="0.1" value={form.percentOfAnnualAllocation ?? ""} onChange={e => setForm(f => ({ ...f, percentOfAnnualAllocation: e.target.value }))} placeholder="Auto-calculated" /></div>
             <div><Label>Read By</Label><Input value={form.readBy ?? ""} onChange={e => setForm(f => ({ ...f, readBy: e.target.value }))} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>

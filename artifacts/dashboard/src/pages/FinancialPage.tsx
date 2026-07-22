@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -239,6 +239,8 @@ function TransactionsTab({ farmId }: { farmId: number }) {
   const [exporting, setExporting] = useState(false);
   const emptyForm = { transactionDate: "", transactionType: "expense", category: "", description: "", amountPence: "", vatAmountPence: "", vatRate: "", vendorCustomer: "", paymentMethod: "", reference: "", notes: "" };
   const [form, setForm] = useState<any>(emptyForm);
+  const calcVat = (amount: string, rate: string) => { const a = parseFloat(amount); const r = parseFloat(rate); if (isNaN(a) || isNaN(r) || !rate) return ""; return (a * r / 100).toFixed(2); };
+  useEffect(() => { if (form.vatRate) { setForm((f: any) => ({ ...f, vatAmountPence: calcVat(f.amountPence, f.vatRate) })); } }, [form.amountPence, form.vatRate]);
 
   const txQ = useQuery({
     queryKey: ["financial-transactions", farmId],
@@ -509,9 +511,20 @@ function TransactionsTab({ farmId }: { farmId: number }) {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div><Label>Amount (£) <span style={{ color: "#ef4444" }}>*</span></Label><Input type="number" step="0.01" min="0" placeholder="0.00" value={form.amountPence} onChange={e => setForm((f: any) => ({ ...f, amountPence: e.target.value }))} /></div>
-              <div><Label>VAT Amount (£)</Label><Input type="number" step="0.01" min="0" placeholder="0.00" value={form.vatAmountPence} onChange={e => setForm((f: any) => ({ ...f, vatAmountPence: e.target.value }))} /></div>
+              <div><Label>VAT Rate</Label>
+                <Select value={form.vatRate ?? ""} onValueChange={v => setForm((f: any) => ({ ...f, vatRate: v, vatAmountPence: calcVat(f.amountPence, v) }))}>
+                  <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="20">20% Standard</SelectItem>
+                    <SelectItem value="5">5% Reduced</SelectItem>
+                    <SelectItem value="0">0% Zero-rated</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>VAT Amount (£)</Label><Input type="number" step="0.01" min="0" placeholder="Auto" value={form.vatAmountPence} onChange={e => setForm((f: any) => ({ ...f, vatAmountPence: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Supplier / Customer</Label><Input placeholder="Company or person name" value={form.vendorCustomer} onChange={e => setForm((f: any) => ({ ...f, vendorCustomer: e.target.value }))} /></div>

@@ -1,4 +1,5 @@
-import { useState, useRef, Fragment, useMemo } from "react";
+import { useState, useRef, Fragment, useMemo, useEffect } from "react";
+import { useUserRole } from "@/hooks/use-user-role";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from "recharts";
 import { QRCodeSVG } from "qrcode.react";
 import { openPrintWindow } from "@/lib/print-report";
@@ -314,10 +315,13 @@ const SEVERITY_COLORS: Record<string, string> = {
 function EquipmentDefectsSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { displayName } = useUserRole();
   const [statusFilter, setStatusFilter] = useState<"all" | "open" | "in_progress" | "resolved">("all");
   const [formOpen, setFormOpen] = useState(false);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
-  const [form, setForm] = useState<typeof DEFECT_EMPTY>(DEFECT_EMPTY);
+  const emptyDefectForm = useMemo(() => ({ ...DEFECT_EMPTY, reportedBy: displayName ?? "" }), [displayName]);
+  const [form, setForm] = useState<typeof DEFECT_EMPTY>(() => ({ ...DEFECT_EMPTY, reportedBy: "" }));
+  useEffect(() => { if (formOpen && !form.reportedBy && displayName) setForm(f => ({ ...f, reportedBy: displayName })); }, [formOpen, displayName]);
   const [raiseTaskDefect, setRaiseTaskDefect] = useState<DefectReport | null>(null);
   const [viewRecord, setViewRecord] = useState<DefectReport | null>(null);
 
@@ -335,7 +339,7 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
   const createM = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       fetch(`/api/farms/${farmId}/equipment-defect-reports`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["equipment-defects", farmId] }); setFormOpen(false); setForm(DEFECT_EMPTY); toast({ title: "Defect report created" }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["equipment-defects", farmId] }); setFormOpen(false); setForm(emptyDefectForm); toast({ title: "Defect report created" }); },
   });
   const patchM = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) =>
@@ -386,7 +390,7 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
       </TabBar>
 
       <div className="flex justify-end mb-4">
-        <Button size="sm" onClick={() => { setForm(DEFECT_EMPTY); setFormOpen(true); }} className="gap-2">
+        <Button size="sm" onClick={() => { setForm(emptyDefectForm); setFormOpen(true); }} className="gap-2">
           <Plus className="w-4 h-4" /> Report Defect
         </Button>
       </div>
@@ -454,7 +458,7 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      <Dialog open={formOpen} onOpenChange={o => { if (!o) { setFormOpen(false); setForm(DEFECT_EMPTY); } }}>
+      <Dialog open={formOpen} onOpenChange={o => { if (!o) { setFormOpen(false); setForm(emptyDefectForm); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Wrench className="w-5 h-5 text-primary" />Report Equipment Defect</DialogTitle>
@@ -496,7 +500,7 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setForm(DEFECT_EMPTY); }}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setForm(emptyDefectForm); }}>Cancel</Button>
               <Button type="submit" disabled={createM.isPending}>
                 {createM.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}Submit Report
               </Button>

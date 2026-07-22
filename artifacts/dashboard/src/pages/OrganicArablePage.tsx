@@ -1825,7 +1825,7 @@ export default function OrganicArablePage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <Label>Field / Parcel *</Label>
-              <FieldSelector value={convForm.fieldName || ""} onChange={v => setConvForm(f => ({ ...f, fieldName: v }))} fields={fieldOptions} />
+              <FieldSelector value={convForm.fieldName || ""} onChange={v => { const fld = fieldOptions.find(x => x.name === v); setConvForm(f => ({ ...f, fieldName: v, areaHa: fld?.areaHectares ? String(fld.areaHectares) : f.areaHa })); }} fields={fieldOptions} />
             </div>
             <div>
               <Label>Area (ha)</Label>

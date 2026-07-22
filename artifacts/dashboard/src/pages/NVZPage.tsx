@@ -961,7 +961,7 @@ export default function NVZPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-sm font-medium mb-1.5 block">Field <span className="text-red-500">*</span></label>
-                <Select value={form.fieldId} onValueChange={(v) => setForm((f) => ({ ...f, fieldId: v }))}>
+                <Select value={form.fieldId} onValueChange={(v) => { const fld = fields.find(f => String(f.id) === v); setForm((f) => ({ ...f, fieldId: v, areaAppliedHa: fld?.areaHectares ? String(fld.areaHectares) : f.areaAppliedHa })); }}>
                   <SelectTrigger><SelectValue placeholder="Select field…" /></SelectTrigger>
                   <SelectContent>
                     {fields.map((f) => (
