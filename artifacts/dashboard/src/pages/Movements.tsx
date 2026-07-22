@@ -2480,6 +2480,10 @@ export default function Movements() {
                             const isCattle = speciesLower === "cattle" || (!r.species && r.movementType !== "birth");
                             const isLisSpecies = speciesLower === "sheep" || speciesLower === "goat" || speciesLower === "deer";
                             const isSubmittableType = r.movementType === "on" || r.movementType === "off" || r.movementType === "birth" || r.movementType === "death";
+                            // LIS CLA v1.0 only supports on/off movements — births and deaths are NOT supported
+                            // (confirmed by LIS Support July 2026: "Per the published public CLA v1.0 contract,
+                            //  births and deaths are unsupported.")
+                            const isLisSubmittableType = r.movementType === "on" || r.movementType === "off";
 
                             const bcmsBtn = isCattle && isSubmittableType && !(r.legalNotificationSubmitted && !r.bcmsSubmissionRef?.startsWith("SANDBOX-")) ? (
                               <button
@@ -2492,7 +2496,7 @@ export default function Movements() {
                               </button>
                             ) : null;
 
-                            const lisBtn = isLisSpecies && isSubmittableType && !(r.legalNotificationSubmitted && r.bcmsSubmissionRef && !r.bcmsSubmissionRef.startsWith("LIS-SANDBOX-")) ? (
+                            const lisBtn = isLisSpecies && isLisSubmittableType && !(r.legalNotificationSubmitted && r.bcmsSubmissionRef && !r.bcmsSubmissionRef.startsWith("LIS-SANDBOX-")) ? (
                               <button
                                 onClick={() => setLisSubmitConfirmId(r.id)}
                                 disabled={lisSubmittingId === r.id}

@@ -720,65 +720,28 @@ export interface LisBirthParams {
 }
 
 /**
- * Register a livestock birth with the LIS CLA Animals API.
- * Endpoint: POST /animals
- * One call per ear tag; caller loops over tags for multiple births.
+ * ── UNSUPPORTED — CLA v1.0 (confirmed by LIS Support, July 2026) ─────────────
+ * "Per the published public CLA v1.0 contract, births and deaths are unsupported.
+ *  The public API is limited to livestock movements: transfer, transfer correction,
+ *  movement review/confirmation, and undo."
+ *
+ * The /animals POST endpoint does not exist in the public CLA v1.0 contract.
+ * Birth registration for sheep/goats/deer must be done via the LIS keeper portal
+ * at www.livestockinformation.org.uk — there is no API route available.
+ *
+ * This function is kept as a stub so existing call sites compile cleanly.
+ * The route handler rejects birth submissions before this is called.
  */
 export async function submitLisBirth(params: LisBirthParams): Promise<LisResult> {
-  const speciesValue = CLA_ANIMAL_SPECIES_MAP[params.species] ?? params.species.toLowerCase();
-  const site = { identifiers: [{ identifier: params.holdingCph }] };
-
-  const payloadObj: Record<string, unknown> = {
-    animal: {
-      identifier: params.earTag,
-      species: speciesValue,
-      sex: params.sex ?? "female",
-    },
-    ...(params.breed ? { breed: { code: params.breed } } : {}),
-    birth: {
-      site,
-      date: params.birthDate,
-      year: parseInt(params.birthDate.slice(0, 4), 10),
-      assistedBirthFlag:  params.assistedBirth  ?? false,
-      multipleBirthsFlag: params.multipleBirth   ?? false,
-      embryoTransferFlag: false,
-    },
-    registration: {
-      site,
-      date: params.birthDate,
-      category: "birthRegistration",
-    },
+  const msg = "Birth registration is not supported by the LIS CLA v1.0 public API. "
+    + "Register births directly on the LIS keeper portal (www.livestockinformation.org.uk).";
+  console.warn("[LIS] submitLisBirth called — operation is unsupported in CLA v1.0:", params.earTag);
+  return {
+    sandbox: false,
+    success: false,
+    requestPayload: JSON.stringify({ earTag: params.earTag, species: params.species, birthDate: params.birthDate }),
+    errorMessage: msg,
   };
-  const payloadStr = JSON.stringify(payloadObj, null, 2);
-
-  if (isLisSandboxMode()) {
-    console.log("[LIS SANDBOX] Birth payload:", payloadStr);
-    return {
-      sandbox: true, success: true,
-      reference: simulatedReference(),
-      requestPayload: payloadStr,
-      responsePayload: JSON.stringify({ status: "SANDBOX_OK" }),
-    };
-  }
-
-  try {
-    const result = await callLisApi(params.accessToken, "/animals", "POST", payloadObj);
-    if (!result.ok) {
-      const errMsg = (result.data as any)?.message ?? result.raw.slice(0, 300) ?? `HTTP ${result.status}`;
-      return { sandbox: false, success: false, requestPayload: payloadStr, responsePayload: result.raw, errorMessage: errMsg };
-    }
-    const d = result.data as any;
-    if (result.status === 202) {
-      // Async accepted — poll GET /requeststatus/{requestId} for final result.
-      // We return success=true with the requestId so the caller can track it.
-      const requestId = d?.requestId ?? d?.id ?? "pending";
-      return { sandbox: false, success: true, reference: `async:${requestId}`, requestPayload: payloadStr, responsePayload: result.raw };
-    }
-    const ref = d?.identifier ?? d?.reference ?? d?.id ?? params.earTag;
-    return { sandbox: false, success: true, reference: String(ref), requestPayload: payloadStr, responsePayload: result.raw };
-  } catch (err: any) {
-    return { sandbox: false, success: false, requestPayload: payloadStr, errorMessage: err?.message ?? "Network error" };
-  }
 }
 
 export interface LisDeathParams {
@@ -792,61 +755,28 @@ export interface LisDeathParams {
 }
 
 /**
- * Record a livestock death with the LIS CLA Animals API.
- * Endpoint: PUT /animals/{identifier}
- * One call per ear tag; caller loops over tags for batch deaths.
+ * ── UNSUPPORTED — CLA v1.0 (confirmed by LIS Support, July 2026) ─────────────
+ * "Per the published public CLA v1.0 contract, births and deaths are unsupported.
+ *  The public API is limited to livestock movements: transfer, transfer correction,
+ *  movement review/confirmation, and undo."
+ *
+ * The /animals PUT endpoint does not exist in the public CLA v1.0 contract.
+ * Death registration for sheep/goats/deer must be done via the LIS keeper portal
+ * at www.livestockinformation.org.uk — there is no API route available.
+ *
+ * This function is kept as a stub so existing call sites compile cleanly.
+ * The route handler rejects death submissions before this is called.
  */
 export async function submitLisDeath(params: LisDeathParams): Promise<LisResult> {
-  const speciesValue = CLA_ANIMAL_SPECIES_MAP[params.species] ?? params.species.toLowerCase();
-  const site = { identifiers: [{ identifier: params.holdingCph }] };
-
-  const payloadObj: Record<string, unknown> = {
-    animal: {
-      identifier: params.earTag,
-      species: speciesValue,
-      sex: params.sex ?? "female",
-    },
-    registration: {
-      site,
-      date: params.deathDate,
-      category: "registration",
-    },
-    death: {
-      site,
-      date: params.deathDate,
-      ...(params.deathReasonId ? { reason: { id: params.deathReasonId } } : {}),
-    },
+  const msg = "Death registration is not supported by the LIS CLA v1.0 public API. "
+    + "Register deaths directly on the LIS keeper portal (www.livestockinformation.org.uk).";
+  console.warn("[LIS] submitLisDeath called — operation is unsupported in CLA v1.0:", params.earTag);
+  return {
+    sandbox: false,
+    success: false,
+    requestPayload: JSON.stringify({ earTag: params.earTag, species: params.species, deathDate: params.deathDate }),
+    errorMessage: msg,
   };
-  const payloadStr = JSON.stringify(payloadObj, null, 2);
-
-  if (isLisSandboxMode()) {
-    console.log("[LIS SANDBOX] Death payload:", payloadStr);
-    return {
-      sandbox: true, success: true,
-      reference: simulatedReference(),
-      requestPayload: payloadStr,
-      responsePayload: JSON.stringify({ status: "SANDBOX_OK" }),
-    };
-  }
-
-  const identifier = encodeURIComponent(params.earTag);
-  try {
-    const result = await callLisApi(params.accessToken, `/animals/${identifier}`, "PUT", payloadObj);
-    if (!result.ok) {
-      const errMsg = (result.data as any)?.message ?? result.raw.slice(0, 300) ?? `HTTP ${result.status}`;
-      return { sandbox: false, success: false, requestPayload: payloadStr, responsePayload: result.raw, errorMessage: errMsg };
-    }
-    const d = result.data as any;
-    if (result.status === 202) {
-      // Async accepted — poll GET /requeststatus/{requestId} for final result.
-      const requestId = d?.requestId ?? d?.id ?? "pending";
-      return { sandbox: false, success: true, reference: `async:${requestId}`, requestPayload: payloadStr, responsePayload: result.raw };
-    }
-    const ref = d?.identifier ?? d?.reference ?? params.earTag;
-    return { sandbox: false, success: true, reference: String(ref), requestPayload: payloadStr, responsePayload: result.raw };
-  } catch (err: any) {
-    return { sandbox: false, success: false, requestPayload: payloadStr, errorMessage: err?.message ?? "Network error" };
-  }
 }
 
 /**

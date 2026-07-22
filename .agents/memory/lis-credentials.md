@@ -165,8 +165,15 @@ Migration already applied: `ALTER TABLE lis_farm_tokens ADD COLUMN IF NOT EXISTS
 **Flock mark derivation (batch fallback only):**
 - Ear tag `UK013018100001` → chars 2–8 = `0130181` → strip leading zero → `130181` → `UK130181`
 
-## Births & Deaths
-All probed endpoints (BirthRequests, DeathRequests, DeathNotifications, Births, Deaths, SlaughterRequests, AnimalEvents) return 404. Births and deaths are NOT part of the CLA TransferRequests API. Likely handled by a separate LIS service or not yet exposed in sandbox. Do not attempt to map these to CLA until LIS confirms the endpoint.
+## Births & Deaths — CONFIRMED UNSUPPORTED IN CLA v1.0 (July 2026)
+
+LIS Development Hub Support confirmed: "Per the published public CLA v1.0 contract, births and deaths are unsupported. The public API is limited to livestock movements: transfer, transfer correction, movement review/confirmation, and undo."
+
+**Cattle also no longer supported in CLA.** CLA covers Sheep and Goat only. Cattle births/deaths/movements → use LIS LIP (`lip.ts`), a completely separate system.
+
+Sheep/goat/deer births and deaths must be registered via the LIS keeper portal (www.livestockinformation.org.uk). No API route is available in the public contract.
+
+See `lis-cla-animals-api.md` for full implementation details.
 
 ## Movement scenario test matrix (July 2026)
 | Species | Direction | Identification | Result |

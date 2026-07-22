@@ -26688,6 +26688,24 @@ router.post("/farms/:farmId/lis-submit/:movementId", requireAuth, requireTenant,
   const submissionType = typeMap[movement.movementType] ?? "movement_off";
   const movDate = movement.movementDate ? new Date(movement.movementDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
 
+  // ── Births and deaths are NOT supported in LIS CLA v1.0 ──────────────────────
+  // Confirmed by LIS Development Hub Support (July 2026):
+  // "Per the published public CLA v1.0 contract, births and deaths are unsupported.
+  //  The public API is limited to livestock movements: transfer, transfer correction,
+  //  movement review/confirmation, and undo."
+  // Sheep/goat/deer births and deaths must be registered directly on the LIS keeper
+  // portal at www.livestockinformation.org.uk — no API route exists in the public contract.
+  if (submissionType === "birth" || submissionType === "death") {
+    const eventLabel = submissionType === "birth" ? "Birth" : "Death";
+    res.status(422).json({
+      error: `${eventLabel} registration is not supported by the LIS CLA v1.0 public API. `
+        + `Only on/off-farm livestock movements (transfers) can be submitted via CLA. `
+        + `Please register this ${eventLabel.toLowerCase()} directly on the LIS keeper portal at www.livestockinformation.org.uk.`,
+      unsupported: true,
+    });
+    return;
+  }
+
   const password = creds?.lisPasswordEncrypted ? decryptCredential(creds.lisPasswordEncrypted) : "";
 
   // Refresh token if expired or not present
@@ -26737,74 +26755,30 @@ router.post("/farms/:farmId/lis-submit/:movementId", requireAuth, requireTenant,
   }).returning();
 
   try {
-    // ── Route births/deaths to the Animals REST API; movements to TransferRequests ──
-    // LIS CLA confirmed (July 2026):
-    //   births → POST /animals ("Registering a new Animal")
-    //   deaths → PUT  /animals/{identifier} ("Updating an animal")
-    //   movements → POST /TransferRequests (unchanged)
-    const sex = ((req.body as any)?.sex as "male" | "female" | undefined);
+    // ── CLA v1.0: only on/off movements reach here ────────────────────────────
+    // Births and deaths are blocked by the early-return guard above.
+    // Movements → POST /TransferRequests (OData endpoint).
 
     // ── Submission with 401 auto-retry ────────────────────────────────────────
     // On a first-attempt 401 from LIS, refresh the token once and retry.
     let result!: LisResult;
 
     for (let attempt = 0; attempt < 2; attempt++) {
-      if (submissionType === "birth") {
-        const earTags = (movement.earTagNumbers ?? "").split(/[\s,]+/).filter(Boolean);
-        if (earTags.length === 0) {
-          await db.update(lisSubmissionsTable).set({ status: "failed", errorMessage: "Birth registration requires individual ear tag numbers — none found on this movement record", updatedAt: new Date() }).where(eq(lisSubmissionsTable.id, submission.id));
-          res.status(400).json({ error: "Birth registration requires individual ear tag numbers" });
-          return;
-        }
-        const holdingCph = movement.toLocation ?? movement.fromLocation ?? "";
-        const birthResults = await Promise.all(earTags.map(earTag => submitLisBirth({
-          accessToken: accessToken ?? "",
-          holdingCph,
-          birthDate: movDate,
-          species: lisSpecies,
-          earTag,
-          sex,
-          multipleBirth: earTags.length > 1,
-        })));
-        const firstFailed = birthResults.find(r => !r.success);
-        result = firstFailed ?? { ...birthResults[0], reference: birthResults.map(r => r.reference).filter(Boolean).join(", ") };
-
-      } else if (submissionType === "death") {
-        const earTags = (movement.earTagNumbers ?? "").split(/[\s,]+/).filter(Boolean);
-        if (earTags.length === 0) {
-          await db.update(lisSubmissionsTable).set({ status: "failed", errorMessage: "Death registration requires individual ear tag numbers — none found on this movement record", updatedAt: new Date() }).where(eq(lisSubmissionsTable.id, submission.id));
-          res.status(400).json({ error: "Death registration requires individual ear tag numbers" });
-          return;
-        }
-        const holdingCph = movement.fromLocation ?? movement.toLocation ?? "";
-        const deathResults = await Promise.all(earTags.map(earTag => submitLisDeath({
-          accessToken: accessToken ?? "",
-          holdingCph,
-          deathDate: movDate,
-          species: lisSpecies,
-          earTag,
-          sex,
-        })));
-        const firstFailed = deathResults.find(r => !r.success);
-        result = firstFailed ?? { ...deathResults[0], reference: deathResults.map(r => r.reference).filter(Boolean).join(", ") };
-
-      } else {
-        result = await submitLisMovement({
-          lisUsername: creds?.lisUsername ?? "",
-          lisPassword: password,
-          accessToken,
-          movementType: submissionType,
-          movementDate: movDate,
-          species: lisSpecies,
-          numberOfAnimals: movement.numberOfAnimals ?? 1,
-          departureCph: movement.fromLocation ?? undefined,
-          destinationCph: movement.toLocation ?? undefined,
-          earTagNumbers: movement.earTagNumbers ?? undefined,
-          licenceNumber: movement.licenceNumber ?? undefined,
-          fromLocation: movement.fromLocation ?? undefined,
-          toLocation: movement.toLocation ?? undefined,
-        });
-      }
+      result = await submitLisMovement({
+        lisUsername: creds?.lisUsername ?? "",
+        lisPassword: password,
+        accessToken,
+        movementType: submissionType,
+        movementDate: movDate,
+        species: lisSpecies,
+        numberOfAnimals: movement.numberOfAnimals ?? 1,
+        departureCph: movement.fromLocation ?? undefined,
+        destinationCph: movement.toLocation ?? undefined,
+        earTagNumbers: movement.earTagNumbers ?? undefined,
+        licenceNumber: movement.licenceNumber ?? undefined,
+        fromLocation: movement.fromLocation ?? undefined,
+        toLocation: movement.toLocation ?? undefined,
+      });
 
       // On first attempt: if LIS returned 401/auth-error, refresh token and retry once
       if (attempt === 0 && !result.success && !isLisSandboxMode() && creds?.refreshToken) {

@@ -1,80 +1,38 @@
 ---
-name: LIS CLA birth/death REST endpoints
-description: Correct CLA API endpoints for sheep/goat/deer birth registration and death notification (confirmed by LIS support July 2026).
+name: LIS CLA births/deaths — UNSUPPORTED in v1.0
+description: Births and deaths are confirmed unsupported by the LIS CLA v1.0 public API. CLA is movements-only. Cattle also no longer supported in CLA.
 ---
 
 ## The rule
 
-LIS CLA births/deaths must use the **Animals REST API**, NOT the OData `POST /TransferRequests` endpoint that movements use.
+**Births and deaths are NOT supported in the LIS CLA v1.0 public API.**
 
-- **Birth** → `POST /animals`
-- **Death** → `PUT /animals/{identifier}` (ear tag URL-encoded in path)
+Confirmed by LIS Development Hub Support (July 2026):
+> "Per the published public CLA v1.0 contract, births and deaths are unsupported. The public API is limited to livestock movements: transfer, transfer correction, movement review/confirmation, and undo."
 
-**Why:** LIS CLA support confirmed (July 2026): "Births will be under registering a new Animal" and "Deaths are covered under Updating an animal." The previous code routed all movement types including birth/death through `POST /TransferRequests`, which is only correct for on/off movements.
+Additionally: **Cattle is no longer supported in CLA.** CLA covers Sheep and Goat only.
+> "As you have been advised recently Sheep and Goat are supported and Cattle is no longer supported."
+> "ANIMAL API is Multi Species cattle" — this is a SEPARATE service (not CLA).
 
-**How to apply:** In `lis.ts`, `submitLisBirth` and `submitLisDeath` call `callLisApi` with the correct paths. The route handler at `POST /farms/:farmId/lis-submit/:movementId` branches on `submissionType`: "birth" → `submitLisBirth`, "death" → `submitLisDeath`, else → `submitLisMovement`.
+**Why this matters:** We previously built `submitLisBirth` and `submitLisDeath` in `lis.ts` calling `/animals` (POST) and `/animals/{identifier}` (PUT) based on an incorrect earlier support response. These endpoints do not exist in the public CLA v1.0 contract.
 
-## Payload structure (spec-verified against production OpenAPI spec)
+## What to do instead
 
-### Birth — `POST /animals`
+- **Sheep/goat/deer births and deaths**: Must be registered directly on the LIS keeper portal at www.livestockinformation.org.uk — no public API route is available.
+- **Cattle births/deaths/movements**: Use the LIS LIP system (`lip.ts`) — completely separate from CLA, unaffected by this clarification.
 
-```typescript
-{
-  animal: { identifier: earTag, species: "sheep"|"goats"|"deer", sex: "male"|"female" },
-  breed?: { code: "..." },
-  birth: {
-    site: { identifiers: [{ identifier: holdingCph }] },
-    date: "YYYY-MM-DD",
-    year: 2026,
-    assistedBirthFlag: false,
-    multipleBirthsFlag: false,
-    embryoTransferFlag: false,
-  },
-  registration: {
-    site: { identifiers: [{ identifier: holdingCph }] },
-    date: "YYYY-MM-DD",
-    category: "birthRegistration",   // ← enum value from spec
-  },
-}
-```
+## Current implementation (as of July 2026)
 
-### Death — `PUT /animals/{identifier}`
+- `lis.ts`: `submitLisBirth` and `submitLisDeath` are **stubs** that immediately return `success: false` with an unsupported error message. They are kept as exports only so call sites compile cleanly.
+- `farms.ts`: Route `POST /farms/:farmId/lis-submit/:movementId` has an **early return guard** that returns HTTP 422 if `submissionType === "birth" || "death"`, before any submission record is created.
+- `Movements.tsx` (dashboard): `lisBtn` uses `isLisSubmittableType` (on/off only) instead of `isSubmittableType` (which also includes birth/death). Birth and death movement rows no longer show a LIS submit button.
 
-```typescript
-{
-  animal: { identifier: earTag, species: "sheep"|"goats"|"deer", sex: "male"|"female" },
-  registration: {
-    site: { identifiers: [{ identifier: holdingCph }] },
-    date: "YYYY-MM-DD",
-    category: "registration",        // ← NOT "birthRegistration"
-  },
-  death: {
-    site: { identifiers: [{ identifier: holdingCph }] },
-    date: "YYYY-MM-DD",
-    reason?: { id: deathReasonUuid },
-  },
-}
-```
+## What CLA DOES support (on/off movements)
 
-PUT spec: `animal` and `registration` are **required**; `death` is optional additional info.
+See `lis-credentials.md` for the confirmed POST /TransferRequests schema.
 
-## Species enum (lowercase, as per CLA spec)
+Species: Sheep ("Sheep"), Goat ("Goats" — plural!), Deer ("Deer").
 
-| LisSpecies (internal) | CLA API value |
-|-----------------------|---------------|
-| SHEEP | "sheep" |
-| GOAT  | "goats" (plural!) |
-| DEER  | "deer" |
+## Historical context (do not re-implement)
 
-## Multiple ear tags
-
-Submit one API call per ear tag. The route handler uses `Promise.all(earTags.map(...))`. Returns 400 if no ear tags present on the movement record.
-
-## CPH extraction
-
-- Birth: `movement.toLocation ?? movement.fromLocation` (born at destination holding)
-- Death: `movement.fromLocation ?? movement.toLocation` (died at origin holding)
-
-## Live test blocker (sandbox)
-
-The sandbox B2C tenant blocks ROPC for the CLA application (`AADSTS50105` — user not assigned). The stored refresh token also expires quickly (days, not weeks). To test, the farm must re-authenticate via the OAuth flow in the dashboard (LIS Settings → reconnect) to get a fresh token pair.
+The `/animals` POST and PUT endpoints were documented in an earlier LIS support reply (July 2026) stating "Births will be under registering a new Animal" and "Deaths are covered under Updating an animal." This guidance was incorrect — it was not referring to the CLA v1.0 public contract. A follow-up from LIS support clarified the public v1.0 contract does not expose these endpoints.
