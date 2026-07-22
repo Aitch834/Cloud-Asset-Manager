@@ -1165,6 +1165,8 @@ export default function Movements() {
   const [lisUndoConfirmId, setLisUndoConfirmId] = useState<number | null>(null);
   const [lisPortalRefId, setLisPortalRefId] = useState<number | null>(null);
   const [lisPortalRefInput, setLisPortalRefInput] = useState("");
+  const [bcmsPortalRefId, setBcmsPortalRefId] = useState<number | null>(null);
+  const [bcmsPortalRefInput, setBcmsPortalRefInput] = useState("");
   const [lipSubmitConfirmId, setLipSubmitConfirmId] = useState<number | null>(null);
   const [lipSubmittingId, setLipSubmittingId] = useState<number | null>(null);
   const [eidcymruSubmitConfirmId, setEidcymruSubmitConfirmId] = useState<number | null>(null);
@@ -1529,6 +1531,27 @@ export default function Movements() {
       }
     },
     onError: () => { setLisSubmittingId(null); toast({ title: "LIS submission error", variant: "destructive" }); },
+  });
+
+  const saveBcmsPortalRefMut = useMutation({
+    mutationFn: ({ movementId, bcmsManualRef }: { movementId: number; bcmsManualRef: string }) =>
+      fetch(`/api/farms/${farmId}/movements/${movementId}/bcms-portal-ref`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ bcmsManualRef }),
+      }).then(r => r.json()),
+    onSuccess: (d) => {
+      if (d.success) {
+        queryClient.invalidateQueries({ queryKey: ["movements", farmId] });
+        setBcmsPortalRefId(null);
+        setBcmsPortalRefInput("");
+        toast({ title: "BCMS reference saved", description: "Movement marked as notified on BCMS Online." });
+      } else {
+        toast({ title: "Failed to save reference", description: d.error, variant: "destructive" });
+      }
+    },
+    onError: () => toast({ title: "Failed to save BCMS reference", variant: "destructive" }),
   });
 
   const saveLisPortalRefMut = useMutation({
@@ -2521,6 +2544,19 @@ export default function Movements() {
                               </button>
                             ) : null;
 
+                            // Manual BCMS portal reference — shown on unnotified cattle rows
+                            // until automated CTWS API submission is live (pending DEFRA DDTS vendor registration)
+                            const bcmsPortalBtn = isCattle && isSubmittableType && !r.legalNotificationSubmitted ? (
+                              <button
+                                onClick={() => { setBcmsPortalRefId(r.id); setBcmsPortalRefInput(""); }}
+                                title="Record the reference number you received after submitting this movement on BCMS Online"
+                                style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.7rem", padding: "2px 8px", borderRadius: 6, border: "1px solid #fde68a", background: "#fffbeb", color: "#92400e", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
+                              >
+                                <ExternalLink size={10} />
+                                Record BCMS Ref
+                              </button>
+                            ) : null;
+
                             // For England LIS species birth/death rows — portal guidance badge
                             // (Wales uses EIDCymru, Scotland uses ScotEID, so portal badge is England-only)
                             const isEngland = !isWales && !isScotland;
@@ -2590,7 +2626,7 @@ export default function Movements() {
                               </button>
                             ) : null;
 
-                            return <>{bcmsBtn}{lisPortalBtn}{lisBtn}{lipBtn}{eidcymruBtn}{scoteidBtn}</>;
+                            return <>{bcmsBtn}{bcmsPortalBtn}{lisPortalBtn}{lisBtn}{lipBtn}{eidcymruBtn}{scoteidBtn}</>;
                           })()}
                         </div>
                       </td>
@@ -2744,6 +2780,76 @@ export default function Movements() {
             >
               {submitLisMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <Send size={14} className="mr-1" />}
               {lisCredsData?.sandboxMode !== false ? "Run Sandbox Test" : "Submit to LIS"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Record BCMS Online Reference — all cattle movements (England) */}
+      <Dialog open={bcmsPortalRefId !== null} onOpenChange={o => { if (!o) { setBcmsPortalRefId(null); setBcmsPortalRefInput(""); } }}>
+        <DialogContent style={{ maxWidth: 480 }}>
+          <DialogHeader><DialogTitle>Record BCMS Reference</DialogTitle></DialogHeader>
+          {(() => {
+            const r = records.find(m => m.id === bcmsPortalRefId);
+            if (!r) return null;
+            const typeLabel = r.movementType === "birth" ? "birth" : r.movementType === "death" ? "death" : r.movementType === "on" ? "movement ON" : "movement OFF";
+            return (
+              <div className="space-y-4 py-1">
+                <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 14px", display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <ExternalLink size={14} style={{ color: "#92400e", marginTop: 2, flexShrink: 0 }} />
+                  <div style={{ fontSize: "0.78rem", color: "#92400e", lineHeight: 1.6 }}>
+                    <strong>Manual BCMS notification required.</strong>
+                    {" "}The automated CTWS API is not yet active — please submit this {typeLabel} on BCMS Online, then record your confirmation reference here to complete the audit trail.
+                    <div style={{ marginTop: 8 }}>
+                      <a
+                        href="https://www.bcms.gov.uk"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: "#1d4ed8", fontWeight: 600, textDecoration: "underline", display: "inline-flex", alignItems: "center", gap: 4 }}
+                      >
+                        <ExternalLink size={11} />{"  "}Open BCMS Online (www.bcms.gov.uk)
+                      </a>
+                    </div>
+                  </div>
+                </div>
+                <div style={{ background: "#f9fafb", borderRadius: 8, padding: "10px 14px", fontSize: "0.82rem" }}>
+                  <div className="grid grid-cols-2 gap-y-1.5">
+                    {([["Event", r.movementType.toUpperCase()], ["Date", formatDate(r.movementDate)], ["Species", r.species ?? "Cattle"], ["Animals", String(r.numberOfAnimals ?? "—")], ["Ear Tags", r.earTagNumbers || "—"]] as [string, string][]).map(([k, v]) => (
+                      <React.Fragment key={k}><span style={{ color: "#6b7280", fontWeight: 500 }}>{k}</span><span style={{ fontWeight: 600 }}>{v}</span></React.Fragment>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">
+                    BCMS Online confirmation or document reference <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    placeholder="e.g. CTS-2026-XXXXXXXX or document number"
+                    value={bcmsPortalRefInput}
+                    onChange={e => setBcmsPortalRefInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && bcmsPortalRefInput.trim() && bcmsPortalRefId !== null) {
+                        saveBcmsPortalRefMut.mutate({ movementId: bcmsPortalRefId, bcmsManualRef: bcmsPortalRefInput });
+                      }
+                    }}
+                  />
+                </div>
+                <p style={{ fontSize: "0.78rem", color: "#6b7280" }}>
+                  Once saved, this movement will be marked as BCMS notified. The reference will appear in the BCMS Submissions tab and on the movement detail panel.
+                </p>
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setBcmsPortalRefId(null); setBcmsPortalRefInput(""); }}>Cancel</Button>
+            <Button
+              disabled={!bcmsPortalRefInput.trim() || saveBcmsPortalRefMut.isPending}
+              onClick={() => bcmsPortalRefId !== null && saveBcmsPortalRefMut.mutate({ movementId: bcmsPortalRefId, bcmsManualRef: bcmsPortalRefInput })}
+              style={{ background: "#b45309", color: "white" }}
+              className="hover:opacity-90"
+            >
+              {saveBcmsPortalRefMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <CheckCircle2 size={14} className="mr-1" />}
+              Save Reference
             </Button>
           </DialogFooter>
         </DialogContent>

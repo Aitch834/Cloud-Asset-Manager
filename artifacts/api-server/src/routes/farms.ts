@@ -7450,6 +7450,50 @@ router.patch("/farms/:farmId/movements/:movementId/lis-portal-ref", requireAuth,
   res.json({ success: true, lisManualRef: updated.lisManualRef, lisManualNotifiedAt: updated.lisManualNotifiedAt });
 });
 
+/**
+ * PATCH /farms/:farmId/movements/:movementId/bcms-portal-ref
+ * Record the BCMS Online confirmation reference a farmer receives after manually
+ * submitting a cattle movement at www.bcms.gov.uk.
+ *
+ * Used when the automated CTWS API is not yet available (pending DEFRA DDTS vendor
+ * registration) and the farmer has notified BCMS manually via the online portal.
+ * Saves the reference, marks the movement as legally notified, and stamps the date.
+ */
+router.patch("/farms/:farmId/movements/:movementId/bcms-portal-ref", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const movementId = parseInt(req.params.movementId as string);
+  if (isNaN(movementId)) { res.status(400).json({ error: "Invalid movement ID" }); return; }
+
+  const { bcmsManualRef } = req.body as { bcmsManualRef?: string };
+  if (!bcmsManualRef || typeof bcmsManualRef !== "string" || !bcmsManualRef.trim()) {
+    res.status(400).json({ error: "bcmsManualRef is required" });
+    return;
+  }
+
+  const [movement] = await db.select({ id: livestockMovementsTable.id, movementType: livestockMovementsTable.movementType, species: livestockMovementsTable.species })
+    .from(livestockMovementsTable)
+    .where(and(eq(livestockMovementsTable.id, movementId), eq(livestockMovementsTable.farmId, farmId)));
+  if (!movement) { res.status(404).json({ error: "Movement not found" }); return; }
+
+  const validTypes = ["on", "off", "birth", "death"];
+  if (!validTypes.includes(movement.movementType ?? "")) {
+    res.status(400).json({ error: "BCMS portal references can only be recorded on on, off, birth, or death movement records" });
+    return;
+  }
+
+  const [updated] = await db.update(livestockMovementsTable)
+    .set({
+      bcmsSubmissionRef: bcmsManualRef.trim(),
+      legalNotificationSubmitted: true,
+      legalNotificationDate: new Date(),
+    })
+    .where(and(eq(livestockMovementsTable.id, movementId), eq(livestockMovementsTable.farmId, farmId)))
+    .returning();
+
+  res.json({ success: true, bcmsSubmissionRef: updated.bcmsSubmissionRef, legalNotificationDate: updated.legalNotificationDate });
+});
+
 router.get("/farms/:farmId/movements/:recordId/attachments", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
