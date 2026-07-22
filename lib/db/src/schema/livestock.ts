@@ -85,6 +85,11 @@ export const livestockMovementsTable = pgTable("livestock_movements", {
   bcmsSubmissionRef: text("bcms_submission_ref"),
   legalNotificationSubmitted: boolean("legal_notification_submitted").notNull().default(false),
   legalNotificationDate: timestamp("legal_notification_date", { withTimezone: true }),
+  // ─── Manual LIS portal reference (sheep/goat/deer births & deaths — England) ──
+  // CLA v1.0 has no API for births/deaths; farmers register via www.livestockinformation.org.uk
+  // and then record the confirmation reference here for their own audit trail.
+  lisManualRef: text("lis_manual_ref"),
+  lisManualNotifiedAt: timestamp("lis_manual_notified_at", { withTimezone: true }),
   species: text("species"),
   earTagNumbers: text("ear_tag_numbers"),
   transporterDetails: text("transporter_details"),

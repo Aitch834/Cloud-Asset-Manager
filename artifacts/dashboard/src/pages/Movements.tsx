@@ -54,6 +54,8 @@ interface Movement {
   haulierCompany: string | null;
   checklistCompletedBy: string | null;
   checklistCompletedAt: string | null;
+  lisManualRef: string | null;
+  lisManualNotifiedAt: string | null;
 }
 
 interface Attachment {
@@ -1161,6 +1163,8 @@ export default function Movements() {
   const [lisReviewArrivalDate, setLisReviewArrivalDate] = useState("");
   const [lisReviewAccepting, setLisReviewAccepting] = useState(true);
   const [lisUndoConfirmId, setLisUndoConfirmId] = useState<number | null>(null);
+  const [lisPortalRefId, setLisPortalRefId] = useState<number | null>(null);
+  const [lisPortalRefInput, setLisPortalRefInput] = useState("");
   const [lipSubmitConfirmId, setLipSubmitConfirmId] = useState<number | null>(null);
   const [lipSubmittingId, setLipSubmittingId] = useState<number | null>(null);
   const [eidcymruSubmitConfirmId, setEidcymruSubmitConfirmId] = useState<number | null>(null);
@@ -1525,6 +1529,27 @@ export default function Movements() {
       }
     },
     onError: () => { setLisSubmittingId(null); toast({ title: "LIS submission error", variant: "destructive" }); },
+  });
+
+  const saveLisPortalRefMut = useMutation({
+    mutationFn: ({ movementId, lisManualRef }: { movementId: number; lisManualRef: string }) =>
+      fetch(`/api/farms/${farmId}/movements/${movementId}/lis-portal-ref`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ lisManualRef }),
+      }).then(r => r.json()),
+    onSuccess: (d) => {
+      if (d.success) {
+        queryClient.invalidateQueries({ queryKey: ["movements", farmId] });
+        setLisPortalRefId(null);
+        setLisPortalRefInput("");
+        toast({ title: "LIS portal reference saved", description: "Movement marked as notified on the LIS keeper portal." });
+      } else {
+        toast({ title: "Failed to save reference", description: d.error, variant: "destructive" });
+      }
+    },
+    onError: () => toast({ title: "Failed to save LIS portal reference", variant: "destructive" }),
   });
 
   const lisSyncMut = useMutation({
@@ -2496,6 +2521,29 @@ export default function Movements() {
                               </button>
                             ) : null;
 
+                            // For England LIS species birth/death rows — portal guidance badge
+                            // (Wales uses EIDCymru, Scotland uses ScotEID, so portal badge is England-only)
+                            const isEngland = !isWales && !isScotland;
+                            const isLisPortalType = isLisSpecies && isEngland && (r.movementType === "birth" || r.movementType === "death");
+                            const lisPortalBtn = isLisPortalType ? (
+                              r.lisManualRef ? (
+                                <span
+                                  title={`LIS portal reference: ${r.lisManualRef}${r.lisManualNotifiedAt ? ` — recorded ${formatDate(r.lisManualNotifiedAt)}` : ""}`}
+                                  style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.7rem", padding: "2px 8px", borderRadius: 6, border: "1px solid #bbf7d0", background: "#f0fdf4", color: "#166534", fontWeight: 600, whiteSpace: "nowrap", cursor: "default" }}>
+                                  <CheckCircle2 size={10} />
+                                  LIS Notified
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => { setLisPortalRefId(r.id); setLisPortalRefInput(""); }}
+                                  title="Births and deaths cannot be submitted via the LIS CLA API. Register on the LIS keeper portal and record your confirmation reference here."
+                                  style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.7rem", padding: "2px 8px", borderRadius: 6, border: "1px solid #fde68a", background: "#fffbeb", color: "#92400e", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}>
+                                  <ExternalLink size={10} />
+                                  Register via LIS portal
+                                </button>
+                              )
+                            ) : null;
+
                             const lisBtn = isLisSpecies && isLisSubmittableType && !(r.legalNotificationSubmitted && r.bcmsSubmissionRef && !r.bcmsSubmissionRef.startsWith("LIS-SANDBOX-")) ? (
                               <button
                                 onClick={() => setLisSubmitConfirmId(r.id)}
@@ -2542,7 +2590,7 @@ export default function Movements() {
                               </button>
                             ) : null;
 
-                            return <>{bcmsBtn}{lisBtn}{lipBtn}{eidcymruBtn}{scoteidBtn}</>;
+                            return <>{bcmsBtn}{lisPortalBtn}{lisBtn}{lipBtn}{eidcymruBtn}{scoteidBtn}</>;
                           })()}
                         </div>
                       </td>
@@ -2696,6 +2744,76 @@ export default function Movements() {
             >
               {submitLisMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <Send size={14} className="mr-1" />}
               {lisCredsData?.sandboxMode !== false ? "Run Sandbox Test" : "Submit to LIS"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Record LIS Keeper Portal Reference (births & deaths — England) */}
+      <Dialog open={lisPortalRefId !== null} onOpenChange={o => { if (!o) { setLisPortalRefId(null); setLisPortalRefInput(""); } }}>
+        <DialogContent style={{ maxWidth: 480 }}>
+          <DialogHeader><DialogTitle>Record LIS Portal Reference</DialogTitle></DialogHeader>
+          {(() => {
+            const r = records.find(m => m.id === lisPortalRefId);
+            if (!r) return null;
+            const eventLabel = r.movementType === "birth" ? "birth" : "death";
+            return (
+              <div className="space-y-4 py-1">
+                <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 14px", display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <ExternalLink size={14} style={{ color: "#92400e", marginTop: 2, flexShrink: 0 }} />
+                  <div style={{ fontSize: "0.78rem", color: "#92400e", lineHeight: 1.6 }}>
+                    <strong>Action required — LIS keeper portal.</strong>
+                    {" "}The LIS CLA v1.0 API does not support {eventLabel} registration. You must register this event directly on the LIS keeper portal, then save your confirmation reference here to complete the audit trail.
+                    <div style={{ marginTop: 8 }}>
+                      <a
+                        href="https://www.livestockinformation.org.uk"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: "#1d4ed8", fontWeight: 600, textDecoration: "underline", display: "inline-flex", alignItems: "center", gap: 4 }}
+                      >
+                        <ExternalLink size={11} />{"  "}Open LIS Keeper Portal (www.livestockinformation.org.uk)
+                      </a>
+                    </div>
+                  </div>
+                </div>
+                <div style={{ background: "#f9fafb", borderRadius: 8, padding: "10px 14px", fontSize: "0.82rem" }}>
+                  <div className="grid grid-cols-2 gap-y-1.5">
+                    {([["Event", r.movementType.toUpperCase()], ["Date", formatDate(r.movementDate)], ["Species", r.species ?? "—"], ["Animals", String(r.numberOfAnimals ?? "—")], ["Ear Tags", r.earTagNumbers || "—"]] as [string, string][]).map(([k, v]) => (
+                      <React.Fragment key={k}><span style={{ color: "#6b7280", fontWeight: 500 }}>{k}</span><span style={{ fontWeight: 600 }}>{v}</span></React.Fragment>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">
+                    Confirmation or document reference from the LIS portal <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    placeholder="e.g. CLN-2026-ABC123 or document number"
+                    value={lisPortalRefInput}
+                    onChange={e => setLisPortalRefInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && lisPortalRefInput.trim() && lisPortalRefId !== null) {
+                        saveLisPortalRefMut.mutate({ movementId: lisPortalRefId, lisManualRef: lisPortalRefInput });
+                      }
+                    }}
+                  />
+                </div>
+                <p style={{ fontSize: "0.78rem", color: "#6b7280" }}>
+                  Once saved, this movement will be marked as notified and the reference will appear on the movement row and in compliance reports.
+                </p>
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setLisPortalRefId(null); setLisPortalRefInput(""); }}>Cancel</Button>
+            <Button
+              disabled={!lisPortalRefInput.trim() || saveLisPortalRefMut.isPending}
+              onClick={() => lisPortalRefId !== null && saveLisPortalRefMut.mutate({ movementId: lisPortalRefId, lisManualRef: lisPortalRefInput })}
+              style={{ background: "#b45309", color: "white" }}
+              className="hover:opacity-90"
+            >
+              {saveLisPortalRefMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <CheckCircle2 size={14} className="mr-1" />}
+              Save Reference
             </Button>
           </DialogFooter>
         </DialogContent>

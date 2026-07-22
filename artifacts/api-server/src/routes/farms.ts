@@ -7406,6 +7406,50 @@ router.delete("/farms/:farmId/movements/:recordId", requireAuth, requireTenant, 
   res.json({ success: true });
 });
 
+/**
+ * PATCH /farms/:farmId/movements/:movementId/lis-portal-ref
+ * Record the confirmation reference a farmer receives from the LIS keeper portal
+ * after manually registering a sheep/goat/deer birth or death at
+ * www.livestockinformation.org.uk.
+ *
+ * CLA v1.0 provides no API for births/deaths — this is the audit-trail mechanism
+ * so farms can record that they fulfilled their legal notification obligation.
+ */
+router.patch("/farms/:farmId/movements/:movementId/lis-portal-ref", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const movementId = parseInt(req.params.movementId as string);
+  if (isNaN(movementId)) { res.status(400).json({ error: "Invalid movement ID" }); return; }
+
+  const { lisManualRef } = req.body as { lisManualRef?: string };
+  if (!lisManualRef || typeof lisManualRef !== "string" || !lisManualRef.trim()) {
+    res.status(400).json({ error: "lisManualRef is required" });
+    return;
+  }
+
+  const [movement] = await db.select({ id: livestockMovementsTable.id, movementType: livestockMovementsTable.movementType })
+    .from(livestockMovementsTable)
+    .where(and(eq(livestockMovementsTable.id, movementId), eq(livestockMovementsTable.farmId, farmId)));
+  if (!movement) { res.status(404).json({ error: "Movement not found" }); return; }
+
+  if (movement.movementType !== "birth" && movement.movementType !== "death") {
+    res.status(400).json({ error: "LIS portal references can only be recorded on birth or death movement records" });
+    return;
+  }
+
+  const [updated] = await db.update(livestockMovementsTable)
+    .set({
+      lisManualRef: lisManualRef.trim(),
+      lisManualNotifiedAt: new Date(),
+      legalNotificationSubmitted: true,
+      legalNotificationDate: new Date(),
+    })
+    .where(and(eq(livestockMovementsTable.id, movementId), eq(livestockMovementsTable.farmId, farmId)))
+    .returning();
+
+  res.json({ success: true, lisManualRef: updated.lisManualRef, lisManualNotifiedAt: updated.lisManualNotifiedAt });
+});
+
 router.get("/farms/:farmId/movements/:recordId/attachments", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
