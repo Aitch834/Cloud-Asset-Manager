@@ -131,6 +131,13 @@ function BalingDialog({ open, onClose, farmId, editRow }: { open: boolean; onClo
     enabled: open && !!farmId, staleTime: 60_000,
   });
 
+  const { data: fieldCrops = [] } = useQuery<any[]>({
+    queryKey: ["field-crops", farmId],
+    queryFn: async () => { const r = await fetch(`/api/farms/${farmId}/field-crops`, { credentials: "include" }); return r.ok ? r.json() : []; },
+    select: (d: any) => Array.isArray(d) ? d : (d?.records ?? []),
+    enabled: open && !!farmId, staleTime: 60_000,
+  });
+
   const tractors = equipment.filter((e: any) => /tractor|power unit/i.test(e.type ?? ""));
   const balers = equipment.filter((e: any) => /baler|implement/i.test(e.type ?? ""));
 
@@ -161,12 +168,34 @@ function BalingDialog({ open, onClose, farmId, editRow }: { open: boolean; onClo
     }
   }, [open, editRow]);
 
-  // Auto-fill field name when field is selected
+  // Auto-fill field name, area, straw type and crop variety when a field is selected
   React.useEffect(() => {
     if (!form.fieldId) return;
-    const field = fields.find((fld: any) => fld.id === Number(form.fieldId));
-    if (field) setForm(p => ({ ...p, fieldOfOrigin: field.name ?? p.fieldOfOrigin }));
-  }, [form.fieldId, fields]);
+    const fid = Number(form.fieldId);
+    const field = fields.find((fld: any) => fld.id === fid);
+    if (!field) return;
+    // Find the most recent crop assignment for this field
+    const assignments = fieldCrops.filter((fc: any) => fc.fieldId === fid);
+    const latest = assignments.sort((a: any, b: any) =>
+      new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
+    )[0];
+    const cropName: string = latest?.cropName ?? "";
+    const strawTypeFromCrop = (() => {
+      const n = cropName.toLowerCase();
+      if (n.includes("wheat")) return "Wheat Straw";
+      if (n.includes("barley")) return "Barley Straw";
+      if (n.includes("oat")) return "Oat Straw";
+      if (n.includes("oilseed") || n.includes("rape") || n.includes("osr")) return "Oilseed Rape Straw";
+      return null;
+    })();
+    setForm(p => ({
+      ...p,
+      fieldOfOrigin: field.name ?? p.fieldOfOrigin,
+      areaHa: p.areaHa || String(field.computedFarmableAreaHa ?? field.areaHectares ?? "") || p.areaHa,
+      strawType: p.strawType === "Wheat Straw" && strawTypeFromCrop ? strawTypeFromCrop : (strawTypeFromCrop ?? p.strawType),
+      cropVariety: p.cropVariety || (latest?.variety ?? "") || p.cropVariety,
+    }));
+  }, [form.fieldId, fields, fieldCrops]);
 
   const mut = useMutation({
     mutationFn: async (body: any) => {
