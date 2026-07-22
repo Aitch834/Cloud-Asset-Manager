@@ -110,6 +110,7 @@ function BalingDialog({ open, onClose, farmId, editRow }: { open: boolean; onClo
     strawType: "Wheat Straw", baleFormat: "Big Round", areaHa: "",
     totalBalesProduced: "", baleWeightKg: "",
     tractorDescription: "", balerDescription: "", operatorName: "",
+    operatorSupplierId: null as number | null,
     machineHours: "", labourHours: "",
     weatherConditions: "", temperatureC: "", windSpeedKmh: "", soilConditions: "",
     notes: "",
@@ -148,6 +149,7 @@ function BalingDialog({ open, onClose, farmId, editRow }: { open: boolean; onClo
         tractorDescription: editRow.tractorDescription ?? "",
         balerDescription: editRow.balerDescription ?? "",
         operatorName: editRow.operatorName ?? "",
+        operatorSupplierId: editRow.operatorSupplierId ?? null,
         machineHours: editRow.machineHours ?? "",
         labourHours: editRow.labourHours ?? "",
         weatherConditions: editRow.weatherConditions ?? "",
@@ -198,6 +200,7 @@ function BalingDialog({ open, onClose, farmId, editRow }: { open: boolean; onClo
       tractorDescription: form.tractorDescription || null,
       balerDescription: form.balerDescription || null,
       operatorName: form.operatorName || null,
+      operatorSupplierId: form.operatorSupplierId,
       machineHours: form.machineHours || null,
       labourHours: form.labourHours || null,
       weatherConditions: form.weatherConditions || null,
@@ -292,7 +295,7 @@ function BalingDialog({ open, onClose, farmId, editRow }: { open: boolean; onClo
                   <Input placeholder="e.g. Claas Variant 460" value={form.balerDescription} onChange={e => f("balerDescription")(e.target.value)} />
                 )}
               </div>
-              <div><Label>Operator Name</Label><Input placeholder="e.g. John Smith" value={form.operatorName} onChange={e => f("operatorName")(e.target.value)} /></div>
+              <div><Label>Operator Name</Label><BuyerCombobox farmId={farmId} types={["contractor", "general"]} valueId={form.operatorSupplierId} valueName={form.operatorName} onChange={(id, name) => setForm(p => ({ ...p, operatorSupplierId: id, operatorName: name }))} /></div>
               <div className="grid grid-cols-2 gap-2">
                 <div><Label>Machine Hours</Label><Input type="number" min={0} step={0.5} placeholder="0.0" value={form.machineHours} onChange={e => f("machineHours")(e.target.value)} /></div>
                 <div><Label>Labour Hours</Label><Input type="number" min={0} step={0.5} placeholder="0.0" value={form.labourHours} onChange={e => f("labourHours")(e.target.value)} /></div>
@@ -349,6 +352,7 @@ function CartageDialog({ open, onClose, farmId, balingOp, editRow }: { open: boo
 
   const init = {
     journeyDate: today(), journeyTime: "", operatorName: "",
+    operatorSupplierId: null as number | null,
     tractorDescription: "", trailerDescription: "",
     balesMoved: "", fromLocation: balingOp?.fieldOfOrigin ?? "",
     toLocation: "", toStorageType: "Indoor", notes: "",
@@ -371,6 +375,7 @@ function CartageDialog({ open, onClose, farmId, balingOp, editRow }: { open: boo
         journeyDate: editRow.journeyDate ?? today(),
         journeyTime: editRow.journeyTime ?? "",
         operatorName: editRow.operatorName ?? "",
+        operatorSupplierId: editRow.operatorSupplierId ?? null,
         tractorDescription: editRow.tractorDescription ?? "",
         trailerDescription: editRow.trailerDescription ?? "",
         balesMoved: editRow.balesMoved ?? "",
@@ -413,6 +418,7 @@ function CartageDialog({ open, onClose, farmId, balingOp, editRow }: { open: boo
     mut.mutate({
       journeyDate: form.journeyDate, journeyTime: form.journeyTime || null,
       operatorName: form.operatorName || null,
+      operatorSupplierId: form.operatorSupplierId,
       tractorDescription: form.tractorDescription || null,
       trailerDescription: form.trailerDescription || null,
       balesMoved: moved,
@@ -436,7 +442,7 @@ function CartageDialog({ open, onClose, farmId, balingOp, editRow }: { open: boo
 
           <div>
             <Label>Operator</Label>
-            <Input placeholder="Operator name" value={form.operatorName} onChange={e => f("operatorName")(e.target.value)} />
+            <BuyerCombobox farmId={farmId} types={["contractor", "general"]} valueId={form.operatorSupplierId} valueName={form.operatorName} onChange={(id, name) => setForm(p => ({ ...p, operatorSupplierId: id, operatorName: name }))} />
           </div>
           <div>
             <Label>Bales This Journey *</Label>

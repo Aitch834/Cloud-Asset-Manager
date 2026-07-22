@@ -28,6 +28,7 @@ export const strawBalingOperationsTable = pgTable("straw_baling_operations", {
   balerImplementId: integer("baler_implement_id"),
   balerDescription: text("baler_description"),
   operatorName: text("operator_name"),
+  operatorSupplierId: integer("operator_supplier_id").references(() => suppliersTable.id),
   machineHours: numeric("machine_hours", { precision: 8, scale: 2 }),
   labourHours: numeric("labour_hours", { precision: 8, scale: 2 }),
   // Weather at time of baling
@@ -54,6 +55,7 @@ export const strawCartageJourneysTable = pgTable("straw_cartage_journeys", {
   journeyDate: date("journey_date").notNull(),
   journeyTime: text("journey_time"),                    // HH:MM — optional
   operatorName: text("operator_name"),
+  operatorSupplierId: integer("operator_supplier_id").references(() => suppliersTable.id),
   tractorVehicleId: integer("tractor_vehicle_id"),
   tractorDescription: text("tractor_description"),
   trailerVehicleId: integer("trailer_vehicle_id"),
