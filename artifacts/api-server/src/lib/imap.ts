@@ -30,7 +30,7 @@ export interface FullEmail extends InboxEmail {
 }
 
 function createClient(): ImapFlow {
-  return new ImapFlow({
+  const client = new ImapFlow({
     host: IMAP_HOST,
     port: IMAP_PORT,
     secure: true,
@@ -43,6 +43,11 @@ function createClient(): ImapFlow {
       rejectUnauthorized: false,
     },
   });
+  // Prevent unhandled 'error' events from crashing the process when the
+  // underlying TLS socket drops mid-write (EPIPE). Errors are still caught
+  // by the try/catch in each exported function.
+  client.on("error", () => {});
+  return client;
 }
 
 function addressString(addr: AddressObject | AddressObject[] | undefined): string {

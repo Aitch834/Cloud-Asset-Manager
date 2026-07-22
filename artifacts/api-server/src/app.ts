@@ -106,14 +106,12 @@ const authLimiter = rateLimit({
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
-  // Key by authenticated userId when available, fall back to IP.
-  // Strip IPv4-mapped IPv6 prefix (::ffff:) so IPv4 and IPv6 addresses for the
-  // same host are treated as the same key, avoiding ERR_ERL_KEY_GEN_IPV6.
+  // Key by authenticated userId when available, fall back to IP via the
+  // library's ipKeyGenerator helper (handles IPv6 correctly per ERR_ERL_KEY_GEN_IPV6).
   keyGenerator: (req: Request) => {
     const userId = (req as Request & { userId?: string }).userId;
     if (userId) return userId;
-    const raw = req.ip ?? req.socket?.remoteAddress ?? "unknown";
-    return raw.replace(/^::ffff:/, "");
+    return ipKeyGenerator(req);
   },
   message: { error: "Too many requests, please try again later." },
 });
@@ -127,8 +125,7 @@ const uploadLimiter = rateLimit({
   keyGenerator: (req: Request) => {
     const userId = (req as Request & { userId?: string }).userId;
     if (userId) return userId;
-    const raw = req.ip ?? req.socket?.remoteAddress ?? "unknown";
-    return raw.replace(/^::ffff:/, "");
+    return ipKeyGenerator(req);
   },
   message: { error: "Upload request limit reached, please wait before uploading more files." },
 });
