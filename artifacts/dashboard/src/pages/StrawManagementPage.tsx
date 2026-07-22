@@ -120,11 +120,13 @@ function BalingDialog({ open, onClose, farmId, editRow }: { open: boolean; onClo
   const { data: fields = [] } = useQuery<any[]>({
     queryKey: ["fields", farmId],
     queryFn: async () => { const r = await fetch(`/api/farms/${farmId}/fields`, { credentials: "include" }); return r.ok ? r.json() : []; },
+    select: (d: any) => Array.isArray(d) ? d : (d?.records ?? []),
     enabled: open && !!farmId, staleTime: 60_000,
   });
   const { data: equipment = [] } = useQuery<any[]>({
     queryKey: ["equipment", farmId],
     queryFn: async () => { const r = await fetch(`/api/farms/${farmId}/equipment`, { credentials: "include" }); return r.ok ? r.json() : []; },
+    select: (d: any) => Array.isArray(d) ? d : (d?.records ?? []),
     enabled: open && !!farmId, staleTime: 60_000,
   });
 
@@ -357,6 +359,7 @@ function CartageDialog({ open, onClose, farmId, balingOp, editRow }: { open: boo
   const { data: equipment = [] } = useQuery<any[]>({
     queryKey: ["equipment", farmId],
     queryFn: async () => { const r = await fetch(`/api/farms/${farmId}/equipment`, { credentials: "include" }); return r.ok ? r.json() : []; },
+    select: (d: any) => Array.isArray(d) ? d : (d?.records ?? []),
     enabled: open && !!farmId, staleTime: 60_000,
   });
   const tractors = equipment.filter((e: any) => /tractor|power unit/i.test(e.type ?? ""));
@@ -633,11 +636,13 @@ function InventoryDialog({ open, onClose, farmId, editRow, existingInventory, ba
   const { data: fields = [] } = useQuery<any[]>({
     queryKey: ["fields", farmId],
     queryFn: async () => { const r = await fetch(`/api/farms/${farmId}/fields`, { credentials: "include" }); return r.ok ? r.json() : []; },
+    select: (d: any) => Array.isArray(d) ? d : (d?.records ?? []),
     enabled: open && !!farmId, staleTime: 60_000,
   });
   const { data: fieldCrops = [] } = useQuery<any[]>({
     queryKey: ["field-crops", farmId],
     queryFn: async () => { const r = await fetch(`/api/farms/${farmId}/field-crops`, { credentials: "include" }); return r.ok ? r.json() : []; },
+    select: (d: any) => Array.isArray(d) ? d : (d?.records ?? []),
     enabled: open && !!farmId, staleTime: 60_000,
   });
 
