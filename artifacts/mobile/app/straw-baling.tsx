@@ -15,12 +15,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
+import { FieldPicker } from "@/components/ui/FieldPicker";
 import { Input } from "@/components/ui/Input";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useApiFields } from "@/lib/hooks/useApiFields";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 
 const STRAW_TYPES = ["Wheat Straw", "Barley Straw", "Oat Straw", "Oilseed Rape Straw"];
@@ -32,6 +34,7 @@ export default function StrawBalingScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { fields, loading: fieldsLoading, error: fieldsError } = useApiFields(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
   const [operationDate, setOperationDate] = useState(
@@ -157,11 +160,17 @@ export default function StrawBalingScreen() {
           />
 
           <Text style={styles.label}>Field of Origin</Text>
-          <Input
+          <FieldPicker
+            label="Field of Origin"
             value={fieldOfOrigin}
-            onChangeText={setFieldOfOrigin}
-            placeholder="e.g. North Field, Home Farm"
-            style={styles.input}
+            onChange={setFieldOfOrigin}
+            onChangeField={(f) => {
+              const ha = f.computedFarmableAreaHa ?? f.areaHectares;
+              if (ha && parseFloat(String(ha)) > 0 && !areaHa) setAreaHa(parseFloat(String(ha)).toFixed(2));
+            }}
+            fields={fields}
+            loading={fieldsLoading}
+            error={fieldsError}
           />
 
           <Text style={styles.label}>Straw Type</Text>

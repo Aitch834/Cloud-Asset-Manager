@@ -240,6 +240,10 @@ export default function HarvestRecordScreen() {
             label="Field"
             value={fieldName}
             onChange={setFieldName}
+            onChangeField={(f) => {
+              const ha = f.computedFarmableAreaHa ?? f.areaHectares;
+              if (ha && parseFloat(String(ha)) > 0) setAreaHarvestedHa(parseFloat(String(ha)).toFixed(2));
+            }}
             fields={fields}
             loading={fieldsLoading}
             error={fieldsError}
@@ -298,6 +302,18 @@ export default function HarvestRecordScreen() {
             onChangeText={setAreaHarvestedHa}
             keyboardType="decimal-pad"
           />
+          {yieldUnit === "t/ha" && yieldAmount && areaHarvestedHa &&
+            parseFloat(yieldAmount) > 0 && parseFloat(areaHarvestedHa) > 0 ? (
+            <View style={styles.calcCard}>
+              <Feather name="trending-up" size={14} color={colors.primary} />
+              <Text style={styles.calcText}>
+                Est. total yield:{" "}
+                <Text style={styles.calcValue}>
+                  {(parseFloat(yieldAmount) * parseFloat(areaHarvestedHa)).toFixed(1)} t
+                </Text>
+              </Text>
+            </View>
+          ) : null}
           <Input
             label="Moisture %"
             placeholder="e.g. 15"
@@ -576,5 +592,26 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: fontSize.xs,
     color: "#15803d",
+  },
+  calcCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: "#eff6ff",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  calcText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  calcValue: {
+    fontFamily: fonts.semiBold,
+    color: colors.primary,
   },
 });

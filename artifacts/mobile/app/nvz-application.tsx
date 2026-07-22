@@ -140,6 +140,10 @@ export default function NvzApplicationScreen() {
             label="Field"
             value={fieldName}
             onChange={setFieldName}
+            onChangeField={(f) => {
+              const ha = f.computedFarmableAreaHa ?? f.areaHectares;
+              if (ha && parseFloat(String(ha)) > 0) setAreaAppliedHa(parseFloat(String(ha)).toFixed(2));
+            }}
             fields={fields}
             loading={fieldsLoading}
             error={fieldsError}

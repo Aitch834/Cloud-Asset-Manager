@@ -220,7 +220,7 @@ export default function OrganicArableInputScreen() {
 
             <View style={styles.field}>
               <Text style={styles.label}>Field</Text>
-              <FieldPicker fields={fields} loading={fieldsLoading} value={fieldName} onChange={setFieldName} label="Field (optional)" error={null} />
+              <FieldPicker fields={fields} loading={fieldsLoading} value={fieldName} onChange={setFieldName} onChangeField={(f) => { const ha = f.computedFarmableAreaHa ?? f.areaHectares; if (ha && parseFloat(String(ha)) > 0) setAreaAppliedHa(parseFloat(String(ha)).toFixed(2)); }} label="Field (optional)" error={null} />
             </View>
 
             <View style={styles.row}>
