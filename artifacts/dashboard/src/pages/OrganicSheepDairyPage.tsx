@@ -18,9 +18,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { MastitisTab, BcsTab, BulkTankTab, MvTab, AssuranceTab } from "@/pages/SheepDairyPage";
-import { SccEquipmentSection } from "@/pages/DairyPage";
+import { MastitisTab, BcsTab, BulkTankTab, MvTab, AssuranceTab, SheepLambingTab, TuppingTab, TreatmentRegisterTab } from "@/pages/SheepDairyPage";
+import { SccEquipmentSection, AbrKitStockSection } from "@/pages/DairyPage";
 import { AbrProcurementSection } from "@/pages/dairy/AbrProcurementSection";
+import { DairyEnterpriseReport } from "@/components/DairyEnterpriseReport";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 
 const BASE = import.meta.env.BASE_URL;
@@ -73,7 +74,7 @@ const PRODUCT_CATEGORIES = ["Antibiotic", "NSAID", "Anthelmintic", "Antiparasiti
 const ROUTES_OF_ADMINISTRATION = ["Intramuscular (IM)", "Subcutaneous (SC)", "Intravenous (IV)", "Oral", "Intramammary", "Topical", "Other"];
 
 import { DairySuppliesTab } from "@/components/DairySuppliesTab";
-type Tab = "tupping" | "conversion" | "collections" | "feed" | "treatments" | "mastitis" | "bcs" | "tank" | "mv" | "assurance" | "abr-kit" | "scc-equipment" | "supplies";
+type Tab = "tupping" | "conversion" | "collections" | "feed" | "treatments" | "mastitis" | "kidding" | "bcs" | "tank" | "mv" | "assurance" | "abr-kit" | "scc-equipment" | "enterprise" | "supplies";
 
 export default function OrganicSheepDairyPage() {
   const { farmId } = useAppStore();
@@ -99,12 +100,14 @@ export default function OrganicSheepDairyPage() {
           <TabButton active={tab === "feed"} onClick={() => setTab("feed")}>Feed &amp; Nutrition</TabButton>
           <TabButton active={tab === "treatments"} onClick={() => setTab("treatments")}>Vet Treatments</TabButton>
           <TabButton active={tab === "mastitis"} onClick={() => setTab("mastitis")}>Mastitis</TabButton>
+          <TabButton active={tab === "kidding"} onClick={() => setTab("kidding")}>Lambing Records</TabButton>
           <TabButton active={tab === "bcs"} onClick={() => setTab("bcs")}>Body Condition</TabButton>
           <TabButton active={tab === "tank"} onClick={() => setTab("tank")}>Bulk Tank</TabButton>
           <TabButton active={tab === "mv"} onClick={() => setTab("mv")}>Maedi-Visna</TabButton>
           <TabButton active={tab === "assurance"} onClick={() => setTab("assurance")}>Assurance</TabButton>
           <TabButton active={tab === "abr-kit"} onClick={() => setTab("abr-kit")}>ABR Kit Stock</TabButton>
           <TabButton active={tab === "scc-equipment"} onClick={() => setTab("scc-equipment")}>SCC Equipment</TabButton>
+          <TabButton active={tab === "enterprise"} onClick={() => setTab("enterprise")}>Enterprise Report</TabButton>
           <TabButton active={tab === "supplies"} onClick={() => setTab("supplies")}>Supplies</TabButton>
         </TabBar>
         <div className="mt-6">
@@ -114,12 +117,14 @@ export default function OrganicSheepDairyPage() {
           {tab === "feed" && <FeedNutritionTab farmId={farmId} />}
           {tab === "treatments" && <TreatmentRegisterTab farmId={farmId} />}
           {tab === "mastitis" && <MastitisTab farmId={farmId} />}
+          {tab === "kidding" && <SheepLambingTab farmId={farmId} />}
           {tab === "bcs" && <BcsTab farmId={farmId} />}
           {tab === "tank" && <BulkTankTab farmId={farmId} />}
           {tab === "mv" && <MvTab farmId={farmId} />}
           {tab === "assurance" && <AssuranceTab />}
-          {tab === "abr-kit" && <AbrProcurementSection farmId={farmId} />}
+          {tab === "abr-kit" && <div className="space-y-6"><AbrKitStockSection farmId={farmId} /><AbrProcurementSection farmId={farmId} /></div>}
           {tab === "scc-equipment" && <SccEquipmentSection farmId={farmId} species="sheep" />}
+          {tab === "enterprise" && <DairyEnterpriseReport farmId={farmId} endpoint={api(`farms/${farmId}/sheep-dairy-enterprise-report`)} queryPrefix="organic-sheep-dairy-enterprise" speciesNote="Milk income from organic sheep dairy collection records. Feed cost and other variable costs not yet included — add via Financial for a complete P&L." />}
           {tab === "supplies" && <DairySuppliesTab farmId={farmId} dairyType="organic-sheep" />}
         </div>
       </div>
@@ -160,17 +165,6 @@ interface FeedRecord {
   isOrganicApproved: boolean; quantityKg?: string | null; organicPercentage?: string | null;
   dryMatterKg?: string | null; poReference?: string | null; grnReference?: string | null;
   certifierApprovalRef?: string | null; derogationReference?: string | null; notes?: string | null;
-}
-
-interface TreatmentRecord {
-  id: number; treatmentDate: string; animalLisTags?: string | null; numberOfAnimals?: number | null;
-  productName: string; productCategory?: string | null; activeIngredient?: string | null;
-  doseAmount?: string | null; routeOfAdministration?: string | null; vetName?: string | null;
-  prescriptionRef?: string | null;
-  standardMilkWithdrawalDays?: number | null; doubledMilkWithdrawalDays?: number | null;
-  standardMeatWithdrawalDays?: number | null; doubledMeatWithdrawalDays?: number | null;
-  milkWithdrawalEndDate?: string | null; meatWithdrawalEndDate?: string | null;
-  certifierNotified: boolean; treatmentNumber: number; notes?: string | null;
 }
 
 // ─── FlockConversionTab ───────────────────────────────────────────────────────
@@ -904,516 +898,5 @@ function FeedNutritionTab({ farmId }: { farmId: number }) {
   );
 }
 
-// ─── TreatmentRegisterTab ─────────────────────────────────────────────────────
+// TreatmentRegisterTab and TuppingTab are imported from SheepDairyPage above.
 
-function TreatmentRegisterTab({ farmId }: { farmId: number }) {
-  const qc = useQueryClient();
-  const { toast } = useToast();
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<TreatmentRecord | null>(null);
-  const [viewRec, setViewRec] = useState<TreatmentRecord | null>(null);
-  const blank: Partial<TreatmentRecord> = { treatmentDate: today(), certifierNotified: false, treatmentNumber: 1 };
-  const [form, setForm] = useState<Partial<TreatmentRecord>>(blank);
-  const f = (k: keyof TreatmentRecord) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm(p => ({ ...p, [k]: e.target.value }));
-
-  const { data, isLoading } = useQuery({
-    queryKey: ["org-sheep-treatments", farmId],
-    queryFn: () => fetch(api(`farms/${farmId}/organic-sheep-dairy/treatments`)).then(r => r.json()),
-  });
-  const records: TreatmentRecord[] = data?.records ?? [];
-  const uncertifiedCount = records.filter(r => !r.certifierNotified).length;
-
-  function autoDoubled(stdDays: number | null | undefined): number | null {
-    if (!stdDays) return null;
-    return stdDays * 2;
-  }
-
-  const save = useMutation({
-    mutationFn: () => fetch(api(`farms/${farmId}/organic-sheep-dairy/treatments${editing ? `/${editing.id}` : ""}`), {
-      method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
-    }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-sheep-treatments", farmId] }); setOpen(false); toast({ title: editing ? "Record updated" : "Treatment recorded" }); },
-    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
-  });
-
-  const remove = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-sheep-dairy/treatments/${id}`), { method: "DELETE" }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-sheep-treatments", farmId] }); toast({ title: "Record deleted" }); },
-  });
-
-  function openNew() { setEditing(null); setForm(blank); setOpen(true); }
-  function openEdit(r: TreatmentRecord) { setEditing(r); setForm(r); setOpen(true); }
-
-  return (
-    <div className="space-y-4">
-      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-        <strong>Organic rule:</strong> Statutory withdrawal periods must be DOUBLED for all veterinary treatments on organic animals. Record both the standard and doubled periods below.
-      </div>
-      {uncertifiedCount > 0 && (
-        <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-          <span>{uncertifiedCount} treatment{uncertifiedCount !== 1 ? "s" : ""} where certifier has not been notified.</span>
-        </div>
-      )}
-      <div className="flex justify-end">
-        <Button onClick={openNew} size="sm"><Plus className="h-4 w-4 mr-1" />Add Treatment</Button>
-      </div>
-      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Date</TableHead>
-              <TableHead>Animal LIS Tags</TableHead>
-              <TableHead>Product</TableHead>
-              <TableHead>Dbl Milk W/D</TableHead>
-              <TableHead>Milk W/D End</TableHead>
-              <TableHead>Cert Notified</TableHead>
-              <TableHead className="w-24" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {records.length === 0 && (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No treatment records yet.</TableCell></TableRow>
-            )}
-            {records.map(r => (
-              <TableRow key={r.id}>
-                <TableCell className="font-medium">{fmt(r.treatmentDate)}</TableCell>
-                <TableCell className="font-mono text-xs max-w-[120px] truncate">{r.animalLisTags || "—"}</TableCell>
-                <TableCell>{r.productName}</TableCell>
-                <TableCell>
-                  {r.doubledMilkWithdrawalDays != null ? (
-                    <Badge className="bg-blue-100 text-blue-800">{r.doubledMilkWithdrawalDays}d</Badge>
-                  ) : "—"}
-                </TableCell>
-                <TableCell>{fmt(r.milkWithdrawalEndDate)}</TableCell>
-                <TableCell>
-                  <Badge className={r.certifierNotified ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}>
-                    {r.certifierNotified ? "Yes" : "Pending"}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRec(r)}><Eye className="h-3.5 w-3.5" /></Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => remove.mutate(r.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-
-      {viewRec && (
-        <Dialog open onOpenChange={() => setViewRec(null)}>
-          <DialogContent style={{ maxWidth: "44rem" }}>
-            <DialogHeader><DialogTitle>Vet Treatment — {viewRec.productName}</DialogTitle></DialogHeader>
-            <div className="grid grid-cols-2 gap-4 text-sm py-2">
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Treatment Date</p><p className="font-medium">{fmt(viewRec.treatmentDate)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Treatment No.</p><p className="font-medium">{viewRec.treatmentNumber}</p></div>
-              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Animal LIS Tags</p><p className="font-medium font-mono text-xs">{fmtRaw(viewRec.animalLisTags)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Number of Animals</p><p className="font-medium">{fmtRaw(viewRec.numberOfAnimals)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product Name</p><p className="font-medium">{fmtRaw(viewRec.productName)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Category</p><p className="font-medium">{fmtRaw(viewRec.productCategory)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Active Ingredient</p><p className="font-medium">{fmtRaw(viewRec.activeIngredient)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Dose</p><p className="font-medium">{fmtRaw(viewRec.doseAmount)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Route</p><p className="font-medium">{fmtRaw(viewRec.routeOfAdministration)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet</p><p className="font-medium">{fmtRaw(viewRec.vetName)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Prescription Ref</p><p className="font-medium">{fmtRaw(viewRec.prescriptionRef)}</p></div>
-              <div className="col-span-2 border-t pt-2 mt-1"><p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2">⚠ Organic — Doubled Withdrawal Periods</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Standard Milk W/D (days)</p><p className="font-medium">{fmtRaw(viewRec.standardMilkWithdrawalDays)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Doubled Milk W/D (days)</p><p className="font-medium text-blue-800 font-bold">{fmtRaw(viewRec.doubledMilkWithdrawalDays)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Standard Meat W/D (days)</p><p className="font-medium">{fmtRaw(viewRec.standardMeatWithdrawalDays)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Doubled Meat W/D (days)</p><p className="font-medium text-blue-800 font-bold">{fmtRaw(viewRec.doubledMeatWithdrawalDays)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Milk W/D End Date</p><p className="font-medium">{fmt(viewRec.milkWithdrawalEndDate)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Meat W/D End Date</p><p className="font-medium">{fmt(viewRec.meatWithdrawalEndDate)}</p></div>
-              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Notified</p><p className="font-medium">{viewRec.certifierNotified ? "Yes" : "No — pending notification"}</p></div>
-              {viewRec.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRec.notes}</p></div>}
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => { openEdit(viewRec); setViewRec(null); }}>Edit</Button>
-              <Button onClick={() => setViewRec(null)}>Close</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit Treatment" : "Record Vet Treatment"}</DialogTitle>
-            <DialogDescription>All withdrawal periods must be DOUBLED for organic animals under UK Organic Regulations.</DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-2">
-            <div className="space-y-1"><Label>Treatment Date *</Label><Input type="date" value={String(form.treatmentDate ?? "").slice(0, 10)} onChange={f("treatmentDate")} /></div>
-            <div className="space-y-1"><Label>Treatment No.</Label><Input type="number" value={form.treatmentNumber ?? 1} onChange={e => setForm(p => ({ ...p, treatmentNumber: Number(e.target.value) }))} /></div>
-            <div className="col-span-2 space-y-1"><Label>Animal LIS Tags (comma-separated)</Label><Input value={form.animalLisTags ?? ""} onChange={f("animalLisTags")} placeholder="e.g. UK123456789012, UK123456789013" /></div>
-            <div className="space-y-1"><Label>Number of Animals</Label><Input type="number" value={form.numberOfAnimals ?? ""} onChange={e => setForm(p => ({ ...p, numberOfAnimals: e.target.value ? Number(e.target.value) : null }))} /></div>
-            <div className="space-y-1">
-              <Label>Product Category</Label>
-              <Select value={form.productCategory ?? "__none__"} onValueChange={v => setForm(p => ({ ...p, productCategory: v === "__none__" ? null : v }))}>
-                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-                <SelectContent>{PRODUCT_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="col-span-2 space-y-1"><Label>Product Name *</Label><Input value={form.productName ?? ""} onChange={f("productName")} /></div>
-            <div className="space-y-1"><Label>Active Ingredient</Label><Input value={form.activeIngredient ?? ""} onChange={f("activeIngredient")} /></div>
-            <div className="space-y-1"><Label>Dose Amount</Label><Input value={form.doseAmount ?? ""} onChange={f("doseAmount")} /></div>
-            <div className="space-y-1">
-              <Label>Route of Administration</Label>
-              <Select value={form.routeOfAdministration ?? "__none__"} onValueChange={v => setForm(p => ({ ...p, routeOfAdministration: v === "__none__" ? null : v }))}>
-                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-                <SelectContent>{ROUTES_OF_ADMINISTRATION.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1"><Label>Vet Name</Label><Input value={form.vetName ?? ""} onChange={f("vetName")} /></div>
-            <div className="col-span-2 space-y-1"><Label>Prescription Reference</Label><Input value={form.prescriptionRef ?? ""} onChange={f("prescriptionRef")} /></div>
-            <div className="col-span-2 border-t pt-2"><p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">⚠ Doubled Withdrawal Periods</p></div>
-            <div className="space-y-1"><Label>Standard Milk W/D (days)</Label><Input type="number" value={form.standardMilkWithdrawalDays ?? ""} onChange={e => { const v = e.target.value ? Number(e.target.value) : null; setForm(p => ({ ...p, standardMilkWithdrawalDays: v, doubledMilkWithdrawalDays: autoDoubled(v) })); }} /></div>
-            <div className="space-y-1"><Label className="text-blue-700">Doubled Milk W/D (days)</Label><Input type="number" value={form.doubledMilkWithdrawalDays ?? ""} onChange={e => setForm(p => ({ ...p, doubledMilkWithdrawalDays: e.target.value ? Number(e.target.value) : null }))} className="border-blue-300" /></div>
-            <div className="space-y-1"><Label>Standard Meat W/D (days)</Label><Input type="number" value={form.standardMeatWithdrawalDays ?? ""} onChange={e => { const v = e.target.value ? Number(e.target.value) : null; setForm(p => ({ ...p, standardMeatWithdrawalDays: v, doubledMeatWithdrawalDays: autoDoubled(v) })); }} /></div>
-            <div className="space-y-1"><Label className="text-blue-700">Doubled Meat W/D (days)</Label><Input type="number" value={form.doubledMeatWithdrawalDays ?? ""} onChange={e => setForm(p => ({ ...p, doubledMeatWithdrawalDays: e.target.value ? Number(e.target.value) : null }))} className="border-blue-300" /></div>
-            <div className="space-y-1"><Label>Milk W/D End Date</Label><Input type="date" value={String(form.milkWithdrawalEndDate ?? "").slice(0, 10)} onChange={f("milkWithdrawalEndDate")} /></div>
-            <div className="space-y-1"><Label>Meat W/D End Date</Label><Input type="date" value={String(form.meatWithdrawalEndDate ?? "").slice(0, 10)} onChange={f("meatWithdrawalEndDate")} /></div>
-            <div className="col-span-2 flex items-center gap-3 rounded-md border px-3 py-2 bg-muted/30">
-              <Checkbox checked={form.certifierNotified ?? false} onCheckedChange={v => setForm(p => ({ ...p, certifierNotified: !!v }))} id="cert-notified" />
-              <Label htmlFor="cert-notified" className="cursor-pointer font-normal">Certifier has been notified of this treatment</Label>
-            </div>
-            <div className="col-span-2 space-y-1"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={f("notes")} rows={2} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={() => save.mutate()} disabled={!form.productName || save.isPending}>
-              {save.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-// ─── Organic Tupping Tab ──────────────────────────────────────────────────────
-
-interface TuppingRecord {
-  id: number;
-  tuppingStartDate: string;
-  tuppingEndDate?: string | null;
-  ramBreed?: string | null;
-  ramTagNumber?: string | null;
-  ramSource?: string | null;
-  ewesExposed?: number | null;
-  tuppingMethod?: string | null;
-  harnessColour?: string | null;
-  progesteroneUsed?: boolean | null;
-  expectedLambingStart?: string | null;
-  expectedLambingEnd?: string | null;
-  notes?: string | null;
-}
-
-function TuppingTab({ farmId }: { farmId: number }) {
-  const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<TuppingRecord | null>(null);
-  const [viewing, setViewing] = useState<TuppingRecord | null>(null);
-  const [form, setForm] = useState<Record<string, string>>({});
-  const [yearFilter, setYearFilter] = useState<string>("all");
-
-  const { data: rows = [], isLoading } = useQuery<TuppingRecord[]>({
-    queryKey: ["sheep-tupping", farmId],
-    queryFn: () => fetch(api(`farms/${farmId}/sheep-tupping-records`), { credentials: "include" }).then(r => r.json()),
-  });
-
-  const save = useMutation({
-    mutationFn: async (body: Record<string, unknown>) => {
-      const url = editing
-        ? api(`farms/${farmId}/sheep-tupping-records/${editing.id}`)
-        : api(`farms/${farmId}/sheep-tupping-records`);
-      const res = await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
-      const tupping = await res.json();
-      const cidrUsed = body.progesteroneUsed === "true" || body.progesteroneUsed === true;
-      if (cidrUsed && body.cidrProductName) {
-        const adminDate = body.cidrAdminDate || body.tuppingStartDate;
-        const wdDays = parseInt(String(body.cidrWithdrawalDays ?? "1")) || 1;
-        const doubledWd = parseInt(String(body.cidrDoubledWd ?? String(wdDays * 2))) || wdDays * 2;
-        const wdEnd = adminDate ? new Date(new Date(String(adminDate)).getTime() + doubledWd * 86400000).toISOString().slice(0, 10) : null;
-        await fetch(api(`farms/${farmId}/medicine-records`), {
-          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-          body: JSON.stringify({
-            medicineName: body.cidrProductName, batchNumber: body.cidrBatchNumber || null,
-            dosage: body.cidrDosePerEwe || "1 device per ewe",
-            administrationRoute: body.cidrRoute || "Intravaginal",
-            administeredBy: body.cidrAdministeredBy || null, administeredDate: adminDate,
-            vetName: body.cidrPrescribingVet || null, treatmentScope: "group",
-            treatedAnimalCount: body.ewesExposed ? parseInt(String(body.ewesExposed)) : null,
-            withdrawalPeriodDays: wdDays, doubledWithdrawalDays: doubledWd,
-            withdrawalEndDate: wdEnd, organicWithdrawalEndDate: wdEnd,
-            isOrganicTreatment: true, certifierNotified: body.certifierNotified === "true",
-            reason: body.cidrTherapeuticReason ? `Therapeutic: ${String(body.cidrTherapeuticReason)}` : "Progesterone/CIDR — organic therapeutic use",
-            notes: `Tupping: ${body.tuppingStartDate} → ${body.tuppingEndDate || "—"} | Ram: ${body.ramBreed || ""} ${body.ramTagNumber || ""} | Rx ref: ${body.cidrPrescriptionRef || "—"} | Practice: ${body.cidrVetPractice || "—"} | ORGANIC: doubled withdrawal applied`,
-            source: "tupping-record",
-          }),
-        });
-      }
-      if (cidrUsed && body.createVetVisit === "true" && body.cidrPrescribingVet) {
-        await fetch(api(`farms/${farmId}/vet-visits`), {
-          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-          body: JSON.stringify({
-            visitDate: body.cidrAdminDate || body.tuppingStartDate,
-            vetName: body.cidrPrescribingVet, vetPractice: body.cidrVetPractice || null,
-            reasonForVisit: "POM-V prescription — Progesterone/CIDR (organic therapeutic use)",
-            treatmentsCarriedOut: `${body.cidrProductName || "CIDR/Progesterone"} — ${body.ewesExposed || "?"} ewes. Therapeutic: ${body.cidrTherapeuticReason || "not specified"}`,
-            prescriptionsIssued: body.cidrPrescriptionRef || null,
-            notes: `Tupping: ${body.tuppingStartDate} → ${body.tuppingEndDate || "—"} | Organic — doubled withdrawal applied`,
-          }),
-        });
-      }
-      if (cidrUsed && body.cidrCostGbp && parseFloat(String(body.cidrCostGbp)) > 0) {
-        await fetch(api(`farms/${farmId}/financial-transactions`), {
-          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-          body: JSON.stringify({
-            transactionType: "expense", category: "Veterinary & Medicine",
-            description: `${body.cidrProductName || "CIDR/Progesterone"} — ${body.ewesExposed || ""} ewes [ORGANIC] (tupping ${body.tuppingStartDate})`,
-            amountPence: Math.round(parseFloat(String(body.cidrCostGbp)) * 100),
-            transactionDate: body.cidrAdminDate || body.tuppingStartDate,
-            reference: body.cidrPrescriptionRef || null, vendorCustomer: body.cidrVetPractice || null,
-            notes: "Auto-created from organic tupping record (CIDR/Progesterone cost)",
-          }),
-        });
-      }
-      return tupping;
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-tupping", farmId] }); qc.invalidateQueries({ queryKey: ["medicine-records", farmId] }); setOpen(false); setForm({}); setEditing(null); },
-  });
-
-  const del = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-tupping-records/${id}`), { method: "DELETE", credentials: "include" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["sheep-tupping", farmId] }),
-  });
-
-  const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
-  function openAdd() { setEditing(null); setForm({ progesteroneUsed: "false" }); setOpen(true); }
-  function openEdit(r: TuppingRecord) {
-    setEditing(r);
-    setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
-    setOpen(true);
-  }
-
-  const years = useMemo(() =>
-    Array.from(new Set(rows.map(r => String(r.tuppingStartDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(),
-    [rows]
-  );
-  const filtered = useMemo(() =>
-    yearFilter === "all" ? rows : rows.filter(r => String(r.tuppingStartDate ?? "").startsWith(yearFilter)),
-    [rows, yearFilter]
-  );
-
-  const fmtD = (v?: string | null) => v ? new Date(v).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—";
-  const fmtV = (v: unknown) => v == null || v === "" ? "—" : String(v);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap justify-between items-center gap-2">
-        <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-sm">Tupping Records</h3>
-          <Select value={yearFilter} onValueChange={setYearFilter}>
-            <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All years</SelectItem>
-              {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
-      </div>
-
-      {isLoading ? (
-        <div className="flex justify-center py-8"><Loader2 className="animate-spin w-5 h-5 text-muted-foreground" /></div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground text-sm">No tupping records for this period.</div>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Start Date</TableHead>
-              <TableHead>End Date</TableHead>
-              <TableHead>Ram Breed</TableHead>
-              <TableHead>Ram Tag</TableHead>
-              <TableHead>Ewes Exposed</TableHead>
-              <TableHead>Expected Lambing</TableHead>
-              <TableHead>Progesterone</TableHead>
-              <TableHead></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell>{fmtD(r.tuppingStartDate)}</TableCell>
-                <TableCell>{fmtD(r.tuppingEndDate)}</TableCell>
-                <TableCell>{fmtV(r.ramBreed)}</TableCell>
-                <TableCell>{fmtV(r.ramTagNumber)}</TableCell>
-                <TableCell>{fmtV(r.ewesExposed)}</TableCell>
-                <TableCell>{fmtD(r.expectedLambingStart)}</TableCell>
-                <TableCell>
-                  {r.progesteroneUsed ? (
-                    <Badge className="bg-red-100 text-red-700 border border-red-200 text-xs font-medium">CIDR / Prog. ⚠</Badge>
-                  ) : null}
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewing(r)}><Eye className="h-3.5 w-3.5" /></Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => del.mutate(r.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-
-      <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
-        <DialogContent style={{ maxWidth: "36rem" }}>
-          <DialogHeader><DialogTitle>Tupping Record Details</DialogTitle></DialogHeader>
-          {viewing && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                {([
-                  ["Start Date", fmtD(viewing.tuppingStartDate)],
-                  ["End Date", fmtD(viewing.tuppingEndDate)],
-                  ["Ram Breed", fmtV(viewing.ramBreed)],
-                  ["Ram Tag", fmtV(viewing.ramTagNumber)],
-                  ["Ram Source", fmtV(viewing.ramSource)],
-                  ["Ewes Exposed", fmtV(viewing.ewesExposed)],
-                  ["Tupping Method", fmtV(viewing.tuppingMethod)],
-                  ["Harness Colour", fmtV(viewing.harnessColour)],
-                  ["Expected Lambing Start", fmtD(viewing.expectedLambingStart)],
-                  ["Expected Lambing End", fmtD(viewing.expectedLambingEnd)],
-                ] as [string, string][]).map(([label, value]) => (
-                  <div key={label}>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">{label}</p>
-                    <p className="font-medium">{value}</p>
-                  </div>
-                ))}
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide">Progesterone / CIDR</p>
-                <p className="font-medium">{viewing.progesteroneUsed ? "Yes" : "No"}</p>
-              </div>
-              {viewing.progesteroneUsed && (
-                <div className="flex gap-2 rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-800">
-                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-600" />
-                  <span><strong>Organic Restriction:</strong> Synthetic progesterone / CIDR used for reproductive synchronisation is a prohibited input under UK Organic Regulations. Ensure a Vet Treatment record exists in the Vet Treatments tab with doubled withdrawal periods applied and certifier notification recorded.</span>
-                </div>
-              )}
-              {viewing.notes && (
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p>
-                  <p className="font-medium">{fmtV(viewing.notes)}</p>
-                </div>
-              )}
-            </div>
-          )}
-          <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit" : "Add"} Tupping Record</DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-3 py-2">
-            <div className="space-y-1"><Label>Start Date *</Label><Input type="date" value={form.tuppingStartDate ?? ""} onChange={e => sf("tuppingStartDate", e.target.value)} /></div>
-            <div className="space-y-1"><Label>End Date</Label><Input type="date" value={form.tuppingEndDate ?? ""} onChange={e => sf("tuppingEndDate", e.target.value)} /></div>
-            <div className="space-y-1">
-              <Label>Ram Breed</Label>
-              <Select value={form.ramBreed ?? ""} onValueChange={v => sf("ramBreed", v)}>
-                <SelectTrigger><SelectValue placeholder="Select breed..." /></SelectTrigger>
-                <SelectContent>{["Suffolk","Texel","Charollais","Beltex","Bluefaced Leicester","Border Leicester","Hampshire Down","Poll Dorset","Rouge de l'Ouest","Vendeen","Lleyn","Cheviot","Swaledale","Herdwick","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1"><Label>Ram Tag Number</Label><Input value={form.ramTagNumber ?? ""} onChange={e => sf("ramTagNumber", e.target.value)} /></div>
-            <div className="space-y-1">
-              <Label>Ram Source</Label>
-              <Select value={form.ramSource ?? ""} onValueChange={v => sf("ramSource", v)}>
-                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                <SelectContent>{["Home bred","Purchased at auction/market","Private sale","AI centre","ET donor flock","Hired/loaned","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1"><Label>Ewes Exposed</Label><Input type="number" min="1" step="1" value={form.ewesExposed ?? ""} onChange={e => sf("ewesExposed", e.target.value)} /></div>
-            <div className="space-y-1">
-              <Label>Tupping Method</Label>
-              <Select value={form.tuppingMethod ?? ""} onValueChange={v => sf("tuppingMethod", v)}>
-                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                <SelectContent>{["Natural service","AI (fresh)","AI (frozen)","ET"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Harness Colour</Label>
-              <Select value={form.harnessColour ?? ""} onValueChange={v => sf("harnessColour", v)}>
-                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                <SelectContent>{["Red","Orange","Yellow","Green","Blue","Purple","Pink","None"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1"><Label>Expected Lambing Start</Label><Input type="date" value={form.expectedLambingStart ?? ""} onChange={e => sf("expectedLambingStart", e.target.value)} /></div>
-            <div className="space-y-1"><Label>Expected Lambing End</Label><Input type="date" value={form.expectedLambingEnd ?? ""} onChange={e => sf("expectedLambingEnd", e.target.value)} /></div>
-            <div className="col-span-2 flex items-center gap-2 rounded-md border px-3 py-2 bg-muted/30">
-              <Checkbox checked={form.progesteroneUsed === "true"} onCheckedChange={v => sf("progesteroneUsed", v ? "true" : "false")} id="prog-org" />
-              <Label htmlFor="prog-org" className="cursor-pointer font-normal">Progesterone / CIDR used (therapeutic use only — see below)</Label>
-            </div>
-            {form.progesteroneUsed === "true" && (
-              <div className="col-span-2 space-y-3 rounded-md border border-red-300 bg-red-50 p-4">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" />
-                  <span className="text-xs font-semibold text-red-800">⚠ Organic Restriction — UK Organic Regulations 2022, Schedule 2 (Prohibited Inputs)</span>
-                </div>
-                <p className="text-xs text-red-700">Synthetic progesterone / CIDR for reproductive synchronisation is <strong>prohibited</strong> in certified organic production. Therapeutic use for an individual animal's diagnosed medical condition, on veterinary prescription, may be permitted — complete all fields below and notify your certifying body.</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2 space-y-1"><Label className="text-xs">Therapeutic Reason *</Label><Input value={form.cidrTherapeuticReason ?? ""} onChange={e => sf("cidrTherapeuticReason", e.target.value)} placeholder="e.g. Treatment of individual ewe with prolonged anoestrus" /></div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Product Name</Label>
-                    <Select value={form.cidrProductName ?? ""} onValueChange={v => sf("cidrProductName", v)}>
-                      <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                      <SelectContent>{["Chronogest CR 0.3g (progesterone sponge)","Eazi-Breed CIDR Sheep (0.3g progesterone)","Chronogest CR 0.33g","Cue-Mate","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1"><Label className="text-xs">Batch Number</Label><Input value={form.cidrBatchNumber ?? ""} onChange={e => sf("cidrBatchNumber", e.target.value)} placeholder="e.g. B24031A" /></div>
-                  <div className="space-y-1"><Label className="text-xs">Dose per Animal</Label><Input value={form.cidrDosePerEwe ?? "1 sponge / device"} onChange={e => sf("cidrDosePerEwe", e.target.value)} /></div>
-                  <div className="space-y-1"><Label className="text-xs">Administered By</Label><Input value={form.cidrAdministeredBy ?? ""} onChange={e => sf("cidrAdministeredBy", e.target.value)} /></div>
-                  <div className="space-y-1"><Label className="text-xs">Administration Date</Label><Input type="date" value={form.cidrAdminDate || form.tuppingStartDate || ""} onChange={e => sf("cidrAdminDate", e.target.value)} /></div>
-                  <div className="space-y-1"><Label className="text-xs">Prescribing Vet *</Label><Input value={form.cidrPrescribingVet ?? ""} onChange={e => sf("cidrPrescribingVet", e.target.value)} placeholder="Mandatory for POM-V" /></div>
-                  <div className="space-y-1"><Label className="text-xs">Vet Practice</Label><Input value={form.cidrVetPractice ?? ""} onChange={e => sf("cidrVetPractice", e.target.value)} /></div>
-                  <div className="space-y-1"><Label className="text-xs">Prescription Reference</Label><Input value={form.cidrPrescriptionRef ?? ""} onChange={e => sf("cidrPrescriptionRef", e.target.value)} /></div>
-                  <div className="space-y-1"><Label className="text-xs">Standard Meat W/D (days)</Label><Input type="number" value={form.cidrWithdrawalDays ?? "1"} onChange={e => { sf("cidrWithdrawalDays", e.target.value); sf("cidrDoubledWd", String(parseInt(e.target.value || "1") * 2)); }} /></div>
-                  <div className="space-y-1"><Label className="text-xs font-semibold text-red-700">Doubled Organic W/D (days)</Label><Input type="number" value={form.cidrDoubledWd ?? "2"} onChange={e => sf("cidrDoubledWd", e.target.value)} className="border-red-300" /></div>
-                  <div className="space-y-1"><Label className="text-xs">Medicine Cost (£)</Label><Input type="number" step="0.01" value={form.cidrCostGbp ?? ""} onChange={e => sf("cidrCostGbp", e.target.value)} placeholder="Optional" /></div>
-                </div>
-                <div className="flex flex-col gap-2 pt-2 border-t border-red-200">
-                  <div className="flex items-center gap-2">
-                    <Checkbox checked={form.certifierNotified === "true"} onCheckedChange={v => sf("certifierNotified", v ? "true" : "false")} id="cert-notified-tupping" />
-                    <Label htmlFor="cert-notified-tupping" className="text-xs cursor-pointer font-normal text-red-900">Certifying body has been notified of this treatment</Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox checked={form.createVetVisit === "true"} onCheckedChange={v => sf("createVetVisit", v ? "true" : "false")} id="create-vet-visit-org" />
-                    <Label htmlFor="create-vet-visit-org" className="text-xs cursor-pointer font-normal text-red-900">Also create a Vet Visit entry in the Vet Ledger</Label>
-                  </div>
-                </div>
-                <p className="text-xs text-green-700 font-medium">✓ An organic Medicine Register entry (with doubled withdrawal) will be created automatically in Livestock → Medicines when saved.</p>
-              </div>
-            )}
-            <div className="col-span-2 space-y-1"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={() => save.mutate({ ...form })} disabled={!form.tuppingStartDate || save.isPending}>
-              {save.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
-              {editing ? "Save" : "Add"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}

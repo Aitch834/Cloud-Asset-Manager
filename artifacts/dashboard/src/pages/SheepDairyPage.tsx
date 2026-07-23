@@ -11,8 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Redirect, useLocation } from "wouter";
 import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, Eye, FileDown, Droplets, Printer, ChevronDown, ChevronRight } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { DocAttach } from "@/components/DocAttach";
 import { useToast } from "@/hooks/use-toast";
@@ -65,7 +68,40 @@ function ResultBadge({ v }: { v?: string | null }) {
 }
 
 import { DairySuppliesTab } from "@/components/DairySuppliesTab";
-type Tab = "milk" | "mastitis" | "kidding" | "bcs" | "tank" | "mv" | "assurance" | "abr-kit" | "scc-equipment" | "enterprise" | "supplies";
+
+function fmtRaw(v: unknown): string { return v == null || v === "" ? "—" : String(v); }
+
+const PRODUCT_CATEGORIES = ["Antibiotic", "NSAID", "Anthelmintic", "Antiparasitic", "Vaccine", "Homeopathic", "Other"];
+const ROUTES_OF_ADMINISTRATION = ["Intramuscular (IM)", "Subcutaneous (SC)", "Intravenous (IV)", "Oral", "Intramammary", "Topical", "Other"];
+
+interface TreatmentRecord {
+  id: number; treatmentDate: string; animalLisTags?: string | null; numberOfAnimals?: number | null;
+  productName: string; productCategory?: string | null; activeIngredient?: string | null;
+  doseAmount?: string | null; routeOfAdministration?: string | null; vetName?: string | null;
+  prescriptionRef?: string | null;
+  standardMilkWithdrawalDays?: number | null; doubledMilkWithdrawalDays?: number | null;
+  standardMeatWithdrawalDays?: number | null; doubledMeatWithdrawalDays?: number | null;
+  milkWithdrawalEndDate?: string | null; meatWithdrawalEndDate?: string | null;
+  certifierNotified: boolean; treatmentNumber: number; notes?: string | null;
+}
+
+interface TuppingRecord {
+  id: number;
+  tuppingStartDate: string;
+  tuppingEndDate?: string | null;
+  ramBreed?: string | null;
+  ramTagNumber?: string | null;
+  ramSource?: string | null;
+  ewesExposed?: number | null;
+  tuppingMethod?: string | null;
+  harnessColour?: string | null;
+  progesteroneUsed?: boolean | null;
+  expectedLambingStart?: string | null;
+  expectedLambingEnd?: string | null;
+  notes?: string | null;
+}
+
+type Tab = "milk" | "tupping" | "mastitis" | "kidding" | "treatments" | "bcs" | "tank" | "mv" | "assurance" | "abr-kit" | "scc-equipment" | "enterprise" | "supplies";
 
 export default function SheepDairyPage() {
   const { farmId } = useAppStore();
@@ -83,8 +119,10 @@ export default function SheepDairyPage() {
         </div>
         <TabBar>
           <TabButton active={tab === "milk"} onClick={() => setTab("milk")}>Milk Collections</TabButton>
+          <TabButton active={tab === "tupping"} onClick={() => setTab("tupping")}>Tupping</TabButton>
           <TabButton active={tab === "mastitis"} onClick={() => setTab("mastitis")}>Mastitis</TabButton>
           <TabButton active={tab === "kidding"} onClick={() => setTab("kidding")}>Lambing Records</TabButton>
+          <TabButton active={tab === "treatments"} onClick={() => setTab("treatments")}>Vet Treatments</TabButton>
           <TabButton active={tab === "bcs"} onClick={() => setTab("bcs")}>Body Condition</TabButton>
           <TabButton active={tab === "tank"} onClick={() => setTab("tank")}>Bulk Tank</TabButton>
           <TabButton active={tab === "mv"} onClick={() => setTab("mv")}>Maedi-Visna</TabButton>
@@ -96,8 +134,10 @@ export default function SheepDairyPage() {
         </TabBar>
         <div className="mt-6">
           {tab === "milk" && <MilkTab farmId={farmId} />}
+          {tab === "tupping" && <TuppingTab farmId={farmId} />}
           {tab === "mastitis" && <MastitisTab farmId={farmId} />}
           {tab === "kidding" && <SheepLambingTab farmId={farmId} />}
+          {tab === "treatments" && <TreatmentRegisterTab farmId={farmId} />}
           {tab === "bcs" && <BcsTab farmId={farmId} />}
           {tab === "tank" && <BulkTankTab farmId={farmId} />}
           {tab === "mv" && <MvTab farmId={farmId} />}
@@ -1624,6 +1664,380 @@ export function MvTab({ farmId }: { farmId: number }) {
             <Button onClick={() => save.mutate(form)} disabled={save.isPending}>
               {save.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
               {mode === "log" ? "Log Test Event" : mode === "result" ? "Save Results" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Tupping ──────────────────────────────────────────────────────────────────
+
+export function TuppingTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<TuppingRecord | null>(null);
+  const [viewing, setViewing] = useState<TuppingRecord | null>(null);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [yearFilter, setYearFilter] = useState<string>("all");
+
+  const { data: rows = [], isLoading } = useQuery<TuppingRecord[]>({
+    queryKey: ["sheep-tupping", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/sheep-tupping-records`), { credentials: "include" }).then(r => r.json()),
+  });
+
+  const save = useMutation({
+    mutationFn: async (body: Record<string, unknown>) => {
+      const url = editing
+        ? api(`farms/${farmId}/sheep-tupping-records/${editing.id}`)
+        : api(`farms/${farmId}/sheep-tupping-records`);
+      const res = await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+      return res.json();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-tupping", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+  });
+
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-tupping-records/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["sheep-tupping", farmId] }),
+  });
+
+  const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  function openAdd() { setEditing(null); setForm({ progesteroneUsed: "false" }); setOpen(true); }
+  function openEdit(r: TuppingRecord) {
+    setEditing(r);
+    setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
+    setOpen(true);
+  }
+
+  const years = useMemo(() =>
+    Array.from(new Set(rows.map(r => String(r.tuppingStartDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(),
+    [rows]
+  );
+  const filtered = useMemo(() =>
+    yearFilter === "all" ? rows : rows.filter(r => String(r.tuppingStartDate ?? "").startsWith(yearFilter)),
+    [rows, yearFilter]
+  );
+
+  const fmtD = (v?: string | null) => v ? new Date(v).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—";
+  const fmtV = (v: unknown) => v == null || v === "" ? "—" : String(v);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-sm">Tupping Records</h3>
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-8"><Loader2 className="animate-spin w-5 h-5 text-muted-foreground" /></div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground text-sm">No tupping records for this period.</div>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Start Date</TableHead>
+              <TableHead>End Date</TableHead>
+              <TableHead>Ram Breed</TableHead>
+              <TableHead>Ram Tag</TableHead>
+              <TableHead>Ewes Exposed</TableHead>
+              <TableHead>Expected Lambing</TableHead>
+              <TableHead>Progesterone</TableHead>
+              <TableHead></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.map((r) => (
+              <TableRow key={r.id}>
+                <TableCell>{fmtD(r.tuppingStartDate)}</TableCell>
+                <TableCell>{fmtD(r.tuppingEndDate)}</TableCell>
+                <TableCell>{fmtV(r.ramBreed)}</TableCell>
+                <TableCell>{fmtV(r.ramTagNumber)}</TableCell>
+                <TableCell>{fmtV(r.ewesExposed)}</TableCell>
+                <TableCell>{fmtD(r.expectedLambingStart)}</TableCell>
+                <TableCell>
+                  {r.progesteroneUsed ? (
+                    <Badge className="bg-amber-100 text-amber-800 text-xs font-medium">CIDR / Prog.</Badge>
+                  ) : null}
+                </TableCell>
+                <TableCell>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewing(r)}><Eye className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => del.mutate(r.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+
+      <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
+        <DialogContent style={{ maxWidth: "36rem" }}>
+          <DialogHeader><DialogTitle>Tupping Record Details</DialogTitle></DialogHeader>
+          {viewing && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                {([
+                  ["Start Date", fmtD(viewing.tuppingStartDate)],
+                  ["End Date", fmtD(viewing.tuppingEndDate)],
+                  ["Ram Breed", fmtV(viewing.ramBreed)],
+                  ["Ram Tag", fmtV(viewing.ramTagNumber)],
+                  ["Ram Source", fmtV(viewing.ramSource)],
+                  ["Ewes Exposed", fmtV(viewing.ewesExposed)],
+                  ["Tupping Method", fmtV(viewing.tuppingMethod)],
+                  ["Harness Colour", fmtV(viewing.harnessColour)],
+                  ["Expected Lambing Start", fmtD(viewing.expectedLambingStart)],
+                  ["Expected Lambing End", fmtD(viewing.expectedLambingEnd)],
+                ] as [string, string][]).map(([label, value]) => (
+                  <div key={label}>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">{label}</p>
+                    <p className="font-medium">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Progesterone / CIDR</p>
+                <p className="font-medium">{viewing.progesteroneUsed ? "Yes" : "No"}</p>
+              </div>
+              {viewing.notes && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p>
+                  <p className="font-medium">{fmtV(viewing.notes)}</p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit" : "Add"} Tupping Record</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div className="space-y-1"><Label>Start Date *</Label><Input type="date" value={form.tuppingStartDate ?? ""} onChange={e => sf("tuppingStartDate", e.target.value)} /></div>
+            <div className="space-y-1"><Label>End Date</Label><Input type="date" value={form.tuppingEndDate ?? ""} onChange={e => sf("tuppingEndDate", e.target.value)} /></div>
+            <div className="space-y-1">
+              <Label>Ram Breed</Label>
+              <Select value={form.ramBreed ?? ""} onValueChange={v => sf("ramBreed", v)}>
+                <SelectTrigger><SelectValue placeholder="Select breed..." /></SelectTrigger>
+                <SelectContent>{["Suffolk","Texel","Charollais","Beltex","Bluefaced Leicester","Border Leicester","Hampshire Down","Poll Dorset","Rouge de l'Ouest","Vendeen","Lleyn","Cheviot","Swaledale","Herdwick","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1"><Label>Ram Tag Number</Label><Input value={form.ramTagNumber ?? ""} onChange={e => sf("ramTagNumber", e.target.value)} /></div>
+            <div className="space-y-1">
+              <Label>Ram Source</Label>
+              <Select value={form.ramSource ?? ""} onValueChange={v => sf("ramSource", v)}>
+                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                <SelectContent>{["Home bred","Purchased at auction/market","Private sale","AI centre","ET donor flock","Hired/loaned","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1"><Label>Ewes Exposed</Label><Input type="number" min="1" step="1" value={form.ewesExposed ?? ""} onChange={e => sf("ewesExposed", e.target.value)} /></div>
+            <div className="space-y-1">
+              <Label>Tupping Method</Label>
+              <Select value={form.tuppingMethod ?? ""} onValueChange={v => sf("tuppingMethod", v)}>
+                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                <SelectContent>{["Natural service","AI (fresh)","AI (frozen)","ET"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Harness Colour</Label>
+              <Select value={form.harnessColour ?? ""} onValueChange={v => sf("harnessColour", v)}>
+                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                <SelectContent>{["Red","Orange","Yellow","Green","Blue","Purple","Pink","None"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1"><Label>Expected Lambing Start</Label><Input type="date" value={form.expectedLambingStart ?? ""} onChange={e => sf("expectedLambingStart", e.target.value)} /></div>
+            <div className="space-y-1"><Label>Expected Lambing End</Label><Input type="date" value={form.expectedLambingEnd ?? ""} onChange={e => sf("expectedLambingEnd", e.target.value)} /></div>
+            <div className="col-span-2 flex items-center gap-2 rounded-md border px-3 py-2 bg-muted/30">
+              <Checkbox checked={form.progesteroneUsed === "true"} onCheckedChange={v => sf("progesteroneUsed", v ? "true" : "false")} id="prog-conv" />
+              <Label htmlFor="prog-conv" className="cursor-pointer font-normal">Progesterone / CIDR used</Label>
+            </div>
+            <div className="col-span-2 space-y-1"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate({ ...form })} disabled={!form.tuppingStartDate || save.isPending}>
+              {save.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+              {editing ? "Save" : "Add"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Vet Treatments ────────────────────────────────────────────────────────────
+
+export function TreatmentRegisterTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<TreatmentRecord | null>(null);
+  const [viewRec, setViewRec] = useState<TreatmentRecord | null>(null);
+  const blank: Partial<TreatmentRecord> = { treatmentDate: today(), certifierNotified: false, treatmentNumber: 1 };
+  const [form, setForm] = useState<Partial<TreatmentRecord>>(blank);
+  const f = (k: keyof TreatmentRecord) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm(p => ({ ...p, [k]: e.target.value }));
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["org-sheep-treatments", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/organic-sheep-dairy/treatments`)).then(r => r.json()),
+  });
+  const records: TreatmentRecord[] = data?.records ?? [];
+
+  function autoDoubled(stdDays: number | null | undefined): number | null {
+    if (!stdDays) return null;
+    return stdDays * 2;
+  }
+
+  const save = useMutation({
+    mutationFn: () => fetch(api(`farms/${farmId}/organic-sheep-dairy/treatments${editing ? `/${editing.id}` : ""}`), {
+      method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-sheep-treatments", farmId] }); setOpen(false); toast({ title: editing ? "Record updated" : "Treatment recorded" }); },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-sheep-dairy/treatments/${id}`), { method: "DELETE" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-sheep-treatments", farmId] }); toast({ title: "Record deleted" }); },
+  });
+
+  function openNew() { setEditing(null); setForm(blank); setOpen(true); }
+  function openEdit(r: TreatmentRecord) { setEditing(r); setForm(r); setOpen(true); }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button onClick={openNew} size="sm"><Plus className="h-4 w-4 mr-1" />Add Treatment</Button>
+      </div>
+      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Date</TableHead>
+              <TableHead>Animal LIS Tags</TableHead>
+              <TableHead>Product</TableHead>
+              <TableHead>Milk W/D (days)</TableHead>
+              <TableHead>Milk W/D End</TableHead>
+              <TableHead className="w-24" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {records.length === 0 && (
+              <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No treatment records yet.</TableCell></TableRow>
+            )}
+            {records.map(r => (
+              <TableRow key={r.id}>
+                <TableCell className="font-medium">{fmt(r.treatmentDate)}</TableCell>
+                <TableCell className="font-mono text-xs max-w-[120px] truncate">{r.animalLisTags || "—"}</TableCell>
+                <TableCell>{r.productName}</TableCell>
+                <TableCell>
+                  {r.standardMilkWithdrawalDays != null ? (
+                    <Badge className="bg-blue-100 text-blue-800">{r.standardMilkWithdrawalDays}d</Badge>
+                  ) : "—"}
+                </TableCell>
+                <TableCell>{fmt(r.milkWithdrawalEndDate)}</TableCell>
+                <TableCell>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRec(r)}><Eye className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => remove.mutate(r.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+
+      {viewRec && (
+        <Dialog open onOpenChange={() => setViewRec(null)}>
+          <DialogContent style={{ maxWidth: "44rem" }}>
+            <DialogHeader><DialogTitle>Vet Treatment — {viewRec.productName}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm py-2">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Treatment Date</p><p className="font-medium">{fmt(viewRec.treatmentDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Treatment No.</p><p className="font-medium">{viewRec.treatmentNumber}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Animal LIS Tags</p><p className="font-medium font-mono text-xs">{fmtRaw(viewRec.animalLisTags)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Number of Animals</p><p className="font-medium">{fmtRaw(viewRec.numberOfAnimals)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product Name</p><p className="font-medium">{fmtRaw(viewRec.productName)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Category</p><p className="font-medium">{fmtRaw(viewRec.productCategory)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Active Ingredient</p><p className="font-medium">{fmtRaw(viewRec.activeIngredient)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Dose</p><p className="font-medium">{fmtRaw(viewRec.doseAmount)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Route</p><p className="font-medium">{fmtRaw(viewRec.routeOfAdministration)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet</p><p className="font-medium">{fmtRaw(viewRec.vetName)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Prescription Ref</p><p className="font-medium">{fmtRaw(viewRec.prescriptionRef)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Milk W/D (days)</p><p className="font-medium">{fmtRaw(viewRec.standardMilkWithdrawalDays)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Milk W/D End Date</p><p className="font-medium">{fmt(viewRec.milkWithdrawalEndDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Meat W/D (days)</p><p className="font-medium">{fmtRaw(viewRec.standardMeatWithdrawalDays)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Meat W/D End Date</p><p className="font-medium">{fmt(viewRec.meatWithdrawalEndDate)}</p></div>
+              {viewRec.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRec.notes}</p></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRec); setViewRec(null); }}>Edit</Button>
+              <Button onClick={() => setViewRec(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Treatment" : "Record Vet Treatment"}</DialogTitle>
+            <DialogDescription>Record veterinary treatments and withdrawal periods for all treated animals.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-2">
+            <div className="space-y-1"><Label>Treatment Date *</Label><Input type="date" value={String(form.treatmentDate ?? "").slice(0, 10)} onChange={f("treatmentDate")} /></div>
+            <div className="space-y-1"><Label>Treatment No.</Label><Input type="number" value={form.treatmentNumber ?? 1} onChange={e => setForm(p => ({ ...p, treatmentNumber: Number(e.target.value) }))} /></div>
+            <div className="col-span-2 space-y-1"><Label>Animal LIS Tags (comma-separated)</Label><Input value={form.animalLisTags ?? ""} onChange={f("animalLisTags")} placeholder="e.g. UK123456789012, UK123456789013" /></div>
+            <div className="space-y-1"><Label>Number of Animals</Label><Input type="number" value={form.numberOfAnimals ?? ""} onChange={e => setForm(p => ({ ...p, numberOfAnimals: e.target.value ? Number(e.target.value) : null }))} /></div>
+            <div className="space-y-1">
+              <Label>Product Category</Label>
+              <Select value={form.productCategory ?? "__none__"} onValueChange={v => setForm(p => ({ ...p, productCategory: v === "__none__" ? null : v }))}>
+                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>{PRODUCT_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 space-y-1"><Label>Product Name *</Label><Input value={form.productName ?? ""} onChange={f("productName")} /></div>
+            <div className="space-y-1"><Label>Active Ingredient</Label><Input value={form.activeIngredient ?? ""} onChange={f("activeIngredient")} /></div>
+            <div className="space-y-1"><Label>Dose Amount</Label><Input value={form.doseAmount ?? ""} onChange={f("doseAmount")} /></div>
+            <div className="space-y-1">
+              <Label>Route of Administration</Label>
+              <Select value={form.routeOfAdministration ?? "__none__"} onValueChange={v => setForm(p => ({ ...p, routeOfAdministration: v === "__none__" ? null : v }))}>
+                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>{ROUTES_OF_ADMINISTRATION.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1"><Label>Vet Name</Label><Input value={form.vetName ?? ""} onChange={f("vetName")} /></div>
+            <div className="col-span-2 space-y-1"><Label>Prescription Reference</Label><Input value={form.prescriptionRef ?? ""} onChange={f("prescriptionRef")} /></div>
+            <div className="space-y-1"><Label>Milk W/D (days)</Label><Input type="number" value={form.standardMilkWithdrawalDays ?? ""} onChange={e => setForm(p => ({ ...p, standardMilkWithdrawalDays: e.target.value ? Number(e.target.value) : null }))} /></div>
+            <div className="space-y-1"><Label>Milk W/D End Date</Label><Input type="date" value={String(form.milkWithdrawalEndDate ?? "").slice(0, 10)} onChange={f("milkWithdrawalEndDate")} /></div>
+            <div className="space-y-1"><Label>Meat W/D (days)</Label><Input type="number" value={form.standardMeatWithdrawalDays ?? ""} onChange={e => setForm(p => ({ ...p, standardMeatWithdrawalDays: e.target.value ? Number(e.target.value) : null }))} /></div>
+            <div className="space-y-1"><Label>Meat W/D End Date</Label><Input type="date" value={String(form.meatWithdrawalEndDate ?? "").slice(0, 10)} onChange={f("meatWithdrawalEndDate")} /></div>
+            <div className="col-span-2 space-y-1"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={f("notes")} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate()} disabled={!form.productName || save.isPending}>
+              {save.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}Save
             </Button>
           </DialogFooter>
         </DialogContent>
