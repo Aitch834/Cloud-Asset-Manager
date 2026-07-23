@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -33,7 +34,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, FileText, Bell, AlertTriangle, Upload, ChevronDown, ChevronRight, Mail, ArrowDownToLine, ArrowUpFromLine, Paperclip, ExternalLink } from "lucide-react";
+import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, FileText, Bell, AlertTriangle, Upload, ChevronDown, ChevronRight, Mail, ArrowDownToLine, ArrowUpFromLine, Paperclip, ExternalLink, Loader2, CheckCircle2 } from "lucide-react";
+import { StaffSelect } from "@/components/ui/staff-select";
+import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { DocAttach } from "@/components/DocAttach";
 import { useToast } from "@/hooks/use-toast";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -41,9 +44,9 @@ import { MortalitySection } from "@/pages/livestock/MortalitySection";
 import {
   HerdsSection, AnimalsSection, VetHealthPlansSection,
   FallenStockContractorsSection, FeedSection, WaterSection,
-  SiresSection, AIReproductionSection, VetPrescriptionsSection,
+  SiresSection, AIReproductionSection,
   StrawInventorySection, TbTestsSection,
-  WelfareOutcomeSection, SheepDippingSection,
+  WelfareOutcomeSection,
 } from "@/pages/LivestockPage";
 
 const CERTIFIERS = [
@@ -2915,6 +2918,685 @@ function KiddingSection({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Organic notes serialisation ──────────────────────────────────────────────
+// Organic-specific boolean/text fields are stored inside the existing `notes`
+// column using a `__org__JSON__` prefix so no DB migration is needed.
+function parseOrgNotes(raw: string | undefined | null): { orgFields: Record<string, unknown>; userNotes: string } {
+  if (!raw) return { orgFields: {}, userNotes: "" };
+  const m = raw.match(/^__org__(.*?)__\n?([\s\S]*)$/);
+  if (!m) return { orgFields: {}, userNotes: raw };
+  try { return { orgFields: JSON.parse(m[1]), userNotes: m[2] }; }
+  catch { return { orgFields: {}, userNotes: raw }; }
+}
+function buildOrgNotes(orgFields: Record<string, unknown>, userNotes: string): string {
+  const kept = Object.fromEntries(Object.entries(orgFields).filter(([, v]) => v !== "" && v !== false && v !== null && v !== undefined));
+  if (!Object.keys(kept).length && !userNotes) return "";
+  if (!Object.keys(kept).length) return userNotes;
+  return `__org__${JSON.stringify(kept)}__\n${userNotes}`;
+}
+
+// ─── OrgVetPrescriptionsSection ───────────────────────────────────────────────
+function OrgVetPrescriptionsSection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, unknown>>({});
+  const [certNotified, setCertNotified] = useState(false);
+  const [altJustification, setAltJustification] = useState("");
+  const [userNotes, setUserNotes] = useState("");
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
+  const [deletePending, setDeletePending] = useState<{ id: number; msg: string } | null>(null);
+  const [yearFilter, setYearFilter] = useState("all");
+
+  const { data: records = [], isLoading } = useQuery({
+    queryKey: ["vet-prescriptions", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/vet-prescriptions`, { credentials: "include" }).then(r => r.json()),
+  });
+  const allRows = records as Record<string, unknown>[];
+  const years = useMemo(() => Array.from(new Set(allRows.map(r => String(r.prescriptionDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allRows]);
+  const rows = yearFilter === "all" ? allRows : allRows.filter(r => String(r.prescriptionDate ?? "").startsWith(yearFilter));
+
+  const uncertifiedCount = allRows.filter(r => {
+    const { orgFields } = parseOrgNotes(r.notes as string);
+    return !orgFields.certifierNotified;
+  }).length;
+
+  function openAdd() {
+    setEditing(null); setCertNotified(false); setAltJustification(""); setUserNotes("");
+    setForm({ signedByVet: true, farmRegistered: true });
+    setOpen(true);
+  }
+  function openEdit(r: Record<string, unknown>) {
+    setEditing(r);
+    const { orgFields, userNotes: un } = parseOrgNotes(r.notes as string);
+    setCertNotified(Boolean(orgFields.certifierNotified));
+    setAltJustification(String(orgFields.alternativesJustification ?? ""));
+    setUserNotes(un);
+    setForm({ ...r, notes: un });
+    setOpen(true);
+  }
+
+  const save = useMutation({
+    mutationFn: (body: Record<string, unknown>) => {
+      const url = editing ? `/api/farms/${farmId}/vet-prescriptions/${editing.id}` : `/api/farms/${farmId}/vet-prescriptions`;
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["vet-prescriptions", farmId] }); setOpen(false); toast({ title: editing ? "Updated" : "Saved" }); },
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/vet-prescriptions/${id}`, { method: "DELETE", credentials: "include" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["vet-prescriptions", farmId] }); setDeletePending(null); },
+  });
+
+  function handleSave() {
+    const combinedNotes = buildOrgNotes({ certifierNotified: certNotified, alternativesJustification: altJustification }, userNotes);
+    save.mutate({ ...form, notes: combinedNotes || null });
+  }
+
+  function orgW(days: unknown) {
+    const n = Number(days);
+    return isNaN(n) || n === 0 ? "—" : `${n * 2}d (×2)`;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="p-3 rounded-lg border border-green-300 bg-green-50 text-sm text-green-900">
+        <strong>Organic Prescription Register</strong> — Under EC 889/2008 and UK retained equivalents, veterinary medicines may only be used when phytotherapeutic, homeopathic and other alternatives are ineffective or unavailable. You must document why alternatives were ruled out, double all label withdrawal periods before slaughter/milk supply, and notify your certifier of any use of prohibited substances (e.g. antibiotics). Records must be kept for ≥5 years.
+      </div>
+
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div>
+          <h3 className="font-semibold">Prescription Register</h3>
+          <p className="text-sm text-muted-foreground">Record each vet prescription. Treatment administration is recorded separately in the Medicine module.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {uncertifiedCount > 0 && (
+            <span className="inline-flex items-center gap-1 text-xs font-medium bg-amber-100 text-amber-800 border border-amber-300 rounded-full px-2.5 py-1">
+              <AlertTriangle className="h-3.5 w-3.5" />{uncertifiedCount} certifier not notified
+            </span>
+          )}
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button onClick={openAdd}><Plus className="w-4 h-4 mr-2" />Add Record</Button>
+        </div>
+      </div>
+
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <Card><CardContent className="pt-4">
+          {rows.length === 0 ? <p className="text-sm text-muted-foreground italic py-4 text-center">No prescription records yet.</p> : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b">
+                  {["Rx Date", "Product / Active Ingredient", "Indication", "Std W/D Meat", "Org W/D Meat (×2)", "Std W/D Milk", "Org W/D Milk (×2)", "Vet / Practice", "Alternatives Documented", "Certifier Notified"].map(h => (
+                    <th key={h} className="text-left py-2 pr-3 font-medium text-muted-foreground whitespace-nowrap text-xs">{h}</th>
+                  ))}
+                  <th />
+                </tr></thead>
+                <tbody>{rows.map((r, i) => {
+                  const { orgFields } = parseOrgNotes(r.notes as string);
+                  const hasCertNotified = Boolean(orgFields.certifierNotified);
+                  const hasAlt = Boolean(orgFields.alternativesJustification);
+                  return (
+                    <tr key={i} className="border-b last:border-0">
+                      <td className="py-2 pr-3 whitespace-nowrap">{r.prescriptionDate ? new Date(r.prescriptionDate as string).toLocaleDateString("en-GB") : "—"}</td>
+                      <td className="py-2 pr-3">
+                        <div className="font-medium">{String(r.productName ?? "—")}</div>
+                        {r.activeIngredient != null && <div className="text-xs text-muted-foreground">{String(r.activeIngredient)}</div>}
+                        {Boolean(r.isCascade) && <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded mt-0.5 inline-block">Cascade</span>}
+                      </td>
+                      <td className="py-2 pr-3 max-w-[180px] text-xs text-muted-foreground">{r.indicationOrDiagnosis ? String(r.indicationOrDiagnosis).slice(0, 60) + (String(r.indicationOrDiagnosis).length > 60 ? "…" : "") : "—"}</td>
+                      <td className="py-2 pr-3 whitespace-nowrap text-xs">{r.withdrawalPeriodMeat ? `${r.withdrawalPeriodMeat}d` : "—"}</td>
+                      <td className="py-2 pr-3 whitespace-nowrap text-xs font-semibold text-green-800">{orgW(r.withdrawalPeriodMeat)}</td>
+                      <td className="py-2 pr-3 whitespace-nowrap text-xs">{r.withdrawalPeriodMilk ? `${r.withdrawalPeriodMilk}d` : "—"}</td>
+                      <td className="py-2 pr-3 whitespace-nowrap text-xs font-semibold text-green-800">{orgW(r.withdrawalPeriodMilk)}</td>
+                      <td className="py-2 pr-3 text-xs">{String(r.vetName ?? "—")}</td>
+                      <td className="py-2 pr-3">
+                        {hasAlt
+                          ? <span className="inline-flex items-center gap-1 text-xs text-green-700"><CheckCircle2 className="h-3 w-3" />Yes</span>
+                          : <span className="inline-flex items-center gap-1 text-xs text-red-600"><AlertTriangle className="h-3 w-3" />Missing</span>}
+                      </td>
+                      <td className="py-2 pr-3">
+                        {hasCertNotified
+                          ? <span className="inline-flex items-center gap-1 text-xs text-green-700"><CheckCircle2 className="h-3 w-3" />Yes</span>
+                          : <span className="inline-flex items-center gap-1 text-xs text-amber-600"><AlertTriangle className="h-3 w-3" />No</span>}
+                      </td>
+                      <td className="py-2 text-right space-x-1 whitespace-nowrap">
+                        <Button size="icon" variant="ghost" title="View" onClick={() => setViewRecord(r)}><Eye className="w-3.5 h-3.5" /></Button>
+                        <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                        <Button size="icon" variant="ghost" onClick={() => setDeletePending({ id: r.id as number, msg: "Delete this prescription record?" })}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                      </td>
+                    </tr>
+                  );
+                })}</tbody>
+              </table>
+            </div>
+          )}
+        </CardContent></Card>
+      )}
+
+      {viewRecord && (() => {
+        const { orgFields, userNotes: un } = parseOrgNotes(viewRecord.notes as string);
+        return (
+          <Dialog open onOpenChange={() => setViewRecord(null)}>
+            <DialogContent style={{ maxWidth: "48rem", maxHeight: "90vh", overflowY: "auto" }}>
+              <DialogHeader><DialogTitle>Prescription — {String(viewRecord.productName ?? "")}</DialogTitle></DialogHeader>
+              <div className="p-3 rounded-lg border border-green-200 bg-green-50 text-xs text-green-900 mb-2 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">Organic W/D — Meat:</span>
+                  <span className="font-bold">{orgW(viewRecord.withdrawalPeriodMeat)}</span>
+                  <span className="font-semibold ml-4">Organic W/D — Milk:</span>
+                  <span className="font-bold">{orgW(viewRecord.withdrawalPeriodMilk)}</span>
+                  {Boolean(viewRecord.withdrawalPeriodEggs) && <><span className="font-semibold ml-4">Organic W/D — Eggs:</span><span className="font-bold">{orgW(viewRecord.withdrawalPeriodEggs)}</span></>}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Prescription Date</p><p className="font-medium">{viewRecord.prescriptionDate ? new Date(viewRecord.prescriptionDate as string).toLocaleDateString("en-GB") : "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Prescription Ref</p><p className="font-medium">{String(viewRecord.prescriptionRef || "—")}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Name</p><p className="font-medium">{String(viewRecord.vetName || "—")}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Practice</p><p className="font-medium">{String(viewRecord.vetPractice || "—")}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product Name</p><p className="font-medium">{String(viewRecord.productName || "—")}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Active Ingredient</p><p className="font-medium">{String(viewRecord.activeIngredient || "—")}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Standard W/D — Meat</p><p className="font-medium">{viewRecord.withdrawalPeriodMeat ? `${viewRecord.withdrawalPeriodMeat}d` : "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Standard W/D — Milk</p><p className="font-medium">{viewRecord.withdrawalPeriodMilk ? `${viewRecord.withdrawalPeriodMilk}d` : "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Indication / Diagnosis</p><p className="font-medium col-span-2">{String(viewRecord.indicationOrDiagnosis || "—")}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Cascade / Off-label</p><p className="font-medium">{viewRecord.isCascade ? "Yes" : "No"}</p></div>
+                <div className="col-span-2 border-t pt-3">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Alternatives Considered (Organic)</p>
+                  <p className="font-medium">{String(orgFields.alternativesJustification || "—")}</p>
+                </div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Notified</p><p className={`font-medium ${orgFields.certifierNotified ? "text-green-700" : "text-amber-600"}`}>{orgFields.certifierNotified ? "Yes" : "No"}</p></div>
+                {un && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{un}</p></div>}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+                <Button onClick={() => setViewRecord(null)}>Close</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
+
+      {deletePending && (
+        <Dialog open onOpenChange={() => setDeletePending(null)}>
+          <DialogContent><DialogHeader><DialogTitle>Delete Prescription Record</DialogTitle></DialogHeader>
+            <p className="text-sm">{deletePending.msg}</p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeletePending(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={() => del.mutate(deletePending.id)} disabled={del.isPending}>Delete</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent style={{ maxWidth: "52rem" }}>
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Prescription Record" : "Add Prescription Record"}</DialogTitle>
+            <DialogDescription>Record the veterinary prescription. Organic rules: document alternatives first, apply ×2 withdrawal, notify certifier.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 max-h-[72vh] overflow-y-auto pr-1">
+            <div className="col-span-2 p-3 rounded-lg border border-amber-200 bg-amber-50 text-xs text-amber-900">
+              <strong>Organic obligation:</strong> Non-conventional medicines are a last resort. You must document why organic/phytotherapeutic alternatives were ineffective or unavailable. Apply <strong>double the label withdrawal period</strong> before slaughter or milk supply. Notify your certifier if using prohibited substances (e.g. antibiotics in certain categories).
+            </div>
+
+            <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-1">Prescription Details</div>
+            <div><Label>Prescription Date *</Label><Input type="date" value={String(form.prescriptionDate ?? "")} onChange={e => setForm(f => ({ ...f, prescriptionDate: e.target.value }))} /></div>
+            <div><Label>Prescription Reference</Label><Input value={String(form.prescriptionRef ?? "")} onChange={e => setForm(f => ({ ...f, prescriptionRef: e.target.value }))} /></div>
+            <div><Label>Vet Name *</Label><Input value={String(form.vetName ?? "")} onChange={e => setForm(f => ({ ...f, vetName: e.target.value }))} /></div>
+            <div><Label>Vet Practice</Label><Input value={String(form.vetPractice ?? "")} onChange={e => setForm(f => ({ ...f, vetPractice: e.target.value }))} /></div>
+            <div><Label>Vet RCVS Number</Label><Input value={String(form.vetRcvsNumber ?? "")} onChange={e => setForm(f => ({ ...f, vetRcvsNumber: e.target.value }))} /></div>
+            <div><Label>Prescription Valid Until</Label><Input type="date" value={String(form.prescriptionValidUntil ?? "")} onChange={e => setForm(f => ({ ...f, prescriptionValidUntil: e.target.value }))} /></div>
+
+            <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-2 border-t">Medicine Details</div>
+            <div><Label>Product Name *</Label><Input value={String(form.productName ?? "")} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} /></div>
+            <div><Label>Active Ingredient</Label><Input value={String(form.activeIngredient ?? "")} onChange={e => setForm(f => ({ ...f, activeIngredient: e.target.value }))} /></div>
+            <div><Label>Route of Administration</Label>
+              <Select value={String(form.routeOfAdministration ?? "")} onValueChange={v => setForm(f => ({ ...f, routeOfAdministration: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>{["Oral", "Injection (IM)", "Injection (SC)", "Injection (IV)", "Topical", "Pour-on", "Intramammary", "Intrauterine", "In-water", "In-feed"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Dose</Label><Input value={String(form.dose ?? "")} onChange={e => setForm(f => ({ ...f, dose: e.target.value }))} /></div>
+            <div><Label>Quantity Authorised</Label><Input value={String(form.quantityAuthorised ?? "")} onChange={e => setForm(f => ({ ...f, quantityAuthorised: e.target.value }))} /></div>
+            <div><Label>Quantity Dispensed</Label><Input value={String(form.dispensedQuantity ?? "")} onChange={e => setForm(f => ({ ...f, dispensedQuantity: e.target.value }))} /></div>
+
+            <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-2 border-t">Withdrawal Periods (enter label values — organic applies ×2 automatically)</div>
+            <div>
+              <Label>Label W/D — Meat (days)</Label>
+              <Input type="number" value={String(form.withdrawalPeriodMeat ?? "")} onChange={e => setForm(f => ({ ...f, withdrawalPeriodMeat: e.target.value }))} />
+              {Number(form.withdrawalPeriodMeat) > 0 && <p className="text-xs text-green-700 font-semibold mt-1">Organic W/D: {Number(form.withdrawalPeriodMeat) * 2} days</p>}
+            </div>
+            <div>
+              <Label>Label W/D — Milk (days)</Label>
+              <Input type="number" value={String(form.withdrawalPeriodMilk ?? "")} onChange={e => setForm(f => ({ ...f, withdrawalPeriodMilk: e.target.value }))} />
+              {Number(form.withdrawalPeriodMilk) > 0 && <p className="text-xs text-green-700 font-semibold mt-1">Organic W/D: {Number(form.withdrawalPeriodMilk) * 2} days</p>}
+            </div>
+            <div>
+              <Label>Label W/D — Eggs (days)</Label>
+              <Input type="number" value={String(form.withdrawalPeriodEggs ?? "")} onChange={e => setForm(f => ({ ...f, withdrawalPeriodEggs: e.target.value }))} />
+              {Number(form.withdrawalPeriodEggs) > 0 && <p className="text-xs text-green-700 font-semibold mt-1">Organic W/D: {Number(form.withdrawalPeriodEggs) * 2} days</p>}
+            </div>
+            <div><Label>Target Species</Label><Input value={String(form.targetSpecies ?? "")} onChange={e => setForm(f => ({ ...f, targetSpecies: e.target.value }))} placeholder="e.g. Cattle, Sheep" /></div>
+
+            <div className="col-span-2 space-y-2 pt-1 border-t">
+              {([["signedByVet", "Signed by vet?"], ["isCascade", "Cascade / off-label use?"], ["farmRegistered", "Farm registered for prescribing?"]] as [string, string][]).map(([k, l]) => (
+                <div key={k} className="flex items-center gap-2">
+                  <input type="checkbox" id={`rx-${k}`} checked={Boolean(form[k])} onChange={e => setForm(f => ({ ...f, [k]: e.target.checked }))} className="w-4 h-4" />
+                  <Label htmlFor={`rx-${k}`}>{l}</Label>
+                </div>
+              ))}
+              {Boolean(form.isCascade) && <div className="col-span-2"><Label>Cascade Justification</Label><Textarea value={String(form.cascadeJustification ?? "")} onChange={e => setForm(f => ({ ...f, cascadeJustification: e.target.value }))} rows={2} /></div>}
+            </div>
+            <div className="col-span-2"><Label>Indication / Diagnosis</Label><Textarea value={String(form.indicationOrDiagnosis ?? "")} onChange={e => setForm(f => ({ ...f, indicationOrDiagnosis: e.target.value }))} rows={2} /></div>
+
+            <div className="col-span-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-2 border-t">Organic Compliance Fields</div>
+            <div className="col-span-2">
+              <Label>Alternatives Considered <span className="text-red-600">*</span> <span className="font-normal text-muted-foreground">(organic requirement: document why conventional alternatives were ruled out)</span></Label>
+              <Textarea value={altJustification} onChange={e => setAltJustification(e.target.value)} rows={3} placeholder="e.g. Homeopathic nosode trialled for 5 days without improvement. Phytotherapeutic options unavailable from vet. Antibiotic required to prevent animal welfare deterioration." />
+            </div>
+            <div className="col-span-2 flex items-center gap-2">
+              <input type="checkbox" id="rx-certNotified" checked={certNotified} onChange={e => setCertNotified(e.target.checked)} className="w-4 h-4" />
+              <Label htmlFor="rx-certNotified">Certifier notified of this prescription (required for prohibited substances)</Label>
+            </div>
+
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={userNotes} onChange={e => setUserNotes(e.target.value)} rows={2} /></div>
+
+            <div className="col-span-2 p-3 rounded-lg border border-blue-200 bg-blue-50 text-xs text-blue-800">
+              <strong>Recording actual treatments?</strong> Once medicine has been administered, record each event — ear tags, date given, who administered — in the <strong>Medicine</strong> module. When creating a treatment entry, link it back to this prescription for a full audit trail.
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={save.isPending || !altJustification.trim()}>
+              {save.isPending && <Loader2 className="animate-spin h-4 w-4 mr-1" />}Save Record
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── OrgSheepDippingSection ───────────────────────────────────────────────────
+const ORGANIC_APPROVED_DIPS = [
+  "Crovect Pour-On (cypermethrin — check certifier approval)",
+  "Vetrazin Pour-On (cypermethrin — check certifier approval)",
+  "Sulphur-based dip",
+  "Other (specify in notes)",
+];
+
+const EMPTY_ORG_DIP = {
+  dipDate: "", productName: "", mappNumber: null as string | null,
+  activeIngredient: null as string | null, dipType: "plunge",
+  dipConcentrationPct: null as string | null, volumeOfDipLitres: null as string | null,
+  sheepCount: null as number | null, herdFlockRef: null as string | null,
+  operatorName: "", operatorCertNumber: null as string | null,
+  operatorCertExpiry: null as string | null, daysSinceLastUse: null as number | null,
+  disposalMethod: null as string | null, disposalQuantityLitres: null as string | null,
+  disposalDate: null as string | null, disposalContractorName: null as string | null,
+  disposalWasteTransferNoteRef: null as string | null,
+  withdrawalPeriodDays: null as number | null, withdrawalClearDate: null as string | null,
+};
+
+type OrgDipRecord = typeof EMPTY_ORG_DIP & { id: number; notes?: string | null };
+
+function OrgSheepDippingSection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const base = `/api/farms/${farmId}/sheep-dipping-records`;
+
+  const { data, isLoading } = useQuery<{ records: OrgDipRecord[] }>({
+    queryKey: ["sheep-dipping", farmId],
+    queryFn: () => fetch(base).then(r => r.json()),
+  });
+  const records = data?.records ?? [];
+  const [yearFilter, setYearFilter] = useState("all");
+  const years = useMemo(() => Array.from(new Set(records.map(r => String(r.dipDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [records]);
+  const filtered = yearFilter === "all" ? records : records.filter(r => String(r.dipDate ?? "").startsWith(yearFilter));
+
+  const { data: herdsData } = useQuery<{ herds: { id: number; name: string; species: string; herdFlockMark: string | null }[] }>({
+    queryKey: ["herds", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()),
+  });
+  const sheepHerds = (herdsData?.herds ?? []).filter(h => h.species === "sheep" || h.species === "goat");
+
+  const { data: certsData } = useQuery<{ records: { userId: string; certificateType: string; certificateNumber: string | null; expiryDate?: string | null }[] }>({
+    queryKey: ["staff-certs", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/certificates`).then(r => r.ok ? r.json() : { records: [] }),
+  });
+  const allCerts = certsData?.records ?? [];
+  const PESTICIDE_TYPES = ["PA1", "PA2", "PA3", "PA4", "PA6", "PA6AW", "Safe use of pesticides"];
+
+  const { data: membersData } = useFarmMembers(farmId);
+  const activeMembers = (membersData?.members ?? []).filter(m => m.isActive !== false);
+  const staffNames = activeMembers.map(m => memberFullName(m));
+
+  function getCert(name: string) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const certs = allCerts.filter(c => c.userId === name && PESTICIDE_TYPES.some(t => c.certificateType.startsWith(t)));
+    if (!certs.length) return null;
+    const valid = certs.filter(c => !c.expiryDate || new Date(c.expiryDate) >= today);
+    const sorted = (valid.length ? valid : certs).sort((a, b) => (b.expiryDate ?? "").localeCompare(a.expiryDate ?? ""));
+    return sorted[0];
+  }
+
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<OrgDipRecord | null>(null);
+  const [form, setForm] = useState<typeof EMPTY_ORG_DIP>({ ...EMPTY_ORG_DIP });
+  const [organicApproved, setOrganicApproved] = useState(false);
+  const [alternativesConsidered, setAlternativesConsidered] = useState("");
+  const [certNotified, setCertNotified] = useState(false);
+  const [userNotes, setUserNotes] = useState("");
+  const [viewItem, setViewItem] = useState<OrgDipRecord | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const setF = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+
+  function openAdd() {
+    setEditing(null); setForm({ ...EMPTY_ORG_DIP });
+    setOrganicApproved(false); setAlternativesConsidered(""); setCertNotified(false); setUserNotes("");
+    setShowForm(true);
+  }
+  function openEdit(r: OrgDipRecord) {
+    setEditing(r);
+    const { orgFields, userNotes: un } = parseOrgNotes(r.notes);
+    setOrganicApproved(Boolean(orgFields.organicApproved));
+    setAlternativesConsidered(String(orgFields.alternativesConsidered ?? ""));
+    setCertNotified(Boolean(orgFields.certifierNotified));
+    setUserNotes(un);
+    setForm({ ...EMPTY_ORG_DIP, ...r });
+    setShowForm(true);
+  }
+
+  const createMut = useMutation({
+    mutationFn: (b: typeof EMPTY_ORG_DIP & { notes: string | null }) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dipping", farmId] }); setShowForm(false); setForm({ ...EMPTY_ORG_DIP }); toast({ title: "Dipping record saved" }); },
+  });
+  const updateMut = useMutation({
+    mutationFn: (b: typeof EMPTY_ORG_DIP & { id: number; notes: string | null }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dipping", farmId] }); setShowForm(false); setEditing(null); toast({ title: "Updated" }); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dipping", farmId] }); setDeleteId(null); },
+  });
+
+  function handleSave() {
+    const combinedNotes = buildOrgNotes({ organicApproved, alternativesConsidered, certifierNotified: certNotified }, userNotes);
+    const payload = { ...form, notes: combinedNotes || null };
+    if (editing) updateMut.mutate({ ...payload, id: editing.id });
+    else createMut.mutate(payload);
+  }
+
+  function orgWd(days: unknown) {
+    const n = Number(days);
+    return isNaN(n) || n === 0 ? "—" : `${n * 2}d (×2)`;
+  }
+
+  const nonApprovedCount = records.filter(r => {
+    const { orgFields } = parseOrgNotes(r.notes);
+    return !orgFields.organicApproved;
+  }).length;
+
+  return (
+    <>
+      <div className="p-3 rounded-lg border border-red-300 bg-red-50 text-sm text-red-900 mb-4">
+        <strong>Organic Sheep/Goat Dipping</strong> — Only organically-approved active ingredients may be used. Synthetic organophosphate (OP) dips (e.g. diazinon) are <strong>prohibited</strong> for certified organic livestock. Cypermethrin pour-ons require certifier approval. All organic livestock withdrawal periods are <strong>doubled</strong> from the product label. Record alternatives considered before each treatment event.
+      </div>
+
+      <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
+        <div>
+          <h3 className="font-semibold text-gray-900">Organic Sheep Dipping Records</h3>
+          <p className="text-sm text-gray-500 mt-0.5">Dipping records under the Control of Pesticides Regulations — organic rules apply. OP dips prohibited.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {nonApprovedCount > 0 && (
+            <span className="inline-flex items-center gap-1 text-xs font-medium bg-red-100 text-red-800 border border-red-300 rounded-full px-2.5 py-1">
+              <AlertTriangle className="h-3.5 w-3.5" />{nonApprovedCount} organic approval unconfirmed
+            </span>
+          )}
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Log Dipping</Button>
+        </div>
+      </div>
+
+      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
+        : filtered.length === 0
+          ? <Card><CardContent className="py-16 text-center"><AlertTriangle className="h-10 w-10 mx-auto text-muted-foreground mb-3" /><p className="font-medium text-gray-700 mb-1">No dipping records logged</p><p className="text-sm text-muted-foreground">Log dipping events to maintain organic compliance records.</p></CardContent></Card>
+          : <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50"><tr>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Dip Date</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Product</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Type</th>
+                  <th className="text-right px-4 py-3 font-medium text-muted-foreground">Sheep</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Operator</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Std W/D</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground text-green-800">Org W/D (×2)</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Org Approved</th>
+                  <th className="px-4 py-3" />
+                </tr></thead>
+                <tbody className="divide-y">
+                  {filtered.map(r => {
+                    const { orgFields } = parseOrgNotes(r.notes);
+                    return (
+                      <tr key={r.id} className="hover:bg-muted/30">
+                        <td className="px-4 py-3 font-medium">{fmt(r.dipDate)}</td>
+                        <td className="px-4 py-3"><div className="font-medium text-gray-900 text-xs">{r.productName}</div>{r.mappNumber && <div className="text-xs text-muted-foreground">MAPP: {r.mappNumber}</div>}</td>
+                        <td className="px-4 py-3 text-xs capitalize">{r.dipType}</td>
+                        <td className="px-4 py-3 text-right">{r.sheepCount}</td>
+                        <td className="px-4 py-3 text-xs">{r.operatorName}</td>
+                        <td className="px-4 py-3 text-xs">{r.withdrawalPeriodDays != null ? `${r.withdrawalPeriodDays}d` : "—"}</td>
+                        <td className="px-4 py-3 text-xs font-semibold text-green-800">{orgWd(r.withdrawalPeriodDays)}</td>
+                        <td className="px-4 py-3">
+                          {orgFields.organicApproved
+                            ? <span className="inline-flex items-center gap-1 text-xs text-green-700"><CheckCircle2 className="h-3 w-3" />Yes</span>
+                            : <span className="inline-flex items-center gap-1 text-xs text-red-600"><AlertTriangle className="h-3 w-3" />Unconfirmed</span>}
+                        </td>
+                        <td className="px-4 py-3"><div className="flex gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => setViewItem(r)}><Eye className="h-3 w-3 text-blue-500" /></Button>
+                          <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
+                          <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                        </div></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>}
+
+      {viewItem && (() => {
+        const { orgFields, userNotes: un } = parseOrgNotes(viewItem.notes);
+        return (
+          <Dialog open onOpenChange={() => setViewItem(null)}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader><DialogTitle>Organic Dipping — {fmt(viewItem.dipDate)}</DialogTitle><DialogDescription>{viewItem.productName} · {viewItem.sheepCount} sheep</DialogDescription></DialogHeader>
+              <div className="p-2 rounded bg-green-50 border border-green-200 text-xs text-green-900 font-semibold mb-2">
+                Organic Withdrawal: {orgWd(viewItem.withdrawalPeriodDays)} &nbsp;|&nbsp; Standard: {viewItem.withdrawalPeriodDays != null ? `${viewItem.withdrawalPeriodDays}d` : "—"}
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Dip Date</p><p className="font-medium">{fmt(viewItem.dipDate)}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product (MAPP)</p><p className="font-medium">{viewItem.productName}{viewItem.mappNumber && ` (${viewItem.mappNumber})`}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Active Ingredient</p><p className="font-medium">{viewItem.activeIngredient ?? "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Dip Type</p><p className="font-medium capitalize">{viewItem.dipType}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Sheep Count</p><p className="font-medium">{viewItem.sheepCount}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Operator</p><p className="font-medium">{viewItem.operatorName}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Disposal Method</p><p className="font-medium">{viewItem.disposalMethod ?? "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Waste Transfer Note</p><p className="font-medium font-mono text-xs">{viewItem.disposalWasteTransferNoteRef ?? "—"}</p></div>
+                <div className="col-span-2 border-t pt-2">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Organic Product Approved</p>
+                  <p className={`font-medium ${orgFields.organicApproved ? "text-green-700" : "text-red-600"}`}>{orgFields.organicApproved ? "Yes — confirmed" : "Unconfirmed"}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Alternatives Considered</p>
+                  <p className="font-medium">{String(orgFields.alternativesConsidered || "—")}</p>
+                </div>
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Notified</p><p className={`font-medium ${orgFields.certifierNotified ? "text-green-700" : "text-amber-600"}`}>{orgFields.certifierNotified ? "Yes" : "No"}</p></div>
+                {un && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="whitespace-pre-line">{un}</p></div>}
+              </div>
+              <DialogFooter className="mt-4">
+                <Button variant="outline" onClick={() => { openEdit(viewItem); setViewItem(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
+                <Button variant="ghost" onClick={() => setViewItem(null)}>Close</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
+
+      {showForm && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{editing ? "Edit Organic Dipping Record" : "Log Organic Sheep Dipping"}</DialogTitle>
+              <DialogDescription>Organic rules apply — no synthetic OP dips; doubled withdrawal; certifier notification required for prohibited inputs.</DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-4 mt-2">
+
+              <div><Label>Dipping Date *</Label><Input type="date" value={form.dipDate ?? ""} onChange={e => setF("dipDate", e.target.value)} /></div>
+              <div>
+                <Label>Product Name *</Label>
+                <Input value={form.productName ?? ""} onChange={e => setF("productName", e.target.value)} placeholder="e.g. Crovect Pour-On" />
+              </div>
+              <div><Label>MAPP Number</Label><Input value={form.mappNumber ?? ""} onChange={e => setF("mappNumber", e.target.value || null)} className="font-mono" /></div>
+              <div><Label>Active Ingredient</Label><Input value={form.activeIngredient ?? ""} onChange={e => setF("activeIngredient", e.target.value || null)} placeholder="e.g. Cypermethrin" /></div>
+
+              <div><Label>Dip Type</Label>
+                <Select value={form.dipType} onValueChange={v => setF("dipType", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="plunge">Plunge Dip</SelectItem>
+                    <SelectItem value="shower">Shower / Race Dip</SelectItem>
+                    <SelectItem value="pour-on">Pour-On</SelectItem>
+                    <SelectItem value="spray">Hand Spray</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Concentration (%)</Label><Input value={form.dipConcentrationPct ?? ""} onChange={e => setF("dipConcentrationPct", e.target.value || null)} /></div>
+              <div><Label>Volume of Dip (litres)</Label><Input type="number" min={0} value={form.volumeOfDipLitres ?? ""} onChange={e => setF("volumeOfDipLitres", e.target.value || null)} /></div>
+              <div><Label>Sheep Count *</Label><Input type="number" min={1} value={form.sheepCount || ""} onChange={e => setF("sheepCount", Number(e.target.value))} /></div>
+
+              <div>
+                <Label>Herd / Flock</Label>
+                {sheepHerds.length > 0 ? (
+                  <Select value={form.herdFlockRef ?? ""} onValueChange={v => setF("herdFlockRef", v || null)}>
+                    <SelectTrigger><SelectValue placeholder="Select flock…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">— None —</SelectItem>
+                      {sheepHerds.map(h => <SelectItem key={h.id} value={h.herdFlockMark ?? h.name}>{h.name}{h.herdFlockMark ? ` (${h.herdFlockMark})` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input value={form.herdFlockRef ?? ""} onChange={e => setF("herdFlockRef", e.target.value || null)} placeholder="Flock mark / reference" />
+                )}
+              </div>
+
+              <div className="col-span-2">
+                <Label>Operator Name *</Label>
+                <StaffSelect
+                  value={form.operatorName ?? ""}
+                  onChange={name => {
+                    setF("operatorName", name);
+                    if (name) {
+                      const cert = getCert(name);
+                      if (cert) {
+                        setF("operatorCertNumber", cert.certificateNumber ?? null);
+                        setF("operatorCertExpiry", cert.expiryDate ? cert.expiryDate.split("T")[0] : null);
+                      }
+                    }
+                  }}
+                  staffNames={staffNames}
+                />
+                {form.operatorName && (() => {
+                  const cert = getCert(form.operatorName);
+                  const today = new Date(); today.setHours(0, 0, 0, 0);
+                  if (!cert) return <p className="mt-1 text-xs text-amber-700 flex items-center gap-1"><AlertTriangle className="h-3 w-3" />No pesticide certificate found — add one in Staff &amp; Certificates.</p>;
+                  const expired = cert.expiryDate && new Date(cert.expiryDate) < today;
+                  return expired
+                    ? <p className="mt-1 text-xs text-red-700 flex items-center gap-1"><AlertTriangle className="h-3 w-3" />Certificate expired {cert.expiryDate ? new Date(cert.expiryDate).toLocaleDateString("en-GB") : ""} — renewal required.</p>
+                    : <p className="mt-1 text-xs text-green-700 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />{cert.certificateType} — cert number auto-filled.</p>;
+                })()}
+              </div>
+              <div><Label>Cert. of Competence No.</Label><Input value={form.operatorCertNumber ?? ""} onChange={e => setF("operatorCertNumber", e.target.value || null)} className="font-mono" placeholder="PA6AW / equivalent" /></div>
+              <div><Label>Cert. Expiry</Label><Input type="date" value={form.operatorCertExpiry ?? ""} onChange={e => setF("operatorCertExpiry", e.target.value || null)} /></div>
+
+              <div><Label>Days Since Last Use</Label><Input type="number" min={0} value={form.daysSinceLastUse ?? ""} onChange={e => setF("daysSinceLastUse", e.target.value ? Number(e.target.value) : null)} /></div>
+
+              <div className="col-span-2 border-t pt-4"><p className="text-xs font-semibold text-gray-500 uppercase mb-3">Dip Waste Disposal</p></div>
+              <div><Label>Disposal Method</Label>
+                <Select value={form.disposalMethod ?? ""} onValueChange={v => setF("disposalMethod", v || null)}>
+                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="licensed-contractor">Licensed Contractor Collection</SelectItem>
+                    <SelectItem value="approved-disposal-site">Approved Disposal Site</SelectItem>
+                    <SelectItem value="treatment-plant">Treatment Plant</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Disposal Quantity (L)</Label><Input type="number" min={0} value={form.disposalQuantityLitres ?? ""} onChange={e => setF("disposalQuantityLitres", e.target.value || null)} /></div>
+              <div><Label>Disposal Date</Label><Input type="date" value={form.disposalDate ?? ""} onChange={e => setF("disposalDate", e.target.value || null)} /></div>
+              <div><Label>Disposal Contractor</Label><Input value={form.disposalContractorName ?? ""} onChange={e => setF("disposalContractorName", e.target.value || null)} /></div>
+              <div className="col-span-2"><Label>Waste Transfer Note Ref</Label><Input value={form.disposalWasteTransferNoteRef ?? ""} onChange={e => setF("disposalWasteTransferNoteRef", e.target.value || null)} className="font-mono" /></div>
+
+              <div className="col-span-2 border-t pt-4"><p className="text-xs font-semibold text-gray-500 uppercase mb-3">Withdrawal Period (enter label value — organic doubles automatically)</p></div>
+              <div>
+                <Label>Label Withdrawal (days)</Label>
+                <Input type="number" min={0} value={form.withdrawalPeriodDays ?? ""} onChange={e => setF("withdrawalPeriodDays", e.target.value ? Number(e.target.value) : null)} />
+                {form.withdrawalPeriodDays != null && form.withdrawalPeriodDays > 0 && <p className="text-xs text-green-700 font-semibold mt-1">Organic W/D: {form.withdrawalPeriodDays * 2} days</p>}
+              </div>
+              <div><Label>Withdrawal Clear Date</Label><Input type="date" value={form.withdrawalClearDate ?? ""} onChange={e => setF("withdrawalClearDate", e.target.value || null)} /></div>
+
+              <div className="col-span-2 border-t pt-4"><p className="text-xs font-semibold text-gray-500 uppercase mb-3">Organic Compliance</p></div>
+              <div className="col-span-2 flex items-start gap-2">
+                <input type="checkbox" id="dip-orgApproved" checked={organicApproved} onChange={e => setOrganicApproved(e.target.checked)} className="w-4 h-4 mt-0.5" />
+                <Label htmlFor="dip-orgApproved">Product is confirmed as approved for use on organic livestock (check with your certifier if unsure — synthetic OP dips are prohibited)</Label>
+              </div>
+              <div className="col-span-2">
+                <Label>Alternatives Considered <span className="font-normal text-muted-foreground">(document why dipping was necessary and what alternatives were assessed)</span></Label>
+                <Textarea value={alternativesConsidered} onChange={e => setAlternativesConsidered(e.target.value)} rows={3} placeholder="e.g. Blowfly strike risk assessed as high due to weather conditions and wool length. Pour-on flystrike prevention applied first — dipping required as secondary measure." />
+              </div>
+              <div className="col-span-2 flex items-center gap-2">
+                <input type="checkbox" id="dip-certNotified" checked={certNotified} onChange={e => setCertNotified(e.target.checked)} className="w-4 h-4" />
+                <Label htmlFor="dip-certNotified">Certifier notified of this treatment</Label>
+              </div>
+              <div className="col-span-2"><Label>Notes</Label><Textarea value={userNotes} onChange={e => setUserNotes(e.target.value)} rows={2} /></div>
+            </div>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
+              <Button onClick={handleSave} disabled={!form.dipDate || !form.productName || !form.operatorName || !form.sheepCount || createMut.isPending || updateMut.isPending}>
+                {(createMut.isPending || updateMut.isPending) && <Loader2 className="animate-spin h-4 w-4 mr-1" />}
+                {editing ? "Update" : "Save Dipping Record"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {deleteId !== null && (
+        <Dialog open onOpenChange={() => setDeleteId(null)}>
+          <DialogContent><DialogHeader><DialogTitle>Delete Dipping Record?</DialogTitle></DialogHeader>
+            <p className="text-sm">This sheep dipping record will be permanently deleted.</p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={() => deleteMut.mutate(deleteId!)} disabled={deleteMut.isPending}>Delete</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
+}
+
 export default function OrganicLivestockPage() {
   const { farmId } = useAppStore();
   const { data: farmData } = useQuery<{ name: string }>({
@@ -2996,7 +3678,7 @@ export default function OrganicLivestockPage() {
             <AIReproductionSection farmId={farmId} />
           </TabsContent>
           <TabsContent value="vet-rx" className="mt-4">
-            <VetPrescriptionsSection farmId={farmId} />
+            <OrgVetPrescriptionsSection farmId={farmId} />
           </TabsContent>
           <TabsContent value="tb-tests" className="mt-4">
             <TbTestsSection farmId={farmId} />
@@ -3005,7 +3687,7 @@ export default function OrganicLivestockPage() {
             <WelfareOutcomeSection farmId={farmId} />
           </TabsContent>
           <TabsContent value="sheep-dipping" className="mt-4">
-            <SheepDippingSection farmId={farmId} />
+            <OrgSheepDippingSection farmId={farmId} />
           </TabsContent>
           <TabsContent value="kidding" className="mt-4">
             <KiddingSection farmId={farmId} />
