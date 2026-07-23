@@ -14074,7 +14074,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
       category: "Livestock",
       content: `<h2>Johne's Disease Monitoring Register</h2>
 
-<p>Johne's Disease (Paratuberculosis, caused by <em>Mycobacterium avium</em> subsp. <em>paratuberculosis</em>) is a chronic, progressive wasting disease in ruminants. Red Tractor Dairy standards require participating herds to have an active Johne's monitoring and control programme in place, evidenced by structured test records.</p>
+<p>Johne's Disease (Paratuberculosis, caused by <em>Mycobacterium avium</em> subsp. <em>paratuberculosis</em> — MAP) is a chronic, progressive wasting disease affecting ruminants including cattle, sheep, and goats. The monitoring register in BDE Farm Trac covers all ruminant species, but the formal scheme requirements differ significantly by species and sector.</p>
 
 <h3>Recording a Monitoring Test</h3>
 <p>Navigate to <strong>Livestock → Johne's Disease</strong> and click <strong>Add Monitoring Record</strong>. The form captures:</p>
@@ -14093,8 +14093,30 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <h3>Herd Risk Status</h3>
 <p>The Johne's register displays the most recent risk level against each herd — Low, Medium, or High — as a colour-coded badge. An overall herd risk trend is maintained across successive monitoring rounds, giving an at-a-glance record of whether the herd's position is improving or worsening over time.</p>
 
+<h3>NJMP Annual Declaration (Dairy Cattle Only)</h3>
+<p>The National Johne's Management Plan (NJMP) applies to <strong>enrolled dairy cattle herds only</strong>. It is a joint AHDB Dairy / BCVA scheme requiring dairy herds to enrol at a scheme level (1–4), undertake structured monitoring, and submit an annual declaration to their milk purchaser.</p>
+<p>The NJMP Annual Declaration module is available within the <strong>Dairy page → Johne's Disease tab → Annual Declaration section</strong> (and in Organic Dairy via the Organic Johne's tab). Each declaration record captures the scheme level, signing vet, declaration date, milk purchaser, and any risk management actions undertaken. A printable signed declaration letter can be generated for your assurance audit file and milk purchaser submission. Records are retained with a full history so auditors can see year-on-year declarations.</p>
+<p><em>Note: The NJMP does not apply to sheep, goats, beef herds, or any non-dairy species. The note is displayed within the declaration section as a reminder.</em></p>
+
+<h3>Johne's Disease in Sheep and Goats</h3>
+<p>Sheep and goats are susceptible to paratuberculosis (ovine and caprine MAP strains). There is no national mandatory programme equivalent to the NJMP for sheep or goats in the UK, but AHDB Beef &amp; Lamb recommends a vaccination and biosecurity-based control strategy. There are two ways to manage this in BDE Farm Trac:</p>
+
+<h4>1 — Vaccination with Gudair (Ovilis Gudair)</h4>
+<p>Gudair is the only Johne's vaccine licensed in the UK, and it is approved for <strong>sheep and goats only</strong>. Cattle vaccination is not available in the UK because the MAP antigen cross-reacts with the bovine tuberculosis skin test (PPD), which would make TB testing unreliable.</p>
+<p>To record a sheep Gudair vaccination: go to <strong>Sheep Production → Health → Vaccination Programmes</strong> and click Add. Select <em>Gudair (Ovilis Gudair)</em> from the Vaccine Product dropdown and <em>Johne's Disease (Paratuberculosis)</em> from the Disease Targeted dropdown. Capture batch number, expiry date, number of animals, dose, route, withdrawal period, booster due date, and vet prescription flag.</p>
+<p>To record a goat Gudair vaccination: go to <strong>Goat Production → Health → Vaccination Programmes</strong> and click Add. Select <em>Johne's Disease — Paratuberculosis (Gudair)</em> from the Programme dropdown.</p>
+
+<h4>2 — Source Flock Vaccination Status on Incoming Isolation Records</h4>
+<p>AHDB recommends sourcing sheep and goats only from flocks and herds that are vaccinating with Gudair. When recording the isolation period for a new batch of bought-in sheep or goats, go to <strong>Livestock → Isolation Register</strong>, open or create the isolation record, and scroll to the <em>Johne's Biosecurity — Sheep &amp; Goats</em> section at the bottom of the form. Select whether the source flock was:</p>
+<ul>
+<li><strong>Vaccinating with Gudair — confirmed by supplier</strong> (shown as a green badge on the record)</li>
+<li><strong>Not vaccinating — risk noted</strong> (shown as a red badge)</li>
+<li><strong>Unknown — not confirmed by supplier</strong> (shown as a grey badge)</li>
+</ul>
+<p>A free-text Johne's Biosecurity Notes field is also available for details such as when the supplier's programme started. This information is displayed as a colour-coded status row in the expanded isolation record view and creates a permanent audit trail supporting AHDB biosecurity guidance.</p>
+
 <h3>Red Tractor Context</h3>
-<p>Red Tractor Dairy requires herds to be enrolled in a recognised Johne's monitoring programme (NMR JD Premium, CHECS, or vet-supervised equivalent) with annual testing as a minimum. Testing records and any risk classifications issued by the programme must be available for inspection. The monitoring register provides the structured test history required by the standard.</p>`,
+<p>Red Tractor Dairy requires enrolled herds to participate in a recognised Johne's monitoring programme (NMR JD Premium, CHECS, or vet-supervised equivalent) with annual testing as a minimum, and to complete the NJMP annual declaration to their milk purchaser. Testing records, risk classifications, and annual declaration letters must be available for inspection. Red Tractor Beef &amp; Lamb and Sheep, Goat &amp; Deer standards require a Farm Health Plan that may include Johne's risk assessment, but do not mandate enrolment in a monitoring scheme at the same level as Dairy.</p>`,
     },
     {
       id: 10078,
