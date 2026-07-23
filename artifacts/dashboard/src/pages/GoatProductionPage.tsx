@@ -747,11 +747,11 @@ function HealthTab({ farmId }: { farmId: number }) {
           <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Vaccination</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Vaccination Programme">
-                <Select value={["CAE prevention (dam-raised)","Clostridial diseases","Pasteurella / pneumonia","Enterotoxaemia","Foot rot (Footvax)","Caseous Lymphadenitis (CLA)","E. coli (neonatal)","Orf"].includes(form.vaccinationCategory ?? "") ? (form.vaccinationCategory ?? "") : form.vaccinationCategory ? "Other" : ""} onValueChange={v => sf("vaccinationCategory", v)}>
+                <Select value={["CAE prevention (dam-raised)","Clostridial diseases","Pasteurella / pneumonia","Enterotoxaemia","Foot rot (Footvax)","Caseous Lymphadenitis (CLA)","E. coli (neonatal)","Orf","Johne's Disease — Paratuberculosis (Gudair)"].includes(form.vaccinationCategory ?? "") ? (form.vaccinationCategory ?? "") : form.vaccinationCategory ? "Other" : ""} onValueChange={v => sf("vaccinationCategory", v)}>
                   <SelectTrigger><SelectValue placeholder="Select programme..." /></SelectTrigger>
-                  <SelectContent>{["CAE prevention (dam-raised)","Clostridial diseases","Pasteurella / pneumonia","Enterotoxaemia","Foot rot (Footvax)","Caseous Lymphadenitis (CLA)","E. coli (neonatal)","Orf","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                  <SelectContent>{["CAE prevention (dam-raised)","Clostridial diseases","Pasteurella / pneumonia","Enterotoxaemia","Foot rot (Footvax)","Caseous Lymphadenitis (CLA)","E. coli (neonatal)","Orf","Johne's Disease — Paratuberculosis (Gudair)","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                 </Select>
-                {(form.vaccinationCategory === "Other" || (form.vaccinationCategory && !["CAE prevention (dam-raised)","Clostridial diseases","Pasteurella / pneumonia","Enterotoxaemia","Foot rot (Footvax)","Caseous Lymphadenitis (CLA)","E. coli (neonatal)","Orf"].includes(form.vaccinationCategory))) && (
+                {(form.vaccinationCategory === "Other" || (form.vaccinationCategory && !["CAE prevention (dam-raised)","Clostridial diseases","Pasteurella / pneumonia","Enterotoxaemia","Foot rot (Footvax)","Caseous Lymphadenitis (CLA)","E. coli (neonatal)","Orf","Johne's Disease — Paratuberculosis (Gudair)"].includes(form.vaccinationCategory))) && (
                   <Input className="mt-1.5" value={form.vaccinationCategory === "Other" ? "" : form.vaccinationCategory} onChange={e => sf("vaccinationCategory", e.target.value || "Other")} placeholder="Please specify programme…" />
                 )}
               </Field>

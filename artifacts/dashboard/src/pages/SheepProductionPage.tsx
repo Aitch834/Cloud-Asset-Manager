@@ -1138,13 +1138,13 @@ function HealthTab({ farmId }: { farmId: number }) {
               <Field label="Vaccine Product *">
                 <Select value={form.vaccineProduct ?? ""} onValueChange={v => sf("vaccineProduct", v)}>
                   <SelectTrigger><SelectValue placeholder="Select vaccine..." /></SelectTrigger>
-                  <SelectContent>{["Heptavac P Plus","Covexin 8","Ovivac P","Ovivac P Plus","Scabivax Forte","Footvax","Toxovax","Ovilis Enzovax","Ovilis Fluvac","Mevac T","Lambivac","Bravoxin 10","Tasvax 8","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                  <SelectContent>{["Heptavac P Plus","Covexin 8","Ovivac P","Ovivac P Plus","Scabivax Forte","Footvax","Toxovax","Ovilis Enzovax","Ovilis Fluvac","Mevac T","Lambivac","Bravoxin 10","Tasvax 8","Gudair (Ovilis Gudair)","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                 </Select>
               </Field>
               <Field label="Disease Targeted">
                 <Select value={form.diseaseTargeted ?? ""} onValueChange={v => sf("diseaseTargeted", v)}>
                   <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                  <SelectContent>{["Clostridial disease","Pasteurellosis","Enzootic abortion (EAE)","Toxoplasmosis","OPA","Footrot","Louping ill","Caseous lymphadenitis","Orf","Maedi Visna","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                  <SelectContent>{["Clostridial disease","Pasteurellosis","Enzootic abortion (EAE)","Toxoplasmosis","OPA","Footrot","Louping ill","Caseous lymphadenitis","Orf","Maedi Visna","Johne's Disease (Paratuberculosis)","Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                 </Select>
               </Field>
               <Field label="Vaccination Date *"><Input type="date" value={form.vaccinationDate ?? ""} onChange={e => sf("vaccinationDate", e.target.value)} /></Field>

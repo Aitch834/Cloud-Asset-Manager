@@ -195,6 +195,9 @@ ${rec.notes ? `<p class="body-para"><em>Notes: ${rec.notes}</em></p>` : ""}
         <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />New Annual Declaration</Button>
       </div>
 
+      <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded px-3 py-2 mb-3">
+        The NJMP applies to enrolled <strong>dairy cattle herds only</strong> — it is not applicable to sheep or goats. For Johne's disease (paratuberculosis) in sheep and goats, record vaccination with Gudair via the Vaccination Programmes tab in the Sheep / Goat Production modules. Cattle vaccination is not licensed in the UK due to cross-reactivity with the bovine TB skin test.
+      </p>
       {(declarations as any[]).length === 0 ? (
         <div className="text-center py-8 border-2 border-dashed rounded-lg text-sm text-gray-400">No declarations recorded yet. Click "New Annual Declaration" to log and print your first.</div>
       ) : (
