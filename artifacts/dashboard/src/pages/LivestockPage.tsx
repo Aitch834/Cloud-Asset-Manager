@@ -8220,7 +8220,7 @@ function IsolationRegisterSection({ farmId }: { farmId: number }) {
   const [hcOpen, setHcOpen] = useState<number | null>(null);
   const [deleteHcId, setDeleteHcId] = useState<{ recId: number; checkId: number } | null>(null);
 
-  const emptyForm = { isolationStartDate: "", isolationEndDate: "", animalCount: "", animalDescription: "", isolationReason: "", supplierName: "", clearanceDate: "", clearanceSignedBy: "", notes: "", sourceJohnesVaccStatus: "", sourceJohnesVaccNotes: "" };
+  const emptyForm = { isolationStartDate: "", isolationEndDate: "", animalCount: "", animalDescription: "", isolationReason: "", supplierName: "", clearanceDate: "", clearanceSignedBy: "", notes: "", sourceJohnesVaccStatus: "", sourceJohnesVaccNotes: "", sourcePrrsStatus: "", sourcePrrsNotes: "", sourceMhStatus: "", sourceMhNotes: "" };
   const [form, setForm] = useState({ ...emptyForm });
   const emptyHc = { checkDate: new Date().toISOString().slice(0, 10), checkedBy: "", healthStatus: "satisfactory", temperatureCelsius: "", notes: "", actionTaken: "" };
   const [hcForm, setHcForm] = useState({ ...emptyHc });
@@ -8243,7 +8243,7 @@ function IsolationRegisterSection({ farmId }: { farmId: number }) {
 
   function openEdit(r: any) {
     setEditRec(r);
-    setForm({ isolationStartDate: r.isolationStartDate?.slice(0, 10) ?? "", isolationEndDate: r.isolationEndDate?.slice(0, 10) ?? "", animalCount: String(r.animalCount ?? ""), animalDescription: r.animalDescription ?? "", isolationReason: r.isolationReason ?? "", supplierName: r.supplierName ?? "", clearanceDate: r.clearanceDate?.slice(0, 10) ?? "", clearanceSignedBy: r.clearanceSignedBy ?? "", notes: r.notes ?? "", sourceJohnesVaccStatus: r.sourceJohnesVaccStatus ?? "", sourceJohnesVaccNotes: r.sourceJohnesVaccNotes ?? "" });
+    setForm({ isolationStartDate: r.isolationStartDate?.slice(0, 10) ?? "", isolationEndDate: r.isolationEndDate?.slice(0, 10) ?? "", animalCount: String(r.animalCount ?? ""), animalDescription: r.animalDescription ?? "", isolationReason: r.isolationReason ?? "", supplierName: r.supplierName ?? "", clearanceDate: r.clearanceDate?.slice(0, 10) ?? "", clearanceSignedBy: r.clearanceSignedBy ?? "", notes: r.notes ?? "", sourceJohnesVaccStatus: r.sourceJohnesVaccStatus ?? "", sourceJohnesVaccNotes: r.sourceJohnesVaccNotes ?? "", sourcePrrsStatus: r.sourcePrrsStatus ?? "", sourcePrrsNotes: r.sourcePrrsNotes ?? "", sourceMhStatus: r.sourceMhStatus ?? "", sourceMhNotes: r.sourceMhNotes ?? "" });
   }
 
   return (
@@ -8308,6 +8308,18 @@ function IsolationRegisterSection({ farmId }: { farmId: number }) {
                         <span>{r.sourceJohnesVaccStatus === "vaccinating" ? "✓ Vaccinating with Gudair — confirmed" : r.sourceJohnesVaccStatus === "not_vaccinating" ? "✗ Not vaccinating — biosecurity risk noted" : "Unknown — not confirmed by supplier"}{r.sourceJohnesVaccNotes ? ` · ${r.sourceJohnesVaccNotes}` : ""}</span>
                       </div>
                     )}
+                    {r.sourcePrrsStatus && (
+                      <div className={`col-span-full flex items-start gap-2 rounded px-2.5 py-2 text-xs border ${r.sourcePrrsStatus === "negative" ? "bg-green-50 border-green-200 text-green-800" : r.sourcePrrsStatus === "positive_stable" ? "bg-amber-50 border-amber-200 text-amber-800" : r.sourcePrrsStatus === "positive_unstable" ? "bg-red-50 border-red-200 text-red-800" : "bg-gray-50 border-gray-200 text-gray-600"}`}>
+                        <span className="font-semibold shrink-0">PRRS (source herd):</span>
+                        <span>{r.sourcePrrsStatus === "negative" ? "✓ PRRS-negative — confirmed" : r.sourcePrrsStatus === "positive_stable" ? "⚠ PRRS-positive stable" : r.sourcePrrsStatus === "positive_unstable" ? "✗ PRRS-positive unstable — biosecurity risk" : "Unknown — not confirmed by supplier"}{r.sourcePrrsNotes ? ` · ${r.sourcePrrsNotes}` : ""}</span>
+                      </div>
+                    )}
+                    {r.sourceMhStatus && (
+                      <div className={`col-span-full flex items-start gap-2 rounded px-2.5 py-2 text-xs border ${r.sourceMhStatus === "negative" ? "bg-green-50 border-green-200 text-green-800" : r.sourceMhStatus === "positive_stable" ? "bg-amber-50 border-amber-200 text-amber-800" : r.sourceMhStatus === "positive" ? "bg-red-50 border-red-200 text-red-800" : "bg-gray-50 border-gray-200 text-gray-600"}`}>
+                        <span className="font-semibold shrink-0">MH / Enzootic Pneumonia (source herd):</span>
+                        <span>{r.sourceMhStatus === "negative" ? "✓ MH-negative — confirmed" : r.sourceMhStatus === "positive_stable" ? "⚠ MH-positive stable" : r.sourceMhStatus === "positive" ? "✗ MH-positive" : "Unknown — not confirmed by supplier"}{r.sourceMhNotes ? ` · ${r.sourceMhNotes}` : ""}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="border-t pt-3">
                     <div className="flex items-center justify-between mb-2">
@@ -8369,6 +8381,34 @@ function IsolationRegisterSection({ farmId }: { farmId: number }) {
                 </select>
               </div>
               <div><Label className="text-xs">Johne's Biosecurity Notes</Label><Input className="mt-1" value={form.sourceJohnesVaccNotes} onChange={e => setForm(f => ({ ...f, sourceJohnesVaccNotes: e.target.value }))} placeholder="e.g. Supplier confirmed Gudair programme since 2022…" /></div>
+            </div>
+            <div className="border-t pt-3 space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">PRRS Biosecurity — Pigs</p>
+              <p className="text-xs text-gray-400">AHDB PRRS Accreditation Scheme: purchase only from herds with the same or lower PRRS risk status. Record the source herd's status at point of purchase.</p>
+              <div><Label className="text-xs">Source Herd PRRS Status</Label>
+                <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.sourcePrrsStatus} onChange={e => setForm(f => ({ ...f, sourcePrrsStatus: e.target.value }))}>
+                  <option value="">Not applicable / not recorded</option>
+                  <option value="negative">PRRS-negative — confirmed by supplier</option>
+                  <option value="positive_stable">PRRS-positive stable</option>
+                  <option value="positive_unstable">PRRS-positive unstable — elevated biosecurity risk</option>
+                  <option value="unknown">Unknown — not confirmed by supplier</option>
+                </select>
+              </div>
+              <div><Label className="text-xs">PRRS Biosecurity Notes</Label><Input className="mt-1" value={form.sourcePrrsNotes} onChange={e => setForm(f => ({ ...f, sourcePrrsNotes: e.target.value }))} placeholder="e.g. Supplier holds AHDB PRRS Negative accreditation…" /></div>
+            </div>
+            <div className="border-t pt-3 space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Enzootic Pneumonia / MH Biosecurity — Pigs</p>
+              <p className="text-xs text-gray-400">AHDB MH Accreditation: source from MH-negative herds where possible. Record the source herd's Mycoplasma hyopneumoniae status at point of purchase.</p>
+              <div><Label className="text-xs">Source Herd MH Status</Label>
+                <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.sourceMhStatus} onChange={e => setForm(f => ({ ...f, sourceMhStatus: e.target.value }))}>
+                  <option value="">Not applicable / not recorded</option>
+                  <option value="negative">MH-negative — confirmed by supplier</option>
+                  <option value="positive_stable">MH-positive stable</option>
+                  <option value="positive">MH-positive</option>
+                  <option value="unknown">Unknown — not confirmed by supplier</option>
+                </select>
+              </div>
+              <div><Label className="text-xs">MH Biosecurity Notes</Label><Input className="mt-1" value={form.sourceMhNotes} onChange={e => setForm(f => ({ ...f, sourceMhNotes: e.target.value }))} placeholder="e.g. Supplier holds AHDB MH Negative accreditation…" /></div>
             </div>
           </div>
           <DialogFooter>

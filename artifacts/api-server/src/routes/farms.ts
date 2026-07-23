@@ -407,6 +407,8 @@ import {
   casualtySlaughterRecordsTable,
   campylobacterMonitoringTable,
   salmMonitoringTable,
+  pigVaccinationRecordsTable,
+  pigDiseaseMonitoringTable,
   ipmPlansTable,
   ipmThresholdEntriesTable,
   ipmMonitoringLogsTable,
@@ -14281,6 +14283,125 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 
 <h3>Red Tractor Context</h3>
 <p>Red Tractor requires completed LERAP assessments to be retained alongside the spray records for the applications they cover — the assessor name, date, assessment decision, and buffer zone applied must all be on file. The assessor must hold the appropriate PA certificate. Assessments should be reviewed annually or whenever the field boundary, watercourse, or product changes. Records must be retained for a minimum of three years.</p>`,
+    },
+    {
+      id: 10083,
+      title: "Pig Vaccination Programmes",
+      category: "Pig Production",
+      content: `<h2>Pig Vaccination Programmes</h2>
+
+<p>Recording a detailed vaccination programme is a Red Tractor Pigs requirement. Red Tractor requires that a written veterinary health plan including a vaccination programme is in place, signed by your vet, and that individual vaccination records are retained to demonstrate that the programme has been followed. The Vaccination tab in Pig Production provides the record-keeping layer underneath that signed plan.</p>
+
+<h3>Adding a Vaccination Record</h3>
+<p>Navigate to <strong>Pig Production → Vaccination</strong> and click <strong>Add Vaccination Record</strong>. Select the disease category first:</p>
+<ul>
+<li><strong>PRRS</strong> — Porcine Reproductive and Respiratory Syndrome</li>
+<li><strong>PCV2 / Circovirus</strong> — Porcine Circovirus type 2</li>
+<li><strong>Enzootic Pneumonia (MH)</strong> — Mycoplasma hyopneumoniae</li>
+<li><strong>Erysipelas / PPV</strong> — Erysipelothrix rhusiopathiae and Porcine Parvovirus</li>
+<li><strong>E. coli / Clostridial</strong> — colibacillosis and clostridial enteritis</li>
+<li><strong>APP</strong> — Actinobacillus pleuropneumoniae</li>
+<li><strong>Swine Influenza (SIV)</strong></li>
+<li><strong>PED</strong> — Porcine Epidemic Diarrhoea</li>
+<li><strong>Other</strong> — any additional vaccine not covered above</li>
+</ul>
+
+<h3>Vaccine Presets</h3>
+<p>Once a category is selected, a dropdown lists the principal licensed UK vaccines for that category. Examples include:</p>
+<ul>
+<li><strong>PRRS</strong>: Ingelvac PRRS MLV, Porcilis PRRS, Fostera PRRS, Unistrain PRRS, ReproCyc PRRS EU, Amervac PRRS</li>
+<li><strong>PCV2</strong>: Ingelvac CircoFLEX, Circovac, Porcilis PCV AD, Porcilis PCV M Hyo, Suvaxyn PCV</li>
+<li><strong>Enzootic Pneumonia (MH)</strong>: Ingelvac M.hyo. IDAL, Hyoresp, Stellamune Mycoplasma, Porcilis M Hyo</li>
+<li><strong>Erysipelas / PPV</strong>: Eryseng Parvo, Porcilis Ery+Parvo, Porcilis Ery, Farrowsure Gold</li>
+<li><strong>APP</strong>: Porcilis APP, Coglapix</li>
+<li><strong>Swine Influenza</strong>: Respiporc FluCombi, Suvaxyn Flu</li>
+</ul>
+<p>Select <strong>Other — enter manually</strong> for any vaccine not listed. The vaccine name field becomes a free-text entry.</p>
+
+<h3>Record Fields</h3>
+<ul>
+<li><strong>Batch Number &amp; Expiry Date</strong> — required for traceability; record exactly as printed on the vial label</li>
+<li><strong>Age Group Treated</strong> — Sows/Gilts, Boars, Piglets/Suckling, Weaners, Growers, Finishers, or All pigs</li>
+<li><strong>Number Treated</strong> — total animals vaccinated in this event</li>
+<li><strong>Dose Volume</strong> — volume administered per animal (ml)</li>
+<li><strong>Administration Route</strong> — Intramuscular, Subcutaneous, Intradermal, Intranasal, Oral, or In-water</li>
+<li><strong>Withdrawal Period (days)</strong> — the meat withdrawal period; auto-fills for preset vaccines but editable</li>
+<li><strong>Next Due Date</strong> — booster or next round date; drives the upcoming alert panel</li>
+<li><strong>Administered By</strong> — person responsible</li>
+<li><strong>Vet Prescribed</strong> — tick this box if the vaccine is supplied on a vet prescription (required for POM-V products)</li>
+<li><strong>Notes</strong> — any supplementary detail</li>
+</ul>
+
+<h3>Upcoming &amp; Overdue Booster Alert Panel</h3>
+<p>An amber alert panel appears at the top of the Vaccination tab whenever any vaccination record has a <strong>Next Due Date</strong> within the next 30 days or already overdue. Each alert shows the vaccine product, disease category, and due date. Resolve alerts by adding a new vaccination record for that round.</p>
+
+<h3>Document Attachment</h3>
+<p>Use the compact attach/view button on each record row to attach a PDF vet prescription, product data sheet, or vaccination certificate. Documents are stored against the individual record and are accessible from the row and from the edit dialog.</p>
+
+<h3>Red Tractor Context</h3>
+<p>Red Tractor Pigs requires that your Veterinary Health Plan includes a written, vet-signed vaccination programme specifying the products, disease targets, animal groups, and schedule. The Vaccination tab records the actual administration events that demonstrate compliance with that signed programme. Records must be retained for a minimum of three years and made available to a Red Tractor assessor on request.</p>`,
+    },
+    {
+      id: 10084,
+      title: "Pig Disease Monitoring — PRRS, MH, and Accreditation Schemes",
+      category: "Pig Production",
+      content: `<h2>Pig Disease Monitoring — PRRS, MH &amp; Accreditation Schemes</h2>
+
+<p>The Disease Monitoring tab in Pig Production records serological surveillance and disease status monitoring events for your pig herd. It supports documentation requirements for the AHDB PRRS Accreditation Scheme, the AHDB MH Accreditation Scheme, and the APHA Aujeszky's Disease-Free Scheme.</p>
+
+<h3>Monitoring Types</h3>
+<ul>
+<li><strong>PRRS Monitoring</strong> — Porcine Reproductive and Respiratory Syndrome serology</li>
+<li><strong>Enzootic Pneumonia / MH Monitoring</strong> — Mycoplasma hyopneumoniae surveillance</li>
+<li><strong>Aujeszky's Disease (AD-Free)</strong> — APHA AD-Free scheme monitoring</li>
+<li><strong>APP Serotyping</strong> — Actinobacillus pleuropneumoniae serotype surveillance</li>
+<li><strong>Swine Influenza Surveillance</strong> — SIV strain monitoring</li>
+<li><strong>PRDC</strong> — Porcine Respiratory Disease Complex investigation</li>
+<li><strong>General Serology</strong> — any other serological test panel</li>
+</ul>
+
+<h3>Accreditation Scheme Documentation</h3>
+<p>If the monitoring event is part of a formal accreditation scheme, select the scheme from the <strong>Accreditation Scheme</strong> dropdown:</p>
+<ul>
+<li><strong>AHDB PRRS Accreditation</strong> — the AHDB PRRS Accreditation Scheme classifies herds as Negative, Positive-Stable, or Positive-Unstable based on clinical signs and surveillance results. The scheme recommends that producers only purchase pigs from herds at the same or lower PRRS risk status.</li>
+<li><strong>AHDB MH Accreditation</strong> — the AHDB MH Accreditation Scheme classifies herds as MH-Negative or MH-Positive. Sourcing from MH-Negative herds is recommended to protect respiratory performance.</li>
+<li><strong>APHA Aujeszky's Disease-Free Scheme</strong> — the GB AD-Free Scheme confirms freedom from Aujeszky's Disease virus (pseudorabies). GB pig herds are declared free; ongoing monitoring maintains that status.</li>
+</ul>
+<p>Enter the scheme reference number (certificate or accreditation number) in the <strong>Scheme Reference</strong> field for audit-trail purposes.</p>
+
+<h3>Record Fields</h3>
+<ul>
+<li><strong>Monitoring Date</strong> — date sampling was carried out</li>
+<li><strong>Monitoring Type</strong> — disease or surveillance programme (see list above)</li>
+<li><strong>Accreditation Scheme</strong> — optional formal scheme; reveals Scheme Reference field when selected</li>
+<li><strong>Testing Body / Laboratory</strong> — the laboratory or scheme body conducting the test</li>
+<li><strong>Number of Samples</strong> — total animals sampled</li>
+<li><strong>Positive Results</strong> &amp; <strong>Negative Results</strong></li>
+<li><strong>Herd Status</strong> — overall outcome of the monitoring round:</li>
+</ul>
+<table>
+<thead><tr><th>Status</th><th>Colour</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>Negative</td><td>Green</td><td>No virus detected; herd confirmed clear</td></tr>
+<tr><td>Positive-Stable</td><td>Amber</td><td>Virus present but clinically stable; no active outbreak</td></tr>
+<tr><td>Positive-Unstable</td><td>Red</td><td>Virus present with active clinical signs or recent seroconversion</td></tr>
+<tr><td>Positive</td><td>Red</td><td>Positive result — status classification pending</td></tr>
+<tr><td>AD-Free Accredited</td><td>Green</td><td>APHA AD-Free scheme confirmation</td></tr>
+<tr><td>Inconclusive</td><td>Amber</td><td>Results are borderline; repeat sampling recommended</td></tr>
+<tr><td>Pending</td><td>Grey</td><td>Samples submitted; results awaited</td></tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Next Test Due</strong> — schedule the next monitoring round</li>
+<li><strong>Actions Taken</strong> — biosecurity or management responses applied</li>
+<li><strong>Notes</strong> — supplementary detail</li>
+</ul>
+
+<h3>Source Herd Status on Isolation Records</h3>
+<p>When purchasing pigs, the AHDB PRRS and MH Accreditation Schemes recommend sourcing only from herds at the same or lower risk status. Record the source herd's PRRS and MH status when completing an Isolation Register entry — navigate to <strong>Livestock → Isolation Register</strong>, open or create the record for the incoming batch, and locate the <strong>PRRS Biosecurity — Pigs</strong> and <strong>Enzootic Pneumonia / MH Biosecurity — Pigs</strong> sections. Select the source herd status and add any biosecurity notes (e.g. supplier's AHDB accreditation reference). These fields are displayed as colour-coded badges on the isolation record for quick audit-trail review.</p>
+
+<h3>Document Attachment</h3>
+<p>Attach the laboratory report or accreditation certificate directly to the monitoring record using the compact attach/view button on the record row.</p>`,
     },
   ];
 
@@ -31911,6 +32032,108 @@ router.delete("/farms/:farmId/pig-salmonella-monitoring/:id", requireAuth, requi
   const id = parseInt(req.params.id as string);
   await db.delete(salmMonitoringTable).where(and(eq(salmMonitoringTable.id, id), eq(salmMonitoringTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── Pig Vaccination Records ──────────────────────────────────────────────────
+router.get("/farms/:farmId/pig-vaccination-records", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(pigVaccinationRecordsTable).where(eq(pigVaccinationRecordsTable.farmId, farmId)).orderBy(desc(pigVaccinationRecordsTable.vaccinationDate));
+  res.json({ records: rows });
+});
+router.post("/farms/:farmId/pig-vaccination-records", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(pigVaccinationRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, vaccinationDate: String(b.vaccinationDate ?? ""), vaccinationCategory: String(b.vaccinationCategory ?? ""), vaccineProduct: String(b.vaccineProduct ?? ""), batchNumber: b.batchNumber ? String(b.batchNumber) : null, expiryDate: b.expiryDate ? String(b.expiryDate) : null, ageGroupTreated: b.ageGroupTreated ? String(b.ageGroupTreated) : null, numberTreated: b.numberTreated ? Number(b.numberTreated) : null, doseVolumeMl: b.doseVolumeMl ? String(b.doseVolumeMl) : null, administrationRoute: b.administrationRoute ? String(b.administrationRoute) : null, withdrawalPeriodDays: b.withdrawalPeriodDays ? Number(b.withdrawalPeriodDays) : 0, nextDueDate: b.nextDueDate ? String(b.nextDueDate) : null, administeredBy: b.administeredBy ? String(b.administeredBy) : null, vetPrescribed: b.vetPrescribed === "true" || b.vetPrescribed === true, notes: b.notes ? String(b.notes) : null }).returning();
+  res.status(201).json({ row });
+});
+router.put("/farms/:farmId/pig-vaccination-records/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const updates: Record<string, unknown> = {};
+  if (b.vaccinationDate !== undefined) updates.vaccinationDate = String(b.vaccinationDate);
+  if (b.vaccinationCategory !== undefined) updates.vaccinationCategory = String(b.vaccinationCategory);
+  if (b.vaccineProduct !== undefined) updates.vaccineProduct = String(b.vaccineProduct);
+  if (b.batchNumber !== undefined) updates.batchNumber = b.batchNumber ? String(b.batchNumber) : null;
+  if (b.expiryDate !== undefined) updates.expiryDate = b.expiryDate ? String(b.expiryDate) : null;
+  if (b.ageGroupTreated !== undefined) updates.ageGroupTreated = b.ageGroupTreated ? String(b.ageGroupTreated) : null;
+  if (b.numberTreated !== undefined) updates.numberTreated = b.numberTreated ? Number(b.numberTreated) : null;
+  if (b.doseVolumeMl !== undefined) updates.doseVolumeMl = b.doseVolumeMl ? String(b.doseVolumeMl) : null;
+  if (b.administrationRoute !== undefined) updates.administrationRoute = b.administrationRoute ? String(b.administrationRoute) : null;
+  if (b.withdrawalPeriodDays !== undefined) updates.withdrawalPeriodDays = Number(b.withdrawalPeriodDays ?? 0);
+  if (b.nextDueDate !== undefined) updates.nextDueDate = b.nextDueDate ? String(b.nextDueDate) : null;
+  if (b.administeredBy !== undefined) updates.administeredBy = b.administeredBy ? String(b.administeredBy) : null;
+  if (b.vetPrescribed !== undefined) updates.vetPrescribed = b.vetPrescribed === "true" || b.vetPrescribed === true;
+  if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
+  const [row] = await db.update(pigVaccinationRecordsTable).set(updates).where(and(eq(pigVaccinationRecordsTable.id, id), eq(pigVaccinationRecordsTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+router.delete("/farms/:farmId/pig-vaccination-records/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(pigVaccinationRecordsTable).where(and(eq(pigVaccinationRecordsTable.id, Number(req.params.id)), eq(pigVaccinationRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+router.patch("/farms/:farmId/pig-vaccination-records/:id/document", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const { documentPath = null, documentName = null } = req.body ?? {};
+  const [row] = await db.update(pigVaccinationRecordsTable).set({ documentPath: documentPath as string | null, documentName: documentName as string | null }).where(and(eq(pigVaccinationRecordsTable.id, id), eq(pigVaccinationRecordsTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+
+// ─── Pig Disease Monitoring ────────────────────────────────────────────────────
+router.get("/farms/:farmId/pig-disease-monitoring", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(pigDiseaseMonitoringTable).where(eq(pigDiseaseMonitoringTable.farmId, farmId)).orderBy(desc(pigDiseaseMonitoringTable.monitoringDate));
+  res.json({ records: rows });
+});
+router.post("/farms/:farmId/pig-disease-monitoring", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(pigDiseaseMonitoringTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, monitoringDate: String(b.monitoringDate ?? ""), monitoringType: String(b.monitoringType ?? ""), accreditationScheme: b.accreditationScheme ? String(b.accreditationScheme) : null, schemeReference: b.schemeReference ? String(b.schemeReference) : null, testingBody: b.testingBody ? String(b.testingBody) : null, numberOfSamples: b.numberOfSamples ? Number(b.numberOfSamples) : null, positiveResults: b.positiveResults ? Number(b.positiveResults) : 0, negativeResults: b.negativeResults ? Number(b.negativeResults) : 0, herdStatus: b.herdStatus ? String(b.herdStatus) : null, actionsTaken: b.actionsTaken ? String(b.actionsTaken) : null, nextTestDue: b.nextTestDue ? String(b.nextTestDue) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.status(201).json({ row });
+});
+router.put("/farms/:farmId/pig-disease-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const updates: Record<string, unknown> = {};
+  if (b.monitoringDate !== undefined) updates.monitoringDate = String(b.monitoringDate);
+  if (b.monitoringType !== undefined) updates.monitoringType = String(b.monitoringType);
+  if (b.accreditationScheme !== undefined) updates.accreditationScheme = b.accreditationScheme ? String(b.accreditationScheme) : null;
+  if (b.schemeReference !== undefined) updates.schemeReference = b.schemeReference ? String(b.schemeReference) : null;
+  if (b.testingBody !== undefined) updates.testingBody = b.testingBody ? String(b.testingBody) : null;
+  if (b.numberOfSamples !== undefined) updates.numberOfSamples = b.numberOfSamples ? Number(b.numberOfSamples) : null;
+  if (b.positiveResults !== undefined) updates.positiveResults = Number(b.positiveResults ?? 0);
+  if (b.negativeResults !== undefined) updates.negativeResults = Number(b.negativeResults ?? 0);
+  if (b.herdStatus !== undefined) updates.herdStatus = b.herdStatus ? String(b.herdStatus) : null;
+  if (b.actionsTaken !== undefined) updates.actionsTaken = b.actionsTaken ? String(b.actionsTaken) : null;
+  if (b.nextTestDue !== undefined) updates.nextTestDue = b.nextTestDue ? String(b.nextTestDue) : null;
+  if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
+  const [row] = await db.update(pigDiseaseMonitoringTable).set(updates).where(and(eq(pigDiseaseMonitoringTable.id, id), eq(pigDiseaseMonitoringTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+router.delete("/farms/:farmId/pig-disease-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(pigDiseaseMonitoringTable).where(and(eq(pigDiseaseMonitoringTable.id, Number(req.params.id)), eq(pigDiseaseMonitoringTable.farmId, farmId)));
+  res.json({ success: true });
+});
+router.patch("/farms/:farmId/pig-disease-monitoring/:id/document", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const { documentPath = null, documentName = null } = req.body ?? {};
+  const [row] = await db.update(pigDiseaseMonitoringTable).set({ documentPath: documentPath as string | null, documentName: documentName as string | null }).where(and(eq(pigDiseaseMonitoringTable.id, id), eq(pigDiseaseMonitoringTable.farmId, farmId))).returning();
+  res.json({ row });
 });
 
 router.patch("/farms/:farmId/pig-salmonella-monitoring/:id/document", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {

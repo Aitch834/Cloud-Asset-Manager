@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tan
 import { DocAttach } from "@/components/DocAttach";
 import { PigEnterpriseReport } from "@/components/PigEnterpriseReport";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
-import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby, ShieldCheck, Pill, CheckCircle2, Clock, MapPin, LayoutDashboard, XCircle, TrendingUp, Scale, FileDown, Eye, Paperclip, Printer } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby, ShieldCheck, Pill, CheckCircle2, Clock, MapPin, LayoutDashboard, XCircle, TrendingUp, Scale, FileDown, Eye, Paperclip, Printer, Syringe, Activity } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2633,11 +2633,11 @@ function PigAnalyticsTab({ farmId }: { farmId: number }) {
 }
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
-type Tab = "overview" | "flocks" | "movements" | "medicine" | "fci" | "feed" | "vet" | "stockmanship" | "tail-biting" | "farrowing" | "red-tractor" | "kill-records" | "salmonella" | "analytics" | "enterprise";
+type Tab = "overview" | "flocks" | "movements" | "medicine" | "fci" | "feed" | "vet" | "stockmanship" | "tail-biting" | "farrowing" | "red-tractor" | "kill-records" | "salmonella" | "vaccination" | "disease-monitoring" | "analytics" | "enterprise";
 
 export default function PigProductionPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["overview","flocks","movements","medicine","fci","feed","vet","stockmanship","tail-biting","farrowing","red-tractor","kill-records","salmonella","analytics"]; return t && valid.includes(t) ? t : "overview"; });
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["overview","flocks","movements","medicine","fci","feed","vet","stockmanship","tail-biting","farrowing","red-tractor","kill-records","salmonella","vaccination","disease-monitoring","analytics"]; return t && valid.includes(t) ? t : "overview"; });
   const [generating, setGenerating] = useState(false);
   if (!farmId) return <Redirect to="/" />;
 
@@ -2664,6 +2664,8 @@ export default function PigProductionPage() {
             <TabButton active={tab === "red-tractor"} onClick={() => setTab("red-tractor")}><ShieldCheck className="w-3.5 h-3.5 mr-1" />Red Tractor</TabButton>
             <TabButton active={tab === "kill-records"} onClick={() => setTab("kill-records")}><Scale className="w-3.5 h-3.5 mr-1" />Kill Records</TabButton>
             <TabButton active={tab === "salmonella"} onClick={() => setTab("salmonella")}><AlertTriangle className="w-3.5 h-3.5 mr-1" />Salmonella</TabButton>
+            <TabButton active={tab === "vaccination"} onClick={() => setTab("vaccination")}><Syringe className="w-3.5 h-3.5 mr-1" />Vaccination</TabButton>
+            <TabButton active={tab === "disease-monitoring"} onClick={() => setTab("disease-monitoring")}><Activity className="w-3.5 h-3.5 mr-1" />Disease Monitoring</TabButton>
             <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}><TrendingUp className="w-3.5 h-3.5 mr-1" />Analytics</TabButton>
             <TabButton active={tab === "enterprise"} onClick={() => setTab("enterprise")}><TrendingUp className="w-3.5 h-3.5 mr-1" />Enterprise Report</TabButton>
           </TabBar>
@@ -2686,6 +2688,8 @@ export default function PigProductionPage() {
           {tab === "red-tractor" && <PigRedTractorChecklistTab farmId={farmId} />}
           {tab === "kill-records" && <KillRecordsTab farmId={farmId} />}
           {tab === "salmonella" && <SalmonellaMonitoringTab farmId={farmId} />}
+          {tab === "vaccination" && <PigVaccinationTab farmId={farmId} />}
+          {tab === "disease-monitoring" && <PigDiseaseMonitoringTab farmId={farmId} />}
           {tab === "enterprise" && <PigEnterpriseReport farmId={farmId} />}
           {tab === "analytics" && <PigAnalyticsTab farmId={farmId} />}
         </CardContent></Card>
@@ -2867,6 +2871,362 @@ function SalmonellaMonitoringTab({ farmId }: { farmId: number }) {
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate(form)} disabled={save.isPending}>{editing ? "Save Changes" : "Add Record"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+const PIG_VACCINE_CATEGORIES = [
+  { value: "PRRS", label: "PRRS (Porcine Reproductive & Respiratory Syndrome)" },
+  { value: "PCV2", label: "PCV2 / Circovirus" },
+  { value: "MH", label: "Enzootic Pneumonia (Mycoplasma hyopneumoniae)" },
+  { value: "Erysipelas_PPV", label: "Erysipelas / PPV" },
+  { value: "E_coli_Clostridial", label: "E. coli / Clostridial" },
+  { value: "APP", label: "APP (Actinobacillus pleuropneumoniae)" },
+  { value: "SIV", label: "Swine Influenza (SIV)" },
+  { value: "PED", label: "PED (Porcine Epidemic Diarrhoea)" },
+  { value: "Other", label: "Other" },
+] as const;
+
+const PIG_VACCINE_PRESETS: Record<string, string[]> = {
+  PRRS: ["Ingelvac PRRS MLV", "Porcilis PRRS", "Fostera PRRS", "Fostera Gold", "Ingelvac PRRSFLEX EU", "Unistrain PRRS"],
+  PCV2: ["Ingelvac CircoFLEX", "Circovac", "Porcilis PCV AD", "Suvaxyn Circo", "Porcilis PCV M Hyo"],
+  MH: ["Ingelvac M.hyo. IDAL", "Hyoresp", "Stellamune Mycoplasma", "Suvaxyn MH-One", "Porcilis M Hyo ID ONCE"],
+  Erysipelas_PPV: ["Eryseng Parvo", "Porcilis Ery+Parvo", "Stellamune Erysipelas", "Suvaxyn Parvo/E", "Ingelvac ERY-ALC"],
+  E_coli_Clostridial: ["Porcilis ColiClos", "Enteromax", "Suigex", "PolySeC"],
+  APP: ["Porcilis APP"],
+  SIV: ["Respiporc FluCombi", "Porcilis Flu", "Suvaxyn Influenza"],
+  PED: ["Suvaxyn PED"],
+  Other: [],
+};
+
+const PIG_AGE_GROUPS = ["Sows/Gilts", "Boars", "Piglets/Suckling", "Weaners", "Growers", "Finishers", "All pigs"];
+const PIG_ADMIN_ROUTES = ["Intramuscular", "Subcutaneous", "Intradermal", "Intranasal", "Oral", "In-water"];
+
+function PigVaccinationTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+  const [form, setForm] = useState<any>({ vaccinationCategory: "PRRS", vetPrescribed: false });
+  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  const { data: records = [], isLoading } = useQuery({
+    queryKey: ["pig-vaccination-records", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/pig-vaccination-records`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+
+  const presets = PIG_VACCINE_PRESETS[(form.vaccinationCategory as string)] ?? [];
+
+  function openAdd() { setEditing(null); setForm({ vaccinationCategory: "PRRS", vetPrescribed: false }); setOpen(true); }
+  function openEdit(r: any) { setEditing(r); setForm({ ...r }); setOpen(true); }
+
+  const save = useMutation({
+    mutationFn: (body: any) => {
+      const url = editing ? api(`farms/${farmId}/pig-vaccination-records/${editing.id}`) : api(`farms/${farmId}/pig-vaccination-records`);
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-vaccination-records", farmId] }); setOpen(false); setEditing(null); },
+  });
+
+  async function del(id: number) {
+    if (!confirm("Delete this vaccination record?")) return;
+    await fetch(api(`farms/${farmId}/pig-vaccination-records/${id}`), { method: "DELETE", credentials: "include" });
+    qc.invalidateQueries({ queryKey: ["pig-vaccination-records", farmId] });
+  }
+
+  const nextDueRecords = (records as any[]).filter((r: any) => r.nextDueDate);
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-start justify-between mb-4 gap-2">
+        <div>
+          <h3 className="font-semibold text-gray-900">Pig Vaccination Programme</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Record all herd vaccinations. Red Tractor Pigs requires a documented programme signed off by your vet. Maintain batch numbers and expiry dates for traceability.</p>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Vaccination Record</Button>
+      </div>
+
+      {nextDueRecords.length > 0 && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="text-xs font-semibold text-amber-800 mb-1.5">Upcoming / Overdue Boosters</p>
+          <div className="flex flex-wrap gap-2">
+            {nextDueRecords.map((r: any) => {
+              const due = new Date(r.nextDueDate as string);
+              const overdue = due < new Date();
+              return (
+                <span key={r.id} className={`text-xs px-2 py-1 rounded border ${overdue ? "bg-red-50 border-red-200 text-red-800" : "bg-amber-50 border-amber-300 text-amber-800"}`}>
+                  {r.vaccineProduct} — {overdue ? "overdue " : "due "}{fmtDate(r.nextDueDate)}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {isLoading ? <div className="text-center py-8 text-gray-400 text-sm">Loading…</div> : (records as any[]).length === 0 ? (
+        <div className="text-center py-12 border-2 border-dashed rounded-lg">
+          <Syringe className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+          <p className="font-medium text-gray-600">No vaccination records yet</p>
+          <p className="text-sm text-gray-400 mt-1">Add your first vaccination record to build your programme log.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-xs text-gray-500 bg-gray-50">
+              <tr>{["Date","Category","Vaccine Product","Age Group","No. Treated","Route","Admin By","Next Due","Doc",""].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y">
+              {(records as any[]).map((r: any) => (
+                <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2 whitespace-nowrap">{fmtDate(r.vaccinationDate)}</td>
+                  <td className="px-3 py-2 text-xs">{r.vaccinationCategory}</td>
+                  <td className="px-3 py-2 font-medium">{r.vaccineProduct}{r.batchNumber ? <span className="text-xs text-gray-400 ml-1">#{r.batchNumber}</span> : null}</td>
+                  <td className="px-3 py-2 text-xs">{r.ageGroupTreated ?? "—"}</td>
+                  <td className="px-3 py-2">{r.numberTreated ?? "—"}</td>
+                  <td className="px-3 py-2 text-xs">{r.administrationRoute ?? "—"}</td>
+                  <td className="px-3 py-2 text-xs">{r.administeredBy ?? "—"}</td>
+                  <td className="px-3 py-2 text-xs">{r.nextDueDate ? <span className={new Date(r.nextDueDate as string) < new Date() ? "text-red-600 font-medium" : ""}>{fmtDate(r.nextDueDate)}</span> : "—"}</td>
+                  <td className="px-3 py-2">
+                    <DocAttach farmId={farmId} endpoint="pig-vaccination-records" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-vaccination-records", String(farmId)]} compact />
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Vaccination Record</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Date *</Label><Input type="date" value={form.vaccinationDate || ""} onChange={e => set("vaccinationDate", e.target.value)} /></div>
+            <div><Label>Category *</Label>
+              <Select value={form.vaccinationCategory || "PRRS"} onValueChange={v => { set("vaccinationCategory", v); set("vaccineProduct", ""); }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{PIG_VACCINE_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2">
+              <Label>Vaccine Product *</Label>
+              {presets.length > 0 ? (
+                <>
+                  <Select value={form.vaccineProduct || ""} onValueChange={v => set("vaccineProduct", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
+                    <SelectContent>
+                      {presets.map((p: string) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                      <SelectItem value="__other__">Other — enter manually below</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {(form.vaccineProduct === "__other__" || (form.vaccineProduct && !presets.includes(form.vaccineProduct as string))) && (
+                    <Input className="mt-1" value={form.vaccineProduct === "__other__" ? "" : (form.vaccineProduct || "")} onChange={e => set("vaccineProduct", e.target.value)} placeholder="Enter product name" />
+                  )}
+                </>
+              ) : (
+                <Input value={form.vaccineProduct || ""} onChange={e => set("vaccineProduct", e.target.value)} placeholder="Enter vaccine product name" />
+              )}
+            </div>
+            <div><Label>Batch Number</Label><Input value={form.batchNumber || ""} onChange={e => set("batchNumber", e.target.value)} /></div>
+            <div><Label>Expiry Date</Label><Input type="date" value={form.expiryDate || ""} onChange={e => set("expiryDate", e.target.value)} /></div>
+            <div><Label>Age Group Treated</Label>
+              <Select value={form.ageGroupTreated || "__none__"} onValueChange={v => set("ageGroupTreated", v === "__none__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Select age group" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— Not specified</SelectItem>{PIG_AGE_GROUPS.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Number Treated</Label><Input type="number" min="0" value={form.numberTreated ?? ""} onChange={e => set("numberTreated", e.target.value)} /></div>
+            <div><Label>Dose Volume (ml)</Label><Input value={form.doseVolumeMl || ""} onChange={e => set("doseVolumeMl", e.target.value)} /></div>
+            <div><Label>Administration Route</Label>
+              <Select value={form.administrationRoute || "__none__"} onValueChange={v => set("administrationRoute", v === "__none__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Select route" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— Not specified</SelectItem>{PIG_ADMIN_ROUTES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Withdrawal Period (days)</Label><Input type="number" min="0" value={form.withdrawalPeriodDays ?? 0} onChange={e => set("withdrawalPeriodDays", e.target.value)} /></div>
+            <div><Label>Next Due Date</Label><Input type="date" value={form.nextDueDate || ""} onChange={e => set("nextDueDate", e.target.value)} /></div>
+            <div><Label>Administered By</Label><Input value={form.administeredBy || ""} onChange={e => set("administeredBy", e.target.value)} /></div>
+            <div className="flex items-center gap-2 pt-5">
+              <Checkbox id="vetpres" checked={!!form.vetPrescribed} onCheckedChange={v => set("vetPrescribed", v)} />
+              <Label htmlFor="vetpres">Vet Prescribed</Label>
+            </div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes || ""} onChange={e => set("notes", e.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.vaccinationDate || !form.vaccineProduct || form.vaccineProduct === "__other__"}>{editing ? "Save Changes" : "Add Record"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+const PIG_MONITORING_TYPES = [
+  { value: "PRRS", label: "PRRS Monitoring" },
+  { value: "Enzootic Pneumonia (MH)", label: "Enzootic Pneumonia / MH Monitoring" },
+  { value: "Aujeszky's Disease", label: "Aujeszky's Disease (AD-Free)" },
+  { value: "APP", label: "APP Serotyping" },
+  { value: "Swine Influenza", label: "Swine Influenza Surveillance" },
+  { value: "PRDC", label: "PRDC (Porcine Respiratory Disease Complex)" },
+  { value: "General serology", label: "General Serology / Blood Sampling" },
+] as const;
+
+const PIG_ACCREDITATION_SCHEMES = [
+  { value: "AHDB PRRS Accreditation", label: "AHDB PRRS Accreditation" },
+  { value: "AHDB MH Accreditation", label: "AHDB MH Accreditation" },
+  { value: "APHA AD-Free", label: "APHA Aujeszky's Disease-Free Scheme" },
+  { value: "None", label: "No accreditation scheme" },
+] as const;
+
+const HERD_STATUS_COLOURS: Record<string, string> = {
+  negative: "bg-green-100 text-green-800 border-green-200",
+  positive_stable: "bg-amber-100 text-amber-800 border-amber-200",
+  positive_unstable: "bg-red-100 text-red-800 border-red-200",
+  positive: "bg-red-100 text-red-800 border-red-200",
+  ad_free: "bg-green-100 text-green-800 border-green-200",
+  inconclusive: "bg-gray-100 text-gray-700 border-gray-200",
+  pending: "bg-gray-50 text-gray-500 border-gray-200",
+};
+
+function PigDiseaseMonitoringTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+  const [form, setForm] = useState<any>({ monitoringType: "PRRS" });
+  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  const { data: records = [], isLoading } = useQuery({
+    queryKey: ["pig-disease-monitoring", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/pig-disease-monitoring`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+
+  function openAdd() { setEditing(null); setForm({ monitoringType: "PRRS" }); setOpen(true); }
+  function openEdit(r: any) { setEditing(r); setForm({ ...r }); setOpen(true); }
+
+  const save = useMutation({
+    mutationFn: (body: any) => {
+      const url = editing ? api(`farms/${farmId}/pig-disease-monitoring/${editing.id}`) : api(`farms/${farmId}/pig-disease-monitoring`);
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-disease-monitoring", farmId] }); setOpen(false); setEditing(null); },
+  });
+
+  async function del(id: number) {
+    if (!confirm("Delete this monitoring record?")) return;
+    await fetch(api(`farms/${farmId}/pig-disease-monitoring/${id}`), { method: "DELETE", credentials: "include" });
+    qc.invalidateQueries({ queryKey: ["pig-disease-monitoring", farmId] });
+  }
+
+  function statusBadge(status: string | null) {
+    if (!status) return <span className="text-gray-400">—</span>;
+    const cl = HERD_STATUS_COLOURS[status] ?? "bg-gray-100 text-gray-700 border-gray-200";
+    const label = status.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+    return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${cl}`}>{label}</span>;
+  }
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-start justify-between mb-4 gap-2">
+        <div>
+          <h3 className="font-semibold text-gray-900">Disease Monitoring Register</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Record PRRS, MH, Aujeszky's Disease, APP, and other herd-level disease surveillance. Supports AHDB accreditation scheme documentation.</p>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Monitoring Record</Button>
+      </div>
+
+      {isLoading ? <div className="text-center py-8 text-gray-400 text-sm">Loading…</div> : (records as any[]).length === 0 ? (
+        <div className="text-center py-12 border-2 border-dashed rounded-lg">
+          <Activity className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+          <p className="font-medium text-gray-600">No disease monitoring records yet</p>
+          <p className="text-sm text-gray-400 mt-1">Record PRRS, MH, and other surveillance testing results here.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-xs text-gray-500 bg-gray-50">
+              <tr>{["Date","Type","Accreditation Scheme","Testing Body","Samples","Positives","Herd Status","Next Test Due","Doc",""].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y">
+              {(records as any[]).map((r: any) => (
+                <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2 whitespace-nowrap">{fmtDate(r.monitoringDate)}</td>
+                  <td className="px-3 py-2 text-xs font-medium">{r.monitoringType}</td>
+                  <td className="px-3 py-2 text-xs">{r.accreditationScheme ?? "—"}</td>
+                  <td className="px-3 py-2 text-xs">{r.testingBody ?? "—"}</td>
+                  <td className="px-3 py-2">{r.numberOfSamples ?? "—"}</td>
+                  <td className="px-3 py-2">{r.positiveResults ?? 0}</td>
+                  <td className="px-3 py-2">{statusBadge(r.herdStatus)}</td>
+                  <td className="px-3 py-2 text-xs">{r.nextTestDue ? <span className={new Date(r.nextTestDue as string) < new Date() ? "text-red-600 font-medium" : ""}>{fmtDate(r.nextTestDue)}</span> : "—"}</td>
+                  <td className="px-3 py-2">
+                    <DocAttach farmId={farmId} endpoint="pig-disease-monitoring" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-disease-monitoring", String(farmId)]} compact />
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Disease Monitoring Record</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Monitoring Date *</Label><Input type="date" value={form.monitoringDate || ""} onChange={e => set("monitoringDate", e.target.value)} /></div>
+            <div><Label>Monitoring Type *</Label>
+              <Select value={form.monitoringType || "PRRS"} onValueChange={v => set("monitoringType", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{PIG_MONITORING_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Accreditation Scheme</Label>
+              <Select value={form.accreditationScheme || "__none__"} onValueChange={v => set("accreditationScheme", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue placeholder="Select scheme" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— None / not applicable</SelectItem>{PIG_ACCREDITATION_SCHEMES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Scheme Reference</Label><Input value={form.schemeReference || ""} onChange={e => set("schemeReference", e.target.value)} placeholder="Certificate / accreditation ref" /></div>
+            <div><Label>Testing Body / Lab</Label><Input value={form.testingBody || ""} onChange={e => set("testingBody", e.target.value)} placeholder="Lab name or vet practice" /></div>
+            <div><Label>Herd Status</Label>
+              <Select value={form.herdStatus || "__none__"} onValueChange={v => set("herdStatus", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Not yet determined</SelectItem>
+                  <SelectItem value="negative">Negative</SelectItem>
+                  <SelectItem value="positive_stable">Positive — Stable</SelectItem>
+                  <SelectItem value="positive_unstable">Positive — Unstable</SelectItem>
+                  <SelectItem value="positive">Positive (general)</SelectItem>
+                  <SelectItem value="ad_free">AD-Free Accredited</SelectItem>
+                  <SelectItem value="inconclusive">Inconclusive</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Number of Samples</Label><Input type="number" min="0" value={form.numberOfSamples ?? ""} onChange={e => set("numberOfSamples", e.target.value)} /></div>
+            <div><Label>Positive Results</Label><Input type="number" min="0" value={form.positiveResults ?? 0} onChange={e => set("positiveResults", e.target.value)} /></div>
+            <div><Label>Negative Results</Label><Input type="number" min="0" value={form.negativeResults ?? 0} onChange={e => set("negativeResults", e.target.value)} /></div>
+            <div><Label>Next Test Due</Label><Input type="date" value={form.nextTestDue || ""} onChange={e => set("nextTestDue", e.target.value)} /></div>
+            <div className="col-span-2"><Label>Actions Taken</Label><Textarea rows={2} value={form.actionsTaken || ""} onChange={e => set("actionsTaken", e.target.value)} placeholder="Biosecurity changes, management actions, vet review…" /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes || ""} onChange={e => set("notes", e.target.value)} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.monitoringDate || !form.monitoringType}>{editing ? "Save Changes" : "Add Record"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

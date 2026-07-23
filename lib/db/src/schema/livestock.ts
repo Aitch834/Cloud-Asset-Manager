@@ -1239,6 +1239,14 @@ export const livestockIsolationRecordsTable = pgTable("livestock_isolation_recor
   // Record the source flock's vaccination status at point of purchase.
   sourceJohnesVaccStatus: text("source_johnes_vacc_status"), // "vaccinating" | "not_vaccinating" | "unknown"
   sourceJohnesVaccNotes: text("source_johnes_vacc_notes"),
+  // ─── PRRS biosecurity (pig arrivals) ─────────────────────────────────────
+  // AHDB PRRS Accreditation Scheme: buy only from same or lower PRRS risk herds.
+  sourcePrrsStatus: text("source_prrs_status"), // "negative" | "positive_stable" | "positive_unstable" | "unknown"
+  sourcePrrsNotes: text("source_prrs_notes"),
+  // ─── Enzootic Pneumonia / MH biosecurity (pig arrivals) ──────────────────
+  // AHDB MH Accreditation: buy from MH-negative herds when possible.
+  sourceMhStatus: text("source_mh_status"), // "negative" | "positive_stable" | "positive" | "unknown"
+  sourceMhNotes: text("source_mh_notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -1262,6 +1270,58 @@ export type LivestockIsolationRecord = typeof livestockIsolationRecordsTable.$in
 export type NewLivestockIsolationRecord = typeof livestockIsolationRecordsTable.$inferInsert;
 export type LivestockIsolationHealthCheck = typeof livestockIsolationHealthChecksTable.$inferSelect;
 export type NewLivestockIsolationHealthCheck = typeof livestockIsolationHealthChecksTable.$inferInsert;
+
+// ─── Pig Vaccination Records ──────────────────────────────────────────────────
+export const pigVaccinationRecordsTable = pgTable("pig_vaccination_records", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  herdId: integer("herd_id").references(() => herdFlockRegisterTable.id),
+  vaccinationDate: date("vaccination_date").notNull(),
+  vaccinationCategory: text("vaccination_category").notNull(), // "PRRS" | "PCV2" | "MH" | "Erysipelas_PPV" | "E_coli_Clostridial" | "APP" | "SIV" | "PED" | "Other"
+  vaccineProduct: text("vaccine_product").notNull(),
+  batchNumber: text("batch_number"),
+  expiryDate: date("expiry_date"),
+  ageGroupTreated: text("age_group_treated"), // "Sows/Gilts" | "Boars" | "Piglets/Suckling" | "Weaners" | "Growers" | "Finishers" | "All pigs"
+  numberTreated: integer("number_treated"),
+  doseVolumeMl: text("dose_volume_ml"),
+  administrationRoute: text("administration_route"), // "Intramuscular" | "Subcutaneous" | "Intradermal" | "Intranasal" | "Oral" | "In-water"
+  withdrawalPeriodDays: integer("withdrawal_period_days").default(0),
+  nextDueDate: date("next_due_date"),
+  administeredBy: text("administered_by"),
+  vetPrescribed: boolean("vet_prescribed").default(false),
+  notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type PigVaccinationRecord = typeof pigVaccinationRecordsTable.$inferSelect;
+export type NewPigVaccinationRecord = typeof pigVaccinationRecordsTable.$inferInsert;
+
+// ─── Pig Disease Monitoring ───────────────────────────────────────────────────
+export const pigDiseaseMonitoringTable = pgTable("pig_disease_monitoring", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  herdId: integer("herd_id").references(() => herdFlockRegisterTable.id),
+  monitoringDate: date("monitoring_date").notNull(),
+  monitoringType: text("monitoring_type").notNull(), // "PRRS" | "Enzootic Pneumonia (MH)" | "Aujeszky's Disease" | "APP" | "Swine Influenza" | "PRDC" | "General serology"
+  accreditationScheme: text("accreditation_scheme"), // "AHDB PRRS Accreditation" | "AHDB MH Accreditation" | "APHA AD-Free" | "None"
+  schemeReference: text("scheme_reference"),
+  testingBody: text("testing_body"),
+  numberOfSamples: integer("number_of_samples"),
+  positiveResults: integer("positive_results").default(0),
+  negativeResults: integer("negative_results").default(0),
+  herdStatus: text("herd_status"), // "negative" | "positive_stable" | "positive_unstable" | "positive" | "inconclusive" | "ad_free" | "pending"
+  actionsTaken: text("actions_taken"),
+  nextTestDue: date("next_test_due"),
+  notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type PigDiseaseMonitoring = typeof pigDiseaseMonitoringTable.$inferSelect;
+export type NewPigDiseaseMonitoring = typeof pigDiseaseMonitoringTable.$inferInsert;
 
 // ─── Annual Health & Welfare Reviews (AHWR) ───────────────────────────────────
 export const annualHealthWelfareReviewsTable = pgTable("annual_health_welfare_reviews", {
