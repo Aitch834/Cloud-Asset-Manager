@@ -209,6 +209,33 @@ export const sheepDairyMvMonitoringTable = pgTable("sheep_dairy_mv_monitoring", 
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+// ─── Standard Sheep Dairy — Vet Treatments ────────────────────────────────────
+// Standard withdrawal periods only (no organic doubling requirement)
+
+export const sheepDairyTreatmentsTable = pgTable("sheep_dairy_treatments", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
+  treatmentDate: date("treatment_date").notNull(),
+  animalLisTags: text("animal_lis_tags"),
+  numberOfAnimals: integer("number_of_animals"),
+  productName: text("product_name").notNull(),
+  productCategory: text("product_category"),
+  activeIngredient: text("active_ingredient"),
+  doseAmount: text("dose_amount"),
+  routeOfAdministration: text("route_of_administration"),
+  vetName: text("vet_name"),
+  prescriptionRef: text("prescription_ref"),
+  standardMilkWithdrawalDays: integer("standard_milk_withdrawal_days"),
+  standardMeatWithdrawalDays: integer("standard_meat_withdrawal_days"),
+  milkWithdrawalEndDate: date("milk_withdrawal_end_date"),
+  meatWithdrawalEndDate: date("meat_withdrawal_end_date"),
+  treatmentNumber: integer("treatment_number").notNull().default(1),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // GOAT DAIRY MODULE
 // SCC regulatory limit: 1,000,000 cells/mL (UK/retained-EU Reg 853/2004)

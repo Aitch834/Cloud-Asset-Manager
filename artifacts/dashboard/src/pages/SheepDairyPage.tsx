@@ -1897,27 +1897,22 @@ export function TreatmentRegisterTab({ farmId }: { farmId: number }) {
     setForm(p => ({ ...p, [k]: e.target.value }));
 
   const { data, isLoading } = useQuery({
-    queryKey: ["org-sheep-treatments", farmId],
-    queryFn: () => fetch(api(`farms/${farmId}/organic-sheep-dairy/treatments`)).then(r => r.json()),
+    queryKey: ["sheep-dairy-treatments", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/sheep-dairy/treatments`)).then(r => r.json()),
   });
   const records: TreatmentRecord[] = data?.records ?? [];
 
-  function autoDoubled(stdDays: number | null | undefined): number | null {
-    if (!stdDays) return null;
-    return stdDays * 2;
-  }
-
   const save = useMutation({
-    mutationFn: () => fetch(api(`farms/${farmId}/organic-sheep-dairy/treatments${editing ? `/${editing.id}` : ""}`), {
+    mutationFn: () => fetch(api(`farms/${farmId}/sheep-dairy/treatments${editing ? `/${editing.id}` : ""}`), {
       method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-sheep-treatments", farmId] }); setOpen(false); toast({ title: editing ? "Record updated" : "Treatment recorded" }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-treatments", farmId] }); setOpen(false); toast({ title: editing ? "Record updated" : "Treatment recorded" }); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
   const remove = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-sheep-dairy/treatments/${id}`), { method: "DELETE" }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-sheep-treatments", farmId] }); toast({ title: "Record deleted" }); },
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-dairy/treatments/${id}`), { method: "DELETE" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-treatments", farmId] }); toast({ title: "Record deleted" }); },
   });
 
   function openNew() { setEditing(null); setForm(blank); setOpen(true); }
