@@ -1247,6 +1247,14 @@ export const livestockIsolationRecordsTable = pgTable("livestock_isolation_recor
   // AHDB MH Accreditation: buy from MH-negative herds when possible.
   sourceMhStatus: text("source_mh_status"), // "negative" | "positive_stable" | "positive" | "unknown"
   sourceMhNotes: text("source_mh_notes"),
+  // ─── Marek's Disease biosecurity (poultry arrivals) ──────────────────────
+  // Marek's is the most critical biosecurity concern when buying in birds.
+  sourceMareksStatus: text("source_mareks_status"), // "vaccinated" | "not_vaccinated" | "unknown"
+  sourceMareksNotes: text("source_mareks_notes"),
+  // ─── Salmonella NCP biosecurity (poultry arrivals) ────────────────────────
+  // Red Tractor Poultry + BEIC require knowledge of source flock NCP category.
+  sourceSalmonellaNcpCategory: text("source_salmonella_ncp_category"), // "category_1" | "category_2" | "category_3" | "not_tested" | "unknown"
+  sourceSalmonellaNotes: text("source_salmonella_notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -1322,6 +1330,57 @@ export const pigDiseaseMonitoringTable = pgTable("pig_disease_monitoring", {
 
 export type PigDiseaseMonitoring = typeof pigDiseaseMonitoringTable.$inferSelect;
 export type NewPigDiseaseMonitoring = typeof pigDiseaseMonitoringTable.$inferInsert;
+
+// ─── Poultry Vaccination Records ─────────────────────────────────────────────
+export const poultryVaccinationRecordsTable = pgTable("poultry_vaccination_records", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
+  vaccinationDate: date("vaccination_date").notNull(),
+  vaccinationCategory: text("vaccination_category").notNull(), // "ND" | "IB" | "Marek" | "Gumboro" | "aMPV" | "ILT" | "EDS" | "AE" | "Salmonella" | "Mycoplasma" | "FowlPox" | "Other"
+  vaccineProduct: text("vaccine_product").notNull(),
+  batchNumber: text("batch_number"),
+  expiryDate: date("expiry_date"),
+  ageGroupTreated: text("age_group_treated"), // "Broilers" | "Layers" | "Breeders" | "Pullets" | "Day-old chicks" | "All birds"
+  numberTreated: integer("number_treated"),
+  doseVolume: text("dose_volume"),
+  administrationRoute: text("administration_route"), // "Drinking water" | "Eye drop" | "Spray" | "Injection (SC)" | "Injection (IM)" | "Wing web/stab" | "In ovo"
+  withdrawalPeriodDays: integer("withdrawal_period_days").default(0),
+  nextDueDate: date("next_due_date"),
+  administeredBy: text("administered_by"),
+  vetPrescribed: boolean("vet_prescribed").default(false),
+  notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type PoultryVaccinationRecord = typeof poultryVaccinationRecordsTable.$inferSelect;
+export type NewPoultryVaccinationRecord = typeof poultryVaccinationRecordsTable.$inferInsert;
+
+// ─── Poultry Disease Monitoring ───────────────────────────────────────────────
+export const poultryDiseaseMonitoringTable = pgTable("poultry_disease_monitoring", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
+  monitoringDate: date("monitoring_date").notNull(),
+  monitoringType: text("monitoring_type").notNull(), // "AI" | "Marek" | "ND" | "MG" | "IB" | "ART" | "Salmonella serology" | "General serology"
+  testingBody: text("testing_body"),
+  numberOfSamples: integer("number_of_samples"),
+  positiveResults: integer("positive_results").default(0),
+  negativeResults: integer("negative_results").default(0),
+  flockStatus: text("flock_status"), // "negative" | "low_positive" | "positive" | "inconclusive" | "pending"
+  aiRiskLevel: text("ai_risk_level"), // "low" | "medium" | "high" — AI surveillance risk assessment
+  actionsTaken: text("actions_taken"),
+  nextTestDue: date("next_test_due"),
+  notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type PoultryDiseaseMonitoring = typeof poultryDiseaseMonitoringTable.$inferSelect;
+export type NewPoultryDiseaseMonitoring = typeof poultryDiseaseMonitoringTable.$inferInsert;
 
 // ─── Annual Health & Welfare Reviews (AHWR) ───────────────────────────────────
 export const annualHealthWelfareReviewsTable = pgTable("annual_health_welfare_reviews", {

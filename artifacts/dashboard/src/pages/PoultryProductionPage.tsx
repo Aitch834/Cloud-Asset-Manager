@@ -5,7 +5,7 @@ import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DocAttach } from "@/components/DocAttach";
 import { openPrintWindow } from "@/lib/print-report";
-import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors, ClipboardList, ClipboardCheck, Star, Truck, UtensilsCrossed, FileDown, AlertTriangle, TrendingUp, LayoutDashboard, CheckCircle2, XCircle, Circle, Eye, Receipt, HardHat, Users, Package, X as XIcon, QrCode, Printer, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors, ClipboardList, ClipboardCheck, Star, Truck, UtensilsCrossed, FileDown, AlertTriangle, TrendingUp, LayoutDashboard, CheckCircle2, XCircle, Circle, Eye, Receipt, HardHat, Users, Package, X as XIcon, QrCode, Printer, ChevronDown, ChevronUp, Syringe, Activity } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
@@ -3154,11 +3154,11 @@ function PoultryAnalyticsTab({ farmId }: { farmId: number }) {
   );
 }
 
-type Tab = "overview" | "houses" | "flocks" | "purchases" | "quality" | "mortality" | "treatments" | "cleanouts" | "envlogs" | "fci" | "bwi" | "thinning" | "biosecurity" | "scheme-records" | "feed" | "campylobacter" | "analytics" | "enterprise";
+type Tab = "overview" | "houses" | "flocks" | "purchases" | "quality" | "mortality" | "treatments" | "cleanouts" | "envlogs" | "fci" | "bwi" | "thinning" | "biosecurity" | "scheme-records" | "feed" | "campylobacter" | "vaccination" | "disease-monitoring" | "analytics" | "enterprise";
 
 export default function PoultryProductionPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["overview","houses","flocks","purchases","mortality","treatments","cleanouts","envlogs","fci","bwi","thinning","biosecurity","scheme-records","feed","campylobacter","analytics"]; return t && valid.includes(t) ? t : "overview"; });
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["overview","houses","flocks","purchases","mortality","treatments","cleanouts","envlogs","fci","bwi","thinning","biosecurity","scheme-records","feed","campylobacter","vaccination","disease-monitoring","analytics"]; return t && valid.includes(t) ? t : "overview"; });
   const [generating, setGenerating] = useState(false);
   if (!farmId) return <Redirect to="/" />;
 
@@ -3188,6 +3188,8 @@ export default function PoultryProductionPage() {
             <TabButton active={tab === "scheme-records"} onClick={() => setTab("scheme-records")}><Star className="w-3.5 h-3.5 mr-1" />Scheme Records</TabButton>
             <TabButton active={tab === "feed"} onClick={() => setTab("feed")}><Truck className="w-3.5 h-3.5 mr-1" />Feed</TabButton>
             <TabButton active={tab === "campylobacter"} onClick={() => setTab("campylobacter")}><AlertTriangle className="w-3.5 h-3.5 mr-1" />Campylobacter</TabButton>
+            <TabButton active={tab === "vaccination"} onClick={() => setTab("vaccination")}><Syringe className="w-3.5 h-3.5 mr-1" />Vaccination</TabButton>
+            <TabButton active={tab === "disease-monitoring"} onClick={() => setTab("disease-monitoring")}><Activity className="w-3.5 h-3.5 mr-1" />Disease Monitoring</TabButton>
             <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}><TrendingUp className="w-3.5 h-3.5 mr-1" />Analytics</TabButton>
             <TabButton active={tab === "enterprise"} onClick={() => setTab("enterprise")}><TrendingUp className="w-3.5 h-3.5 mr-1" />Enterprise Report</TabButton>
           </TabBar>
@@ -3213,6 +3215,8 @@ export default function PoultryProductionPage() {
           {tab === "scheme-records" && <SchemeRecordsTab farmId={farmId} />}
           {tab === "feed" && <PoultryFeedTab farmId={farmId} />}
           {tab === "campylobacter" && <CampylobacterMonitoringTab farmId={farmId} />}
+          {tab === "vaccination" && <PoultryVaccinationTab farmId={farmId} />}
+          {tab === "disease-monitoring" && <PoultryDiseaseMonitoringTab farmId={farmId} />}
           {tab === "analytics" && <PoultryAnalyticsTab farmId={farmId} />}
           {tab === "enterprise" && <PoultryFlockReport farmId={farmId} />}
         </CardContent></Card>
@@ -3663,6 +3667,314 @@ function PlacementQualityTab({ farmId }: { farmId: number }) {
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>Delete</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Poultry Vaccination Tab ──────────────────────────────────────────────────
+const POULTRY_VACC_CATEGORIES: { value: string; label: string; products: string[] }[] = [
+  { value: "ND", label: "Newcastle Disease (ND)", products: ["Nobilis ND Clone 30", "Nobilis ND Clone 45", "Nobilis ND Hitchner B1", "Nobilis ND Ma5+Clone30", "Avinew (La Sota)", "Hipraviar Clone 45", "Poulvac Bursa Plus ND", "La Sota (generic)", "Other — enter manually"] },
+  { value: "IB", label: "Infectious Bronchitis (IB)", products: ["Nobilis IB Ma5", "Nobilis IB 4-91", "Nobilis IB H120", "Nobilis IB Multi+Clone30", "Hipraviar IB-H120", "Poulvac IB H52", "Vikavac IB", "Other — enter manually"] },
+  { value: "Marek", label: "Marek's Disease", products: ["Nobilis Rismavac (HVT+Rispens)", "Nobilis Turkey Herpesvirus (HVT)", "Vectormune HVT NDV", "Rispens/CVI988", "Solvay Rispens", "HVT (generic)", "Other — enter manually"] },
+  { value: "Gumboro", label: "Gumboro (IBD / Infectious Bursal Disease)", products: ["Nobilis Gumboro D78", "Nobilis Gumboro 228E", "Nobilis IBA", "Bursa-Vac", "TAD Gumboro vac", "Nobilis Gumboro Intervet", "Other — enter manually"] },
+  { value: "aMPV", label: "Avian Metapneumovirus (aMPV / TRT)", products: ["Nobilis TRT", "Hipraviar TRT-C", "Poulvac TRT", "Biomune TRT", "Other — enter manually"] },
+  { value: "ILT", label: "Infectious Laryngotracheitis (ILT)", products: ["Nobilis ILT", "TAD Laryngo vac", "Poulvac ILT", "Other — enter manually"] },
+  { value: "EDS", label: "Egg Drop Syndrome (EDS)", products: ["Nobilis EDS", "ADS 76 (generic)", "Other — enter manually"] },
+  { value: "AE", label: "Avian Encephalomyelitis / Fowl Typhoid (AE)", products: ["Nobilis AE+POX", "Poulvac AE Layervax", "AE Vac (generic)", "Other — enter manually"] },
+  { value: "Salmonella", label: "Salmonella", products: ["Nobilis SalENT (live SE)", "AviPro Salmonella Vac E", "AviPro Salmonella Vac T", "Salenvac (inactivated)", "Salmovac 440", "Other — enter manually"] },
+  { value: "Mycoplasma", label: "Mycoplasma (MG)", products: ["Nobilis MG 6/85", "Biomune MG-F36", "Other — enter manually"] },
+  { value: "FowlPox", label: "Fowl Pox", products: ["Nobilis Pox", "Hipraviar Pox", "AE Vac+Pox combo", "Other — enter manually"] },
+  { value: "Other", label: "Other", products: ["Other — enter manually"] },
+];
+
+const POULTRY_ADMIN_ROUTES = ["Drinking water", "Eye drop", "Spray (coarse)", "Spray (fine mist)", "Subcutaneous injection", "Intramuscular injection", "Wing web/stab", "In ovo", "Intranasal", "Other"];
+const POULTRY_AGE_GROUPS = ["Day-old chicks", "Broilers", "Pullets", "Layers", "Breeders", "Turkeys", "Ducks", "All birds", "Other"];
+
+function PoultryVaccinationTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["poultry-vaccination-records", farmId], queryFn: () => fetch(`/api/farms/${farmId}/poultry-vaccination-records`, { credentials: "include" }).then(r => r.json()) });
+  const records: any[] = Array.isArray(q.data?.records) ? q.data.records : [];
+
+  const empty = { vaccinationDate: new Date().toISOString().slice(0, 10), vaccinationCategory: "", vaccineProduct: "", customProduct: "", batchNumber: "", expiryDate: "", ageGroupTreated: "", numberTreated: "", doseVolume: "", administrationRoute: "", withdrawalPeriodDays: "0", nextDueDate: "", administeredBy: "", vetPrescribed: false, notes: "" };
+  const [form, setForm] = useState({ ...empty });
+  const [addOpen, setAddOpen] = useState(false);
+  const [editRec, setEditRec] = useState<any>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const selectedCategory = POULTRY_VACC_CATEGORIES.find(c => c.value === form.vaccinationCategory);
+  const productOptions = selectedCategory?.products ?? [];
+  const isCustomProduct = form.vaccineProduct === "Other — enter manually";
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["poultry-vaccination-records", farmId] });
+  const createMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/poultry-vaccination-records`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...b, vaccineProduct: b.vaccineProduct === "Other — enter manually" ? b.customProduct : b.vaccineProduct }) }).then(r => r.json()), onSuccess: () => { invalidate(); setAddOpen(false); setForm({ ...empty }); } });
+  const updateMut = useMutation({ mutationFn: ({ id, b }: { id: number; b: any }) => fetch(`/api/farms/${farmId}/poultry-vaccination-records/${id}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...b, vaccineProduct: b.vaccineProduct === "Other — enter manually" ? b.customProduct : b.vaccineProduct }) }).then(r => r.json()), onSuccess: () => { invalidate(); setAddOpen(false); setEditRec(null); setForm({ ...empty }); } });
+  const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`/api/farms/${farmId}/poultry-vaccination-records/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()), onSuccess: () => { invalidate(); setDeleteId(null); } });
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const in30 = new Date(today); in30.setDate(in30.getDate() + 30);
+  const overdueAlerts = records.filter((r: any) => r.nextDueDate && new Date(r.nextDueDate) <= in30);
+
+  function openEdit(r: any) {
+    setEditRec(r);
+    const knownProducts = POULTRY_VACC_CATEGORIES.find(c => c.value === r.vaccinationCategory)?.products ?? [];
+    const productIsKnown = knownProducts.includes(r.vaccineProduct);
+    setForm({ vaccinationDate: r.vaccinationDate?.slice(0, 10) ?? "", vaccinationCategory: r.vaccinationCategory ?? "", vaccineProduct: productIsKnown ? r.vaccineProduct : "Other — enter manually", customProduct: productIsKnown ? "" : (r.vaccineProduct ?? ""), batchNumber: r.batchNumber ?? "", expiryDate: r.expiryDate?.slice(0, 10) ?? "", ageGroupTreated: r.ageGroupTreated ?? "", numberTreated: r.numberTreated ? String(r.numberTreated) : "", doseVolume: r.doseVolume ?? "", administrationRoute: r.administrationRoute ?? "", withdrawalPeriodDays: r.withdrawalPeriodDays ? String(r.withdrawalPeriodDays) : "0", nextDueDate: r.nextDueDate?.slice(0, 10) ?? "", administeredBy: r.administeredBy ?? "", vetPrescribed: r.vetPrescribed ?? false, notes: r.notes ?? "" });
+    setAddOpen(true);
+  }
+
+  const fmtD = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+  const categoryLabel = (v: string) => POULTRY_VACC_CATEGORIES.find(c => c.value === v)?.label ?? v;
+
+  return (
+    <div className="space-y-4">
+      {overdueAlerts.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1">
+          <p className="text-xs font-semibold text-amber-800 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" />Upcoming / Overdue Booster Alerts</p>
+          {overdueAlerts.map((r: any) => {
+            const due = new Date(r.nextDueDate); const overdue = due < today;
+            return <p key={r.id} className={`text-xs ${overdue ? "text-red-700" : "text-amber-700"}`}>{overdue ? "✗ OVERDUE" : "⚠ Due soon"}: {r.vaccineProduct} ({categoryLabel(r.vaccinationCategory)}) — {fmtD(r.nextDueDate)}</p>;
+          })}
+        </div>
+      )}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">{records.length} vaccination record{records.length !== 1 ? "s" : ""}</p>
+        <Button size="sm" onClick={() => { setEditRec(null); setForm({ ...empty }); setAddOpen(true); }}><Plus className="w-3.5 h-3.5 mr-1" />Add Vaccination Record</Button>
+      </div>
+      {q.isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : records.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-6 text-center">No vaccination records. Red Tractor Poultry requires a vet-signed vaccination programme — record each administration event here.</p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead><tr className="border-b text-xs text-muted-foreground">{["Date","Category","Vaccine Product","Batch No.","Age Group","Num Treated","Route","Next Due","Docs",""].map(h => <th key={h} className="text-left py-2 pr-3 font-medium">{h}</th>)}</tr></thead>
+          <tbody>
+            {records.map((r: any) => (
+              <tr key={r.id} className="border-b hover:bg-muted/30">
+                <td className="py-2 pr-3 whitespace-nowrap">{fmtD(r.vaccinationDate)}</td>
+                <td className="py-2 pr-3">{categoryLabel(r.vaccinationCategory)}</td>
+                <td className="py-2 pr-3">{r.vaccineProduct}{r.vetPrescribed && <span className="ml-1 text-xs text-blue-600 font-medium">POM-V</span>}</td>
+                <td className="py-2 pr-3 text-muted-foreground">{r.batchNumber || "—"}</td>
+                <td className="py-2 pr-3">{r.ageGroupTreated || "—"}</td>
+                <td className="py-2 pr-3">{r.numberTreated ?? "—"}</td>
+                <td className="py-2 pr-3">{r.administrationRoute || "—"}</td>
+                <td className="py-2 pr-3 whitespace-nowrap">{r.nextDueDate ? <span className={new Date(r.nextDueDate) < today ? "text-red-600 font-medium" : new Date(r.nextDueDate) <= in30 ? "text-amber-600 font-medium" : ""}>{fmtD(r.nextDueDate)}</span> : "—"}</td>
+                <td className="py-2 pr-3"><DocAttach recordId={r.id} endpoint={`/api/farms/${farmId}/poultry-vaccination-records/${r.id}/document`} currentPath={r.documentPath} currentName={r.documentName} onAttached={invalidate} /></td>
+                <td className="py-2 text-right whitespace-nowrap">
+                  <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                  <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRec(null); setForm({ ...empty }); } }}>
+        <DialogContent style={{ maxWidth: 560 }} className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editRec ? "Edit Vaccination Record" : "Add Vaccination Record"}</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label className="text-xs">Date *</Label><input type="date" className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.vaccinationDate} onChange={e => setForm(f => ({ ...f, vaccinationDate: e.target.value }))} /></div>
+              <div><Label className="text-xs">Age Group</Label>
+                <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.ageGroupTreated} onChange={e => setForm(f => ({ ...f, ageGroupTreated: e.target.value }))}>
+                  <option value="">— select —</option>
+                  {POULTRY_AGE_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
+            </div>
+            <div><Label className="text-xs">Disease Category *</Label>
+              <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.vaccinationCategory} onChange={e => setForm(f => ({ ...f, vaccinationCategory: e.target.value, vaccineProduct: "", customProduct: "" }))}>
+                <option value="">— select category —</option>
+                {POULTRY_VACC_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </div>
+            {form.vaccinationCategory && (
+              <div><Label className="text-xs">Vaccine Product *</Label>
+                <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.vaccineProduct} onChange={e => setForm(f => ({ ...f, vaccineProduct: e.target.value }))}>
+                  <option value="">— select product —</option>
+                  {productOptions.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+            )}
+            {isCustomProduct && <div><Label className="text-xs">Product Name (manual entry) *</Label><input type="text" className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" placeholder="Enter vaccine product name" value={form.customProduct} onChange={e => setForm(f => ({ ...f, customProduct: e.target.value }))} /></div>}
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label className="text-xs">Batch Number</Label><input type="text" className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.batchNumber} onChange={e => setForm(f => ({ ...f, batchNumber: e.target.value }))} /></div>
+              <div><Label className="text-xs">Expiry Date</Label><input type="date" className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.expiryDate} onChange={e => setForm(f => ({ ...f, expiryDate: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label className="text-xs">Number Treated</Label><input type="number" min="0" className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.numberTreated} onChange={e => setForm(f => ({ ...f, numberTreated: e.target.value }))} /></div>
+              <div><Label className="text-xs">Dose Volume (ml)</Label><input type="text" className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" placeholder="e.g. 0.2" value={form.doseVolume} onChange={e => setForm(f => ({ ...f, doseVolume: e.target.value }))} /></div>
+            </div>
+            <div><Label className="text-xs">Administration Route</Label>
+              <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.administrationRoute} onChange={e => setForm(f => ({ ...f, administrationRoute: e.target.value }))}>
+                <option value="">— select —</option>
+                {POULTRY_ADMIN_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label className="text-xs">Withdrawal Period (days)</Label><input type="number" min="0" className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.withdrawalPeriodDays} onChange={e => setForm(f => ({ ...f, withdrawalPeriodDays: e.target.value }))} /></div>
+              <div><Label className="text-xs">Next Due Date</Label><input type="date" className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.nextDueDate} onChange={e => setForm(f => ({ ...f, nextDueDate: e.target.value }))} /></div>
+            </div>
+            <div><Label className="text-xs">Administered By</Label><input type="text" className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.administeredBy} onChange={e => setForm(f => ({ ...f, administeredBy: e.target.value }))} /></div>
+            <div className="flex items-center gap-2"><input type="checkbox" id="pv-vet" checked={form.vetPrescribed} onChange={e => setForm(f => ({ ...f, vetPrescribed: e.target.checked }))} /><label htmlFor="pv-vet" className="text-sm cursor-pointer">Vet prescribed (POM-V product)</label></div>
+            <div><Label className="text-xs">Notes</Label><textarea className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAddOpen(false); setEditRec(null); setForm({ ...empty }); }}>Cancel</Button>
+            <Button disabled={!form.vaccinationDate || !form.vaccinationCategory || (!form.vaccineProduct || (isCustomProduct && !form.customProduct)) || createMut.isPending || updateMut.isPending} onClick={() => editRec ? updateMut.mutate({ id: editRec.id, b: form }) : createMut.mutate(form)}>
+              {createMut.isPending || updateMut.isPending ? "Saving…" : editRec ? "Save Changes" : "Save Record"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: 360 }}><DialogHeader><DialogTitle>Delete Vaccination Record</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">Permanently delete this vaccination record?</p>
+          <DialogFooter><Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button><Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>Delete</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Poultry Disease Monitoring Tab ───────────────────────────────────────────
+const POULTRY_MONITORING_TYPES = [
+  { value: "AI", label: "Avian Influenza (AI) Surveillance" },
+  { value: "Marek", label: "Marek's Disease Monitoring" },
+  { value: "ND", label: "Newcastle Disease Serology" },
+  { value: "MG", label: "Mycoplasma gallisepticum (MG) Surveillance" },
+  { value: "IB", label: "Infectious Bronchitis Typing" },
+  { value: "ART", label: "Avian Rhinotracheitis (ART) Surveillance" },
+  { value: "Salmonella serology", label: "Salmonella Serology (non-NCP)" },
+  { value: "General serology", label: "General Serology / Antibody Profiling" },
+];
+
+const POULTRY_FLOCK_STATUSES: { value: string; label: string; colour: string }[] = [
+  { value: "negative", label: "Negative / Clear", colour: "bg-green-100 text-green-800 border-green-200" },
+  { value: "low_positive", label: "Low Positive", colour: "bg-amber-100 text-amber-800 border-amber-200" },
+  { value: "positive", label: "Positive", colour: "bg-red-100 text-red-800 border-red-200" },
+  { value: "inconclusive", label: "Inconclusive", colour: "bg-yellow-100 text-yellow-800 border-yellow-200" },
+  { value: "pending", label: "Pending — awaiting results", colour: "bg-gray-100 text-gray-700 border-gray-200" },
+];
+
+function PoultryDiseaseMonitoringTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["poultry-disease-monitoring", farmId], queryFn: () => fetch(`/api/farms/${farmId}/poultry-disease-monitoring`, { credentials: "include" }).then(r => r.json()) });
+  const records: any[] = Array.isArray(q.data?.records) ? q.data.records : [];
+
+  const empty = { monitoringDate: new Date().toISOString().slice(0, 10), monitoringType: "", testingBody: "", numberOfSamples: "", positiveResults: "0", negativeResults: "0", flockStatus: "", aiRiskLevel: "", actionsTaken: "", nextTestDue: "", notes: "" };
+  const [form, setForm] = useState({ ...empty });
+  const [addOpen, setAddOpen] = useState(false);
+  const [editRec, setEditRec] = useState<any>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["poultry-disease-monitoring", farmId] });
+  const createMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/poultry-disease-monitoring`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { invalidate(); setAddOpen(false); setForm({ ...empty }); } });
+  const updateMut = useMutation({ mutationFn: ({ id, b }: { id: number; b: any }) => fetch(`/api/farms/${farmId}/poultry-disease-monitoring/${id}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { invalidate(); setAddOpen(false); setEditRec(null); setForm({ ...empty }); } });
+  const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`/api/farms/${farmId}/poultry-disease-monitoring/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()), onSuccess: () => { invalidate(); setDeleteId(null); } });
+
+  function openEdit(r: any) {
+    setEditRec(r);
+    setForm({ monitoringDate: r.monitoringDate?.slice(0, 10) ?? "", monitoringType: r.monitoringType ?? "", testingBody: r.testingBody ?? "", numberOfSamples: r.numberOfSamples ? String(r.numberOfSamples) : "", positiveResults: r.positiveResults ? String(r.positiveResults) : "0", negativeResults: r.negativeResults ? String(r.negativeResults) : "0", flockStatus: r.flockStatus ?? "", aiRiskLevel: r.aiRiskLevel ?? "", actionsTaken: r.actionsTaken ?? "", nextTestDue: r.nextTestDue?.slice(0, 10) ?? "", notes: r.notes ?? "" });
+    setAddOpen(true);
+  }
+
+  const fmtD = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+  const typeLabel = (v: string) => POULTRY_MONITORING_TYPES.find(t => t.value === v)?.label ?? v;
+  const statusInfo = (v: string) => POULTRY_FLOCK_STATUSES.find(s => s.value === v);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">{records.length} monitoring record{records.length !== 1 ? "s" : ""}</p>
+        <Button size="sm" onClick={() => { setEditRec(null); setForm({ ...empty }); setAddOpen(true); }}><Plus className="w-3.5 h-3.5 mr-1" />Add Monitoring Record</Button>
+      </div>
+      {q.isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : records.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-6 text-center">No disease monitoring records. Use this register to record AI surveillance, Marek's monitoring, ND serology, MG surveillance, IB typing, and general antibody profiling results.</p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead><tr className="border-b text-xs text-muted-foreground">{["Date","Monitoring Type","Testing Body","Samples","Positive","Negative","Flock Status","AI Risk","Next Test","Docs",""].map(h => <th key={h} className="text-left py-2 pr-3 font-medium">{h}</th>)}</tr></thead>
+          <tbody>
+            {records.map((r: any) => {
+              const si = statusInfo(r.flockStatus);
+              return (
+                <tr key={r.id} className="border-b hover:bg-muted/30">
+                  <td className="py-2 pr-3 whitespace-nowrap">{fmtD(r.monitoringDate)}</td>
+                  <td className="py-2 pr-3">{typeLabel(r.monitoringType)}</td>
+                  <td className="py-2 pr-3 text-muted-foreground">{r.testingBody || "—"}</td>
+                  <td className="py-2 pr-3">{r.numberOfSamples ?? "—"}</td>
+                  <td className="py-2 pr-3">{r.positiveResults ?? "—"}</td>
+                  <td className="py-2 pr-3">{r.negativeResults ?? "—"}</td>
+                  <td className="py-2 pr-3">{si ? <span className={`inline-block rounded px-1.5 py-0.5 text-xs border font-medium ${si.colour}`}>{si.label}</span> : "—"}</td>
+                  <td className="py-2 pr-3">{r.aiRiskLevel ? <span className={`inline-block rounded px-1.5 py-0.5 text-xs border font-medium ${r.aiRiskLevel === "low" ? "bg-green-100 text-green-800 border-green-200" : r.aiRiskLevel === "medium" ? "bg-amber-100 text-amber-800 border-amber-200" : "bg-red-100 text-red-800 border-red-200"}`}>{r.aiRiskLevel.charAt(0).toUpperCase() + r.aiRiskLevel.slice(1)}</span> : "—"}</td>
+                  <td className="py-2 pr-3 whitespace-nowrap">{fmtD(r.nextTestDue)}</td>
+                  <td className="py-2 pr-3"><DocAttach recordId={r.id} endpoint={`/api/farms/${farmId}/poultry-disease-monitoring/${r.id}/document`} currentPath={r.documentPath} currentName={r.documentName} onAttached={invalidate} /></td>
+                  <td className="py-2 text-right whitespace-nowrap">
+                    <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRec(null); setForm({ ...empty }); } }}>
+        <DialogContent style={{ maxWidth: 560 }} className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editRec ? "Edit Monitoring Record" : "Add Monitoring Record"}</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label className="text-xs">Monitoring Date *</Label><input type="date" className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.monitoringDate} onChange={e => setForm(f => ({ ...f, monitoringDate: e.target.value }))} /></div>
+              <div><Label className="text-xs">Monitoring Type *</Label>
+                <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.monitoringType} onChange={e => setForm(f => ({ ...f, monitoringType: e.target.value }))}>
+                  <option value="">— select —</option>
+                  {POULTRY_MONITORING_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+              </div>
+            </div>
+            <div><Label className="text-xs">Testing Body / Laboratory</Label><input type="text" className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.testingBody} onChange={e => setForm(f => ({ ...f, testingBody: e.target.value }))} /></div>
+            <div className="grid grid-cols-3 gap-3">
+              <div><Label className="text-xs">Samples</Label><input type="number" min="0" className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.numberOfSamples} onChange={e => setForm(f => ({ ...f, numberOfSamples: e.target.value }))} /></div>
+              <div><Label className="text-xs">Positive</Label><input type="number" min="0" className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.positiveResults} onChange={e => setForm(f => ({ ...f, positiveResults: e.target.value }))} /></div>
+              <div><Label className="text-xs">Negative</Label><input type="number" min="0" className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.negativeResults} onChange={e => setForm(f => ({ ...f, negativeResults: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label className="text-xs">Flock Status</Label>
+                <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.flockStatus} onChange={e => setForm(f => ({ ...f, flockStatus: e.target.value }))}>
+                  <option value="">— select —</option>
+                  {POULTRY_FLOCK_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
+              {form.monitoringType === "AI" && (
+                <div><Label className="text-xs">AI Risk Level</Label>
+                  <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.aiRiskLevel} onChange={e => setForm(f => ({ ...f, aiRiskLevel: e.target.value }))}>
+                    <option value="">— select —</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+              )}
+            </div>
+            <div><Label className="text-xs">Next Test Due</Label><input type="date" className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.nextTestDue} onChange={e => setForm(f => ({ ...f, nextTestDue: e.target.value }))} /></div>
+            <div><Label className="text-xs">Actions Taken</Label><textarea className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" rows={2} value={form.actionsTaken} onChange={e => setForm(f => ({ ...f, actionsTaken: e.target.value }))} /></div>
+            <div><Label className="text-xs">Notes</Label><textarea className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAddOpen(false); setEditRec(null); setForm({ ...empty }); }}>Cancel</Button>
+            <Button disabled={!form.monitoringDate || !form.monitoringType || createMut.isPending || updateMut.isPending} onClick={() => editRec ? updateMut.mutate({ id: editRec.id, b: form }) : createMut.mutate(form)}>
+              {createMut.isPending || updateMut.isPending ? "Saving…" : editRec ? "Save Changes" : "Save Record"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: 360 }}><DialogHeader><DialogTitle>Delete Monitoring Record</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">Permanently delete this disease monitoring record?</p>
+          <DialogFooter><Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button><Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>Delete</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

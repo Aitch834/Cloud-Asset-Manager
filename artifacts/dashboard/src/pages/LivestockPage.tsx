@@ -8220,7 +8220,7 @@ function IsolationRegisterSection({ farmId }: { farmId: number }) {
   const [hcOpen, setHcOpen] = useState<number | null>(null);
   const [deleteHcId, setDeleteHcId] = useState<{ recId: number; checkId: number } | null>(null);
 
-  const emptyForm = { isolationStartDate: "", isolationEndDate: "", animalCount: "", animalDescription: "", isolationReason: "", supplierName: "", clearanceDate: "", clearanceSignedBy: "", notes: "", sourceJohnesVaccStatus: "", sourceJohnesVaccNotes: "", sourcePrrsStatus: "", sourcePrrsNotes: "", sourceMhStatus: "", sourceMhNotes: "" };
+  const emptyForm = { isolationStartDate: "", isolationEndDate: "", animalCount: "", animalDescription: "", isolationReason: "", supplierName: "", clearanceDate: "", clearanceSignedBy: "", notes: "", sourceJohnesVaccStatus: "", sourceJohnesVaccNotes: "", sourcePrrsStatus: "", sourcePrrsNotes: "", sourceMhStatus: "", sourceMhNotes: "", sourceMareksStatus: "", sourceMareksNotes: "", sourceSalmonellaNcpCategory: "", sourceSalmonellaNotes: "" };
   const [form, setForm] = useState({ ...emptyForm });
   const emptyHc = { checkDate: new Date().toISOString().slice(0, 10), checkedBy: "", healthStatus: "satisfactory", temperatureCelsius: "", notes: "", actionTaken: "" };
   const [hcForm, setHcForm] = useState({ ...emptyHc });
@@ -8243,7 +8243,7 @@ function IsolationRegisterSection({ farmId }: { farmId: number }) {
 
   function openEdit(r: any) {
     setEditRec(r);
-    setForm({ isolationStartDate: r.isolationStartDate?.slice(0, 10) ?? "", isolationEndDate: r.isolationEndDate?.slice(0, 10) ?? "", animalCount: String(r.animalCount ?? ""), animalDescription: r.animalDescription ?? "", isolationReason: r.isolationReason ?? "", supplierName: r.supplierName ?? "", clearanceDate: r.clearanceDate?.slice(0, 10) ?? "", clearanceSignedBy: r.clearanceSignedBy ?? "", notes: r.notes ?? "", sourceJohnesVaccStatus: r.sourceJohnesVaccStatus ?? "", sourceJohnesVaccNotes: r.sourceJohnesVaccNotes ?? "", sourcePrrsStatus: r.sourcePrrsStatus ?? "", sourcePrrsNotes: r.sourcePrrsNotes ?? "", sourceMhStatus: r.sourceMhStatus ?? "", sourceMhNotes: r.sourceMhNotes ?? "" });
+    setForm({ isolationStartDate: r.isolationStartDate?.slice(0, 10) ?? "", isolationEndDate: r.isolationEndDate?.slice(0, 10) ?? "", animalCount: String(r.animalCount ?? ""), animalDescription: r.animalDescription ?? "", isolationReason: r.isolationReason ?? "", supplierName: r.supplierName ?? "", clearanceDate: r.clearanceDate?.slice(0, 10) ?? "", clearanceSignedBy: r.clearanceSignedBy ?? "", notes: r.notes ?? "", sourceJohnesVaccStatus: r.sourceJohnesVaccStatus ?? "", sourceJohnesVaccNotes: r.sourceJohnesVaccNotes ?? "", sourcePrrsStatus: r.sourcePrrsStatus ?? "", sourcePrrsNotes: r.sourcePrrsNotes ?? "", sourceMhStatus: r.sourceMhStatus ?? "", sourceMhNotes: r.sourceMhNotes ?? "", sourceMareksStatus: r.sourceMareksStatus ?? "", sourceMareksNotes: r.sourceMareksNotes ?? "", sourceSalmonellaNcpCategory: r.sourceSalmonellaNcpCategory ?? "", sourceSalmonellaNotes: r.sourceSalmonellaNotes ?? "" });
   }
 
   return (
@@ -8318,6 +8318,18 @@ function IsolationRegisterSection({ farmId }: { farmId: number }) {
                       <div className={`col-span-full flex items-start gap-2 rounded px-2.5 py-2 text-xs border ${r.sourceMhStatus === "negative" ? "bg-green-50 border-green-200 text-green-800" : r.sourceMhStatus === "positive_stable" ? "bg-amber-50 border-amber-200 text-amber-800" : r.sourceMhStatus === "positive" ? "bg-red-50 border-red-200 text-red-800" : "bg-gray-50 border-gray-200 text-gray-600"}`}>
                         <span className="font-semibold shrink-0">MH / Enzootic Pneumonia (source herd):</span>
                         <span>{r.sourceMhStatus === "negative" ? "✓ MH-negative — confirmed" : r.sourceMhStatus === "positive_stable" ? "⚠ MH-positive stable" : r.sourceMhStatus === "positive" ? "✗ MH-positive" : "Unknown — not confirmed by supplier"}{r.sourceMhNotes ? ` · ${r.sourceMhNotes}` : ""}</span>
+                      </div>
+                    )}
+                    {r.sourceMareksStatus && (
+                      <div className={`col-span-full flex items-start gap-2 rounded px-2.5 py-2 text-xs border ${r.sourceMareksStatus === "vaccinated" ? "bg-green-50 border-green-200 text-green-800" : r.sourceMareksStatus === "not_vaccinated" ? "bg-red-50 border-red-200 text-red-800" : "bg-gray-50 border-gray-200 text-gray-600"}`}>
+                        <span className="font-semibold shrink-0">Marek's Disease (source flock):</span>
+                        <span>{r.sourceMareksStatus === "vaccinated" ? "✓ Vaccinated — confirmed by hatchery/supplier" : r.sourceMareksStatus === "not_vaccinated" ? "✗ Not vaccinated — biosecurity risk noted" : "Unknown — not confirmed by supplier"}{r.sourceMareksNotes ? ` · ${r.sourceMareksNotes}` : ""}</span>
+                      </div>
+                    )}
+                    {r.sourceSalmonellaNcpCategory && (
+                      <div className={`col-span-full flex items-start gap-2 rounded px-2.5 py-2 text-xs border ${r.sourceSalmonellaNcpCategory === "category_1" ? "bg-green-50 border-green-200 text-green-800" : r.sourceSalmonellaNcpCategory === "category_2" ? "bg-amber-50 border-amber-200 text-amber-800" : r.sourceSalmonellaNcpCategory === "category_3" ? "bg-red-50 border-red-200 text-red-800" : "bg-gray-50 border-gray-200 text-gray-600"}`}>
+                        <span className="font-semibold shrink-0">Salmonella NCP (source flock):</span>
+                        <span>{r.sourceSalmonellaNcpCategory === "category_1" ? "✓ Category 1 — low prevalence" : r.sourceSalmonellaNcpCategory === "category_2" ? "⚠ Category 2 — moderate prevalence" : r.sourceSalmonellaNcpCategory === "category_3" ? "✗ Category 3 — high prevalence" : r.sourceSalmonellaNcpCategory === "not_tested" ? "Not tested" : "Unknown — not confirmed by supplier"}{r.sourceSalmonellaNotes ? ` · ${r.sourceSalmonellaNotes}` : ""}</span>
                       </div>
                     )}
                   </div>
@@ -8409,6 +8421,34 @@ function IsolationRegisterSection({ farmId }: { farmId: number }) {
                 </select>
               </div>
               <div><Label className="text-xs">MH Biosecurity Notes</Label><Input className="mt-1" value={form.sourceMhNotes} onChange={e => setForm(f => ({ ...f, sourceMhNotes: e.target.value }))} placeholder="e.g. Supplier holds AHDB MH Negative accreditation…" /></div>
+            </div>
+            <div className="border-t pt-3 space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Marek's Disease Biosecurity — Poultry</p>
+              <p className="text-xs text-gray-400">Marek's Disease is a highly contagious herpesvirus. Commercial chicks are typically vaccinated at the hatchery. Record the Marek's vaccination status of the source flock/hatchery at point of purchase.</p>
+              <div><Label className="text-xs">Source Flock / Hatchery Marek's Vaccination Status</Label>
+                <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.sourceMareksStatus} onChange={e => setForm(f => ({ ...f, sourceMareksStatus: e.target.value }))}>
+                  <option value="">Not applicable / not recorded</option>
+                  <option value="vaccinated">Vaccinated — confirmed by hatchery/supplier</option>
+                  <option value="not_vaccinated">Not vaccinated — biosecurity risk noted</option>
+                  <option value="unknown">Unknown — not confirmed by supplier</option>
+                </select>
+              </div>
+              <div><Label className="text-xs">Marek's Biosecurity Notes</Label><Input className="mt-1" value={form.sourceMareksNotes} onChange={e => setForm(f => ({ ...f, sourceMareksNotes: e.target.value }))} placeholder="e.g. Confirmed HVT-vaccinated in ovo at hatchery…" /></div>
+            </div>
+            <div className="border-t pt-3 space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Salmonella NCP Biosecurity — Poultry</p>
+              <p className="text-xs text-gray-400">Red Tractor Poultry and BEIC require knowledge of source flock Salmonella NCP category. Record the most recent Salmonella NCP category of the source flock at point of purchase.</p>
+              <div><Label className="text-xs">Source Flock Salmonella NCP Category</Label>
+                <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.sourceSalmonellaNcpCategory} onChange={e => setForm(f => ({ ...f, sourceSalmonellaNcpCategory: e.target.value }))}>
+                  <option value="">Not applicable / not recorded</option>
+                  <option value="category_1">Category 1 — low prevalence (≤5%)</option>
+                  <option value="category_2">Category 2 — moderate prevalence (5–19%)</option>
+                  <option value="category_3">Category 3 — high prevalence (≥20%)</option>
+                  <option value="not_tested">Not tested</option>
+                  <option value="unknown">Unknown — not confirmed by supplier</option>
+                </select>
+              </div>
+              <div><Label className="text-xs">Salmonella NCP Biosecurity Notes</Label><Input className="mt-1" value={form.sourceSalmonellaNotes} onChange={e => setForm(f => ({ ...f, sourceSalmonellaNotes: e.target.value }))} placeholder="e.g. Source flock most recent NCP result June 2026 Category 1…" /></div>
             </div>
           </div>
           <DialogFooter>

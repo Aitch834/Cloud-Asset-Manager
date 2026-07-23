@@ -409,6 +409,8 @@ import {
   salmMonitoringTable,
   pigVaccinationRecordsTable,
   pigDiseaseMonitoringTable,
+  poultryVaccinationRecordsTable,
+  poultryDiseaseMonitoringTable,
   ipmPlansTable,
   ipmThresholdEntriesTable,
   ipmMonitoringLogsTable,
@@ -14402,6 +14404,113 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 
 <h3>Document Attachment</h3>
 <p>Attach the laboratory report or accreditation certificate directly to the monitoring record using the compact attach/view button on the record row.</p>`,
+    },
+    {
+      id: 10085,
+      title: "Poultry Vaccination Programme — Recording Flock Vaccinations",
+      category: "Poultry Production",
+      content: `<h2>Poultry Vaccination Programme</h2>
+
+<p>The Vaccination tab in Poultry Production records every vaccine administered to your flocks. Red Tractor Poultry requires your Veterinary Health Plan (VHP) to include a signed vaccination programme — this tab provides the detailed record-keeping layer for each individual administration event against that plan.</p>
+
+<h3>Disease Categories and Licensed Vaccine Presets</h3>
+<p>Select the disease category first, then choose from the pre-loaded list of UK-licensed vaccines for that category:</p>
+<ul>
+<li><strong>Newcastle Disease (ND)</strong> — Nobilis ND Clone 30, Nobilis ND Clone 45, Nobilis ND Hitchner B1, Nobilis ND Ma5+Clone30, Avinew (La Sota), Hipraviar Clone 45</li>
+<li><strong>Infectious Bronchitis (IB)</strong> — Nobilis IB Ma5, Nobilis IB 4-91, Nobilis IB H120, Nobilis IB Multi+Clone30, Hipraviar IB-H120, Poulvac IB H52</li>
+<li><strong>Marek's Disease</strong> — Nobilis Rismavac (HVT+Rispens), Nobilis Turkey Herpesvirus (HVT), Vectormune HVT NDV, Rispens/CVI988</li>
+<li><strong>Gumboro / IBD</strong> — Nobilis Gumboro D78, Nobilis Gumboro 228E, Nobilis IBA, Bursa-Vac, TAD Gumboro vac</li>
+<li><strong>Avian Metapneumovirus / TRT</strong> — Nobilis TRT, Hipraviar TRT-C, Poulvac TRT</li>
+<li><strong>ILT</strong> — Nobilis ILT, TAD Laryngo vac, Poulvac ILT</li>
+<li><strong>EDS</strong> — Nobilis EDS</li>
+<li><strong>AE / Fowl Typhoid</strong> — Nobilis AE+POX, Poulvac AE Layervax</li>
+<li><strong>Salmonella</strong> — Nobilis SalENT, AviPro Salmonella Vac E, AviPro Salmonella Vac T, Salenvac (inactivated), Salmovac 440</li>
+<li><strong>Mycoplasma (MG)</strong> — Nobilis MG 6/85, Biomune MG-F36</li>
+<li><strong>Fowl Pox</strong> — Nobilis Pox, Hipraviar Pox</li>
+<li><strong>Other</strong> — enter product name manually</li>
+</ul>
+
+<h3>Administration Routes</h3>
+<p>Select the administration route used:</p>
+<ul>
+<li><strong>Drinking water</strong> — mass administration via treated drinkers; most common for ND, IB, Gumboro, and Salmonella live vaccines</li>
+<li><strong>Eye drop</strong> — individual or tray-method application; typical for ND Clone, IB, and ILT live vaccines</li>
+<li><strong>Spray (coarse)</strong> or <strong>Spray (fine mist)</strong> — coarse spray for older birds, fine mist for day-old chicks in hatchery</li>
+<li><strong>Subcutaneous injection</strong> or <strong>Intramuscular injection</strong> — inactivated (killed) vaccines including EDS and multi-component layers vaccines</li>
+<li><strong>Wing web / stab</strong> — Fowl Pox and AE+Pox combination vaccines</li>
+<li><strong>In ovo</strong> — Marek's Disease vaccination at the hatchery, typically 18-day eggs</li>
+<li><strong>Intranasal</strong> — individual drop administration</li>
+</ul>
+
+<h3>Key Record Fields</h3>
+<ul>
+<li><strong>Age Group Treated</strong> — Day-old chicks, Broilers, Pullets, Layers, Breeders, Turkeys, Ducks, All birds</li>
+<li><strong>Batch Number &amp; Expiry Date</strong> — vaccine traceability; required for vet-prescribed (POM-V) products</li>
+<li><strong>Dose Volume</strong> — in millilitres per bird</li>
+<li><strong>Withdrawal Period (days)</strong> — mandatory for any product with a meat or egg withdrawal; defaults to 0 for vaccines with no withdrawal</li>
+<li><strong>Next Due Date</strong> — drives the booster alert panel at the top of the tab</li>
+<li><strong>Vet Prescribed flag</strong> — mark any POM-V product (most injectable inactivated vaccines require vet prescription)</li>
+</ul>
+
+<h3>Booster Alert Panel</h3>
+<p>The amber alert panel at the top of the Vaccination tab lists any records where the <strong>Next Due Date</strong> is within 30 days or already passed. Overdue records are shown in red. This panel helps you stay on schedule with multi-dose programmes and annual layer/breeder booster rounds.</p>
+
+<h3>Document Attachment</h3>
+<p>Use the compact attach/view button on each record row to attach a vet prescription, product data sheet, or hatchery vaccination certificate. POM-V inactivated vaccines require a vet prescription — attaching it here keeps your audit file complete.</p>`,
+    },
+    {
+      id: 10086,
+      title: "Poultry Disease Monitoring — AI Surveillance, Marek's, MG and More",
+      category: "Poultry Production",
+      content: `<h2>Poultry Disease Monitoring Register</h2>
+
+<p>The Disease Monitoring tab in Poultry Production records serological surveillance and disease status monitoring events for your flocks. It is separate from the Campylobacter NCP tab (which records mandatory FSA/Red Tractor NCP test results) and covers the broader range of poultry health monitoring programmes.</p>
+
+<h3>Monitoring Types</h3>
+<ul>
+<li><strong>Avian Influenza (AI) Surveillance</strong> — APHA-led or private AI surveillance sampling. When AI is selected, an additional <strong>AI Risk Level</strong> field appears (Low, Medium, or High) to record the risk classification from the surveillance outcome.</li>
+<li><strong>Marek's Disease Monitoring</strong> — post-vaccination titre monitoring or post-mortem pathology confirmation in vaccinated flocks</li>
+<li><strong>Newcastle Disease Serology</strong> — HI titre monitoring to assess post-vaccination immunity levels and identify gaps in flock protection</li>
+<li><strong>Mycoplasma gallisepticum (MG) Surveillance</strong> — plate agglutination or ELISA serology; important for breeder and grandparent flocks where vertical transmission is a risk</li>
+<li><strong>Infectious Bronchitis Typing</strong> — virus isolation or RT-PCR genotyping to identify circulating IB variants and assess vaccine match</li>
+<li><strong>Avian Rhinotracheitis (ART) Surveillance</strong> — aMPV/TRT serology or PCR; particularly important in multi-age turkey and broiler breeder sites</li>
+<li><strong>Salmonella Serology (non-NCP)</strong> — serological surveillance outside the formal NCP programme; for example, monitoring following a positive NCP or post-vaccination titre testing</li>
+<li><strong>General Serology / Antibody Profiling</strong> — multi-pathogen ELISA panels or other surveillance not covered by specific categories above</li>
+</ul>
+
+<h3>Flock Status Badges</h3>
+<p>The overall result of each monitoring round is recorded as a Flock Status, displayed as a colour-coded badge:</p>
+<table>
+<thead><tr><th>Status</th><th>Colour</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td>Negative / Clear</td><td>Green</td><td>No pathogen detected; flock confirmed clear</td></tr>
+<tr><td>Low Positive</td><td>Amber</td><td>Low-level positive result; monitor closely</td></tr>
+<tr><td>Positive</td><td>Red</td><td>Pathogen detected; clinical investigation required</td></tr>
+<tr><td>Inconclusive</td><td>Yellow</td><td>Equivocal result; resample recommended</td></tr>
+<tr><td>Pending</td><td>Grey</td><td>Samples submitted; awaiting laboratory results</td></tr>
+</tbody>
+</table>
+
+<h3>AI Risk Level (AI Surveillance records only)</h3>
+<p>For Avian Influenza surveillance records, record the AI Risk Level assigned by your vet or APHA based on the surveillance outcome:</p>
+<ul>
+<li><strong>Low</strong> — no evidence of AI; routine monitoring continues</li>
+<li><strong>Medium</strong> — equivocal or sub-type-specific findings; enhanced biosecurity and increased monitoring recommended</li>
+<li><strong>High</strong> — confirmed HPAI or significant LPAI finding; report to APHA immediately; enhanced on-farm restrictions apply</li>
+</ul>
+<p><strong>Note:</strong> Avian Influenza (H5 and H7 strains) is a notifiable disease. Any suspect clinical signs or positive surveillance finding must be reported to APHA immediately on 03000 200 301 — do not wait for a second test.</p>
+
+<h3>Record Fields</h3>
+<ul>
+<li><strong>Monitoring Date</strong> — date sampling was carried out</li>
+<li><strong>Testing Body / Laboratory</strong> — APHA, AHVLA, or approved private laboratory</li>
+<li><strong>Number of Samples</strong>, <strong>Positive Results</strong>, and <strong>Negative Results</strong></li>
+<li><strong>Next Test Due</strong> — schedule the next surveillance round; no automated alert is currently generated</li>
+<li><strong>Actions Taken</strong> — free-text field for any biosecurity measures, vet consultations, or management changes following the result</li>
+</ul>
+
+<h3>Document Attachment</h3>
+<p>Attach the laboratory report or APHA correspondence directly to the monitoring record using the compact attach/view button on the row. For AI surveillance, retaining the original laboratory report is recommended as supporting evidence for your Veterinary Health Plan.</p>`,
     },
   ];
 
@@ -32144,6 +32253,107 @@ router.patch("/farms/:farmId/pig-salmonella-monitoring/:id/document", requireAut
   const [record] = await db.update(salmMonitoringTable).set({ documentPath: documentPath ?? null, documentName: documentName ?? null }).where(and(eq(salmMonitoringTable.id, id), eq(salmMonitoringTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
+});
+
+// ─── Poultry Vaccination Records ─────────────────────────────────────────────
+router.get("/farms/:farmId/poultry-vaccination-records", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(poultryVaccinationRecordsTable).where(eq(poultryVaccinationRecordsTable.farmId, farmId)).orderBy(desc(poultryVaccinationRecordsTable.vaccinationDate));
+  res.json({ records: rows });
+});
+router.post("/farms/:farmId/poultry-vaccination-records", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(poultryVaccinationRecordsTable).values({ farmId, flockId: b.flockId ? Number(b.flockId) : null, vaccinationDate: String(b.vaccinationDate ?? ""), vaccinationCategory: String(b.vaccinationCategory ?? ""), vaccineProduct: String(b.vaccineProduct ?? ""), batchNumber: b.batchNumber ? String(b.batchNumber) : null, expiryDate: b.expiryDate ? String(b.expiryDate) : null, ageGroupTreated: b.ageGroupTreated ? String(b.ageGroupTreated) : null, numberTreated: b.numberTreated ? Number(b.numberTreated) : null, doseVolume: b.doseVolume ? String(b.doseVolume) : null, administrationRoute: b.administrationRoute ? String(b.administrationRoute) : null, withdrawalPeriodDays: b.withdrawalPeriodDays ? Number(b.withdrawalPeriodDays) : 0, nextDueDate: b.nextDueDate ? String(b.nextDueDate) : null, administeredBy: b.administeredBy ? String(b.administeredBy) : null, vetPrescribed: b.vetPrescribed === "true" || b.vetPrescribed === true, notes: b.notes ? String(b.notes) : null }).returning();
+  res.status(201).json({ row });
+});
+router.put("/farms/:farmId/poultry-vaccination-records/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const updates: Record<string, unknown> = {};
+  if (b.vaccinationDate !== undefined) updates.vaccinationDate = String(b.vaccinationDate);
+  if (b.vaccinationCategory !== undefined) updates.vaccinationCategory = String(b.vaccinationCategory);
+  if (b.vaccineProduct !== undefined) updates.vaccineProduct = String(b.vaccineProduct);
+  if (b.batchNumber !== undefined) updates.batchNumber = b.batchNumber ? String(b.batchNumber) : null;
+  if (b.expiryDate !== undefined) updates.expiryDate = b.expiryDate ? String(b.expiryDate) : null;
+  if (b.ageGroupTreated !== undefined) updates.ageGroupTreated = b.ageGroupTreated ? String(b.ageGroupTreated) : null;
+  if (b.numberTreated !== undefined) updates.numberTreated = b.numberTreated ? Number(b.numberTreated) : null;
+  if (b.doseVolume !== undefined) updates.doseVolume = b.doseVolume ? String(b.doseVolume) : null;
+  if (b.administrationRoute !== undefined) updates.administrationRoute = b.administrationRoute ? String(b.administrationRoute) : null;
+  if (b.withdrawalPeriodDays !== undefined) updates.withdrawalPeriodDays = Number(b.withdrawalPeriodDays ?? 0);
+  if (b.nextDueDate !== undefined) updates.nextDueDate = b.nextDueDate ? String(b.nextDueDate) : null;
+  if (b.administeredBy !== undefined) updates.administeredBy = b.administeredBy ? String(b.administeredBy) : null;
+  if (b.vetPrescribed !== undefined) updates.vetPrescribed = b.vetPrescribed === "true" || b.vetPrescribed === true;
+  if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
+  const [row] = await db.update(poultryVaccinationRecordsTable).set(updates).where(and(eq(poultryVaccinationRecordsTable.id, id), eq(poultryVaccinationRecordsTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+router.delete("/farms/:farmId/poultry-vaccination-records/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(poultryVaccinationRecordsTable).where(and(eq(poultryVaccinationRecordsTable.id, Number(req.params.id)), eq(poultryVaccinationRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+router.patch("/farms/:farmId/poultry-vaccination-records/:id/document", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const { documentPath = null, documentName = null } = req.body ?? {};
+  const [row] = await db.update(poultryVaccinationRecordsTable).set({ documentPath: documentPath as string | null, documentName: documentName as string | null }).where(and(eq(poultryVaccinationRecordsTable.id, id), eq(poultryVaccinationRecordsTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+
+// ─── Poultry Disease Monitoring ───────────────────────────────────────────────
+router.get("/farms/:farmId/poultry-disease-monitoring", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select().from(poultryDiseaseMonitoringTable).where(eq(poultryDiseaseMonitoringTable.farmId, farmId)).orderBy(desc(poultryDiseaseMonitoringTable.monitoringDate));
+  res.json({ records: rows });
+});
+router.post("/farms/:farmId/poultry-disease-monitoring", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(poultryDiseaseMonitoringTable).values({ farmId, flockId: b.flockId ? Number(b.flockId) : null, monitoringDate: String(b.monitoringDate ?? ""), monitoringType: String(b.monitoringType ?? ""), testingBody: b.testingBody ? String(b.testingBody) : null, numberOfSamples: b.numberOfSamples ? Number(b.numberOfSamples) : null, positiveResults: b.positiveResults ? Number(b.positiveResults) : 0, negativeResults: b.negativeResults ? Number(b.negativeResults) : 0, flockStatus: b.flockStatus ? String(b.flockStatus) : null, aiRiskLevel: b.aiRiskLevel ? String(b.aiRiskLevel) : null, actionsTaken: b.actionsTaken ? String(b.actionsTaken) : null, nextTestDue: b.nextTestDue ? String(b.nextTestDue) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  res.status(201).json({ row });
+});
+router.put("/farms/:farmId/poultry-disease-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const b = sanitiseBody(req.body as Record<string, unknown>);
+  const updates: Record<string, unknown> = {};
+  if (b.monitoringDate !== undefined) updates.monitoringDate = String(b.monitoringDate);
+  if (b.monitoringType !== undefined) updates.monitoringType = String(b.monitoringType);
+  if (b.testingBody !== undefined) updates.testingBody = b.testingBody ? String(b.testingBody) : null;
+  if (b.numberOfSamples !== undefined) updates.numberOfSamples = b.numberOfSamples ? Number(b.numberOfSamples) : null;
+  if (b.positiveResults !== undefined) updates.positiveResults = Number(b.positiveResults ?? 0);
+  if (b.negativeResults !== undefined) updates.negativeResults = Number(b.negativeResults ?? 0);
+  if (b.flockStatus !== undefined) updates.flockStatus = b.flockStatus ? String(b.flockStatus) : null;
+  if (b.aiRiskLevel !== undefined) updates.aiRiskLevel = b.aiRiskLevel ? String(b.aiRiskLevel) : null;
+  if (b.actionsTaken !== undefined) updates.actionsTaken = b.actionsTaken ? String(b.actionsTaken) : null;
+  if (b.nextTestDue !== undefined) updates.nextTestDue = b.nextTestDue ? String(b.nextTestDue) : null;
+  if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
+  const [row] = await db.update(poultryDiseaseMonitoringTable).set(updates).where(and(eq(poultryDiseaseMonitoringTable.id, id), eq(poultryDiseaseMonitoringTable.farmId, farmId))).returning();
+  res.json({ row });
+});
+router.delete("/farms/:farmId/poultry-disease-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(poultryDiseaseMonitoringTable).where(and(eq(poultryDiseaseMonitoringTable.id, Number(req.params.id)), eq(poultryDiseaseMonitoringTable.farmId, farmId)));
+  res.json({ success: true });
+});
+router.patch("/farms/:farmId/poultry-disease-monitoring/:id/document", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  const { documentPath = null, documentName = null } = req.body ?? {};
+  const [row] = await db.update(poultryDiseaseMonitoringTable).set({ documentPath: documentPath as string | null, documentName: documentName as string | null }).where(and(eq(poultryDiseaseMonitoringTable.id, id), eq(poultryDiseaseMonitoringTable.farmId, farmId))).returning();
+  res.json({ row });
 });
 
 // ─── Incoming Stock Isolation / Quarantine Register ─────────────────────────
