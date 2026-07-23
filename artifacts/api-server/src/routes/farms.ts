@@ -33573,7 +33573,13 @@ router.post("/farms/:farmId/straw-sales", requireAuth, requireTenant, async (req
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const body = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(strawSalesRecordsTable).values({ ...body, farmId }).returning();
+  // Auto-generate invoice reference STR-YYYY-NNNN (sequential per farm)
+  const year = new Date().getFullYear();
+  const [countRow] = await db.select({ count: sql<number>`count(*)` }).from(strawSalesRecordsTable).where(eq(strawSalesRecordsTable.farmId, farmId));
+  const seq = (Number(countRow?.count ?? 0) + 1).toString().padStart(4, "0");
+  const autoRef = `STR-${year}-${seq}`;
+  const { invoiceRef: _ir, ...rest } = body as any;
+  const [row] = await db.insert(strawSalesRecordsTable).values({ ...rest, farmId, invoiceRef: autoRef }).returning();
   res.status(201).json(row);
 });
 

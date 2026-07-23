@@ -158,6 +158,9 @@ export const strawSalesRecordsTable = pgTable("straw_sales_records", {
   // Red Tractor passport
   passportIssued: boolean("passport_issued").default(false),
   passportRef: text("passport_ref"),
+  // Buyer Trade Contact link
+  buyerSupplierId: integer("buyer_supplier_id").references(() => suppliersTable.id),
+  paymentTermsDays: integer("payment_terms_days"),
   // Status
   paymentStatus: text("payment_status").notNull().default("unpaid"), // unpaid | paid | overdue
   paymentDate: date("payment_date"),

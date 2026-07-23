@@ -1101,18 +1101,145 @@ function InventoryDialog({ open, onClose, farmId, editRow, existingInventory, ba
   );
 }
 
+// ─── Straw Sale Invoice Print ─────────────────────────────────────────────────
+function StrawSaleInvoicePrint({ sale, farmId, onClose }: { sale: any; farmId: number; onClose: () => void }) {
+  const { data: farm } = useQuery<any>({
+    queryKey: ["farm-for-straw-invoice", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`, { credentials: "include" }).then(r => r.json()),
+    staleTime: 60_000,
+  });
+
+  const vatInfo = deriveVatClassification(sale.intendedUse);
+  const net = sale.totalValuePence ?? 0;
+  const vat = sale.vatAmountPence ?? 0;
+  const gross = net + vat;
+
+  const termsDays = sale.paymentTermsDays;
+  const dueDate = sale.saleDate && termsDays != null && Number(termsDays) > 0
+    ? (() => {
+        const d = new Date(sale.saleDate);
+        d.setDate(d.getDate() + Number(termsDays));
+        return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+      })()
+    : null;
+
+  const fmtD = (s: string | null | undefined) =>
+    s ? new Date(s).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "—";
+
+  return (
+    <Dialog open onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Printer size={16} />Invoice Preview — {sale.invoiceRef}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="p-6 border rounded-lg bg-white text-sm">
+          <div className="flex justify-between items-start mb-6 pb-4 border-b-2 border-gray-800">
+            <div>
+              <p className="text-xl font-bold text-gray-900">{farm?.name || "—"}</p>
+              {farm?.address && <p className="text-gray-600 mt-1 whitespace-pre-line text-xs">{farm.address}</p>}
+              {farm?.phone && <p className="text-gray-600 text-xs">{farm.phone}</p>}
+              {farm?.email && <p className="text-gray-600 text-xs">{farm.email}</p>}
+              {farm?.vatNumber && <p className="text-gray-700 font-medium mt-1 text-xs">VAT Reg No: {farm.vatNumber}</p>}
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-bold text-gray-800 uppercase tracking-widest">Invoice</p>
+              <p className="font-mono font-bold text-lg text-gray-700 mt-1">{sale.invoiceRef}</p>
+              <p className="text-gray-600 text-xs mt-1">Date: {fmtD(sale.saleDate)}</p>
+              {dueDate && <p className="text-gray-600 text-xs">Payment due: {dueDate}</p>}
+              {termsDays === 0 && <p className="text-gray-600 text-xs">Terms: Cash on Delivery</p>}
+            </div>
+          </div>
+          <div className="mb-6">
+            <p className="text-xs font-semibold text-gray-400 uppercase mb-1">Bill To</p>
+            <p className="font-semibold text-gray-900">{sale.buyerName}</p>
+            {sale.buyerAddress && <p className="text-gray-600 text-xs">{sale.buyerAddress}</p>}
+            {sale.buyerPostcode && <p className="text-gray-600 text-xs">{sale.buyerPostcode}</p>}
+            {sale.buyerPhone && <p className="text-gray-600 text-xs">{sale.buyerPhone}</p>}
+            {sale.buyerEmail && <p className="text-gray-600 text-xs">{sale.buyerEmail}</p>}
+          </div>
+          <table className="w-full mb-4 text-sm border-collapse">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="text-left py-2 px-3 font-semibold text-gray-700 border border-gray-200">Description</th>
+                <th className="text-center py-2 px-3 font-semibold text-gray-700 border border-gray-200">Qty (Bales)</th>
+                <th className="text-right py-2 px-3 font-semibold text-gray-700 border border-gray-200">Unit Price</th>
+                <th className="text-right py-2 px-3 font-semibold text-gray-700 border border-gray-200">Net Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="py-3 px-3 border border-gray-200">
+                  <p className="font-medium">{sale.strawType} — {sale.baleFormat}</p>
+                  <p className="text-xs text-gray-500">{sale.intendedUse}{sale.batchRef ? ` · Batch: ${sale.batchRef}` : ""}</p>
+                  {sale.deliveryDate && <p className="text-xs text-gray-500">Delivery: {fmtD(sale.deliveryDate)}</p>}
+                </td>
+                <td className="py-3 px-3 text-center border border-gray-200">{sale.quantitySold}</td>
+                <td className="py-3 px-3 text-right border border-gray-200">{sale.pricePerBalePence ? pToGBP(sale.pricePerBalePence) : "—"}</td>
+                <td className="py-3 px-3 text-right font-medium border border-gray-200">{pToGBP(net)}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div className="flex justify-end mb-6">
+            <div className="w-52">
+              <div className="flex justify-between py-1.5 text-gray-600 border-b border-gray-200 text-xs">
+                <span>Net Total</span><span className="font-medium">{pToGBP(net)}</span>
+              </div>
+              <div className="flex justify-between py-1.5 text-gray-600 border-b border-gray-200 text-xs">
+                <span>VAT ({vatInfo.rate})</span><span className="font-medium">{pToGBP(vat)}</span>
+              </div>
+              <div className="flex justify-between py-2.5 font-bold text-gray-900">
+                <span>Total Due</span><span>{pToGBP(gross || net)}</span>
+              </div>
+            </div>
+          </div>
+          {(sale.transportedBy || sale.passportIssued) && (
+            <div className="mb-3 text-xs text-gray-500 border-t pt-2 space-y-0.5">
+              {sale.transportedBy && <p>Transport: {sale.transportedBy}{sale.haulierName ? ` (${sale.haulierName})` : ""}{sale.vehicleReg ? ` — Reg: ${sale.vehicleReg}` : ""}</p>}
+              {sale.passportIssued && <p>Combinable Crops Passport Ref: {sale.passportRef || "Issued"}</p>}
+            </div>
+          )}
+          {(farm?.bankAccountName || farm?.bankAccountNumber || farm?.invoiceFooterText) && (
+            <div className="border-t pt-3 text-xs text-gray-500 space-y-0.5">
+              {(farm?.bankAccountName || farm?.bankAccountNumber) && (
+                <p>Payment: {[farm.bankAccountName, farm.bankAccountNumber].filter(Boolean).join(" · ")}</p>
+              )}
+              {farm?.invoiceFooterText && <p className="mt-1 italic">{farm.invoiceFooterText}</p>}
+            </div>
+          )}
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose}>Close</Button>
+          <Button onClick={() => window.print()}>
+            <Printer size={14} className="mr-1.5" />Print / Save as PDF
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Sales Dialog ─────────────────────────────────────────────────────────────
 function SalesDialog({ open, onClose, farmId, editRow, inventory }: { open: boolean; onClose: () => void; farmId: number; editRow?: any; inventory: any[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const isEdit = !!editRow;
+  const [showPrint, setShowPrint] = useState(false);
+
   const init = {
-    baleInventoryId: "", invoiceRef: "", saleDate: today(), deliveryDate: "",
+    baleInventoryId: "",
+    saleDate: today(), deliveryDate: "",
     strawType: "Wheat Straw", baleFormat: "Big Round", quantitySold: "", batchRef: "",
-    intendedUse: "Animal Feed", pricePerBalePence: "", buyerName: "",
-    buyerAddress: "", buyerPostcode: "", buyerPhone: "", buyerEmail: "",
-    buyerType: "Farmer", transportedBy: "Buyer Collects", haulierName: "", haulierSupplierId: null as number | null, vehicleReg: "",
-    passportIssued: false, passportRef: "", paymentStatus: "unpaid", paymentDate: "", notes: "",
+    intendedUse: "Animal Feed", pricePerBalePence: "",
+    isCashSale: false,
+    buyerSupplierId: null as number | null,
+    buyerName: "", buyerAddress: "", buyerPostcode: "", buyerPhone: "", buyerEmail: "",
+    buyerType: "Farmer",
+    paymentTermsDays: null as number | null,
+    transportedBy: "Buyer Collects", haulierName: "", haulierSupplierId: null as number | null, vehicleReg: "",
+    passportIssued: false, passportRef: "",
+    paymentStatus: "unpaid", paymentDate: "", notes: "",
   };
   const [form, setForm] = useState<typeof init>(init);
   const f = (k: keyof typeof init) => (v: any) => setForm(p => ({ ...p, [k]: v }));
@@ -1121,29 +1248,40 @@ function SalesDialog({ open, onClose, farmId, editRow, inventory }: { open: bool
     if (open) {
       if (editRow) {
         setForm({
-          baleInventoryId: editRow.baleInventoryId ?? "", invoiceRef: editRow.invoiceRef ?? "",
+          baleInventoryId: editRow.baleInventoryId ?? "",
           saleDate: editRow.saleDate ?? today(), deliveryDate: editRow.deliveryDate ?? "",
           strawType: editRow.strawType ?? "Wheat Straw", baleFormat: editRow.baleFormat ?? "Big Round",
           quantitySold: editRow.quantitySold ?? "", batchRef: editRow.batchRef ?? "",
           intendedUse: editRow.intendedUse ?? "Animal Feed",
           pricePerBalePence: editRow.pricePerBalePence ? (editRow.pricePerBalePence / 100).toFixed(2) : "",
+          isCashSale: editRow.buyerType === "Cash",
+          buyerSupplierId: editRow.buyerSupplierId ?? null,
           buyerName: editRow.buyerName ?? "", buyerAddress: editRow.buyerAddress ?? "",
           buyerPostcode: editRow.buyerPostcode ?? "", buyerPhone: editRow.buyerPhone ?? "",
           buyerEmail: editRow.buyerEmail ?? "", buyerType: editRow.buyerType ?? "Farmer",
+          paymentTermsDays: editRow.paymentTermsDays ?? null,
           transportedBy: editRow.transportedBy ?? "Buyer Collects",
-          haulierName: editRow.haulierName ?? "", haulierSupplierId: editRow.haulierSupplierId ?? null, vehicleReg: editRow.vehicleReg ?? "",
+          haulierName: editRow.haulierName ?? "", haulierSupplierId: editRow.haulierSupplierId ?? null,
+          vehicleReg: editRow.vehicleReg ?? "",
           passportIssued: editRow.passportIssued ?? false, passportRef: editRow.passportRef ?? "",
           paymentStatus: editRow.paymentStatus ?? "unpaid", paymentDate: editRow.paymentDate ?? "",
           notes: editRow.notes ?? "",
         });
       } else { setForm(init); }
+      setShowPrint(false);
     }
   }, [open, editRow]);
 
   React.useEffect(() => {
     if (form.baleInventoryId) {
       const row = inventory.find((r: any) => r.id === Number(form.baleInventoryId));
-      if (row) setForm(p => ({ ...p, strawType: row.strawType ?? p.strawType, baleFormat: row.baleFormat ?? p.baleFormat, batchRef: row.batchRef ?? p.batchRef }));
+      if (row) setForm(p => ({
+        ...p,
+        strawType: row.strawType ?? p.strawType,
+        baleFormat: row.baleFormat ?? p.baleFormat,
+        batchRef: row.batchRef ?? p.batchRef,
+        passportRef: p.passportRef || row.batchRef || p.passportRef,
+      }));
     }
   }, [form.baleInventoryId]);
 
@@ -1153,6 +1291,13 @@ function SalesDialog({ open, onClose, farmId, editRow, inventory }: { open: bool
   const totalPence = pricePence && qty ? pricePence * qty : null;
   const vatPence = vatInfo.rate === "20%" && totalPence ? Math.round(totalPence * 0.2) : null;
 
+  const dueDate = React.useMemo(() => {
+    if (!form.saleDate || form.paymentTermsDays === null || form.paymentTermsDays === 0) return null;
+    const d = new Date(form.saleDate);
+    d.setDate(d.getDate() + Number(form.paymentTermsDays));
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  }, [form.saleDate, form.paymentTermsDays]);
+
   const mut = useMutation({
     mutationFn: async (body: any) => {
       const url = isEdit ? `/api/farms/${farmId}/straw-sales/${editRow.id}` : `/api/farms/${farmId}/straw-sales`;
@@ -1160,11 +1305,11 @@ function SalesDialog({ open, onClose, farmId, editRow, inventory }: { open: bool
       if (!r.ok) throw new Error((await r.json()).error ?? "Failed");
       return r.json();
     },
-    onSuccess: () => {
+    onSuccess: (saved) => {
       qc.invalidateQueries({ queryKey: ["straw-sales", farmId] });
       qc.invalidateQueries({ queryKey: ["straw-analytics", farmId] });
       qc.invalidateQueries({ queryKey: ["straw-inventory", farmId] });
-      toast({ title: isEdit ? "Sale updated" : "Sale recorded" });
+      toast({ title: isEdit ? "Sale updated" : "Sale recorded", description: saved.invoiceRef ? `Invoice ${saved.invoiceRef}` : undefined });
       onClose();
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -1172,138 +1317,269 @@ function SalesDialog({ open, onClose, farmId, editRow, inventory }: { open: bool
 
   const submit = () => mut.mutate({
     baleInventoryId: form.baleInventoryId ? num(form.baleInventoryId) : null,
-    invoiceRef: form.invoiceRef || null, saleDate: form.saleDate,
-    deliveryDate: form.deliveryDate || null, strawType: form.strawType,
-    baleFormat: form.baleFormat, quantitySold: num(form.quantitySold) ?? 0,
-    batchRef: form.batchRef || null, intendedUse: form.intendedUse,
-    vatClassification: vatInfo.classification,
+    saleDate: form.saleDate, deliveryDate: form.deliveryDate || null,
+    strawType: form.strawType, baleFormat: form.baleFormat,
+    quantitySold: num(form.quantitySold) ?? 0, batchRef: form.batchRef || null,
+    intendedUse: form.intendedUse, vatClassification: vatInfo.classification,
     pricePerBalePence: pricePence, totalValuePence: totalPence, vatAmountPence: vatPence,
-    buyerName: form.buyerName, buyerAddress: form.buyerAddress || null,
-    buyerPostcode: form.buyerPostcode || null, buyerPhone: form.buyerPhone || null,
-    buyerEmail: form.buyerEmail || null, buyerType: form.buyerType || null,
-    transportedBy: form.transportedBy || null, haulierName: form.haulierName || null, haulierSupplierId: form.haulierSupplierId ?? null,
-    vehicleReg: form.vehicleReg || null, passportIssued: form.passportIssued,
-    passportRef: form.passportRef || null, paymentStatus: form.paymentStatus,
-    paymentDate: form.paymentDate || null, notes: form.notes || null,
+    buyerSupplierId: form.isCashSale ? null : (form.buyerSupplierId ?? null),
+    buyerName: form.isCashSale ? "Cash Sale" : form.buyerName,
+    buyerAddress: form.isCashSale ? null : (form.buyerAddress || null),
+    buyerPostcode: form.isCashSale ? null : (form.buyerPostcode || null),
+    buyerPhone: form.isCashSale ? null : (form.buyerPhone || null),
+    buyerEmail: form.isCashSale ? null : (form.buyerEmail || null),
+    buyerType: form.isCashSale ? "Cash" : (form.buyerType || null),
+    paymentTermsDays: form.isCashSale ? 0 : (form.paymentTermsDays ?? null),
+    transportedBy: form.transportedBy || null, haulierName: form.haulierName || null,
+    haulierSupplierId: form.haulierSupplierId ?? null, vehicleReg: form.vehicleReg || null,
+    passportIssued: form.passportIssued, passportRef: form.passportRef || null,
+    paymentStatus: form.paymentStatus, paymentDate: form.paymentDate || null,
+    notes: form.notes || null,
   });
 
   return (
-    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>{isEdit ? "Edit" : "Record"} Straw Sale</DialogTitle></DialogHeader>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
-            <Label>Link to Bale Batch (optional)</Label>
-            <Select value={form.baleInventoryId?.toString() ?? ""} onValueChange={f("baleInventoryId")}>
-              <SelectTrigger><SelectValue placeholder="Select batch or leave blank" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">Not linked</SelectItem>
-                {inventory.filter((r: any) => r.status === "in_stock").map((r: any) => (
-                  <SelectItem key={r.id} value={String(r.id)}>{r.batchRef || `Batch #${r.id}`} — {r.strawType} {r.baleFormat} ({r.quantityRemaining ?? r.quantityBales} remaining)</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div><Label>Invoice Reference</Label><Input placeholder="INV-2026-001" value={form.invoiceRef} onChange={e => f("invoiceRef")(e.target.value)} /></div>
-          <div><Label>Sale Date *</Label><Input type="date" value={form.saleDate} onChange={e => f("saleDate")(e.target.value)} /></div>
-          <div><Label>Delivery Date</Label><Input type="date" value={form.deliveryDate} onChange={e => f("deliveryDate")(e.target.value)} /></div>
-          <div>
-            <Label>Straw Type *</Label>
-            <Select value={form.strawType} onValueChange={f("strawType")}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{STRAW_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Bale Format *</Label>
-            <Select value={form.baleFormat} onValueChange={f("baleFormat")}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{BALE_FORMATS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div><Label>Quantity Sold *</Label><Input type="number" min={1} value={form.quantitySold} onChange={e => f("quantitySold")(e.target.value)} /></div>
-          <div><Label>Price per Bale (£)</Label><Input type="number" min={0} step={0.01} placeholder="0.00" value={form.pricePerBalePence} onChange={e => f("pricePerBalePence")(e.target.value)} /></div>
-          <div className="col-span-2">
-            <Label>Intended Use *</Label>
-            <Select value={form.intendedUse} onValueChange={f("intendedUse")}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{INTENDED_USES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-            </Select>
-            <div className={`mt-1.5 p-2 rounded text-xs flex gap-1.5 items-start ${vatInfo.rate === "0%" ? "bg-green-50 text-green-700" : vatInfo.rate === "20%" ? "bg-amber-50 text-amber-800" : "bg-gray-50 text-gray-600"}`}>
-              {vatInfo.rate === "0%" ? <CheckCircle2 size={13} className="mt-0.5 shrink-0" /> : vatInfo.rate === "20%" ? <AlertTriangle size={13} className="mt-0.5 shrink-0" /> : <Info size={13} className="mt-0.5 shrink-0" />}
-              <span><strong>VAT: {vatInfo.classification}</strong>{vatInfo.warning ? ` — ${vatInfo.warning}` : " — no VAT to charge."}</span>
+    <>
+      <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{isEdit ? "Edit" : "Record"} Straw Sale</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            {/* Batch link */}
+            <div className="col-span-2">
+              <Label>Link to Bale Batch (optional)</Label>
+              <Select value={form.baleInventoryId?.toString() ?? ""} onValueChange={f("baleInventoryId")}>
+                <SelectTrigger><SelectValue placeholder="Select batch or leave blank" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Not linked</SelectItem>
+                  {inventory.filter((r: any) => r.status === "in_stock").map((r: any) => (
+                    <SelectItem key={r.id} value={String(r.id)}>
+                      {r.batchRef || `Batch #${r.id}`} — {r.strawType} {r.baleFormat} ({r.quantityRemaining ?? r.quantityBales} remaining)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            {totalPence != null && (
-              <div className="mt-1 grid grid-cols-3 gap-2 text-sm bg-gray-50 rounded p-2">
-                <div><span className="text-gray-500 text-xs">Net Total</span><br /><strong>{pToGBP(totalPence)}</strong></div>
-                <div><span className="text-gray-500 text-xs">VAT ({vatInfo.rate})</span><br /><strong>{pToGBP(vatPence ?? 0)}</strong></div>
-                <div><span className="text-gray-500 text-xs">Gross Total</span><br /><strong>{pToGBP((totalPence ?? 0) + (vatPence ?? 0))}</strong></div>
+
+            {/* Invoice ref — auto-gen notice for new, read-only for edits */}
+            <div className="col-span-2">
+              {isEdit ? (
+                <div className="flex items-center gap-2 text-sm">
+                  <FileText size={13} className="text-gray-400 shrink-0" />
+                  <span className="text-gray-500 text-xs">Invoice Reference:</span>
+                  <span className="font-mono font-semibold text-gray-800">{editRow.invoiceRef || "—"}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-800">
+                  <FileText size={13} className="shrink-0" />
+                  <span>Invoice reference auto-generated on save — e.g. <strong>STR-{new Date().getFullYear()}-0001</strong></span>
+                </div>
+              )}
+            </div>
+
+            {/* Dates */}
+            <div><Label>Sale Date *</Label><Input type="date" value={form.saleDate} onChange={e => f("saleDate")(e.target.value)} /></div>
+            <div><Label>Delivery Date</Label><Input type="date" value={form.deliveryDate} onChange={e => f("deliveryDate")(e.target.value)} /></div>
+
+            {/* Product */}
+            <div>
+              <Label>Straw Type *</Label>
+              <Select value={form.strawType} onValueChange={f("strawType")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{STRAW_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Bale Format *</Label>
+              <Select value={form.baleFormat} onValueChange={f("baleFormat")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{BALE_FORMATS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Quantity Sold *</Label><Input type="number" min={1} value={form.quantitySold} onChange={e => f("quantitySold")(e.target.value)} /></div>
+            <div><Label>Price per Bale (£)</Label><Input type="number" min={0} step={0.01} placeholder="0.00" value={form.pricePerBalePence} onChange={e => f("pricePerBalePence")(e.target.value)} /></div>
+
+            {/* Intended use + VAT */}
+            <div className="col-span-2">
+              <Label>Intended Use *</Label>
+              <Select value={form.intendedUse} onValueChange={f("intendedUse")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{INTENDED_USES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              </Select>
+              <div className={`mt-1.5 p-2 rounded text-xs flex gap-1.5 items-start ${vatInfo.rate === "0%" ? "bg-green-50 text-green-700" : vatInfo.rate === "20%" ? "bg-amber-50 text-amber-800" : "bg-gray-50 text-gray-600"}`}>
+                {vatInfo.rate === "0%" ? <CheckCircle2 size={13} className="mt-0.5 shrink-0" /> : vatInfo.rate === "20%" ? <AlertTriangle size={13} className="mt-0.5 shrink-0" /> : <Info size={13} className="mt-0.5 shrink-0" />}
+                <span><strong>VAT: {vatInfo.classification}</strong>{vatInfo.warning ? ` — ${vatInfo.warning}` : " — no VAT to charge."}</span>
               </div>
+              {totalPence != null && (
+                <div className="mt-1 grid grid-cols-3 gap-2 text-sm bg-gray-50 rounded p-2">
+                  <div><span className="text-gray-500 text-xs">Net Total</span><br /><strong>{pToGBP(totalPence)}</strong></div>
+                  <div><span className="text-gray-500 text-xs">VAT ({vatInfo.rate})</span><br /><strong>{pToGBP(vatPence ?? 0)}</strong></div>
+                  <div><span className="text-gray-500 text-xs">Gross Total</span><br /><strong>{pToGBP((totalPence ?? 0) + (vatPence ?? 0))}</strong></div>
+                </div>
+              )}
+            </div>
+
+            {/* ── Buyer Details ── */}
+            <div className="col-span-2 border-t pt-3">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase">Buyer Details (EC Reg 178/2002 Traceability)</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !form.isCashSale;
+                    setForm(p => ({ ...p, isCashSale: next, buyerSupplierId: null, buyerName: next ? "Cash Sale" : "", buyerAddress: "", buyerPostcode: "", buyerPhone: "", buyerEmail: "", buyerType: next ? "Cash" : "Farmer", paymentTermsDays: next ? 0 : null }));
+                  }}
+                  className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${form.isCashSale ? "bg-green-100 border-green-500 text-green-800" : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"}`}
+                >
+                  💰 {form.isCashSale ? "✓ Cash Sale" : "Cash Sale"}
+                </button>
+              </div>
+              {form.isCashSale ? (
+                <div className="flex items-start gap-2.5 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+                  <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-green-600" />
+                  <span><strong>Cash Sale / Farm Gate</strong> — no buyer account required. EC Reg 178/2002 traceability is maintained via the straw type, quantity, and intended use recorded on this sale.</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <Label>Buyer *</Label>
+                    <BuyerCombobox
+                      farmId={farmId}
+                      types={["merchant", "farmer", "contractor", "other", "general"]}
+                      valueId={form.buyerSupplierId}
+                      valueName={form.buyerName}
+                      onChange={(id, name) => setForm(p => ({ ...p, buyerSupplierId: id, buyerName: name }))}
+                      onChangeFull={(rec) => {
+                        if (rec) setForm(p => ({
+                          ...p,
+                          buyerAddress: rec.address || p.buyerAddress,
+                          buyerPhone: rec.phone || p.buyerPhone,
+                          buyerEmail: rec.email || p.buyerEmail,
+                        }));
+                      }}
+                      placeholder="Search Trade Contacts or quick-add..."
+                      typeLabel="Buyer"
+                      postAddNavigatePath="/trade-contacts"
+                    />
+                  </div>
+                  <div>
+                    <Label>Buyer Type</Label>
+                    <Select value={form.buyerType} onValueChange={f("buyerType")}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{BUYER_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Payment Terms</Label>
+                    <Select
+                      value={form.paymentTermsDays === null ? "" : String(form.paymentTermsDays)}
+                      onValueChange={v => setForm(p => ({ ...p, paymentTermsDays: v === "" ? null : Number(v) }))}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select terms" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">Cash on Delivery (COD)</SelectItem>
+                        <SelectItem value="7">Net 7 days</SelectItem>
+                        <SelectItem value="14">Net 14 days</SelectItem>
+                        <SelectItem value="21">Net 21 days</SelectItem>
+                        <SelectItem value="28">Net 28 days</SelectItem>
+                        <SelectItem value="30">Net 30 days</SelectItem>
+                        <SelectItem value="60">Net 60 days</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {dueDate && <p className="text-xs text-gray-500 mt-1">Payment due: <strong>{dueDate}</strong></p>}
+                  </div>
+                  <div><Label>Address</Label><Input value={form.buyerAddress} onChange={e => f("buyerAddress")(e.target.value)} /></div>
+                  <div><Label>Postcode</Label><Input value={form.buyerPostcode} onChange={e => f("buyerPostcode")(e.target.value)} /></div>
+                  <div><Label>Phone</Label><Input value={form.buyerPhone} onChange={e => f("buyerPhone")(e.target.value)} /></div>
+                  <div><Label>Email</Label><Input type="email" value={form.buyerEmail} onChange={e => f("buyerEmail")(e.target.value)} /></div>
+                  {form.buyerType === "Market Gardener" && (
+                    <div className="col-span-2">
+                      <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1.5 flex gap-1.5 items-start">
+                        <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                        Sales to market gardeners are treated as horticultural use by HMRC — standard-rated at 20% VAT (HMRC VAT Notice 701/15).
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ── Transport ── */}
+            <div className="col-span-2 border-t pt-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Transport</p>
+              <div className="grid grid-cols-3 gap-3 items-end">
+                <div>
+                  <Label>Transported By</Label>
+                  <Select value={form.transportedBy} onValueChange={f("transportedBy")}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{TRANSPORT_OPTIONS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                {form.transportedBy === "Third-Party Haulier" && (<>
+                  <div>
+                    <Label>Haulier Name</Label>
+                    <BuyerCombobox farmId={farmId} types={["contractor", "general"]} valueId={form.haulierSupplierId ?? null} valueName={form.haulierName} onChange={(id, name) => setForm(p => ({ ...p, haulierSupplierId: id, haulierName: name }))} typeLabel="Haulier" />
+                  </div>
+                  <div>
+                    <Label>Vehicle Reg</Label>
+                    <Input className="h-9" value={form.vehicleReg} onChange={e => f("vehicleReg")(e.target.value)} />
+                  </div>
+                </>)}
+              </div>
+            </div>
+
+            {/* ── Combinable Crops Passport ── */}
+            <div className="col-span-2 border-t pt-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox id="passport" checked={form.passportIssued} onCheckedChange={v => {
+                  const checked = !!v;
+                  setForm(p => ({
+                    ...p, passportIssued: checked,
+                    passportRef: checked && !p.passportRef ? (p.batchRef || "") : p.passportRef,
+                  }));
+                }} />
+                <Label htmlFor="passport" className="cursor-pointer font-medium">Combinable Crops Passport Issued</Label>
+              </div>
+              {form.passportIssued && (
+                <>
+                  <div>
+                    <Label>Passport Reference</Label>
+                    <Input value={form.passportRef} onChange={e => f("passportRef")(e.target.value)} placeholder="e.g. batch ref or crop lot number" />
+                  </div>
+                  <div className="p-2.5 bg-blue-50 border border-blue-100 rounded text-xs text-blue-800 flex gap-1.5 items-start">
+                    <Info size={13} className="mt-0.5 shrink-0" />
+                    <span>The Combinable Crops Passport is issued <strong>by your farm (the seller)</strong> and accompanies each consignment of straw to the buyer. The reference should match the crop batch or lot — if a bale batch is linked above, the batch reference has been pre-filled. Passports are required for plant health compliance under UK Plant Health legislation (retained EU Reg. 2016/2031) when moving regulated plant material between holdings. Contact APHA or your Red Tractor adviser if unsure.</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Payment */}
+            <div>
+              <Label>Payment Status</Label>
+              <Select value={form.paymentStatus} onValueChange={f("paymentStatus")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{PAYMENT_STATUSES.map(t => <SelectItem key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            {form.paymentStatus === "paid" && <div><Label>Payment Date</Label><Input type="date" value={form.paymentDate} onChange={e => f("paymentDate")(e.target.value)} /></div>}
+            <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
+          </div>
+          <DialogFooter className="gap-2">
+            {isEdit && editRow?.invoiceRef && (
+              <Button variant="outline" type="button" onClick={() => setShowPrint(true)}>
+                <Printer size={14} className="mr-1.5" />Print Invoice
+              </Button>
             )}
-          </div>
-          <div className="col-span-2 border-t pt-3">
-            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Buyer Details (EC Reg 178/2002 Traceability)</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Buyer Name *</Label><Input value={form.buyerName} onChange={e => f("buyerName")(e.target.value)} /></div>
-              <div>
-                <Label>Buyer Type</Label>
-                <Select value={form.buyerType} onValueChange={f("buyerType")}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{BUYER_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div><Label>Address</Label><Input value={form.buyerAddress} onChange={e => f("buyerAddress")(e.target.value)} /></div>
-              <div><Label>Postcode</Label><Input value={form.buyerPostcode} onChange={e => f("buyerPostcode")(e.target.value)} /></div>
-              <div><Label>Phone</Label><Input value={form.buyerPhone} onChange={e => f("buyerPhone")(e.target.value)} /></div>
-              <div><Label>Email</Label><Input type="email" value={form.buyerEmail} onChange={e => f("buyerEmail")(e.target.value)} /></div>
-            </div>
-            {form.buyerType === "Market Gardener" && (
-              <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1.5 flex gap-1.5">
-                <AlertTriangle size={13} className="mt-0.5 shrink-0" />Sales to market gardeners are treated as horticultural use by HMRC — standard-rated at 20% VAT (HMRC VAT Notice 701/15).
-              </p>
-            )}
-          </div>
-          <div className="col-span-2 border-t pt-3">
-            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Transport</p>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <Label>Transported By</Label>
-                <Select value={form.transportedBy} onValueChange={f("transportedBy")}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{TRANSPORT_OPTIONS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              {form.transportedBy === "Third-Party Haulier" && (<>
-                <div><Label>Haulier Name</Label><BuyerCombobox farmId={farmId} types={["contractor", "general"]} valueId={form.haulierSupplierId ?? null} valueName={form.haulierName} onChange={(id, name) => setForm(p => ({ ...p, haulierSupplierId: id, haulierName: name }))} /></div>
-                <div><Label>Vehicle Reg</Label><Input value={form.vehicleReg} onChange={e => f("vehicleReg")(e.target.value)} /></div>
-              </>)}
-            </div>
-          </div>
-          <div className="col-span-2 grid grid-cols-2 gap-3 border-t pt-3">
-            <div className="flex items-center gap-2 pt-1">
-              <Checkbox id="passport" checked={form.passportIssued} onCheckedChange={v => f("passportIssued")(!!v)} />
-              <Label htmlFor="passport" className="cursor-pointer">Combinable Crops Passport Issued</Label>
-            </div>
-            {form.passportIssued && <div><Label>Passport Reference</Label><Input value={form.passportRef} onChange={e => f("passportRef")(e.target.value)} /></div>}
-          </div>
-          <div>
-            <Label>Payment Status</Label>
-            <Select value={form.paymentStatus} onValueChange={f("paymentStatus")}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{PAYMENT_STATUSES.map(t => <SelectItem key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          {form.paymentStatus === "paid" && <div><Label>Payment Date</Label><Input type="date" value={form.paymentDate} onChange={e => f("paymentDate")(e.target.value)} /></div>}
-          <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={submit} disabled={mut.isPending || !form.buyerName || !form.quantitySold}>
-            {mut.isPending && <Loader2 size={14} className="mr-1 animate-spin" />}{isEdit ? "Save Changes" : "Record Sale"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button onClick={submit} disabled={mut.isPending || (!form.isCashSale && !form.buyerName) || !form.quantitySold}>
+              {mut.isPending && <Loader2 size={14} className="mr-1 animate-spin" />}{isEdit ? "Save Changes" : "Record Sale"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {showPrint && editRow && (
+        <StrawSaleInvoicePrint sale={editRow} farmId={farmId} onClose={() => setShowPrint(false)} />
+      )}
+    </>
   );
 }
 

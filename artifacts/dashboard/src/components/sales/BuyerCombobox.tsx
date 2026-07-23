@@ -16,6 +16,9 @@ interface BuyerRecord {
   supplierType: string;
   contactName?: string | null;
   accountNumber?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
 }
 
 interface BuyerComboboxProps {
@@ -24,6 +27,7 @@ interface BuyerComboboxProps {
   valueId: number | null;
   valueName: string;
   onChange: (id: number | null, name: string) => void;
+  onChangeFull?: (record: BuyerRecord | null) => void;
   required?: boolean;
   placeholder?: string;
   typeLabel?: string;
@@ -37,6 +41,7 @@ export function BuyerCombobox({
   valueId,
   valueName,
   onChange,
+  onChangeFull,
   required,
   placeholder = "Search or select...",
   typeLabel = "Contact",
@@ -90,11 +95,13 @@ export function BuyerCombobox({
 
   const handleSelect = (buyer: BuyerRecord) => {
     onChange(buyer.id, buyer.name);
+    onChangeFull?.(buyer);
     setOpen(false);
   };
 
   const handleClear = () => {
     onChange(null, "");
+    onChangeFull?.(null);
   };
 
   const triggerLabel = valueName || (valueId ? `ID: ${valueId}` : null);
