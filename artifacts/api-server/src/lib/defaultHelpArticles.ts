@@ -310,6 +310,12 @@ const TITLES: [string, string][] = [
   ["Silage & Haylage Stock Tracking — Cut Records, Yield and Clamp Balance", "Environmental"],
   ["Straw Bale Inventory — Bale Batches, Moisture Checks and Biomass Contracts", "Fields & Crops"],
   ["Season Reports — Forage & Straw Tab", "Dashboards"],
+  ["Pig Vaccination Programme — Recording and Booster Management", "Livestock"],
+  ["Poultry Vaccination Programme — Recording and Booster Management", "Livestock"],
+  ["Pig Disease Monitoring Register — PRRS, MH, and AHDB Accreditation", "Livestock"],
+  ["Poultry Disease Monitoring Register — AI Surveillance, Marek's, and NCP Serology", "Livestock"],
+  ["Marek's Disease & Salmonella NCP Isolation Register Fields — Poultry Biosecurity", "Livestock"],
+  ["Individual Animal Profile — Vaccinations History Tab", "Livestock"],
 ];
 
 const CONTENT: [string, string][] = [
@@ -5923,6 +5929,247 @@ The Livestock Information Service has confirmed that LIP Cattle API submissions 
 <p>Use the season year selector at the top of the Season Reports page to switch between harvest years. The Forage &amp; Straw tab updates automatically — all other Season Reports tabs (Crop Gross Margin, IPM Summary, Compliance) update in the same switch, so your full season review is always in one place.</p>
 <h3>Exporting</h3>
 <p>Click <strong>Export CSV</strong> on the Forage &amp; Straw tab to download a spreadsheet of all silage cut records and straw bale batches for the selected year. The export includes all fields — area, yield, DM%, forage type, cut number, field, and biomass contract details — formatted for use in feed budget spreadsheets or scheme reporting.</p>`,
+  ],
+  // Pig Vaccination Programme
+  [
+    "Record pig herd vaccinations by disease category with licensed UK vaccine presets, booster alert panel, and mobile capture — supporting Red Tractor Pigs Veterinary Health Plan requirements.",
+    `<h2>Pig Vaccination Programme — Recording and Booster Management</h2>
+<p>Navigate to <strong>Pig Production → Vaccination</strong> and click <strong>Add Vaccination Record</strong> to open the form.</p>
+
+<h3>Disease Categories</h3>
+<p>Select the target disease category first. Available categories are:</p>
+<ul>
+  <li>PRRS (Porcine Reproductive &amp; Respiratory Syndrome)</li>
+  <li>PCV2 / Circovirus</li>
+  <li>Enzootic Pneumonia (Mycoplasma hyopneumoniae / MH)</li>
+  <li>Erysipelas / PPV</li>
+  <li>E. coli / Clostridial</li>
+  <li>APP (Actinobacillus pleuropneumoniae)</li>
+  <li>Swine Influenza</li>
+  <li>PED (Porcine Epidemic Diarrhoea)</li>
+  <li>Other — free-text entry</li>
+</ul>
+
+<h3>Licensed UK Vaccine Presets</h3>
+<p>Once a category is selected, a pre-loaded list of licensed UK vaccines for that category appears. Examples include Ingelvac PRRS MLV, Porcilis PRRS and Fostera PRRS (PRRS); Ingelvac CircoFLEX, Circovac and Porcilis PCV AD (PCV2); Ingelvac M.hyo. IDAL and Hyoresp (Enzootic Pneumonia/MH); Eryseng Parvo and Porcilis Ery+Parvo (Erysipelas/PPV). Select <em>Other — enter manually</em> for any unlisted product.</p>
+
+<h3>Record Fields</h3>
+<ul>
+  <li>Batch number and expiry date</li>
+  <li>Age group treated (Sows/Gilts, Boars, Piglets/Suckling, Weaners, Growers, Finishers, All pigs)</li>
+  <li>Number treated, dose volume (ml), administration route (Intramuscular, Subcutaneous, Intradermal, Intranasal, Oral, In-water)</li>
+  <li>Withdrawal period in days</li>
+  <li>Next due date</li>
+  <li>Administered by</li>
+  <li>Vet-prescribed flag (for POM-V products)</li>
+  <li>Document attachment — attach a vet prescription or product datasheet directly to the record row</li>
+</ul>
+
+<h3>Booster Alert Panel</h3>
+<p>An amber alert panel at the top of the Vaccination tab highlights any record with an upcoming or overdue next due date, helping you stay on schedule with booster programmes. The panel updates automatically as dates approach.</p>
+
+<h3>Mobile Capture</h3>
+<p>Pig vaccination records can also be entered from the <strong>Pig Vaccination Record</strong> screen in the mobile app's Record tab. The screen includes a herd picker, the same disease category and vaccine preset selectors, all record fields including a withdrawal period warning banner, and offline sync — records saved without connectivity will sync to the dashboard Vaccination tab automatically on reconnection.</p>
+
+<h3>Red Tractor Pigs Compliance</h3>
+<p>Red Tractor Pigs standards require a written vaccination programme signed off by your vet. This tab provides the detailed record-keeping layer underneath that signed document. Retaining batch numbers, expiry dates, vet-prescribed flags, and next due dates creates a complete, auditable vaccination history that satisfies Red Tractor Pigs assessor requirements.</p>`,
+  ],
+  // Poultry Vaccination Programme
+  [
+    "Record flock vaccinations by disease category with licensed UK vaccine presets, booster alert panel, and mobile capture — supporting Red Tractor Poultry Veterinary Health Plan requirements.",
+    `<h2>Poultry Vaccination Programme — Recording and Booster Management</h2>
+<p>Navigate to <strong>Poultry Production → Vaccination</strong> and click <strong>Add Vaccination Record</strong> to open the form.</p>
+
+<h3>Disease Categories</h3>
+<p>Select the target disease category first. Available categories are:</p>
+<ul>
+  <li>Newcastle Disease (ND)</li>
+  <li>Infectious Bronchitis (IB)</li>
+  <li>Marek's Disease</li>
+  <li>Gumboro / IBD (Infectious Bursal Disease)</li>
+  <li>Avian Metapneumovirus (aMPV / TRT)</li>
+  <li>ILT (Infectious Laryngotracheitis)</li>
+  <li>EDS (Egg Drop Syndrome)</li>
+  <li>AE / Fowl Typhoid</li>
+  <li>Salmonella</li>
+  <li>Mycoplasma (MG — Mycoplasma gallisepticum)</li>
+  <li>Fowl Pox</li>
+  <li>Other — free-text entry</li>
+</ul>
+
+<h3>Licensed UK Vaccine Presets</h3>
+<p>A pre-loaded list of licensed UK vaccines appears on category selection. Examples: Nobilis ND Clone 30 and Avinew (ND); Nobilis IB Ma5, Nobilis IB 4-91 and Nobilis IB H120 (IB); Nobilis Rismavac and HVT (Marek's); Nobilis Gumboro D78 and Nobilis Gumboro 228E (Gumboro); Nobilis TRT and Hipraviar TRT-C (aMPV); Nobilis SalENT, AviPro Salmonella Vac E, AviPro Salmonella Vac T and Salenvac (Salmonella). Select <em>Other — enter manually</em> for unlisted products.</p>
+
+<h3>Record Fields</h3>
+<ul>
+  <li>Batch number and expiry date</li>
+  <li>Age group treated (Broilers, Layers, Breeders, Pullets, Day-old chicks, Turkeys, All birds)</li>
+  <li>Number treated, dose volume (ml)</li>
+  <li>Administration route (Drinking water, Eye drop, Spray, Subcutaneous/IM injection, Wing web/stab, In ovo)</li>
+  <li>Withdrawal period in days</li>
+  <li>Next due date</li>
+  <li>Administered by</li>
+  <li>Vet-prescribed flag (for POM-V products)</li>
+  <li>Document attachment — attach a vet prescription or product datasheet directly to the record row</li>
+</ul>
+
+<h3>Booster Alert Panel</h3>
+<p>The amber alert panel at the top of the Vaccination tab highlights any record with an upcoming or overdue next due date, keeping your flock vaccination schedule on track. Records turn overdue on the next due date and remain flagged until a new vaccination record is added.</p>
+
+<h3>Mobile Capture</h3>
+<p>Poultry vaccination records can be entered from the <strong>Poultry Vaccination Record</strong> screen in the mobile app's Record tab. Select your flock using the flock picker, choose the disease category and a vaccine preset, complete all fields including the withdrawal period warning banner, and the record saves offline — syncing to the dashboard Vaccination tab when connectivity is restored.</p>
+
+<h3>Red Tractor Poultry Compliance</h3>
+<p>Red Tractor Poultry requires the vaccination programme to be included in the Veterinary Health Plan signed by your vet. This tab records each individual administration event against that plan, providing batch-level traceability, vet-prescribed documentation, and booster scheduling in a single auditable register.</p>`,
+  ],
+  // Pig Disease Monitoring Register
+  [
+    "Record PRRS, Enzootic Pneumonia/MH, Aujeszky's Disease, APP and Swine Influenza surveillance events; supports AHDB PRRS and MH Accreditation scheme documentation with herd status badges.",
+    `<h2>Pig Disease Monitoring Register — PRRS, MH, and AHDB Accreditation</h2>
+<p>Navigate to <strong>Pig Production → Disease Monitoring</strong> and click <strong>Add Monitoring Record</strong> to log a surveillance or accreditation event.</p>
+
+<h3>Monitoring Types</h3>
+<ul>
+  <li>PRRS Monitoring</li>
+  <li>Enzootic Pneumonia / MH Monitoring</li>
+  <li>Aujeszky's Disease (AD-Free Scheme)</li>
+  <li>APP Serotyping</li>
+  <li>Swine Influenza Surveillance</li>
+  <li>PRDC (Porcine Respiratory Disease Complex)</li>
+  <li>General Serology</li>
+</ul>
+
+<h3>Accreditation Scheme Support</h3>
+<p>If the monitoring is part of a formal accreditation scheme, select it from the <strong>Accreditation Scheme</strong> dropdown:</p>
+<ul>
+  <li>AHDB PRRS Accreditation — classifies herds as Negative, Positive-Stable, or Positive-Unstable</li>
+  <li>AHDB MH Accreditation — classifies herds as MH-Negative or MH-Positive</li>
+  <li>APHA Aujeszky's Disease-Free Scheme</li>
+</ul>
+<p>Record the scheme reference (certificate or accreditation number) and testing body or laboratory alongside results.</p>
+
+<h3>Record Fields</h3>
+<ul>
+  <li>Number of samples, positive results, negative results</li>
+  <li>Herd status — Negative, Positive-Stable, Positive-Unstable, Positive (general), AD-Free Accredited, Inconclusive, or Pending</li>
+  <li>Next test due date</li>
+  <li>Actions taken</li>
+  <li>Document attachment — attach laboratory reports or accreditation certificates directly to the record row</li>
+</ul>
+
+<h3>Herd Status Badges</h3>
+<p>Each record displays a colour-coded herd status badge: green for Negative or AD-Free Accredited, amber for Positive-Stable, and red for Positive-Unstable. These badges provide an at-a-glance disease status view across the monitoring history.</p>
+
+<h3>Link to Isolation Register</h3>
+<p>Use the <strong>PRRS Source Herd Status</strong> and <strong>MH Source Herd Status</strong> fields on the Livestock → Isolation Register when recording incoming pig purchases to document the biosecurity risk of the source herd. The AHDB PRRS Accreditation Scheme recommends purchasing only from herds with the same or lower PRRS risk status; this field creates the audit trail for that requirement.</p>`,
+  ],
+  // Poultry Disease Monitoring Register
+  [
+    "Record AI surveillance, Marek's Disease monitoring, ND serology, MG surveillance, IB typing, ART surveillance, and Salmonella serology with AI risk level classification and flock status badges.",
+    `<h2>Poultry Disease Monitoring Register — AI Surveillance, Marek's, and NCP Serology</h2>
+<p>Navigate to <strong>Poultry Production → Disease Monitoring</strong> and click <strong>Add Monitoring Record</strong> to log a surveillance or serology event.</p>
+
+<h3>Monitoring Types</h3>
+<ul>
+  <li>Avian Influenza (AI) Surveillance</li>
+  <li>Marek's Disease Monitoring</li>
+  <li>Newcastle Disease Serology</li>
+  <li>Mycoplasma gallisepticum (MG) Surveillance</li>
+  <li>Infectious Bronchitis Typing</li>
+  <li>Avian Rhinotracheitis (ART) Surveillance</li>
+  <li>Salmonella Serology (non-NCP)</li>
+  <li>General Serology / Antibody Profiling</li>
+</ul>
+
+<h3>Record Fields</h3>
+<ul>
+  <li>Testing body or laboratory</li>
+  <li>Number of samples, positive results, negative results</li>
+  <li>Flock status — Negative/Clear, Low Positive, Positive, Inconclusive, or Pending (awaiting results)</li>
+  <li>AI Risk Level (Low, Medium, or High) — appears only for Avian Influenza Surveillance records</li>
+  <li>Next test due date</li>
+  <li>Actions taken</li>
+  <li>Document attachment — attach the laboratory report directly to the record row</li>
+</ul>
+
+<h3>Flock Status Badges</h3>
+<p>Each record displays a colour-coded flock status badge: green for Negative/Clear, amber for Low Positive or Inconclusive, and red for Positive. These badges provide an immediate disease status overview across the monitoring history.</p>
+
+<h3>Campylobacter NCP Records</h3>
+<p>Note that Campylobacter National Control Programme (NCP) monitoring records — the mandatory FSA / Red Tractor programme — are recorded separately in the <strong>Campylobacter</strong> tab, not in Disease Monitoring. The Disease Monitoring Register covers non-NCP surveillance and serology work.</p>
+
+<h3>Compliance Use Cases</h3>
+<p>AI surveillance records support APHA avian influenza monitoring obligations. MG surveillance records support Red Tractor Poultry health plan documentation requirements. Marek's and IB typing records provide baseline immunological data for your vet's Veterinary Health Plan review.</p>`,
+  ],
+  // Marek's Disease & Salmonella NCP Isolation Register Fields
+  [
+    "When recording incoming poultry on the Isolation Register, document source flock Marek's vaccination status and Salmonella NCP category — with colour-coded biosecurity badges for Red Tractor and BEIC audits.",
+    `<h2>Marek's Disease &amp; Salmonella NCP Isolation Register Fields — Poultry Biosecurity</h2>
+<p>When recording incoming poultry stock on the <strong>Livestock → Isolation Register</strong>, two poultry-specific biosecurity sections appear below the pig biosecurity fields.</p>
+
+<h3>Marek's Disease Biosecurity — Poultry</h3>
+<p>Record whether the source flock or hatchery vaccinated birds for Marek's Disease:</p>
+<ul>
+  <li><strong>Vaccinated — confirmed</strong> — hatchery or source flock confirmed vaccination (e.g. HVT, Rispens/CVI988, or combination product at day-old)</li>
+  <li><strong>Not vaccinated — biosecurity risk</strong> — source did not vaccinate; heightened biosecurity precautions required during isolation</li>
+  <li><strong>Unknown</strong> — vaccination status not confirmed by the source</li>
+</ul>
+<p>Marek's Disease is caused by a highly contagious herpesvirus that can spread to unvaccinated birds. Documenting the source flock's vaccination status supports your biosecurity risk assessment during the isolation period.</p>
+
+<h3>Salmonella NCP Biosecurity — Poultry</h3>
+<p>Record the source flock's most recent Salmonella National Control Programme (NCP) category:</p>
+<ul>
+  <li><strong>Category 1</strong> — low prevalence (≤5% positive samples in the annual NCP round)</li>
+  <li><strong>Category 2</strong> — moderate prevalence (5–19%)</li>
+  <li><strong>Category 3</strong> — high prevalence (≥20%); enhanced biosecurity and NCP monitoring required</li>
+  <li><strong>Not tested</strong> — source flock has not participated in NCP testing</li>
+  <li><strong>Unknown</strong> — NCP status not confirmed by the source</li>
+</ul>
+<p>Both sections include a free-text notes field for supplementary detail such as laboratory references or hatchery certificates.</p>
+
+<h3>Colour-Coded Badges</h3>
+<p>The isolation record displays colour-coded badges for both fields: green for Marek's vaccinated or Salmonella Category 1, amber for Category 2, and red for Marek's not vaccinated or Salmonella Category 3. These badges provide a quick biosecurity risk summary for any isolation batch.</p>
+
+<h3>Compliance Use Cases</h3>
+<p>These fields support Red Tractor Poultry and BEIC (British Egg Industry Council) biosecurity documentation requirements when purchasing replacement or day-old poultry stock. Retaining source flock NCP category records also demonstrates due diligence for Salmonella NCP co-ordinator inspections.</p>`,
+  ],
+  // Individual Animal Profile — Vaccinations History Tab
+  [
+    "The Individual Animal Profile dialog includes a Vaccinations tab aggregating all vaccination events across species modules and medicine records for that animal — complete single-animal audit trail in one view.",
+    `<h2>Individual Animal Profile — Vaccinations History Tab</h2>
+<p>Open <strong>Livestock → Individual Animal Register</strong> and click any animal's ear tag to open its profile dialog. The dialog includes a <strong>Vaccinations</strong> tab alongside the animal's other profile data.</p>
+
+<h3>What the Tab Shows</h3>
+<p>The Vaccinations tab aggregates every vaccination event associated with that animal across all species modules:</p>
+<ul>
+  <li>Sheep vaccination programme records (Clostridial, Louping Ill, Orf, Johne's/Gudair, and other sheep categories)</li>
+  <li>Goat vaccination programme records (Johne's/Gudair, CAE, Clostridial, Pasteurella, and other goat categories)</li>
+  <li>Pig vaccination programme records (PRRS, PCV2, Enzootic Pneumonia/MH, Erysipelas/PPV, E. coli/Clostridial, APP, Swine Influenza, PED)</li>
+  <li>Poultry vaccination programme records (ND, IB, Marek's, Gumboro/IBD, aMPV/TRT, ILT, EDS, AE, Salmonella, MG, Fowl Pox)</li>
+  <li>Medicine records linked to that animal where the medicine type indicates a vaccine</li>
+</ul>
+
+<h3>Columns Displayed</h3>
+<p>Each row in the Vaccinations tab shows:</p>
+<ul>
+  <li>Vaccination date</li>
+  <li>Disease category</li>
+  <li>Vaccine product name</li>
+  <li>Batch number</li>
+  <li>Dose and administration route</li>
+  <li>Withdrawal period end date (calculated from the vaccination date and withdrawal days)</li>
+  <li>Vet-prescribed flag</li>
+</ul>
+
+<h3>When to Use This Tab</h3>
+<p>The Vaccinations tab is particularly useful when:</p>
+<ul>
+  <li>A vet visit requires a full vaccination history for a specific animal</li>
+  <li>Completing or reviewing a Veterinary Health Plan for an individual animal</li>
+  <li>Preparing records for a Red Tractor audit where traceability to individual animal level is required</li>
+  <li>Confirming withdrawal period clearance before an animal enters the food chain</li>
+</ul>
+<p>The tab provides a consolidated view without needing to navigate between separate production modules — all species vaccination history is visible in one place.</p>`,
   ],
 ];
 
