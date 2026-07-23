@@ -459,6 +459,7 @@ import {
   strawBalingOperationsTable,
   strawCartageJourneysTable,
   strawBaleInventoryTable,
+  strawFusariumTestKitStockTable,
   strawSalesRecordsTable,
   strawMoistureChecksTable,
   strawMoistureMeterTable,
@@ -32842,6 +32843,14 @@ router.post("/farms/:farmId/straw-bale-inventory", requireAuth, requireTenant, a
   if (!farmId) return;
   const body = sanitiseBody(req.body as Record<string, unknown>);
   const [row] = await db.insert(strawBaleInventoryTable).values({ ...body, farmId }).returning();
+  // Decrement fusarium kit stock if a kit batch was linked
+  const kitId = req.body?.fusariumKitStockId;
+  if (row.fusariumRiskAssessed && kitId) {
+    db.update(strawFusariumTestKitStockTable)
+      .set({ quantityUsed: sql`quantity_used + 1`, quantityRemaining: sql`GREATEST(quantity_remaining - 1, 0)` })
+      .where(and(eq(strawFusariumTestKitStockTable.id, Number(kitId)), eq(strawFusariumTestKitStockTable.farmId, farmId)))
+      .catch((e: Error) => console.error("[STRAW] Fusarium kit decrement failed:", e));
+  }
   res.status(201).json(row);
 });
 
@@ -32862,6 +32871,45 @@ router.delete("/farms/:farmId/straw-bale-inventory/:id", requireAuth, requireTen
   const id = Number(req.params.id);
   await db.delete(strawBaleInventoryTable).where(and(eq(strawBaleInventoryTable.id, id), eq(strawBaleInventoryTable.farmId, farmId)));
   res.status(204).end();
+});
+
+// ─── Fusarium Test Kit Stock ──────────────────────────────────────────────────
+
+router.get("/farms/:farmId/straw/fusarium-test-kit-stock", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const stock = await db.select().from(strawFusariumTestKitStockTable).where(eq(strawFusariumTestKitStockTable.farmId, farmId)).orderBy(desc(strawFusariumTestKitStockTable.createdAt));
+  res.json({ stock });
+});
+
+router.post("/farms/:farmId/straw/fusarium-test-kit-stock", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { productName, supplier, lotNumber, batchNumber, expiryDate, quantityPurchased, quantityUsed, lowStockThreshold, notes } = req.body;
+  if (!productName) { res.status(400).json({ error: "productName is required" }); return; }
+  const qty = parseInt(quantityPurchased) || 0;
+  const used = parseInt(quantityUsed) || 0;
+  const [item] = await db.insert(strawFusariumTestKitStockTable).values({ farmId, productName, supplier: supplier || null, lotNumber: lotNumber || null, batchNumber: batchNumber || null, expiryDate: expiryDate || null, quantityPurchased: qty, quantityUsed: used, quantityRemaining: Math.max(qty - used, 0), lowStockThreshold: parseInt(lowStockThreshold) || 5, notes: notes || null }).returning();
+  res.json({ item });
+});
+
+router.put("/farms/:farmId/straw/fusarium-test-kit-stock/:itemId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const itemId = parseInt(req.params.itemId as string);
+  const { productName, supplier, lotNumber, batchNumber, expiryDate, quantityPurchased, quantityUsed, lowStockThreshold, notes } = req.body;
+  const qty = parseInt(quantityPurchased) || 0;
+  const used = parseInt(quantityUsed) || 0;
+  const [item] = await db.update(strawFusariumTestKitStockTable).set({ productName, supplier: supplier || null, lotNumber: lotNumber || null, batchNumber: batchNumber || null, expiryDate: expiryDate || null, quantityPurchased: qty, quantityUsed: used, quantityRemaining: Math.max(qty - used, 0), lowStockThreshold: parseInt(lowStockThreshold) || 5, notes: notes || null }).where(and(eq(strawFusariumTestKitStockTable.id, itemId), eq(strawFusariumTestKitStockTable.farmId, farmId))).returning();
+  res.json({ item });
+});
+
+router.delete("/farms/:farmId/straw/fusarium-test-kit-stock/:itemId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const itemId = parseInt(req.params.itemId as string);
+  await db.delete(strawFusariumTestKitStockTable).where(and(eq(strawFusariumTestKitStockTable.id, itemId), eq(strawFusariumTestKitStockTable.farmId, farmId)));
+  res.json({ success: true });
 });
 
 // ─── Straw Sales Records ──────────────────────────────────────────────────────

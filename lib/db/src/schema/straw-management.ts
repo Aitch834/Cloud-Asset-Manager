@@ -103,6 +103,11 @@ export const strawBaleInventoryTable = pgTable("straw_bale_inventory", {
   fusariumAssessmentMethod: text("fusarium_assessment_method"), // Visual inspection | DON lateral flow test | NIR analysis | Third-party laboratory
   fusariumRiskLevel: text("fusarium_risk_level"),        // Low | Medium | High
   fusariumAssessorName: text("fusarium_assessor_name"),
+  // Fusarium test kit traceability (for on-site kit-based methods)
+  fusariumKitStockId: integer("fusarium_kit_stock_id"),  // FK to straw_fusarium_test_kit_stock
+  fusariumKitSupplier: text("fusarium_kit_supplier"),
+  fusariumKitBatchNumber: text("fusarium_kit_batch_number"),
+  fusariumKitLotNumber: text("fusarium_kit_lot_number"),
   // Status
   status: text("status").notNull().default("in_stock"), // in_stock | sold | used_on_farm | disposed
   quantityRemaining: integer("quantity_remaining"),
@@ -290,6 +295,25 @@ export const strawHotWorksPermitsTable = pgTable("straw_hot_works_permits", {
   postWorkInspectionNotes: text("post_work_inspection_notes"),
   workCompletedAt: text("work_completed_at"),
   closedBy: text("closed_by"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ─── Fusarium Test Kit Stock ─────────────────────────────────────────────────
+// Track on-site DON / mycotoxin test kit batches: supplier, lot/batch numbers,
+// expiry dates, and remaining stock for traceability (Red Tractor requirement).
+export const strawFusariumTestKitStockTable = pgTable("straw_fusarium_test_kit_stock", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  productName: text("product_name").notNull(),      // e.g. "Romer QuickScan DON 5/2"
+  supplier: text("supplier"),                        // e.g. "Romer Labs UK"
+  lotNumber: text("lot_number"),
+  batchNumber: text("batch_number"),
+  expiryDate: date("expiry_date"),
+  quantityPurchased: integer("quantity_purchased").notNull().default(0),
+  quantityUsed: integer("quantity_used").notNull().default(0),
+  quantityRemaining: integer("quantity_remaining").notNull().default(0),
+  lowStockThreshold: integer("low_stock_threshold").notNull().default(5),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

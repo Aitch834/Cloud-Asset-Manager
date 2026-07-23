@@ -676,6 +676,7 @@ function InventoryDialog({ open, onClose, farmId, editRow, existingInventory, ba
     pppResidueRisk: "Low", fusariumRiskAssessed: false,
     fusariumAssessmentDate: today(), fusariumAssessmentMethod: "Visual inspection",
     fusariumRiskLevel: "Low", fusariumAssessorName: "",
+    fusariumKitStockId: "", fusariumKitSupplier: "", fusariumKitBatchNumber: "", fusariumKitLotNumber: "",
     biomassContract: false, biomassScheme: "", biomassUniqueBaleRef: "",
     status: "in_stock", notes: "",
   };
@@ -692,6 +693,11 @@ function InventoryDialog({ open, onClose, farmId, editRow, existingInventory, ba
     queryKey: ["field-crops", farmId],
     queryFn: async () => { const r = await fetch(`/api/farms/${farmId}/field-crops`, { credentials: "include" }); return r.ok ? r.json() : []; },
     select: (d: any) => Array.isArray(d) ? d : (d?.records ?? []),
+    enabled: open && !!farmId, staleTime: 60_000,
+  });
+  const { data: fusariumKitStock = [] } = useQuery<any[]>({
+    queryKey: ["straw-fusarium-kit-stock", farmId],
+    queryFn: async () => { const r = await fetch(`/api/farms/${farmId}/straw/fusarium-test-kit-stock`, { credentials: "include" }); return r.ok ? (await r.json()).stock : []; },
     enabled: open && !!farmId, staleTime: 60_000,
   });
 
@@ -723,6 +729,10 @@ function InventoryDialog({ open, onClose, farmId, editRow, existingInventory, ba
           fusariumAssessmentMethod: editRow.fusariumAssessmentMethod ?? "Visual inspection",
           fusariumRiskLevel: editRow.fusariumRiskLevel ?? "Low",
           fusariumAssessorName: editRow.fusariumAssessorName ?? "",
+          fusariumKitStockId: editRow.fusariumKitStockId != null ? String(editRow.fusariumKitStockId) : "",
+          fusariumKitSupplier: editRow.fusariumKitSupplier ?? "",
+          fusariumKitBatchNumber: editRow.fusariumKitBatchNumber ?? "",
+          fusariumKitLotNumber: editRow.fusariumKitLotNumber ?? "",
           biomassContract: editRow.biomassContract ?? false,
           biomassScheme: editRow.biomassSchemeName ?? "", biomassUniqueBaleRef: editRow.biomassUniqueBaleRef ?? "",
           status: editRow.status ?? "in_stock", notes: editRow.notes ?? "",
@@ -817,6 +827,10 @@ function InventoryDialog({ open, onClose, farmId, editRow, existingInventory, ba
     fusariumAssessmentMethod: form.fusariumRiskAssessed ? (form.fusariumAssessmentMethod || null) : null,
     fusariumRiskLevel: form.fusariumRiskAssessed ? (form.fusariumRiskLevel || null) : null,
     fusariumAssessorName: form.fusariumRiskAssessed ? (form.fusariumAssessorName || null) : null,
+    fusariumKitStockId: form.fusariumRiskAssessed && form.fusariumKitStockId ? Number(form.fusariumKitStockId) : null,
+    fusariumKitSupplier: form.fusariumRiskAssessed ? (form.fusariumKitSupplier || null) : null,
+    fusariumKitBatchNumber: form.fusariumRiskAssessed ? (form.fusariumKitBatchNumber || null) : null,
+    fusariumKitLotNumber: form.fusariumRiskAssessed ? (form.fusariumKitLotNumber || null) : null,
     biomassContract: form.biomassContract,
     biomassSchemeName: form.biomassScheme || null, biomassUniqueBaleRef: form.biomassUniqueBaleRef || null,
     status: form.status,
@@ -988,6 +1002,59 @@ function InventoryDialog({ open, onClose, farmId, editRow, existingInventory, ba
                     <Input className="h-8 text-xs" placeholder="e.g. John Smith, BASIS agronomist" value={form.fusariumAssessorName} onChange={e => f("fusariumAssessorName")(e.target.value)} />
                   </div>
                 </div>
+                {/* Test kit traceability — shown for all kit-based methods */}
+                {form.fusariumAssessmentMethod !== "Visual inspection" && (
+                  <div className="border-t border-green-200 pt-3 mt-1 space-y-2">
+                    <p className="text-xs font-semibold text-green-800">Test Kit Traceability</p>
+                    {fusariumKitStock.length > 0 && (
+                      <div>
+                        <Label className="text-xs">Link Kit Batch (from stock)</Label>
+                        <Select
+                          value={form.fusariumKitStockId}
+                          onValueChange={v => {
+                            const kit = fusariumKitStock.find((k: any) => String(k.id) === v);
+                            setForm(p => ({
+                              ...p,
+                              fusariumKitStockId: v,
+                              fusariumKitSupplier: kit?.supplier ?? p.fusariumKitSupplier,
+                              fusariumKitBatchNumber: kit?.batchNumber ?? p.fusariumKitBatchNumber,
+                              fusariumKitLotNumber: kit?.lotNumber ?? p.fusariumKitLotNumber,
+                            }));
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select logged kit batch…" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">— Enter manually —</SelectItem>
+                            {fusariumKitStock.map((k: any) => (
+                              <SelectItem key={k.id} value={String(k.id)}>
+                                {k.productName}{k.lotNumber ? ` · Lot ${k.lotNumber}` : ""}{k.batchNumber ? ` · Batch ${k.batchNumber}` : ""} ({k.quantityRemaining} remaining)
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <Label className="text-xs">Supplier</Label>
+                        <Input className="h-8 text-xs" placeholder="e.g. Romer Labs UK" value={form.fusariumKitSupplier} onChange={e => f("fusariumKitSupplier")(e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Kit Batch Number</Label>
+                        <Input className="h-8 text-xs font-mono" placeholder="From kit box" value={form.fusariumKitBatchNumber} onChange={e => f("fusariumKitBatchNumber")(e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Kit Lot Number</Label>
+                        <Input className="h-8 text-xs font-mono" placeholder="From kit box" value={form.fusariumKitLotNumber} onChange={e => f("fusariumKitLotNumber")(e.target.value)} />
+                      </div>
+                    </div>
+                    {fusariumKitStock.length === 0 && (
+                      <p className="text-xs text-blue-700 bg-blue-50 rounded px-2 py-1.5">
+                        💡 No kit batches logged yet — add them via the <strong>Fusarium Test Kit Stock</strong> panel on the Inventory tab to enable auto-fill and stock tracking.
+                      </p>
+                    )}
+                  </div>
+                )}
                 {form.fusariumRiskLevel === "High" && (
                   <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1.5 flex gap-1.5 items-start">
                     <AlertTriangle size={12} className="mt-0.5 shrink-0" />High Fusarium risk — consider whether this straw is suitable for animal feed. Seek veterinary or nutritional advice before supplying to livestock.
@@ -2144,6 +2211,8 @@ export default function StrawManagementPage() {
               </div>
             )}
             </div>
+            {/* Fusarium Test Kit Stock panel */}
+            <FusariumKitStockSection farmId={farmId} />
           </div>
         )}
 
@@ -2696,6 +2765,164 @@ export default function StrawManagementPage() {
         />
       )}
     </AppLayout>
+  );
+}
+
+// ─── Fusarium Test Kit Stock Section ─────────────────────────────────────────
+function FusariumKitStockSection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [form, setForm] = useState<Record<string, any>>({});
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  const stockQ = useQuery<{ stock: any[] }>({
+    queryKey: ["straw-fusarium-kit-stock", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/straw/fusarium-test-kit-stock`, { credentials: "include" }).then(r => r.json()),
+  });
+  const stock: any[] = stockQ.data?.stock ?? [];
+  const lowStock = stock.filter((s: any) => s.quantityRemaining <= s.lowStockThreshold && s.quantityRemaining >= 0);
+
+  const save = useMutation({
+    mutationFn: (body: Record<string, any>) => {
+      const url = editingItem
+        ? `/api/farms/${farmId}/straw/fusarium-test-kit-stock/${editingItem.id}`
+        : `/api/farms/${farmId}/straw/fusarium-test-kit-stock`;
+      return fetch(url, { method: editingItem ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["straw-fusarium-kit-stock", farmId] }); setOpen(false); setEditingItem(null); setForm({}); },
+  });
+
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/straw/fusarium-test-kit-stock/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["straw-fusarium-kit-stock", farmId] }),
+  });
+
+  function openAdd() { setEditingItem(null); setForm({ quantityPurchased: 0, quantityUsed: 0, lowStockThreshold: 5 }); setOpen(true); }
+  function openEdit(s: any) { setEditingItem(s); setForm({ ...s }); setOpen(true); }
+  function set(k: string, v: unknown) { setForm(f => ({ ...f, [k]: v })); }
+
+  return (
+    <div className="border rounded-xl overflow-hidden">
+      <button
+        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+        onClick={() => setPanelOpen(o => !o)}
+      >
+        <div className="flex items-center gap-3">
+          <Printer size={15} className="text-gray-500" />
+          <span className="font-semibold text-sm text-gray-800">Fusarium Test Kit Stock ({stock.length} product{stock.length !== 1 ? "s" : ""})</span>
+          {lowStock.length > 0 && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+              <AlertTriangle size={11} />{lowStock.length} low stock
+            </span>
+          )}
+        </div>
+        {panelOpen ? <ChevronDown size={16} className="text-gray-500" /> : <ChevronRight size={16} className="text-gray-500" />}
+      </button>
+
+      {panelOpen && (
+        <div className="p-4 space-y-3">
+          <p className="text-xs text-gray-500">
+            Track DON lateral flow test kits, NIR cartridges, and other on-site Fusarium testing consumables by
+            supplier, batch number, lot number, and expiry date. When linked to a batch assessment, stock decrements
+            automatically — giving you full traceability for Red Tractor audits.
+          </p>
+
+          {stockQ.isLoading ? (
+            <Loader2 size={18} className="animate-spin text-gray-400" />
+          ) : stock.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">No kit batches logged yet. Add your first batch below.</p>
+          ) : (
+            <div className="space-y-2">
+              {stock.map((s: any) => {
+                const isOut = s.quantityRemaining === 0;
+                const isLow = s.quantityRemaining <= s.lowStockThreshold && !isOut;
+                const isExpired = s.expiryDate && new Date(s.expiryDate) < new Date();
+                return (
+                  <div key={s.id} className={`flex items-start justify-between rounded-lg border px-3 py-2.5 ${isOut ? "bg-red-50 border-red-200" : isLow ? "bg-amber-50 border-amber-200" : "bg-white border-gray-200"}`}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className="font-medium text-sm text-gray-900">{s.productName}</span>
+                        {s.supplier && <span className="text-xs text-gray-500">{s.supplier}</span>}
+                        {isOut ? <span className="text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full">Out of stock</span>
+                          : isLow ? <span className="text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full flex items-center gap-1"><AlertTriangle size={10} />Low stock</span>
+                          : <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full flex items-center gap-1"><CheckCircle2 size={10} />In stock</span>}
+                        {isExpired && <span className="text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full">Expired</span>}
+                      </div>
+                      <div className="flex flex-wrap gap-4 text-xs text-gray-500">
+                        {s.lotNumber && <span>Lot: <span className="font-mono text-gray-700">{s.lotNumber}</span></span>}
+                        {s.batchNumber && <span>Batch: <span className="font-mono text-gray-700">{s.batchNumber}</span></span>}
+                        {s.expiryDate && <span>Expires: {new Date(s.expiryDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>}
+                        <span className="font-medium text-gray-700">{s.quantityRemaining} of {s.quantityPurchased} remaining</span>
+                        <span>({s.quantityUsed} used)</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-1 ml-2 shrink-0">
+                      <button onClick={() => openEdit(s)} className="p-1.5 rounded hover:bg-gray-100 text-gray-500"><Pencil size={13} /></button>
+                      <button onClick={() => { if (confirm("Remove this kit batch?")) del.mutate(s.id); }} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={13} /></button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <Button size="sm" variant="outline" onClick={openAdd}><Plus size={13} className="mr-1" />Add Kit Batch</Button>
+        </div>
+      )}
+
+      {/* Add / Edit Dialog */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent style={{ maxWidth: "42rem" }}>
+          <DialogHeader><DialogTitle>{editingItem ? "Edit Kit Batch" : "Add Fusarium Test Kit Batch"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div className="col-span-2">
+              <Label>Product / Kit Name *</Label>
+              <Input placeholder="e.g. Romer QuickScan DON 5/2, Neogen Reveal Q+" value={form.productName || ""} onChange={e => set("productName", e.target.value)} />
+            </div>
+            <div>
+              <Label>Supplier</Label>
+              <Input placeholder="e.g. Romer Labs UK, Neogen Europe" value={form.supplier || ""} onChange={e => set("supplier", e.target.value)} />
+            </div>
+            <div>
+              <Label>Expiry Date</Label>
+              <Input type="date" value={form.expiryDate || ""} onChange={e => set("expiryDate", e.target.value)} />
+            </div>
+            <div>
+              <Label>Lot Number</Label>
+              <Input className="font-mono" placeholder="From kit box" value={form.lotNumber || ""} onChange={e => set("lotNumber", e.target.value)} />
+            </div>
+            <div>
+              <Label>Batch Number</Label>
+              <Input className="font-mono" placeholder="From kit box" value={form.batchNumber || ""} onChange={e => set("batchNumber", e.target.value)} />
+            </div>
+            <div>
+              <Label>Qty Purchased</Label>
+              <Input type="number" min="0" value={form.quantityPurchased ?? ""} onChange={e => set("quantityPurchased", parseInt(e.target.value) || 0)} />
+            </div>
+            <div>
+              <Label>Qty Used (to date)</Label>
+              <Input type="number" min="0" value={form.quantityUsed ?? ""} onChange={e => set("quantityUsed", parseInt(e.target.value) || 0)} />
+            </div>
+            <div>
+              <Label>Low Stock Alert Threshold</Label>
+              <Input type="number" min="0" value={form.lowStockThreshold ?? 5} onChange={e => set("lowStockThreshold", parseInt(e.target.value) || 5)} />
+              <p className="text-xs text-gray-400 mt-0.5">Alert when remaining ≤ this number</p>
+            </div>
+            <div className="col-span-2">
+              <Label>Notes</Label>
+              <Input placeholder="Storage conditions, approved test result range, etc." value={form.notes || ""} onChange={e => set("notes", e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.productName?.trim()}>
+              {save.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+              {editingItem ? "Save Changes" : "Add Batch"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 
