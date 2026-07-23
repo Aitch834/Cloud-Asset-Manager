@@ -31558,6 +31558,10 @@ router.post("/farms/:farmId/johnes-monitoring", requireAuth, requireTenant, requ
     positiveAnimalsCount: b.positiveAnimalsCount != null ? Number(b.positiveAnimalsCount) : 0,
     jmmEnrolled: b.jmmEnrolled === true || b.jmmEnrolled === "true",
     scheme: b.scheme ? String(b.scheme) : null,
+    njmpSchemeRef: b.njmpSchemeRef ? String(b.njmpSchemeRef) : null,
+    njmpPlanDate: b.njmpPlanDate ? String(b.njmpPlanDate) : null,
+    njmpColostrumMgmt: b.njmpColostrumMgmt === true || b.njmpColostrumMgmt === "true",
+    njmpPurchasedTesting: b.njmpPurchasedTesting === true || b.njmpPurchasedTesting === "true",
     vetSignOff: b.vetSignOff === true || b.vetSignOff === "true",
     vetName: b.vetName ? String(b.vetName) : null,
     actionsTaken: b.actionsTaken ? String(b.actionsTaken) : null,
@@ -31575,9 +31579,11 @@ router.put("/farms/:farmId/johnes-monitoring/:id", requireAuth, requireTenant, r
   const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
-  const fields = ["herdId","testDate","testType","labName","labRef","animalsTestedCount","riskLevel","bulkMilkOd","positiveAnimalsCount","jmmEnrolled","scheme","vetSignOff","vetName","actionsTaken","nextTestDue","notes","documentPath","documentName"];
+  const fields = ["herdId","testDate","testType","labName","labRef","animalsTestedCount","riskLevel","bulkMilkOd","positiveAnimalsCount","jmmEnrolled","scheme","njmpSchemeRef","njmpPlanDate","njmpColostrumMgmt","njmpPurchasedTesting","vetSignOff","vetName","actionsTaken","nextTestDue","notes","documentPath","documentName"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
   if (b.jmmEnrolled !== undefined) updates.jmmEnrolled = b.jmmEnrolled === true || b.jmmEnrolled === "true";
+  if (b.njmpColostrumMgmt !== undefined) updates.njmpColostrumMgmt = b.njmpColostrumMgmt === true || b.njmpColostrumMgmt === "true";
+  if (b.njmpPurchasedTesting !== undefined) updates.njmpPurchasedTesting = b.njmpPurchasedTesting === true || b.njmpPurchasedTesting === "true";
   if (b.vetSignOff !== undefined) updates.vetSignOff = b.vetSignOff === true || b.vetSignOff === "true";
   const [record] = await db.update(johnesMonitoringRecordsTable).set(updates).where(and(eq(johnesMonitoringRecordsTable.id, id), eq(johnesMonitoringRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }

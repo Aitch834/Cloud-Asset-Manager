@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -31,17 +32,29 @@ function todayDate(): string {
 const TEST_TYPES = [
   { key: "bulk_milk_elisa", label: "Bulk Milk ELISA" },
   { key: "individual_blood_elisa", label: "Individual Blood ELISA" },
-  { key: "milk_elisa", label: "Milk ELISA" },
+  { key: "individual_milk_elisa", label: "Individual Milk ELISA" },
   { key: "faecal_pcr", label: "Faecal PCR" },
-  { key: "faecal_culture", label: "Faecal Culture" },
-  { key: "other", label: "Other" },
+  { key: "pooled_faecal_pcr", label: "Pooled Faecal PCR" },
+  { key: "post_mortem", label: "Post-mortem" },
 ];
 
 const RISK_LEVELS = [
-  { key: "low", label: "Low" },
-  { key: "medium", label: "Medium" },
-  { key: "high", label: "High" },
-  { key: "very_high", label: "Very High" },
+  { key: "1_very_low", label: "1 — Very Low" },
+  { key: "2_low", label: "2 — Low" },
+  { key: "3_moderate", label: "3 — Moderate" },
+  { key: "4_high", label: "4 — High" },
+];
+
+const LAB_PRESETS = [
+  "APHA Starcross",
+  "APHA Weybridge",
+  "APHA Lasswade (Scotland)",
+  "SAC / SRUC Veterinary Services",
+  "Biobest Laboratories",
+  "Axiom Veterinary Laboratories",
+  "Westgate Labs",
+  "Quality Milk Laboratories",
+  "Other (enter below)",
 ];
 
 function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
@@ -81,12 +94,20 @@ export default function JohnesMonitoringScreen() {
   const [positiveAnimalsCount, setPositiveAnimalsCount] = useState("");
   const [bulkMilkOd, setBulkMilkOd] = useState("");
   const [riskLevel, setRiskLevel] = useState("");
-  const [labName, setLabName] = useState("");
+  const [labSel, setLabSel] = useState("");
+  const [labManual, setLabManual] = useState("");
   const [labRef, setLabRef] = useState("");
+  const [vetName, setVetName] = useState("");
   const [jmmEnrolled, setJmmEnrolled] = useState(false);
+  const [njmpSchemeRef, setNjmpSchemeRef] = useState("");
+  const [njmpPlanDate, setNjmpPlanDate] = useState("");
+  const [njmpColostrumMgmt, setNjmpColostrumMgmt] = useState(false);
+  const [njmpPurchasedTesting, setNjmpPurchasedTesting] = useState(false);
   const [vetSignOff, setVetSignOff] = useState(false);
   const [nextTestDue, setNextTestDue] = useState("");
   const [notes, setNotes] = useState("");
+
+  const labName = labSel === "Other (enter below)" ? labManual : labSel;
 
   const handleSave = async () => {
     if (!testDate.trim()) {
@@ -114,7 +135,12 @@ export default function JohnesMonitoringScreen() {
         riskLevel: riskLevel || null,
         labName: labName || null,
         labRef: labRef || null,
+        vetName: vetName || null,
         jmmEnrolled,
+        njmpSchemeRef: jmmEnrolled ? (njmpSchemeRef || null) : null,
+        njmpPlanDate: jmmEnrolled ? (njmpPlanDate || null) : null,
+        njmpColostrumMgmt: jmmEnrolled ? njmpColostrumMgmt : false,
+        njmpPurchasedTesting: jmmEnrolled ? njmpPurchasedTesting : false,
         vetSignOff,
         nextTestDue: nextTestDue || null,
         notes: notes || null,
@@ -158,8 +184,7 @@ export default function JohnesMonitoringScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.hint}>
-          JMM-enrolled herds require annual bulk milk ELISA testing. Record all test results
-          here for traceability and JMM compliance reporting.
+          NJMP-enrolled herds require annual bulk milk ELISA testing. Record all test results here for full traceability and NJMP / JMM compliance reporting.
         </Text>
 
         <Text style={styles.sectionTitle}>Test Details</Text>
@@ -187,60 +212,86 @@ export default function JohnesMonitoringScreen() {
         <View style={styles.row}>
           <View style={[styles.field, { flex: 1, marginRight: spacing.sm }]}>
             <Text style={styles.label}>Animals Tested</Text>
-            <Input
-              value={animalsTestedCount}
-              onChangeText={setAnimalsTestedCount}
-              placeholder="e.g. 120"
-              keyboardType="number-pad"
-            />
+            <Input value={animalsTestedCount} onChangeText={setAnimalsTestedCount} placeholder="e.g. 120" keyboardType="number-pad" />
           </View>
           <View style={[styles.field, { flex: 1 }]}>
             <Text style={styles.label}>Positive Animals</Text>
-            <Input
-              value={positiveAnimalsCount}
-              onChangeText={setPositiveAnimalsCount}
-              placeholder="e.g. 0"
-              keyboardType="number-pad"
-            />
+            <Input value={positiveAnimalsCount} onChangeText={setPositiveAnimalsCount} placeholder="e.g. 0" keyboardType="number-pad" />
           </View>
         </View>
 
         <View style={styles.field}>
           <Text style={styles.label}>Bulk Milk OD Value</Text>
-          <Input
-            value={bulkMilkOd}
-            onChangeText={setBulkMilkOd}
-            placeholder="Optical density reading"
-            keyboardType="decimal-pad"
-          />
+          <Input value={bulkMilkOd} onChangeText={setBulkMilkOd} placeholder="Optical density reading" keyboardType="decimal-pad" />
         </View>
 
-        <Text style={styles.sectionTitle}>Risk Level</Text>
+        <Text style={styles.sectionTitle}>Risk Level (NJMP 1–4 Scale)</Text>
         <View style={styles.chips}>
           {RISK_LEVELS.map(r => (
             <Chip key={r.key} label={r.label} selected={riskLevel === r.key} onPress={() => setRiskLevel(riskLevel === r.key ? "" : r.key)} />
           ))}
         </View>
 
-        <Text style={styles.sectionTitle}>Lab & Vet</Text>
+        <Text style={styles.sectionTitle}>Laboratory</Text>
+        <View style={styles.chips}>
+          {LAB_PRESETS.map(l => (
+            <Chip key={l} label={l} selected={labSel === l} onPress={() => setLabSel(labSel === l ? "" : l)} />
+          ))}
+        </View>
+        {labSel === "Other (enter below)" && (
+          <View style={styles.field}>
+            <Text style={styles.label}>Lab Name</Text>
+            <Input value={labManual} onChangeText={setLabManual} placeholder="Enter laboratory name" />
+          </View>
+        )}
+        <View style={styles.field}>
+          <Text style={styles.label}>Lab Reference Number</Text>
+          <Input value={labRef} onChangeText={setLabRef} placeholder="Lab submission reference" />
+        </View>
 
-        <View style={styles.row}>
-          <View style={[styles.field, { flex: 1, marginRight: spacing.sm }]}>
-            <Text style={styles.label}>Laboratory</Text>
-            <Input value={labName} onChangeText={setLabName} placeholder="e.g. APHA, SAC" />
-          </View>
-          <View style={[styles.field, { flex: 1 }]}>
-            <Text style={styles.label}>Lab Reference</Text>
-            <Input value={labRef} onChangeText={setLabRef} placeholder="Lab ref number" />
-          </View>
+        <Text style={styles.sectionTitle}>Vet & Compliance</Text>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Attending Vet Name</Text>
+          <Input value={vetName} onChangeText={setVetName} placeholder="e.g. Mr J Smith BVSc MRCVS" />
         </View>
 
         <SwitchRow
-          label="JMM Enrolled"
+          label="NJMP / JMM Enrolled"
           value={jmmEnrolled}
           onValueChange={setJmmEnrolled}
-          hint="Herd is enrolled in the Johne's Management & Monitoring programme"
+          hint="Herd is enrolled in the National Johne's Management Plan / Johne's Management in Milk programme"
         />
+
+        {jmmEnrolled && (
+          <View style={styles.njmpPanel}>
+            <Text style={styles.njmpTitle}>NJMP Details</Text>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Scheme Reference Number</Text>
+              <Input value={njmpSchemeRef} onChangeText={setNjmpSchemeRef} placeholder="e.g. AHDB-JMM-123456" />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Written Plan Last Reviewed (YYYY-MM-DD)</Text>
+              <Input value={njmpPlanDate} onChangeText={setNjmpPlanDate} placeholder="YYYY-MM-DD" />
+            </View>
+
+            <SwitchRow
+              label="Colostrum Management Protocol Documented"
+              value={njmpColostrumMgmt}
+              onValueChange={setNjmpColostrumMgmt}
+              hint="Protocol to reduce calf-to-calf Johne's transmission via colostrum is documented"
+            />
+
+            <SwitchRow
+              label="Purchased Animal Testing Protocol in Place"
+              value={njmpPurchasedTesting}
+              onValueChange={setNjmpPurchasedTesting}
+              hint="Testing/quarantine protocol for bought-in cattle is documented and followed"
+            />
+          </View>
+        )}
 
         <SwitchRow
           label="Vet Sign-Off"
@@ -251,13 +302,7 @@ export default function JohnesMonitoringScreen() {
 
         <Text style={styles.sectionTitle}>Notes</Text>
         <View style={styles.field}>
-          <Input
-            value={notes}
-            onChangeText={setNotes}
-            placeholder="Any additional observations or actions taken"
-            multiline
-            numberOfLines={3}
-          />
+          <Input value={notes} onChangeText={setNotes} placeholder="Any additional observations, actions taken, management changes" multiline numberOfLines={3} />
         </View>
 
         <Button
@@ -334,6 +379,20 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.textSecondary,
     marginTop: 2,
+  },
+  njmpPanel: {
+    backgroundColor: "#f0fdf4",
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  njmpTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: "#15803d",
+    marginBottom: spacing.sm,
   },
   saveBtn: { marginTop: spacing.md },
 });

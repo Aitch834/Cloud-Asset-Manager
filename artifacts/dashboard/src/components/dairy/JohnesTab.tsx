@@ -37,6 +37,17 @@ const JOHNES_SCHEMES = [
   { value: "other", label: "Other" },
 ];
 
+const JOHNES_LABS_PRESETS = [
+  "APHA Starcross",
+  "APHA Weybridge",
+  "APHA Lasswade (Scotland)",
+  "SAC / SRUC Veterinary Services",
+  "Biobest Laboratories",
+  "Axiom Veterinary Laboratories",
+  "Westgate Labs",
+  "Quality Milk Laboratories",
+];
+
 function fmtDate(d: string | null | undefined) {
   if (!d) return "—";
   try { return new Date(d).toLocaleDateString("en-GB"); } catch { return d; }
@@ -97,9 +108,11 @@ export function JohnesTab({ farmId }: { farmId: number }) {
     enabled: !!farmId,
   });
 
+  const uniqueVetNames = [...new Set(allRecords.map((r: any) => r.vetName).filter(Boolean))] as string[];
+
   function openAdd() {
     setEditing(null);
-    setForm({ testType: "bulk_milk_elisa", jmmEnrolled: false, vetSignOff: false });
+    setForm({ testType: "bulk_milk_elisa", jmmEnrolled: false, vetSignOff: false, njmpColostrumMgmt: false, njmpPurchasedTesting: false });
     setOpen(true);
   }
 
@@ -149,7 +162,9 @@ export function JohnesTab({ farmId }: { farmId: number }) {
       <td>${r.labName || "—"}</td>
       <td>${r.labRef || "—"}</td>
       <td>${fmtDate(r.nextTestDue)}</td>
-      <td>${r.jmmEnrolled ? "Yes" : "No"}</td>
+      <td>${r.jmmEnrolled ? "Yes" : "No"}${r.jmmEnrolled && r.njmpSchemeRef ? ` (Ref: ${r.njmpSchemeRef})` : ""}</td>
+      <td>${r.njmpPlanDate ? new Date(r.njmpPlanDate).toLocaleDateString("en-GB") : "—"}</td>
+      <td>${r.njmpColostrumMgmt ? "✓" : ""}${r.njmpPurchasedTesting ? " / ✓" : ""}</td>
     </tr>`
       )
       .join("");
@@ -171,7 +186,7 @@ export function JohnesTab({ farmId }: { farmId: number }) {
   <div class="hdr-r"><b>${records.length} record${records.length !== 1 ? "s" : ""}</b>${yearFilter !== "all" ? `<br>Year: ${yearFilter}` : ""}<br>Printed: ${printedDate}</div>
 </div>
 <table>
-  <tr><th>Test Date</th><th>Test Type</th><th>Herd</th><th>Risk Level</th><th>Tested</th><th>Positive</th><th>Bulk Milk OD</th><th>Lab</th><th>Lab Ref</th><th>Next Due</th><th>JMM</th></tr>
+  <tr><th>Test Date</th><th>Test Type</th><th>Herd</th><th>Risk Level</th><th>Tested</th><th>Positive</th><th>Bulk Milk OD</th><th>Lab</th><th>Lab Ref</th><th>Next Due</th><th>NJMP/JMM</th><th>Plan Reviewed</th><th>Protocols</th></tr>
   ${rows || "<tr><td colspan='11'>No records</td></tr>"}
 </table>
 <p class="note">Johne's monitoring records produced by BDE Farm Trac (Barnett Davies Enterprises Ltd). Red Tractor Dairy requires a documented Johne's monitoring programme. Retain for a minimum of 3 years. Printed: ${printedDate}</p>
@@ -360,7 +375,11 @@ export function JohnesTab({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Scheme</p><p className="font-medium">{JOHNES_SCHEMES.find(s => s.value === viewRec.scheme)?.label ?? "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet</p><p className="font-medium">{viewRec.vetName || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Next Test Due</p><p className="font-medium">${fmtDate(viewRec.nextTestDue)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">JMM Enrolled</p><p className="font-medium">{viewRec.jmmEnrolled ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">NJMP / JMM Enrolled</p><p className="font-medium">{viewRec.jmmEnrolled ? "Yes" : "No"}</p></div>
+              {viewRec.jmmEnrolled && viewRec.njmpSchemeRef && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">NJMP Scheme Ref</p><p className="font-medium font-mono">{viewRec.njmpSchemeRef}</p></div>}
+              {viewRec.jmmEnrolled && viewRec.njmpPlanDate && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Plan Last Reviewed</p><p className="font-medium">{fmtDate(viewRec.njmpPlanDate)}</p></div>}
+              {viewRec.jmmEnrolled && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Colostrum Protocol</p><p className="font-medium">{viewRec.njmpColostrumMgmt ? "✓ Documented" : "Not confirmed"}</p></div>}
+              {viewRec.jmmEnrolled && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Purchased Animal Testing</p><p className="font-medium">{viewRec.njmpPurchasedTesting ? "✓ Protocol in place" : "Not confirmed"}</p></div>}
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Sign-off</p><p className="font-medium">{viewRec.vetSignOff ? "Yes" : "No"}</p></div>
               {viewRec.actionsTaken && (
                 <div className="col-span-2">
@@ -436,7 +455,19 @@ export function JohnesTab({ farmId }: { farmId: number }) {
             </div>
             <div>
               <Label>Lab Name</Label>
-              <Input value={form.labName || ""} onChange={e => set("labName", e.target.value)} placeholder="e.g. SRUC, APHA Starcross" />
+              <Select
+                value={JOHNES_LABS_PRESETS.includes(form.labName) ? form.labName : (form.labName ? "__other__" : "")}
+                onValueChange={v => set("labName", v === "__other__" ? "" : v)}
+              >
+                <SelectTrigger><SelectValue placeholder="Select laboratory…" /></SelectTrigger>
+                <SelectContent>
+                  {JOHNES_LABS_PRESETS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                  <SelectItem value="__other__">Other (enter below)</SelectItem>
+                </SelectContent>
+              </Select>
+              {(!JOHNES_LABS_PRESETS.includes(form.labName) || form.labName === "") && (
+                <Input className="mt-1 text-xs" value={form.labName || ""} onChange={e => set("labName", e.target.value)} placeholder="Enter lab name manually" />
+              )}
             </div>
             <div>
               <Label>Lab Reference</Label>
@@ -469,30 +500,65 @@ export function JohnesTab({ farmId }: { farmId: number }) {
             </div>
             <div>
               <Label>Vet Name</Label>
-              <Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} />
+              {uniqueVetNames.length > 0 ? (
+                <>
+                  <Select
+                    value={uniqueVetNames.includes(form.vetName) ? form.vetName : (form.vetName ? "__other__" : "")}
+                    onValueChange={v => set("vetName", v === "__other__" ? "" : v)}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select vet…" /></SelectTrigger>
+                    <SelectContent>
+                      {uniqueVetNames.map((v: string) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                      <SelectItem value="__other__">Other (enter below)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {(!uniqueVetNames.includes(form.vetName) || form.vetName === "") && (
+                    <Input className="mt-1 text-xs" value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} placeholder="Enter vet name manually" />
+                  )}
+                </>
+              ) : (
+                <Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} placeholder="e.g. Mr J Smith BVSc MRCVS" />
+              )}
             </div>
             <div>
               <Label>Next Test Due</Label>
               <Input type="date" value={form.nextTestDue || ""} onChange={e => set("nextTestDue", e.target.value)} />
             </div>
-            <div className="flex items-center gap-2 pt-5">
-              <input
-                type="checkbox"
-                id="jmm"
-                checked={!!form.jmmEnrolled}
-                onChange={e => set("jmmEnrolled", e.target.checked)}
-                className="rounded"
-              />
-              <Label htmlFor="jmm">Enrolled in JMM Scheme</Label>
+            <div className="col-span-2 space-y-2">
+              <div className="flex items-center gap-2">
+                <input type="checkbox" id="jmm" checked={!!form.jmmEnrolled} onChange={e => set("jmmEnrolled", e.target.checked)} className="rounded" />
+                <Label htmlFor="jmm">Enrolled in NJMP / JMM Scheme</Label>
+              </div>
+              {form.jmmEnrolled && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-3">
+                  <p className="text-xs font-semibold text-green-800">National Johne's Management Plan (NJMP) Details</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">NJMP / Scheme Reference No.</Label>
+                      <Input className="h-8 text-xs font-mono" placeholder="e.g. AHDB-JMM-123456" value={form.njmpSchemeRef || ""} onChange={e => set("njmpSchemeRef", e.target.value)} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Written Plan Last Reviewed</Label>
+                      <Input type="date" className="h-8 text-xs" value={form.njmpPlanDate || ""} onChange={e => set("njmpPlanDate", e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <input type="checkbox" checked={!!form.njmpColostrumMgmt} onChange={e => set("njmpColostrumMgmt", e.target.checked)} className="rounded" />
+                      <span className="font-medium">Colostrum management protocol documented</span>
+                      <span className="text-gray-500">(NJMP — prevent calf-to-calf transmission)</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <input type="checkbox" checked={!!form.njmpPurchasedTesting} onChange={e => set("njmpPurchasedTesting", e.target.checked)} className="rounded" />
+                      <span className="font-medium">Purchased animal testing protocol in place</span>
+                      <span className="text-gray-500">(NJMP — test/quarantine bought-in cattle)</span>
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-2 pt-5">
-              <input
-                type="checkbox"
-                id="vetso"
-                checked={!!form.vetSignOff}
-                onChange={e => set("vetSignOff", e.target.checked)}
-                className="rounded"
-              />
+            <div className="flex items-center gap-2 pt-1">
+              <input type="checkbox" id="vetso" checked={!!form.vetSignOff} onChange={e => set("vetSignOff", e.target.checked)} className="rounded" />
               <Label htmlFor="vetso">Vet sign-off obtained</Label>
             </div>
             <div className="col-span-2">

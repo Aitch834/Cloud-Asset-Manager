@@ -1135,6 +1135,10 @@ export const johnesMonitoringRecordsTable = pgTable("johnes_monitoring_records",
   positiveAnimalsCount: integer("positive_animals_count").default(0),
   jmmEnrolled: boolean("jmm_enrolled").default(false), // Johne's Management in Milk scheme
   scheme: text("scheme"), // "johnes_management_in_milk" | "farm_health_connect" | "voluntary" | "other"
+  njmpSchemeRef: text("njmp_scheme_ref"),     // AHDB/scheme enrolment reference number
+  njmpPlanDate: date("njmp_plan_date"),       // date of most recent NJMP written plan review
+  njmpColostrumMgmt: boolean("njmp_colostrum_mgmt").default(false),   // colostrum management protocol documented
+  njmpPurchasedTesting: boolean("njmp_purchased_testing").default(false), // purchased-animal testing protocol documented
   vetSignOff: boolean("vet_sign_off").default(false),
   vetName: text("vet_name"),
   actionsTaken: text("actions_taken"),
