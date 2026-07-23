@@ -39,6 +39,12 @@ const PAYMENT_STATUSES = ["unpaid", "paid", "overdue"];
 const CONDITION_OPTIONS = ["Good", "Monitor", "Action Required", "Unsafe"];
 const WEATHER_CONDITIONS = ["Sunny", "Dry & Windy", "Overcast", "Light Rain", "Humid", "Cloudy", "Hot & Dry", "Showery"];
 const SOIL_CONDITIONS = ["Dry", "Slightly Moist", "Moist", "Wet"];
+const BIOMASS_SCHEMES = [
+  "Drax Power", "MGT Power (Teesside)", "Lynemouth Power", "EPH Biomass",
+  "BECS (Biomass Energy Crop Scheme)", "RHI — Own installation",
+  "AD Plant (Anaerobic Digestion)", "SARIA / Organic Processors",
+  "ENplus Certified Scheme", "Straw to Energy — Direct Offtake", "Other",
+];
 const CHART_COLORS = ["#16a34a", "#2563eb", "#d97706", "#dc2626", "#7c3aed", "#0891b2"];
 
 // ─── VAT intelligence ─────────────────────────────────────────────────────────
@@ -729,15 +735,29 @@ function InventoryDialog({ open, onClose, farmId, editRow, existingInventory, ba
 
   React.useEffect(() => {
     if (!form.fieldId) return;
-    const field = fields.find((fld: any) => fld.id === Number(form.fieldId));
+    const fid = Number(form.fieldId);
+    const field = fields.find((fld: any) => fld.id === fid);
     if (!field) return;
-    setForm(p => ({ ...p, fieldOfOrigin: field.name ?? p.fieldOfOrigin }));
-    const crops: any[] = fieldCrops.filter((c: any) => c.fieldId === Number(form.fieldId));
-    if (crops.length > 0) {
-      const latest = crops.sort((a: any, b: any) => (b.harvestYear ?? 0) - (a.harvestYear ?? 0))[0];
-      const variety = latest.varietyName || latest.cropVariety || "";
-      if (variety) setForm(p => ({ ...p, cropVariety: variety }));
-    }
+    const crops: any[] = fieldCrops.filter((c: any) => c.fieldId === fid);
+    const latest = crops.sort((a: any, b: any) =>
+      new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
+    )[0];
+    const cropName: string = latest?.cropName ?? "";
+    const strawTypeFromCrop = (() => {
+      const n = cropName.toLowerCase();
+      if (n.includes("wheat")) return "Wheat Straw";
+      if (n.includes("barley")) return "Barley Straw";
+      if (n.includes("oat")) return "Oat Straw";
+      if (n.includes("oilseed") || n.includes("rape") || n.includes("osr")) return "Oilseed Rape Straw";
+      return null;
+    })();
+    const variety = latest?.varietyName || latest?.cropVariety || latest?.variety || "";
+    setForm(p => ({
+      ...p,
+      fieldOfOrigin: field.name ?? p.fieldOfOrigin,
+      ...(strawTypeFromCrop ? { strawType: strawTypeFromCrop } : {}),
+      ...(variety && !p.cropVariety ? { cropVariety: variety } : {}),
+    }));
   }, [form.fieldId, fields, fieldCrops]);
 
   const moisture = num(form.moistureAtBaling);
@@ -798,6 +818,12 @@ function InventoryDialog({ open, onClose, farmId, editRow, existingInventory, ba
           )}
         </DialogHeader>
         <div className="grid grid-cols-2 gap-4">
+          {!balingOp && !isEdit && (
+            <div className="col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 flex gap-2">
+              <Package size={16} className="shrink-0 mt-0.5 text-blue-600" />
+              <span>This registers a batch of straw bales in your inventory. If you've already recorded a <strong>Baling Operation</strong> for this harvest, click <strong>Add Batch</strong> from that row instead — it will pre-fill this form automatically. Use this standalone form for bales already in storage that have no linked baling record.</span>
+            </div>
+          )}
           <div className="col-span-2 grid grid-cols-3 gap-4">
             <div><Label>Batch Reference</Label><Input placeholder="e.g. WS-2026-001" value={form.batchRef} onChange={e => f("batchRef")(e.target.value)} /></div>
             <div>
@@ -886,12 +912,14 @@ function InventoryDialog({ open, onClose, farmId, editRow, existingInventory, ba
 
           <div className="col-span-2 border-t pt-3">
             <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Red Tractor / Compliance</p>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-4 items-start">
               <div className="flex items-center gap-2 pt-1">
                 <Checkbox id="rt" checked={form.redTractorCertified} onCheckedChange={v => f("redTractorCertified")(!!v)} />
                 <Label htmlFor="rt" className="cursor-pointer">Red Tractor Certified</Label>
               </div>
-              <div><Label>Passport Ref</Label><Input placeholder="Combinable Crops Passport ref" value={form.combinableCropsPassportRef} onChange={e => f("combinableCropsPassportRef")(e.target.value)} /></div>
+              {form.redTractorCertified ? (
+                <div><Label>Combinable Crops Passport Ref</Label><Input placeholder="e.g. BRM-2026-XXXX" value={form.combinableCropsPassportRef} onChange={e => f("combinableCropsPassportRef")(e.target.value)} /></div>
+              ) : <div />}
               <div>
                 <Label>PPP Residue Risk</Label>
                 <Select value={form.pppResidueRisk} onValueChange={f("pppResidueRisk")}>
@@ -899,14 +927,21 @@ function InventoryDialog({ open, onClose, farmId, editRow, existingInventory, ba
                   <SelectContent>{PPP_RISKS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div className="flex items-center gap-2 pt-1">
-                <Checkbox id="fus" checked={form.fusariumRiskAssessed} onCheckedChange={v => f("fusariumRiskAssessed")(!!v)} />
-                <Label htmlFor="fus" className="cursor-pointer">Fusarium Risk Assessed</Label>
-              </div>
+              {form.strawType === "Wheat Straw" && (
+                <div className="flex items-center gap-2 pt-1 col-span-1">
+                  <Checkbox id="fus" checked={form.fusariumRiskAssessed} onCheckedChange={v => f("fusariumRiskAssessed")(!!v)} />
+                  <Label htmlFor="fus" className="cursor-pointer">Fusarium Risk Assessed</Label>
+                </div>
+              )}
             </div>
             {form.strawType === "Wheat Straw" && !form.fusariumRiskAssessed && (
-              <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1.5 flex gap-1.5">
-                <AlertCircle size={13} className="mt-0.5 shrink-0" />Red Tractor requires a Fusarium mycotoxin risk assessment for wheat straw.
+              <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1.5 flex gap-1.5 items-start">
+                <AlertCircle size={13} className="mt-0.5 shrink-0" />Red Tractor requires a Fusarium mycotoxin risk assessment for wheat straw. This is a documented agronomic review covering field signs, fungicide programme, and season weather — tick once the assessment has been completed and recorded.
+              </p>
+            )}
+            {form.strawType === "Wheat Straw" && form.fusariumRiskAssessed && (
+              <p className="mt-2 text-xs text-green-700 bg-green-50 rounded px-2 py-1.5 flex gap-1.5 items-center">
+                <CheckCircle2 size={13} className="shrink-0" />Fusarium risk assessment recorded for this wheat straw batch.
               </p>
             )}
           </div>
@@ -916,13 +951,25 @@ function InventoryDialog({ open, onClose, farmId, editRow, existingInventory, ba
             <div className="grid grid-cols-3 gap-4">
               <div className="flex items-center gap-2 pt-1">
                 <Checkbox id="bmc" checked={form.biomassContract} onCheckedChange={v => f("biomassContract")(!!v)} />
-                <Label htmlFor="bmc" className="cursor-pointer">Biomass Contract</Label>
+                <Label htmlFor="bmc" className="cursor-pointer">Biomass / Energy Contract</Label>
               </div>
               {form.biomassContract && (<>
-                <div><Label>Scheme / Buyer</Label><Input placeholder="e.g. BECS, Drax, AD plant" value={form.biomassScheme} onChange={e => f("biomassScheme")(e.target.value)} /></div>
-                <div><Label>Unique Bale Ref</Label><Input placeholder="Scheme reference" value={form.biomassUniqueBaleRef} onChange={e => f("biomassUniqueBaleRef")(e.target.value)} /></div>
+                <div>
+                  <Label>Scheme / Buyer</Label>
+                  <input list="biomass-schemes-list"
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    placeholder="Select or type scheme / buyer…"
+                    value={form.biomassScheme} onChange={e => f("biomassScheme")(e.target.value)} />
+                  <datalist id="biomass-schemes-list">{BIOMASS_SCHEMES.map(s => <option key={s} value={s} />)}</datalist>
+                </div>
+                <div><Label>Unique Bale / Scheme Ref</Label><Input placeholder="Scheme batch ID or reference" value={form.biomassUniqueBaleRef} onChange={e => f("biomassUniqueBaleRef")(e.target.value)} /></div>
               </>)}
             </div>
+            {form.biomassContract && (
+              <p className="mt-2 text-xs text-blue-700 bg-blue-50 rounded px-2 py-1.5 flex gap-1.5 items-start">
+                <Info size={13} className="mt-0.5 shrink-0" />Straw supplied under a biomass or energy contract may be subject to sustainability criteria and scheme traceability requirements. Ensure the unique bale reference matches your contract documentation.
+              </p>
+            )}
           </div>
 
           <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
