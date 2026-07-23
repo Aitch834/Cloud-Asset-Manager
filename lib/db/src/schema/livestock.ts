@@ -1139,6 +1139,11 @@ export const johnesMonitoringRecordsTable = pgTable("johnes_monitoring_records",
   njmpPlanDate: date("njmp_plan_date"),       // date of most recent NJMP written plan review
   njmpColostrumMgmt: boolean("njmp_colostrum_mgmt").default(false),   // colostrum management protocol documented
   njmpPurchasedTesting: boolean("njmp_purchased_testing").default(false), // purchased-animal testing protocol documented
+  njmpBajvaAdvisor: text("njmp_bajva_advisor"),          // BCVA Accredited Johne's Veterinary Advisor (BAJVA) name
+  njmpControlStrategy: text("njmp_control_strategy"),    // one of 6 NJMP approved control strategies
+  njmpRiskAssessmentDate: date("njmp_risk_assessment_date"), // date of most recent annual on-farm risk assessment
+  njmpDeclarationDate: date("njmp_declaration_date"),    // date annual declaration submitted to milk purchaser
+  njmpDeclarationRecipient: text("njmp_declaration_recipient"), // milk purchaser / processor receiving declaration
   vetSignOff: boolean("vet_sign_off").default(false),
   vetName: text("vet_name"),
   actionsTaken: text("actions_taken"),

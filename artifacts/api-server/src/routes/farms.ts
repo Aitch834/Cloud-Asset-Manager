@@ -31562,6 +31562,11 @@ router.post("/farms/:farmId/johnes-monitoring", requireAuth, requireTenant, requ
     njmpPlanDate: b.njmpPlanDate ? String(b.njmpPlanDate) : null,
     njmpColostrumMgmt: b.njmpColostrumMgmt === true || b.njmpColostrumMgmt === "true",
     njmpPurchasedTesting: b.njmpPurchasedTesting === true || b.njmpPurchasedTesting === "true",
+    njmpBajvaAdvisor: b.njmpBajvaAdvisor ? String(b.njmpBajvaAdvisor) : null,
+    njmpControlStrategy: b.njmpControlStrategy ? String(b.njmpControlStrategy) : null,
+    njmpRiskAssessmentDate: b.njmpRiskAssessmentDate ? String(b.njmpRiskAssessmentDate) : null,
+    njmpDeclarationDate: b.njmpDeclarationDate ? String(b.njmpDeclarationDate) : null,
+    njmpDeclarationRecipient: b.njmpDeclarationRecipient ? String(b.njmpDeclarationRecipient) : null,
     vetSignOff: b.vetSignOff === true || b.vetSignOff === "true",
     vetName: b.vetName ? String(b.vetName) : null,
     actionsTaken: b.actionsTaken ? String(b.actionsTaken) : null,
@@ -31579,7 +31584,7 @@ router.put("/farms/:farmId/johnes-monitoring/:id", requireAuth, requireTenant, r
   const id = parseInt(req.params.id as string);
   const b = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
-  const fields = ["herdId","testDate","testType","labName","labRef","animalsTestedCount","riskLevel","bulkMilkOd","positiveAnimalsCount","jmmEnrolled","scheme","njmpSchemeRef","njmpPlanDate","njmpColostrumMgmt","njmpPurchasedTesting","vetSignOff","vetName","actionsTaken","nextTestDue","notes","documentPath","documentName"];
+  const fields = ["herdId","testDate","testType","labName","labRef","animalsTestedCount","riskLevel","bulkMilkOd","positiveAnimalsCount","jmmEnrolled","scheme","njmpSchemeRef","njmpPlanDate","njmpColostrumMgmt","njmpPurchasedTesting","njmpBajvaAdvisor","njmpControlStrategy","njmpRiskAssessmentDate","njmpDeclarationDate","njmpDeclarationRecipient","vetSignOff","vetName","actionsTaken","nextTestDue","notes","documentPath","documentName"];
   for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
   if (b.jmmEnrolled !== undefined) updates.jmmEnrolled = b.jmmEnrolled === true || b.jmmEnrolled === "true";
   if (b.njmpColostrumMgmt !== undefined) updates.njmpColostrumMgmt = b.njmpColostrumMgmt === true || b.njmpColostrumMgmt === "true";

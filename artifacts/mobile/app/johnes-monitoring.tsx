@@ -103,6 +103,11 @@ export default function JohnesMonitoringScreen() {
   const [njmpPlanDate, setNjmpPlanDate] = useState("");
   const [njmpColostrumMgmt, setNjmpColostrumMgmt] = useState(false);
   const [njmpPurchasedTesting, setNjmpPurchasedTesting] = useState(false);
+  const [njmpBajvaAdvisor, setNjmpBajvaAdvisor] = useState("");
+  const [njmpControlStrategy, setNjmpControlStrategy] = useState("");
+  const [njmpRiskAssessmentDate, setNjmpRiskAssessmentDate] = useState("");
+  const [njmpDeclarationDate, setNjmpDeclarationDate] = useState("");
+  const [njmpDeclarationRecipient, setNjmpDeclarationRecipient] = useState("");
   const [vetSignOff, setVetSignOff] = useState(false);
   const [nextTestDue, setNextTestDue] = useState("");
   const [notes, setNotes] = useState("");
@@ -141,6 +146,11 @@ export default function JohnesMonitoringScreen() {
         njmpPlanDate: jmmEnrolled ? (njmpPlanDate || null) : null,
         njmpColostrumMgmt: jmmEnrolled ? njmpColostrumMgmt : false,
         njmpPurchasedTesting: jmmEnrolled ? njmpPurchasedTesting : false,
+        njmpBajvaAdvisor: jmmEnrolled ? (njmpBajvaAdvisor || null) : null,
+        njmpControlStrategy: jmmEnrolled ? (njmpControlStrategy || null) : null,
+        njmpRiskAssessmentDate: jmmEnrolled ? (njmpRiskAssessmentDate || null) : null,
+        njmpDeclarationDate: jmmEnrolled ? (njmpDeclarationDate || null) : null,
+        njmpDeclarationRecipient: jmmEnrolled ? (njmpDeclarationRecipient || null) : null,
         vetSignOff,
         nextTestDue: nextTestDue || null,
         notes: notes || null,
@@ -275,6 +285,42 @@ export default function JohnesMonitoringScreen() {
             <View style={styles.field}>
               <Text style={styles.label}>Written Plan Last Reviewed (YYYY-MM-DD)</Text>
               <Input value={njmpPlanDate} onChangeText={setNjmpPlanDate} placeholder="YYYY-MM-DD" />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>BAJVA Advisor Name</Text>
+              <Text style={styles.switchHint}>BCVA Accredited Johne's Veterinary Advisor — must be BAJVA-accredited</Text>
+              <Input value={njmpBajvaAdvisor} onChangeText={setNjmpBajvaAdvisor} placeholder="e.g. Dr A Jones MRCVS — BAJVA accredited" />
+            </View>
+
+            <Text style={[styles.label, { marginBottom: 4 }]}>Control Strategy (NJMP approved)</Text>
+            <View style={styles.chips}>
+              {[
+                { key: "s1_test_cull", label: "S1 — Test & cull high-risk" },
+                { key: "s2_segregate", label: "S2 — Segregate high-risk cows" },
+                { key: "s3_purchased_animals", label: "S3 — Purchased animal mgmt" },
+                { key: "s4_calf_colostrum", label: "S4 — Calf & colostrum mgmt" },
+                { key: "s5_slurry_pasture", label: "S5 — Slurry & pasture mgmt" },
+                { key: "s6_bespoke", label: "S6 — Bespoke vet-led strategy" },
+              ].map(s => (
+                <Chip key={s.key} label={s.label} selected={njmpControlStrategy === s.key} onPress={() => setNjmpControlStrategy(njmpControlStrategy === s.key ? "" : s.key)} />
+              ))}
+            </View>
+
+            <View style={styles.row}>
+              <View style={[styles.field, { flex: 1, marginRight: 8 }]}>
+                <Text style={styles.label}>Annual Risk Assessment Date</Text>
+                <Input value={njmpRiskAssessmentDate} onChangeText={setNjmpRiskAssessmentDate} placeholder="YYYY-MM-DD" />
+              </View>
+              <View style={[styles.field, { flex: 1 }]}>
+                <Text style={styles.label}>Annual Declaration Date</Text>
+                <Input value={njmpDeclarationDate} onChangeText={setNjmpDeclarationDate} placeholder="YYYY-MM-DD" />
+              </View>
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Declaration Recipient (milk purchaser)</Text>
+              <Input value={njmpDeclarationRecipient} onChangeText={setNjmpDeclarationRecipient} placeholder="e.g. Arla Foods UK, Müller Milk, First Milk…" />
             </View>
 
             <SwitchRow

@@ -426,6 +426,11 @@ export function JohnesTab({ farmId }: { farmId: number }) {
                   {JOHNES_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {form.testType === "bulk_milk_elisa" && (
+                <p className="mt-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                  ⚠ <strong>NJMP note:</strong> Bulk milk ELISA is <strong>not accepted</strong> for NJMP herd risk status determination. A minimum 60-cow individual milk ELISA screen is required for NJMP status.
+                </p>
+              )}
             </div>
             <div>
               <Label>Herd</Label>
@@ -540,6 +545,37 @@ export function JohnesTab({ farmId }: { farmId: number }) {
                     <div>
                       <Label className="text-xs">Written Plan Last Reviewed</Label>
                       <Input type="date" className="h-8 text-xs" value={form.njmpPlanDate || ""} onChange={e => set("njmpPlanDate", e.target.value)} />
+                    </div>
+                    <div className="col-span-2">
+                      <Label className="text-xs">BAJVA Advisor Name <span className="text-gray-500 font-normal">(BCVA Accredited Johne's Veterinary Advisor)</span></Label>
+                      <Input className="h-8 text-xs" placeholder="e.g. Dr A Jones MRCVS — BAJVA accredited" value={form.njmpBajvaAdvisor || ""} onChange={e => set("njmpBajvaAdvisor", e.target.value)} />
+                    </div>
+                    <div className="col-span-2">
+                      <Label className="text-xs">Control Strategy <span className="text-gray-500 font-normal">(select the NJMP approved strategy in place)</span></Label>
+                      <Select value={form.njmpControlStrategy || "__none__"} onValueChange={v => set("njmpControlStrategy", v === "__none__" ? null : v)}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select strategy…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— Not specified</SelectItem>
+                          <SelectItem value="s1_test_cull">S1 — Test &amp; cull high-risk cows</SelectItem>
+                          <SelectItem value="s2_segregate">S2 — Segregate high-risk cows</SelectItem>
+                          <SelectItem value="s3_purchased_animals">S3 — Purchased animal management</SelectItem>
+                          <SelectItem value="s4_calf_colostrum">S4 — Calf &amp; colostrum management</SelectItem>
+                          <SelectItem value="s5_slurry_pasture">S5 — Slurry &amp; pasture management</SelectItem>
+                          <SelectItem value="s6_bespoke">S6 — Bespoke vet-led strategy</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Annual Risk Assessment Date</Label>
+                      <Input type="date" className="h-8 text-xs" value={form.njmpRiskAssessmentDate || ""} onChange={e => set("njmpRiskAssessmentDate", e.target.value)} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Annual Declaration Submitted</Label>
+                      <Input type="date" className="h-8 text-xs" value={form.njmpDeclarationDate || ""} onChange={e => set("njmpDeclarationDate", e.target.value)} />
+                    </div>
+                    <div className="col-span-2">
+                      <Label className="text-xs">Declaration Recipient <span className="text-gray-500 font-normal">(milk purchaser / processor)</span></Label>
+                      <Input className="h-8 text-xs" placeholder="e.g. Arla Foods UK, Müller Milk, First Milk…" value={form.njmpDeclarationRecipient || ""} onChange={e => set("njmpDeclarationRecipient", e.target.value)} />
                     </div>
                   </div>
                   <div className="flex flex-col gap-2">
