@@ -1234,6 +1234,11 @@ export const livestockIsolationRecordsTable = pgTable("livestock_isolation_recor
   clearanceNotes: text("clearance_notes"),
   veterinarianName: text("veterinarian_name"),
   notes: text("notes"),
+  // ─── Johne's disease biosecurity (sheep / goat arrivals) ─────────────────
+  // AHDB recommends only sourcing sheep/goats from Gudair-vaccinating flocks.
+  // Record the source flock's vaccination status at point of purchase.
+  sourceJohnesVaccStatus: text("source_johnes_vacc_status"), // "vaccinating" | "not_vaccinating" | "unknown"
+  sourceJohnesVaccNotes: text("source_johnes_vacc_notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -8220,7 +8220,7 @@ function IsolationRegisterSection({ farmId }: { farmId: number }) {
   const [hcOpen, setHcOpen] = useState<number | null>(null);
   const [deleteHcId, setDeleteHcId] = useState<{ recId: number; checkId: number } | null>(null);
 
-  const emptyForm = { isolationStartDate: "", isolationEndDate: "", animalCount: "", animalDescription: "", isolationReason: "", supplierName: "", clearanceDate: "", clearanceSignedBy: "", notes: "" };
+  const emptyForm = { isolationStartDate: "", isolationEndDate: "", animalCount: "", animalDescription: "", isolationReason: "", supplierName: "", clearanceDate: "", clearanceSignedBy: "", notes: "", sourceJohnesVaccStatus: "", sourceJohnesVaccNotes: "" };
   const [form, setForm] = useState({ ...emptyForm });
   const emptyHc = { checkDate: new Date().toISOString().slice(0, 10), checkedBy: "", healthStatus: "satisfactory", temperatureCelsius: "", notes: "", actionTaken: "" };
   const [hcForm, setHcForm] = useState({ ...emptyHc });
@@ -8243,7 +8243,7 @@ function IsolationRegisterSection({ farmId }: { farmId: number }) {
 
   function openEdit(r: any) {
     setEditRec(r);
-    setForm({ isolationStartDate: r.isolationStartDate?.slice(0, 10) ?? "", isolationEndDate: r.isolationEndDate?.slice(0, 10) ?? "", animalCount: String(r.animalCount ?? ""), animalDescription: r.animalDescription ?? "", isolationReason: r.isolationReason ?? "", supplierName: r.supplierName ?? "", clearanceDate: r.clearanceDate?.slice(0, 10) ?? "", clearanceSignedBy: r.clearanceSignedBy ?? "", notes: r.notes ?? "" });
+    setForm({ isolationStartDate: r.isolationStartDate?.slice(0, 10) ?? "", isolationEndDate: r.isolationEndDate?.slice(0, 10) ?? "", animalCount: String(r.animalCount ?? ""), animalDescription: r.animalDescription ?? "", isolationReason: r.isolationReason ?? "", supplierName: r.supplierName ?? "", clearanceDate: r.clearanceDate?.slice(0, 10) ?? "", clearanceSignedBy: r.clearanceSignedBy ?? "", notes: r.notes ?? "", sourceJohnesVaccStatus: r.sourceJohnesVaccStatus ?? "", sourceJohnesVaccNotes: r.sourceJohnesVaccNotes ?? "" });
   }
 
   return (
@@ -8302,6 +8302,12 @@ function IsolationRegisterSection({ farmId }: { farmId: number }) {
                     <div><p className="text-xs text-muted-foreground">Clearance Date</p><p>{fmtD(r.clearanceDate)}</p></div>
                     <div><p className="text-xs text-muted-foreground">Clearance Signed By</p><p>{r.clearanceSignedBy || "—"}</p></div>
                     {r.notes && <div className="col-span-full"><p className="text-xs text-muted-foreground">Notes</p><p className="whitespace-pre-line">{r.notes}</p></div>}
+                    {r.sourceJohnesVaccStatus && (
+                      <div className={`col-span-full flex items-start gap-2 rounded px-2.5 py-2 text-xs border ${r.sourceJohnesVaccStatus === "vaccinating" ? "bg-green-50 border-green-200 text-green-800" : r.sourceJohnesVaccStatus === "not_vaccinating" ? "bg-red-50 border-red-200 text-red-800" : "bg-gray-50 border-gray-200 text-gray-600"}`}>
+                        <span className="font-semibold shrink-0">Johne's (source flock):</span>
+                        <span>{r.sourceJohnesVaccStatus === "vaccinating" ? "✓ Vaccinating with Gudair — confirmed" : r.sourceJohnesVaccStatus === "not_vaccinating" ? "✗ Not vaccinating — biosecurity risk noted" : "Unknown — not confirmed by supplier"}{r.sourceJohnesVaccNotes ? ` · ${r.sourceJohnesVaccNotes}` : ""}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="border-t pt-3">
                     <div className="flex items-center justify-between mb-2">
@@ -8351,6 +8357,19 @@ function IsolationRegisterSection({ farmId }: { farmId: number }) {
               <div><Label className="text-xs">Clearance Signed By</Label><Input value={form.clearanceSignedBy} onChange={e => setForm(f => ({ ...f, clearanceSignedBy: e.target.value }))} /></div>
             </div>
             <div><Label className="text-xs">Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+            <div className="border-t pt-3 space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Johne's Biosecurity — Sheep &amp; Goats</p>
+              <p className="text-xs text-gray-400">AHDB recommends sourcing only from flocks vaccinating with Gudair (Ovilis Gudair). Record the source flock's status here for audit purposes.</p>
+              <div><Label className="text-xs">Source Flock Johne's Vaccination Status</Label>
+                <select className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" value={form.sourceJohnesVaccStatus} onChange={e => setForm(f => ({ ...f, sourceJohnesVaccStatus: e.target.value }))}>
+                  <option value="">Not applicable / not recorded</option>
+                  <option value="vaccinating">Vaccinating with Gudair — confirmed by supplier</option>
+                  <option value="not_vaccinating">Not vaccinating — risk noted</option>
+                  <option value="unknown">Unknown — not confirmed by supplier</option>
+                </select>
+              </div>
+              <div><Label className="text-xs">Johne's Biosecurity Notes</Label><Input className="mt-1" value={form.sourceJohnesVaccNotes} onChange={e => setForm(f => ({ ...f, sourceJohnesVaccNotes: e.target.value }))} placeholder="e.g. Supplier confirmed Gudair programme since 2022…" /></div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setAddOpen(false); setEditRec(null); setForm({ ...emptyForm }); }}>Cancel</Button>
