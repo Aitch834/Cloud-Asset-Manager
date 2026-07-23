@@ -16,7 +16,7 @@ import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect } from "wouter";
-import { Plus, Search, Loader2, Pencil, Trash2, ClipboardList, Stethoscope, CheckCircle2, Printer, AlertTriangle, Package, Droplets, XCircle, FileText, Upload, Paperclip, QrCode, Eye, FlaskConical, ClipboardCheck, Clock, ListChecks, BookOpen, ChevronDown, ChevronUp, RotateCcw, FileDown, Truck, BarChart3 } from "lucide-react";
+import { Plus, Search, Loader2, Pencil, Trash2, ClipboardList, Stethoscope, CheckCircle2, Printer, AlertTriangle, Package, Droplets, XCircle, FileText, Upload, Paperclip, QrCode, Eye, FlaskConical, ClipboardCheck, Clock, ListChecks, BookOpen, ChevronDown, ChevronUp, RotateCcw, FileDown, Truck, BarChart3, Syringe } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -3042,6 +3042,24 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   other: "Other Document",
 };
 
+interface VaccHistoryRecord {
+  id: number;
+  source: "sheep_vacc_programme" | "goat_vacc_programme" | "pig_vacc_record" | "poultry_vacc_record" | "medicine_record";
+  speciesLabel: string;
+  date: string | null;
+  vaccineProduct: string;
+  vaccinationCategory: string | null;
+  batchNumber: string | null;
+  numberTreated: number | null;
+  administeredBy: string | null;
+  withdrawalPeriodDays: number | null;
+  nextDueDate: string | null;
+  vetPrescribed: boolean;
+  ageGroupTreated: string | null;
+  administrationRoute: string | null;
+  notes: string | null;
+}
+
 interface AnimalProfile {
   animal: Animal;
   herd: { id: number; name: string; type: string; herdNumber: string | null } | null;
@@ -3166,7 +3184,7 @@ function AnimalQuickViewDialog({ animal, herds, farmId, onClose, onEdit, onProfi
 function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
   animal: Animal; farmId: number; onClose: () => void; onEdit: (a: Animal) => void;
 }) {
-  const [tab, setTab] = useState<"overview" | "medicines" | "movements" | "breeding" | "health" | "tb-tests" | "documents">("overview");
+  const [tab, setTab] = useState<"overview" | "medicines" | "vaccinations" | "movements" | "breeding" | "health" | "tb-tests" | "documents">("overview");
 
   const { data, isLoading } = useQuery<AnimalProfile>({
     queryKey: ["animal-profile", farmId, animal.id],
@@ -3230,9 +3248,16 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
     refetchDocs();
   }
 
+  const { data: vaccData, isLoading: vaccLoading } = useQuery<{ records: VaccHistoryRecord[] }>({
+    queryKey: ["animal-vaccination-history", farmId, animal.id],
+    queryFn: () => fetch(`/api/farms/${farmId}/animals/${animal.id}/vaccination-history`, { credentials: "include" }).then(r => r.json()),
+  });
+  const vaccRecords: VaccHistoryRecord[] = vaccData?.records ?? [];
+
   const tabDef = [
     { key: "overview", label: "Overview", icon: ClipboardList },
     { key: "medicines", label: "Medicines", icon: Stethoscope, count: data?.stats.medicineCount },
+    { key: "vaccinations", label: "Vaccinations", icon: Syringe, count: vaccRecords.length || undefined },
     { key: "movements", label: "Movements", icon: FileText, count: data?.stats.movementCount },
     ...(showBreeding ? [{ key: "breeding", label: "Calving", icon: CheckCircle2, count: data?.stats.calvingCount }] : []),
     { key: "health", label: "Health Incidents", icon: AlertTriangle, count: data?.stats.diseaseIncidentCount },
@@ -3457,6 +3482,60 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
                       {m.withdrawalEndDate && (
                         <p style={{ margin: "4px 0 0", fontSize: "0.75rem", color: "#854d0e" }}>Withdrawal ends: {formatDate(m.withdrawalEndDate)} ({m.withdrawalPeriodDays} days)</p>
                       )}
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          ) : tab === "vaccinations" ? (
+            vaccLoading ? (
+              <div style={{ textAlign: "center", padding: "40px 0" }}><Loader2 className="animate-spin w-6 h-6 mx-auto text-gray-400" /></div>
+            ) : vaccRecords.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "40px 0", color: "#9ca3af" }}>
+                <Syringe size={32} style={{ margin: "0 auto 8px", opacity: 0.3 }} />
+                <p style={{ margin: 0 }}>No vaccination records found for this animal.</p>
+                <p style={{ fontSize: "0.78rem", marginTop: 4 }}>Vaccination events are pulled automatically from the vaccination programmes recorded for this animal's herd or flock. Record vaccines in the relevant production module (Sheep Production → Vaccination, Pig Production → Vaccination, etc.).</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {vaccRecords.map((v, i) => {
+                  const fmtD = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+                  const sourceLabel = v.source === "medicine_record" ? "Medicine Record" : "Vaccination Programme";
+                  const today = new Date(); today.setHours(0,0,0,0);
+                  const dueDate = v.nextDueDate ? new Date(v.nextDueDate) : null;
+                  const isOverdue = dueDate && dueDate < today;
+                  const isDueSoon = dueDate && !isOverdue && dueDate <= new Date(today.getTime() + 30 * 86400000);
+                  return (
+                    <div key={`${v.source}-${v.id}-${i}`} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 14px", background: "#fafafa" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ margin: 0, fontWeight: 700, fontSize: "0.9rem", color: "#111827" }}>
+                            {v.vaccineProduct}
+                            {v.vetPrescribed && <span style={{ marginLeft: 6, fontSize: "0.68rem", fontWeight: 700, padding: "1px 5px", borderRadius: 9999, background: "#dbeafe", color: "#1d4ed8", border: "1px solid #bfdbfe" }}>POM-V</span>}
+                          </p>
+                          {v.vaccinationCategory && <p style={{ margin: "2px 0 0", fontSize: "0.75rem", color: "#6b7280" }}>{v.vaccinationCategory}</p>}
+                          <p style={{ margin: "3px 0 0", fontSize: "0.75rem", color: "#6b7280" }}>
+                            {fmtD(v.date)}
+                            {v.ageGroupTreated ? ` · ${v.ageGroupTreated}` : ""}
+                            {v.numberTreated != null ? ` · ${v.numberTreated} treated` : ""}
+                            {v.administrationRoute ? ` · ${v.administrationRoute}` : ""}
+                            {v.administeredBy ? ` · ${v.administeredBy}` : ""}
+                          </p>
+                          {v.batchNumber && <p style={{ margin: "2px 0 0", fontSize: "0.72rem", color: "#9ca3af" }}>Batch: {v.batchNumber}</p>}
+                          {v.withdrawalPeriodDays != null && v.withdrawalPeriodDays > 0 && <p style={{ margin: "2px 0 0", fontSize: "0.72rem", color: "#b45309", fontWeight: 600 }}>Withdrawal: {v.withdrawalPeriodDays} days</p>}
+                          {v.notes && <p style={{ margin: "4px 0 0", fontSize: "0.75rem", color: "#374151", fontStyle: "italic" }}>{v.notes}</p>}
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
+                          <span style={{ fontSize: "0.68rem", fontWeight: 600, padding: "2px 6px", borderRadius: 9999, background: v.source === "medicine_record" ? "#f3f4f6" : "#f0fdf4", color: v.source === "medicine_record" ? "#6b7280" : "#166534", border: `1px solid ${v.source === "medicine_record" ? "#e5e7eb" : "#bbf7d0"}` }}>
+                            {sourceLabel}
+                          </span>
+                          {v.nextDueDate && (
+                            <span style={{ fontSize: "0.68rem", fontWeight: 600, padding: "2px 6px", borderRadius: 9999, background: isOverdue ? "#fef2f2" : isDueSoon ? "#fffbeb" : "#f9fafb", color: isOverdue ? "#991b1b" : isDueSoon ? "#92400e" : "#6b7280", border: `1px solid ${isOverdue ? "#fca5a5" : isDueSoon ? "#fde68a" : "#e5e7eb"}` }}>
+                              {isOverdue ? "⚠ Booster overdue" : isDueSoon ? "⚠ Booster due soon" : `Next: ${fmtD(v.nextDueDate)}`}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   );
                 })}

@@ -4326,6 +4326,119 @@ router.get("/farms/:farmId/animals/:recordId/profile", requireAuth, requireTenan
   });
 });
 
+// ─── Animal Vaccination History ───────────────────────────────────────────────
+// Aggregates all species-specific vaccination programme records for the herd/flock
+// this animal belongs to, plus any vaccine medicine records linked directly to the animal.
+router.get("/farms/:farmId/animals/:animalId/vaccination-history", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const animalId = parseInt(req.params.animalId as string, 10);
+  if (isNaN(animalId)) { res.status(400).json({ error: "Invalid animal ID" }); return; }
+
+  const [animal] = await db.select().from(livestockAnimalsTable)
+    .where(and(eq(livestockAnimalsTable.id, animalId), eq(livestockAnimalsTable.farmId, farmId)));
+  if (!animal) { res.status(404).json({ error: "Animal not found" }); return; }
+
+  const herdId = animal.herdId;
+  const species = (animal.species ?? "").toLowerCase();
+
+  // Fetch species-specific vaccination programme records for this animal's herd/flock,
+  // and vaccine-type medicine records linked directly to the animal or its whole-herd treatments.
+  const [sheepVacc, goatVacc, pigVacc, poultryVacc, medicineDirect, medicineHerd] = await Promise.all([
+    // Sheep — flockId FK
+    (species === "sheep" && herdId)
+      ? db.select().from(sheepVaccinationProgrammesTable)
+          .where(and(eq(sheepVaccinationProgrammesTable.farmId, farmId), eq(sheepVaccinationProgrammesTable.flockId, herdId)))
+          .orderBy(desc(sheepVaccinationProgrammesTable.vaccinationDate))
+      : Promise.resolve([]),
+    // Goat — herdId FK
+    (species === "goat" && herdId)
+      ? db.select().from(goatVaccinationProgrammesTable)
+          .where(and(eq(goatVaccinationProgrammesTable.farmId, farmId), eq(goatVaccinationProgrammesTable.herdId, herdId)))
+          .orderBy(desc(goatVaccinationProgrammesTable.vaccinationDate))
+      : Promise.resolve([]),
+    // Pig — herdId FK
+    (species === "pig" && herdId)
+      ? db.select().from(pigVaccinationRecordsTable)
+          .where(and(eq(pigVaccinationRecordsTable.farmId, farmId), eq(pigVaccinationRecordsTable.herdId, herdId)))
+          .orderBy(desc(pigVaccinationRecordsTable.vaccinationDate))
+      : Promise.resolve([]),
+    // Poultry — flockId FK
+    ((species === "chicken" || species === "turkey" || species === "duck" || species === "poultry" || species === "broiler" || species === "layer") && herdId)
+      ? db.select().from(poultryVaccinationRecordsTable)
+          .where(and(eq(poultryVaccinationRecordsTable.farmId, farmId), eq(poultryVaccinationRecordsTable.flockId, herdId)))
+          .orderBy(desc(poultryVaccinationRecordsTable.vaccinationDate))
+      : Promise.resolve([]),
+    // Medicine records linked directly to this individual animal
+    db.select().from(livestockMedicineRecordsTable)
+      .where(and(eq(livestockMedicineRecordsTable.farmId, farmId), eq(livestockMedicineRecordsTable.animalId, animalId)))
+      .orderBy(desc(livestockMedicineRecordsTable.administeredDate)),
+    // Whole-herd / group medicine records for the herd (for non-species-specific lookup; cattle fall here)
+    herdId
+      ? db.select().from(livestockMedicineRecordsTable)
+          .where(and(
+            eq(livestockMedicineRecordsTable.farmId, farmId),
+            eq(livestockMedicineRecordsTable.herdId, herdId),
+            or(
+              inArray(livestockMedicineRecordsTable.treatmentScope, ["group", "whole_herd"]),
+              isNull(livestockMedicineRecordsTable.treatmentScope),
+            ),
+          ))
+          .orderBy(desc(livestockMedicineRecordsTable.administeredDate))
+      : Promise.resolve([]),
+  ]);
+
+  // Filter group-scope medicine records by ear tag where tags are specified
+  const animalEarTag = (animal.earTagNumber ?? "").toLowerCase();
+  const animalTagNumber = (animal.tagNumber ?? "").toLowerCase();
+  const filteredMedicineHerd = (medicineHerd as any[]).filter((m: any) => {
+    if (m.treatmentScope === "whole_herd" || m.treatmentScope === null) return true;
+    if (m.treatmentScope === "group") {
+      if (!m.treatedAnimalTags) return false;
+      const tags = m.treatedAnimalTags.split(",").map((t: string) => t.trim().toLowerCase());
+      return (animalEarTag && tags.includes(animalEarTag)) || (animalTagNumber && tags.includes(animalTagNumber));
+    }
+    return false;
+  });
+
+  // Normalise all sources into a unified shape
+  const normalise = (source: string, speciesLabel: string) => (r: any) => ({
+    id: r.id,
+    source,
+    speciesLabel,
+    date: r.vaccinationDate ?? r.administeredDate,
+    vaccineProduct: r.vaccineProduct ?? r.medicineName,
+    vaccinationCategory: r.vaccinationCategory ?? r.reason ?? null,
+    batchNumber: r.batchNumber ?? null,
+    numberTreated: r.numberTreated ?? r.treatedAnimalCount ?? null,
+    administeredBy: r.administeredBy ?? null,
+    withdrawalPeriodDays: r.withdrawalPeriodDays ?? null,
+    nextDueDate: r.nextDueDate ?? null,
+    vetPrescribed: r.vetPrescribed ?? false,
+    ageGroupTreated: r.ageClassTreated ?? r.ageGroupTreated ?? null,
+    administrationRoute: r.administrationRoute ?? null,
+    notes: r.notes ?? null,
+  });
+
+  // Merge and deduplicate medicine records
+  const seenMedIds = new Set<number>();
+  const allMedicineRecords = [...(medicineDirect as any[]), ...filteredMedicineHerd].filter(m => {
+    if (seenMedIds.has(m.id)) return false;
+    seenMedIds.add(m.id);
+    return true;
+  });
+
+  const records = [
+    ...(sheepVacc as any[]).map(normalise("sheep_vacc_programme", "Sheep")),
+    ...(goatVacc as any[]).map(normalise("goat_vacc_programme", "Goat")),
+    ...(pigVacc as any[]).map(normalise("pig_vacc_record", "Pig")),
+    ...(poultryVacc as any[]).map(normalise("poultry_vacc_record", "Poultry")),
+    ...allMedicineRecords.map(normalise("medicine_record", species ? species.charAt(0).toUpperCase() + species.slice(1) : "Animal")),
+  ].sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+
+  res.json({ records, herdId, species });
+});
+
 // ─── Animal Documents ──────────────────────────────
 router.get("/farms/:farmId/animals/:animalId/documents", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
