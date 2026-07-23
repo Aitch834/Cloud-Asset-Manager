@@ -437,6 +437,17 @@ const recordOptions: RecordOption[] = [
     requiresSectors: ["arable"],
   },
   {
+    id: "straw-sale",
+    title: "Straw Sale",
+    description: "Log a farm-gate or account bale sale — buyer, straw type, quantity, price per bale and haulier details. Invoice ref auto-generated on sync.",
+    icon: "shopping-cart",
+    color: "#d97706",
+    bgColor: "#fef3c7",
+    route: "/straw-sale",
+    moduleKeys: ["field-crop-management"],
+    requiresSectors: ["arable"],
+  },
+  {
     id: "lambing-record",
     title: "Lambing Record",
     description: "Record birth details, lambing ease score, up to 4 lambs, colostrum management, and fostering — Red Tractor Sheep Assurance required",

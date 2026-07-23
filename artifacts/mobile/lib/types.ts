@@ -1694,6 +1694,28 @@ export interface GrainSaleRecord {
   synced: boolean;
 }
 
+export interface StrawSaleRecord {
+  id: string;
+  farmId: string;
+  saleDate: string;
+  isCashSale: boolean;
+  buyerName: string;
+  buyerAddress?: string;
+  buyerPhone?: string;
+  strawType: string;
+  baleFormat: string;
+  quantityBales: string;
+  pricePerBaleGbp: string;
+  totalValueGbp: string;
+  storageLocation?: string;
+  haulierName?: string;
+  vehicleReg?: string;
+  trailerReg?: string;
+  notes?: string;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface LivestockSaleRecord {
   id: string;
   farmId: string;
