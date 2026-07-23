@@ -18,7 +18,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { MastitisTab, BcsTab, BulkTankTab, MvTab, AssuranceTab, SheepLambingTab } from "@/pages/SheepDairyPage";
+import { BcsTab, BulkTankTab, MvTab, AssuranceTab, SheepLambingTab } from "@/pages/SheepDairyPage";
 import { SccEquipmentSection, AbrKitStockSection } from "@/pages/DairyPage";
 import { AbrProcurementSection } from "@/pages/dairy/AbrProcurementSection";
 import { DairyEnterpriseReport } from "@/components/DairyEnterpriseReport";
@@ -931,6 +931,165 @@ function FeedNutritionTab({ farmId }: { farmId: number }) {
               {save.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}Save
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Organic Sheep Dairy — Mastitis Tab ───────────────────────────────────────
+
+interface OrgSheepMastitisRecord {
+  id: number; incidentDate: string; eweLisTag?: string | null; quarterAffected?: string | null;
+  clinicalSigns?: string | null; pathogenIdentified?: string | null; labSampleTaken?: boolean | null;
+  labRef?: string | null; sccAtOnset?: number | null; treatmentProduct?: string | null;
+  treatmentDurationDays?: number | null;
+  standardMilkWithdrawalDays?: number | null; doubledMilkWithdrawalDays?: number | null;
+  milkWithdrawnUntil?: string | null; certifierNotified?: boolean | null;
+  outcome?: string | null; attendingVet?: string | null;
+  chronicCase?: boolean | null; culledDueToMastitis?: boolean | null; notes?: string | null;
+}
+
+function MastitisTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<OrgSheepMastitisRecord | null>(null);
+  const [viewRec, setViewRec] = useState<OrgSheepMastitisRecord | null>(null);
+  const blank: Partial<OrgSheepMastitisRecord> = { incidentDate: today(), labSampleTaken: false, chronicCase: false, culledDueToMastitis: false, certifierNotified: false };
+  const [form, setForm] = useState<Partial<OrgSheepMastitisRecord>>(blank);
+  const set = (k: keyof OrgSheepMastitisRecord, v: unknown) => setForm(p => ({ ...p, [k]: v }));
+
+  const { data, isLoading } = useQuery({ queryKey: ["sheep-dairy-mastitis", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-dairy/mastitis-records`)).then(r => r.json()) });
+  const records: OrgSheepMastitisRecord[] = data?.records ?? [];
+  const uncertifiedCount = records.filter(r => r.treatmentProduct && !r.certifierNotified).length;
+
+  const save = useMutation({
+    mutationFn: (body: Partial<OrgSheepMastitisRecord>) => fetch(api(`farms/${farmId}/sheep-dairy/mastitis-records${editing ? `/${editing.id}` : ""}`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-mastitis", farmId] }); setOpen(false); toast({ title: editing ? "Record updated" : "Record added" }); },
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-dairy/mastitis-records/${id}`), { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-mastitis", farmId] }); toast({ title: "Record deleted" }); },
+  });
+
+  const mastiYears = useMemo(() => Array.from(new Set<string>(records.map(r => String(r.incidentDate || "").slice(0, 4)).filter(Boolean))).sort((a, b) => b.localeCompare(a)), [records]);
+  const [mastiYear, setMastiYear] = useState("all");
+  const filtered = useMemo(() => mastiYear === "all" ? records : records.filter(r => String(r.incidentDate || "").startsWith(mastiYear)), [records, mastiYear]);
+
+  return (
+    <div className="space-y-4">
+      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+        <strong>Organic rule:</strong> All withdrawal periods for mastitis treatments must be DOUBLED. Record both standard and doubled milk withdrawal days. Notify your certifier of any antibiotic use.
+      </div>
+      {uncertifiedCount > 0 && (
+        <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+          <span>{uncertifiedCount} treated case{uncertifiedCount !== 1 ? "s" : ""} where certifier has not been notified.</span>
+        </div>
+      )}
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <h2 className="text-base font-semibold text-gray-800">Mastitis Records</h2>
+          <Select value={mastiYear} onValueChange={setMastiYear}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{mastiYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+      </div>
+      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : filtered.length === 0 ? (
+        <div className="text-center py-12 text-gray-400"><AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-40" /><p>No mastitis records yet.</p></div>
+      ) : (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>Date</TableHead><TableHead>Ewe LIS Tag</TableHead><TableHead>Quarter</TableHead>
+              <TableHead>Treatment</TableHead><TableHead>Dbl Milk W/D</TableHead><TableHead>Certifier</TableHead><TableHead>Outcome</TableHead><TableHead />
+            </TableRow></TableHeader>
+            <TableBody>{filtered.map(r => (
+              <TableRow key={r.id}>
+                <TableCell className="font-medium">{fmt(r.incidentDate)}</TableCell>
+                <TableCell className="font-mono text-xs">{r.eweLisTag || "—"}</TableCell>
+                <TableCell className="capitalize">{r.quarterAffected || "—"}</TableCell>
+                <TableCell>{r.treatmentProduct || "—"}</TableCell>
+                <TableCell>{r.doubledMilkWithdrawalDays != null ? <Badge className="bg-blue-100 text-blue-800">{r.doubledMilkWithdrawalDays}d</Badge> : "—"}</TableCell>
+                <TableCell><Badge className={r.certifierNotified ? "bg-green-100 text-green-800" : r.treatmentProduct ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-500"}>{r.certifierNotified ? "Notified" : r.treatmentProduct ? "Pending" : "N/A"}</Badge></TableCell>
+                <TableCell>{r.outcome || "Ongoing"}{r.chronicCase ? <span className="ml-1 text-xs text-amber-600">Chronic</span> : null}</TableCell>
+                <TableCell><div className="flex gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => setViewRec(r)}><Eye className="w-3.5 h-3.5" /></Button>
+                  <Button variant="ghost" size="sm" onClick={() => { setEditing(r); setForm(r); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                  <Button variant="ghost" size="sm" className="text-red-500" onClick={() => del.mutate(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                </div></TableCell>
+              </TableRow>
+            ))}</TableBody>
+          </Table>
+        </div>
+      )}
+      {viewRec && (
+        <Dialog open onOpenChange={() => setViewRec(null)}>
+          <DialogContent style={{ maxWidth: "36rem" }}>
+            <DialogHeader><DialogTitle>Mastitis — {viewRec.eweLisTag || "Unknown ewe"} on {fmt(viewRec.incidentDate)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 text-sm py-2">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Ewe LIS Tag</p><p className="font-mono font-medium">{viewRec.eweLisTag || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Quarter Affected</p><p className="font-medium capitalize">{viewRec.quarterAffected || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Clinical Signs</p><p className="font-medium">{viewRec.clinicalSigns || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Pathogen</p><p className="font-medium">{viewRec.pathogenIdentified || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Treatment Product</p><p className="font-medium">{viewRec.treatmentProduct || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Duration (days)</p><p className="font-medium">{viewRec.treatmentDurationDays ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Standard Milk W/D (days)</p><p className="font-medium">{viewRec.standardMilkWithdrawalDays ?? "—"}</p></div>
+              <div><p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Doubled Milk W/D (days)</p><p className="font-bold text-blue-800">{viewRec.doubledMilkWithdrawalDays ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Milk Withheld Until</p><p className="font-medium">{fmt(viewRec.milkWithdrawnUntil)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Notified</p><p className="font-medium">{viewRec.certifierNotified ? "Yes" : "Pending"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Outcome</p><p className="font-medium capitalize">{viewRec.outcome || "Ongoing"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Attending Vet</p><p className="font-medium">{viewRec.attendingVet || "—"}</p></div>
+              {viewRec.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRec.notes}</p></div>}
+            </div>
+            <DialogFooter><Button variant="outline" onClick={() => setViewRec(null)}>Close</Button><Button onClick={() => { setEditing(viewRec); setForm(viewRec); setOpen(true); setViewRec(null); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent style={{ maxWidth: "38rem" }}>
+          <DialogHeader><DialogTitle>{editing ? "Edit Mastitis Record" : "Add Mastitis Record"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div><Label>Incident Date *</Label><Input type="date" value={String(form.incidentDate || "").slice(0, 10)} onChange={e => set("incidentDate", e.target.value)} /></div>
+            <div><Label>Ewe LIS Tag</Label><Input value={form.eweLisTag || ""} onChange={e => set("eweLisTag", e.target.value)} placeholder="LIS ear tag" /></div>
+            <div><Label>Quarter Affected</Label>
+              <Select value={form.quarterAffected || "__none__"} onValueChange={v => set("quarterAffected", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">Not specified</SelectItem><SelectItem value="left">Left</SelectItem><SelectItem value="right">Right</SelectItem><SelectItem value="both">Both</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div><Label>Clinical Signs</Label><Input value={form.clinicalSigns || ""} onChange={e => set("clinicalSigns", e.target.value)} /></div>
+            <div><Label>Pathogen Identified</Label><Input value={form.pathogenIdentified || ""} onChange={e => set("pathogenIdentified", e.target.value)} placeholder="e.g. Staph. aureus" /></div>
+            <div><Label>Lab Ref</Label><Input value={form.labRef || ""} onChange={e => set("labRef", e.target.value)} /></div>
+            <div><Label>SCC at Onset (k/mL)</Label><Input type="number" value={form.sccAtOnset || ""} onChange={e => set("sccAtOnset", e.target.value ? parseInt(e.target.value) : null)} /></div>
+            <div><Label>Treatment Product</Label><Input value={form.treatmentProduct || ""} onChange={e => set("treatmentProduct", e.target.value)} /></div>
+            <div><Label>Duration (days)</Label><Input type="number" value={form.treatmentDurationDays || ""} onChange={e => set("treatmentDurationDays", e.target.value ? parseInt(e.target.value) : null)} /></div>
+            <div className="col-span-2 border-t pt-2"><p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">⚠ Organic — Doubled Withdrawal</p></div>
+            <div><Label>Standard Milk W/D (days)</Label><Input type="number" value={form.standardMilkWithdrawalDays || ""} onChange={e => { const v = e.target.value ? parseInt(e.target.value) : null; set("standardMilkWithdrawalDays", v); set("doubledMilkWithdrawalDays", v ? v * 2 : null); }} /></div>
+            <div><Label className="text-blue-700">Doubled Milk W/D (days)</Label><Input type="number" value={form.doubledMilkWithdrawalDays || ""} onChange={e => set("doubledMilkWithdrawalDays", e.target.value ? parseInt(e.target.value) : null)} className="border-blue-300" /></div>
+            <div><Label>Milk Withheld Until</Label><Input type="date" value={String(form.milkWithdrawnUntil || "").slice(0, 10)} onChange={e => set("milkWithdrawnUntil", e.target.value)} /></div>
+            <div><Label>Outcome</Label>
+              <Select value={form.outcome || "__none__"} onValueChange={v => set("outcome", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">Ongoing</SelectItem><SelectItem value="cured">Cured</SelectItem><SelectItem value="recovered">Recovered</SelectItem><SelectItem value="dried-off">Dried off early</SelectItem><SelectItem value="chronic">Chronic</SelectItem><SelectItem value="culled">Culled</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div><Label>Attending Vet</Label><Input value={form.attendingVet || ""} onChange={e => set("attendingVet", e.target.value)} /></div>
+            <div className="col-span-2 flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="rounded" checked={!!form.labSampleTaken} onChange={e => set("labSampleTaken", e.target.checked)} />Lab sample taken</label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="rounded" checked={!!form.chronicCase} onChange={e => set("chronicCase", e.target.checked)} />Chronic case</label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="rounded" checked={!!form.culledDueToMastitis} onChange={e => set("culledDueToMastitis", e.target.checked)} />Culled for mastitis</label>
+            </div>
+            <div className="col-span-2 flex items-center gap-3 rounded-md border px-3 py-2 bg-muted/30">
+              <Checkbox checked={!!form.certifierNotified} onCheckedChange={v => set("certifierNotified", !!v)} id="masti-cert-sheep" />
+              <Label htmlFor="masti-cert-sheep" className="cursor-pointer font-normal">Certifier has been notified of this antibiotic treatment</Label>
+            </div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={2} /></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>{save.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

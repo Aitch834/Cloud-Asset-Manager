@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import { AbrProcurementSection } from "@/pages/dairy/AbrProcurementSection";
 import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -34,13 +34,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Card, CardContent } from "@/components/ui/card";
 import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, ChevronLeft, ChevronRight, FileDown, Droplets, AlertTriangle, Loader2, CheckCircle2 } from "lucide-react";
 import { DocAttach } from "@/components/DocAttach";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { useToast } from "@/hooks/use-toast";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from "recharts";
-import { MastitisTab, CalvingTab, BcsTab, MobilityTab, BulkTankTab, DctTab, RecordingVisitsTab, SccEquipmentSection } from "@/pages/DairyPage";
+import { BcsTab, MobilityTab, BulkTankTab, RecordingVisitsTab, SccEquipmentSection } from "@/pages/DairyPage";
 import { openPrintWindow } from "@/lib/print-report";
 import { DairyEnterpriseReport } from "@/components/DairyEnterpriseReport";
 import { DairySuppliesTab } from "@/components/DairySuppliesTab";
@@ -108,6 +109,8 @@ function fmt(date: string | null | undefined) {
   if (!date) return "—";
   return new Date(date).toLocaleDateString("en-GB");
 }
+
+function today() { return new Date().toISOString().slice(0, 10); }
 
 function fmtRaw(v: unknown): string {
   return v == null || v === "" ? "—" : String(v);
@@ -359,6 +362,615 @@ type DairyTreatmentRecord = {
 };
 
 type CoreHerd = { id: number; name: string; type: string; herdNumber: string | null; isOrganicHerd?: boolean };
+
+// ─── Organic Dairy — MastitisTab ──────────────────────────────────────────────
+
+interface OrgDairyMastitisRecord {
+  id: number; onsetDate: string; earTagNumber?: string | null; quartersAffected?: string | null;
+  clinicalGrade?: string | null; bacterialCultureResult?: string | null; labSampleTaken?: boolean | null;
+  labRef?: string | null; sccAtOnset?: number | null; treatmentProduct?: string | null;
+  treatmentStartDate?: string | null; treatmentDurationDays?: number | null;
+  standardWithdrawalDays?: number | null; doubledWithdrawalDays?: number | null;
+  withdrawalEndDate?: string | null; certifierNotified?: boolean | null;
+  outcome?: string | null; outcomeDate?: string | null; attendingVet?: string | null;
+  chronicCase?: boolean | null; culledDueToMastitis?: boolean | null; notes?: string | null;
+}
+
+function MastitisTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<OrgDairyMastitisRecord | null>(null);
+  const [viewRec, setViewRec] = useState<OrgDairyMastitisRecord | null>(null);
+  const blank: Partial<OrgDairyMastitisRecord> = { onsetDate: today(), labSampleTaken: false, chronicCase: false, culledDueToMastitis: false, certifierNotified: false };
+  const [form, setForm] = useState<Partial<OrgDairyMastitisRecord>>(blank);
+  const setF = (k: keyof OrgDairyMastitisRecord, v: unknown) => setForm(p => ({ ...p, [k]: v }));
+
+  const { data, isLoading } = useQuery({ queryKey: ["dairy-mastitis", farmId], queryFn: () => fetch(`/api/farms/${farmId}/dairy/mastitis-records`, { credentials: "include" }).then(r => r.json()) });
+  const allRecords: OrgDairyMastitisRecord[] = data?.records ?? [];
+  const uncertifiedCount = allRecords.filter(r => r.treatmentProduct && !r.certifierNotified).length;
+
+  const [filterPreset, setFilterPreset] = useState<"12m" | "all">("12m");
+  const presetFrom = React.useMemo(() => {
+    if (filterPreset === "all") return null;
+    const d = new Date(); d.setFullYear(d.getFullYear() - 1); return d.toISOString().slice(0, 10);
+  }, [filterPreset]);
+  const filtered = React.useMemo(() => presetFrom ? allRecords.filter(r => (r.onsetDate || "") >= presetFrom) : allRecords, [allRecords, presetFrom]);
+
+  const save = useMutation({
+    mutationFn: (body: Partial<OrgDairyMastitisRecord>) => fetch(editing ? `/api/farms/${farmId}/dairy/mastitis-records/${editing.id}` : `/api/farms/${farmId}/dairy/mastitis-records`, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-mastitis", farmId] }); setOpen(false); toast({ title: editing ? "Updated" : "Added" }); },
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/dairy/mastitis-records/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-mastitis", farmId] }); toast({ title: "Deleted" }); },
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+        <strong>Organic rule:</strong> All withdrawal periods for mastitis treatments must be DOUBLED (EU/UK Organic Regulation). Record both standard and doubled milk withdrawal days and notify your certifier of any antibiotic use.
+      </div>
+      {uncertifiedCount > 0 && (
+        <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+          <span>{uncertifiedCount} treated case{uncertifiedCount !== 1 ? "s" : ""} where certifier has not been notified.</span>
+        </div>
+      )}
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <h2 className="text-base font-semibold text-gray-800">Mastitis Records</h2>
+          <Select value={filterPreset} onValueChange={v => setFilterPreset(v as "12m" | "all")}>
+            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="12m">Last 12 months</SelectItem><SelectItem value="all">All records</SelectItem></SelectContent>
+          </Select>
+        </div>
+        <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+      </div>
+      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : filtered.length === 0 ? (
+        <div className="text-center py-12 text-gray-400"><p>No mastitis records found.</p></div>
+      ) : (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>Date</TableHead><TableHead>Ear Tag</TableHead><TableHead>Quarter</TableHead>
+              <TableHead>Treatment</TableHead><TableHead>Dbl Milk W/D</TableHead><TableHead>Certifier</TableHead><TableHead>Outcome</TableHead><TableHead />
+            </TableRow></TableHeader>
+            <TableBody>{filtered.map(r => (
+              <TableRow key={r.id}>
+                <TableCell className="font-medium">{fmt(r.onsetDate)}</TableCell>
+                <TableCell className="font-mono text-xs">{r.earTagNumber || "—"}</TableCell>
+                <TableCell className="capitalize">{r.quartersAffected || "—"}</TableCell>
+                <TableCell>{r.treatmentProduct || "—"}</TableCell>
+                <TableCell>{r.doubledWithdrawalDays != null ? <Badge className="bg-blue-100 text-blue-800">{r.doubledWithdrawalDays}d</Badge> : "—"}</TableCell>
+                <TableCell><Badge className={r.certifierNotified ? "bg-green-100 text-green-800" : r.treatmentProduct ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-500"}>{r.certifierNotified ? "Notified" : r.treatmentProduct ? "Pending" : "N/A"}</Badge></TableCell>
+                <TableCell>{r.outcome || "Ongoing"}{r.chronicCase ? <span className="ml-1 text-xs text-amber-600">Chronic</span> : null}</TableCell>
+                <TableCell><div className="flex gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => setViewRec(r)}><Eye className="w-3.5 h-3.5" /></Button>
+                  <Button variant="ghost" size="sm" onClick={() => { setEditing(r); setForm(r); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                  <Button variant="ghost" size="sm" className="text-red-500" onClick={() => del.mutate(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                </div></TableCell>
+              </TableRow>
+            ))}</TableBody>
+          </Table>
+        </div>
+      )}
+      {viewRec && (
+        <Dialog open onOpenChange={() => setViewRec(null)}>
+          <DialogContent style={{ maxWidth: "36rem" }}>
+            <DialogHeader><DialogTitle>Mastitis — {viewRec.earTagNumber || "Unknown cow"} on {fmt(viewRec.onsetDate)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 text-sm py-2">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Ear Tag</p><p className="font-mono font-medium">{viewRec.earTagNumber || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Quarters Affected</p><p className="font-medium capitalize">{viewRec.quartersAffected || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Clinical Grade</p><p className="font-medium capitalize">{viewRec.clinicalGrade || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Pathogen</p><p className="font-medium">{viewRec.bacterialCultureResult || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">SCC at Onset</p><p className="font-medium">{viewRec.sccAtOnset?.toLocaleString() ?? "—"} k/mL</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Treatment Product</p><p className="font-medium">{viewRec.treatmentProduct || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Standard Milk W/D (days)</p><p className="font-medium">{viewRec.standardWithdrawalDays ?? "—"}</p></div>
+              <div><p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Doubled Milk W/D (days)</p><p className="font-bold text-blue-800">{viewRec.doubledWithdrawalDays ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Withdrawal End Date</p><p className="font-medium">{fmt(viewRec.withdrawalEndDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Notified</p><p className="font-medium">{viewRec.certifierNotified ? "Yes" : "Pending"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Outcome</p><p className="font-medium capitalize">{viewRec.outcome || "Ongoing"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Attending Vet</p><p className="font-medium">{viewRec.attendingVet || "—"}</p></div>
+              {viewRec.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRec.notes}</p></div>}
+            </div>
+            <DialogFooter><Button variant="outline" onClick={() => setViewRec(null)}>Close</Button><Button onClick={() => { setEditing(viewRec); setForm(viewRec); setOpen(true); setViewRec(null); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing ? "Edit Mastitis Record" : "Add Mastitis Record"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div><Label>Onset Date *</Label><Input type="date" value={String(form.onsetDate || "").slice(0, 10)} onChange={e => setF("onsetDate", e.target.value)} /></div>
+            <div><Label>Ear Tag</Label><Input value={form.earTagNumber || ""} onChange={e => setF("earTagNumber", e.target.value)} /></div>
+            <div><Label>Quarters Affected</Label>
+              <Select value={form.quartersAffected || "__none__"} onValueChange={v => setF("quartersAffected", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">Not specified</SelectItem><SelectItem value="LF">LF</SelectItem><SelectItem value="RF">RF</SelectItem><SelectItem value="LR">LR</SelectItem><SelectItem value="RR">RR</SelectItem><SelectItem value="multiple">Multiple</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div><Label>Clinical Grade</Label>
+              <Select value={form.clinicalGrade || "__none__"} onValueChange={v => setF("clinicalGrade", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">Not graded</SelectItem><SelectItem value="subclinical">Subclinical</SelectItem><SelectItem value="mild">Mild</SelectItem><SelectItem value="moderate">Moderate</SelectItem><SelectItem value="severe">Severe</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div><Label>Pathogen Identified</Label><Input value={form.bacterialCultureResult || ""} onChange={e => setF("bacterialCultureResult", e.target.value)} placeholder="e.g. Staph. aureus" /></div>
+            <div><Label>SCC at Onset (k/mL)</Label><Input type="number" value={form.sccAtOnset || ""} onChange={e => setF("sccAtOnset", e.target.value ? parseInt(e.target.value) : null)} /></div>
+            <div><Label>Treatment Product</Label><Input value={form.treatmentProduct || ""} onChange={e => setF("treatmentProduct", e.target.value)} /></div>
+            <div><Label>Treatment Start Date</Label><Input type="date" value={String(form.treatmentStartDate || "").slice(0, 10)} onChange={e => setF("treatmentStartDate", e.target.value)} /></div>
+            <div><Label>Duration (days)</Label><Input type="number" value={form.treatmentDurationDays || ""} onChange={e => setF("treatmentDurationDays", e.target.value ? parseInt(e.target.value) : null)} /></div>
+            <div className="col-span-2 border-t pt-2"><p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">⚠ Organic — Doubled Withdrawal</p></div>
+            <div><Label>Standard Milk W/D (days)</Label><Input type="number" value={form.standardWithdrawalDays || ""} onChange={e => { const v = e.target.value ? parseInt(e.target.value) : null; setF("standardWithdrawalDays", v); setF("doubledWithdrawalDays", v ? v * 2 : null); }} /></div>
+            <div><Label className="text-blue-700">Doubled Milk W/D (days)</Label><Input type="number" value={form.doubledWithdrawalDays || ""} onChange={e => setF("doubledWithdrawalDays", e.target.value ? parseInt(e.target.value) : null)} className="border-blue-300" /></div>
+            <div><Label>Withdrawal End Date</Label><Input type="date" value={String(form.withdrawalEndDate || "").slice(0, 10)} onChange={e => setF("withdrawalEndDate", e.target.value)} /></div>
+            <div><Label>Outcome</Label>
+              <Select value={form.outcome || "__none__"} onValueChange={v => setF("outcome", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">Ongoing</SelectItem><SelectItem value="cured">Cured</SelectItem><SelectItem value="recovered">Recovered</SelectItem><SelectItem value="dried-off">Dried off early</SelectItem><SelectItem value="chronic">Chronic</SelectItem><SelectItem value="culled">Culled</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div><Label>Attending Vet</Label><Input value={form.attendingVet || ""} onChange={e => setF("attendingVet", e.target.value)} /></div>
+            <div className="col-span-2 flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="rounded" checked={!!form.labSampleTaken} onChange={e => setF("labSampleTaken", e.target.checked)} />Lab sample taken</label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="rounded" checked={!!form.chronicCase} onChange={e => setF("chronicCase", e.target.checked)} />Chronic case</label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="rounded" checked={!!form.culledDueToMastitis} onChange={e => setF("culledDueToMastitis", e.target.checked)} />Culled for mastitis</label>
+            </div>
+            <div className="col-span-2 flex items-center gap-3 rounded-md border px-3 py-2 bg-muted/30">
+              <Checkbox checked={!!form.certifierNotified} onCheckedChange={v => setF("certifierNotified", !!v)} id="org-masti-cert" />
+              <Label htmlFor="org-masti-cert" className="cursor-pointer font-normal">Certifier has been notified of this antibiotic treatment</Label>
+            </div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => setF("notes", e.target.value)} rows={2} /></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>{save.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}Save</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Organic Dairy — CalvingTab ────────────────────────────────────────────────
+
+interface OrgCalvingRecord {
+  id: number; calvingDate: string; cowEarTag?: string | null; cowAnimalId?: number | null;
+  numberOfCalves?: number | null; calfSex?: string | null; calfEarTag?: string | null;
+  calfOutcome?: string | null; calfSex2?: string | null; calfEarTag2?: string | null; calfOutcome2?: string | null;
+  calfBirthWeightKg?: string | null; calvingEaseScore?: number | null;
+  assistanceRequired?: boolean | null; vetAttended?: boolean | null; vetName?: string | null;
+  colostrumGivenWithin2Hours?: boolean | null; colostrumGivenWithin6Hours?: boolean | null;
+  colostrumVolumeFirstFeedLitres?: string | null; colostrumFromOrganicDam?: boolean | null;
+  organicStatusConfirmed?: boolean | null;
+  bcmsPassportApplied?: boolean | null; calfAnimalId?: number | null;
+  perinatalCollectionDate?: string | null; perinatalCollectionRef?: string | null; perinatalDisposalMethod?: string | null;
+  notes?: string | null;
+}
+
+function OrgEaseScoreBadgeDairy({ v }: { v?: number | null }) {
+  if (!v) return <span className="text-gray-400">—</span>;
+  const cls = ["", "bg-green-100 text-green-800", "bg-lime-100 text-lime-800", "bg-amber-100 text-amber-800", "bg-red-100 text-red-800", "bg-red-200 text-red-900"];
+  const lbl = ["", "Unassisted", "Easy pull", "Hard pull", "Mech. assist", "C-section"];
+  return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${cls[v] || "bg-gray-100 text-gray-700"}`}>{v} — {lbl[v] || "Unknown"}</span>;
+}
+
+function CalvingTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<OrgCalvingRecord | null>(null);
+  const [viewRecord, setViewRecord] = useState<OrgCalvingRecord | null>(null);
+  const [form, setForm] = useState<Partial<OrgCalvingRecord>>({});
+  const CURRENT_YEAR = new Date().getFullYear();
+  const [yearFilter, setYearFilter] = useState(String(CURRENT_YEAR));
+  const setF = (k: keyof OrgCalvingRecord, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+
+  const { data, isLoading } = useQuery<{ records: OrgCalvingRecord[] }>({
+    queryKey: ["dairy-calving", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/dairy/calving-records`, { credentials: "include" }).then(r => r.json()),
+  });
+
+  const save = useMutation({
+    mutationFn: async (body: Partial<OrgCalvingRecord>) => {
+      const url = editing ? `/api/farms/${farmId}/dairy/calving-records/${editing.id}` : `/api/farms/${farmId}/dairy/calving-records`;
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-calving", farmId] }); setOpen(false); setEditing(null); setForm({}); toast({ title: editing ? "Updated" : "Added" }); },
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/dairy/calving-records/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-calving", farmId] }); toast({ title: "Deleted" }); },
+  });
+
+  function openAdd() { setEditing(null); setForm({ calvingDate: today(), numberOfCalves: 1, colostrumFromOrganicDam: true, organicStatusConfirmed: false }); setOpen(true); }
+  function openEdit(r: OrgCalvingRecord) { setEditing(r); setForm({ ...r, calvingDate: r.calvingDate.slice(0, 10) }); setOpen(true); }
+
+  const allRecords = data?.records ?? [];
+  const calvingRecords = yearFilter === "all" ? allRecords : allRecords.filter(r => r.calvingDate?.startsWith(yearFilter));
+  const calvingYears = [...new Set(allRecords.map(r => r.calvingDate?.slice(0, 4)).filter(Boolean))].sort((a, b) => Number(b) - Number(a)) as string[];
+  if (!calvingYears.includes(String(CURRENT_YEAR))) calvingYears.unshift(String(CURRENT_YEAR));
+
+  const totalCalves = calvingRecords.reduce((s, r) => s + (r.numberOfCalves ?? 1), 0);
+  const stillborns = calvingRecords.reduce((s, r) => s + (r.calfOutcome === "stillborn" ? 1 : 0) + (r.calfOutcome2 === "stillborn" ? 1 : 0), 0);
+  const colostrumRisk = calvingRecords.filter(r => r.calfOutcome !== "stillborn" && r.colostrumGivenWithin2Hours === false).length;
+  const nonOrganicColostrum = calvingRecords.filter(r => r.colostrumFromOrganicDam === false).length;
+  const hasDeadCalf = (r: Partial<OrgCalvingRecord>) => r.calfOutcome === "stillborn" || r.calfOutcome === "died-within-24h" || r.calfOutcome2 === "stillborn" || r.calfOutcome2 === "died-within-24h";
+
+  return (
+    <div className="space-y-4">
+      <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+        <strong>Organic welfare:</strong> Colostrum must be given within 2 hours of birth from the dam where possible. Record whether colostrum came from an organic dam. Confirm organic status of each calf born into the herd.
+      </div>
+      <div className="grid grid-cols-4 gap-3">
+        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Calvings</p><p className="text-2xl font-bold">{calvingRecords.length}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Live Calves</p><p className="text-2xl font-bold text-green-700">{totalCalves - stillborns}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Stillborn</p><p className={`text-2xl font-bold ${stillborns > 0 ? "text-red-700" : "text-gray-400"}`}>{stillborns}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Col. Risk</p><p className={`text-2xl font-bold ${colostrumRisk > 0 ? "text-amber-700" : "text-gray-400"}`}>{colostrumRisk}</p></CardContent></Card>
+      </div>
+      {colostrumRisk > 0 && <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800"><AlertTriangle className="h-4 w-4 flex-shrink-0" /><span>{colostrumRisk} calf{colostrumRisk !== 1 ? "s" : ""} did NOT receive colostrum within 2 hours — organic welfare concern.</span></div>}
+      {nonOrganicColostrum > 0 && <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800"><AlertTriangle className="h-4 w-4 flex-shrink-0" /><span>{nonOrganicColostrum} birth{nonOrganicColostrum !== 1 ? "s" : ""} used non-organic colostrum — document justification in notes.</span></div>}
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <h2 className="text-base font-semibold text-gray-800">Calving Records</h2>
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-28 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>{calvingYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}<SelectItem value="all">All years</SelectItem></SelectContent>
+          </Select>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Calving</Button>
+      </div>
+      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : calvingRecords.length === 0 ? (
+        <div className="text-center py-12 text-gray-400"><p>No calving records for {yearFilter === "all" ? "any year" : yearFilter}.</p></div>
+      ) : (
+        <div className="space-y-2">
+          {calvingRecords.map(r => (
+            <Card key={r.id}>
+              <CardContent className="py-3 px-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-sm">{fmt(r.calvingDate)}</span>
+                    {r.cowEarTag && <span className="font-mono text-xs text-gray-700">Dam: {r.cowEarTag}</span>}
+                    <OrgEaseScoreBadgeDairy v={r.calvingEaseScore} />
+                    {r.numberOfCalves && r.numberOfCalves > 1 && <Badge className="bg-purple-100 text-purple-700">Twins ×{r.numberOfCalves}</Badge>}
+                    {r.calfOutcome && <Badge className={r.calfOutcome === "live" ? "bg-green-100 text-green-700" : r.calfOutcome === "stillborn" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-700"}>{r.calfOutcome}</Badge>}
+                    {r.calfEarTag && <span className="font-mono text-xs text-gray-500">Calf: {r.calfEarTag}</span>}
+                    {r.colostrumGivenWithin2Hours === true && <Badge className="bg-green-100 text-green-700">Col ≤2h ✓</Badge>}
+                    {r.colostrumGivenWithin2Hours === false && <Badge className="bg-red-100 text-red-700">Col &gt;2h ⚠</Badge>}
+                    {r.colostrumFromOrganicDam === false && <Badge className="bg-amber-100 text-amber-700">Non-organic col.</Badge>}
+                    {r.organicStatusConfirmed && <Badge className="bg-teal-100 text-teal-700">Organic ✓</Badge>}
+                    {r.bcmsPassportApplied && <Badge className="bg-blue-100 text-blue-700">Passport ✓</Badge>}
+                    {hasDeadCalf(r) && !r.perinatalCollectionDate && <Badge className="bg-red-100 text-red-700">⚠ ABP not recorded</Badge>}
+                  </div>
+                  <div className="flex gap-1 ml-2">
+                    <Button variant="ghost" size="sm" onClick={() => setViewRecord(r)}><Eye className="w-3.5 h-3.5" /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                    <Button variant="ghost" size="sm" className="text-red-400" onClick={() => del.mutate(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                  </div>
+                </div>
+                {r.notes && <p className="text-xs text-gray-400 mt-1">{r.notes}</p>}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "36rem" }}>
+            <DialogHeader><DialogTitle>Calving — {fmt(viewRecord.calvingDate)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 text-sm py-2">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Dam Ear Tag</p><p className="font-mono font-medium">{viewRecord.cowEarTag || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">No. Calves</p><p className="font-medium">{viewRecord.numberOfCalves ?? 1}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Calf Outcome</p><p className="font-medium capitalize">{viewRecord.calfOutcome || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Sex</p><p className="font-medium capitalize">{viewRecord.calfSex || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Calf Ear Tag</p><p className="font-mono font-medium">{viewRecord.calfEarTag || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Birth Weight (kg)</p><p className="font-medium">{viewRecord.calfBirthWeightKg || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Ease Score</p><OrgEaseScoreBadgeDairy v={viewRecord.calvingEaseScore} /></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Colostrum ≤2h</p><p className="font-medium">{viewRecord.colostrumGivenWithin2Hours === true ? "Yes ✓" : viewRecord.colostrumGivenWithin2Hours === false ? "No ⚠" : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Col. Volume (1st feed)</p><p className="font-medium">{viewRecord.colostrumVolumeFirstFeedLitres ? `${viewRecord.colostrumVolumeFirstFeedLitres} L` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Colostrum from Organic Dam</p><p className="font-medium">{viewRecord.colostrumFromOrganicDam === true ? "Yes" : viewRecord.colostrumFromOrganicDam === false ? "No — see notes" : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Organic Status Confirmed</p><p className="font-medium">{viewRecord.organicStatusConfirmed ? "Yes" : "Pending"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">BCMS Passport Applied</p><p className="font-medium">{viewRecord.bcmsPassportApplied ? "Yes" : "No"}</p></div>
+              {hasDeadCalf(viewRecord) && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">ABP Disposal</p><p className="font-medium">{viewRecord.perinatalCollectionDate ? `Collected ${fmt(viewRecord.perinatalCollectionDate)} · Ref: ${viewRecord.perinatalCollectionRef || "—"} · Method: ${viewRecord.perinatalDisposalMethod || "—"}` : "Not recorded ⚠"}</p></div>}
+              {viewRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRecord.notes}</p></div>}
+            </div>
+            <DialogFooter><Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button><Button onClick={() => { openEdit(viewRecord); setViewRecord(null); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing ? "Edit Calving Record" : "Add Calving Record"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div><Label>Calving Date *</Label><Input type="date" value={String(form.calvingDate || "").slice(0, 10)} onChange={e => setF("calvingDate", e.target.value)} /></div>
+            <div><Label>Dam Ear Tag</Label><Input value={form.cowEarTag || ""} onChange={e => setF("cowEarTag", e.target.value)} /></div>
+            <div><Label>No. Calves</Label><Input type="number" min="1" max="3" value={form.numberOfCalves ?? 1} onChange={e => setF("numberOfCalves", parseInt(e.target.value))} /></div>
+            <div><Label>Ease Score</Label>
+              <Select value={String(form.calvingEaseScore || "")} onValueChange={v => setF("calvingEaseScore", v ? parseInt(v) : null)}>
+                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent><SelectItem value="1">1 — Unassisted</SelectItem><SelectItem value="2">2 — Easy pull</SelectItem><SelectItem value="3">3 — Hard pull</SelectItem><SelectItem value="4">4 — Mech. assistance</SelectItem><SelectItem value="5">5 — C-section</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div><Label>Calf 1 — Outcome</Label>
+              <Select value={form.calfOutcome || "__none__"} onValueChange={v => setF("calfOutcome", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="live">Live</SelectItem><SelectItem value="stillborn">Stillborn</SelectItem><SelectItem value="died-within-24h">Died within 24h</SelectItem><SelectItem value="__none__">Not recorded</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div><Label>Calf 1 — Sex</Label>
+              <Select value={form.calfSex || "__none__"} onValueChange={v => setF("calfSex", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="male">Bull calf</SelectItem><SelectItem value="female">Heifer calf</SelectItem><SelectItem value="__none__">Not recorded</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div><Label>Calf 1 — Ear Tag</Label><Input value={form.calfEarTag || ""} onChange={e => setF("calfEarTag", e.target.value)} /></div>
+            <div><Label>Birth Weight (kg)</Label><Input type="number" step="0.1" value={form.calfBirthWeightKg || ""} onChange={e => setF("calfBirthWeightKg", e.target.value)} /></div>
+            {(form.numberOfCalves ?? 1) > 1 && <>
+              <div><Label>Calf 2 — Outcome</Label>
+                <Select value={form.calfOutcome2 || "__none__"} onValueChange={v => setF("calfOutcome2", v === "__none__" ? null : v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="live">Live</SelectItem><SelectItem value="stillborn">Stillborn</SelectItem><SelectItem value="died-within-24h">Died within 24h</SelectItem><SelectItem value="__none__">Not recorded</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div><Label>Calf 2 — Sex</Label>
+                <Select value={form.calfSex2 || "__none__"} onValueChange={v => setF("calfSex2", v === "__none__" ? null : v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="male">Bull calf</SelectItem><SelectItem value="female">Heifer calf</SelectItem><SelectItem value="__none__">Not recorded</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div><Label>Calf 2 — Ear Tag</Label><Input value={form.calfEarTag2 || ""} onChange={e => setF("calfEarTag2", e.target.value)} /></div>
+            </>}
+            <div className="border-t col-span-2 pt-2"><p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-1">⚠ Organic Welfare — Colostrum</p></div>
+            <div><Label>Colostrum Given ≤2h *</Label>
+              <Select value={form.colostrumGivenWithin2Hours == null ? "__none__" : form.colostrumGivenWithin2Hours ? "yes" : "no"} onValueChange={v => setF("colostrumGivenWithin2Hours", v === "__none__" ? null : v === "yes")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="yes">Yes ✓</SelectItem><SelectItem value="no">No ⚠</SelectItem><SelectItem value="__none__">Not recorded</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div><Label>Colostrum ≤6h</Label>
+              <Select value={form.colostrumGivenWithin6Hours == null ? "__none__" : form.colostrumGivenWithin6Hours ? "yes" : "no"} onValueChange={v => setF("colostrumGivenWithin6Hours", v === "__none__" ? null : v === "yes")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="yes">Yes ✓</SelectItem><SelectItem value="no">No</SelectItem><SelectItem value="__none__">Not recorded</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div><Label>Volume 1st Feed (L)</Label><Input type="number" step="0.1" value={form.colostrumVolumeFirstFeedLitres || ""} onChange={e => setF("colostrumVolumeFirstFeedLitres", e.target.value)} /></div>
+            <div><Label>Colostrum from Organic Dam</Label>
+              <Select value={form.colostrumFromOrganicDam == null ? "__none__" : form.colostrumFromOrganicDam ? "yes" : "no"} onValueChange={v => setF("colostrumFromOrganicDam", v === "__none__" ? null : v === "yes")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="yes">Yes</SelectItem><SelectItem value="no">No — note reason</SelectItem><SelectItem value="__none__">Not recorded</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 flex items-center gap-3 rounded-md border px-3 py-2 bg-green-50 border-green-200">
+              <Checkbox checked={!!form.organicStatusConfirmed} onCheckedChange={v => setF("organicStatusConfirmed", !!v)} id="org-calving-status" />
+              <Label htmlFor="org-calving-status" className="cursor-pointer font-normal text-green-800">Organic status of this birth confirmed</Label>
+            </div>
+            <div className="border-t col-span-2 pt-2"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">BCMS / Registration</p></div>
+            <div className="col-span-2 flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="rounded" checked={!!form.assistanceRequired} onChange={e => setF("assistanceRequired", e.target.checked)} />Assistance required</label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="rounded" checked={!!form.vetAttended} onChange={e => setF("vetAttended", e.target.checked)} />Vet attended</label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="rounded" checked={!!form.bcmsPassportApplied} onChange={e => setF("bcmsPassportApplied", e.target.checked)} />BCMS passport applied</label>
+            </div>
+            {form.vetAttended && <div><Label>Vet Name</Label><Input value={form.vetName || ""} onChange={e => setF("vetName", e.target.value)} /></div>}
+            {hasDeadCalf(form) && (
+              <div className="col-span-2 space-y-2 rounded-md border border-red-100 p-3">
+                <p className="text-xs font-semibold text-red-700 uppercase tracking-wide">ABP Disposal (required for dead calves)</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div><Label>Collection Date</Label><Input type="date" value={String(form.perinatalCollectionDate || "").slice(0, 10)} onChange={e => setF("perinatalCollectionDate", e.target.value)} /></div>
+                  <div><Label>Collection Ref</Label><Input value={form.perinatalCollectionRef || ""} onChange={e => setF("perinatalCollectionRef", e.target.value)} /></div>
+                  <div className="col-span-2"><Label>Disposal Method</Label><Input value={form.perinatalDisposalMethod || ""} onChange={e => setF("perinatalDisposalMethod", e.target.value)} placeholder="e.g. licensed knackery" /></div>
+                </div>
+              </div>
+            )}
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => setF("notes", e.target.value)} rows={2} /></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>{save.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}Save</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Organic Dairy — DctTab ───────────────────────────────────────────────────
+
+interface OrgDctRecord {
+  id: number; dryOffDate: string; cowEarTag?: string | null; animalId?: number | null;
+  protocol: string; antibioticTubeProduct?: string | null; antibioticTubeBatch?: string | null;
+  standardMilkWithdrawalDays?: number | null; doubledMilkWithdrawalDays?: number | null;
+  antibioticTubeWithdrawalMeatDays?: number | null;
+  teatSealantProduct?: string | null; teatSealantBatch?: string | null;
+  sccAtDryOff?: number | null; mastitisEpisodes12Months?: number | null;
+  vetAuthorisation?: boolean | null; vetName?: string | null;
+  therapeuticJustification?: string | null; certifierNotified?: boolean | null;
+  expectedCalvingDate?: string | null; notes?: string | null;
+}
+
+function DctTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<OrgDctRecord | null>(null);
+  const [viewRecord, setViewRecord] = useState<OrgDctRecord | null>(null);
+  const [form, setForm] = useState<Partial<OrgDctRecord>>({});
+  const setF = (k: keyof OrgDctRecord, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+
+  const { data, isLoading } = useQuery<{ records: OrgDctRecord[] }>({
+    queryKey: ["dairy-dct", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/dairy/dct-records`, { credentials: "include" }).then(r => r.json()),
+  });
+
+  const save = useMutation({
+    mutationFn: async (body: Partial<OrgDctRecord>) => {
+      const url = editing ? `/api/farms/${farmId}/dairy/dct-records/${editing.id}` : `/api/farms/${farmId}/dairy/dct-records`;
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-dct", farmId] }); setOpen(false); setEditing(null); setForm({}); toast({ title: editing ? "Updated" : "Added" }); },
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/dairy/dct-records/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-dct", farmId] }); toast({ title: "Deleted" }); },
+  });
+
+  function openAdd() { setEditing(null); setForm({ dryOffDate: today(), protocol: "selective", vetAuthorisation: true, certifierNotified: false }); setOpen(true); }
+  function openEdit(r: OrgDctRecord) { setEditing(r); setForm({ ...r, dryOffDate: r.dryOffDate.slice(0, 10), expectedCalvingDate: r.expectedCalvingDate?.slice(0, 10) }); setOpen(true); }
+
+  const allRecords = data?.records ?? [];
+  const [dctListYear, setDctListYear] = useState("all");
+  const dctListYears = React.useMemo(() => Array.from(new Set(allRecords.map(r => String(r.dryOffDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allRecords]);
+  const filteredList = dctListYear === "all" ? allRecords : allRecords.filter(r => String(r.dryOffDate ?? "").startsWith(dctListYear));
+
+  const uncertifiedCount = allRecords.filter(r => r.antibioticTubeProduct && !r.certifierNotified).length;
+  const blanketCount = allRecords.filter(r => r.protocol === "blanket" || r.protocol === "blanket-sealant").length;
+
+  const ORG_PROTOCOLS = [
+    { value: "selective", label: "Selective DCT — therapeutic only (antibiotic where indicated)" },
+    { value: "teat-sealant-only", label: "Teat Sealant Only (no antibiotic)" },
+    { value: "selective-sealant", label: "Selective DCT + Teat Sealant" },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+        <strong>Organic rule:</strong> Blanket DCT (routine antibiotic dry-off of all cows) is NOT permitted on organic farms. All antibiotic use must be therapeutic with documented justification, vet authorisation, doubled withdrawal periods, and certifier notification.
+      </div>
+      {blanketCount > 0 && (
+        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+          <span>{blanketCount} record{blanketCount !== 1 ? "s" : ""} recorded as Blanket DCT — this is not compliant on an organic farm.</span>
+        </div>
+      )}
+      {uncertifiedCount > 0 && (
+        <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+          <span>{uncertifiedCount} antibiotic treatment{uncertifiedCount !== 1 ? "s" : ""} where certifier has not been notified.</span>
+        </div>
+      )}
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <h2 className="text-base font-semibold text-gray-800">Dry Cow Therapy Records</h2>
+          <Select value={dctListYear} onValueChange={setDctListYear}>
+            <SelectTrigger className="w-28 h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{dctListYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add DCT Record</Button>
+      </div>
+      {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : filteredList.length === 0 ? (
+        <div className="text-center py-12 text-gray-400"><p>No DCT records yet.</p></div>
+      ) : (
+        <div className="space-y-2">
+          {filteredList.map(r => (
+            <Card key={r.id}>
+              <CardContent className="py-3 px-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-sm">{fmt(r.dryOffDate)}</span>
+                    {r.cowEarTag && <span className="font-mono text-xs text-gray-700">{r.cowEarTag}</span>}
+                    <Badge className={r.protocol === "blanket" || r.protocol === "blanket-sealant" ? "bg-red-100 text-red-700" : r.protocol === "teat-sealant-only" ? "bg-green-100 text-green-700" : "bg-indigo-100 text-indigo-700"}>{r.protocol.replace(/-/g, " ")}</Badge>
+                    {r.antibioticTubeProduct && <span className="text-xs text-gray-500">{r.antibioticTubeProduct}</span>}
+                    {r.doubledMilkWithdrawalDays != null && <Badge className="bg-blue-100 text-blue-800">Dbl W/D: {r.doubledMilkWithdrawalDays}d</Badge>}
+                    {r.vetAuthorisation && <Badge className="bg-green-100 text-green-700">Vet auth ✓</Badge>}
+                    {r.certifierNotified && <Badge className="bg-teal-100 text-teal-700">Certifier notified ✓</Badge>}
+                    {r.antibioticTubeProduct && !r.certifierNotified && <Badge className="bg-amber-100 text-amber-700">Certifier pending ⚠</Badge>}
+                  </div>
+                  <div className="flex gap-1 ml-2">
+                    <Button variant="ghost" size="sm" onClick={() => setViewRecord(r)}><Eye className="w-3.5 h-3.5" /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                    <Button variant="ghost" size="sm" className="text-red-400" onClick={() => del.mutate(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                  </div>
+                </div>
+                {r.therapeuticJustification && <p className="text-xs text-gray-500 mt-1">Justification: {r.therapeuticJustification}</p>}
+                {r.notes && <p className="text-xs text-gray-400 mt-0.5">{r.notes}</p>}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "36rem" }}>
+            <DialogHeader><DialogTitle>DCT Record — {fmt(viewRecord.dryOffDate)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 text-sm py-2">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Cow Ear Tag</p><p className="font-mono font-medium">{viewRecord.cowEarTag || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Dry-Off Date</p><p className="font-medium">{fmt(viewRecord.dryOffDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Protocol</p><p className="font-medium capitalize">{viewRecord.protocol?.replace(/-/g, " ")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Antibiotic Product</p><p className="font-medium">{viewRecord.antibioticTubeProduct || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Standard Milk W/D (days)</p><p className="font-medium">{viewRecord.standardMilkWithdrawalDays ?? "—"}</p></div>
+              <div><p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Doubled Milk W/D (days)</p><p className="font-bold text-blue-800">{viewRecord.doubledMilkWithdrawalDays ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Teat Sealant</p><p className="font-medium">{viewRecord.teatSealantProduct || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">SCC at Dry-Off</p><p className="font-medium">{viewRecord.sccAtDryOff?.toLocaleString() ?? "—"} k/mL</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Mastitis Eps (12m)</p><p className="font-medium">{viewRecord.mastitisEpisodes12Months ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Authorisation</p><p className="font-medium">{viewRecord.vetAuthorisation ? "Yes" : "No ⚠"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Name</p><p className="font-medium">{viewRecord.vetName || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Notified</p><p className="font-medium">{viewRecord.certifierNotified ? "Yes" : viewRecord.antibioticTubeProduct ? "Pending ⚠" : "N/A"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Expected Calving</p><p className="font-medium">{fmt(viewRecord.expectedCalvingDate)}</p></div>
+              {viewRecord.therapeuticJustification && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Therapeutic Justification</p><p className="font-medium">{viewRecord.therapeuticJustification}</p></div>}
+              {viewRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRecord.notes}</p></div>}
+            </div>
+            <DialogFooter><Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button><Button onClick={() => { openEdit(viewRecord); setViewRecord(null); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing ? "Edit DCT Record" : "Add Dry Cow Therapy Record"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div><Label>Cow Ear Tag</Label><Input value={form.cowEarTag || ""} onChange={e => setF("cowEarTag", e.target.value)} /></div>
+            <div><Label>Dry-Off Date *</Label><Input type="date" value={String(form.dryOffDate || "").slice(0, 10)} onChange={e => setF("dryOffDate", e.target.value)} /></div>
+            <div className="col-span-2"><Label>Protocol *</Label>
+              <Select value={form.protocol || "selective"} onValueChange={v => setF("protocol", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{ORG_PROTOCOLS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            {form.protocol !== "teat-sealant-only" && (
+              <>
+                <div className="col-span-2 border-t pt-2"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Antibiotic Tube</p></div>
+                <div className="col-span-2"><Label>Product Name</Label><Input value={form.antibioticTubeProduct || ""} onChange={e => setF("antibioticTubeProduct", e.target.value)} placeholder="e.g. Orbeseal, Bovaclox DC" /></div>
+                <div><Label>Batch Number</Label><Input value={form.antibioticTubeBatch || ""} onChange={e => setF("antibioticTubeBatch", e.target.value)} /></div>
+                <div />
+                <div className="col-span-2 border-t pt-2"><p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">⚠ Organic — Doubled Withdrawal</p></div>
+                <div><Label>Standard Milk W/D (days)</Label><Input type="number" value={form.standardMilkWithdrawalDays || ""} onChange={e => { const v = e.target.value ? parseInt(e.target.value) : null; setF("standardMilkWithdrawalDays", v); setF("doubledMilkWithdrawalDays", v ? v * 2 : null); }} /></div>
+                <div><Label className="text-blue-700">Doubled Milk W/D (days)</Label><Input type="number" value={form.doubledMilkWithdrawalDays || ""} onChange={e => setF("doubledMilkWithdrawalDays", e.target.value ? parseInt(e.target.value) : null)} className="border-blue-300" /></div>
+                <div><Label>Meat W/D (days)</Label><Input type="number" value={form.antibioticTubeWithdrawalMeatDays || ""} onChange={e => setF("antibioticTubeWithdrawalMeatDays", e.target.value ? parseInt(e.target.value) : null)} /></div>
+              </>
+            )}
+            {form.protocol?.includes("sealant") && (
+              <>
+                <div className="col-span-2 border-t pt-2"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Teat Sealant</p></div>
+                <div><Label>Product</Label><Input value={form.teatSealantProduct || ""} onChange={e => setF("teatSealantProduct", e.target.value)} /></div>
+                <div><Label>Batch Number</Label><Input value={form.teatSealantBatch || ""} onChange={e => setF("teatSealantBatch", e.target.value)} /></div>
+              </>
+            )}
+            {form.protocol === "teat-sealant-only" && (
+              <>
+                <div className="col-span-2 border-t pt-2"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Teat Sealant</p></div>
+                <div><Label>Product</Label><Input value={form.teatSealantProduct || ""} onChange={e => setF("teatSealantProduct", e.target.value)} /></div>
+                <div><Label>Batch Number</Label><Input value={form.teatSealantBatch || ""} onChange={e => setF("teatSealantBatch", e.target.value)} /></div>
+              </>
+            )}
+            <div className="border-t col-span-2 pt-2"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Cow Data</p></div>
+            <div><Label>SCC at Dry-Off (k/mL)</Label><Input type="number" value={form.sccAtDryOff || ""} onChange={e => setF("sccAtDryOff", e.target.value ? parseInt(e.target.value) : null)} /></div>
+            <div><Label>Mastitis Eps (12m)</Label><Input type="number" min="0" value={form.mastitisEpisodes12Months ?? ""} onChange={e => setF("mastitisEpisodes12Months", e.target.value ? parseInt(e.target.value) : null)} /></div>
+            <div><Label>Expected Calving</Label><Input type="date" value={String(form.expectedCalvingDate || "").slice(0, 10)} onChange={e => setF("expectedCalvingDate", e.target.value)} /></div>
+            <div><Label>Vet Name</Label><Input value={form.vetName || ""} onChange={e => setF("vetName", e.target.value)} /></div>
+            <div className="col-span-2 flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="rounded" checked={!!form.vetAuthorisation} onChange={e => setF("vetAuthorisation", e.target.checked)} />Vet authorisation in place</label>
+            </div>
+            {form.protocol !== "teat-sealant-only" && (
+              <>
+                <div className="col-span-2 flex items-center gap-3 rounded-md border px-3 py-2 bg-muted/30">
+                  <Checkbox checked={!!form.certifierNotified} onCheckedChange={v => setF("certifierNotified", !!v)} id="org-dct-cert" />
+                  <Label htmlFor="org-dct-cert" className="cursor-pointer font-normal">Certifier has been notified of this antibiotic treatment</Label>
+                </div>
+                <div className="col-span-2"><Label>Therapeutic Justification *</Label><Textarea value={form.therapeuticJustification || ""} onChange={e => setF("therapeuticJustification", e.target.value)} rows={2} placeholder="Document why antibiotic DCT is indicated for this cow (mastitis history, SCC, clinical signs…)" /></div>
+              </>
+            )}
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => setF("notes", e.target.value)} rows={2} /></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>{save.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}Save</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
 // ─── HerdConversionTab ────────────────────────────────────────────────────────
 
