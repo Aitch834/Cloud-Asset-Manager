@@ -22,7 +22,7 @@ import {
   Wheat, BarChart3, Scale, AlertCircle, Info, Loader2,
   Truck, FileCheck, X, ChevronDown, ChevronRight, ArrowRight,
   CloudSun, Tractor, MapPin, Gauge, Calendar, BadgeCheck,
-  Flame, Zap, HardHat, ClipboardList, SquareCheck
+  Flame, Zap, HardHat, ClipboardList, SquareCheck, Printer
 } from "lucide-react";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
@@ -44,6 +44,12 @@ const BIOMASS_SCHEMES = [
   "BECS (Biomass Energy Crop Scheme)", "RHI — Own installation",
   "AD Plant (Anaerobic Digestion)", "SARIA / Organic Processors",
   "ENplus Certified Scheme", "Straw to Energy — Direct Offtake", "Other",
+];
+const FUSARIUM_METHODS = [
+  "Visual inspection",
+  "DON lateral flow test (e.g. Romer QuickScan)",
+  "NIR analysis",
+  "Third-party laboratory test",
 ];
 const CHART_COLORS = ["#16a34a", "#2563eb", "#d97706", "#dc2626", "#7c3aed", "#0891b2"];
 
@@ -668,6 +674,8 @@ function InventoryDialog({ open, onClose, farmId, editRow, existingInventory, ba
     storageLocation: "", storageType: "Indoor", stackingStartDate: today(),
     redTractorCertified: false, combinableCropsPassportRef: "",
     pppResidueRisk: "Low", fusariumRiskAssessed: false,
+    fusariumAssessmentDate: today(), fusariumAssessmentMethod: "Visual inspection",
+    fusariumRiskLevel: "Low", fusariumAssessorName: "",
     biomassContract: false, biomassScheme: "", biomassUniqueBaleRef: "",
     status: "in_stock", notes: "",
   };
@@ -709,9 +717,14 @@ function InventoryDialog({ open, onClose, farmId, editRow, existingInventory, ba
           stackingStartDate: editRow.stackingStartDate ?? today(),
           redTractorCertified: editRow.redTractorCertified ?? false,
           combinableCropsPassportRef: editRow.combinableCropsPassportRef ?? "",
-          pppResidueRisk: editRow.pppResidueRisk ?? "Low", fusariumRiskAssessed: editRow.fusariumRiskAssessed ?? false,
+          pppResidueRisk: editRow.pppResidueRisk ?? "Low",
+          fusariumRiskAssessed: editRow.fusariumRiskAssessed ?? false,
+          fusariumAssessmentDate: editRow.fusariumAssessmentDate ?? today(),
+          fusariumAssessmentMethod: editRow.fusariumAssessmentMethod ?? "Visual inspection",
+          fusariumRiskLevel: editRow.fusariumRiskLevel ?? "Low",
+          fusariumAssessorName: editRow.fusariumAssessorName ?? "",
           biomassContract: editRow.biomassContract ?? false,
-          biomassScheme: editRow.biomassScheme ?? "", biomassUniqueBaleRef: editRow.biomassUniqueBaleRef ?? "",
+          biomassScheme: editRow.biomassSchemeName ?? "", biomassUniqueBaleRef: editRow.biomassUniqueBaleRef ?? "",
           status: editRow.status ?? "in_stock", notes: editRow.notes ?? "",
         });
       } else if (balingOp) {
@@ -798,9 +811,14 @@ function InventoryDialog({ open, onClose, farmId, editRow, existingInventory, ba
     stackingStartDate: form.stackingStartDate || null,
     redTractorCertified: form.redTractorCertified,
     combinableCropsPassportRef: form.combinableCropsPassportRef || null,
-    pppResidueRisk: form.pppResidueRisk, fusariumRiskAssessed: form.fusariumRiskAssessed,
+    pppResidueRisk: form.pppResidueRisk,
+    fusariumRiskAssessed: form.fusariumRiskAssessed,
+    fusariumAssessmentDate: form.fusariumRiskAssessed ? (form.fusariumAssessmentDate || null) : null,
+    fusariumAssessmentMethod: form.fusariumRiskAssessed ? (form.fusariumAssessmentMethod || null) : null,
+    fusariumRiskLevel: form.fusariumRiskAssessed ? (form.fusariumRiskLevel || null) : null,
+    fusariumAssessorName: form.fusariumRiskAssessed ? (form.fusariumAssessorName || null) : null,
     biomassContract: form.biomassContract,
-    biomassScheme: form.biomassScheme || null, biomassUniqueBaleRef: form.biomassUniqueBaleRef || null,
+    biomassSchemeName: form.biomassScheme || null, biomassUniqueBaleRef: form.biomassUniqueBaleRef || null,
     status: form.status,
     balingOperationId: balingOp?.id ?? null,
     notes: form.notes || null,
@@ -936,13 +954,46 @@ function InventoryDialog({ open, onClose, farmId, editRow, existingInventory, ba
             </div>
             {form.strawType === "Wheat Straw" && !form.fusariumRiskAssessed && (
               <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1.5 flex gap-1.5 items-start">
-                <AlertCircle size={13} className="mt-0.5 shrink-0" />Red Tractor requires a Fusarium mycotoxin risk assessment for wheat straw. This is a documented agronomic review covering field signs, fungicide programme, and season weather — tick once the assessment has been completed and recorded.
+                <AlertCircle size={13} className="mt-0.5 shrink-0" />Red Tractor requires a Fusarium mycotoxin risk assessment for wheat straw. Tick once the assessment (visual inspection, DON test, NIR, or third-party lab) has been completed and recorded below.
               </p>
             )}
             {form.strawType === "Wheat Straw" && form.fusariumRiskAssessed && (
-              <p className="mt-2 text-xs text-green-700 bg-green-50 rounded px-2 py-1.5 flex gap-1.5 items-center">
-                <CheckCircle2 size={13} className="shrink-0" />Fusarium risk assessment recorded for this wheat straw batch.
-              </p>
+              <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg space-y-3">
+                <p className="text-xs font-semibold text-green-800 flex items-center gap-1.5"><CheckCircle2 size={13} />Fusarium Risk Assessment Details</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-xs">Assessment Method</Label>
+                    <Select value={form.fusariumAssessmentMethod} onValueChange={f("fusariumAssessmentMethod")}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>{FUSARIUM_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Risk Outcome</Label>
+                    <Select value={form.fusariumRiskLevel} onValueChange={f("fusariumRiskLevel")}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Low">Low</SelectItem>
+                        <SelectItem value="Medium">Medium</SelectItem>
+                        <SelectItem value="High">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Assessment Date</Label>
+                    <Input type="date" className="h-8 text-xs" value={form.fusariumAssessmentDate} onChange={e => f("fusariumAssessmentDate")(e.target.value)} />
+                  </div>
+                  <div className="col-span-3">
+                    <Label className="text-xs">Assessor Name / Organisation</Label>
+                    <Input className="h-8 text-xs" placeholder="e.g. John Smith, BASIS agronomist" value={form.fusariumAssessorName} onChange={e => f("fusariumAssessorName")(e.target.value)} />
+                  </div>
+                </div>
+                {form.fusariumRiskLevel === "High" && (
+                  <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1.5 flex gap-1.5 items-start">
+                    <AlertTriangle size={12} className="mt-0.5 shrink-0" />High Fusarium risk — consider whether this straw is suitable for animal feed. Seek veterinary or nutritional advice before supplying to livestock.
+                  </p>
+                )}
+              </div>
             )}
           </div>
 
@@ -1636,6 +1687,7 @@ export default function StrawManagementPage() {
   const [balingDlg, setBalingDlg] = useState<{ open: boolean; row?: any }>({ open: false });
   const [journeyDlg, setJourneyDlg] = useState<{ open: boolean; balingOp?: any }>({ open: false });
   const [invDlg, setInvDlg] = useState<{ open: boolean; row?: any; balingOp?: any }>({ open: false });
+  const [printDlg, setPrintDlg] = useState<{ open: boolean; row?: any }>({ open: false });
   const [saleDlg, setSaleDlg] = useState<{ open: boolean; row?: any }>({ open: false });
   const [moistDlg, setMoistDlg] = useState<{ open: boolean; row?: any }>({ open: false });
   const [meterDlg, setMeterDlg] = useState<{ open: boolean; row?: any }>({ open: false });
@@ -1648,6 +1700,13 @@ export default function StrawManagementPage() {
   const [yearFilter, setYearFilter] = useState<string>("all");
   const { toast } = useToast();
   const qc = useQueryClient();
+
+  const { data: farmDetail } = useQuery<any>({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`, { credentials: "include" }).then(r => r.ok ? r.json() : null),
+    enabled: !!farmId, staleTime: 300_000,
+  });
+  const farmName: string = farmDetail?.name ?? farmDetail?.farmName ?? `Farm ${farmId}`;
 
   const { data: balingOps = [], isLoading: loadBaling } = useQuery<any[]>({
     queryKey: ["straw-baling-ops", farmId],
@@ -2072,6 +2131,7 @@ export default function StrawManagementPage() {
                           <td className="px-4 py-3">{r.redTractorCertified ? <span title="Red Tractor Certified"><ShieldCheck size={15} className="text-green-600" /></span> : <X size={14} className="text-gray-300" />}</td>
                           <td className="px-4 py-3">
                             <div className="flex gap-1">
+                              <button onClick={() => setPrintDlg({ open: true, row: r })} className="p-1.5 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600" title="Print batch sheet / label"><Printer size={14} /></button>
                               <button onClick={() => setInvDlg({ open: true, row: r })} className="p-1.5 rounded hover:bg-gray-100 text-gray-500"><Pencil size={14} /></button>
                               <button onClick={() => { if (confirm("Delete this batch?")) delMut.mutate({ type: "straw-bale-inventory", id: r.id }); }} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
                             </div>
@@ -2619,6 +2679,11 @@ export default function StrawManagementPage() {
         />
       )}
 
+      {/* ── Batch Print Dialog ── */}
+      {printDlg.open && printDlg.row && (
+        <BatchPrintDialog open={printDlg.open} onClose={() => setPrintDlg({ open: false })} batch={printDlg.row} farmName={farmName} />
+      )}
+
       {/* ── Hot Works Permit Dialog ── */}
       {permitDlg.open && (
         <HotWorksDialog
@@ -2631,6 +2696,276 @@ export default function StrawManagementPage() {
         />
       )}
     </AppLayout>
+  );
+}
+
+// ─── Batch Print Dialog ───────────────────────────────────────────────────────
+function BatchPrintDialog({ open, onClose, batch, farmName }: {
+  open: boolean; onClose: () => void; batch: any; farmName: string;
+}) {
+  const printDate = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+
+  const handlePrint = () => {
+    const el = document.getElementById("batch-print-content");
+    if (!el) return;
+    const win = window.open("", "_blank", "width=900,height=700");
+    if (!win) { window.print(); return; }
+    win.document.write(`<!DOCTYPE html><html><head><title>Batch Sheet — ${batch.batchRef || `#${batch.id}`}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 11pt; color: #111; padding: 20mm 15mm; }
+  h1 { font-size: 18pt; margin-bottom: 2mm; }
+  h2 { font-size: 11pt; font-weight: 700; color: #166534; border-bottom: 1px solid #166534; padding-bottom: 1mm; margin: 5mm 0 2mm; text-transform: uppercase; letter-spacing: 0.04em; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm 8mm; margin-bottom: 2mm; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1mm 8mm; margin-bottom: 2mm; }
+  .row { display: flex; flex-direction: column; padding: 1mm 0; }
+  .label { font-size: 8pt; color: #555; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; margin-bottom: 0.5mm; }
+  .value { font-size: 11pt; }
+  .badge { display: inline-block; border-radius: 3px; padding: 1px 5px; font-size: 9pt; font-weight: 700; }
+  .badge-green { background: #dcfce7; color: #166534; }
+  .badge-amber { background: #fef3c7; color: #92400e; }
+  .badge-red { background: #fee2e2; color: #991b1b; }
+  .header-bar { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #166534; padding-bottom: 3mm; margin-bottom: 5mm; }
+  .notes { border: 1px solid #ccc; padding: 3mm; min-height: 15mm; border-radius: 3px; font-size: 10pt; margin-top: 1mm; }
+  .footer { margin-top: 8mm; font-size: 8pt; color: #888; border-top: 1px solid #ddd; padding-top: 2mm; display: flex; justify-content: space-between; }
+  .sig-box { border: 1px solid #aaa; height: 15mm; margin-top: 1mm; border-radius: 3px; }
+  @media print { body { padding: 10mm; } }
+</style></head><body>${el.innerHTML}</body></html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 400);
+  };
+
+  const riskBadge = (level: string | null) => {
+    if (!level) return "—";
+    const cls = level === "High" ? "badge-red" : level === "Medium" ? "badge-amber" : "badge-green";
+    return `<span class="badge ${cls}">${level}</span>`;
+  };
+
+  const row = (label: string, value: string | null | undefined) =>
+    `<div class="row"><div class="label">${label}</div><div class="value">${value || "—"}</div></div>`;
+
+  const htmlContent = `
+    <div class="header-bar">
+      <div>
+        <h1>Straw Batch Sheet</h1>
+        <div style="font-size:10pt;color:#555;">${farmName}</div>
+      </div>
+      <div style="text-align:right;font-size:9pt;color:#555;">
+        <div>Printed: ${printDate}</div>
+        <div style="font-size:14pt;font-weight:700;color:#111;margin-top:1mm;">${batch.batchRef || `Batch #${batch.id}`}</div>
+      </div>
+    </div>
+
+    <h2>Batch Identity</h2>
+    <div class="grid">
+      ${row("Batch Reference", batch.batchRef || `#${batch.id}`)}
+      ${row("Status", batch.status?.replace(/_/g, " ") ?? "—")}
+      ${row("Straw Type", batch.strawType)}
+      ${row("Bale Format", batch.baleFormat)}
+    </div>
+
+    <h2>Origin &amp; Harvest</h2>
+    <div class="grid">
+      ${row("Harvest Date", batch.harvestDate ? new Date(batch.harvestDate).toLocaleDateString("en-GB") : "—")}
+      ${row("Field of Origin", batch.fieldOfOrigin || "—")}
+      ${row("Crop Variety", batch.cropVariety || "—")}
+      ${row("Baling Operation Ref", batch.balingOperationId ? `Op #${batch.balingOperationId}` : "—")}
+    </div>
+
+    <h2>Quantity &amp; Condition</h2>
+    <div class="grid3">
+      ${row("Quantity (Bales)", batch.quantityBales?.toLocaleString() ?? "—")}
+      ${row("Remaining (Bales)", (batch.quantityRemaining ?? batch.quantityBales)?.toLocaleString() ?? "—")}
+      ${row("Bale Weight (kg)", batch.baleWeightKg ?? "—")}
+      ${row("Moisture at Baling", batch.moistureAtBaling ? `${Number(batch.moistureAtBaling).toFixed(1)}%` : "—")}
+      ${row("Moisture Risk Status", batch.moistureStatus || "—")}
+    </div>
+
+    <h2>Storage</h2>
+    <div class="grid">
+      ${row("Storage Location", batch.storageLocation || "—")}
+      ${row("Storage Type", batch.storageType || "—")}
+      ${row("Stacking Start Date", batch.stackingStartDate ? new Date(batch.stackingStartDate).toLocaleDateString("en-GB") : "—")}
+    </div>
+
+    <h2>Red Tractor &amp; Compliance</h2>
+    <div class="grid">
+      ${row("Red Tractor Certified", batch.redTractorCertified ? "✓ Yes" : "No")}
+      ${row("Combinable Crops Passport Ref", batch.combinableCropsPassportRef || "—")}
+      ${row("PPP Residue Risk", batch.pppResidueRisk || "—")}
+      ${row("Fusarium Risk Assessed", batch.fusariumRiskAssessed ? "✓ Yes" : "No")}
+    </div>
+    ${batch.fusariumRiskAssessed ? `
+    <div class="grid" style="margin-top:2mm;">
+      ${row("Fusarium Assessment Method", batch.fusariumAssessmentMethod || "—")}
+      ${row("Risk Outcome", batch.fusariumRiskLevel || "—")}
+      ${row("Assessment Date", batch.fusariumAssessmentDate ? new Date(batch.fusariumAssessmentDate).toLocaleDateString("en-GB") : "—")}
+      ${row("Assessor Name", batch.fusariumAssessorName || "—")}
+    </div>` : ""}
+
+    ${batch.biomassContract ? `
+    <h2>Biomass / Energy Contract</h2>
+    <div class="grid">
+      ${row("Biomass Scheme", batch.biomassSchemeName || "—")}
+      ${row("Unique Bale Reference", batch.biomassUniqueBaleRef || "—")}
+    </div>` : ""}
+
+    ${batch.notes ? `<h2>Notes</h2><div class="notes">${batch.notes}</div>` : ""}
+
+    <div style="margin-top:8mm;display:grid;grid-template-columns:1fr 1fr;gap:8mm;">
+      <div><div class="label">Authorised By (signature)</div><div class="sig-box"></div></div>
+      <div><div class="label">Date</div><div class="sig-box"></div></div>
+    </div>
+
+    <div class="footer">
+      <span>BDE Farm Trac — Straw Management Module</span>
+      <span>${batch.batchRef || `Batch #${batch.id}`} | ${farmName} | ${printDate}</span>
+    </div>`;
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Printer size={16} />
+            Batch Sheet — {batch.batchRef || `#${batch.id}`}
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* hidden div used as print source */}
+        <div id="batch-print-content" style={{ display: "none" }} dangerouslySetInnerHTML={{ __html: htmlContent }} />
+
+        {/* Preview */}
+        <div className="border rounded-lg overflow-hidden bg-white">
+          <div className="bg-gray-50 border-b px-4 py-2 flex items-center justify-between">
+            <span className="text-xs text-gray-500 font-medium">PRINT PREVIEW</span>
+            <span className="text-xs text-gray-400">Opens in a new window for printing</span>
+          </div>
+          <div className="p-6 text-sm space-y-4">
+            {/* Header */}
+            <div className="flex justify-between items-start border-b-2 border-green-700 pb-3">
+              <div>
+                <p className="text-lg font-bold">Straw Batch Sheet</p>
+                <p className="text-gray-500 text-xs">{farmName}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-400">Printed: {printDate}</p>
+                <p className="text-xl font-bold">{batch.batchRef || `Batch #${batch.id}`}</p>
+              </div>
+            </div>
+
+            {/* Batch Identity */}
+            <div>
+              <p className="text-xs font-bold text-green-800 uppercase tracking-wider border-b border-green-700 pb-0.5 mb-2">Batch Identity</p>
+              <div className="grid grid-cols-2 gap-x-8 gap-y-1">
+                <div><span className="text-xs text-gray-400 uppercase">Straw Type</span><p className="font-medium">{batch.strawType}</p></div>
+                <div><span className="text-xs text-gray-400 uppercase">Bale Format</span><p className="font-medium">{batch.baleFormat}</p></div>
+                <div><span className="text-xs text-gray-400 uppercase">Status</span><p className="font-medium">{batch.status?.replace(/_/g, " ")}</p></div>
+              </div>
+            </div>
+
+            {/* Origin */}
+            <div>
+              <p className="text-xs font-bold text-green-800 uppercase tracking-wider border-b border-green-700 pb-0.5 mb-2">Origin &amp; Harvest</p>
+              <div className="grid grid-cols-2 gap-x-8 gap-y-1">
+                <div><span className="text-xs text-gray-400 uppercase">Harvest Date</span><p>{batch.harvestDate ? new Date(batch.harvestDate).toLocaleDateString("en-GB") : "—"}</p></div>
+                <div><span className="text-xs text-gray-400 uppercase">Field of Origin</span><p>{batch.fieldOfOrigin || "—"}</p></div>
+                <div><span className="text-xs text-gray-400 uppercase">Crop Variety</span><p>{batch.cropVariety || "—"}</p></div>
+              </div>
+            </div>
+
+            {/* Quantity */}
+            <div>
+              <p className="text-xs font-bold text-green-800 uppercase tracking-wider border-b border-green-700 pb-0.5 mb-2">Quantity &amp; Condition</p>
+              <div className="grid grid-cols-3 gap-x-4 gap-y-1">
+                <div><span className="text-xs text-gray-400 uppercase">Total Bales</span><p className="font-bold text-base">{batch.quantityBales?.toLocaleString()}</p></div>
+                <div><span className="text-xs text-gray-400 uppercase">Remaining</span><p className="font-bold text-base">{(batch.quantityRemaining ?? batch.quantityBales)?.toLocaleString()}</p></div>
+                <div><span className="text-xs text-gray-400 uppercase">Bale Weight</span><p>{batch.baleWeightKg ? `${batch.baleWeightKg} kg` : "—"}</p></div>
+                <div><span className="text-xs text-gray-400 uppercase">Moisture at Baling</span><p>{batch.moistureAtBaling ? `${Number(batch.moistureAtBaling).toFixed(1)}%` : "—"}</p></div>
+              </div>
+            </div>
+
+            {/* Storage */}
+            <div>
+              <p className="text-xs font-bold text-green-800 uppercase tracking-wider border-b border-green-700 pb-0.5 mb-2">Storage</p>
+              <div className="grid grid-cols-3 gap-x-4 gap-y-1">
+                <div><span className="text-xs text-gray-400 uppercase">Location</span><p>{batch.storageLocation || "—"}</p></div>
+                <div><span className="text-xs text-gray-400 uppercase">Type</span><p>{batch.storageType || "—"}</p></div>
+                <div><span className="text-xs text-gray-400 uppercase">Stacking Date</span><p>{batch.stackingStartDate ? new Date(batch.stackingStartDate).toLocaleDateString("en-GB") : "—"}</p></div>
+              </div>
+            </div>
+
+            {/* Red Tractor & Compliance */}
+            <div>
+              <p className="text-xs font-bold text-green-800 uppercase tracking-wider border-b border-green-700 pb-0.5 mb-2">Red Tractor &amp; Compliance</p>
+              <div className="grid grid-cols-2 gap-x-8 gap-y-1">
+                <div><span className="text-xs text-gray-400 uppercase">Red Tractor Certified</span>
+                  <p className={batch.redTractorCertified ? "text-green-700 font-semibold" : "text-gray-500"}>
+                    {batch.redTractorCertified ? "✓ Yes" : "No"}
+                  </p>
+                </div>
+                <div><span className="text-xs text-gray-400 uppercase">Passport Ref</span><p className="font-mono text-xs">{batch.combinableCropsPassportRef || "—"}</p></div>
+                <div><span className="text-xs text-gray-400 uppercase">PPP Residue Risk</span><p>{batch.pppResidueRisk || "—"}</p></div>
+                <div><span className="text-xs text-gray-400 uppercase">Fusarium Assessed</span>
+                  <p className={batch.fusariumRiskAssessed ? "text-green-700 font-semibold" : "text-amber-600"}>
+                    {batch.fusariumRiskAssessed ? "✓ Yes" : "Not recorded"}
+                  </p>
+                </div>
+              </div>
+              {batch.fusariumRiskAssessed && (
+                <div className="mt-2 pl-3 border-l-2 border-green-300 grid grid-cols-2 gap-x-8 gap-y-1">
+                  <div><span className="text-xs text-gray-400 uppercase">Method</span><p className="text-xs">{batch.fusariumAssessmentMethod || "—"}</p></div>
+                  <div><span className="text-xs text-gray-400 uppercase">Risk Level</span>
+                    <p className={`text-xs font-semibold ${batch.fusariumRiskLevel === "High" ? "text-red-600" : batch.fusariumRiskLevel === "Medium" ? "text-amber-600" : "text-green-700"}`}>
+                      {batch.fusariumRiskLevel || "—"}
+                    </p>
+                  </div>
+                  <div><span className="text-xs text-gray-400 uppercase">Date</span><p className="text-xs">{batch.fusariumAssessmentDate ? new Date(batch.fusariumAssessmentDate).toLocaleDateString("en-GB") : "—"}</p></div>
+                  <div><span className="text-xs text-gray-400 uppercase">Assessor</span><p className="text-xs">{batch.fusariumAssessorName || "—"}</p></div>
+                </div>
+              )}
+            </div>
+
+            {/* Biomass */}
+            {batch.biomassContract && (
+              <div>
+                <p className="text-xs font-bold text-green-800 uppercase tracking-wider border-b border-green-700 pb-0.5 mb-2">Biomass / Energy Contract</p>
+                <div className="grid grid-cols-2 gap-x-8 gap-y-1">
+                  <div><span className="text-xs text-gray-400 uppercase">Scheme</span><p>{batch.biomassSchemeName || "—"}</p></div>
+                  <div><span className="text-xs text-gray-400 uppercase">Unique Bale Ref</span><p className="font-mono text-xs">{batch.biomassUniqueBaleRef || "—"}</p></div>
+                </div>
+              </div>
+            )}
+
+            {/* Notes */}
+            {batch.notes && (
+              <div>
+                <p className="text-xs font-bold text-green-800 uppercase tracking-wider border-b border-green-700 pb-0.5 mb-2">Notes</p>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">{batch.notes}</p>
+              </div>
+            )}
+
+            {/* Signature boxes */}
+            <div className="grid grid-cols-2 gap-6 mt-4">
+              <div><p className="text-xs text-gray-400 uppercase mb-1">Authorised By (signature)</p><div className="border border-gray-300 h-12 rounded" /></div>
+              <div><p className="text-xs text-gray-400 uppercase mb-1">Date</p><div className="border border-gray-300 h-12 rounded" /></div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-between text-xs text-gray-400 border-t pt-2 mt-2">
+              <span>BDE Farm Trac — Straw Management</span>
+              <span>{batch.batchRef || `Batch #${batch.id}`} | {farmName}</span>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+          <Button onClick={handlePrint} className="gap-2"><Printer size={15} />Print Batch Sheet</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

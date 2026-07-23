@@ -98,6 +98,11 @@ export const strawBaleInventoryTable = pgTable("straw_bale_inventory", {
   // PPP residue risk
   pppResidueRisk: text("ppp_residue_risk"),             // Low | Medium | High
   fusariumRiskAssessed: boolean("fusarium_risk_assessed").default(false),
+  // Fusarium assessment detail (wheat straw — Red Tractor requirement)
+  fusariumAssessmentDate: date("fusarium_assessment_date"),
+  fusariumAssessmentMethod: text("fusarium_assessment_method"), // Visual inspection | DON lateral flow test | NIR analysis | Third-party laboratory
+  fusariumRiskLevel: text("fusarium_risk_level"),        // Low | Medium | High
+  fusariumAssessorName: text("fusarium_assessor_name"),
   // Status
   status: text("status").notNull().default("in_stock"), // in_stock | sold | used_on_farm | disposed
   quantityRemaining: integer("quantity_remaining"),
