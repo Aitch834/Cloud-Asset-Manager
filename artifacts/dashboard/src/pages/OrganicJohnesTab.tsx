@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from "react";
+import { JohnesDeclarationSection } from "@/components/dairy/JohnesTab";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useUpload } from "@workspace/object-storage-web";
 import { useToast } from "@/hooks/use-toast";
@@ -925,6 +926,7 @@ export function OrganicJohnesTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <JohnesDeclarationSection farmId={farmId} allMonitoringRecords={allRecords} />
     </div>
   );
 }

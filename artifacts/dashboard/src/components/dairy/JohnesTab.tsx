@@ -48,6 +48,15 @@ const JOHNES_LABS_PRESETS = [
   "Quality Milk Laboratories",
 ];
 
+const NJMP_STRATEGY_LABELS: Record<string, string> = {
+  s1_test_cull: "S1 — Test & cull high-risk cows",
+  s2_segregate: "S2 — Segregate high-risk cows",
+  s3_purchased_animals: "S3 — Purchased animal management",
+  s4_calf_colostrum: "S4 — Calf & colostrum management",
+  s5_slurry_pasture: "S5 — Slurry & pasture management",
+  s6_bespoke: "S6 — Bespoke vet-led strategy",
+};
+
 function fmtDate(d: string | null | undefined) {
   if (!d) return "—";
   try { return new Date(d).toLocaleDateString("en-GB"); } catch { return d; }
@@ -59,6 +68,276 @@ function riskLabel(v: string | null | undefined) {
 
 function typeLabel(v: string | null | undefined) {
   return JOHNES_TYPES.find(t => t.value === v)?.label ?? v ?? "—";
+}
+
+export function JohnesDeclarationSection({ farmId, allMonitoringRecords }: { farmId: number; allMonitoringRecords: any[] }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+  const [ackOpen, setAckOpen] = useState(false);
+  const [ackRec, setAckRec] = useState<any>(null);
+  const [ackForm, setAckForm] = useState<any>({});
+  const [form, setForm] = useState<any>({});
+  const setF = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  const qKey = ["johnes-declarations", farmId];
+  const { data: declarations = [] } = useQuery({
+    queryKey: qKey,
+    queryFn: () =>
+      fetch(api(`farms/${farmId}/johnes-declarations`), { credentials: "include" })
+        .then(r => r.json()).then(d => d.declarations ?? []),
+    enabled: !!farmId,
+  });
+
+  const latestNjmp = [...allMonitoringRecords]
+    .filter(r => r.jmmEnrolled)
+    .sort((a, b) => (b.testDate ?? "").localeCompare(a.testDate ?? ""))[0]
+    ?? allMonitoringRecords.sort((a, b) => (b.testDate ?? "").localeCompare(a.testDate ?? ""))[0];
+
+  function openAdd() {
+    setEditing(null);
+    setForm({
+      declarationYear: new Date().getFullYear(),
+      declarationDate: new Date().toISOString().split("T")[0],
+      njmpSchemeRef: latestNjmp?.njmpSchemeRef ?? "",
+      njmpRiskLevel: latestNjmp?.riskLevel ?? "",
+      njmpControlStrategy: latestNjmp?.njmpControlStrategy ?? "",
+      njmpPlanReviewedDate: latestNjmp?.njmpPlanDate ?? "",
+      bajvaAdvisorName: latestNjmp?.njmpBajvaAdvisor ?? "",
+    });
+    setOpen(true);
+  }
+
+  async function save() {
+    const url = editing
+      ? api(`farms/${farmId}/johnes-declarations/${editing.id}`)
+      : api(`farms/${farmId}/johnes-declarations`);
+    await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(form) });
+    qc.invalidateQueries({ queryKey: qKey });
+    setOpen(false); setEditing(null);
+  }
+
+  async function del(id: number) {
+    if (!confirm("Delete this declaration record?")) return;
+    await fetch(api(`farms/${farmId}/johnes-declarations/${id}`), { method: "DELETE", credentials: "include" });
+    qc.invalidateQueries({ queryKey: qKey });
+  }
+
+  async function saveAck() {
+    await fetch(api(`farms/${farmId}/johnes-declarations/${ackRec.id}/acknowledge`), {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(ackForm),
+    });
+    qc.invalidateQueries({ queryKey: qKey });
+    setAckOpen(false); setAckRec(null);
+  }
+
+  function printDeclaration(rec: any) {
+    const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "[not recorded]";
+    const stratLabel = rec.njmpControlStrategy ? (NJMP_STRATEGY_LABELS[rec.njmpControlStrategy] ?? rec.njmpControlStrategy) : "[not recorded]";
+    const rl = JOHNES_RISK.find(r => r.value === rec.njmpRiskLevel)?.label ?? rec.njmpRiskLevel ?? "[not recorded]";
+    const html = `<!DOCTYPE html><html><head><title>NJMP Annual Declaration ${rec.declarationYear}</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:11px;color:#000;margin:0;padding:32px 40px;max-width:680px}
+  .logo-bar{border-bottom:3px solid #15803d;padding-bottom:8px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end}
+  h1{font-size:15px;font-weight:700;margin:0}.scheme{font-size:10px;color:#15803d;font-weight:700;letter-spacing:0.04em;text-transform:uppercase}
+  .to-block{margin:20px 0 16px;padding:10px 14px;border-left:3px solid #e5e7eb;font-size:10px;color:#374151}
+  .ref-line{font-size:9px;color:#6b7280;margin-bottom:16px}
+  .subject{font-size:12px;font-weight:700;text-decoration:underline;margin-bottom:14px}
+  .body-para{margin:0 0 10px;line-height:1.55}
+  table{width:100%;border-collapse:collapse;margin:14px 0}
+  th,td{padding:5px 8px;text-align:left;border:1px solid #d1d5db;font-size:10px}
+  th{background:#f0fdf4;font-weight:700;color:#15803d;text-transform:uppercase;font-size:9px}
+  .declaration-box{border:2px solid #15803d;border-radius:4px;padding:12px 16px;margin:18px 0;background:#f0fdf4}
+  .declaration-box p{margin:0 0 4px;font-size:10.5px}
+  .sig-block{margin-top:32px;display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  .sig-line{border-bottom:1px solid #000;height:24px;margin-bottom:4px}
+  .sig-label{font-size:9px;color:#6b7280}
+  .footer{margin-top:28px;font-size:8px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px}
+  @media print{@page{margin:2cm;size:A4}}
+</style></head><body>
+<div class="logo-bar">
+  <div><div class="scheme">National Johne's Management Plan (NJMP)</div><h1>Annual Declaration — ${rec.declarationYear}</h1></div>
+  <div style="text-align:right;font-size:9px;color:#6b7280">Date: ${fmtD(rec.declarationDate)}<br>${rec.njmpSchemeRef ? `Scheme Ref: <strong>${rec.njmpSchemeRef}</strong>` : ""}</div>
+</div>
+<div class="to-block"><strong>To:</strong> ${rec.milkPurchaser || "[Milk Purchaser Name]"}<br>${rec.milkPurchaserAddress ? rec.milkPurchaserAddress.replace(/\n/g, "<br>") : "[Milk Purchaser Address]"}</div>
+<div class="ref-line">From: ${rec.farmerName || "[Farmer / Herd Operator Name]"}</div>
+<p class="subject">Re: NJMP Annual Declaration — Herd Johne's Disease Management Plan — Year ${rec.declarationYear}</p>
+<p class="body-para">I, the undersigned, hereby declare that the above-named herd is enrolled in the National Johne's Management Plan (NJMP) as administered by AHDB / BCVA, and that the following information is correct and up to date as of the date of this declaration.</p>
+<div class="declaration-box"><p><strong>NJMP Enrolled Herd Declaration</strong></p><p>This declaration confirms that the herd identified above has an active written Johne's disease control plan, which has been reviewed in the 12-month period prior to the date of this declaration, and that the herd's NJMP compliance status is as follows:</p></div>
+<table>
+  <tr><th>Item</th><th>Detail</th></tr>
+  <tr><td>NJMP Scheme / Enrolment Reference</td><td>${rec.njmpSchemeRef || "—"}</td></tr>
+  <tr><td>Current NJMP Herd Risk Level</td><td>${rl}</td></tr>
+  <tr><td>Active Control Strategy</td><td>${stratLabel}</td></tr>
+  <tr><td>Written Plan Last Reviewed</td><td>${fmtD(rec.njmpPlanReviewedDate)}</td></tr>
+  <tr><td>BAJVA / Accredited Veterinary Advisor</td><td>${rec.bajvaAdvisorName || "—"}</td></tr>
+</table>
+<p class="body-para">I confirm that the control plan has been formulated and is being implemented in conjunction with a BCVA Accredited Johne's Veterinary Advisor (BAJVA), that an annual on-farm risk assessment has been carried out within the past 12 months, and that the herd has been screened in accordance with NJMP requirements (minimum 60-cow individual milk ELISA — bulk milk ELISA alone is not accepted for NJMP risk status).</p>
+<p class="body-para">I understand that this declaration must be submitted to my milk purchaser on an annual basis, and that failure to do so may affect my Red Tractor Dairy assurance status.</p>
+${rec.notes ? `<p class="body-para"><em>Notes: ${rec.notes}</em></p>` : ""}
+<div class="sig-block">
+  <div><div class="sig-line"></div><div class="sig-label">Signature of Herd Operator / Farmer</div></div>
+  <div><div class="sig-line"></div><div class="sig-label">Date</div></div>
+  <div style="margin-top:16px"><div class="sig-line"></div><div class="sig-label">Print Name: ${rec.farmerName || "________________________________"}</div></div>
+</div>
+<div class="footer">NJMP Annual Declaration generated by BDE Farm Trac (Barnett Davies Enterprises Ltd). Retain for a minimum of 3 years. For NJMP queries contact AHDB Dairy or your BAJVA-accredited veterinary advisor.</div>
+</body></html>`;
+    openPrintWindow(html);
+  }
+
+  return (
+    <div className="mt-8 border-t pt-6">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h3 className="font-semibold text-gray-900">NJMP Annual Declarations</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Record and print the annual declaration submitted to your milk purchaser. Keep a history for assurance auditors.</p>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />New Annual Declaration</Button>
+      </div>
+
+      {(declarations as any[]).length === 0 ? (
+        <div className="text-center py-8 border-2 border-dashed rounded-lg text-sm text-gray-400">No declarations recorded yet. Click "New Annual Declaration" to log and print your first.</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-xs text-gray-500 bg-gray-50">
+              <tr>{["Year","Date Submitted","Milk Purchaser","Risk Level","Control Strategy","BAJVA Advisor","Acknowledged","Actions"].map(h => <th key={h} className="text-left px-3 py-2 font-medium">{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y">
+              {(declarations as any[]).map((d: any) => (
+                <tr key={d.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2 font-semibold">{d.declarationYear}</td>
+                  <td className="px-3 py-2">{d.declarationDate ? new Date(d.declarationDate).toLocaleDateString("en-GB") : "—"}</td>
+                  <td className="px-3 py-2">{d.milkPurchaser || "—"}</td>
+                  <td className="px-3 py-2 text-xs">{JOHNES_RISK.find(r => r.value === d.njmpRiskLevel)?.label ?? d.njmpRiskLevel ?? "—"}</td>
+                  <td className="px-3 py-2 text-xs">{NJMP_STRATEGY_LABELS[d.njmpControlStrategy] ?? d.njmpControlStrategy ?? "—"}</td>
+                  <td className="px-3 py-2 text-xs">{d.bajvaAdvisorName || "—"}</td>
+                  <td className="px-3 py-2">
+                    {d.acknowledgementReceived
+                      ? <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">✓ {d.acknowledgementDate ? new Date(d.acknowledgementDate).toLocaleDateString("en-GB") : "Received"}</span>
+                      : <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Pending</span>}
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1 flex-wrap">
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => printDeclaration(d)}><Printer className="w-3 h-3 mr-1" />Print</Button>
+                      {!d.acknowledgementReceived && (
+                        <Button size="sm" variant="outline" className="h-7 px-2 text-xs text-green-700 border-green-300 hover:bg-green-50" onClick={() => { setAckRec(d); setAckForm({ acknowledgementDate: new Date().toISOString().split("T")[0] }); setAckOpen(true); }}>
+                          Record Ack.
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { setEditing(d); setForm({ ...d }); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(d.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Add/Edit Dialog */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing ? "Edit Annual Declaration" : "New NJMP Annual Declaration"}</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground -mt-1">Fields are pre-filled from your most recent NJMP monitoring record. Review and adjust before saving and printing.</p>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div>
+              <Label>Declaration Year *</Label>
+              <Input type="number" min="2020" max="2099" value={form.declarationYear ?? new Date().getFullYear()} onChange={e => setF("declarationYear", parseInt(e.target.value))} />
+            </div>
+            <div>
+              <Label>Declaration Date *</Label>
+              <Input type="date" value={form.declarationDate || ""} onChange={e => setF("declarationDate", e.target.value)} />
+            </div>
+            <div>
+              <Label>Farmer / Operator Name</Label>
+              <Input value={form.farmerName || ""} onChange={e => setF("farmerName", e.target.value)} placeholder="Full name as will appear on declaration letter" />
+            </div>
+            <div>
+              <Label>NJMP Scheme Reference</Label>
+              <Input className="font-mono" value={form.njmpSchemeRef || ""} onChange={e => setF("njmpSchemeRef", e.target.value)} placeholder="e.g. AHDB-JMM-123456" />
+            </div>
+            <div>
+              <Label>Milk Purchaser</Label>
+              <Input value={form.milkPurchaser || ""} onChange={e => setF("milkPurchaser", e.target.value)} placeholder="e.g. Arla Foods UK, Müller Milk, First Milk" />
+            </div>
+            <div>
+              <Label>Current NJMP Risk Level</Label>
+              <Select value={form.njmpRiskLevel || "__none__"} onValueChange={v => setF("njmpRiskLevel", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue placeholder="Select risk level" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Not specified</SelectItem>
+                  {JOHNES_RISK.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2">
+              <Label>Milk Purchaser Address</Label>
+              <Textarea rows={2} value={form.milkPurchaserAddress || ""} onChange={e => setF("milkPurchaserAddress", e.target.value)} placeholder="Purchaser address (appears on the printed declaration letter)" />
+            </div>
+            <div className="col-span-2">
+              <Label>Active Control Strategy</Label>
+              <Select value={form.njmpControlStrategy || "__none__"} onValueChange={v => setF("njmpControlStrategy", v === "__none__" ? null : v)}>
+                <SelectTrigger><SelectValue placeholder="Select strategy" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Not specified</SelectItem>
+                  <SelectItem value="s1_test_cull">S1 — Test &amp; cull high-risk cows</SelectItem>
+                  <SelectItem value="s2_segregate">S2 — Segregate high-risk cows</SelectItem>
+                  <SelectItem value="s3_purchased_animals">S3 — Purchased animal management</SelectItem>
+                  <SelectItem value="s4_calf_colostrum">S4 — Calf &amp; colostrum management</SelectItem>
+                  <SelectItem value="s5_slurry_pasture">S5 — Slurry &amp; pasture management</SelectItem>
+                  <SelectItem value="s6_bespoke">S6 — Bespoke vet-led strategy</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Written Plan Last Reviewed</Label>
+              <Input type="date" value={form.njmpPlanReviewedDate || ""} onChange={e => setF("njmpPlanReviewedDate", e.target.value)} />
+            </div>
+            <div>
+              <Label>BAJVA Advisor Name</Label>
+              <Input value={form.bajvaAdvisorName || ""} onChange={e => setF("bajvaAdvisorName", e.target.value)} placeholder="BCVA-accredited veterinary advisor" />
+            </div>
+            <div className="col-span-2">
+              <Label>Notes</Label>
+              <Textarea rows={2} value={form.notes || ""} onChange={e => setF("notes", e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={save}>{editing ? "Save Changes" : "Save Declaration"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Acknowledgement Dialog */}
+      {ackOpen && ackRec && (
+        <Dialog open onOpenChange={() => { setAckOpen(false); setAckRec(null); }}>
+          <DialogContent style={{ maxWidth: "32rem" }}>
+            <DialogHeader><DialogTitle>Record Acknowledgement — {ackRec.declarationYear} Declaration</DialogTitle></DialogHeader>
+            <p className="text-xs text-muted-foreground">
+              Record when {ackRec.milkPurchaser || "the milk purchaser"} confirmed receipt. The NJMP does not mandate a formal acknowledgement, but having it on file strengthens your audit trail.
+            </p>
+            <div className="grid grid-cols-2 gap-3 py-2">
+              <div>
+                <Label>Acknowledgement Date</Label>
+                <Input type="date" value={ackForm.acknowledgementDate || ""} onChange={e => setAckForm((f: any) => ({ ...f, acknowledgementDate: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Purchaser Reference <span className="text-gray-400 font-normal text-xs">(optional)</span></Label>
+                <Input value={ackForm.acknowledgementRef || ""} onChange={e => setAckForm((f: any) => ({ ...f, acknowledgementRef: e.target.value }))} placeholder="e.g. email ref, letter ref" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setAckOpen(false); setAckRec(null); }}>Cancel</Button>
+              <Button onClick={saveAck}>Save Acknowledgement</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
 }
 
 export function JohnesTab({ farmId }: { farmId: number }) {
@@ -617,6 +896,7 @@ export function JohnesTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <JohnesDeclarationSection farmId={farmId} allMonitoringRecords={allRecords} />
     </div>
   );
 }

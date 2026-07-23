@@ -1157,6 +1157,30 @@ export const johnesMonitoringRecordsTable = pgTable("johnes_monitoring_records",
 export type JohnesMonitoringRecord = typeof johnesMonitoringRecordsTable.$inferSelect;
 export type NewJohnesMonitoringRecord = typeof johnesMonitoringRecordsTable.$inferInsert;
 
+// ─── Johne's Annual Declarations ─────────────────────────────────────────────
+export const johnesDeclarationsTable = pgTable("johnes_declarations", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id, { onDelete: "cascade" }),
+  declarationYear: integer("declaration_year").notNull(),
+  declarationDate: date("declaration_date").notNull(),
+  farmerName: text("farmer_name"),
+  milkPurchaser: text("milk_purchaser"),
+  milkPurchaserAddress: text("milk_purchaser_address"),
+  njmpSchemeRef: text("njmp_scheme_ref"),
+  njmpRiskLevel: text("njmp_risk_level"),
+  njmpControlStrategy: text("njmp_control_strategy"),
+  njmpPlanReviewedDate: date("njmp_plan_reviewed_date"),
+  bajvaAdvisorName: text("bajva_advisor_name"),
+  acknowledgementReceived: boolean("acknowledgement_received").default(false),
+  acknowledgementDate: date("acknowledgement_date"),
+  acknowledgementRef: text("acknowledgement_ref"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type JohnesDeclaration = typeof johnesDeclarationsTable.$inferSelect;
+export type NewJohnesDeclaration = typeof johnesDeclarationsTable.$inferInsert;
+
 // ─── Casualty / Emergency Slaughter Records ───────────────────────────────────
 export const casualtySlaughterRecordsTable = pgTable("casualty_slaughter_records", {
   id: serial("id").primaryKey(),

@@ -403,6 +403,7 @@ import {
   labourCrossRefAnnotationsTable,
   bvdTestingRecordsTable,
   johnesMonitoringRecordsTable,
+  johnesDeclarationsTable,
   casualtySlaughterRecordsTable,
   campylobacterMonitoringTable,
   salmMonitoringTable,
@@ -31609,6 +31610,73 @@ router.patch("/farms/:farmId/johnes-monitoring/:id/document", requireAuth, requi
   const id = parseInt(req.params.id as string);
   const { documentPath = null, documentName = null } = req.body ?? {};
   const [record] = await db.update(johnesMonitoringRecordsTable).set({ documentPath: documentPath ?? null, documentName: documentName ?? null }).where(and(eq(johnesMonitoringRecordsTable.id, id), eq(johnesMonitoringRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+// ─── Johne's Annual Declarations ─────────────────────────────────────────────
+
+router.get("/farms/:farmId/johnes-declarations", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const declarations = await db.select().from(johnesDeclarationsTable).where(eq(johnesDeclarationsTable.farmId, farmId)).orderBy(desc(johnesDeclarationsTable.declarationYear));
+  res.json({ declarations });
+});
+
+router.post("/farms/:farmId/johnes-declarations", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const b = req.body as Record<string, unknown>;
+  const [record] = await db.insert(johnesDeclarationsTable).values({
+    farmId,
+    declarationYear: b.declarationYear ? Number(b.declarationYear) : new Date().getFullYear(),
+    declarationDate: b.declarationDate ? String(b.declarationDate) : new Date().toISOString().split("T")[0],
+    farmerName: b.farmerName ? String(b.farmerName) : null,
+    milkPurchaser: b.milkPurchaser ? String(b.milkPurchaser) : null,
+    milkPurchaserAddress: b.milkPurchaserAddress ? String(b.milkPurchaserAddress) : null,
+    njmpSchemeRef: b.njmpSchemeRef ? String(b.njmpSchemeRef) : null,
+    njmpRiskLevel: b.njmpRiskLevel ? String(b.njmpRiskLevel) : null,
+    njmpControlStrategy: b.njmpControlStrategy ? String(b.njmpControlStrategy) : null,
+    njmpPlanReviewedDate: b.njmpPlanReviewedDate ? String(b.njmpPlanReviewedDate) : null,
+    bajvaAdvisorName: b.bajvaAdvisorName ? String(b.bajvaAdvisorName) : null,
+    acknowledgementReceived: false,
+    notes: b.notes ? String(b.notes) : null,
+  }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/johnes-declarations/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const b = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const fields = ["declarationYear","declarationDate","farmerName","milkPurchaser","milkPurchaserAddress","njmpSchemeRef","njmpRiskLevel","njmpControlStrategy","njmpPlanReviewedDate","bajvaAdvisorName","notes"];
+  for (const f of fields) { if (b[f] !== undefined) updates[f] = b[f] === "" || b[f] === null ? null : b[f]; }
+  if (b.declarationYear !== undefined) updates.declarationYear = Number(b.declarationYear);
+  const [record] = await db.update(johnesDeclarationsTable).set(updates).where(and(eq(johnesDeclarationsTable.id, id), eq(johnesDeclarationsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/johnes-declarations/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  await db.delete(johnesDeclarationsTable).where(and(eq(johnesDeclarationsTable.id, id), eq(johnesDeclarationsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.patch("/farms/:farmId/johnes-declarations/:id/acknowledge", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const { acknowledgementDate, acknowledgementRef } = req.body ?? {};
+  const [record] = await db.update(johnesDeclarationsTable).set({
+    acknowledgementReceived: true,
+    acknowledgementDate: acknowledgementDate ? String(acknowledgementDate) : null,
+    acknowledgementRef: acknowledgementRef ? String(acknowledgementRef) : null,
+  }).where(and(eq(johnesDeclarationsTable.id, id), eq(johnesDeclarationsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
