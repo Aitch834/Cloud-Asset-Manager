@@ -15,7 +15,7 @@ name = "web"
 paths = ["/test-dashboard/"]
 
 [services.development]
-run = "pnpm --filter @workspace/test-dashboard run build && pnpm --filter @workspace/test-dashboard run serve"
+run = "pnpm --filter @workspace/test-dashboard run dev"
 
 [services.env]
 PORT = "18652"
