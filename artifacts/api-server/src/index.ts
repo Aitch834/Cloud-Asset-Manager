@@ -11,6 +11,7 @@ import { startGpsPollingJob } from "./lib/gpsPollingJob";
 import { runSensorMigrations } from "./lib/sensorMigrations";
 import { startSensorPollingJob } from "./lib/sensorPollingJob";
 import { runStrawMigrations } from "./lib/strawMigrations";
+import { runPoultryMigrations } from "./lib/poultryMigrations";
 
 interface EnvSpec {
   key: string;
@@ -106,5 +107,8 @@ app.listen(port, () => {
   });
   runStrawMigrations().catch((err) => {
     console.error("[STRAW-MIGRATE] Failed:", err);
+  });
+  runPoultryMigrations().catch((err) => {
+    console.error("[POULTRY-MIGRATE] Failed:", err);
   });
 });

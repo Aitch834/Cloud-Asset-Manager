@@ -126,6 +126,8 @@ const TABLE_MAP: Record<string, string> = {
   bde_tb_tests: "tb_tests",
   bde_welfare_outcome_assessments: "welfare_outcome_assessments",
   bde_ppe_issue_records: "ppe_issue_records",
+  bde_poultry_transfers: "poultry_transfers",
+  bde_poultry_transport_welfare: "poultry_transport_welfare",
 };
 
 export function getTableForKey(key: string): string | null {

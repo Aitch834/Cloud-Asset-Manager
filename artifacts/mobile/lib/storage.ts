@@ -230,6 +230,8 @@ export const STORAGE_KEYS = {
   GRAIN_STOCK_STOCKTAKES: "bde_grain_stock_stocktakes",
   SPRAY_STOCK_STOCKTAKES: "bde_spray_stock_stocktakes",
   POULTRY_NCP_TESTS: "bde_poultry_ncp_tests",
+  POULTRY_TRANSFERS: "bde_poultry_transfers",
+  POULTRY_TRANSPORT_WELFARE: "bde_poultry_transport_welfare",
   AHWR_RECORDS: "bde_ahwr_records",
   HIVE_INSPECTIONS: "bde_hive_inspections",
   STRAW_BALE_INVENTORY: "bde_straw_bale_inventory",

@@ -5,7 +5,7 @@ import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DocAttach } from "@/components/DocAttach";
 import { openPrintWindow } from "@/lib/print-report";
-import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors, ClipboardList, ClipboardCheck, Star, Truck, UtensilsCrossed, FileDown, AlertTriangle, TrendingUp, LayoutDashboard, CheckCircle2, XCircle, Circle, Eye, Receipt, HardHat, Users, Package, X as XIcon, QrCode, Printer, ChevronDown, ChevronUp, Syringe, Activity } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors, ClipboardList, ClipboardCheck, Star, Truck, UtensilsCrossed, FileDown, AlertTriangle, TrendingUp, LayoutDashboard, CheckCircle2, XCircle, Circle, Eye, Receipt, HardHat, Users, Package, X as XIcon, QrCode, Printer, ChevronDown, ChevronUp, Syringe, Activity, ArrowRightLeft, ShieldAlert, MapPin, Clock, Save } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
@@ -3154,7 +3154,7 @@ function PoultryAnalyticsTab({ farmId }: { farmId: number }) {
   );
 }
 
-type Tab = "overview" | "houses" | "flocks" | "purchases" | "quality" | "mortality" | "treatments" | "cleanouts" | "envlogs" | "fci" | "bwi" | "thinning" | "biosecurity" | "scheme-records" | "feed" | "campylobacter" | "vaccination" | "disease-monitoring" | "analytics" | "enterprise";
+type Tab = "overview" | "houses" | "flocks" | "purchases" | "quality" | "mortality" | "treatments" | "cleanouts" | "envlogs" | "fci" | "bwi" | "thinning" | "biosecurity" | "scheme-records" | "feed" | "campylobacter" | "vaccination" | "disease-monitoring" | "analytics" | "enterprise" | "transfers" | "transport-welfare";
 
 export default function PoultryProductionPage() {
   const { farmId } = useAppStore();
@@ -3192,12 +3192,15 @@ export default function PoultryProductionPage() {
             <TabButton active={tab === "disease-monitoring"} onClick={() => setTab("disease-monitoring")}><Activity className="w-3.5 h-3.5 mr-1" />Disease Monitoring</TabButton>
             <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}><TrendingUp className="w-3.5 h-3.5 mr-1" />Analytics</TabButton>
             <TabButton active={tab === "enterprise"} onClick={() => setTab("enterprise")}><TrendingUp className="w-3.5 h-3.5 mr-1" />Enterprise Report</TabButton>
+            <TabButton active={tab === "transfers"} onClick={() => setTab("transfers")}><ArrowRightLeft className="w-3.5 h-3.5 mr-1" />Inter-Site Transfers</TabButton>
+            <TabButton active={tab === "transport-welfare"} onClick={() => setTab("transport-welfare")}><ShieldAlert className="w-3.5 h-3.5 mr-1" />Transport Welfare</TabButton>
           </TabBar>
           <Button size="sm" variant="outline" onClick={handleGeneratePdf} disabled={generating} className="ml-3 shrink-0">
             {generating ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <FileDown className="w-3.5 h-3.5 mr-1" />}
             {generating ? "Generating…" : "Audit Report PDF"}
           </Button>
         </div>
+        <HpaiBanner farmId={farmId} />
         <Card><CardContent className="pt-4">
           {tab === "overview" && <OverviewTab farmId={farmId} onGoto={t => setTab(t as Tab)} />}
           {tab === "houses" && <HousesTab farmId={farmId} />}
@@ -3219,6 +3222,8 @@ export default function PoultryProductionPage() {
           {tab === "disease-monitoring" && <PoultryDiseaseMonitoringTab farmId={farmId} />}
           {tab === "analytics" && <PoultryAnalyticsTab farmId={farmId} />}
           {tab === "enterprise" && <PoultryFlockReport farmId={farmId} />}
+          {tab === "transfers" && <InterSiteTransfersTab farmId={farmId} />}
+          {tab === "transport-welfare" && <TransportWelfareTab farmId={farmId} />}
         </CardContent></Card>
       </div>
     </AppLayout>
@@ -3975,6 +3980,523 @@ function PoultryDiseaseMonitoringTab({ farmId }: { farmId: number }) {
         <DialogContent style={{ maxWidth: 360 }}><DialogHeader><DialogTitle>Delete Monitoring Record</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Permanently delete this disease monitoring record?</p>
           <DialogFooter><Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button><Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>Delete</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Inter-Site Transfers Tab ─────────────────────────────────────────────────
+const TRANSFER_REASONS_DASH = ["Relocation", "Contract rearing", "Flock splitting", "Site consolidation", "Other"];
+
+function InterSiteTransfersTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+  const [form, setForm] = useState<any>({});
+  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const today = new Date().toISOString().split("T")[0];
+
+  const { data: rawData = [], isLoading } = useQuery({
+    queryKey: ["poultry-transfers", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/poultry-transfers`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? d ?? []),
+    enabled: !!farmId,
+  });
+  const records: any[] = Array.isArray(rawData) ? rawData : [];
+
+  const { data: flocksData } = useQuery({
+    queryKey: ["poultry-flocks", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/poultry-flocks`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const flocks: any[] = flocksData?.records ?? flocksData ?? [];
+
+  function openAdd() { setEditing(null); setForm({ transferDate: today, reason: "Relocation" }); setOpen(true); }
+  function openEdit(r: any) { setEditing(r); setForm({ ...r }); setOpen(true); }
+
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      const url = editing ? api(`farms/${farmId}/poultry-transfers/${editing.id}`) : api(`farms/${farmId}/poultry-transfers`);
+      await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(form) });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["poultry-transfers", farmId] }); setOpen(false); },
+  });
+
+  const deleteMut2 = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/poultry-transfers/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["poultry-transfers", farmId] }); setDeleteId(null); },
+  });
+
+  const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-gray-900">Inter-Site Transfers</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Record movements of birds between holdings you own or manage. Distinct from FCI slaughter movements.</p>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Transfer</Button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
+      ) : records.length === 0 ? (
+        <div className="text-center py-12 text-gray-400">
+          <ArrowRightLeft className="w-8 h-8 mx-auto mb-2 opacity-40" />
+          <p className="text-sm">No inter-site transfers recorded</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-xs text-gray-500 uppercase tracking-wide">
+                <th className="pb-2 pr-4">Date</th>
+                <th className="pb-2 pr-4">To Farm</th>
+                <th className="pb-2 pr-4">CPH</th>
+                <th className="pb-2 pr-4">Birds</th>
+                <th className="pb-2 pr-4">Reason</th>
+                <th className="pb-2 pr-4">Vehicle</th>
+                <th className="pb-2 pr-4">Driver</th>
+                <th className="pb-2"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {records.map((r: any) => (
+                <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="py-2 pr-4 whitespace-nowrap">{fmtDate(r.transferDate)}</td>
+                  <td className="py-2 pr-4 font-medium">{r.toFarmName ?? "—"}</td>
+                  <td className="py-2 pr-4 text-gray-500">{r.toCph ?? "—"}</td>
+                  <td className="py-2 pr-4">{r.quantityTransferred ?? "—"}</td>
+                  <td className="py-2 pr-4 text-gray-600">{r.reason ?? "—"}</td>
+                  <td className="py-2 pr-4 font-mono text-xs">{r.vehicleReg ?? "—"}</td>
+                  <td className="py-2 pr-4 text-gray-500">{r.driverName ?? "—"}</td>
+                  <td className="py-2 text-right whitespace-nowrap">
+                    <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setEditing(null); } }}>
+        <DialogContent style={{ maxWidth: 560 }}>
+          <DialogHeader><DialogTitle>{editing ? "Edit Transfer" : "Add Inter-Site Transfer"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div className="col-span-2 space-y-1">
+              <label className="text-xs font-medium text-gray-700">Destination Farm / Holding Name *</label>
+              <input className="w-full border rounded px-2 py-1.5 text-sm" value={form.toFarmName ?? ""} onChange={e => set("toFarmName", e.target.value)} placeholder="e.g. North Unit — Llanfair Farm" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Destination CPH</label>
+              <input className="w-full border rounded px-2 py-1.5 text-sm" value={form.toCph ?? ""} onChange={e => set("toCph", e.target.value)} placeholder="12/345/6789" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Transfer Date *</label>
+              <input type="date" className="w-full border rounded px-2 py-1.5 text-sm" value={form.transferDate ?? today} onChange={e => set("transferDate", e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Birds Transferred *</label>
+              <input type="number" className="w-full border rounded px-2 py-1.5 text-sm" value={form.quantityTransferred ?? ""} onChange={e => set("quantityTransferred", e.target.value)} placeholder="e.g. 5000" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Reason</label>
+              <select className="w-full border rounded px-2 py-1.5 text-sm" value={form.reason ?? ""} onChange={e => set("reason", e.target.value)}>
+                {TRANSFER_REASONS_DASH.map(r => <option key={r}>{r}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Flock (optional)</label>
+              <select className="w-full border rounded px-2 py-1.5 text-sm" value={form.flockId ?? ""} onChange={e => set("flockId", e.target.value ? Number(e.target.value) : null)}>
+                <option value="">— Any / not linked —</option>
+                {flocks.map((f: any) => <option key={f.id} value={f.id}>{f.flockNumber ?? f.id}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Transport Company</label>
+              <input className="w-full border rounded px-2 py-1.5 text-sm" value={form.transportCompany ?? ""} onChange={e => set("transportCompany", e.target.value)} placeholder="e.g. Williams Haulage" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Vehicle Registration</label>
+              <input className="w-full border rounded px-2 py-1.5 text-sm uppercase" value={form.vehicleReg ?? ""} onChange={e => set("vehicleReg", e.target.value.toUpperCase())} placeholder="AB12 CDE" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Driver Name</label>
+              <input className="w-full border rounded px-2 py-1.5 text-sm" value={form.driverName ?? ""} onChange={e => set("driverName", e.target.value)} placeholder="e.g. John Williams" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Est. Journey (hours)</label>
+              <input type="number" step="0.5" className="w-full border rounded px-2 py-1.5 text-sm" value={form.estimatedJourneyHours ?? ""} onChange={e => set("estimatedJourneyHours", e.target.value)} placeholder="e.g. 1.5" />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <label className="text-xs font-medium text-gray-700">Notes</label>
+              <textarea className="w-full border rounded px-2 py-1.5 text-sm" rows={2} value={form.notes ?? ""} onChange={e => set("notes", e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setOpen(false); setEditing(null); }}>Cancel</Button>
+            <Button disabled={!form.toFarmName || !form.quantityTransferred || saveMut.isPending} onClick={() => saveMut.mutate()}>
+              <Save className="w-3.5 h-3.5 mr-1" />{saveMut.isPending ? "Saving…" : editing ? "Save Changes" : "Save Transfer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: 360 }}>
+          <DialogHeader><DialogTitle>Delete Transfer Record</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">Permanently delete this inter-site transfer record?</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={deleteMut2.isPending} onClick={() => deleteId !== null && deleteMut2.mutate(deleteId)}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Transport Welfare Tab ─────────────────────────────────────────────────────
+const JOURNEY_PURPOSES_DASH = [
+  { value: "to_slaughter", label: "To Slaughter" },
+  { value: "inter_site", label: "Inter-Site Transfer" },
+  { value: "hatchery_collection", label: "Hatchery Collection" },
+  { value: "other", label: "Other" },
+];
+const WELFARE_OUTCOMES_DASH = [
+  { value: "satisfactory", label: "Satisfactory" },
+  { value: "unsatisfactory", label: "Unsatisfactory" },
+  { value: "not_assessed", label: "Not Assessed" },
+];
+
+function TransportWelfareTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+  const [form, setForm] = useState<any>({});
+  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const today = new Date().toISOString().split("T")[0];
+
+  const { data: rawData = [], isLoading } = useQuery({
+    queryKey: ["poultry-transport-welfare", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/poultry-transport-welfare`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? d ?? []),
+    enabled: !!farmId,
+  });
+  const records: any[] = Array.isArray(rawData) ? rawData : [];
+
+  const emptyForm = { journeyDate: today, journeyPurpose: "to_slaughter", temperatureAdequate: true, waterProvision: true, ventilationAdequate: true, overallWelfareAssessment: "satisfactory" };
+  function openAdd() { setEditing(null); setForm({ ...emptyForm }); setOpen(true); }
+  function openEdit(r: any) { setEditing(r); setForm({ ...r }); setOpen(true); }
+
+  const saveMut2 = useMutation({
+    mutationFn: async () => {
+      const url = editing ? api(`farms/${farmId}/poultry-transport-welfare/${editing.id}`) : api(`farms/${farmId}/poultry-transport-welfare`);
+      await fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(form) });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["poultry-transport-welfare", farmId] }); setOpen(false); },
+  });
+
+  const deleteMut3 = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/poultry-transport-welfare/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["poultry-transport-welfare", farmId] }); setDeleteId(null); },
+  });
+
+  const fmtDate2 = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+  const welfareBadge = (v: string) => {
+    const cls: Record<string, string> = { satisfactory: "bg-green-100 text-green-800", unsatisfactory: "bg-red-100 text-red-800", not_assessed: "bg-gray-100 text-gray-600" };
+    const label = WELFARE_OUTCOMES_DASH.find(o => o.value === v)?.label ?? v;
+    return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${cls[v] ?? "bg-gray-100 text-gray-600"}`}>{label}</span>;
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-gray-900">Transport Welfare Documentation</h3>
+          <p className="text-xs text-gray-500 mt-0.5">UK Welfare of Animals During Transport regs. Required for Red Tractor, RSPCA Assured, and organic audits. Journeys over 65 km require a transporter authorisation number.</p>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Log</Button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
+      ) : records.length === 0 ? (
+        <div className="text-center py-12 text-gray-400">
+          <ShieldAlert className="w-8 h-8 mx-auto mb-2 opacity-40" />
+          <p className="text-sm">No transport welfare logs recorded</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-xs text-gray-500 uppercase tracking-wide">
+                <th className="pb-2 pr-4">Date</th>
+                <th className="pb-2 pr-4">Purpose</th>
+                <th className="pb-2 pr-4">Vehicle</th>
+                <th className="pb-2 pr-4">Driver</th>
+                <th className="pb-2 pr-4">Distance</th>
+                <th className="pb-2 pr-4">DOA</th>
+                <th className="pb-2 pr-4">Assessment</th>
+                <th className="pb-2"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {records.map((r: any) => {
+                const km = Number(r.journeyDistanceKm);
+                const over65 = km > 65;
+                return (
+                  <tr key={r.id} className="hover:bg-gray-50">
+                    <td className="py-2 pr-4 whitespace-nowrap">{fmtDate2(r.journeyDate)}</td>
+                    <td className="py-2 pr-4">{JOURNEY_PURPOSES_DASH.find(p => p.value === r.journeyPurpose)?.label ?? r.journeyPurpose ?? "—"}</td>
+                    <td className="py-2 pr-4 font-mono text-xs">{r.vehicleReg ?? "—"}</td>
+                    <td className="py-2 pr-4 text-gray-500">{r.driverName ?? "—"}</td>
+                    <td className="py-2 pr-4">
+                      {r.journeyDistanceKm ? (
+                        <span className="flex items-center gap-1">
+                          {r.journeyDistanceKm} km
+                          {over65 && <span className="text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full font-medium">WATD</span>}
+                        </span>
+                      ) : "—"}
+                    </td>
+                    <td className="py-2 pr-4">{r.birdsDeadOnArrival ?? "0"}</td>
+                    <td className="py-2 pr-4">{welfareBadge(r.overallWelfareAssessment ?? "not_assessed")}</td>
+                    <td className="py-2 text-right whitespace-nowrap">
+                      <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setEditing(null); } }}>
+        <DialogContent style={{ maxWidth: 600 }}>
+          <DialogHeader><DialogTitle>{editing ? "Edit Transport Welfare Log" : "Add Transport Welfare Log"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2 max-h-[60vh] overflow-y-auto">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Journey Date *</label>
+              <input type="date" className="w-full border rounded px-2 py-1.5 text-sm" value={form.journeyDate ?? today} onChange={e => set("journeyDate", e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Journey Purpose</label>
+              <select className="w-full border rounded px-2 py-1.5 text-sm" value={form.journeyPurpose ?? "to_slaughter"} onChange={e => set("journeyPurpose", e.target.value)}>
+                {JOURNEY_PURPOSES_DASH.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Vehicle Registration *</label>
+              <input className="w-full border rounded px-2 py-1.5 text-sm uppercase" value={form.vehicleReg ?? ""} onChange={e => set("vehicleReg", e.target.value.toUpperCase())} placeholder="AB12 CDE" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Driver Name</label>
+              <input className="w-full border rounded px-2 py-1.5 text-sm" value={form.driverName ?? ""} onChange={e => set("driverName", e.target.value)} />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <label className="text-xs font-medium text-gray-700">Transporter Authorisation No. {Number(form.journeyDistanceKm) > 65 ? "(Required — journey >65 km)" : "(optional)"}</label>
+              <input className="w-full border rounded px-2 py-1.5 text-sm" value={form.transporterAuthorisationNo ?? ""} onChange={e => set("transporterAuthorisationNo", e.target.value)} placeholder="e.g. UK/TA/12345" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Start Time</label>
+              <input type="time" className="w-full border rounded px-2 py-1.5 text-sm" value={form.journeyStartTime ?? ""} onChange={e => set("journeyStartTime", e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">End Time</label>
+              <input type="time" className="w-full border rounded px-2 py-1.5 text-sm" value={form.journeyEndTime ?? ""} onChange={e => set("journeyEndTime", e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Journey Distance (km)</label>
+              <input type="number" className="w-full border rounded px-2 py-1.5 text-sm" value={form.journeyDistanceKm ?? ""} onChange={e => set("journeyDistanceKm", e.target.value)} placeholder="e.g. 45" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Stocking Density (birds/m²)</label>
+              <input type="number" className="w-full border rounded px-2 py-1.5 text-sm" value={form.stockingDensityBirdsM2 ?? ""} onChange={e => set("stockingDensityBirdsM2", e.target.value)} placeholder="e.g. 32" />
+            </div>
+            <div className="col-span-2 space-y-2">
+              <p className="text-xs font-medium text-gray-700">Welfare Conditions</p>
+              <div className="flex flex-wrap gap-4">
+                {[
+                  { k: "temperatureAdequate", label: "Temperature adequate" },
+                  { k: "waterProvision", label: "Water provision" },
+                  { k: "ventilationAdequate", label: "Ventilation adequate" },
+                ].map(({ k, label }) => (
+                  <label key={k} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input type="checkbox" checked={!!form[k]} onChange={e => set(k, e.target.checked)} />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Birds Dead on Arrival</label>
+              <input type="number" className="w-full border rounded px-2 py-1.5 text-sm" value={form.birdsDeadOnArrival ?? "0"} onChange={e => set("birdsDeadOnArrival", e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Overall Welfare Assessment</label>
+              <select className="w-full border rounded px-2 py-1.5 text-sm" value={form.overallWelfareAssessment ?? "satisfactory"} onChange={e => set("overallWelfareAssessment", e.target.value)}>
+                {WELFARE_OUTCOMES_DASH.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div className="col-span-2 space-y-1">
+              <label className="text-xs font-medium text-gray-700">Notes</label>
+              <textarea className="w-full border rounded px-2 py-1.5 text-sm" rows={2} value={form.notes ?? ""} onChange={e => set("notes", e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setOpen(false); setEditing(null); }}>Cancel</Button>
+            <Button disabled={!form.vehicleReg || saveMut2.isPending} onClick={() => saveMut2.mutate()}>
+              <Save className="w-3.5 h-3.5 mr-1" />{saveMut2.isPending ? "Saving…" : editing ? "Save Changes" : "Save Log"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: 360 }}>
+          <DialogHeader><DialogTitle>Delete Transport Welfare Log</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">Permanently delete this transport welfare log?</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={deleteMut3.isPending} onClick={() => deleteId !== null && deleteMut3.mutate(deleteId)}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── HPAI Banner ──────────────────────────────────────────────────────────────
+const HPAI_ZONE_STATUSES = [
+  { value: "none", label: "No zone restrictions" },
+  { value: "protection_zone", label: "Protection Zone (PZ)" },
+  { value: "surveillance_zone", label: "Surveillance Zone (SZ)" },
+  { value: "temporary_control_zone", label: "Temporary Control Zone (TCZ)" },
+];
+
+function HpaiBanner({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [editingZone, setEditingZone] = useState(false);
+  const [zoneForm, setZoneForm] = useState<any>({});
+
+  const { data: platformAlert } = useQuery({
+    queryKey: ["hpai-platform-alert"],
+    queryFn: () => fetch("/api/hpai-alert").then(r => r.json()).catch(() => ({ active: false })),
+    refetchInterval: 5 * 60 * 1000,
+  });
+
+  const { data: farmHpai } = useQuery({
+    queryKey: ["hpai-status", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/hpai-status`), { credentials: "include" }).then(r => r.json()).catch(() => null),
+    enabled: !!farmId,
+  });
+
+  const updateZoneMut = useMutation({
+    mutationFn: () => fetch(api(`farms/${farmId}/hpai-status`), { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(zoneForm) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hpai-status", farmId] }); setEditingZone(false); },
+  });
+
+  const levelColours: Record<string, string> = {
+    national: "bg-red-600",
+    regional: "bg-orange-500",
+    advisory: "bg-amber-500",
+  };
+
+  const showPlatformAlert = platformAlert?.active;
+  const farmZoneStatus = farmHpai?.hpaiZoneStatus ?? "none";
+  const housingRequiredSince = farmHpai?.hpaiHousingRequiredSince ? new Date(farmHpai.hpaiHousingRequiredSince) : null;
+  const daysSinceHousing = housingRequiredSince ? Math.floor((Date.now() - housingRequiredSince.getTime()) / 86400000) : null;
+  const organicClock16wk = daysSinceHousing !== null;
+  const clockWarning = daysSinceHousing !== null && daysSinceHousing >= 98;
+  const clockBreached = daysSinceHousing !== null && daysSinceHousing >= 112;
+  const farmInZone = farmZoneStatus !== "none";
+
+  if (!showPlatformAlert && !farmInZone && !organicClock16wk) return null;
+
+  return (
+    <div className="space-y-2 mb-1">
+      {showPlatformAlert && (
+        <div className={`flex items-start gap-3 p-3 rounded-lg text-white ${levelColours[platformAlert.level] ?? "bg-red-600"}`}>
+          <ShieldAlert className="w-5 h-5 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm">HPAI National Alert{platformAlert.level ? ` — ${platformAlert.level.charAt(0).toUpperCase() + platformAlert.level.slice(1)}` : ""}</p>
+            {platformAlert.message && <p className="text-xs mt-0.5 opacity-90">{platformAlert.message}</p>}
+            {platformAlert.date && <p className="text-xs opacity-75 mt-0.5">Issued: {new Date(platformAlert.date).toLocaleDateString("en-GB")}</p>}
+          </div>
+        </div>
+      )}
+
+      {farmInZone && (
+        <div className="flex items-start gap-3 p-3 rounded-lg bg-orange-50 border border-orange-200">
+          <MapPin className="w-5 h-5 mt-0.5 text-orange-600 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm text-orange-900">This farm is within an HPAI {HPAI_ZONE_STATUSES.find(z => z.value === farmZoneStatus)?.label ?? farmZoneStatus}</p>
+            {farmHpai?.hpaiZoneDate && <p className="text-xs text-orange-700 mt-0.5">Zone applied: {new Date(farmHpai.hpaiZoneDate).toLocaleDateString("en-GB")}</p>}
+          </div>
+          <Button size="sm" variant="outline" className="shrink-0 text-xs" onClick={() => { setZoneForm({ hpaiZoneStatus: farmHpai?.hpaiZoneStatus ?? "none", hpaiZoneDate: farmHpai?.hpaiZoneDate ?? "", hpaiHousingRequiredSince: farmHpai?.hpaiHousingRequiredSince ?? "" }); setEditingZone(true); }}>
+            Update Zone
+          </Button>
+        </div>
+      )}
+
+      {organicClock16wk && (
+        <div className={`flex items-start gap-3 p-3 rounded-lg border ${clockBreached ? "bg-red-50 border-red-300" : clockWarning ? "bg-amber-50 border-amber-300" : "bg-blue-50 border-blue-200"}`}>
+          <Clock className={`w-5 h-5 mt-0.5 shrink-0 ${clockBreached ? "text-red-600" : clockWarning ? "text-amber-600" : "text-blue-600"}`} />
+          <div className="flex-1 min-w-0">
+            <p className={`font-semibold text-sm ${clockBreached ? "text-red-900" : clockWarning ? "text-amber-900" : "text-blue-900"}`}>
+              Organic 16-week Housing Derogation: {daysSinceHousing} of 112 days
+              {clockBreached && " — DEROGATION PERIOD EXCEEDED"}
+              {!clockBreached && clockWarning && " — approaching limit"}
+            </p>
+            <p className={`text-xs mt-0.5 ${clockBreached ? "text-red-700" : clockWarning ? "text-amber-700" : "text-blue-700"}`}>
+              Housing required since {housingRequiredSince!.toLocaleDateString("en-GB")}. After 112 days continuous housing, organic status cannot be maintained — contact your certification body.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!farmInZone && !!farmId && (
+        <div className="flex justify-end">
+          <Button size="sm" variant="ghost" className="text-xs text-gray-400 h-6" onClick={() => { setZoneForm({ hpaiZoneStatus: "none", hpaiZoneDate: "", hpaiHousingRequiredSince: "" }); setEditingZone(true); }}>
+            <MapPin className="w-3 h-3 mr-1" />Set HPAI zone status
+          </Button>
+        </div>
+      )}
+
+      <Dialog open={editingZone} onOpenChange={o => { if (!o) setEditingZone(false); }}>
+        <DialogContent style={{ maxWidth: 440 }}>
+          <DialogHeader><DialogTitle>Update HPAI Zone Status</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Zone Status</label>
+              <select className="w-full border rounded px-2 py-1.5 text-sm" value={zoneForm.hpaiZoneStatus ?? "none"} onChange={e => setZoneForm((f: any) => ({ ...f, hpaiZoneStatus: e.target.value }))}>
+                {HPAI_ZONE_STATUSES.map(z => <option key={z.value} value={z.value}>{z.label}</option>)}
+              </select>
+            </div>
+            {zoneForm.hpaiZoneStatus !== "none" && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-700">Zone Applied Date</label>
+                <input type="date" className="w-full border rounded px-2 py-1.5 text-sm" value={zoneForm.hpaiZoneDate ?? ""} onChange={e => setZoneForm((f: any) => ({ ...f, hpaiZoneDate: e.target.value }))} />
+              </div>
+            )}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Housing Required Since (organic 16-week clock start)</label>
+              <input type="date" className="w-full border rounded px-2 py-1.5 text-sm" value={zoneForm.hpaiHousingRequiredSince ?? ""} onChange={e => setZoneForm((f: any) => ({ ...f, hpaiHousingRequiredSince: e.target.value }))} />
+              <p className="text-xs text-gray-500">Leave blank if not applicable. Set when mandatory housing order takes effect for organic farms.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingZone(false)}>Cancel</Button>
+            <Button disabled={updateZoneMut.isPending} onClick={() => updateZoneMut.mutate()}>
+              <Save className="w-3.5 h-3.5 mr-1" />{updateZoneMut.isPending ? "Saving…" : "Save Zone Status"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

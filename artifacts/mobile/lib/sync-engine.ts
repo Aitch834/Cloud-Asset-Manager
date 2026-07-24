@@ -413,6 +413,8 @@ function getSyncEndpoint(recordType: string, farmId: string, data?: Record<strin
     bde_grain_stock_stocktakes: `/farms/${farmId}/crop-stock-stocktakes`,
     bde_spray_stock_stocktakes: `/farms/${farmId}/spray-product-stocktakes`,
     bde_poultry_ncp_tests: `/farms/${farmId}/poultry-ncp-tests`,
+    bde_poultry_transfers: `/farms/${farmId}/poultry-transfers`,
+    bde_poultry_transport_welfare: `/farms/${farmId}/poultry-transport-welfare`,
     bde_ahwr_records: `/farms/${farmId}/ahwr-records`,
     bde_hive_inspections: `/farms/${farmId}/apiary-inspections`,
     bde_straw_baling_operations: `/farms/${farmId}/straw-baling-operations`,

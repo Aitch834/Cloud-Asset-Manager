@@ -32,6 +32,12 @@ export const poultryFlocksTable = pgTable("poultry_flocks", {
   placementCount: integer("placement_count").notNull(),
   hatcheryName: text("hatchery_name"),
   hatcheryApprovalNumber: text("hatchery_approval_number"),
+  supplierOrganicCert: text("supplier_organic_cert"),
+  transitMortality: integer("transit_mortality"),
+  deliveryCompany: text("delivery_company"),
+  deliveryVehicleReg: text("delivery_vehicle_reg"),
+  deliveryDriver: text("delivery_driver"),
+  derogationRef: text("derogation_ref"),
   status: text("status").notNull().default("active"),
   depletionDate: date("depletion_date"),
   depletionCount: integer("depletion_count"),
@@ -371,3 +377,52 @@ export const poultryNcpTestsTable = pgTable("poultry_ncp_tests", {
 
 export type PoultryNcpTest = typeof poultryNcpTestsTable.$inferSelect;
 export type NewPoultryNcpTest = typeof poultryNcpTestsTable.$inferInsert;
+
+// ─── Poultry Inter-Site Transfers ─────────────────────────────────────────────
+// Records movement of birds between holdings owned by the same farmer
+export const poultryInterSiteTransfersTable = pgTable("poultry_inter_site_transfers", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  flockId: integer("flock_id").references(() => poultryFlocksTable.id),
+  toCph: text("to_cph"),
+  toFarmName: text("to_farm_name").notNull(),
+  transferDate: date("transfer_date").notNull(),
+  quantityTransferred: integer("quantity_transferred").notNull(),
+  reason: text("reason"),
+  transportCompany: text("transport_company"),
+  vehicleReg: text("vehicle_reg"),
+  driverName: text("driver_name"),
+  estimatedJourneyHours: numeric("estimated_journey_hours", { precision: 4, scale: 1 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type PoultryInterSiteTransfer = typeof poultryInterSiteTransfersTable.$inferSelect;
+export type NewPoultryInterSiteTransfer = typeof poultryInterSiteTransfersTable.$inferInsert;
+
+// ─── Poultry Transport Welfare ─────────────────────────────────────────────────
+// Welfare of Animals During Transport records (required for journeys >65 km)
+export const poultryTransportWelfareTable = pgTable("poultry_transport_welfare", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  flockId: integer("flock_id").references(() => poultryFlocksTable.id),
+  journeyDate: date("journey_date").notNull(),
+  journeyPurpose: text("journey_purpose").notNull(),   // to_slaughter | inter_site | hatchery_collection | other
+  vehicleReg: text("vehicle_reg"),
+  driverName: text("driver_name"),
+  transporterAuthorisationNo: text("transporter_authorisation_no"),
+  journeyStartTime: text("journey_start_time"),
+  journeyEndTime: text("journey_end_time"),
+  journeyDistanceKm: numeric("journey_distance_km", { precision: 8, scale: 1 }),
+  stockingDensityBirdsM2: numeric("stocking_density_birds_m2", { precision: 6, scale: 2 }),
+  temperatureAdequate: boolean("temperature_adequate"),
+  waterProvision: boolean("water_provision"),
+  ventilationAdequate: boolean("ventilation_adequate"),
+  birdsDeadOnArrival: integer("birds_dead_on_arrival").default(0),
+  overallWelfareAssessment: text("overall_welfare_assessment").notNull().default("not_assessed"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type PoultryTransportWelfare = typeof poultryTransportWelfareTable.$inferSelect;
+export type NewPoultryTransportWelfare = typeof poultryTransportWelfareTable.$inferInsert;

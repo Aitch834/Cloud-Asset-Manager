@@ -455,6 +455,8 @@ import {
   annualHealthWelfareReviewsTable,
   sheepLambingRecordsTable,
   poultryNcpTestsTable,
+  poultryInterSiteTransfersTable,
+  poultryTransportWelfareTable,
   apiaryRegisterTable,
   apiaryInspectionsTable,
   apiaryHoneyRecordsTable,
@@ -37054,6 +37056,63 @@ router.delete("/farms/:farmId/poultry-ncp-tests/:id", async (req, res) => {
     console.error("[POULTRY-NCP DELETE]", err);
     res.status(500).json({ error: "Failed to delete NCP test" });
   }
+});
+
+// ─── Poultry Inter-Site Transfers ─────────────────────────────────────────────
+router.get("/farms/:farmId/poultry-transfers", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const rows = await db.select().from(poultryInterSiteTransfersTable).where(eq(poultryInterSiteTransfersTable.farmId, farmId)).orderBy(desc(poultryInterSiteTransfersTable.transferDate));
+  res.json({ transfers: rows });
+});
+router.post("/farms/:farmId/poultry-transfers", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const [row] = await db.insert(poultryInterSiteTransfersTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId, transferDate: new Date(req.body.transferDate) }).returning();
+  res.json({ transfer: row });
+});
+router.put("/farms/:farmId/poultry-transfers/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const [row] = await db.update(poultryInterSiteTransfersTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), transferDate: new Date(req.body.transferDate) }).where(and(eq(poultryInterSiteTransfersTable.id, id), eq(poultryInterSiteTransfersTable.farmId, farmId))).returning();
+  res.json({ transfer: row });
+});
+router.delete("/farms/:farmId/poultry-transfers/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  await db.delete(poultryInterSiteTransfersTable).where(and(eq(poultryInterSiteTransfersTable.id, id), eq(poultryInterSiteTransfersTable.farmId, farmId)));
+  res.json({ ok: true });
+});
+
+// ─── Poultry Transport Welfare ─────────────────────────────────────────────────
+router.get("/farms/:farmId/poultry-transport-welfare", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const rows = await db.select().from(poultryTransportWelfareTable).where(eq(poultryTransportWelfareTable.farmId, farmId)).orderBy(desc(poultryTransportWelfareTable.journeyDate));
+  res.json({ logs: rows });
+});
+router.post("/farms/:farmId/poultry-transport-welfare", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const [row] = await db.insert(poultryTransportWelfareTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId, journeyDate: new Date(req.body.journeyDate) }).returning();
+  res.json({ log: row });
+});
+router.put("/farms/:farmId/poultry-transport-welfare/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const [row] = await db.update(poultryTransportWelfareTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), journeyDate: new Date(req.body.journeyDate) }).where(and(eq(poultryTransportWelfareTable.id, id), eq(poultryTransportWelfareTable.farmId, farmId))).returning();
+  res.json({ log: row });
+});
+router.delete("/farms/:farmId/poultry-transport-welfare/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  await db.delete(poultryTransportWelfareTable).where(and(eq(poultryTransportWelfareTable.id, id), eq(poultryTransportWelfareTable.farmId, farmId)));
+  res.json({ ok: true });
+});
+
+// ─── HPAI Farm Zone Status ─────────────────────────────────────────────────────
+router.get("/farms/:farmId/hpai-status", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const [farm] = await db.select({ hpaiZoneStatus: farmsTable.hpaiZoneStatus, hpaiZoneDate: farmsTable.hpaiZoneDate, hpaiHousingRequiredSince: farmsTable.hpaiHousingRequiredSince }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+  res.json(farm ?? {});
+});
+router.put("/farms/:farmId/hpai-status", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const { hpaiZoneStatus, hpaiZoneDate, hpaiHousingRequiredSince } = req.body as Record<string, string>;
+  await db.update(farmsTable).set({ hpaiZoneStatus: hpaiZoneStatus || null, hpaiZoneDate: hpaiZoneDate || null, hpaiHousingRequiredSince: hpaiHousingRequiredSince || null }).where(eq(farmsTable.id, farmId));
+  res.json({ ok: true });
 });
 
 // ─── AMR Report ───────────────────────────────────────────────────────────────

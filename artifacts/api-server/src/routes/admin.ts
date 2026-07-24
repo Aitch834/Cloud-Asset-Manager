@@ -1638,6 +1638,26 @@ const PLATFORM_CONFIG_DEFAULTS: Record<string, { label: string; description: str
     description: "The build number appended after the version (e.g. 1245). Increment this on each deployment.",
     value: "1245",
   },
+  "hpai.alert_active": {
+    label: "HPAI National Alert Active",
+    description: "Toggle to 'true' to display an Avian Influenza alert banner on all poultry farm dashboards. Set to 'false' when APHA restrictions are lifted.",
+    value: "false",
+  },
+  "hpai.alert_level": {
+    label: "HPAI Alert Level",
+    description: "Severity of the national HPAI situation. Values: precautionary | regional | national",
+    value: "",
+  },
+  "hpai.alert_message": {
+    label: "HPAI Alert Message",
+    description: "Message shown on poultry dashboards when the alert is active. Keep concise — it appears as a banner.",
+    value: "",
+  },
+  "hpai.alert_date": {
+    label: "HPAI Alert Date",
+    description: "Date the current HPAI national alert was declared (ISO format: YYYY-MM-DD).",
+    value: "",
+  },
 };
 
 router.get("/version", async (_req: Request, res: Response): Promise<void> => {
@@ -1647,6 +1667,18 @@ router.get("/version", async (_req: Request, res: Response): Promise<void> => {
   const version = byKey["app.version"] ?? PLATFORM_CONFIG_DEFAULTS["app.version"]?.value ?? "1.4.17";
   const build   = byKey["app.build"]   ?? PLATFORM_CONFIG_DEFAULTS["app.build"]?.value   ?? "1245";
   res.json({ version, build, full: `${version} Build ${build}` });
+});
+
+router.get("/hpai-alert", async (_req: Request, res: Response): Promise<void> => {
+  const rows = await db.select().from(platformConfigTable);
+  const byKey: Record<string, string> = {};
+  for (const row of rows) byKey[row.key] = row.value;
+  res.json({
+    active: (byKey["hpai.alert_active"] ?? "false") === "true",
+    level: byKey["hpai.alert_level"] ?? "",
+    message: byKey["hpai.alert_message"] ?? "",
+    date: byKey["hpai.alert_date"] ?? "",
+  });
 });
 
 router.get("/platform-config", async (_req: Request, res: Response): Promise<void> => {
