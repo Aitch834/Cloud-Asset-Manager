@@ -111,7 +111,7 @@ const authLimiter = rateLimit({
   keyGenerator: (req: Request) => {
     const userId = (req as Request & { userId?: string }).userId;
     if (userId) return userId;
-    return ipKeyGenerator(req);
+    return ipKeyGenerator(req.ip ?? "");
   },
   message: { error: "Too many requests, please try again later." },
 });
@@ -125,7 +125,7 @@ const uploadLimiter = rateLimit({
   keyGenerator: (req: Request) => {
     const userId = (req as Request & { userId?: string }).userId;
     if (userId) return userId;
-    return ipKeyGenerator(req);
+    return ipKeyGenerator(req.ip ?? "");
   },
   message: { error: "Upload request limit reached, please wait before uploading more files." },
 });
