@@ -316,6 +316,8 @@ const TITLES: [string, string][] = [
   ["Poultry Disease Monitoring Register — AI Surveillance, Marek's, and NCP Serology", "Livestock"],
   ["Marek's Disease & Salmonella NCP Isolation Register Fields — Poultry Biosecurity", "Livestock"],
   ["Individual Animal Profile — Vaccinations History Tab", "Livestock"],
+  ["Using the BDE Farm Trac Sandbox Test Environment", "Getting Started"],
+  ["Medicine Withdrawal Period SMS Alerts", "Livestock"],
 ];
 
 const CONTENT: [string, string][] = [
@@ -6170,6 +6172,66 @@ The Livestock Information Service has confirmed that LIP Cattle API submissions 
   <li>Confirming withdrawal period clearance before an animal enters the food chain</li>
 </ul>
 <p>The tab provides a consolidated view without needing to navigate between separate production modules — all species vaccination history is visible in one place.</p>`,
+  ],
+  // Using the BDE Farm Trac Sandbox Test Environment
+  [
+    "A full mirror of your live account for safe training and testing — all external integrations and alerts suppressed, persistent amber banner, one-click reset and return to live.",
+    `<h2>Using the BDE Farm Trac Sandbox Test Environment</h2>
+<p>Every BDE Farm Trac account includes a built-in <strong>Sandbox Test Environment</strong> at no extra cost. The sandbox is a complete copy of your live setup — the same farms, modules, and screens — where you can enter records, explore every workflow, and train new staff with no risk whatsoever of affecting your live data or triggering any real-world action.</p>
+
+<h3>How to Access the Sandbox</h3>
+<p>Open the farm/tenant selector at the top of the left sidebar. Your sandbox account appears in the list with a <strong>flask icon</strong> and an amber <strong>Sandbox</strong> badge. Click it to switch. Once in the sandbox, a persistent amber <strong>SANDBOX — Test Environment</strong> banner is displayed at the top of every page so there is never any doubt you are not working in your live account.</p>
+
+<h3>What Is and Isn't Suppressed</h3>
+<p>The following external integrations and background jobs are <strong>fully suppressed</strong> while you are operating in the sandbox:</p>
+<ul>
+  <li><strong>SMS text alerts</strong> — no messages are sent, regardless of your alert configuration</li>
+  <li><strong>Livestock government submissions</strong> — LIS (England sheep/goat/deer), EIDCymru (Wales), ScotEID (Scotland), and BCMS CTS API calls are all blocked; submission buttons are visible but submissions do not leave the platform</li>
+  <li><strong>GPS provider polling</strong> — Teltonika, Webfleet, John Deere Operations Center, and AGCO Connect will not be polled; the Resource Map will not show live positions</li>
+  <li><strong>Scheduled alerting jobs</strong> — medicine withdrawal deadline alerts, certificate expiry alerts, and task-overdue notifications do not fire</li>
+</ul>
+<p>All other platform features work exactly as in your live account — you can enter spray records, livestock events, medicine treatments, harvest records, staff timesheets, and any other record type, and it will behave identically to live including validation, calculations, and PDF exports.</p>
+
+<h3>Resetting Sandbox Data</h3>
+<p>Super-admins can wipe all sandbox records with a single click directly from the amber banner. Click <strong>Reset Sandbox</strong> in the banner, confirm the dialog, and all records entered in the sandbox are cleared. Your farm structure, settings, modules, and credentials are preserved — the sandbox is ready to use again immediately without any re-setup.</p>
+
+<h3>Returning to Your Live Account</h3>
+<p>Click <strong>Return to Live Dashboard</strong> in the amber banner at any time. This switches you back to your live tenant, clears the sandbox farm context, and takes you to the context selector. No data entered in the sandbox is carried across to your live account.</p>
+
+<h3>Common Use Cases</h3>
+<ul>
+  <li><strong>Training new staff</strong> — let team members learn the system freely without the pressure of working in a live compliance environment</li>
+  <li><strong>Testing integrations</strong> — configure and test GPS, livestock submission, or SMS settings without sending live data</li>
+  <li><strong>Exploring new modules</strong> — if you have just activated a new module, use the sandbox to work through the setup and recording flow before switching to live records</li>
+  <li><strong>Preparing for audit</strong> — walk through the audit pack generation and Red Tractor report workflows to confirm everything is set up correctly before your assessor visit</li>
+</ul>`,
+  ],
+  // Medicine Withdrawal Period SMS Alerts
+  [
+    "Automatic SMS reminders when a treated animal's medicine withdrawal period is ending — configurable per farm member, Critical and Standard alert tiers.",
+    `<h2>Medicine Withdrawal Period SMS Alerts</h2>
+<p>BDE Farm Trac can send automatic SMS text reminders when a medicine withdrawal period for a treated animal is approaching its end date. This ensures animals are not presented for slaughter, milk is not sent to the dairy, or eggs are not collected before the withdrawal period has cleared — a requirement under Red Tractor and UK veterinary medicine regulations.</p>
+
+<h3>Enabling Withdrawal Period Alerts</h3>
+<p>Navigate to <strong>Platform Add-ons → SMS Alerts</strong> and open the <strong>Config</strong> tab. Ensure SMS is enabled for your account (a subscription to the Platform Add-ons module is required). Scroll to the <strong>Standard Alerts</strong> section and toggle on <strong>Medicine Withdrawal Reminders</strong>. The alert fires automatically when any medicine record is saved with a withdrawal end date — a reminder SMS is sent to opted-in farm members as the date approaches.</p>
+
+<h3>Withdrawal End Date Calculation</h3>
+<p>Withdrawal end dates are calculated automatically when you save a medicine treatment record. The system adds the withdrawal period in days (taken from the medicine record's withdrawal days field) to the treatment date and stores the result as the withdrawal end date. If a medicine has separate meat and milk withdrawal periods — as is common with dairy treatments — both are calculated and displayed independently. A red withdrawal alert banner appears on the animal's profile and any linked movement record while the withdrawal is active, preventing accidental off-farm movement before clearance.</p>
+
+<h3>Who Receives the Alerts</h3>
+<p>Navigate to the <strong>Team</strong> tab in SMS Alerts. Each farm member is shown with a per-member SMS opt-in level: <strong>All Alerts</strong> (receives both Critical and Standard alerts including withdrawal reminders), <strong>Critical Only</strong> (receives Critical-tier alerts only — withdrawal reminders are Standard tier so they would not receive these), or <strong>None</strong>. Set the appropriate level for each team member. Farm managers and herd keepers should typically be set to All Alerts.</p>
+
+<h3>Alert History</h3>
+<p>The <strong>History</strong> tab in SMS Alerts shows a full timestamped log of every alert sent, including the recipient, alert type, and the record that triggered it. Use this to confirm that reminders were sent and received, or to investigate if an alert was not delivered.</p>
+
+<h3>Withdrawal Period Visibility on Records</h3>
+<p>Withdrawal status is visible in several places beyond the SMS alert:</p>
+<ul>
+  <li><strong>Medicine Records tab</strong> — each treatment record shows the withdrawal end date in a colour-coded badge: green (cleared), amber (within 7 days), red (active withdrawal)</li>
+  <li><strong>Individual Animal profile</strong> — the profile dialog for any animal shows an active withdrawal warning if any treatment is still within its withdrawal period</li>
+  <li><strong>Livestock Movements</strong> — an off-farm movement for an animal with an active withdrawal will display a red warning, requiring manual confirmation before saving</li>
+  <li><strong>Mobile app</strong> — withdrawal status badges appear on medicine records captured from the field, giving stockpersons immediate visibility during rounds</li>
+</ul>`,
   ],
 ];
 

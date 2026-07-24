@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { db, tenantsTable, farmsTable, userTenantsTable } from "@workspace/db";
 import { eq, and, isNull } from "drizzle-orm";
 import { requireAuth, requireTenant } from "../middlewares/roleMiddleware";
-import pg from "pg";
+import { Pool } from "pg";
 
 const router: IRouter = Router();
 
@@ -82,7 +82,7 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     if (!checkAdminSecret(req, res)) return;
 
-    const tenantId = parseInt(req.params.tenantId, 10);
+    const tenantId = parseInt(req.params.tenantId as string, 10);
     if (isNaN(tenantId)) {
       res.status(400).json({ error: "Invalid tenantId" });
       return;
@@ -224,7 +224,7 @@ router.post(
       return;
     }
 
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
     try {
       const infoRes = await pool.query<{ tablename: string }>(
@@ -251,7 +251,7 @@ router.post(
          ORDER BY c.table_name`,
       );
 
-      const tables = infoRes.rows.map((r) => r.tablename);
+      const tables = infoRes.rows.map((r: { tablename: string }) => r.tablename);
       const farmIdsLiteral = farmIds.map((_, i) => `$${i + 1}`).join(", ");
       let totalDeleted = 0;
 
