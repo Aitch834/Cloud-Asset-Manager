@@ -18613,6 +18613,8 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     }
   } catch (e) { console.error("[week-ahead] resource allocations query failed:", e); }
 
+  const taskAssignItems = tasks.filter(t => t.type === "task_assignment" || t.type === "work_order");
+  console.log(`[week-ahead] farmId=${farmId} days=${days} total=${tasks.length} taskAssigns=${taskAssignItems.length} taskAssignTitles=${JSON.stringify(taskAssignItems.map(t => t.title))}`);
   res.json({ tasks, days, rangeStart: now.toISOString(), rangeEnd: rangeEnd.toISOString() });
 });
 
