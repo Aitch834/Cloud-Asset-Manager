@@ -46,7 +46,7 @@ export function Navbar() {
             <img 
               src={`${import.meta.env.BASE_URL}bde-farm-trac-logo.png`} 
               alt="BDE Farm Trac" 
-              className="h-10 sm:h-12 md:h-14 w-auto object-contain transition-transform group-hover:scale-105"
+              className="h-14 w-auto object-contain transition-transform group-hover:scale-105"
             />
           </Link>
 
