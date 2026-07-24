@@ -13,6 +13,7 @@ declare global {
       isSuperAdmin?: boolean;
       isImpersonating?: boolean;
       originalUserId?: string;
+      isSandbox?: boolean;
     }
   }
 }
@@ -58,6 +59,7 @@ export async function tenantMiddleware(
     req.tenantId = tenant.id;
     req.tenantSlug = tenant.slug;
     req.isSuperAdmin = true;
+    req.isSandbox = tenant.isSandbox ?? false;
     next();
     return;
   }
@@ -124,6 +126,7 @@ export async function tenantMiddleware(
       req.isSuperAdmin = false;
       req.isImpersonating = true;
       req.originalUserId = req.userId;
+      req.isSandbox = tenant.isSandbox ?? false;
       next();
       return;
     }
@@ -134,6 +137,7 @@ export async function tenantMiddleware(
       req.tenantId = tenant.id;
       req.tenantSlug = tenant.slug;
       req.isSuperAdmin = true;
+      req.isSandbox = tenant.isSandbox ?? false;
       next();
       return;
     }
@@ -146,6 +150,7 @@ export async function tenantMiddleware(
   req.tenantSlug = tenant.slug;
   req.roleId = callerMembership.roleId;
   req.isSuperAdmin = callerMembership.isSuperAdmin;
+  req.isSandbox = tenant.isSandbox ?? false;
 
   next();
 }

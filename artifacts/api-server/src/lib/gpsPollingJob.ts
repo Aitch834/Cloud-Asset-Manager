@@ -4,8 +4,8 @@
  */
 
 import { db } from "@workspace/db";
-import { gpsIntegrationsTable } from "@workspace/db";
-import { inArray } from "drizzle-orm";
+import { gpsIntegrationsTable, farmsTable, tenantsTable } from "@workspace/db";
+import { inArray, eq, and } from "drizzle-orm";
 import { pollTeltonikaFarm } from "./teltonika";
 import { pollJdFarm } from "./john_deere";
 import { pollWebfleetFarm } from "./webfleet";
@@ -26,6 +26,8 @@ export function startGpsPollingJob(): void {
         refreshTokenEncrypted: gpsIntegrationsTable.refreshTokenEncrypted,
         tokenExpiresAt:        gpsIntegrationsTable.tokenExpiresAt,
       }).from(gpsIntegrationsTable)
+        .innerJoin(farmsTable, eq(gpsIntegrationsTable.farmId, farmsTable.id))
+        .innerJoin(tenantsTable, and(eq(farmsTable.tenantId, tenantsTable.id), eq(tenantsTable.isSandbox, false)))
         .where(
           inArray(gpsIntegrationsTable.provider, ["teltonika", "john_deere", "webfleet", "agco"]),
         );

@@ -6,7 +6,12 @@ function isTwilioConfigured(): boolean {
   return Boolean(TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_FROM_NUMBER);
 }
 
-export async function sendSms(to: string, body: string): Promise<{ sent: boolean; reason?: string }> {
+export async function sendSms(to: string, body: string, opts?: { sandbox?: boolean }): Promise<{ sent: boolean; reason?: string }> {
+  if (opts?.sandbox) {
+    console.log(`[SMS] [SANDBOX] Suppressed SMS to ${to.replace(/\d(?=\d{4})/g, "*")} — sandbox tenant`);
+    return { sent: false, reason: "sandbox" };
+  }
+
   if (!isTwilioConfigured()) {
     console.warn("[SMS] Twilio is not configured — SMS sending is disabled.");
     return { sent: false, reason: "Twilio not configured" };

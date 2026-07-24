@@ -33,6 +33,8 @@ router.get("/tenants/mine", requireAuth, async (req: Request, res: Response): Pr
       isSuperAdmin: userTenantsTable.isSuperAdmin,
       tenantName: tenantsTable.name,
       tenantSlug: tenantsTable.slug,
+      isSandbox: tenantsTable.isSandbox,
+      sandboxOfTenantId: tenantsTable.sandboxOfTenantId,
     })
     .from(userTenantsTable)
     .innerJoin(tenantsTable, eq(userTenantsTable.tenantId, tenantsTable.id))

@@ -9,6 +9,8 @@ export const tenantsTable = pgTable("tenants", {
   contactPhone: text("contact_phone"),
   address: text("address"),
   isActive: boolean("is_active").notNull().default(true),
+  isSandbox: boolean("is_sandbox").notNull().default(false),
+  sandboxOfTenantId: integer("sandbox_of_tenant_id").references((): any => tenantsTable.id),
   stripeCustomerId: text("stripe_customer_id"),
   referralCode: text("referral_code"),
   referredBy: text("referred_by"),

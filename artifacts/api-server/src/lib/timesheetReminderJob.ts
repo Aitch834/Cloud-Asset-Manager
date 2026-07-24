@@ -4,6 +4,7 @@ import {
   farmMembersTable,
   labourRotaTable,
   labourTimesheetEntriesTable,
+  tenantsTable,
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { sendSms } from "./sms";
@@ -54,7 +55,7 @@ export async function runTimesheetReminderChecks(): Promise<void> {
   try {
     const { hour: currentHour, date: todayUK } = getUKDateTime();
 
-    // Load all active farms
+    // Load all active non-sandbox farms
     const farms = await db
       .select({
         id: farmsTable.id,
@@ -62,6 +63,7 @@ export async function runTimesheetReminderChecks(): Promise<void> {
         timesheetReminderTime: farmsTable.timesheetReminderTime,
       })
       .from(farmsTable)
+      .innerJoin(tenantsTable, and(eq(farmsTable.tenantId, tenantsTable.id), eq(tenantsTable.isSandbox, false)))
       .where(eq(farmsTable.isActive, true));
 
     for (const farm of farms) {

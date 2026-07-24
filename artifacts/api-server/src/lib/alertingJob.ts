@@ -1,4 +1,4 @@
-import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconformanceRecordsTable, subscriptionsTable, modulesTable, poultryTreatmentsTable, poultrySchemeRecordsTable, poultryBroilerWelfareTable, pigMedicineTreatmentsTable, pigRedTractorChecklistTable, pigTailBitingRisksTable } from "@workspace/db";
+import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconformanceRecordsTable, subscriptionsTable, modulesTable, poultryTreatmentsTable, poultrySchemeRecordsTable, poultryBroilerWelfareTable, pigMedicineTreatmentsTable, pigRedTractorChecklistTable, pigTailBitingRisksTable, tenantsTable } from "@workspace/db";
 import { usersTable, userTenantsTable } from "@workspace/db/schema";
 import { livestockMovementsTable, livestockMedicineRecordsTable, staffCertificatesTable, sprayApplicationsTable, sprayProductsTable, riskAssessmentsTable, pestControlRecordsTable, cleaningDisinfectionRecordsTable } from "@workspace/db/schema";
 import { feedContingencyPlansTable, feedStockLevelsTable, feedStockTargetsTable, feedPurchaseOrdersTable } from "@workspace/db/schema";
