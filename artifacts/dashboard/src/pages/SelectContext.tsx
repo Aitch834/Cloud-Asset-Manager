@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { useGetMyTenants } from "@workspace/api-client-react/src/generated/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
-import { Map, Building2, ArrowRight, Loader2, Plus } from "lucide-react";
+import { Map, Building2, ArrowRight, Loader2, Plus, FlaskConical } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const SECTORS = [
@@ -187,14 +187,41 @@ export default function SelectContext() {
             ) : tenantsData?.tenants.map((t: any) => (
               <Card 
                 key={t.tenantId}
-                className="p-6 cursor-pointer hover:border-primary transition-all group flex items-center justify-between"
+                className={`p-6 cursor-pointer transition-all group flex items-center justify-between ${
+                  t.isSandbox
+                    ? "border-amber-300 hover:border-amber-500 bg-amber-50/40"
+                    : "hover:border-primary"
+                }`}
                 onClick={() => setTenantSlug(t.tenantSlug)}
               >
-                <div>
-                  <h3 className="font-bold text-lg">{t.tenantName}</h3>
-                  <p className="text-sm text-foreground/50">{t.isSuperAdmin ? "Admin Access" : "Member"}</p>
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+                    t.isSandbox ? "bg-amber-100" : "bg-primary/5"
+                  }`}>
+                    {t.isSandbox
+                      ? <FlaskConical className="w-6 h-6 text-amber-600" />
+                      : <Building2 className="w-6 h-6 text-primary" />
+                    }
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-bold text-lg">{t.tenantName}</h3>
+                      {t.isSandbox && (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 uppercase tracking-wide">
+                          Sandbox
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-foreground/50">
+                      {t.isSandbox ? "Test environment — safe to explore" : t.isSuperAdmin ? "Admin Access" : "Member"}
+                    </p>
+                  </div>
                 </div>
-                <div className="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-colors">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${
+                  t.isSandbox
+                    ? "bg-amber-100 group-hover:bg-amber-500 group-hover:text-white text-amber-700"
+                    : "bg-primary/5 group-hover:bg-primary group-hover:text-white"
+                }`}>
                   <ArrowRight className="w-5 h-5" />
                 </div>
               </Card>

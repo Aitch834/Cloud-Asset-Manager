@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { NotificationPanel } from "@/components/NotificationPanel";
 import { useNavHistory } from "@/context/NavHistoryContext";
 import { useLocation } from "wouter";
+import { SandboxBanner } from "@/components/SandboxBanner";
 
 export function AppLayout({ children, title }: { children: ReactNode; title?: string }) {
   const { farmId } = useAppStore();
@@ -37,6 +38,7 @@ export function AppLayout({ children, title }: { children: ReactNode; title?: st
       )}
 
       <div className="flex-1 flex flex-col overflow-hidden relative">
+        <SandboxBanner />
         <header className="h-20 flex items-center justify-between px-8 bg-background border-b border-border/50 sticky top-0 z-40">
           <div className="flex items-center gap-4">
             <button
