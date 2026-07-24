@@ -9,3 +9,5 @@ Every platform config key used by the admin portal must be declared in `PLATFORM
 **Why:** The whitelist enforces that only known, intentional keys can be stored — but it also means adding a new config group (e.g. `company.*`) requires updating the defaults object on the API side, not just writing the frontend form.
 
 **How to apply:** When adding new platform config keys on the frontend (CompanySettings, PlatformConfig, etc.), always add matching entries to `PLATFORM_CONFIG_DEFAULTS` in the same change. Each entry needs `label`, `description`, and a `value` default (can be an empty string).
+
+**Current registered keys include:** `nvz_tile_url`, `company.*` group (legalName, tradingName, address, email, vatNumber, registrationNumber, bankName, bankAccountName, bankSortCode, bankAccountNumber, paymentTermsDays, logoDataUrl), `app.version`, `app.build`.

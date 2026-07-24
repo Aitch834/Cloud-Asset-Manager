@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { APP_VERSION_FULL } from "@/constants/version";
+import { APP_VERSION_FULL as VERSION_FALLBACK } from "@/constants/version";
 import { ListItem } from "@/components/ui/ListItem";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { colors } from "@/constants/colors";
@@ -49,6 +49,7 @@ export default function MoreScreen() {
   const { pendingCount, isSyncing, isConnected, lastSyncTime, triggerSync } = useSync();
   const { activeModuleKeys } = useApiModules(currentFarm?.id);
 
+  const [appVersion, setAppVersion] = useState<string>(VERSION_FALLBACK);
   const [lisStatus, setLisStatus] = useState<LisStatus>(null);
   const [lisSyncing, setLisSyncing] = useState(false);
   const [lisInboundCount, setLisInboundCount] = useState(0);
@@ -104,6 +105,13 @@ export default function MoreScreen() {
     }
     setIsSharing(value);
   }
+
+  useEffect(() => {
+    fetch(`${getApiBase()}/api/version`)
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { full?: string } | null) => { if (data?.full) setAppVersion(data.full); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!currentFarm?.id) return;
@@ -630,7 +638,7 @@ export default function MoreScreen() {
           <View style={styles.divider} />
           <ListItem
             title="About BDE Farm Trac"
-            subtitle={`v${APP_VERSION_FULL}`}
+            subtitle={`v${appVersion}`}
             icon="info"
             showChevron={false}
           />

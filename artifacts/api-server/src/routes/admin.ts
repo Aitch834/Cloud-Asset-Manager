@@ -1628,7 +1628,26 @@ const PLATFORM_CONFIG_DEFAULTS: Record<string, { label: string; description: str
     description: "Base64-encoded image shown top-left on printed invoices. Set via the Company & Billing settings page.",
     value: "",
   },
+  "app.version": {
+    label: "Application Version",
+    description: "The platform version number displayed in the dashboard sidebar and mobile app (e.g. 1.4.17). Update together with Build Number.",
+    value: "1.4.17",
+  },
+  "app.build": {
+    label: "Application Build Number",
+    description: "The build number appended after the version (e.g. 1245). Increment this on each deployment.",
+    value: "1245",
+  },
 };
+
+router.get("/version", async (_req: Request, res: Response): Promise<void> => {
+  const rows = await db.select().from(platformConfigTable);
+  const byKey: Record<string, string> = {};
+  for (const row of rows) byKey[row.key] = row.value;
+  const version = byKey["app.version"] ?? PLATFORM_CONFIG_DEFAULTS["app.version"]?.value ?? "1.4.17";
+  const build   = byKey["app.build"]   ?? PLATFORM_CONFIG_DEFAULTS["app.build"]?.value   ?? "1245";
+  res.json({ version, build, full: `${version} Build ${build}` });
+});
 
 router.get("/platform-config", async (_req: Request, res: Response): Promise<void> => {
   const rows = await db.select().from(platformConfigTable);

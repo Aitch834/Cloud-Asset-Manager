@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { clearSecret } from "@/lib/auth";
-import { LayoutDashboard, Users, MessageSquare, LogOut, ShieldCheck, Database, Mail, TrendingUp, FileText, Gift, Settings2, List, BookOpen, Building2, FileSignature } from "lucide-react";
+import { LayoutDashboard, Users, MessageSquare, LogOut, ShieldCheck, Database, Mail, TrendingUp, FileText, Gift, Settings2, List, BookOpen, Building2, FileSignature, Tag } from "lucide-react";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -15,6 +15,7 @@ const nav = [
   { href: "/lookups", label: "Lookup Lists", icon: List },
   { href: "/help-articles", label: "Help Centre", icon: BookOpen },
   { href: "/nda", label: "NDA Template", icon: FileSignature },
+  { href: "/version", label: "Version Management", icon: Tag },
   { href: "/platform-config", label: "Platform Config", icon: Settings2 },
 ];
 

@@ -18,6 +18,7 @@ import CompanySettings from "@/pages/CompanySettings";
 import Lookups from "@/pages/Lookups";
 import HelpCentre from "@/pages/HelpCentre";
 import NDA from "@/pages/NDA";
+import VersionManagement from "@/pages/VersionManagement";
 import NotFound from "@/pages/not-found";
 import { getSecret } from "@/lib/auth";
 
@@ -41,6 +42,7 @@ function PortalRouter() {
         <Route path="/company-settings" component={CompanySettings} />
         <Route path="/help-articles" component={HelpCentre} />
         <Route path="/nda" component={NDA} />
+        <Route path="/version" component={VersionManagement} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
