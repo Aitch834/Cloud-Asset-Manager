@@ -430,6 +430,9 @@ importers:
       pdfkit:
         specifier: ^0.18.0
         version: 0.18.0
+      pg:
+        specifier: ^8.20.0
+        version: 8.20.0
       stripe:
         specifier: ^20.4.1
         version: 20.4.1(@types/node@25.3.5)
