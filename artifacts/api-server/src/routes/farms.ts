@@ -18518,7 +18518,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       .where(and(
         eq(sprayApplicationsTable.farmId, farmId),
         gte(sprayApplicationsTable.applicationDate, sql`${overdueStart.toISOString().split("T")[0]}::date`),
-        lt(sprayApplicationsTable.applicationDate, notifLookAhead.toISOString().split("T")[0]),
+        lt(sprayApplicationsTable.applicationDate, sql`${notifLookAhead.toISOString().split("T")[0]}::date`),
       ));
     if (beeApps.length > 0) {
       const notifiedIds = new Set(
