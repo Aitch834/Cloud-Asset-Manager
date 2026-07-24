@@ -318,6 +318,10 @@ const TITLES: [string, string][] = [
   ["Individual Animal Profile — Vaccinations History Tab", "Livestock"],
   ["Using the BDE Farm Trac Sandbox Test Environment", "Getting Started"],
   ["Medicine Withdrawal Period SMS Alerts", "Livestock"],
+  ["Poultry Inter-Site Transfers — Recording Movements Between Holdings", "Poultry Production"],
+  ["Poultry Transport Welfare Documentation (WATD) — Journey Records and 65 km Threshold", "Poultry Production"],
+  ["HPAI Zone Alerting — Platform Alerts, Farm Zone Status and Organic 16-Week Housing Clock", "Poultry Production"],
+  ["Poultry Placement Delivery Fields — Organic Certification Status and Derogation Period at Arrival", "Poultry Production"],
 ];
 
 const CONTENT: [string, string][] = [
@@ -6207,6 +6211,7 @@ The Livestock Information Service has confirmed that LIP Cattle API submissions 
 </ul>`,
   ],
   // Medicine Withdrawal Period SMS Alerts
+  // Medicine Withdrawal Period SMS Alerts
   [
     "Automatic SMS reminders when a treated animal's medicine withdrawal period is ending — configurable per farm member, Critical and Standard alert tiers.",
     `<h2>Medicine Withdrawal Period SMS Alerts</h2>
@@ -6232,6 +6237,129 @@ The Livestock Information Service has confirmed that LIP Cattle API submissions 
   <li><strong>Livestock Movements</strong> — an off-farm movement for an animal with an active withdrawal will display a red warning, requiring manual confirmation before saving</li>
   <li><strong>Mobile app</strong> — withdrawal status badges appear on medicine records captured from the field, giving stockpersons immediate visibility during rounds</li>
 </ul>`,
+  ],
+  // Poultry Inter-Site Transfers — Recording Movements Between Holdings
+  // Poultry Inter-Site Transfers — Recording Movements Between Holdings
+  [
+    "How to record poultry movements between holdings you own or manage using the Inter-Site Transfers tab — distinct from FCI slaughter movements.",
+    `<h2>Poultry Inter-Site Transfers — Recording Movements Between Holdings</h2>
+<p>The <strong>Inter-Site Transfers</strong> tab in Poultry Production records movements of birds between different holdings you own or manage. These are distinct from a Food Chain Information (FCI) movement to slaughter — they cover situations such as relocating a laying flock from a rearing site to a production site, splitting a flock across two units, or consolidating birds from a smaller holding onto a main unit.</p>
+
+<h3>Adding a Transfer Record</h3>
+<p>Navigate to <strong>Poultry Production → Inter-Site Transfers</strong> and click <strong>Add Transfer</strong>. Complete the following fields:</p>
+<ul>
+  <li><strong>Destination farm / holding name:</strong> the name of the receiving holding.</li>
+  <li><strong>Destination CPH:</strong> the County Parish Holding number of the destination site — required for traceability under APHA biosecurity guidance.</li>
+  <li><strong>Transfer date:</strong> the date birds departed the holding.</li>
+  <li><strong>Number of birds transferred:</strong> total head count moved.</li>
+  <li><strong>Transfer reason:</strong> choose from Relocation, Contract rearing, Flock splitting, Site consolidation, or Other.</li>
+  <li><strong>Flock (optional):</strong> link the transfer to a registered flock for full flock-level traceability.</li>
+  <li><strong>Transport company, vehicle registration, driver name, and estimated journey duration:</strong> optional transport details for a complete movement audit trail.</li>
+</ul>
+
+<h3>Editing and Deleting Records</h3>
+<p>All transfer records are displayed in a table with the transfer date, destination holding, destination CPH, number of birds, and reason. Click a row to open the full view dialog. Use the edit button to correct any details, or the delete button to remove a record — deletion requires confirmation.</p>
+
+<h3>Mobile App Recording</h3>
+<p>Tap <strong>Inter-Site Transfer</strong> from the Poultry section of the mobile app Record screen. The form captures the same fields as the dashboard. Records save locally if you have no connectivity and sync to Poultry Production → Inter-Site Transfers automatically when the device reconnects.</p>
+
+<h3>Audit and Compliance</h3>
+<p>Inter-site transfer records satisfy the Red Tractor Poultry and BEIC requirement to document all movements of birds between holdings. They complement the Isolation Register (used for incoming birds from third-party sources) and the Thinning Records tab (used for partial depletions to slaughter).</p>`,
+  ],
+  // Poultry Transport Welfare Documentation (WATD) — Journey Records and 65 km Threshold
+  // Poultry Transport Welfare Documentation (WATD) — Journey Records and 65 km Threshold
+  [
+    "Recording poultry journey welfare records in compliance with UK Welfare of Animals During Transport (WATD) legislation, including the 65 km transporter authorisation threshold.",
+    `<h2>Poultry Transport Welfare Documentation (WATD) — Journey Records and 65 km Threshold</h2>
+<p>UK <strong>Welfare of Animals During Transport (WATD)</strong> legislation requires welfare documentation for all commercial poultry journeys. BDE Farm Trac provides a dedicated <strong>Transport Welfare</strong> tab in Poultry Production to log these records for every journey, whether to slaughter, between holdings, or to a hatchery.</p>
+
+<h3>Adding a Transport Welfare Record</h3>
+<p>Navigate to <strong>Poultry Production → Transport Welfare</strong> and click <strong>Add Record</strong>. The form captures:</p>
+<ul>
+  <li><strong>Journey date</strong></li>
+  <li><strong>Journey purpose:</strong> To Slaughter, Inter-Site Transfer, Hatchery Collection, or Other.</li>
+  <li><strong>Vehicle registration</strong> and <strong>driver name</strong></li>
+  <li><strong>Transporter authorisation number:</strong> required for journeys over 65 km (e.g. UK/TA/12345). The form highlights the field with an amber prompt when the entered distance exceeds this threshold.</li>
+  <li><strong>Journey start time</strong> and <strong>end time</strong></li>
+  <li><strong>Journey distance (km)</strong></li>
+  <li><strong>Stocking density (birds/m²)</strong></li>
+  <li><strong>Welfare condition checks:</strong> three toggle flags — Temperature adequate, Water provision, Ventilation adequate.</li>
+  <li><strong>Birds dead on arrival</strong></li>
+  <li><strong>Overall welfare assessment:</strong> Satisfactory, Unsatisfactory, or Not Assessed — displayed as a colour-coded badge in the table (green / red / grey).</li>
+</ul>
+
+<h3>The 65 km Threshold</h3>
+<p>Journeys over 65 km trigger additional WATD requirements. When the distance entered exceeds 65 km, a <strong>WATD</strong> badge appears on the record in the table and the Transporter Authorisation Number field becomes required. Transporter authorisation numbers are issued by APHA and are in the format UK/TA/NNNNN.</p>
+
+<h3>Mobile App Recording</h3>
+<p>Tap <strong>Transport Welfare Log</strong> from the Poultry section of the mobile app Record screen. An amber warning banner is displayed automatically when the distance entered exceeds 65 km, prompting the user to enter the transporter authorisation number before saving. Records save offline and sync to Poultry Production → Transport Welfare when connectivity is restored.</p>
+
+<h3>Compliance Uses</h3>
+<p>Transport welfare records are required for <strong>Red Tractor Poultry</strong>, <strong>RSPCA Assured</strong>, and organic certification audits. The table provides a complete journey log that can be reviewed by an assessor or presented to APHA on request.</p>`,
+  ],
+  // HPAI Zone Alerting — Platform Alerts, Farm Zone Status and Organic 16-Week Housing Clock
+  // HPAI Zone Alerting — Platform Alerts, Farm Zone Status and Organic 16-Week Housing Clock
+  [
+    "How the HPAI Zone Alerting banner works — platform-level avian influenza declarations, farm-level zone status (PZ/SZ/TCZ), and the organic 16-week housing clock.",
+    `<h2>HPAI Zone Alerting — Platform Alerts, Farm Zone Status and Organic 16-Week Housing Clock</h2>
+<p>BDE Farm Trac provides two layers of Highly Pathogenic Avian Influenza (HPAI) alerting at the top of Poultry Production. The banner only renders when there is something to show and disappears automatically once all alerts are cleared and no housing clock is running.</p>
+
+<h3>Platform-Level Alerts</h3>
+<p>Platform-level alerts are set by BDE administrators when DEFRA declares a national or regional HPAI situation. They appear as a colour-coded banner for all subscribers:</p>
+<ul>
+  <li><strong>Red banner</strong> — National HPAI alert: a National Prevention Zone or Housing Order is in force across England (or the relevant devolved nation).</li>
+  <li><strong>Orange banner</strong> — Regional alert: a Protection Zone or Surveillance Zone has been declared in a specific area.</li>
+  <li><strong>Amber banner</strong> — Advisory: APHA has issued a heightened biosecurity advisory without a formal zone declaration.</li>
+</ul>
+<p>The banner displays the alert level, the advisory message, and the date it was issued. No action is required from you to see platform alerts — they are pushed automatically to all Poultry Production subscribers.</p>
+
+<h3>Farm-Level Zone Status</h3>
+<p>You can record the specific zone status for your own holding independently of platform alerts. Click <strong>Set HPAI zone status</strong> beneath the tab bar in Poultry Production and select one of the following:</p>
+<ul>
+  <li><strong>No zone restrictions</strong> — your holding is not within a declared zone.</li>
+  <li><strong>Protection Zone (PZ)</strong> — your holding falls within a 3 km Protection Zone around a confirmed HPAI case.</li>
+  <li><strong>Surveillance Zone (SZ)</strong> — your holding falls within the 10 km Surveillance Zone.</li>
+  <li><strong>Temporary Control Zone (TCZ)</strong> — your holding is within a broader TCZ.</li>
+</ul>
+<p>Once a zone is set, an orange banner shows the zone type and the date it was applied, with an <strong>Update Zone</strong> button. Update the status when restrictions change or are lifted by APHA.</p>
+
+<h3>Organic 16-Week Housing Clock</h3>
+<p>When recording your farm's zone status, you can also enter a <strong>Housing Required Since</strong> date — the date a mandatory housing order came into effect for your holding. This activates the organic 16-week housing clock, which counts the days since that date and displays a colour-coded progress indicator:</p>
+<ul>
+  <li><strong>Blue</strong> — fewer than 98 days housed.</li>
+  <li><strong>Amber</strong> — 98–111 days housed: approaching the limit, contact your certifying body.</li>
+  <li><strong>Red</strong> — 112 days (16 weeks) or more: the UK Organic Regulations 2020 limit has been reached. Contact your certifying body (Soil Association, OF&amp;G, or Organic Farmers &amp; Growers) immediately — continued housing beyond 16 weeks without certifier approval puts organic status at risk.</li>
+</ul>
+<p>The clock only appears when a Housing Required Since date is entered. Clear the date (by updating zone status to None with no housing date) to stop the clock.</p>`,
+  ],
+  // Poultry Placement Delivery Fields — Organic Certification Status and Derogation Period at Arrival
+  // Poultry Placement Delivery Fields — Organic Certification Status and Derogation Period at Arrival
+  [
+    "Extended placement record fields for organic poultry farms — supplier certificate number, delivery vehicle registration, organic certification status, and derogation period dates.",
+    `<h2>Poultry Placement Delivery Fields — Organic Certification Status and Derogation Period at Arrival</h2>
+<p>For organic poultry enterprises, the placement record captures additional delivery and certification details at the point of arrival. These fields provide the audit trail required by certifying bodies (Soil Association, OF&amp;G, Organic Farmers &amp; Growers) from day one of each flock's placement.</p>
+
+<h3>Available Delivery Fields</h3>
+<p>When adding or editing a placement record in <strong>Poultry Production → Placements</strong>, the following additional fields are available:</p>
+<ul>
+  <li><strong>Supplier certificate number:</strong> the supplier's or hatchery's organic certification number, as shown on their certificate from the certifying body.</li>
+  <li><strong>Delivery vehicle registration:</strong> the vehicle registration number used for the delivery — supports transport welfare and biosecurity audit trails.</li>
+  <li><strong>Organic certification status:</strong> select one of:
+    <ul>
+      <li><strong>Certified Organic</strong> — the chicks or poults arrive from a certified organic source with no derogation required.</li>
+      <li><strong>Approved Non-Organic</strong> — non-organic day-olds placed under an approved exception; record the certifier reference.</li>
+      <li><strong>Conventional Derogation</strong> — non-organic placement under a formal derogation case; link to the relevant derogation record in Organic Poultry → Derogations.</li>
+    </ul>
+  </li>
+  <li><strong>Derogation period start date</strong> and <strong>derogation period end date:</strong> the dates during which a formal derogation approval applies to this placement — required when Conventional Derogation is selected and used to verify the placement falls within the approved window.</li>
+  <li><strong>Certifying body:</strong> the organisation that issued the organic approval or derogation (Soil Association, OF&amp;G, Organic Farmers &amp; Growers, or other).</li>
+</ul>
+
+<h3>Why These Fields Matter</h3>
+<p>UK Organic Regulations 2020 require that organic poultry must in principle originate from organically reared stock. Where non-organic day-olds are placed under an approved derogation, the certifier must have granted prior written approval and the derogation must be logged with the placement. Recording the organic certification status at the placement record means your certifying body can trace every flock from day of placement to final depletion without gaps in the evidence chain.</p>
+
+<h3>Viewing Placement Records</h3>
+<p>All delivery and organic certification fields are displayed in the placement view dialog alongside the standard flock and hatchery details. Document attachments (hatchery certificates, delivery notes, certifier correspondence) can be added to the placement record using the RecordAttachments panel in the view dialog.</p>`,
   ],
 ];
 
