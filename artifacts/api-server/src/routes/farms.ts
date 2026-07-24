@@ -17143,50 +17143,50 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
-      .where(and(eq(pestControlRecordsTable.farmId, farmId), isNotNull(pestControlRecordsTable.followUpDate), gte(pestControlRecordsTable.followUpDate, overdueStart as any), lt(pestControlRecordsTable.followUpDate, rangeEnd as any))),
+      .where(and(eq(pestControlRecordsTable.farmId, farmId), isNotNull(pestControlRecordsTable.followUpDate), gte(pestControlRecordsTable.followUpDate, overdueStart.toISOString().split("T")[0]), lt(pestControlRecordsTable.followUpDate, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: cleaningDisinfectionRecordsTable.id, area: cleaningDisinfectionRecordsTable.area, cleaningType: cleaningDisinfectionRecordsTable.cleaningType, nextDueDate: cleaningDisinfectionRecordsTable.nextDueDate })
       .from(cleaningDisinfectionRecordsTable)
-      .where(and(eq(cleaningDisinfectionRecordsTable.farmId, farmId), isNotNull(cleaningDisinfectionRecordsTable.nextDueDate), gte(cleaningDisinfectionRecordsTable.nextDueDate, overdueStart as any), lt(cleaningDisinfectionRecordsTable.nextDueDate, rangeEnd as any))),
+      .where(and(eq(cleaningDisinfectionRecordsTable.farmId, farmId), isNotNull(cleaningDisinfectionRecordsTable.nextDueDate), gte(cleaningDisinfectionRecordsTable.nextDueDate, overdueStart.toISOString().split("T")[0]), lt(cleaningDisinfectionRecordsTable.nextDueDate, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: biosecurityPlansTable.id, nextReviewDate: biosecurityPlansTable.nextReviewDate })
       .from(biosecurityPlansTable)
-      .where(and(eq(biosecurityPlansTable.farmId, farmId), isNotNull(biosecurityPlansTable.nextReviewDate), gte(biosecurityPlansTable.nextReviewDate, overdueStart as any), lt(biosecurityPlansTable.nextReviewDate, rangeEnd as any))),
+      .where(and(eq(biosecurityPlansTable.farmId, farmId), isNotNull(biosecurityPlansTable.nextReviewDate), gte(biosecurityPlansTable.nextReviewDate, overdueStart.toISOString().split("T")[0]), lt(biosecurityPlansTable.nextReviewDate, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: staffCertificatesTable.id, certificateType: staffCertificatesTable.certificateType, certificateNumber: staffCertificatesTable.certificateNumber, expiryDate: staffCertificatesTable.expiryDate })
       .from(staffCertificatesTable)
-      .where(and(eq(staffCertificatesTable.farmId, farmId), isNotNull(staffCertificatesTable.expiryDate), gte(staffCertificatesTable.expiryDate, overdueStart as any), lt(staffCertificatesTable.expiryDate, rangeEnd as any))),
+      .where(and(eq(staffCertificatesTable.farmId, farmId), isNotNull(staffCertificatesTable.expiryDate), gte(staffCertificatesTable.expiryDate, overdueStart.toISOString().split("T")[0]), lt(staffCertificatesTable.expiryDate, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: staffTrainingRecordsTable.id, trainingTitle: staffTrainingRecordsTable.trainingTitle, expiryDate: staffTrainingRecordsTable.expiryDate })
       .from(staffTrainingRecordsTable)
-      .where(and(eq(staffTrainingRecordsTable.farmId, farmId), isNotNull(staffTrainingRecordsTable.expiryDate), gte(staffTrainingRecordsTable.expiryDate, overdueStart as any), lt(staffTrainingRecordsTable.expiryDate, rangeEnd as any))),
+      .where(and(eq(staffTrainingRecordsTable.farmId, farmId), isNotNull(staffTrainingRecordsTable.expiryDate), gte(staffTrainingRecordsTable.expiryDate, overdueStart.toISOString().split("T")[0]), lt(staffTrainingRecordsTable.expiryDate, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: inspectionRecordsTable.id, inspectionType: inspectionRecordsTable.inspectionType, nextInspectionDue: inspectionRecordsTable.nextInspectionDue })
       .from(inspectionRecordsTable)
-      .where(and(eq(inspectionRecordsTable.farmId, farmId), isNotNull(inspectionRecordsTable.nextInspectionDue), gte(inspectionRecordsTable.nextInspectionDue, overdueStart as any), lt(inspectionRecordsTable.nextInspectionDue, rangeEnd as any))),
+      .where(and(eq(inspectionRecordsTable.farmId, farmId), isNotNull(inspectionRecordsTable.nextInspectionDue), gte(inspectionRecordsTable.nextInspectionDue, overdueStart.toISOString().split("T")[0]), lt(inspectionRecordsTable.nextInspectionDue, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: correctiveActionsTable.id, nonconformanceId: correctiveActionsTable.nonconformanceId, description: correctiveActionsTable.description, dueDate: correctiveActionsTable.dueDate, status: correctiveActionsTable.status })
       .from(correctiveActionsTable)
       .innerJoin(nonconformanceRecordsTable, eq(correctiveActionsTable.nonconformanceId, nonconformanceRecordsTable.id))
-      .where(and(eq(nonconformanceRecordsTable.farmId, farmId), isNotNull(correctiveActionsTable.dueDate), gte(correctiveActionsTable.dueDate, overdueStart as any), lt(correctiveActionsTable.dueDate, rangeEnd as any))),
+      .where(and(eq(nonconformanceRecordsTable.farmId, farmId), isNotNull(correctiveActionsTable.dueDate), gte(correctiveActionsTable.dueDate, overdueStart.toISOString().split("T")[0]), lt(correctiveActionsTable.dueDate, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: riskAssessmentsTable.id, title: riskAssessmentsTable.title, riskLevel: riskAssessmentsTable.riskLevel, reviewDate: riskAssessmentsTable.reviewDate, status: riskAssessmentsTable.status })
       .from(riskAssessmentsTable)
-      .where(and(eq(riskAssessmentsTable.farmId, farmId), isNotNull(riskAssessmentsTable.reviewDate), gte(riskAssessmentsTable.reviewDate, overdueStart as any), lt(riskAssessmentsTable.reviewDate, rangeEnd as any))),
+      .where(and(eq(riskAssessmentsTable.farmId, farmId), isNotNull(riskAssessmentsTable.reviewDate), gte(riskAssessmentsTable.reviewDate, overdueStart.toISOString().split("T")[0]), lt(riskAssessmentsTable.reviewDate, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: ppeRiskAssessmentsTable.id, ppeType: ppeRiskAssessmentsTable.ppeType, hazardIdentified: ppeRiskAssessmentsTable.hazardIdentified, reviewDate: ppeRiskAssessmentsTable.reviewDate, isActive: ppeRiskAssessmentsTable.isActive })
       .from(ppeRiskAssessmentsTable)
-      .where(and(eq(ppeRiskAssessmentsTable.farmId, farmId), isNotNull(ppeRiskAssessmentsTable.reviewDate), gte(ppeRiskAssessmentsTable.reviewDate, overdueStart as any), lt(ppeRiskAssessmentsTable.reviewDate, rangeEnd as any))),
+      .where(and(eq(ppeRiskAssessmentsTable.farmId, farmId), isNotNull(ppeRiskAssessmentsTable.reviewDate), gte(ppeRiskAssessmentsTable.reviewDate, overdueStart.toISOString().split("T")[0]), lt(ppeRiskAssessmentsTable.reviewDate, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: equipmentMaintenanceLogsTable.id, maintenanceType: equipmentMaintenanceLogsTable.maintenanceType, nextDueDate: equipmentMaintenanceLogsTable.nextDueDate })
       .from(equipmentMaintenanceLogsTable)
       .innerJoin(equipmentTable, eq(equipmentMaintenanceLogsTable.equipmentId, equipmentTable.id))
-      .where(and(eq(equipmentTable.farmId, farmId), isNotNull(equipmentMaintenanceLogsTable.nextDueDate), gte(equipmentMaintenanceLogsTable.nextDueDate, overdueStart as any), lt(equipmentMaintenanceLogsTable.nextDueDate, rangeEnd as any))),
+      .where(and(eq(equipmentTable.farmId, farmId), isNotNull(equipmentMaintenanceLogsTable.nextDueDate), gte(equipmentMaintenanceLogsTable.nextDueDate, overdueStart.toISOString().split("T")[0]), lt(equipmentMaintenanceLogsTable.nextDueDate, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: equipmentCalibrationRecordsTable.id, calibrationType: equipmentCalibrationRecordsTable.calibrationType, nextDueDate: equipmentCalibrationRecordsTable.nextDueDate })
       .from(equipmentCalibrationRecordsTable)
       .innerJoin(equipmentTable, eq(equipmentCalibrationRecordsTable.equipmentId, equipmentTable.id))
-      .where(and(eq(equipmentTable.farmId, farmId), isNotNull(equipmentCalibrationRecordsTable.nextDueDate), gte(equipmentCalibrationRecordsTable.nextDueDate, overdueStart as any), lt(equipmentCalibrationRecordsTable.nextDueDate, rangeEnd as any))),
+      .where(and(eq(equipmentTable.farmId, farmId), isNotNull(equipmentCalibrationRecordsTable.nextDueDate), gte(equipmentCalibrationRecordsTable.nextDueDate, overdueStart.toISOString().split("T")[0]), lt(equipmentCalibrationRecordsTable.nextDueDate, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: farmInsuranceTable.id, policyType: farmInsuranceTable.policyType, insurer: farmInsuranceTable.insurer, policyNumber: farmInsuranceTable.policyNumber, expiryDate: farmInsuranceTable.expiryDate })
       .from(farmInsuranceTable)
@@ -17194,36 +17194,36 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
 
     db.select({ id: staffRightToWorkTable.id, staffName: staffRightToWorkTable.staffName, documentType: staffRightToWorkTable.documentType, expiryDate: staffRightToWorkTable.expiryDate })
       .from(staffRightToWorkTable)
-      .where(and(eq(staffRightToWorkTable.farmId, farmId), isNotNull(staffRightToWorkTable.expiryDate), gte(staffRightToWorkTable.expiryDate, overdueStart as any), lt(staffRightToWorkTable.expiryDate, rangeEnd as any))),
+      .where(and(eq(staffRightToWorkTable.farmId, farmId), isNotNull(staffRightToWorkTable.expiryDate), gte(staffRightToWorkTable.expiryDate, overdueStart.toISOString().split("T")[0]), lt(staffRightToWorkTable.expiryDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── RTW: repeat / follow-up checks due ────────────────────────────────────
     db.select({ id: staffRightToWorkTable.id, staffName: staffRightToWorkTable.staffName, documentType: staffRightToWorkTable.documentType, followUpDate: staffRightToWorkTable.followUpDate })
       .from(staffRightToWorkTable)
-      .where(and(eq(staffRightToWorkTable.farmId, farmId), isNotNull(staffRightToWorkTable.followUpDate), gte(staffRightToWorkTable.followUpDate, overdueStart as any), lt(staffRightToWorkTable.followUpDate, rangeEnd as any))),
+      .where(and(eq(staffRightToWorkTable.farmId, farmId), isNotNull(staffRightToWorkTable.followUpDate), gte(staffRightToWorkTable.followUpDate, overdueStart.toISOString().split("T")[0]), lt(staffRightToWorkTable.followUpDate, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: livestockMedicineRecordsTable.id, medicineName: livestockMedicineRecordsTable.medicineName, withdrawalEndDate: livestockMedicineRecordsTable.withdrawalEndDate })
       .from(livestockMedicineRecordsTable)
-      .where(and(eq(livestockMedicineRecordsTable.farmId, farmId), isNotNull(livestockMedicineRecordsTable.withdrawalEndDate), gte(livestockMedicineRecordsTable.withdrawalEndDate, overdueStart as any), lt(livestockMedicineRecordsTable.withdrawalEndDate, rangeEnd as any))),
+      .where(and(eq(livestockMedicineRecordsTable.farmId, farmId), isNotNull(livestockMedicineRecordsTable.withdrawalEndDate), gte(livestockMedicineRecordsTable.withdrawalEndDate, overdueStart.toISOString().split("T")[0]), lt(livestockMedicineRecordsTable.withdrawalEndDate, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: vetHealthPlansTable.id, vetName: vetHealthPlansTable.vetName, planYear: vetHealthPlansTable.planYear, reviewDate: vetHealthPlansTable.reviewDate })
       .from(vetHealthPlansTable)
-      .where(and(eq(vetHealthPlansTable.farmId, farmId), isNotNull(vetHealthPlansTable.reviewDate), gte(vetHealthPlansTable.reviewDate, overdueStart as any), lt(vetHealthPlansTable.reviewDate, rangeEnd as any))),
+      .where(and(eq(vetHealthPlansTable.farmId, farmId), isNotNull(vetHealthPlansTable.reviewDate), gte(vetHealthPlansTable.reviewDate, overdueStart.toISOString().split("T")[0]), lt(vetHealthPlansTable.reviewDate, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: workshopPatEquipmentTable.id, itemName: workshopPatEquipmentTable.itemName, location: workshopPatEquipmentTable.location, nextDueDate: workshopPatEquipmentTable.nextTestDue })
       .from(workshopPatEquipmentTable)
-      .where(and(eq(workshopPatEquipmentTable.farmId, farmId), eq(workshopPatEquipmentTable.status, "active"), isNotNull(workshopPatEquipmentTable.nextTestDue), gte(workshopPatEquipmentTable.nextTestDue, overdueStart as any), lt(workshopPatEquipmentTable.nextTestDue, rangeEnd as any))),
+      .where(and(eq(workshopPatEquipmentTable.farmId, farmId), eq(workshopPatEquipmentTable.status, "active"), isNotNull(workshopPatEquipmentTable.nextTestDue), gte(workshopPatEquipmentTable.nextTestDue, overdueStart.toISOString().split("T")[0]), lt(workshopPatEquipmentTable.nextTestDue, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: workshopFireExtinguishersTable.id, location: workshopFireExtinguishersTable.location, type: workshopFireExtinguishersTable.type, nextServiceDue: workshopFireExtinguishersTable.nextServiceDue })
       .from(workshopFireExtinguishersTable)
-      .where(and(eq(workshopFireExtinguishersTable.farmId, farmId), isNotNull(workshopFireExtinguishersTable.nextServiceDue), gte(workshopFireExtinguishersTable.nextServiceDue, overdueStart as any), lt(workshopFireExtinguishersTable.nextServiceDue, rangeEnd as any))),
+      .where(and(eq(workshopFireExtinguishersTable.farmId, farmId), isNotNull(workshopFireExtinguishersTable.nextServiceDue), gte(workshopFireExtinguishersTable.nextServiceDue, overdueStart.toISOString().split("T")[0]), lt(workshopFireExtinguishersTable.nextServiceDue, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: workshopJobsTable.id, title: workshopJobsTable.title, status: workshopJobsTable.status, priority: workshopJobsTable.priority, estimatedCompletionDate: workshopJobsTable.estimatedCompletionDate })
       .from(workshopJobsTable)
-      .where(and(eq(workshopJobsTable.farmId, farmId), isNotNull(workshopJobsTable.estimatedCompletionDate), gte(workshopJobsTable.estimatedCompletionDate, overdueStart as any), lt(workshopJobsTable.estimatedCompletionDate, rangeEnd as any))),
+      .where(and(eq(workshopJobsTable.farmId, farmId), isNotNull(workshopJobsTable.estimatedCompletionDate), gte(workshopJobsTable.estimatedCompletionDate, overdueStart.toISOString().split("T")[0]), lt(workshopJobsTable.estimatedCompletionDate, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: biofuelCertificationsTable.id, scheme: biofuelCertificationsTable.scheme, certificationNumber: biofuelCertificationsTable.certificationNumber, expiryDate: biofuelCertificationsTable.expiryDate, status: biofuelCertificationsTable.status })
       .from(biofuelCertificationsTable)
-      .where(and(eq(biofuelCertificationsTable.farmId, farmId), isNotNull(biofuelCertificationsTable.expiryDate), gte(biofuelCertificationsTable.expiryDate, overdueStart as any), lt(biofuelCertificationsTable.expiryDate, rangeEnd as any))),
+      .where(and(eq(biofuelCertificationsTable.farmId, farmId), isNotNull(biofuelCertificationsTable.expiryDate), gte(biofuelCertificationsTable.expiryDate, overdueStart.toISOString().split("T")[0]), lt(biofuelCertificationsTable.expiryDate, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: waterAbstractionLicencesTable.id, licenceExpiryDate: waterAbstractionLicencesTable.licenceExpiryDate })
       .from(waterAbstractionLicencesTable)
@@ -17231,118 +17231,118 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
 
     db.select({ id: purchaseOrdersTable.id, poNumber: purchaseOrdersTable.poNumber, expectedDeliveryDate: purchaseOrdersTable.expectedDeliveryDate, status: purchaseOrdersTable.status })
       .from(purchaseOrdersTable)
-      .where(and(eq(purchaseOrdersTable.farmId, farmId), isNotNull(purchaseOrdersTable.expectedDeliveryDate), gte(purchaseOrdersTable.expectedDeliveryDate, overdueStart as any), lt(purchaseOrdersTable.expectedDeliveryDate, rangeEnd as any))),
+      .where(and(eq(purchaseOrdersTable.farmId, farmId), isNotNull(purchaseOrdersTable.expectedDeliveryDate), gte(purchaseOrdersTable.expectedDeliveryDate, overdueStart.toISOString().split("T")[0]), lt(purchaseOrdersTable.expectedDeliveryDate, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: coshhRecordsTable.id, substanceName: coshhRecordsTable.substanceName, reviewDate: coshhRecordsTable.reviewDate })
       .from(coshhRecordsTable)
-      .where(and(eq(coshhRecordsTable.farmId, farmId), isNotNull(coshhRecordsTable.reviewDate), gte(coshhRecordsTable.reviewDate, overdueStart as any), lt(coshhRecordsTable.reviewDate, rangeEnd as any))),
+      .where(and(eq(coshhRecordsTable.farmId, farmId), isNotNull(coshhRecordsTable.reviewDate), gte(coshhRecordsTable.reviewDate, overdueStart.toISOString().split("T")[0]), lt(coshhRecordsTable.reviewDate, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: farmPlannerEventsTable.id, title: farmPlannerEventsTable.title, description: farmPlannerEventsTable.description, eventDate: farmPlannerEventsTable.eventDate, colour: farmPlannerEventsTable.colour })
       .from(farmPlannerEventsTable)
-      .where(and(eq(farmPlannerEventsTable.farmId, farmId), gte(farmPlannerEventsTable.eventDate, overdueStart as any), lt(farmPlannerEventsTable.eventDate, rangeEnd as any))),
+      .where(and(eq(farmPlannerEventsTable.farmId, farmId), gte(farmPlannerEventsTable.eventDate, overdueStart.toISOString().split("T")[0]), lt(farmPlannerEventsTable.eventDate, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: farmGrantsTable.id, schemeName: farmGrantsTable.schemeName, schemeType: farmGrantsTable.schemeType, itemReferenceCode: farmGrantsTable.itemReferenceCode, itemDescription: farmGrantsTable.itemDescription, purchaseDeadline: farmGrantsTable.purchaseDeadline, claimDeadline: farmGrantsTable.claimDeadline, status: farmGrantsTable.status })
       .from(farmGrantsTable)
-      .where(and(eq(farmGrantsTable.farmId, farmId), isNotNull(farmGrantsTable.purchaseDeadline), gte(farmGrantsTable.purchaseDeadline, overdueStart as any), lt(farmGrantsTable.purchaseDeadline, rangeEnd as any))),
+      .where(and(eq(farmGrantsTable.farmId, farmId), isNotNull(farmGrantsTable.purchaseDeadline), gte(farmGrantsTable.purchaseDeadline, overdueStart.toISOString().split("T")[0]), lt(farmGrantsTable.purchaseDeadline, rangeEnd.toISOString().split("T")[0]))),
 
     db.select({ id: farmGrantsTable.id, schemeName: farmGrantsTable.schemeName, schemeType: farmGrantsTable.schemeType, itemReferenceCode: farmGrantsTable.itemReferenceCode, itemDescription: farmGrantsTable.itemDescription, purchaseDeadline: farmGrantsTable.purchaseDeadline, claimDeadline: farmGrantsTable.claimDeadline, status: farmGrantsTable.status })
       .from(farmGrantsTable)
-      .where(and(eq(farmGrantsTable.farmId, farmId), isNotNull(farmGrantsTable.claimDeadline), gte(farmGrantsTable.claimDeadline, overdueStart as any), lt(farmGrantsTable.claimDeadline, rangeEnd as any))),
+      .where(and(eq(farmGrantsTable.farmId, farmId), isNotNull(farmGrantsTable.claimDeadline), gte(farmGrantsTable.claimDeadline, overdueStart.toISOString().split("T")[0]), lt(farmGrantsTable.claimDeadline, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Livestock: expected calving (AI/reproduction records without actual calving date) ──
     db.select({ id: aiReproductionRecordsTable.id, earTag: aiReproductionRecordsTable.earTag, expectedCalvingDate: aiReproductionRecordsTable.expectedCalvingDate, serviceType: aiReproductionRecordsTable.serviceType })
       .from(aiReproductionRecordsTable)
-      .where(and(eq(aiReproductionRecordsTable.farmId, farmId), isNotNull(aiReproductionRecordsTable.expectedCalvingDate), isNull(aiReproductionRecordsTable.actualCalvingDate), gte(aiReproductionRecordsTable.expectedCalvingDate, overdueStart as any), lt(aiReproductionRecordsTable.expectedCalvingDate, rangeEnd as any))),
+      .where(and(eq(aiReproductionRecordsTable.farmId, farmId), isNotNull(aiReproductionRecordsTable.expectedCalvingDate), isNull(aiReproductionRecordsTable.actualCalvingDate), gte(aiReproductionRecordsTable.expectedCalvingDate, overdueStart.toISOString().split("T")[0]), lt(aiReproductionRecordsTable.expectedCalvingDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Livestock: vet prescription expiry ──
     db.select({ id: vetPrescriptionRecordsTable.id, productName: vetPrescriptionRecordsTable.productName, vetName: vetPrescriptionRecordsTable.vetName, expiryDate: vetPrescriptionRecordsTable.expiryDate, targetSpecies: vetPrescriptionRecordsTable.targetSpecies })
       .from(vetPrescriptionRecordsTable)
-      .where(and(eq(vetPrescriptionRecordsTable.farmId, farmId), isNotNull(vetPrescriptionRecordsTable.expiryDate), gte(vetPrescriptionRecordsTable.expiryDate, overdueStart as any), lt(vetPrescriptionRecordsTable.expiryDate, rangeEnd as any))),
+      .where(and(eq(vetPrescriptionRecordsTable.farmId, farmId), isNotNull(vetPrescriptionRecordsTable.expiryDate), gte(vetPrescriptionRecordsTable.expiryDate, overdueStart.toISOString().split("T")[0]), lt(vetPrescriptionRecordsTable.expiryDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Poultry: medicine withdrawal clear date ──
     db.select({ id: poultryTreatmentsTable.id, productName: poultryTreatmentsTable.productName, withdrawalClearDate: poultryTreatmentsTable.withdrawalClearDate })
       .from(poultryTreatmentsTable)
-      .where(and(eq(poultryTreatmentsTable.farmId, farmId), isNotNull(poultryTreatmentsTable.withdrawalClearDate), gte(poultryTreatmentsTable.withdrawalClearDate, overdueStart as any), lt(poultryTreatmentsTable.withdrawalClearDate, rangeEnd as any))),
+      .where(and(eq(poultryTreatmentsTable.farmId, farmId), isNotNull(poultryTreatmentsTable.withdrawalClearDate), gte(poultryTreatmentsTable.withdrawalClearDate, overdueStart.toISOString().split("T")[0]), lt(poultryTreatmentsTable.withdrawalClearDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Poultry scheme: corrective action deadline ──
     db.select({ id: poultrySchemeRecordsTable.id, scheme: poultrySchemeRecordsTable.scheme, correctiveActionDeadline: poultrySchemeRecordsTable.correctiveActionDeadline })
       .from(poultrySchemeRecordsTable)
-      .where(and(eq(poultrySchemeRecordsTable.farmId, farmId), isNotNull(poultrySchemeRecordsTable.correctiveActionDeadline), gte(poultrySchemeRecordsTable.correctiveActionDeadline, overdueStart as any), lt(poultrySchemeRecordsTable.correctiveActionDeadline, rangeEnd as any))),
+      .where(and(eq(poultrySchemeRecordsTable.farmId, farmId), isNotNull(poultrySchemeRecordsTable.correctiveActionDeadline), gte(poultrySchemeRecordsTable.correctiveActionDeadline, overdueStart.toISOString().split("T")[0]), lt(poultrySchemeRecordsTable.correctiveActionDeadline, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Poultry scheme: next assessment due ──
     db.select({ id: poultrySchemeRecordsTable.id, scheme: poultrySchemeRecordsTable.scheme, nextAssessmentDue: poultrySchemeRecordsTable.nextAssessmentDue })
       .from(poultrySchemeRecordsTable)
-      .where(and(eq(poultrySchemeRecordsTable.farmId, farmId), isNotNull(poultrySchemeRecordsTable.nextAssessmentDue), gte(poultrySchemeRecordsTable.nextAssessmentDue, overdueStart as any), lt(poultrySchemeRecordsTable.nextAssessmentDue, rangeEnd as any))),
+      .where(and(eq(poultrySchemeRecordsTable.farmId, farmId), isNotNull(poultrySchemeRecordsTable.nextAssessmentDue), gte(poultrySchemeRecordsTable.nextAssessmentDue, overdueStart.toISOString().split("T")[0]), lt(poultrySchemeRecordsTable.nextAssessmentDue, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Pig Red Tractor: certificate expiry ──
     db.select({ id: pigRedTractorChecklistTable.id, certificateExpiryDate: pigRedTractorChecklistTable.certificateExpiryDate, certificateNumber: pigRedTractorChecklistTable.certificateNumber })
       .from(pigRedTractorChecklistTable)
-      .where(and(eq(pigRedTractorChecklistTable.farmId, farmId), isNotNull(pigRedTractorChecklistTable.certificateExpiryDate), gte(pigRedTractorChecklistTable.certificateExpiryDate, overdueStart as any), lt(pigRedTractorChecklistTable.certificateExpiryDate, rangeEnd as any))),
+      .where(and(eq(pigRedTractorChecklistTable.farmId, farmId), isNotNull(pigRedTractorChecklistTable.certificateExpiryDate), gte(pigRedTractorChecklistTable.certificateExpiryDate, overdueStart.toISOString().split("T")[0]), lt(pigRedTractorChecklistTable.certificateExpiryDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Pig Red Tractor: corrective action deadline ──
     db.select({ id: pigRedTractorChecklistTable.id, correctiveActionDeadline: pigRedTractorChecklistTable.correctiveActionDeadline, nonConformanceDetails: pigRedTractorChecklistTable.nonConformanceDetails })
       .from(pigRedTractorChecklistTable)
-      .where(and(eq(pigRedTractorChecklistTable.farmId, farmId), isNotNull(pigRedTractorChecklistTable.correctiveActionDeadline), gte(pigRedTractorChecklistTable.correctiveActionDeadline, overdueStart as any), lt(pigRedTractorChecklistTable.correctiveActionDeadline, rangeEnd as any))),
+      .where(and(eq(pigRedTractorChecklistTable.farmId, farmId), isNotNull(pigRedTractorChecklistTable.correctiveActionDeadline), gte(pigRedTractorChecklistTable.correctiveActionDeadline, overdueStart.toISOString().split("T")[0]), lt(pigRedTractorChecklistTable.correctiveActionDeadline, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Pig Red Tractor: next assessment due ──
     db.select({ id: pigRedTractorChecklistTable.id, nextAssessmentDue: pigRedTractorChecklistTable.nextAssessmentDue })
       .from(pigRedTractorChecklistTable)
-      .where(and(eq(pigRedTractorChecklistTable.farmId, farmId), isNotNull(pigRedTractorChecklistTable.nextAssessmentDue), gte(pigRedTractorChecklistTable.nextAssessmentDue, overdueStart as any), lt(pigRedTractorChecklistTable.nextAssessmentDue, rangeEnd as any))),
+      .where(and(eq(pigRedTractorChecklistTable.farmId, farmId), isNotNull(pigRedTractorChecklistTable.nextAssessmentDue), gte(pigRedTractorChecklistTable.nextAssessmentDue, overdueStart.toISOString().split("T")[0]), lt(pigRedTractorChecklistTable.nextAssessmentDue, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Pig: vet assessment next review ──
     db.select({ id: pigVetAssessmentsTable.id, vetName: pigVetAssessmentsTable.vetName, nextReviewDate: pigVetAssessmentsTable.nextReviewDate })
       .from(pigVetAssessmentsTable)
-      .where(and(eq(pigVetAssessmentsTable.farmId, farmId), isNotNull(pigVetAssessmentsTable.nextReviewDate), gte(pigVetAssessmentsTable.nextReviewDate, overdueStart as any), lt(pigVetAssessmentsTable.nextReviewDate, rangeEnd as any))),
+      .where(and(eq(pigVetAssessmentsTable.farmId, farmId), isNotNull(pigVetAssessmentsTable.nextReviewDate), gte(pigVetAssessmentsTable.nextReviewDate, overdueStart.toISOString().split("T")[0]), lt(pigVetAssessmentsTable.nextReviewDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── SFI / Environmental: next evidence date ──
     db.select({ id: sfiActionsTable.id, actionCode: sfiActionsTable.actionCode, actionTitle: sfiActionsTable.actionTitle, nextEvidenceDate: sfiActionsTable.nextEvidenceDate })
       .from(sfiActionsTable)
-      .where(and(eq(sfiActionsTable.farmId, farmId), isNotNull(sfiActionsTable.nextEvidenceDate), gte(sfiActionsTable.nextEvidenceDate, overdueStart as any), lt(sfiActionsTable.nextEvidenceDate, rangeEnd as any))),
+      .where(and(eq(sfiActionsTable.farmId, farmId), isNotNull(sfiActionsTable.nextEvidenceDate), gte(sfiActionsTable.nextEvidenceDate, overdueStart.toISOString().split("T")[0]), lt(sfiActionsTable.nextEvidenceDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Slurry store: next inspection due ──
     db.select({ id: slurryStoresTable.id, storeName: slurryStoresTable.storeName, storeType: slurryStoresTable.storeType, nextInspectionDue: slurryStoresTable.nextInspectionDue })
       .from(slurryStoresTable)
-      .where(and(eq(slurryStoresTable.farmId, farmId), isNotNull(slurryStoresTable.nextInspectionDue), gte(slurryStoresTable.nextInspectionDue, overdueStart as any), lt(slurryStoresTable.nextInspectionDue, rangeEnd as any))),
+      .where(and(eq(slurryStoresTable.farmId, farmId), isNotNull(slurryStoresTable.nextInspectionDue), gte(slurryStoresTable.nextInspectionDue, overdueStart.toISOString().split("T")[0]), lt(slurryStoresTable.nextInspectionDue, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Water: borehole / water quality test next due ──
     db.select({ id: boreholeTestsTable.id, nextTestDueDate: boreholeTestsTable.nextTestDueDate, overallResult: boreholeTestsTable.overallResult })
       .from(boreholeTestsTable)
-      .where(and(eq(boreholeTestsTable.farmId, farmId), isNotNull(boreholeTestsTable.nextTestDueDate), gte(boreholeTestsTable.nextTestDueDate, overdueStart as any), lt(boreholeTestsTable.nextTestDueDate, rangeEnd as any))),
+      .where(and(eq(boreholeTestsTable.farmId, farmId), isNotNull(boreholeTestsTable.nextTestDueDate), gte(boreholeTestsTable.nextTestDueDate, overdueStart.toISOString().split("T")[0]), lt(boreholeTestsTable.nextTestDueDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Water: drought management plan review ──
     db.select({ id: droughtManagementPlansTable.id, planTitle: droughtManagementPlansTable.planTitle, reviewDate: droughtManagementPlansTable.reviewDate })
       .from(droughtManagementPlansTable)
-      .where(and(eq(droughtManagementPlansTable.farmId, farmId), isNotNull(droughtManagementPlansTable.reviewDate), gte(droughtManagementPlansTable.reviewDate, overdueStart as any), lt(droughtManagementPlansTable.reviewDate, rangeEnd as any))),
+      .where(and(eq(droughtManagementPlansTable.farmId, farmId), isNotNull(droughtManagementPlansTable.reviewDate), gte(droughtManagementPlansTable.reviewDate, overdueStart.toISOString().split("T")[0]), lt(droughtManagementPlansTable.reviewDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Fuel: tank next inspection due ──
     db.select({ id: fuelTanksTable.id, tankName: fuelTanksTable.name, fuelType: fuelTanksTable.fuelType, nextInspectionDue: fuelTanksTable.nextInspectionDue })
       .from(fuelTanksTable)
-      .where(and(eq(fuelTanksTable.farmId, farmId), isNotNull(fuelTanksTable.nextInspectionDue), gte(fuelTanksTable.nextInspectionDue, overdueStart as any), lt(fuelTanksTable.nextInspectionDue, rangeEnd as any))),
+      .where(and(eq(fuelTanksTable.farmId, farmId), isNotNull(fuelTanksTable.nextInspectionDue), gte(fuelTanksTable.nextInspectionDue, overdueStart.toISOString().split("T")[0]), lt(fuelTanksTable.nextInspectionDue, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Feed: delivery best before date ──
     db.select({ id: feedDeliveriesTable.id, productName: feedDeliveriesTable.productName, feedType: feedDeliveriesTable.feedType, bestBeforeDate: feedDeliveriesTable.bestBeforeDate })
       .from(feedDeliveriesTable)
-      .where(and(eq(feedDeliveriesTable.farmId, farmId), isNotNull(feedDeliveriesTable.bestBeforeDate), gte(feedDeliveriesTable.bestBeforeDate, overdueStart as any), lt(feedDeliveriesTable.bestBeforeDate, rangeEnd as any))),
+      .where(and(eq(feedDeliveriesTable.farmId, farmId), isNotNull(feedDeliveriesTable.bestBeforeDate), gte(feedDeliveriesTable.bestBeforeDate, overdueStart.toISOString().split("T")[0]), lt(feedDeliveriesTable.bestBeforeDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Diversification: activity insurance renewal ──
     db.select({ id: diversificationActivitiesTable.id, activityName: diversificationActivitiesTable.activityName, activityType: diversificationActivitiesTable.activityType, insuranceRenewalDate: diversificationActivitiesTable.insuranceRenewalDate })
       .from(diversificationActivitiesTable)
-      .where(and(eq(diversificationActivitiesTable.farmId, farmId), eq(diversificationActivitiesTable.status, "active"), isNotNull(diversificationActivitiesTable.insuranceRenewalDate), gte(diversificationActivitiesTable.insuranceRenewalDate, overdueStart as any), lt(diversificationActivitiesTable.insuranceRenewalDate, rangeEnd as any))),
+      .where(and(eq(diversificationActivitiesTable.farmId, farmId), eq(diversificationActivitiesTable.status, "active"), isNotNull(diversificationActivitiesTable.insuranceRenewalDate), gte(diversificationActivitiesTable.insuranceRenewalDate, overdueStart.toISOString().split("T")[0]), lt(diversificationActivitiesTable.insuranceRenewalDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Fuel/Energy: renewable installation next service ──
     db.select({ id: renewableEnergyInstallationsTable.id, installationName: renewableEnergyInstallationsTable.installationName, technologyType: renewableEnergyInstallationsTable.technologyType, nextServiceDate: renewableEnergyInstallationsTable.nextServiceDate })
       .from(renewableEnergyInstallationsTable)
-      .where(and(eq(renewableEnergyInstallationsTable.farmId, farmId), isNotNull(renewableEnergyInstallationsTable.nextServiceDate), gte(renewableEnergyInstallationsTable.nextServiceDate, overdueStart as any), lt(renewableEnergyInstallationsTable.nextServiceDate, rangeEnd as any))),
+      .where(and(eq(renewableEnergyInstallationsTable.farmId, farmId), isNotNull(renewableEnergyInstallationsTable.nextServiceDate), gte(renewableEnergyInstallationsTable.nextServiceDate, overdueStart.toISOString().split("T")[0]), lt(renewableEnergyInstallationsTable.nextServiceDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Water: irrigation equipment next calibration ──
     db.select({ id: irrigationEquipmentTable.id, equipmentName: irrigationEquipmentTable.equipmentName, equipmentType: irrigationEquipmentTable.equipmentType, nextCalibrationDue: irrigationEquipmentTable.nextCalibrationDue })
       .from(irrigationEquipmentTable)
-      .where(and(eq(irrigationEquipmentTable.farmId, farmId), isNotNull(irrigationEquipmentTable.nextCalibrationDue), gte(irrigationEquipmentTable.nextCalibrationDue, overdueStart as any), lt(irrigationEquipmentTable.nextCalibrationDue, rangeEnd as any))),
+      .where(and(eq(irrigationEquipmentTable.farmId, farmId), isNotNull(irrigationEquipmentTable.nextCalibrationDue), gte(irrigationEquipmentTable.nextCalibrationDue, overdueStart.toISOString().split("T")[0]), lt(irrigationEquipmentTable.nextCalibrationDue, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Horticulture: water quality test next due ──
     db.select({ id: horticultureWaterTestsTable.id, nextTestDueDate: horticultureWaterTestsTable.nextTestDueDate })
       .from(horticultureWaterTestsTable)
-      .where(and(eq(horticultureWaterTestsTable.farmId, farmId), isNotNull(horticultureWaterTestsTable.nextTestDueDate), gte(horticultureWaterTestsTable.nextTestDueDate, overdueStart as any), lt(horticultureWaterTestsTable.nextTestDueDate, rangeEnd as any))),
+      .where(and(eq(horticultureWaterTestsTable.farmId, farmId), isNotNull(horticultureWaterTestsTable.nextTestDueDate), gte(horticultureWaterTestsTable.nextTestDueDate, overdueStart.toISOString().split("T")[0]), lt(horticultureWaterTestsTable.nextTestDueDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Pending/in-progress task assignments (incl. work orders) ──
     db.select({ id: farmTaskAssignmentsTable.id, title: farmTaskAssignmentsTable.title, dueDate: farmTaskAssignmentsTable.dueDate, endDate: farmTaskAssignmentsTable.endDate, staffName: farmTaskAssignmentsTable.staffName, module: farmTaskAssignmentsTable.module, href: farmTaskAssignmentsTable.href, status: farmTaskAssignmentsTable.status, assignedToMemberId: farmTaskAssignmentsTable.assignedToMemberId, workOrderRef: farmTaskAssignmentsTable.workOrderRef })
@@ -17424,7 +17424,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     // ── Medicine Register: organic treatment — organic (doubled) withdrawal end date ──
     db.select({ id: livestockMedicineRecordsTable.id, medicineName: livestockMedicineRecordsTable.medicineName, organicWithdrawalEndDate: livestockMedicineRecordsTable.organicWithdrawalEndDate })
       .from(livestockMedicineRecordsTable)
-      .where(and(eq(livestockMedicineRecordsTable.farmId, farmId), eq(livestockMedicineRecordsTable.isOrganicTreatment, true), isNotNull(livestockMedicineRecordsTable.organicWithdrawalEndDate), gte(livestockMedicineRecordsTable.organicWithdrawalEndDate, overdueStart as any), lt(livestockMedicineRecordsTable.organicWithdrawalEndDate, rangeEnd as any))),
+      .where(and(eq(livestockMedicineRecordsTable.farmId, farmId), eq(livestockMedicineRecordsTable.isOrganicTreatment, true), isNotNull(livestockMedicineRecordsTable.organicWithdrawalEndDate), gte(livestockMedicineRecordsTable.organicWithdrawalEndDate, overdueStart.toISOString().split("T")[0]), lt(livestockMedicineRecordsTable.organicWithdrawalEndDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── TB Test Register: next retest due date ────────────────────────────────
     db.select({ id: tbTestsTable.id, species: tbTestsTable.species, herdFlockRef: tbTestsTable.herdFlockRef, nextTestDueDate: tbTestsTable.nextTestDueDate })
@@ -17496,7 +17496,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     // ── Dairy: mobility assessment due (quarterly — 91-day cycle) ─────────────
     db.select({ id: dairyMobilityScoringsTable.id, nextAssessmentDue: dairyMobilityScoringsTable.nextAssessmentDue, assessedBy: dairyMobilityScoringsTable.assessedBy, lamenessPrevalencePercent: dairyMobilityScoringsTable.lamenessPrevalencePercent })
       .from(dairyMobilityScoringsTable)
-      .where(and(eq(dairyMobilityScoringsTable.farmId, farmId), isNotNull(dairyMobilityScoringsTable.nextAssessmentDue), gte(dairyMobilityScoringsTable.nextAssessmentDue, overdueStart as any), lt(dairyMobilityScoringsTable.nextAssessmentDue, rangeEnd as any))),
+      .where(and(eq(dairyMobilityScoringsTable.farmId, farmId), isNotNull(dairyMobilityScoringsTable.nextAssessmentDue), gte(dairyMobilityScoringsTable.nextAssessmentDue, overdueStart.toISOString().split("T")[0]), lt(dairyMobilityScoringsTable.nextAssessmentDue, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Field Crops: expected harvest dates ───────────────────────────────────
     db.select({ id: fieldCropAssignmentsTable.id, expectedHarvestDate: fieldCropAssignmentsTable.expectedHarvestDate, fieldName: fieldsTable.name, cropName: cropsTable.name, variety: cropVarietiesTable.variety, fieldId: fieldsTable.id })
@@ -17504,7 +17504,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
       .innerJoin(cropVarietiesTable, eq(fieldCropAssignmentsTable.varietyId, cropVarietiesTable.id))
       .innerJoin(cropsTable, eq(cropVarietiesTable.cropId, cropsTable.id))
-      .where(and(eq(fieldsTable.farmId, farmId), isNotNull(fieldCropAssignmentsTable.expectedHarvestDate), gte(fieldCropAssignmentsTable.expectedHarvestDate, overdueStart as any), lt(fieldCropAssignmentsTable.expectedHarvestDate, rangeEnd as any))),
+      .where(and(eq(fieldsTable.farmId, farmId), isNotNull(fieldCropAssignmentsTable.expectedHarvestDate), gte(fieldCropAssignmentsTable.expectedHarvestDate, overdueStart.toISOString().split("T")[0]), lt(fieldCropAssignmentsTable.expectedHarvestDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Field Crops: planting dates ───────────────────────────────────────────
     db.select({ id: fieldCropAssignmentsTable.id, plantingDate: fieldCropAssignmentsTable.plantingDate, fieldName: fieldsTable.name, cropName: cropsTable.name, variety: cropVarietiesTable.variety, fieldId: fieldsTable.id })
@@ -17512,12 +17512,12 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
       .innerJoin(cropVarietiesTable, eq(fieldCropAssignmentsTable.varietyId, cropVarietiesTable.id))
       .innerJoin(cropsTable, eq(cropVarietiesTable.cropId, cropsTable.id))
-      .where(and(eq(fieldsTable.farmId, farmId), isNotNull(fieldCropAssignmentsTable.plantingDate), gte(fieldCropAssignmentsTable.plantingDate, overdueStart as any), lt(fieldCropAssignmentsTable.plantingDate, rangeEnd as any))),
+      .where(and(eq(fieldsTable.farmId, farmId), isNotNull(fieldCropAssignmentsTable.plantingDate), gte(fieldCropAssignmentsTable.plantingDate, overdueStart.toISOString().split("T")[0]), lt(fieldCropAssignmentsTable.plantingDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Livestock Purchase Invoices: outstanding/overdue with payment due in range ──
     db.select({ id: livestockPurchasesTable.id, supplierName: livestockPurchasesTable.supplierName, invoiceRef: livestockPurchasesTable.invoiceRef, species: livestockPurchasesTable.species, numberOfHead: livestockPurchasesTable.numberOfHead, totalAmountPence: livestockPurchasesTable.totalAmountPence, paymentDueDate: livestockPurchasesTable.paymentDueDate, paymentStatus: livestockPurchasesTable.paymentStatus })
       .from(livestockPurchasesTable)
-      .where(and(eq(livestockPurchasesTable.farmId, farmId), inArray(livestockPurchasesTable.paymentStatus, ["outstanding", "overdue"]), isNotNull(livestockPurchasesTable.paymentDueDate), gte(livestockPurchasesTable.paymentDueDate, overdueStart as any), lt(livestockPurchasesTable.paymentDueDate, rangeEnd as any))),
+      .where(and(eq(livestockPurchasesTable.farmId, farmId), inArray(livestockPurchasesTable.paymentStatus, ["outstanding", "overdue"]), isNotNull(livestockPurchasesTable.paymentDueDate), gte(livestockPurchasesTable.paymentDueDate, overdueStart.toISOString().split("T")[0]), lt(livestockPurchasesTable.paymentDueDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── Sheep Vaccination Programmes: next due date ───────────────────────────
     db.select({ id: sheepVaccinationProgrammesTable.id, vaccineProduct: sheepVaccinationProgrammesTable.vaccineProduct, nextDueDate: sheepVaccinationProgrammesTable.nextDueDate })
@@ -17641,7 +17641,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     // ── NVZ Risk Assessments: next review due ─────────────────────────────────
     db.select({ id: nvzRiskAssessmentsTable.id, nextReviewDate: nvzRiskAssessmentsTable.nextReviewDate, overallRiskLevel: nvzRiskAssessmentsTable.overallRiskLevel, assessorName: nvzRiskAssessmentsTable.assessorName, assessedBy: nvzRiskAssessmentsTable.assessedBy })
       .from(nvzRiskAssessmentsTable)
-      .where(and(eq(nvzRiskAssessmentsTable.farmId, farmId), isNotNull(nvzRiskAssessmentsTable.nextReviewDate), gte(nvzRiskAssessmentsTable.nextReviewDate, overdueStart as any), lt(nvzRiskAssessmentsTable.nextReviewDate, rangeEnd as any))),
+      .where(and(eq(nvzRiskAssessmentsTable.farmId, farmId), isNotNull(nvzRiskAssessmentsTable.nextReviewDate), gte(nvzRiskAssessmentsTable.nextReviewDate, overdueStart.toISOString().split("T")[0]), lt(nvzRiskAssessmentsTable.nextReviewDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── NVZ Active Restrictions: standing notices ─────────────────────────────
     db.select({ id: nvzRiskAssessmentsTable.id, applicationRestrictionsIdentified: nvzRiskAssessmentsTable.applicationRestrictionsIdentified, overallRiskLevel: nvzRiskAssessmentsTable.overallRiskLevel, nextReviewDate: nvzRiskAssessmentsTable.nextReviewDate })
@@ -17651,12 +17651,12 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     // ── VHP Action Points: next due ───────────────────────────────────────────
     db.select({ id: vetHealthPlanActionsTable.id, planId: vetHealthPlanActionsTable.planId, description: vetHealthPlanActionsTable.description, category: vetHealthPlanActionsTable.category, nextDueDate: vetHealthPlanActionsTable.nextDueDate, assignedTo: vetHealthPlanActionsTable.assignedTo })
       .from(vetHealthPlanActionsTable)
-      .where(and(eq(vetHealthPlanActionsTable.farmId, farmId), eq(vetHealthPlanActionsTable.isActive, true), isNotNull(vetHealthPlanActionsTable.nextDueDate), gte(vetHealthPlanActionsTable.nextDueDate, overdueStart as any), lt(vetHealthPlanActionsTable.nextDueDate, rangeEnd as any))),
+      .where(and(eq(vetHealthPlanActionsTable.farmId, farmId), eq(vetHealthPlanActionsTable.isActive, true), isNotNull(vetHealthPlanActionsTable.nextDueDate), gte(vetHealthPlanActionsTable.nextDueDate, overdueStart.toISOString().split("T")[0]), lt(vetHealthPlanActionsTable.nextDueDate, rangeEnd.toISOString().split("T")[0]))),
 
     // ── PPE Purchase Orders: expected delivery date ───────────────────────────
     db.select({ id: ppePurchaseOrdersTable.id, poNumber: ppePurchaseOrdersTable.poNumber, supplierName: ppePurchaseOrdersTable.supplierName, expectedDeliveryDate: ppePurchaseOrdersTable.expectedDeliveryDate, status: ppePurchaseOrdersTable.status })
       .from(ppePurchaseOrdersTable)
-      .where(and(eq(ppePurchaseOrdersTable.farmId, farmId), isNotNull(ppePurchaseOrdersTable.expectedDeliveryDate), gte(ppePurchaseOrdersTable.expectedDeliveryDate, overdueStart as any), lt(ppePurchaseOrdersTable.expectedDeliveryDate, rangeEnd as any))),
+      .where(and(eq(ppePurchaseOrdersTable.farmId, farmId), isNotNull(ppePurchaseOrdersTable.expectedDeliveryDate), gte(ppePurchaseOrdersTable.expectedDeliveryDate, overdueStart.toISOString().split("T")[0]), lt(ppePurchaseOrdersTable.expectedDeliveryDate, rangeEnd.toISOString().split("T")[0]))),
 
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
@@ -18481,8 +18481,8 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       .where(and(
         eq(vehicleWeatherDevicesTable.farmId, farmId),
         isNotNull(vehicleWeatherDevicesTable.calibrationDueDate),
-        gte(vehicleWeatherDevicesTable.calibrationDueDate, overdueStart as any),
-        lt(vehicleWeatherDevicesTable.calibrationDueDate, rangeEnd as any),
+        gte(vehicleWeatherDevicesTable.calibrationDueDate, overdueStart.toISOString().split("T")[0]),
+        lt(vehicleWeatherDevicesTable.calibrationDueDate, rangeEnd.toISOString().split("T")[0]),
       ));
     for (const r of wdRows) {
       if (!r.calibrationDueDate) continue;
@@ -18517,8 +18517,8 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       ))
       .where(and(
         eq(sprayApplicationsTable.farmId, farmId),
-        gte(sprayApplicationsTable.applicationDate, overdueStart as any),
-        lt(sprayApplicationsTable.applicationDate, notifLookAhead as any),
+        gte(sprayApplicationsTable.applicationDate, overdueStart.toISOString().split("T")[0]),
+        lt(sprayApplicationsTable.applicationDate, notifLookAhead.toISOString().split("T")[0]),
       ));
     if (beeApps.length > 0) {
       const notifiedIds = new Set(
