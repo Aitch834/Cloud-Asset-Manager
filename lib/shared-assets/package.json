@@ -1,6 +1,6 @@
 {
   "name": "@workspace/shared-assets",
-  "version": "0.0.0",
+  "version": "1.4.17",
   "private": true,
   "type": "module",
   "exports": {

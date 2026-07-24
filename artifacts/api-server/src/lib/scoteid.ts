@@ -10,7 +10,7 @@
  * BCMS. ScotEID is the Scotland equivalent of England's LIS + LIP combined.
  *
  * API access requires registration as an approved software supplier:
- *   https://www.scoteid.com  (contact: scoteid@sruc.ac.uk)
+ *   https://www.scoteid.com  (contact: help@scoteid.com  |  tel: 01466 794323)
  *
  * Authentication: API key supplied via HTTP header.
  *

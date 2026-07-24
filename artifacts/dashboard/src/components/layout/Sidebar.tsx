@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { APP_VERSION_FULL } from "@/version";
 import { useSafeClerk } from "@/hooks/use-safe-clerk";
 import { 
   LayoutDashboard, 
@@ -445,6 +446,9 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
             <LogOut className="w-4 h-4 opacity-50" />
             Sign Out
           </button>
+          <p className="text-center text-[10px] text-white/25 pt-1 pb-0.5 select-none">
+            v{APP_VERSION_FULL}
+          </p>
         </div>
       </div>
     </>

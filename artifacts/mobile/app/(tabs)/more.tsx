@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { APP_VERSION_FULL } from "@/constants/version";
 import { ListItem } from "@/components/ui/ListItem";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { colors } from "@/constants/colors";
@@ -629,7 +630,7 @@ export default function MoreScreen() {
           <View style={styles.divider} />
           <ListItem
             title="About BDE Farm Trac"
-            subtitle="Version 1.0.0"
+            subtitle={`v${APP_VERSION_FULL}`}
             icon="info"
             showChevron={false}
           />
