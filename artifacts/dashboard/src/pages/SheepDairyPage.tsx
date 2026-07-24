@@ -177,7 +177,10 @@ function MilkTab({ farmId }: { farmId: number }) {
   const set = (k: keyof MilkRecord, v: unknown) => setForm(p => ({ ...p, [k]: v }));
 
   const { data, isLoading } = useQuery({ queryKey: ["sheep-dairy-milk", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-dairy/milk-records`)).then(r => r.json()) });
-  const records: MilkRecord[] = data?.records ?? [];
+  const allMilkRecords: MilkRecord[] = data?.records ?? [];
+  const milkYears = useMemo(() => Array.from(new Set(allMilkRecords.map(r => String(r.recordDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allMilkRecords]);
+  const [milkYear, setMilkYear] = useState("all");
+  const records = useMemo(() => milkYear === "all" ? allMilkRecords : allMilkRecords.filter(r => String(r.recordDate ?? "").startsWith(milkYear)), [allMilkRecords, milkYear]);
 
   const totalYield = records.reduce((s, r) => s + (parseFloat(r.yieldLitres || "0") || 0), 0);
   const sccReadings = records.map(r => r.buyerSccThousands ?? r.sccThousands).filter((v): v is number => v != null);
@@ -246,9 +249,15 @@ function MilkTab({ farmId }: { farmId: number }) {
           </div>
         </div>
       )}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center gap-2">
         <h2 className="text-base font-semibold text-gray-800">Milk Collection Records</h2>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        <div className="flex items-center gap-2">
+          <Select value={milkYear} onValueChange={setMilkYear}>
+            <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{milkYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        </div>
       </div>
       {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : records.length === 0 ? (
         <div className="text-center py-12 text-gray-400"><Droplets className="w-8 h-8 mx-auto mb-2 opacity-40" /><p>No milk records yet.</p></div>
@@ -694,7 +703,10 @@ export function SheepLambingTab({ farmId }: { farmId: number }) {
   const set = (k: keyof SheepLambingRecord, v: unknown) => setForm(p => ({ ...p, [k]: v }));
 
   const { data, isLoading } = useQuery({ queryKey: ["sheep-dairy-kidding", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-dairy/kidding-records`)).then(r => r.json()) });
-  const records: SheepLambingRecord[] = data?.records ?? [];
+  const allLambingRecords: SheepLambingRecord[] = data?.records ?? [];
+  const lambYears = useMemo(() => Array.from(new Set(allLambingRecords.map(r => String(r.lambingDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allLambingRecords]);
+  const [lambYear, setLambYear] = useState("all");
+  const records = useMemo(() => lambYear === "all" ? allLambingRecords : allLambingRecords.filter(r => String(r.lambingDate ?? "").startsWith(lambYear)), [allLambingRecords, lambYear]);
   const liveCount = records.reduce((s, r) => s + (r.birthOutcome?.includes("live") ? (r.lambCount || 1) : 0), 0);
   const pendingEid = records.filter(r => !r.eidApplied && r.birthOutcome?.includes("live")).length;
 
@@ -719,7 +731,11 @@ export function SheepLambingTab({ farmId }: { farmId: number }) {
       </div>
       <div className="flex flex-wrap justify-between items-center gap-2">
         <h2 className="text-base font-semibold text-gray-800">Lambing Records</h2>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
+          <Select value={lambYear} onValueChange={setLambYear}>
+            <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{lambYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
           <Button size="sm" variant="outline" onClick={() => {
             const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
             const rows = records.map(r => `<tr><td>${r.lambingDate ? new Date(r.lambingDate).toLocaleDateString("en-GB") : "—"}</td><td>${r.eweLisTag || "—"}</td><td>${r.birthOutcome?.replace(/-/g, " ") || "—"}</td><td>${r.lambCount ?? 1} × ${r.lambSex || "?"}</td><td>${r.easeScore ?? "—"}</td><td>${r.eidApplied ? "Applied" : "Pending"}</td><td>${r.lambBirthWeightKg || "—"}</td></tr>`).join("");
@@ -1900,7 +1916,10 @@ export function TreatmentRegisterTab({ farmId }: { farmId: number }) {
     queryKey: ["sheep-dairy-treatments", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/sheep-dairy/treatments`)).then(r => r.json()),
   });
-  const records: TreatmentRecord[] = data?.records ?? [];
+  const allTreatments: TreatmentRecord[] = data?.records ?? [];
+  const treatYears = useMemo(() => Array.from(new Set(allTreatments.map(r => String(r.treatmentDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allTreatments]);
+  const [treatYear, setTreatYear] = useState("all");
+  const records = useMemo(() => treatYear === "all" ? allTreatments : allTreatments.filter(r => String(r.treatmentDate ?? "").startsWith(treatYear)), [allTreatments, treatYear]);
 
   const save = useMutation({
     mutationFn: () => fetch(api(`farms/${farmId}/sheep-dairy/treatments${editing ? `/${editing.id}` : ""}`), {
@@ -1920,7 +1939,11 @@ export function TreatmentRegisterTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center gap-2">
+        <Select value={treatYear} onValueChange={setTreatYear}>
+          <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
+          <SelectContent><SelectItem value="all">All years</SelectItem>{treatYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+        </Select>
         <Button onClick={openNew} size="sm"><Plus className="h-4 w-4 mr-1" />Add Treatment</Button>
       </div>
       {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : (
