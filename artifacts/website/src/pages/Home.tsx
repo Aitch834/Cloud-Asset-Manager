@@ -14,7 +14,8 @@ import {
   PoundSterling,
   CalendarCheck,
   ToggleRight,
-  Lock
+  Lock,
+  FlaskConical,
 } from "lucide-react";
 
 export default function Home() {
@@ -206,6 +207,39 @@ export default function Home() {
               </Link>
             </Button>
           </div>
+        </div>
+      </section>
+
+      {/* Sandbox Spotlight */}
+      <section className="py-20 bg-white border-y border-amber-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+            className="bg-amber-50 border border-amber-200 rounded-3xl px-8 py-12 md:px-16 flex flex-col md:flex-row items-center gap-10"
+          >
+            <div className="w-20 h-20 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0">
+              <FlaskConical className="w-10 h-10 text-amber-600" />
+            </div>
+            <div className="flex-1 text-center md:text-left">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-200 text-amber-800 text-xs font-semibold uppercase tracking-wide mb-4">
+                Included with every subscription
+              </div>
+              <h2 className="text-2xl md:text-3xl font-bold mb-3 text-foreground">
+                Not sure where to start? Try it first — no risk.
+              </h2>
+              <p className="text-muted-foreground text-base leading-relaxed max-w-2xl">
+                Every BDE Farm Trac account comes with a built-in <strong>Sandbox Test Environment</strong> — a full copy of your setup where you can enter records, explore every screen, and get comfortable with the system before touching your live data. Nothing in the sandbox reaches government systems, sends an SMS, or submits to the LIS, BCMS, or any other integration. When you're ready, switch to your live environment in one click.
+              </p>
+            </div>
+            <div className="shrink-0">
+              <Button size="lg" variant="outline" className="border-amber-400 text-amber-800 hover:bg-amber-100 whitespace-nowrap" asChild>
+                <Link href="/features#sandbox">Learn more</Link>
+              </Button>
+            </div>
+          </motion.div>
         </div>
       </section>
 

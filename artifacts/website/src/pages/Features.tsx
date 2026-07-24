@@ -6,6 +6,7 @@ import {
   Droplets, AlertTriangle, Leaf, Fuel, Zap,
   Ham, Bird, Flower2, Store, Waves, Landmark, WheatIcon,
   Warehouse, Wrench, HeartPulse, Milk, Grape, Crosshair, CalendarClock,
+  FlaskConical,
 } from "lucide-react";
 
 type Badge = "required" | "module" | "included";
@@ -79,6 +80,21 @@ const sections: Section[] = [
           "Application reference tracking — store RPA reference numbers at point of submission for audit trail",
           "RPA Agreement / Approval Reference — separate field for SFI and CS applications that appears automatically on approval; holds the agreement reference number issued by the RPA at the point of approval, distinct from the original application reference",
           "One-click SFI / ELM handoff — approved SFI and CS grant records show a 'Start SFI / ELM Record →' button that navigates to the SFI / ELM page with the agreement reference, scheme name, and managing body pre-filled; no re-typing of references",
+        ],
+      },
+      {
+        title: "Sandbox Test Environment",
+        icon: FlaskConical,
+        color: "bg-amber-50 text-amber-600 border-amber-100",
+        badge: "included",
+        features: [
+          "A complete mirror of your live account — every farm, module, and screen is available to explore freely with no risk of affecting real records, submitting to government systems, or triggering any external integration",
+          "No real-world side-effects — SMS alerts, GPS polling, livestock submission APIs (LIS, EIDCymru, ScotEID), BCMS reporting, and all background jobs are fully suppressed for sandbox sessions",
+          "Persistent amber banner throughout — a clear 'SANDBOX — Test Environment' bar is visible on every page so there is never any doubt you are not in your live account",
+          "Reset sandbox in one click — super-admins can wipe all test data instantly from within the banner; farm structure, settings, and credentials are preserved so the sandbox is ready to use again immediately",
+          "Return to live in one click — the 'Return to Live Dashboard' button in the banner switches you back to your production environment without signing out or navigating away",
+          "Ideal for training new staff — let new team members learn the system, enter records, and explore every screen without the pressure of working in a live compliance environment",
+          "Available at no extra cost — sandbox access is included with every subscription; no separate tier or add-on required",
         ],
       },
       {

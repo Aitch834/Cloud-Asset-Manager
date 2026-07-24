@@ -1,6 +1,6 @@
 import { Layout } from "@/components/layout/Layout";
 import { useState, useMemo, useRef } from "react";
-import { Info, Plus, X, Pencil, PoundSterling, CalendarCheck, ToggleRight } from "lucide-react";
+import { Info, Plus, X, Pencil, PoundSterling, CalendarCheck, ToggleRight, FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 
@@ -295,6 +295,21 @@ export default function Pricing() {
             </Button>
             <p className="text-xs text-center text-muted-foreground mt-4 flex items-center justify-center gap-1">
               <Info className="w-3 h-3" /> All prices exclude VAT.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Sandbox callout */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mb-20">
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8 flex flex-col sm:flex-row items-center gap-6">
+          <div className="w-14 h-14 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0">
+            <FlaskConical className="w-7 h-7 text-amber-600" />
+          </div>
+          <div className="flex-1 text-center sm:text-left">
+            <p className="font-bold text-foreground text-lg mb-1">Sandbox Test Environment — included at no extra cost</p>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Every subscription includes a full sandbox copy of your account. Enter records, explore every module, and train new staff with zero risk of affecting your live data or submitting to any government or third-party system.
             </p>
           </div>
         </div>
