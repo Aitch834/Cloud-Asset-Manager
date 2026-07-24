@@ -749,7 +749,10 @@ export default function TaskBoardPage() {
 
   const pending = applySortOrder(filtered.filter(r => r.status === "pending" || r.status === "in_progress"));
   const completedAll = filtered.filter(r => r.status === "completed" || r.status === "cancelled");
-  const completed = applySortOrder(applyCompletedWindow(completedAll));
+  // Skip the time-window filter when user has explicitly selected a status chip — otherwise
+  // "0 of 1" appears because the window cuts a record the stat card already counted.
+  const windowFilterActive = statusFilter === "all";
+  const completed = applySortOrder(windowFilterActive ? applyCompletedWindow(completedAll) : completedAll);
 
   // Staff names for the member filter dropdown — scoped to selected department
   const staffNames = deptMemberNames
@@ -960,27 +963,33 @@ export default function TaskBoardPage() {
           <div>
             <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
               <h2 className="font-bold text-sm text-foreground/70 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                Completed & Cancelled ({completed.length}{completedAll.length !== completed.length ? ` of ${completedAll.length}` : ""})
+                {statusFilter === "cancelled"
+                  ? <XCircle className="w-4 h-4 text-slate-400" />
+                  : <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                {statusFilter === "cancelled" ? "Cancelled" : statusFilter === "completed" ? "Completed" : "Completed & Cancelled"}
+                {" "}({completed.length}{completedAll.length !== completed.length ? ` of ${completedAll.length}` : ""})
               </h2>
-              <select
-                value={completedWindow}
-                onChange={e => setCompletedWindow(e.target.value)}
-                className="text-xs border border-border rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground/70 print:hidden"
-              >
-                <optgroup label="Rolling window">
-                  {WINDOW_OPTIONS.map(o => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </optgroup>
-                {completedYears.length > 0 && (
-                  <optgroup label="By year">
-                    {completedYears.map(y => (
-                      <option key={y} value={`year:${y}`}>{y}</option>
+              {/* Only show time-window selector when it's actually being applied */}
+              {windowFilterActive && (
+                <select
+                  value={completedWindow}
+                  onChange={e => setCompletedWindow(e.target.value)}
+                  className="text-xs border border-border rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground/70 print:hidden"
+                >
+                  <optgroup label="Rolling window">
+                    {WINDOW_OPTIONS.map(o => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
                     ))}
                   </optgroup>
-                )}
-              </select>
+                  {completedYears.length > 0 && (
+                    <optgroup label="By year">
+                      {completedYears.map(y => (
+                        <option key={y} value={`year:${y}`}>{y}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+              )}
             </div>
             {completed.length === 0 ? (
               <p className="text-xs text-foreground/40 text-center py-6">
@@ -1011,6 +1020,7 @@ export default function TaskBoardPage() {
         open={showNewTask}
         onClose={() => setShowNewTask(false)}
         allowEditTitle
+        onAssigned={() => setStatusFilter("all")}
       />
     </AppLayout>
   );
