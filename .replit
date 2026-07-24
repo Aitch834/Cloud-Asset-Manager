@@ -118,3 +118,23 @@ LIS_LIP_API_URL_SANDBOX = "https://sandbox.movement.api.livestockinformation.org
 LIS_LIP_B2C_AUTHORITY_SANDBOX = "https://livestockinformationb2cprod.b2clogin.com/tfp/livestockinformationb2cprod.onmicrosoft.com/B2C_1A_THIRDPARTY_SIGNIN/v2.0"
 LIS_LIP_SCOPE_SANDBOX = "https://livestockinformationb2cprod.onmicrosoft.com/ms-apimlisapisdbx/user_impersonation"
 LIS_LIP_REDIRECT_URI = ""
+
+[[ports]]
+localPort = 8081
+externalPort = 8081
+
+[[ports]]
+localPort = 18115
+externalPort = 3002
+
+[[ports]]
+localPort = 19161
+externalPort = 3001
+
+[[ports]]
+localPort = 23183
+externalPort = 80
+
+[[ports]]
+localPort = 25580
+externalPort = 3000
