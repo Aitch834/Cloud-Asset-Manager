@@ -73,7 +73,10 @@ function daysUntil(dateStr: string, today: Date): number {
 }
 
 function isoDate(d: Date): string {
-  return d.toISOString().split("T")[0];
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 const COLOUR_MAP: Record<string, { badge: string; dot: string; chip: string; bar: string }> = {
@@ -825,7 +828,8 @@ function GanttView({
     const d = new Date(today); d.setDate(d.getDate() + i); return d;
   });
   const todayStr     = isoDate(today);
-  const ganttStartMs = today.getTime();
+  const ganttStart = new Date(today); ganttStart.setHours(0, 0, 0, 0);
+  const ganttStartMs = ganttStart.getTime();
   const totalMs      = days * 86400000;
 
   const getBarProps = (task: TaskItem) => {
