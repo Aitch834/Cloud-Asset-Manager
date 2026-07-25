@@ -513,13 +513,59 @@ function DroppablePoolZone({ children, isReturning }: { children: React.ReactNod
 
 // ─── Planner Task Card ────────────────────────────────────────────────────────
 
+const REQ_FIELDS = [
+  { label: "Tractors",   k: "tractors"   as const },
+  { label: "Implements", k: "implements" as const },
+  { label: "Vehicles",   k: "vehicles"   as const },
+  { label: "Sprayers",   k: "sprayers"   as const },
+  { label: "Trailers",   k: "trailers"   as const },
+  { label: "Staff",      k: "staff"      as const },
+  { label: "Other",      k: "other"      as const },
+];
+
 function PlannerTaskCard({
-  task, allocations, onRemoveAllocation,
+  task, allocations, onRemoveAllocation, farmId, onReqsUpdated,
 }: {
   task: PlannerTask;
   allocations: PlannerAllocation[];
   onRemoveAllocation: (id: number) => void;
+  farmId: number;
+  onReqsUpdated: () => void;
 }) {
+  const [showEdit, setShowEdit] = useState(false);
+  const [reqs, setReqs] = useState({
+    tractors: task.req_tractors,
+    implements: task.req_implements,
+    vehicles: task.req_vehicles,
+    sprayers: task.req_sprayers,
+    trailers: task.req_trailers,
+    staff: task.req_staff,
+    other: task.req_other,
+  });
+
+  const updateMut = useMutation({
+    mutationFn: () => {
+      const endpoint = task.source === "assignment"
+        ? `/api/farms/${farmId}/task-assignments/${task.id}`
+        : `/api/farms/${farmId}/planner-events/${task.id}`;
+      return fetch(endpoint, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reqTractors:   reqs.tractors,
+          reqImplements: reqs.implements,
+          reqVehicles:   reqs.vehicles,
+          reqSprayers:   reqs.sprayers,
+          reqTrailers:   reqs.trailers,
+          reqStaff:      reqs.staff,
+          reqOther:      reqs.other,
+        }),
+      }).then(r => r.json());
+    },
+    onSuccess: () => { toast({ title: "Requirements updated" }); setShowEdit(false); onReqsUpdated(); },
+    onError: () => toast({ title: "Failed to update requirements", variant: "destructive" }),
+  });
+
   const dateLabel = task.due_date
     ? new Date(task.due_date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })
     : "No date";
@@ -527,19 +573,26 @@ function PlannerTaskCard({
   const totalReqs = REQ_TYPE_MAP.reduce((sum, { key }) => sum + (Number(task[key]) || 0), 0);
   const hasRequirements = totalReqs > 0;
 
+  function openEdit() {
+    setReqs({
+      tractors: task.req_tractors, implements: task.req_implements,
+      vehicles: task.req_vehicles, sprayers: task.req_sprayers,
+      trailers: task.req_trailers, staff: task.req_staff, other: task.req_other,
+    });
+    setShowEdit(e => !e);
+  }
+
   return (
     <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
       <div className="flex items-start gap-3 p-3.5">
         <div className={cn("w-1 self-stretch rounded-full flex-shrink-0", getColourBg(task.colour))} />
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <div>
+            <div className="min-w-0">
               <p className="font-semibold text-sm text-foreground leading-snug">{task.title}</p>
               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 <span className="text-[10px] text-foreground/50 font-medium">{dateLabel}</span>
-                {task.staff_name && (
-                  <span className="text-[10px] text-foreground/40">→ {task.staff_name}</span>
-                )}
+                {task.staff_name && <span className="text-[10px] text-foreground/40">→ {task.staff_name}</span>}
                 {task.estimated_hours && (
                   <span className="flex items-center gap-0.5 text-[10px] text-foreground/40">
                     <Clock className="w-2.5 h-2.5" />{task.estimated_hours}h
@@ -550,17 +603,34 @@ function PlannerTaskCard({
                 )}
               </div>
             </div>
-            <span className={cn(
-              "flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
-              task.source === "assignment"
-                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                : "bg-indigo-50 text-indigo-700 border border-indigo-200"
-            )}>
-              {task.module ?? "Task"}
-            </span>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <button
+                onClick={openEdit}
+                title={hasRequirements ? "Edit requirements" : "Set requirements"}
+                className={cn(
+                  "flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md border transition-colors",
+                  showEdit
+                    ? "bg-indigo-100 border-indigo-300 text-indigo-700"
+                    : hasRequirements
+                      ? "border-border text-foreground/40 hover:text-foreground/70 hover:bg-muted"
+                      : "border-indigo-200 text-indigo-500 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700"
+                )}
+              >
+                <Pencil className="w-2.5 h-2.5" />
+                {!hasRequirements && <span>Set requirements</span>}
+              </button>
+              <span className={cn(
+                "text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
+                task.source === "assignment"
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : "bg-indigo-50 text-indigo-700 border border-indigo-200"
+              )}>
+                {task.module ?? "Task"}
+              </span>
+            </div>
           </div>
 
-          {hasRequirements ? (
+          {hasRequirements && (
             <div className="mt-2.5 flex flex-wrap gap-1.5">
               {REQ_TYPE_MAP.flatMap(({ key, type }) => {
                 const count = Number(task[key]) || 0;
@@ -581,11 +651,40 @@ function PlannerTaskCard({
                 });
               })}
             </div>
-          ) : (
-            <p className="text-[10px] text-foreground/30 mt-2 italic">No resource requirements set</p>
           )}
         </div>
       </div>
+
+      {/* Inline requirements editor */}
+      {showEdit && (
+        <div className="border-t border-border/50 bg-muted/20 px-4 py-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40 mb-2.5">How many of each resource does this task need?</p>
+          <div className="grid grid-cols-2 gap-1.5 mb-3">
+            {REQ_FIELDS.map(({ label, k }) => (
+              <div key={k} className="flex items-center justify-between gap-2 bg-white rounded-lg border border-border/70 px-2.5 py-1.5">
+                <span className="text-[11px] font-medium text-foreground/60">{label}</span>
+                <div className="flex items-center gap-1">
+                  <button type="button" onClick={() => setReqs(r => ({ ...r, [k]: Math.max(0, r[k] - 1) }))}
+                    className="w-5 h-5 rounded border border-border hover:bg-muted transition-colors text-sm font-bold text-foreground/50 flex items-center justify-center">−</button>
+                  <span className="text-xs font-semibold w-4 text-center tabular-nums">{reqs[k]}</span>
+                  <button type="button" onClick={() => setReqs(r => ({ ...r, [k]: r[k] + 1 }))}
+                    className="w-5 h-5 rounded border border-border hover:bg-muted transition-colors text-sm font-bold text-foreground/50 flex items-center justify-center">+</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => updateMut.mutate()} disabled={updateMut.isPending}
+              className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors">
+              {updateMut.isPending ? "Saving…" : "Save requirements"}
+            </button>
+            <button onClick={() => setShowEdit(false)}
+              className="text-xs font-semibold py-1.5 px-3 rounded-lg border border-border hover:bg-muted transition-colors">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -757,7 +856,7 @@ function PlannerTab({ farmId, resources }: { farmId: number; resources: FarmReso
               {tasksWithReqs === 0 && tasks.length > 0 && (
                 <Card className="p-4 border-indigo-200 bg-indigo-50/40 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-indigo-400 flex-shrink-0" />
-                  <p className="text-xs text-indigo-700">None of this week's tasks have resource requirements set. Add requirements when creating or editing tasks.</p>
+                  <p className="text-xs text-indigo-700">None of this week's tasks have resource requirements set. Click the <strong>Set requirements</strong> button on any task card below to add them.</p>
                 </Card>
               )}
               {tasks.length === 0 && (
@@ -781,6 +880,8 @@ function PlannerTab({ farmId, resources }: { farmId: number; resources: FarmReso
                           task={task}
                           allocations={allocations.filter(a => a.task_ref === task.taskRef)}
                           onRemoveAllocation={id => removeMut.mutate(id)}
+                          farmId={farmId}
+                          onReqsUpdated={() => queryClient.invalidateQueries({ queryKey: ["resource-planner", farmId, fromDate] })}
                         />
                       ))}
                     </div>
