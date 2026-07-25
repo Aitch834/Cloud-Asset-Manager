@@ -9084,7 +9084,7 @@ router.get("/farms/:farmId/planner-events", requireAuth, requireTenant, async (r
 router.post("/farms/:farmId/planner-events", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { title, description, eventDate, endDate, colour, estimatedDurationHours, startTime, endTime, reqTractors, reqImplements, reqVehicles, reqSprayers, reqTrailers, reqStaff, reqOther, reqOtherNotes } = req.body;
+  const { title, description, eventDate, endDate, colour, estimatedDurationHours, startTime, endTime, reqTractors, reqImplements, reqVehicles, reqSprayers, reqTrailers, reqStaff, reqOther, reqOtherNotes, reqMaterials } = req.body;
   if (!title || !eventDate) { res.status(400).json({ error: "title and eventDate are required" }); return; }
   const [record] = await db.insert(farmPlannerEventsTable).values({
     farmId, title, description: description || null,
@@ -9096,6 +9096,7 @@ router.post("/farms/:farmId/planner-events", requireAuth, requireTenant, async (
     reqVehicles: Number(reqVehicles) || 0, reqSprayers: Number(reqSprayers) || 0,
     reqTrailers: Number(reqTrailers) || 0, reqStaff: Number(reqStaff) || 0, reqOther: Number(reqOther) || 0,
     reqOtherNotes: reqOtherNotes ? JSON.stringify(reqOtherNotes) : null,
+    reqMaterials: reqMaterials ? JSON.stringify(reqMaterials) : null,
   }).returning();
   res.status(201).json(record);
 });
@@ -9104,7 +9105,7 @@ router.patch("/farms/:farmId/planner-events/:recordId", requireAuth, requireTena
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
-  const { title, description, eventDate, endDate, colour, estimatedDurationHours, startTime, endTime, reqTractors, reqImplements, reqVehicles, reqSprayers, reqTrailers, reqStaff, reqOther, reqOtherNotes } = req.body;
+  const { title, description, eventDate, endDate, colour, estimatedDurationHours, startTime, endTime, reqTractors, reqImplements, reqVehicles, reqSprayers, reqTrailers, reqStaff, reqOther, reqOtherNotes, reqMaterials } = req.body;
   const updates: Record<string, unknown> = {};
   if (title !== undefined) updates.title = title;
   if (description !== undefined) updates.description = description;
@@ -9122,6 +9123,7 @@ router.patch("/farms/:farmId/planner-events/:recordId", requireAuth, requireTena
   if (reqStaff !== undefined) updates.reqStaff = Number(reqStaff) || 0;
   if (reqOther !== undefined) updates.reqOther = Number(reqOther) || 0;
   if (reqOtherNotes !== undefined) updates.reqOtherNotes = reqOtherNotes ? JSON.stringify(reqOtherNotes) : null;
+  if (reqMaterials !== undefined) updates.reqMaterials = reqMaterials ? JSON.stringify(reqMaterials) : null;
   const [record] = await db.update(farmPlannerEventsTable).set(updates).where(and(eq(farmPlannerEventsTable.id, recordId), eq(farmPlannerEventsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json(record);
@@ -9166,7 +9168,7 @@ router.post("/farms/:farmId/task-assignments", requireAuth, requireTenant, async
   if (!farmId) return;
   const userId = req.userId ?? "unknown";
   const tenantId = farmId;
-  const { assignedToMemberId, title, description, dueDate, endDate, module: mod, href, assignmentNote, taskType, taskSourceId, isWorkOrder, serviceInvoiceId, customerId, estimatedHours, startTime: taStartTime, endTime: taEndTime, reqTractors: taTractors, reqImplements: taImplements, reqVehicles: taVehicles, reqSprayers: taSprayers, reqTrailers: taTrailers, reqStaff: taStaff, reqOther: taOther, reqOtherNotes: taOtherNotes } = req.body;
+  const { assignedToMemberId, title, description, dueDate, endDate, module: mod, href, assignmentNote, taskType, taskSourceId, isWorkOrder, serviceInvoiceId, customerId, estimatedHours, startTime: taStartTime, endTime: taEndTime, reqTractors: taTractors, reqImplements: taImplements, reqVehicles: taVehicles, reqSprayers: taSprayers, reqTrailers: taTrailers, reqStaff: taStaff, reqOther: taOther, reqOtherNotes: taOtherNotes, reqMaterials: taMatls } = req.body;
   if (!assignedToMemberId || !title) { res.status(400).json({ error: "assignedToMemberId and title are required" }); return; }
   const [member] = await db.select({ firstName: farmMembersTable.firstName, lastName: farmMembersTable.lastName, phone: farmMembersTable.phone, linkedUserId: farmMembersTable.linkedUserId })
     .from(farmMembersTable).where(and(eq(farmMembersTable.id, Number(assignedToMemberId)), eq(farmMembersTable.farmId, farmId)));
@@ -9198,6 +9200,7 @@ router.post("/farms/:farmId/task-assignments", requireAuth, requireTenant, async
     reqVehicles: Number(taVehicles) || 0, reqSprayers: Number(taSprayers) || 0,
     reqTrailers: Number(taTrailers) || 0, reqStaff: Number(taStaff) || 0, reqOther: Number(taOther) || 0,
     reqOtherNotes: taOtherNotes ? JSON.stringify(taOtherNotes) : null,
+    reqMaterials: taMatls ? JSON.stringify(taMatls) : null,
   }).returning();
   // Auto-generate work order ref after insert (WO-0001 format)
   if (isWorkOrder && !record.workOrderRef) {
@@ -9352,6 +9355,7 @@ router.patch("/farms/:farmId/task-assignments/:id", requireAuth, requireTenant, 
   if (req.body.reqStaff !== undefined) allowed.reqStaff = Number(req.body.reqStaff) || 0;
   if (req.body.reqOther !== undefined) allowed.reqOther = Number(req.body.reqOther) || 0;
   if (req.body.reqOtherNotes !== undefined) allowed.reqOtherNotes = req.body.reqOtherNotes ? JSON.stringify(req.body.reqOtherNotes) : null;
+  if (req.body.reqMaterials !== undefined) allowed.reqMaterials = req.body.reqMaterials ? JSON.stringify(req.body.reqMaterials) : null;
   const [record] = await db.update(farmTaskAssignmentsTable).set(allowed).where(and(eq(farmTaskAssignmentsTable.id, id), eq(farmTaskAssignmentsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
@@ -36402,7 +36406,7 @@ router.get("/farms/:farmId/resource-planner", requireAuth, requireTenant, async 
     const assignRows = (await db.execute(sql`
       SELECT id, title, due_date, end_date, estimated_hours, start_time, end_time,
              req_tractors, req_implements, req_vehicles, req_sprayers, req_trailers, req_staff, req_other,
-             req_other_notes,
+             req_other_notes, req_materials,
              status, staff_name, module, 'emerald' as colour
       FROM farm_task_assignments
       WHERE farm_id = ${farmId} AND status != 'completed'
@@ -36413,7 +36417,7 @@ router.get("/farms/:farmId/resource-planner", requireAuth, requireTenant, async 
       SELECT id, title, event_date::date::text AS due_date, end_date,
              estimated_duration_hours AS estimated_hours, start_time, end_time,
              req_tractors, req_implements, req_vehicles, req_sprayers, req_trailers, req_staff, req_other,
-             req_other_notes,
+             req_other_notes, req_materials,
              colour, NULL AS staff_name, 'Planner' AS module
       FROM farm_planner_events
       WHERE farm_id = ${farmId}
@@ -36429,10 +36433,10 @@ router.get("/farms/:farmId/resource-planner", requireAuth, requireTenant, async 
       WHERE tra.farm_id = ${farmId}
         AND tra.allocated_date >= ${fromDate} AND tra.allocated_date <= ${toDate}
     `)).rows as any[];
-    const parseNotes = (v: any): string[] => { try { return v ? JSON.parse(v) : []; } catch { return []; } };
+    const parseJson = (v: any): any[] => { try { return v ? JSON.parse(v) : []; } catch { return []; } };
     const tasks = [
-      ...assignRows.map((r: any) => ({ ...r, taskRef: `assign-${r.id}`, source: "assignment", req_other_notes: parseNotes(r.req_other_notes) })),
-      ...eventRows.map((r: any) => ({ ...r, taskRef: `event-${r.id}`, source: "planner_event", req_other_notes: parseNotes(r.req_other_notes) })),
+      ...assignRows.map((r: any) => ({ ...r, taskRef: `assign-${r.id}`, source: "assignment", req_other_notes: parseJson(r.req_other_notes), req_materials: parseJson(r.req_materials) })),
+      ...eventRows.map((r: any) => ({ ...r, taskRef: `event-${r.id}`, source: "planner_event", req_other_notes: parseJson(r.req_other_notes), req_materials: parseJson(r.req_materials) })),
     ].sort((a: any, b: any) => (a.due_date ?? "").localeCompare(b.due_date ?? ""));
     res.json({ tasks, allocations: allocRows });
   } catch (e: any) {

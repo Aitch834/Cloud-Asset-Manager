@@ -59,6 +59,7 @@ type PlannerTask = {
   req_staff: number;
   req_other: number;
   req_other_notes: string[];
+  req_materials: MaterialReq[];
   status?: string;
   staff_name?: string;
   module?: string;
@@ -89,6 +90,10 @@ type ActiveDrag = {
   allocationId?: number;
   isReturn?: boolean;
 };
+
+type MaterialReq  = { name: string; quantity: number; unit: string };
+type MaterialEdit = { name: string; quantity: string; unit: string };
+type WeekMaterial = { total: number; unit: string; tasks: string[] };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -546,6 +551,9 @@ function PlannerTaskCard({
     if (task.req_other > 0) return Array(task.req_other).fill("");
     return [];
   });
+  const [materials, setMaterials] = useState<MaterialEdit[]>(() =>
+    task.req_materials.map(m => ({ name: m.name, quantity: String(m.quantity || ""), unit: m.unit }))
+  );
 
   const updateMut = useMutation({
     mutationFn: () => {
@@ -564,6 +572,7 @@ function PlannerTaskCard({
           reqStaff:      reqs.staff,
           reqOther:      others.length,
           reqOtherNotes: others,
+          reqMaterials: materials.filter(m => m.name.trim()).map(m => ({ name: m.name.trim(), quantity: parseFloat(m.quantity) || 0, unit: m.unit.trim() })),
         }),
       }).then(r => r.json());
     },
@@ -576,7 +585,9 @@ function PlannerTaskCard({
     : "No date";
 
   const totalReqs = REQ_TYPE_MAP.reduce((sum, { key }) => sum + (Number(task[key]) || 0), 0);
-  const hasRequirements = totalReqs > 0;
+  const hasResourceReqs = totalReqs > 0;
+  const hasMaterials = task.req_materials.length > 0;
+  const hasRequirements = hasResourceReqs || hasMaterials;
 
   function openEdit() {
     setReqs({
@@ -587,6 +598,7 @@ function PlannerTaskCard({
     setOthers(task.req_other_notes.length > 0
       ? [...task.req_other_notes]
       : task.req_other > 0 ? Array(task.req_other).fill("") : []);
+    setMaterials(task.req_materials.map(m => ({ name: m.name, quantity: String(m.quantity || ""), unit: m.unit })));
     setShowEdit(e => !e);
   }
 
@@ -638,7 +650,7 @@ function PlannerTaskCard({
             </div>
           </div>
 
-          {hasRequirements && (
+          {hasResourceReqs && (
             <div className="mt-2.5 flex flex-wrap gap-1.5">
               {REQ_TYPE_MAP.flatMap(({ key, type }) => {
                 const count = Number(task[key]) || 0;
@@ -658,6 +670,16 @@ function PlannerTaskCard({
                   );
                 });
               })}
+            </div>
+          )}
+          {hasMaterials && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {task.req_materials.filter(m => m.name).map((m, i) => (
+                <span key={i} className="inline-flex items-center gap-1 text-[10px] bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5 font-medium">
+                  <Package className="w-2.5 h-2.5" />
+                  {m.quantity ? `${m.quantity}${m.unit ? '\u00a0' + m.unit : ''}\u00a0` : ''}{m.name}
+                </span>
+              ))}
             </div>
           )}
         </div>
@@ -709,6 +731,48 @@ function PlannerTaskCard({
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Materials needed */}
+          <div className="border-t border-border/40 pt-2.5 mb-3">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">Materials needed</p>
+              <button type="button" onClick={() => setMaterials(m => [...m, { name: "", quantity: "", unit: "" }])}
+                className="flex items-center gap-0.5 text-[10px] font-semibold text-blue-500 hover:text-blue-700 transition-colors">
+                <Plus className="w-3 h-3" />Add
+              </button>
+            </div>
+            {materials.length === 0 ? (
+              <p className="text-[10px] text-foreground/30 italic">None — click Add to record materials needed (e.g. herbicide, fertiliser, fuel).</p>
+            ) : (
+              <div className="space-y-1.5">
+                {materials.map((mat, i) => (
+                  <div key={i} className="flex items-center gap-1">
+                    <input type="text" value={mat.name}
+                      onChange={e => setMaterials(m => m.map((v, j) => j === i ? { ...v, name: e.target.value } : v))}
+                      placeholder="Product / material name"
+                      className="flex-1 min-w-0 text-xs px-2.5 py-1.5 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-blue-300 bg-white" />
+                    <input type="number" value={mat.quantity} min="0" step="any"
+                      onChange={e => setMaterials(m => m.map((v, j) => j === i ? { ...v, quantity: e.target.value } : v))}
+                      placeholder="Qty"
+                      className="w-14 text-xs px-2 py-1.5 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-blue-300 bg-white text-center" />
+                    <input type="text" value={mat.unit}
+                      onChange={e => setMaterials(m => m.map((v, j) => j === i ? { ...v, unit: e.target.value } : v))}
+                      placeholder="Unit" list="mat-units"
+                      className="w-14 text-xs px-2 py-1.5 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-blue-300 bg-white" />
+                    <button type="button" onClick={() => setMaterials(m => m.filter((_, j) => j !== i))}
+                      className="w-6 h-6 flex items-center justify-center text-foreground/30 hover:text-red-500 transition-colors flex-shrink-0">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+                <datalist id="mat-units">
+                  <option value="L" /><option value="ml" /><option value="kg" /><option value="g" />
+                  <option value="t" /><option value="bags" /><option value="bales" /><option value="cans" />
+                  <option value="drums" /><option value="pallets" /><option value="rolls" /><option value="m" />
+                </datalist>
               </div>
             )}
           </div>
@@ -827,6 +891,65 @@ function PinchPointPanel({ pinchPoints, hasTasksWithReqs }: { pinchPoints: Pinch
           ))}
           <p className="text-[10px] text-amber-600/70 leading-relaxed border-t border-amber-200/60 pt-2.5">
             <strong>Tip:</strong> Add or update resources in the <strong>Resources</strong> tab, or adjust task dates in <strong>Field Tasks</strong> or <strong>Week Ahead</strong> to spread demand more evenly.
+          </p>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ─── Materials Week Summary ────────────────────────────────────────────────────
+
+function MaterialWeeklySummary({ weekMaterials }: { weekMaterials: Map<string, WeekMaterial> }) {
+  const [dismissed, setDismissed] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+
+  if (dismissed || weekMaterials.size === 0) return null;
+
+  const entries = Array.from(weekMaterials.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  const totalTasks = new Set(entries.flatMap(([, { tasks }]) => tasks)).size;
+
+  return (
+    <Card className="border-blue-200 bg-blue-50/40 overflow-hidden">
+      <div className={cn("flex items-start gap-3 p-4", expanded && "pb-2")}>
+        <Package className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-bold text-blue-800">Materials needed this week</p>
+          <p className="text-[11px] text-blue-700/80 mt-0.5">
+            {entries.length} material{entries.length !== 1 ? "s" : ""} across {totalTasks} task{totalTasks !== 1 ? "s" : ""} — use this as your preparation checklist.
+          </p>
+        </div>
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          <button onClick={() => setExpanded(e => !e)}
+            className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-blue-100 transition-colors text-blue-500"
+            title={expanded ? "Collapse" : "Expand"}>
+            <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", !expanded && "-rotate-90")} />
+          </button>
+          <button onClick={() => setDismissed(true)}
+            className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-blue-100 transition-colors text-blue-400"
+            title="Dismiss">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+      {expanded && (
+        <div className="px-4 pb-4">
+          <div className="grid grid-cols-2 gap-1.5 mb-2.5">
+            {entries.map(([name, { total, unit, tasks }]) => (
+              <div key={name} className="bg-white/70 rounded-lg border border-blue-200 px-3 py-2">
+                <p className="text-[11px] font-semibold text-foreground capitalize leading-tight">{name}</p>
+                <p className="text-sm font-bold text-blue-700 mt-0.5">
+                  {Number.isInteger(total) ? total : parseFloat(total.toFixed(3))}{unit ? `\u00a0${unit}` : ""}
+                </p>
+                <p className="text-[10px] text-foreground/40 mt-0.5">
+                  {tasks.length} task{tasks.length !== 1 ? "s" : ""}
+                  {tasks.length <= 2 ? ` (${tasks.slice(0, 2).join(", ")})` : ""}
+                </p>
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-blue-600/70 leading-relaxed border-t border-blue-200/60 pt-2.5">
+            <strong>Tip:</strong> Quantities are totalled from what's entered on each task card. Check your chemical store, fuel, and other stocks before the week begins.
           </p>
         </div>
       )}
@@ -981,6 +1104,22 @@ function PlannerTab({ farmId, resources }: { farmId: number; resources: FarmReso
     return pp.sort((a, b) => a.date.localeCompare(b.date) || a.type.localeCompare(b.type));
   }, [demandByDayType, supplyByType]);
 
+  const weekMaterials = useMemo(() => {
+    const m = new Map<string, WeekMaterial>();
+    for (const t of tasks) {
+      for (const mat of t.req_materials) {
+        if (!mat.name.trim()) continue;
+        const qty = Number(mat.quantity) || 0;
+        const key = mat.name.trim().toLowerCase();
+        if (!m.has(key)) m.set(key, { total: 0, unit: mat.unit || "", tasks: [] });
+        const entry = m.get(key)!;
+        entry.total += qty;
+        if (!entry.tasks.includes(t.title)) entry.tasks.push(t.title);
+      }
+    }
+    return m;
+  }, [tasks]);
+
   const weekLabel = (() => {
     const endOfWeek = addDays(weekBase, 6);
     const fmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
@@ -1048,6 +1187,7 @@ function PlannerTab({ farmId, resources }: { farmId: number; resources: FarmReso
                 </Card>
               )}
               <PinchPointPanel pinchPoints={pinchPoints} hasTasksWithReqs={tasksWithReqs > 0} />
+              <MaterialWeeklySummary weekMaterials={weekMaterials} />
               {tasks.length === 0 && (
                 <div className="py-12 text-center text-foreground/40 text-sm">No tasks this week.</div>
               )}

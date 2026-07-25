@@ -20,6 +20,7 @@ export const farmPlannerEventsTable = pgTable("farm_planner_events", {
   reqStaff: integer("req_staff").notNull().default(0),
   reqOther: integer("req_other").notNull().default(0),
   reqOtherNotes: text("req_other_notes"),
+  reqMaterials: text("req_materials"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
