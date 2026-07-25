@@ -81,10 +81,12 @@ type PlannerAllocation = {
 };
 
 type ActiveDrag = {
-  resourceId: number;
+  resourceId?: number;
   resourceName: string;
   resourceType: string;
   resourceColour: string;
+  allocationId?: number;
+  isReturn?: boolean;
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -444,17 +446,31 @@ function RequirementSlot({
   filledWith?: PlannerAllocation;
   onRemove?: () => void;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id, disabled: filled });
+  const { setNodeRef: dropRef, isOver } = useDroppable({ id, disabled: filled });
+  const { attributes, listeners, setNodeRef: dragRef, isDragging } = useDraggable({
+    id: `alloc:${filledWith?.id ?? "none"}`,
+    data: { allocationId: filledWith?.id, resourceName: filledWith?.resource_name ?? "", resourceType: filledWith?.resource_type ?? type, resourceColour: filledWith?.resource_colour ?? "", isReturn: true } satisfies ActiveDrag,
+    disabled: !filled || !filledWith,
+  });
   const { icon: Icon } = getTypeInfo(type);
   const colourBg = filled && filledWith ? getColourBg(filledWith.resource_colour) : "bg-slate-400";
 
   if (filled && filledWith) {
     return (
-      <div className="flex items-center gap-1.5 rounded-md border border-green-200 bg-green-50 px-2 py-1 text-xs font-medium text-green-800 group/slot">
+      <div
+        ref={dragRef}
+        {...listeners}
+        {...attributes}
+        className={cn(
+          "flex items-center gap-1.5 rounded-md border border-green-200 bg-green-50 px-2 py-1 text-xs font-medium text-green-800 group/slot cursor-grab active:cursor-grabbing",
+          isDragging && "opacity-30"
+        )}
+      >
+        <GripVertical className="w-3 h-3 text-green-600/30 flex-shrink-0" />
         <div className={cn("w-3.5 h-3.5 rounded-sm flex items-center justify-center flex-shrink-0", colourBg + "/20")}>
           <Icon className={cn("w-2.5 h-2.5", colourBg.replace("bg-", "text-"))} />
         </div>
-        <span className="truncate max-w-[90px]">{filledWith.resource_name}</span>
+        <span className="truncate max-w-[80px]">{filledWith.resource_name}</span>
         {onRemove && (
           <button onClick={onRemove} className="opacity-0 group-hover/slot:opacity-100 ml-auto transition-opacity text-green-600 hover:text-red-500 flex-shrink-0">
             <X className="w-3 h-3" />
@@ -466,7 +482,7 @@ function RequirementSlot({
 
   return (
     <div
-      ref={setNodeRef}
+      ref={dropRef}
       className={cn(
         "flex items-center gap-1.5 rounded-md border border-dashed px-2 py-1 text-xs transition-all",
         isOver
@@ -476,6 +492,21 @@ function RequirementSlot({
     >
       <Icon className="w-3 h-3 flex-shrink-0" />
       <span className="text-[10px]">Drop {getTypeInfo(type).label.toLowerCase()}</span>
+    </div>
+  );
+}
+
+// ─── DnD: Droppable Pool Zone ─────────────────────────────────────────────────
+
+function DroppablePoolZone({ children, isReturning }: { children: React.ReactNode; isReturning: boolean }) {
+  const { setNodeRef, isOver } = useDroppable({ id: "pool" });
+  return (
+    <div ref={setNodeRef} className={cn(
+      "rounded-xl transition-all",
+      isReturning && isOver && "ring-2 ring-amber-400 ring-offset-1",
+      isReturning && !isOver && "ring-2 ring-amber-200 ring-offset-1",
+    )}>
+      {children}
     </div>
   );
 }
@@ -626,12 +657,20 @@ function PlannerTab({ farmId, resources }: { farmId: number; resources: FarmReso
     if (!over) return;
 
     const overId = String(over.id);
+    const dragData = active.data.current as ActiveDrag;
+    if (!dragData) return;
+
+    // Return to pool — unassign allocation
+    if (overId === "pool") {
+      if (dragData.isReturn && dragData.allocationId != null) {
+        removeMut.mutate(dragData.allocationId);
+      }
+      return;
+    }
+
     if (!overId.startsWith("slot:")) return;
 
     const [, taskRef, slotType, , allocDate] = overId.split(":");
-    const dragData = active.data.current as ActiveDrag;
-
-    if (!dragData) return;
 
     if (dragData.resourceType !== slotType) {
       toast({
@@ -642,6 +681,7 @@ function PlannerTab({ farmId, resources }: { farmId: number; resources: FarmReso
       return;
     }
 
+    if (!dragData.resourceId) return;
     const task = tasks.find(t => t.taskRef === taskRef);
     allocateMut.mutate({
       resourceId: dragData.resourceId,
@@ -751,6 +791,7 @@ function PlannerTab({ farmId, resources }: { farmId: number; resources: FarmReso
 
             {/* Right — Available resources */}
             <div className="w-56 flex-shrink-0 sticky top-4">
+              <DroppablePoolZone isReturning={!!(activeDrag?.isReturn)}>
               <Card className="p-4 border-border">
                 <h3 className="font-bold text-xs text-foreground/60 uppercase tracking-wider mb-3">Resources</h3>
                 {activeResources.length === 0 ? (
@@ -778,9 +819,10 @@ function PlannerTab({ farmId, resources }: { farmId: number; resources: FarmReso
                   </div>
                 )}
                 <div className="mt-4 pt-3 border-t border-border/40">
-                  <p className="text-[10px] text-foreground/40 leading-relaxed">Drag a resource onto an empty slot on a task to assign it. Hover a filled slot to remove it.</p>
+                  <p className="text-[10px] text-foreground/40 leading-relaxed">Drag a resource onto an empty slot to assign it. Drag an assigned resource back here to unassign it.</p>
                 </div>
               </Card>
+              </DroppablePoolZone>
             </div>
           </div>
         )}
@@ -789,9 +831,13 @@ function PlannerTab({ farmId, resources }: { farmId: number; resources: FarmReso
       {/* Drag overlay */}
       <DragOverlay>
         {activeDrag && (
-          <div className="flex items-center gap-2 rounded-lg border border-indigo-300 bg-white shadow-lg px-2.5 py-1.5 text-xs font-medium text-foreground cursor-grabbing">
-            <GripVertical className="w-3 h-3 text-indigo-400" />
-            {activeDrag.resourceName}
+          <div className={cn(
+            "flex items-center gap-2 rounded-lg border shadow-lg px-2.5 py-1.5 text-xs font-medium text-foreground cursor-grabbing",
+            activeDrag.isReturn ? "border-amber-300 bg-amber-50" : "border-indigo-300 bg-white"
+          )}>
+            <GripVertical className={cn("w-3 h-3", activeDrag.isReturn ? "text-amber-400" : "text-indigo-400")} />
+            <span>{activeDrag.resourceName}</span>
+            {activeDrag.isReturn && <span className="text-[10px] text-amber-600 ml-0.5">→ unassign</span>}
           </div>
         )}
       </DragOverlay>

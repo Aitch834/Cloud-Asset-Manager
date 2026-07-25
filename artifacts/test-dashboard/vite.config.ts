@@ -1123,6 +1123,11 @@ export default defineConfig({
       // use-sync-external-store; pre-bundling it here keeps it out of the
       // lazy-discovery pool and prevents the same mid-render rehash.
       "zustand/traditional",
+      // dnd-kit: used by ResourcesPage; must be pre-bundled or lazy
+      // discovery mid-warmup triggers esbuild goroutine deadlock → OOM kill
+      "@dnd-kit/core",
+      "@dnd-kit/sortable",
+      "@dnd-kit/utilities",
     ],
   },
   root: path.resolve(import.meta.dirname),
@@ -1256,6 +1261,7 @@ export default defineConfig({
         "../../artifacts/dashboard/src/pages/WeatherPageFull.tsx",
         "../../artifacts/dashboard/src/pages/WeekAheadPage.tsx",
         "../../artifacts/dashboard/src/pages/WorkshopPage.tsx",
+        "../../artifacts/dashboard/src/pages/ResourcesPage.tsx",
       ],
     },
     proxy: {
