@@ -7,6 +7,7 @@ import {
   Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import { TrendingUp, ShoppingCart, ArrowUpDown, Package, Users } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -495,7 +496,25 @@ function SupplierPerformanceView({ farmId, from, to }: { farmId: number; from: s
                           {[...s.products].slice(0, 4).map(p => (
                             <span key={p} style={{ background: "#f3f4f6", borderRadius: 4, padding: "1px 6px", fontSize: "0.75rem", color: "#374151" }}>{p}</span>
                           ))}
-                          {s.products.size > 4 && <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>+{s.products.size - 4} more</span>}
+                          {s.products.size > 4 && (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button style={{ fontSize: "0.75rem", color: "#2563eb", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                                  +{s.products.size - 4} more
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent side="top" align="start" className="w-56 p-2">
+                                <p style={{ fontSize: "0.65rem", fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
+                                  All products — {s.name}
+                                </p>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                                  {[...s.products].map(p => (
+                                    <span key={p} style={{ background: "#f3f4f6", borderRadius: 4, padding: "1px 6px", fontSize: "0.75rem", color: "#374151" }}>{p}</span>
+                                  ))}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          )}
                         </div>
                       </td>
                       <td style={{ ...tableCell, textAlign: "right" }}>{s.deliveries}</td>

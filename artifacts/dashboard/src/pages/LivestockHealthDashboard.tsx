@@ -233,7 +233,9 @@ export default function LivestockHealthDashboard() {
                       );
                     })}
                     {thisWeekTreatments.length > 8 && (
-                      <div style={{ padding: "0.5rem 1.25rem", fontSize: "0.75rem", color: "#9ca3af" }}>+{thisWeekTreatments.length - 8} more…</div>
+                      <a href="/medicine" style={{ display: "block", padding: "0.5rem 1.25rem", fontSize: "0.75rem", color: "#2563eb", fontWeight: 600, textDecoration: "none" }}>
+                        +{thisWeekTreatments.length - 8} more — View all in Medicine →
+                      </a>
                     )}
                   </div>
                 )}

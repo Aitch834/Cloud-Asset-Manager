@@ -8,6 +8,7 @@ import {
   Tractor, Wrench, Truck, Droplets, User, Boxes, AlertCircle, Package,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useState, useMemo } from "react";
 import { toast } from "@/hooks/use-toast";
@@ -728,7 +729,36 @@ function CalendarView({
                       );
                     })}
                     {overflow > 0 && (
-                      <p className="text-[10px] text-foreground/50 font-semibold pl-1">+{overflow} more</p>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className="text-[10px] text-primary font-semibold pl-1 hover:underline w-full text-left">
+                            +{overflow} more
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent side="bottom" align="start" className="w-64 p-2 space-y-1">
+                          <p className="text-[10px] font-bold text-foreground/50 uppercase tracking-wide px-1 pb-1">
+                            {day.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })} — all tasks
+                          </p>
+                          {dayTasks.map(t => {
+                            const colours = COLOUR_MAP[t.colour] ?? COLOUR_MAP.slate;
+                            const isSelected = selectedTask?.id === t.id;
+                            return (
+                              <button
+                                key={t.id}
+                                onClick={() => setSelectedTask(isSelected ? null : t)}
+                                className={cn(
+                                  "w-full text-left text-[10px] font-semibold px-1.5 py-1 rounded border truncate transition-all leading-tight",
+                                  colours.chip,
+                                  isSelected && "ring-2 ring-offset-0 ring-indigo-400"
+                                )}
+                                title={t.title}
+                              >
+                                {t.title}
+                              </button>
+                            );
+                          })}
+                        </PopoverContent>
+                      </Popover>
                     )}
                   </div>
                 </div>
