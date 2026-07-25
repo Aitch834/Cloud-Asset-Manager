@@ -689,6 +689,111 @@ function PlannerTaskCard({
   );
 }
 
+// ─── Pinch Point Panel ────────────────────────────────────────────────────────
+
+type PinchPoint = { date: string; type: string; demand: number; supply: number; shortage: number };
+
+function PinchPointPanel({ pinchPoints, hasTasksWithReqs }: { pinchPoints: PinchPoint[]; hasTasksWithReqs: boolean }) {
+  const [dismissed, setDismissed] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+
+  if (dismissed) return null;
+
+  if (pinchPoints.length === 0) {
+    if (!hasTasksWithReqs) return null;
+    return (
+      <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-green-200 bg-green-50/70">
+        <CheckSquare className="w-4 h-4 text-green-500 flex-shrink-0" />
+        <p className="text-xs text-green-700 font-medium flex-1">
+          No pinch points this week — your available resources cover all task requirements.
+        </p>
+        <button onClick={() => setDismissed(true)} className="text-green-400 hover:text-green-600 transition-colors flex-shrink-0">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    );
+  }
+
+  const byDate = new Map<string, PinchPoint[]>();
+  for (const pp of pinchPoints) {
+    if (!byDate.has(pp.date)) byDate.set(pp.date, []);
+    byDate.get(pp.date)!.push(pp);
+  }
+
+  const fmtDate = (iso: string) =>
+    new Date(iso + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" });
+
+  return (
+    <Card className="border-amber-200 bg-amber-50/40 overflow-hidden">
+      <div className={cn("flex items-start gap-3 p-4", expanded && "pb-2")}>
+        <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-bold text-amber-800">
+            {pinchPoints.length} resource pinch point{pinchPoints.length !== 1 ? "s" : ""} this week
+          </p>
+          <p className="text-[11px] text-amber-700/80 mt-0.5 leading-relaxed">
+            A pinch point is where tasks on the same day need more of a resource than you have available — tasks may not run as planned.
+          </p>
+        </div>
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          <button
+            onClick={() => setExpanded(e => !e)}
+            className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-amber-100 transition-colors text-amber-500"
+            title={expanded ? "Collapse" : "Expand"}
+          >
+            <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", !expanded && "-rotate-90")} />
+          </button>
+          <button
+            onClick={() => setDismissed(true)}
+            className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-amber-100 transition-colors text-amber-400"
+            title="Dismiss for this session"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="px-4 pb-4 space-y-3">
+          {Array.from(byDate).map(([date, pps]) => (
+            <div key={date}>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1.5">{fmtDate(date)}</p>
+              <div className="space-y-1.5">
+                {pps.map((pp, i) => {
+                  const rt = RESOURCE_TYPES.find(r => r.value === pp.type);
+                  const Icon = rt?.icon ?? Package;
+                  const label = rt?.label ?? pp.type;
+                  return (
+                    <div key={i} className="flex items-start gap-2.5 bg-white/70 rounded-lg border border-amber-200 px-3 py-2.5">
+                      <Icon className="w-3.5 h-3.5 text-amber-500 mt-0.5 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold text-foreground leading-snug">
+                          {pp.demand} {label.toLowerCase()}{pp.demand !== 1 ? "s" : ""} needed · {pp.supply === 0 ? "none registered" : `only ${pp.supply} available`}
+                          <span className="text-red-600 ml-1.5 font-bold">{pp.shortage} short</span>
+                        </p>
+                        <p className="text-[10px] text-foreground/55 mt-1 leading-relaxed">
+                          {pp.supply === 0
+                            ? `You haven't added any ${label.toLowerCase()}s yet. Go to the Resources tab to register them.`
+                            : pp.shortage === 1
+                              ? `You're one ${label.toLowerCase()} short on this day. Try spreading tasks across more days, or add another ${label.toLowerCase()} in Resources.`
+                              : `You're ${pp.shortage} ${label.toLowerCase()}s short. Consider moving some tasks to quieter days, or register additional resources.`}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          <p className="text-[10px] text-amber-600/70 leading-relaxed border-t border-amber-200/60 pt-2.5">
+            <strong>Tip:</strong> Add or update resources in the <strong>Resources</strong> tab, or adjust task dates in <strong>Field Tasks</strong> or <strong>Week Ahead</strong> to spread demand more evenly.
+          </p>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // ─── Planner Tab ──────────────────────────────────────────────────────────────
 
 function PlannerTab({ farmId, resources }: { farmId: number; resources: FarmResource[] }) {
@@ -793,6 +898,49 @@ function PlannerTab({ farmId, resources }: { farmId: number; resources: FarmReso
 
   const activeResources = resources.filter(r => r.isActive);
 
+  // ── Intelligence: supply vs demand ──────────────────────────────────────────
+  // How many of each resource type we actually have registered
+  const supplyByType = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const r of activeResources) m[r.type] = (m[r.type] || 0) + 1;
+    return m;
+  }, [activeResources]);
+
+  // How many of each type are needed per day (sum of req_* across all tasks that day)
+  const demandByDayType = useMemo(() => {
+    const m = new Map<string, Record<string, number>>();
+    for (const t of tasks) {
+      if (!m.has(t.due_date)) m.set(t.due_date, {});
+      const day = m.get(t.due_date)!;
+      for (const { key, type } of REQ_TYPE_MAP) {
+        const n = Number(t[key]) || 0;
+        if (n > 0) day[type] = (day[type] || 0) + n;
+      }
+    }
+    return m;
+  }, [tasks]);
+
+  // Peak demand per type across the whole week (used in the pool panel)
+  const peakDemandByType = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const [, dayMap] of demandByDayType)
+      for (const [type, n] of Object.entries(dayMap))
+        m[type] = Math.max(m[type] || 0, n);
+    return m;
+  }, [demandByDayType]);
+
+  // Pinch points: days where demand for a type exceeds supply
+  const pinchPoints = useMemo<PinchPoint[]>(() => {
+    const pp: PinchPoint[] = [];
+    for (const [date, dayMap] of demandByDayType) {
+      for (const [type, demand] of Object.entries(dayMap)) {
+        const supply = supplyByType[type] || 0;
+        if (demand > supply) pp.push({ date, type, demand, supply, shortage: demand - supply });
+      }
+    }
+    return pp.sort((a, b) => a.date.localeCompare(b.date) || a.type.localeCompare(b.type));
+  }, [demandByDayType, supplyByType]);
+
   const weekLabel = (() => {
     const endOfWeek = addDays(weekBase, 6);
     const fmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
@@ -859,6 +1007,7 @@ function PlannerTab({ farmId, resources }: { farmId: number; resources: FarmReso
                   <p className="text-xs text-indigo-700">None of this week's tasks have resource requirements set. Click the <strong>Set requirements</strong> button on any task card below to add them.</p>
                 </Card>
               )}
+              <PinchPointPanel pinchPoints={pinchPoints} hasTasksWithReqs={tasksWithReqs > 0} />
               {tasks.length === 0 && (
                 <div className="py-12 text-center text-foreground/40 text-sm">No tasks this week.</div>
               )}
@@ -867,11 +1016,22 @@ function PlannerTab({ farmId, resources }: { farmId: number; resources: FarmReso
                 if (dayTasks.length === 0) return null;
                 const dayLabel = date.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" });
                 const isToday = iso === isoDate(new Date());
+                const dayPinches = pinchPoints.filter(pp => pp.date === iso);
                 return (
                   <div key={iso}>
-                    <div className={cn("flex items-center gap-2 mb-2")}>
+                    <div className={cn("flex items-center gap-2 mb-2 flex-wrap")}>
                       <span className={cn("text-xs font-bold", isToday ? "text-indigo-600" : "text-foreground/50")}>{dayLabel}</span>
                       {isToday && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">TODAY</span>}
+                      {dayPinches.map(pp => {
+                        const rt = RESOURCE_TYPES.find(r => r.value === pp.type);
+                        const Icon = rt?.icon ?? Package;
+                        return (
+                          <span key={pp.type} title={`${rt?.label ?? pp.type}: ${pp.demand} needed, ${pp.supply} available`}
+                            className="flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 border border-red-200">
+                            <Icon className="w-2.5 h-2.5" />{pp.shortage} short
+                          </span>
+                        );
+                      })}
                     </div>
                     <div className="space-y-2">
                       {dayTasks.map(task => (
@@ -902,9 +1062,27 @@ function PlannerTab({ farmId, resources }: { farmId: number; resources: FarmReso
                     {RESOURCE_TYPES.map(rt => {
                       const typeResources = activeResources.filter(r => r.type === rt.value);
                       if (typeResources.length === 0) return null;
+                      const supply = typeResources.length;
+                      const peak = peakDemandByType[rt.value] || 0;
+                      const isPinched = peak > supply;
+                      const isExact = peak > 0 && peak === supply;
                       return (
                         <div key={rt.value}>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40 mb-1.5">{rt.label}</p>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">{rt.label}</p>
+                            {peak > 0 && (
+                              <span className={cn(
+                                "text-[9px] font-bold px-1.5 py-0.5 rounded-full",
+                                isPinched
+                                  ? "bg-red-100 text-red-600 border border-red-200"
+                                  : isExact
+                                    ? "bg-amber-100 text-amber-700 border border-amber-200"
+                                    : "bg-green-100 text-green-700 border border-green-200"
+                              )}>
+                                {supply}/{peak} needed
+                              </span>
+                            )}
+                          </div>
                           <div className="space-y-1.5">
                             {typeResources.map(r => (
                               <DraggableResourceChip
