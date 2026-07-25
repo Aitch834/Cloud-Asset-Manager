@@ -58,6 +58,7 @@ type PlannerTask = {
   req_trailers: number;
   req_staff: number;
   req_other: number;
+  req_other_notes: string[];
   status?: string;
   staff_name?: string;
   module?: string;
@@ -520,7 +521,6 @@ const REQ_FIELDS = [
   { label: "Sprayers",   k: "sprayers"   as const },
   { label: "Trailers",   k: "trailers"   as const },
   { label: "Staff",      k: "staff"      as const },
-  { label: "Other",      k: "other"      as const },
 ];
 
 function PlannerTaskCard({
@@ -540,7 +540,11 @@ function PlannerTaskCard({
     sprayers: task.req_sprayers,
     trailers: task.req_trailers,
     staff: task.req_staff,
-    other: task.req_other,
+  });
+  const [others, setOthers] = useState<string[]>(() => {
+    if (task.req_other_notes.length > 0) return [...task.req_other_notes];
+    if (task.req_other > 0) return Array(task.req_other).fill("");
+    return [];
   });
 
   const updateMut = useMutation({
@@ -558,7 +562,8 @@ function PlannerTaskCard({
           reqSprayers:   reqs.sprayers,
           reqTrailers:   reqs.trailers,
           reqStaff:      reqs.staff,
-          reqOther:      reqs.other,
+          reqOther:      others.length,
+          reqOtherNotes: others,
         }),
       }).then(r => r.json());
     },
@@ -577,8 +582,11 @@ function PlannerTaskCard({
     setReqs({
       tractors: task.req_tractors, implements: task.req_implements,
       vehicles: task.req_vehicles, sprayers: task.req_sprayers,
-      trailers: task.req_trailers, staff: task.req_staff, other: task.req_other,
+      trailers: task.req_trailers, staff: task.req_staff,
     });
+    setOthers(task.req_other_notes.length > 0
+      ? [...task.req_other_notes]
+      : task.req_other > 0 ? Array(task.req_other).fill("") : []);
     setShowEdit(e => !e);
   }
 
@@ -673,6 +681,38 @@ function PlannerTaskCard({
               </div>
             ))}
           </div>
+          {/* Other resources — described list */}
+          <div className="border-t border-border/40 pt-2.5 mb-3">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">Other resources</p>
+              <button type="button" onClick={() => setOthers(o => [...o, ""])}
+                className="flex items-center gap-0.5 text-[10px] font-semibold text-indigo-500 hover:text-indigo-700 transition-colors">
+                <Plus className="w-3 h-3" />Add
+              </button>
+            </div>
+            {others.length === 0 ? (
+              <p className="text-[10px] text-foreground/30 italic">None — click Add to note any other resource needed (e.g. water bowser, generator).</p>
+            ) : (
+              <div className="space-y-1.5">
+                {others.map((desc, i) => (
+                  <div key={i} className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={desc}
+                      onChange={e => setOthers(o => o.map((d, j) => j === i ? e.target.value : d))}
+                      placeholder="e.g. Water bowser, generator, fuel bowser…"
+                      className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-indigo-300 bg-white"
+                    />
+                    <button type="button" onClick={() => setOthers(o => o.filter((_, j) => j !== i))}
+                      className="w-6 h-6 flex items-center justify-center text-foreground/30 hover:text-red-500 transition-colors flex-shrink-0">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-2">
             <button onClick={() => updateMut.mutate()} disabled={updateMut.isPending}
               className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors">
