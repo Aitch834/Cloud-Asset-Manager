@@ -5,7 +5,7 @@ import { Redirect, Link } from "wouter";
 import {
   AlertTriangle, Calendar, CheckCircle2, ArrowRight, Clock, Loader2,
   Plus, Trash2, X, UserPlus, CheckCircle, LayoutList, CalendarDays, Baby, GanttChart,
-  Tractor, Wrench, Truck, Droplets, User, Boxes, AlertCircle, Package,
+  Tractor, Wrench, Truck, Droplets, User, Boxes, AlertCircle, Package, ChevronDown,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -44,6 +44,17 @@ type TaskItem = {
   colour: string;
   assignedToMemberId?: number;
   allocations?: ResourceAllocation[];
+  reqTractors?: number;
+  reqImplements?: number;
+  reqVehicles?: number;
+  reqSprayers?: number;
+  reqTrailers?: number;
+  reqStaff?: number;
+  reqOther?: number;
+  estimatedHours?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  staffName?: string | null;
 };
 
 type StaffMember = {
@@ -478,6 +489,17 @@ function TaskCardExpanded({
 
       {/* Description */}
       <p className="text-xs text-foreground/60 leading-relaxed mb-3">{task.description}</p>
+
+      {/* Resource requirements */}
+      {((task.reqTractors ?? 0) + (task.reqImplements ?? 0) + (task.reqVehicles ?? 0) + (task.reqSprayers ?? 0) + (task.reqTrailers ?? 0) + (task.reqStaff ?? 0) + (task.reqOther ?? 0)) > 0 && (
+        <div className="flex flex-wrap gap-1 mb-3">
+          {([ { label: "Tractor", count: task.reqTractors, icon: Tractor }, { label: "Implement", count: task.reqImplements, icon: Wrench }, { label: "Vehicle", count: task.reqVehicles, icon: Truck }, { label: "Sprayer", count: task.reqSprayers, icon: Droplets }, { label: "Trailer", count: task.reqTrailers, icon: Boxes }, { label: "Staff", count: task.reqStaff, icon: User }, { label: "Other", count: task.reqOther, icon: Package } ] as const).filter(r => (r.count ?? 0) > 0).map(({ label, count, icon: Icon }) => (
+            <span key={label} className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700">
+              <Icon className="w-2.5 h-2.5" />{count}× {label}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Actions */}
       {(() => {
@@ -1136,6 +1158,17 @@ function AddReminderPanel({ farmId, days, onClose }: { farmId: number; days: 7 |
   const [colour, setColour] = useState("slate");
   const [endDate, setEndDate] = useState("");
   const [error, setError] = useState("");
+  const [showReqs, setShowReqs] = useState(false);
+  const [reqTractors, setReqTractors] = useState(0);
+  const [reqImplements, setReqImplements] = useState(0);
+  const [reqVehicles, setReqVehicles] = useState(0);
+  const [reqSprayers, setReqSprayers] = useState(0);
+  const [reqTrailers, setReqTrailers] = useState(0);
+  const [reqStaff, setReqStaff] = useState(0);
+  const [reqOther, setReqOther] = useState(0);
+  const [estimatedHours, setEstimatedHours] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
 
   const minDate = (() => {
     const d = new Date(); d.setDate(d.getDate() - 60);
@@ -1168,7 +1201,7 @@ function AddReminderPanel({ farmId, days, onClose }: { farmId: number; days: 7 |
     if (!title.trim()) { setError("Please enter a title."); return; }
     if (!date) { setError("Please choose a date."); return; }
     setError("");
-    createMut.mutate({ title: title.trim(), description: description.trim() || undefined, eventDate: date + "T12:00:00Z", endDate: endDate ? endDate + "T12:00:00Z" : undefined, colour });
+    createMut.mutate({ title: title.trim(), description: description.trim() || undefined, eventDate: date + "T12:00:00Z", endDate: endDate ? endDate + "T12:00:00Z" : undefined, colour, estimatedDurationHours: estimatedHours ? Number(estimatedHours) : undefined, startTime: startTime || undefined, endTime: endTime || undefined, reqTractors, reqImplements, reqVehicles, reqSprayers, reqTrailers, reqStaff, reqOther });
   };
 
   return (
@@ -1241,6 +1274,56 @@ function AddReminderPanel({ farmId, days, onClose }: { farmId: number; days: 7 |
             ))}
           </div>
         </div>
+        {/* Resource requirements (collapsible) */}
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowReqs(p => !p)}
+            className="flex items-center gap-1.5 text-xs font-semibold text-foreground/50 hover:text-foreground transition-colors"
+          >
+            <ChevronDown className={cn("w-3 h-3 transition-transform", showReqs && "rotate-180")} />
+            Resource requirements <span className="font-normal text-foreground/30">(optional)</span>
+          </button>
+          {showReqs && (
+            <div className="mt-3 space-y-3 border border-border/60 rounded-lg p-3 bg-white/60">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] font-semibold text-foreground/50 block mb-1">Start time</label>
+                  <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full text-xs border border-border rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-foreground/50 block mb-1">End time</label>
+                  <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full text-xs border border-border rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-foreground/50 block mb-1">Estimated hours</label>
+                <input type="number" min="0" step="0.5" value={estimatedHours} onChange={e => setEstimatedHours(e.target.value)} placeholder="e.g. 4" className="w-full text-xs border border-border rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { label: "Tractors", val: reqTractors, set: setReqTractors },
+                  { label: "Implements", val: reqImplements, set: setReqImplements },
+                  { label: "Vehicles", val: reqVehicles, set: setReqVehicles },
+                  { label: "Sprayers", val: reqSprayers, set: setReqSprayers },
+                  { label: "Trailers", val: reqTrailers, set: setReqTrailers },
+                  { label: "Staff", val: reqStaff, set: setReqStaff },
+                  { label: "Other", val: reqOther, set: setReqOther },
+                ] as const).map(({ label, val, set }) => (
+                  <div key={label} className="flex items-center justify-between gap-2 bg-muted/40 rounded-md px-2 py-1.5">
+                    <span className="text-[10px] font-semibold text-foreground/60">{label}</span>
+                    <div className="flex items-center gap-1">
+                      <button type="button" onClick={() => set(Math.max(0, val - 1))} className="w-5 h-5 rounded text-foreground/50 hover:text-foreground hover:bg-muted transition-colors flex items-center justify-center text-sm font-bold">−</button>
+                      <span className="text-xs font-semibold w-4 text-center">{val}</span>
+                      <button type="button" onClick={() => set(val + 1)} className="w-5 h-5 rounded text-foreground/50 hover:text-foreground hover:bg-muted transition-colors flex items-center justify-center text-sm font-bold">+</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         {error && <p className="text-xs text-red-600">{error}</p>}
         <div className="flex gap-2 pt-1">
           <button

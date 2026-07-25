@@ -9084,9 +9084,18 @@ router.get("/farms/:farmId/planner-events", requireAuth, requireTenant, async (r
 router.post("/farms/:farmId/planner-events", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { title, description, eventDate, endDate, colour } = req.body;
+  const { title, description, eventDate, endDate, colour, estimatedDurationHours, startTime, endTime, reqTractors, reqImplements, reqVehicles, reqSprayers, reqTrailers, reqStaff, reqOther } = req.body;
   if (!title || !eventDate) { res.status(400).json({ error: "title and eventDate are required" }); return; }
-  const [record] = await db.insert(farmPlannerEventsTable).values({ farmId, title, description: description || null, eventDate: new Date(eventDate), endDate: endDate ? new Date(endDate) : null, colour: colour || "slate" }).returning();
+  const [record] = await db.insert(farmPlannerEventsTable).values({
+    farmId, title, description: description || null,
+    eventDate: new Date(eventDate), endDate: endDate ? new Date(endDate) : null,
+    colour: colour || "slate",
+    estimatedDurationHours: estimatedDurationHours ? String(estimatedDurationHours) : null,
+    startTime: startTime || null, endTime: endTime || null,
+    reqTractors: Number(reqTractors) || 0, reqImplements: Number(reqImplements) || 0,
+    reqVehicles: Number(reqVehicles) || 0, reqSprayers: Number(reqSprayers) || 0,
+    reqTrailers: Number(reqTrailers) || 0, reqStaff: Number(reqStaff) || 0, reqOther: Number(reqOther) || 0,
+  }).returning();
   res.status(201).json(record);
 });
 
@@ -9094,13 +9103,23 @@ router.patch("/farms/:farmId/planner-events/:recordId", requireAuth, requireTena
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
-  const { title, description, eventDate, endDate, colour } = req.body;
+  const { title, description, eventDate, endDate, colour, estimatedDurationHours, startTime, endTime, reqTractors, reqImplements, reqVehicles, reqSprayers, reqTrailers, reqStaff, reqOther } = req.body;
   const updates: Record<string, unknown> = {};
   if (title !== undefined) updates.title = title;
   if (description !== undefined) updates.description = description;
   if (eventDate !== undefined) updates.eventDate = new Date(eventDate);
   if (endDate !== undefined) updates.endDate = endDate ? new Date(endDate) : null;
   if (colour !== undefined) updates.colour = colour;
+  if (estimatedDurationHours !== undefined) updates.estimatedDurationHours = estimatedDurationHours ? String(estimatedDurationHours) : null;
+  if (startTime !== undefined) updates.startTime = startTime || null;
+  if (endTime !== undefined) updates.endTime = endTime || null;
+  if (reqTractors !== undefined) updates.reqTractors = Number(reqTractors) || 0;
+  if (reqImplements !== undefined) updates.reqImplements = Number(reqImplements) || 0;
+  if (reqVehicles !== undefined) updates.reqVehicles = Number(reqVehicles) || 0;
+  if (reqSprayers !== undefined) updates.reqSprayers = Number(reqSprayers) || 0;
+  if (reqTrailers !== undefined) updates.reqTrailers = Number(reqTrailers) || 0;
+  if (reqStaff !== undefined) updates.reqStaff = Number(reqStaff) || 0;
+  if (reqOther !== undefined) updates.reqOther = Number(reqOther) || 0;
   const [record] = await db.update(farmPlannerEventsTable).set(updates).where(and(eq(farmPlannerEventsTable.id, recordId), eq(farmPlannerEventsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json(record);
@@ -9145,7 +9164,7 @@ router.post("/farms/:farmId/task-assignments", requireAuth, requireTenant, async
   if (!farmId) return;
   const userId = req.userId ?? "unknown";
   const tenantId = farmId;
-  const { assignedToMemberId, title, description, dueDate, endDate, module: mod, href, assignmentNote, taskType, taskSourceId, isWorkOrder, serviceInvoiceId, customerId, estimatedHours } = req.body;
+  const { assignedToMemberId, title, description, dueDate, endDate, module: mod, href, assignmentNote, taskType, taskSourceId, isWorkOrder, serviceInvoiceId, customerId, estimatedHours, startTime: taStartTime, endTime: taEndTime, reqTractors: taTractors, reqImplements: taImplements, reqVehicles: taVehicles, reqSprayers: taSprayers, reqTrailers: taTrailers, reqStaff: taStaff, reqOther: taOther } = req.body;
   if (!assignedToMemberId || !title) { res.status(400).json({ error: "assignedToMemberId and title are required" }); return; }
   const [member] = await db.select({ firstName: farmMembersTable.firstName, lastName: farmMembersTable.lastName, phone: farmMembersTable.phone, linkedUserId: farmMembersTable.linkedUserId })
     .from(farmMembersTable).where(and(eq(farmMembersTable.id, Number(assignedToMemberId)), eq(farmMembersTable.farmId, farmId)));
@@ -9172,6 +9191,10 @@ router.post("/farms/:farmId/task-assignments", requireAuth, requireTenant, async
     serviceInvoiceId: serviceInvoiceId ? Number(serviceInvoiceId) : null,
     customerId: customerId ? Number(customerId) : null,
     estimatedHours: estimatedHours ? String(estimatedHours) : null,
+    startTime: taStartTime || null, endTime: taEndTime || null,
+    reqTractors: Number(taTractors) || 0, reqImplements: Number(taImplements) || 0,
+    reqVehicles: Number(taVehicles) || 0, reqSprayers: Number(taSprayers) || 0,
+    reqTrailers: Number(taTrailers) || 0, reqStaff: Number(taStaff) || 0, reqOther: Number(taOther) || 0,
   }).returning();
   // Auto-generate work order ref after insert (WO-0001 format)
   if (isWorkOrder && !record.workOrderRef) {
@@ -9316,6 +9339,15 @@ router.patch("/farms/:farmId/task-assignments/:id", requireAuth, requireTenant, 
   if (patchHours !== undefined) allowed.estimatedHours = patchHours ? String(patchHours) : null;
   const patchCustomerId = req.body.customerId;
   if (patchCustomerId !== undefined) allowed.customerId = patchCustomerId ? Number(patchCustomerId) : null;
+  if (req.body.startTime !== undefined) allowed.startTime = req.body.startTime || null;
+  if (req.body.endTime !== undefined) allowed.endTime = req.body.endTime || null;
+  if (req.body.reqTractors !== undefined) allowed.reqTractors = Number(req.body.reqTractors) || 0;
+  if (req.body.reqImplements !== undefined) allowed.reqImplements = Number(req.body.reqImplements) || 0;
+  if (req.body.reqVehicles !== undefined) allowed.reqVehicles = Number(req.body.reqVehicles) || 0;
+  if (req.body.reqSprayers !== undefined) allowed.reqSprayers = Number(req.body.reqSprayers) || 0;
+  if (req.body.reqTrailers !== undefined) allowed.reqTrailers = Number(req.body.reqTrailers) || 0;
+  if (req.body.reqStaff !== undefined) allowed.reqStaff = Number(req.body.reqStaff) || 0;
+  if (req.body.reqOther !== undefined) allowed.reqOther = Number(req.body.reqOther) || 0;
   const [record] = await db.update(farmTaskAssignmentsTable).set(allowed).where(and(eq(farmTaskAssignmentsTable.id, id), eq(farmTaskAssignmentsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
@@ -17068,6 +17100,10 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     id: string; type: string; title: string; description: string;
     dueDate: string; endDate?: string | null; module: string; href: string; colour: string;
     allocations?: { id: number; resourceId: number; resourceName: string; resourceType: string; resourceColour: string; allocatedDate: string; notes: string | null }[];
+    estimatedHours?: number | null; startTime?: string | null; endTime?: string | null;
+    reqTractors?: number; reqImplements?: number; reqVehicles?: number; reqSprayers?: number;
+    reqTrailers?: number; reqStaff?: number; reqOther?: number;
+    staffName?: string | null;
   };
 
   const tasks: TaskItem[] = [];
@@ -17775,7 +17811,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     tasks.push({ id: `pod-${r.id}`, type: "po_delivery_due", title: `Delivery Expected — ${r.poNumber || "PO"}`, description: `${r.supplierName ? `Delivery from ${r.supplierName}` : "Delivery"} is expected${r.poNumber ? ` on PO ${r.poNumber}` : ""}. Check in Trade Contacts & Stock → Purchase Orders.`, dueDate: toISO(r.expectedDeliveryDate)!, module: "Trade Contacts & Stock", href: `/suppliers-stock?tab=purchase-orders&open=${r.id}`, colour: "amber" });
   }
   for (const r of plannerEventRows) {
-    tasks.push({ id: `planner-${r.id}`, type: "planner_event", title: r.title, description: r.description || "Custom reminder added by you.", dueDate: toISO(r.eventDate)!, endDate: r.endDate ? toISO(r.endDate) : null, module: "Custom", href: "#", colour: r.colour || "slate" });
+    tasks.push({ id: `planner-${r.id}`, type: "planner_event", title: r.title, description: r.description || "Custom reminder added by you.", dueDate: toISO(r.eventDate)!, endDate: r.endDate ? toISO(r.endDate) : null, module: "Custom", href: "#", colour: r.colour || "slate", estimatedHours: r.estimatedDurationHours ?? null, startTime: r.startTime ?? null, endTime: r.endTime ?? null, reqTractors: r.reqTractors ?? 0, reqImplements: r.reqImplements ?? 0, reqVehicles: r.reqVehicles ?? 0, reqSprayers: r.reqSprayers ?? 0, reqTrailers: r.reqTrailers ?? 0, reqStaff: r.reqStaff ?? 0, reqOther: r.reqOther ?? 0 });
   }
   for (const r of grantPurchaseRows) {
     if (!r.purchaseDeadline || r.status === "purchased" || r.status === "claimed" || r.status === "rejected" || r.status === "withdrawn") continue;
@@ -17913,7 +17949,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     const type = isWO ? "work_order" : "task_assignment";
     const prefix = isWO ? `${r.workOrderRef} · ` : "";
     const statusLabel = r.status === "in_progress" ? "in progress" : "scheduled";
-    tasks.push({ id: `assign-${r.id}`, type, title: `${prefix}${r.title}`, description: `Assigned to ${r.staffName || "a staff member"} — ${statusLabel}`, dueDate: typeof r.dueDate === "string" ? new Date(r.dueDate + "T00:00:00Z").toISOString() : (r.dueDate as Date).toISOString(), endDate: r.endDate ? toISO(r.endDate) : null, module: r.module || "Farm Services", href: r.href || "/farm-services?tab=work-orders", colour } as any);
+    tasks.push({ id: `assign-${r.id}`, type, title: `${prefix}${r.title}`, description: `Assigned to ${r.staffName || "a staff member"} — ${statusLabel}`, dueDate: typeof r.dueDate === "string" ? new Date(r.dueDate + "T00:00:00Z").toISOString() : (r.dueDate as Date).toISOString(), endDate: r.endDate ? toISO(r.endDate) : null, module: r.module || "Farm Services", href: r.href || "/farm-services?tab=work-orders", colour, staffName: r.staffName ?? null, estimatedHours: r.estimatedHours ?? null, startTime: r.startTime ?? null, endTime: r.endTime ?? null, reqTractors: r.reqTractors ?? 0, reqImplements: r.reqImplements ?? 0, reqVehicles: r.reqVehicles ?? 0, reqSprayers: r.reqSprayers ?? 0, reqTrailers: r.reqTrailers ?? 0, reqStaff: r.reqStaff ?? 0, reqOther: r.reqOther ?? 0 } as any);
   }
 
   for (const r of vetFollowUpRows) {
@@ -36326,7 +36362,7 @@ router.get("/farms/:farmId/task-resource-allocations", requireAuth, requireTenan
 router.post("/farms/:farmId/task-resource-allocations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { resourceId, taskRef, taskTitle, allocatedDate, notes } = sanitiseBody(req.body);
+  const { resourceId, taskRef, taskTitle, allocatedDate, notes, startTime: allocStart, endTime: allocEnd, taskAssignmentId } = sanitiseBody(req.body);
   if (!resourceId || !taskRef || !allocatedDate) { res.status(400).json({ error: "resourceId, taskRef and allocatedDate are required" }); return; }
   const [row] = await db.insert(farmTaskResourceAllocationsTable).values({
     farmId,
@@ -36334,6 +36370,9 @@ router.post("/farms/:farmId/task-resource-allocations", requireAuth, requireTena
     taskRef: String(taskRef),
     taskTitle: taskTitle ? String(taskTitle) : null,
     allocatedDate: String(allocatedDate),
+    startTime: allocStart ? String(allocStart) : null,
+    endTime: allocEnd ? String(allocEnd) : null,
+    taskAssignmentId: taskAssignmentId ? Number(taskAssignmentId) : null,
     notes: notes ? String(notes) : null,
   }).returning();
   res.status(201).json({ allocation: row });
@@ -36345,6 +36384,86 @@ router.delete("/farms/:farmId/task-resource-allocations/:id", requireAuth, requi
   const id = parseInt(req.params.id as string);
   await db.execute(sql`DELETE FROM farm_task_resource_allocations WHERE id = ${id} AND farm_id = ${farmId}`);
   res.json({ success: true });
+});
+
+// ─── Resource Planner — all tasks with requirements + current allocations ─────
+router.get("/farms/:farmId/resource-planner", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const days = req.query.days === "30" ? 30 : 7;
+  const fromDate = req.query.from ? String(req.query.from) : (() => { const d = new Date(); return d.toISOString().split("T")[0]; })();
+  const toD = new Date(fromDate + "T00:00:00Z"); toD.setDate(toD.getDate() + days);
+  const toDate = toD.toISOString().split("T")[0];
+  try {
+    const assignRows = (await db.execute(sql`
+      SELECT id, title, due_date, end_date, estimated_hours, start_time, end_time,
+             req_tractors, req_implements, req_vehicles, req_sprayers, req_trailers, req_staff, req_other,
+             status, staff_name, module, 'emerald' as colour
+      FROM farm_task_assignments
+      WHERE farm_id = ${farmId} AND status != 'completed'
+        AND due_date IS NOT NULL AND due_date >= ${fromDate} AND due_date <= ${toDate}
+      ORDER BY due_date
+    `)).rows as any[];
+    const eventRows = (await db.execute(sql`
+      SELECT id, title, event_date::date::text AS due_date, end_date,
+             estimated_duration_hours AS estimated_hours, start_time, end_time,
+             req_tractors, req_implements, req_vehicles, req_sprayers, req_trailers, req_staff, req_other,
+             colour, NULL AS staff_name, 'Planner' AS module
+      FROM farm_planner_events
+      WHERE farm_id = ${farmId}
+        AND event_date::date >= ${fromDate}::date AND event_date::date <= ${toDate}::date
+      ORDER BY event_date
+    `)).rows as any[];
+    const allocRows = (await db.execute(sql`
+      SELECT tra.id, tra.task_ref, tra.task_assignment_id, tra.resource_id,
+             tra.allocated_date, tra.start_time, tra.end_time, tra.notes, tra.task_title,
+             fr.name AS resource_name, fr.type AS resource_type, fr.colour AS resource_colour
+      FROM farm_task_resource_allocations tra
+      JOIN farm_resources fr ON fr.id = tra.resource_id
+      WHERE tra.farm_id = ${farmId}
+        AND tra.allocated_date >= ${fromDate} AND tra.allocated_date <= ${toDate}
+    `)).rows as any[];
+    const tasks = [
+      ...assignRows.map((r: any) => ({ ...r, taskRef: `assign-${r.id}`, source: "assignment" })),
+      ...eventRows.map((r: any) => ({ ...r, taskRef: `event-${r.id}`, source: "planner_event" })),
+    ].sort((a: any, b: any) => (a.due_date ?? "").localeCompare(b.due_date ?? ""));
+    res.json({ tasks, allocations: allocRows });
+  } catch (e: any) {
+    console.error("[resource-planner]", e.message);
+    res.status(500).json({ error: "Failed to load resource planner data" });
+  }
+});
+
+// ─── Resource Availability — conflict detection ───────────────────────────────
+router.get("/farms/:farmId/resource-availability", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const resourceId = Number(req.query.resourceId);
+  const date = String(req.query.date ?? "");
+  const startTime = req.query.startTime ? String(req.query.startTime) : null;
+  const endTime = req.query.endTime ? String(req.query.endTime) : null;
+  if (!resourceId || !date) { res.status(400).json({ error: "resourceId and date are required" }); return; }
+  try {
+    let conflicts: any[];
+    if (startTime && endTime) {
+      conflicts = (await db.execute(sql`
+        SELECT id, task_ref, task_title, allocated_date, start_time, end_time
+        FROM farm_task_resource_allocations
+        WHERE farm_id = ${farmId} AND resource_id = ${resourceId} AND allocated_date = ${date}
+          AND NOT (end_time <= ${startTime} OR start_time >= ${endTime})
+      `)).rows as any[];
+    } else {
+      conflicts = (await db.execute(sql`
+        SELECT id, task_ref, task_title, allocated_date, start_time, end_time
+        FROM farm_task_resource_allocations
+        WHERE farm_id = ${farmId} AND resource_id = ${resourceId} AND allocated_date = ${date}
+      `)).rows as any[];
+    }
+    res.json({ available: conflicts.length === 0, conflicts });
+  } catch (e: any) {
+    console.error("[resource-availability]", e.message);
+    res.status(500).json({ error: "Failed to check availability" });
+  }
 });
 
 // ─── SCC Test Equipment ────────────────────────────────────────────────────────

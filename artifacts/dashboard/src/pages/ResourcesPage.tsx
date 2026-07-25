@@ -5,11 +5,20 @@ import { Redirect } from "wouter";
 import {
   Plus, Pencil, Archive, Tractor, Wrench, Truck, Droplets, Package, User,
   RotateCcw, X, ChevronDown, Download, CheckSquare, Square, Sparkles,
+  ChevronLeft, ChevronRight, CalendarDays, AlertCircle, GripVertical, Trash2,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
+import {
+  DndContext, DragOverlay, useDraggable, useDroppable,
+  useSensors, useSensor, PointerSensor,
+  type DragEndEvent, type DragStartEvent,
+} from "@dnd-kit/core";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type FarmResource = {
   id: number;
@@ -32,6 +41,53 @@ type ImportableData = {
   equipment: ImportableItem[];
   staff: ImportableItem[];
 };
+
+type PlannerTask = {
+  id: number;
+  taskRef: string;
+  title: string;
+  due_date: string;
+  end_date: string | null;
+  estimated_hours: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  req_tractors: number;
+  req_implements: number;
+  req_vehicles: number;
+  req_sprayers: number;
+  req_trailers: number;
+  req_staff: number;
+  req_other: number;
+  status?: string;
+  staff_name?: string;
+  module?: string;
+  colour: string;
+  source: "assignment" | "planner_event";
+};
+
+type PlannerAllocation = {
+  id: number;
+  task_ref: string;
+  task_assignment_id: number | null;
+  resource_id: number;
+  allocated_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  notes: string | null;
+  task_title: string | null;
+  resource_name: string;
+  resource_type: string;
+  resource_colour: string;
+};
+
+type ActiveDrag = {
+  resourceId: number;
+  resourceName: string;
+  resourceType: string;
+  resourceColour: string;
+};
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const RESOURCE_TYPES = [
   { value: "tractor",   label: "Tractor",            icon: Tractor },
@@ -60,6 +116,18 @@ const DEFAULT_COLOUR: Record<string, string> = {
   sprayer: "indigo", trailer: "orange", staff: "purple", other: "slate",
 };
 
+const REQ_TYPE_MAP: Array<{ key: keyof PlannerTask; type: string }> = [
+  { key: "req_tractors",  type: "tractor" },
+  { key: "req_implements", type: "implement" },
+  { key: "req_vehicles",  type: "vehicle" },
+  { key: "req_sprayers",  type: "sprayer" },
+  { key: "req_trailers",  type: "trailer" },
+  { key: "req_staff",     type: "staff" },
+  { key: "req_other",     type: "other" },
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function getTypeInfo(type: string) {
   return RESOURCE_TYPES.find(t => t.value === type) ?? { label: type, icon: Package };
 }
@@ -68,7 +136,24 @@ function getColourBg(colour: string) {
   return COLOUR_OPTIONS.find(c => c.value === colour)?.bg ?? "bg-slate-500";
 }
 
-// ─── Import Panel ────────────────────────────────────────────────────────────
+function isoDate(d: Date) {
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function addDays(d: Date, n: number) {
+  const r = new Date(d); r.setDate(r.getDate() + n); return r;
+}
+
+function weekStart(d: Date) {
+  const r = new Date(d);
+  const dow = r.getDay();
+  r.setDate(r.getDate() - (dow === 0 ? 6 : dow - 1));
+  r.setHours(0, 0, 0, 0);
+  return r;
+}
+
+// ─── ImportPanel ──────────────────────────────────────────────────────────────
 
 function ImportPanel({ farmId, onImported }: { farmId: number; onImported: () => void }) {
   const queryClient = useQueryClient();
@@ -97,15 +182,13 @@ function ImportPanel({ farmId, onImported }: { farmId: number; onImported: () =>
     },
   });
 
-  if (dismissed) return null;
-  if (isLoading) return null;
+  if (dismissed || isLoading) return null;
 
   const allItems: ImportableItem[] = [...(data?.equipment ?? []), ...(data?.staff ?? [])];
   if (allItems.length === 0) return null;
 
   const equipItems = data?.equipment ?? [];
   const staffItems = data?.staff ?? [];
-
   const key = (item: ImportableItem) => `${item.sourceType}:${item.sourceId}`;
 
   function toggleItem(item: ImportableItem) {
@@ -146,32 +229,19 @@ function ImportPanel({ farmId, onImported }: { farmId: number; onImported: () =>
             <div>
               <h3 className="font-bold text-sm text-foreground">Import from your farm records</h3>
               <p className="text-xs text-foreground/50 mt-0.5">
-                {allItems.length} item{allItems.length !== 1 ? "s" : ""} found in your Equipment Register and Staff list — tick to add them as resources.
+                {allItems.length} item{allItems.length !== 1 ? "s" : ""} found — tick to add as resources.
               </p>
             </div>
           </div>
-          <button
-            onClick={() => setDismissed(true)}
-            className="w-6 h-6 flex items-center justify-center rounded-full text-foreground/30 hover:text-foreground hover:bg-muted transition-colors flex-shrink-0 mt-0.5"
-            title="Dismiss"
-          >
+          <button onClick={() => setDismissed(true)} className="w-6 h-6 flex items-center justify-center rounded-full text-foreground/30 hover:text-foreground hover:bg-muted transition-colors flex-shrink-0 mt-0.5">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
-
-        {/* Select all toggle */}
-        <button
-          onClick={toggleAll}
-          className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 mb-3 transition-colors"
-        >
-          {allSelected
-            ? <CheckSquare className="w-3.5 h-3.5" />
-            : <Square className="w-3.5 h-3.5" />}
+        <button onClick={toggleAll} className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 mb-3 transition-colors">
+          {allSelected ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
           {allSelected ? "Deselect all" : "Select all"}
         </button>
-
         <div className="space-y-4">
-          {/* Equipment section */}
           {equipItems.length > 0 && (
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40 mb-2">Equipment & Machinery</p>
@@ -182,29 +252,15 @@ function ImportPanel({ farmId, onImported }: { farmId: number; onImported: () =>
                   const { icon: Icon } = getTypeInfo(item.resourceType);
                   const colourBg = getColourBg(DEFAULT_COLOUR[item.resourceType] ?? "slate");
                   return (
-                    <button
-                      key={k}
-                      onClick={() => toggleItem(item)}
-                      className={cn(
-                        "flex items-center gap-2.5 rounded-lg border p-2.5 text-left transition-all",
-                        isChecked
-                          ? "border-indigo-300 bg-indigo-50 shadow-sm"
-                          : "border-border bg-white hover:border-indigo-200 hover:bg-indigo-50/30"
-                      )}
-                    >
+                    <button key={k} onClick={() => toggleItem(item)} className={cn("flex items-center gap-2.5 rounded-lg border p-2.5 text-left transition-all", isChecked ? "border-indigo-300 bg-indigo-50 shadow-sm" : "border-border bg-white hover:border-indigo-200 hover:bg-indigo-50/30")}>
                       <div className={cn("w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0", colourBg + "/10")}>
                         <Icon className={cn("w-3.5 h-3.5", colourBg.replace("bg-", "text-"))} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-foreground truncate">{item.name}</p>
-                        {item.description && (
-                          <p className="text-[10px] text-foreground/40 truncate">{item.description}</p>
-                        )}
+                        {item.description && <p className="text-[10px] text-foreground/40 truncate">{item.description}</p>}
                       </div>
-                      <div className={cn(
-                        "w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center transition-colors",
-                        isChecked ? "border-indigo-500 bg-indigo-500" : "border-border"
-                      )}>
+                      <div className={cn("w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center transition-colors", isChecked ? "border-indigo-500 bg-indigo-500" : "border-border")}>
                         {isChecked && <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                       </div>
                     </button>
@@ -213,8 +269,6 @@ function ImportPanel({ farmId, onImported }: { farmId: number; onImported: () =>
               </div>
             </div>
           )}
-
-          {/* Staff section */}
           {staffItems.length > 0 && (
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40 mb-2">Staff Members</p>
@@ -223,29 +277,15 @@ function ImportPanel({ farmId, onImported }: { farmId: number; onImported: () =>
                   const k = key(item);
                   const isChecked = selected.has(k);
                   return (
-                    <button
-                      key={k}
-                      onClick={() => toggleItem(item)}
-                      className={cn(
-                        "flex items-center gap-2.5 rounded-lg border p-2.5 text-left transition-all",
-                        isChecked
-                          ? "border-indigo-300 bg-indigo-50 shadow-sm"
-                          : "border-border bg-white hover:border-indigo-200 hover:bg-indigo-50/30"
-                      )}
-                    >
+                    <button key={k} onClick={() => toggleItem(item)} className={cn("flex items-center gap-2.5 rounded-lg border p-2.5 text-left transition-all", isChecked ? "border-indigo-300 bg-indigo-50 shadow-sm" : "border-border bg-white hover:border-indigo-200 hover:bg-indigo-50/30")}>
                       <div className="w-7 h-7 rounded-md bg-purple-100 flex items-center justify-center flex-shrink-0">
                         <User className="w-3.5 h-3.5 text-purple-600" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-foreground truncate">{item.name}</p>
-                        {item.description && (
-                          <p className="text-[10px] text-foreground/40 truncate">{item.description}</p>
-                        )}
+                        {item.description && <p className="text-[10px] text-foreground/40 truncate">{item.description}</p>}
                       </div>
-                      <div className={cn(
-                        "w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center transition-colors",
-                        isChecked ? "border-indigo-500 bg-indigo-500" : "border-border"
-                      )}>
+                      <div className={cn("w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center transition-colors", isChecked ? "border-indigo-500 bg-indigo-500" : "border-border")}>
                         {isChecked && <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                       </div>
                     </button>
@@ -255,17 +295,9 @@ function ImportPanel({ farmId, onImported }: { farmId: number; onImported: () =>
             </div>
           )}
         </div>
-
-        {/* Footer action */}
         <div className="flex items-center justify-between mt-4 pt-4 border-t border-indigo-100">
-          <p className="text-xs text-foreground/40">
-            {selected.size > 0 ? `${selected.size} selected` : "Select items to import"}
-          </p>
-          <button
-            onClick={handleImport}
-            disabled={selected.size === 0 || importMut.isPending}
-            className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
+          <p className="text-xs text-foreground/40">{selected.size > 0 ? `${selected.size} selected` : "Select items to import"}</p>
+          <button onClick={handleImport} disabled={selected.size === 0 || importMut.isPending} className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
             <Download className="w-3.5 h-3.5" />
             {importMut.isPending ? "Importing…" : `Import ${selected.size > 0 ? selected.size : ""} selected`}
           </button>
@@ -275,23 +307,13 @@ function ImportPanel({ farmId, onImported }: { farmId: number; onImported: () =>
   );
 }
 
-// ─── Resource Card ────────────────────────────────────────────────────────────
+// ─── ResourceCard ─────────────────────────────────────────────────────────────
 
-function ResourceCard({
-  resource, onEdit, onArchive, onRestore,
-}: {
-  resource: FarmResource;
-  onEdit: (r: FarmResource) => void;
-  onArchive: (id: number) => void;
-  onRestore: (id: number) => void;
-}) {
+function ResourceCard({ resource, onEdit, onArchive, onRestore }: { resource: FarmResource; onEdit: (r: FarmResource) => void; onArchive: (id: number) => void; onRestore: (id: number) => void; }) {
   const { icon: Icon, label } = getTypeInfo(resource.type);
   const colourBg = getColourBg(resource.colour);
   return (
-    <div className={cn(
-      "group relative flex items-start gap-3 rounded-xl border bg-white p-3.5 transition-all hover:shadow-md",
-      resource.isActive ? "border-border hover:border-border/80" : "border-dashed border-border/50 opacity-60"
-    )}>
+    <div className={cn("group relative flex items-start gap-3 rounded-xl border bg-white p-3.5 transition-all hover:shadow-md", resource.isActive ? "border-border hover:border-border/80" : "border-dashed border-border/50 opacity-60")}>
       <div className={cn("w-1.5 self-stretch rounded-full flex-shrink-0", colourBg)} />
       <div className={cn("flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center", colourBg + "/10")}>
         <Icon className={cn("w-4.5 h-4.5", colourBg.replace("bg-", "text-"))} />
@@ -299,57 +321,28 @@ function ResourceCard({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <p className="font-semibold text-sm text-foreground truncate">{resource.name}</p>
-          {!resource.isActive && (
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-muted text-foreground/40 flex-shrink-0">Archived</span>
-          )}
+          {!resource.isActive && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-muted text-foreground/40 flex-shrink-0">Archived</span>}
         </div>
         <p className="text-[11px] text-foreground/50 font-medium mt-0.5">{label}</p>
-        {resource.description && (
-          <p className="text-xs text-foreground/50 mt-1 leading-relaxed line-clamp-2">{resource.description}</p>
-        )}
+        {resource.description && <p className="text-xs text-foreground/50 mt-1 leading-relaxed line-clamp-2">{resource.description}</p>}
       </div>
       <div className="flex-shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         {resource.isActive ? (
           <>
-            <button
-              onClick={() => onEdit(resource)}
-              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-muted text-foreground/40 hover:text-foreground transition-colors"
-              title="Edit"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => onArchive(resource.id)}
-              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-muted text-foreground/40 hover:text-red-500 transition-colors"
-              title="Archive"
-            >
-              <Archive className="w-3.5 h-3.5" />
-            </button>
+            <button onClick={() => onEdit(resource)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-muted text-foreground/40 hover:text-foreground transition-colors" title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
+            <button onClick={() => onArchive(resource.id)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-muted text-foreground/40 hover:text-red-500 transition-colors" title="Archive"><Archive className="w-3.5 h-3.5" /></button>
           </>
         ) : (
-          <button
-            onClick={() => onRestore(resource.id)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-muted text-foreground/40 hover:text-green-600 transition-colors"
-            title="Restore"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
+          <button onClick={() => onRestore(resource.id)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-muted text-foreground/40 hover:text-green-600 transition-colors" title="Restore"><RotateCcw className="w-3.5 h-3.5" /></button>
         )}
       </div>
     </div>
   );
 }
 
-// ─── Resource Form ────────────────────────────────────────────────────────────
+// ─── ResourceForm ─────────────────────────────────────────────────────────────
 
-function ResourceForm({
-  initial, onSave, onCancel, isPending,
-}: {
-  initial?: Partial<FarmResource>;
-  onSave: (data: { name: string; type: string; description: string; colour: string }) => void;
-  onCancel: () => void;
-  isPending: boolean;
-}) {
+function ResourceForm({ initial, onSave, onCancel, isPending }: { initial?: Partial<FarmResource>; onSave: (data: { name: string; type: string; description: string; colour: string }) => void; onCancel: () => void; isPending: boolean; }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [type, setType] = useState(initial?.type ?? "tractor");
   const [description, setDescription] = useState(initial?.description ?? "");
@@ -367,85 +360,442 @@ function ResourceForm({
     <Card className="p-5 border-indigo-200 bg-indigo-50/30">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-bold text-sm text-foreground">{initial?.id ? "Edit Resource" : "Add Custom Resource"}</h3>
-        <button onClick={onCancel} className="w-6 h-6 flex items-center justify-center rounded-full text-foreground/30 hover:text-foreground hover:bg-muted transition-colors">
-          <X className="w-3.5 h-3.5" />
-        </button>
+        <button onClick={onCancel} className="w-6 h-6 flex items-center justify-center rounded-full text-foreground/30 hover:text-foreground hover:bg-muted transition-colors"><X className="w-3.5 h-3.5" /></button>
       </div>
-
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-xs font-semibold text-foreground/70 mb-1.5">Name *</label>
-          <input
-            type="text"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder="e.g. John Deere 6R 155"
-            className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
+          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. John Deere 6R 155" className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
         </div>
-
         <div>
           <label className="block text-xs font-semibold text-foreground/70 mb-1.5">Type *</label>
           <div className="relative">
-            <select
-              value={type}
-              onChange={e => setType(e.target.value)}
-              className="w-full appearance-none rounded-lg border border-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 pr-8"
-            >
-              {RESOURCE_TYPES.map(t => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
+            <select value={type} onChange={e => setType(e.target.value)} className="w-full appearance-none rounded-lg border border-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 pr-8">
+              {RESOURCE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
             <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/40 pointer-events-none" />
           </div>
         </div>
-
         <div>
           <label className="block text-xs font-semibold text-foreground/70 mb-1.5">Colour</label>
           <div className="flex flex-wrap gap-2">
             {COLOUR_OPTIONS.map(c => (
-              <button
-                key={c.value}
-                type="button"
-                onClick={() => setColour(c.value)}
-                className={cn(
-                  "w-7 h-7 rounded-full transition-all",
-                  c.bg,
-                  colour === c.value ? "ring-2 ring-offset-2 ring-foreground scale-110" : "opacity-60 hover:opacity-100"
-                )}
-                title={c.label}
-              />
+              <button key={c.value} type="button" onClick={() => setColour(c.value)} className={cn("w-7 h-7 rounded-full transition-all", c.bg, colour === c.value ? "ring-2 ring-offset-2 ring-foreground scale-110" : "opacity-60 hover:opacity-100")} title={c.label} />
             ))}
           </div>
         </div>
-
         <div>
           <label className="block text-xs font-semibold text-foreground/70 mb-1.5">Description</label>
-          <textarea
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-            placeholder="Optional notes (e.g. reg number, serial, spec details)"
-            rows={2}
-            className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
-          />
+          <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional notes (e.g. reg number, serial, spec details)" rows={2} className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
         </div>
-
         {error && <p className="text-xs text-red-600">{error}</p>}
-
         <div className="flex gap-2 pt-1">
-          <button
-            type="submit"
-            disabled={isPending}
-            className="flex-1 bg-primary text-primary-foreground text-sm font-semibold py-2 px-4 rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
-          >
+          <button type="submit" disabled={isPending} className="flex-1 bg-primary text-primary-foreground text-sm font-semibold py-2 px-4 rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors">
             {isPending ? "Saving…" : initial?.id ? "Save changes" : "Add resource"}
           </button>
-          <button type="button" onClick={onCancel} className="text-sm font-semibold py-2 px-4 rounded-lg border border-border hover:bg-muted transition-colors">
-            Cancel
-          </button>
+          <button type="button" onClick={onCancel} className="text-sm font-semibold py-2 px-4 rounded-lg border border-border hover:bg-muted transition-colors">Cancel</button>
         </div>
       </form>
     </Card>
+  );
+}
+
+// ─── DnD: Draggable Resource Chip ─────────────────────────────────────────────
+
+function DraggableResourceChip({ resource, isCommitted }: { resource: FarmResource; isCommitted: boolean }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `res:${resource.id}`,
+    data: { resourceId: resource.id, resourceName: resource.name, resourceType: resource.type, resourceColour: resource.colour },
+    disabled: isCommitted,
+  });
+  const { icon: Icon } = getTypeInfo(resource.type);
+  const colourBg = getColourBg(resource.colour);
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      className={cn(
+        "flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-all select-none",
+        isCommitted
+          ? "border-border/40 bg-muted/40 opacity-50 cursor-not-allowed"
+          : "border-border bg-white shadow-sm hover:shadow hover:border-indigo-200 cursor-grab",
+        isDragging && "opacity-30"
+      )}
+    >
+      <GripVertical className="w-3 h-3 text-foreground/30 flex-shrink-0" />
+      <div className={cn("w-5 h-5 rounded flex items-center justify-center flex-shrink-0", colourBg + "/15")}>
+        <Icon className={cn("w-3 h-3", colourBg.replace("bg-", "text-"))} />
+      </div>
+      <span className="text-xs font-medium text-foreground truncate max-w-[120px]">{resource.name}</span>
+      {isCommitted && <span className="text-[9px] text-foreground/40 flex-shrink-0">busy</span>}
+    </div>
+  );
+}
+
+// ─── DnD: Droppable Requirement Slot ──────────────────────────────────────────
+
+function RequirementSlot({
+  id, type, filled, filledWith, onRemove,
+}: {
+  id: string;
+  type: string;
+  filled: boolean;
+  filledWith?: PlannerAllocation;
+  onRemove?: () => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id, disabled: filled });
+  const { icon: Icon } = getTypeInfo(type);
+  const colourBg = filled && filledWith ? getColourBg(filledWith.resource_colour) : "bg-slate-400";
+
+  if (filled && filledWith) {
+    return (
+      <div className="flex items-center gap-1.5 rounded-md border border-green-200 bg-green-50 px-2 py-1 text-xs font-medium text-green-800 group/slot">
+        <div className={cn("w-3.5 h-3.5 rounded-sm flex items-center justify-center flex-shrink-0", colourBg + "/20")}>
+          <Icon className={cn("w-2.5 h-2.5", colourBg.replace("bg-", "text-"))} />
+        </div>
+        <span className="truncate max-w-[90px]">{filledWith.resource_name}</span>
+        {onRemove && (
+          <button onClick={onRemove} className="opacity-0 group-hover/slot:opacity-100 ml-auto transition-opacity text-green-600 hover:text-red-500 flex-shrink-0">
+            <X className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "flex items-center gap-1.5 rounded-md border border-dashed px-2 py-1 text-xs transition-all",
+        isOver
+          ? "border-indigo-400 bg-indigo-50 text-indigo-700"
+          : "border-border/60 bg-muted/30 text-foreground/40"
+      )}
+    >
+      <Icon className="w-3 h-3 flex-shrink-0" />
+      <span className="text-[10px]">Drop {getTypeInfo(type).label.toLowerCase()}</span>
+    </div>
+  );
+}
+
+// ─── Planner Task Card ────────────────────────────────────────────────────────
+
+function PlannerTaskCard({
+  task, allocations, onRemoveAllocation,
+}: {
+  task: PlannerTask;
+  allocations: PlannerAllocation[];
+  onRemoveAllocation: (id: number) => void;
+}) {
+  const dateLabel = task.due_date
+    ? new Date(task.due_date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })
+    : "No date";
+
+  const totalReqs = REQ_TYPE_MAP.reduce((sum, { key }) => sum + (Number(task[key]) || 0), 0);
+  const hasRequirements = totalReqs > 0;
+
+  return (
+    <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
+      <div className="flex items-start gap-3 p-3.5">
+        <div className={cn("w-1 self-stretch rounded-full flex-shrink-0", getColourBg(task.colour))} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="font-semibold text-sm text-foreground leading-snug">{task.title}</p>
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                <span className="text-[10px] text-foreground/50 font-medium">{dateLabel}</span>
+                {task.staff_name && (
+                  <span className="text-[10px] text-foreground/40">→ {task.staff_name}</span>
+                )}
+                {task.estimated_hours && (
+                  <span className="flex items-center gap-0.5 text-[10px] text-foreground/40">
+                    <Clock className="w-2.5 h-2.5" />{task.estimated_hours}h
+                  </span>
+                )}
+                {task.start_time && task.end_time && (
+                  <span className="text-[10px] text-foreground/40">{task.start_time}–{task.end_time}</span>
+                )}
+              </div>
+            </div>
+            <span className={cn(
+              "flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
+              task.source === "assignment"
+                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                : "bg-indigo-50 text-indigo-700 border border-indigo-200"
+            )}>
+              {task.module ?? "Task"}
+            </span>
+          </div>
+
+          {hasRequirements ? (
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              {REQ_TYPE_MAP.flatMap(({ key, type }) => {
+                const count = Number(task[key]) || 0;
+                if (count === 0) return [];
+                const typeAllocs = allocations.filter(a => a.resource_type === type);
+                return Array.from({ length: count }, (_, i) => {
+                  const alloc = typeAllocs[i];
+                  return (
+                    <RequirementSlot
+                      key={`${task.taskRef}:${type}:${i}`}
+                      id={`slot:${task.taskRef}:${type}:${i}:${task.due_date}`}
+                      type={type}
+                      filled={!!alloc}
+                      filledWith={alloc}
+                      onRemove={alloc ? () => onRemoveAllocation(alloc.id) : undefined}
+                    />
+                  );
+                });
+              })}
+            </div>
+          ) : (
+            <p className="text-[10px] text-foreground/30 mt-2 italic">No resource requirements set</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Planner Tab ──────────────────────────────────────────────────────────────
+
+function PlannerTab({ farmId, resources }: { farmId: number; resources: FarmResource[] }) {
+  const queryClient = useQueryClient();
+  const [weekBase, setWeekBase] = useState(() => weekStart(new Date()));
+  const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
+
+  const fromDate = isoDate(weekBase);
+  const toDate = isoDate(addDays(weekBase, 6));
+
+  const { data, isLoading, isError } = useQuery<{ tasks: PlannerTask[]; allocations: PlannerAllocation[] }>({
+    queryKey: ["resource-planner", farmId, fromDate],
+    queryFn: () => fetch(`/api/farms/${farmId}/resource-planner?from=${fromDate}&days=7`).then(r => r.json()),
+  });
+
+  const allocateMut = useMutation({
+    mutationFn: (body: object) => fetch(`/api/farms/${farmId}/task-resource-allocations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(r => r.json()),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["resource-planner", farmId, fromDate] }),
+    onError: () => toast({ title: "Failed to assign resource", variant: "destructive" }),
+  });
+
+  const removeMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/task-resource-allocations/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["resource-planner", farmId, fromDate] }),
+    onError: () => toast({ title: "Failed to remove allocation", variant: "destructive" }),
+  });
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  const tasks = data?.tasks ?? [];
+  const allocations = data?.allocations ?? [];
+
+  // Committed resource IDs for the current week (any allocation in this week range)
+  const committedIds = useMemo(() => new Set(allocations.map(a => a.resource_id)), [allocations]);
+
+  // Group tasks by date
+  const byDate = useMemo(() => {
+    const m = new Map<string, PlannerTask[]>();
+    for (const t of tasks) {
+      const d = t.due_date;
+      if (!m.has(d)) m.set(d, []);
+      m.get(d)!.push(t);
+    }
+    return m;
+  }, [tasks]);
+
+  // Days in range
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = addDays(weekBase, i);
+    return { date: d, iso: isoDate(d) };
+  });
+
+  function handleDragStart(event: DragStartEvent) {
+    const data = event.active.data.current as ActiveDrag;
+    setActiveDrag(data);
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    setActiveDrag(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const overId = String(over.id);
+    if (!overId.startsWith("slot:")) return;
+
+    const [, taskRef, slotType, , allocDate] = overId.split(":");
+    const dragData = active.data.current as ActiveDrag;
+
+    if (!dragData) return;
+
+    if (dragData.resourceType !== slotType) {
+      toast({
+        title: "Type mismatch",
+        description: `This slot requires a ${getTypeInfo(slotType).label.toLowerCase()}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const task = tasks.find(t => t.taskRef === taskRef);
+    allocateMut.mutate({
+      resourceId: dragData.resourceId,
+      taskRef,
+      taskTitle: task?.title ?? null,
+      allocatedDate: allocDate,
+      taskAssignmentId: taskRef.startsWith("assign-") ? Number(taskRef.replace("assign-", "")) : null,
+    });
+  }
+
+  const activeResources = resources.filter(r => r.isActive);
+
+  const weekLabel = (() => {
+    const endOfWeek = addDays(weekBase, 6);
+    const fmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+    return `${fmt(weekBase)} – ${fmt(endOfWeek)}`;
+  })();
+
+  const totalTasks = tasks.length;
+  const tasksWithReqs = tasks.filter(t => REQ_TYPE_MAP.some(({ key }) => Number(t[key]) > 0)).length;
+  const totalSlots = tasks.reduce((s, t) => s + REQ_TYPE_MAP.reduce((ts, { key }) => ts + (Number(t[key]) || 0), 0), 0);
+  const filledSlots = allocations.length;
+
+  return (
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <div className="flex flex-col gap-4">
+        {/* Nav + stats */}
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <button onClick={() => setWeekBase(w => addDays(w, -7))} className="w-8 h-8 flex items-center justify-center rounded-lg border border-border hover:bg-muted transition-colors">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button onClick={() => setWeekBase(weekStart(new Date()))} className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-border hover:bg-muted transition-colors">
+              <CalendarDays className="w-3.5 h-3.5" />
+              Today
+            </button>
+            <button onClick={() => setWeekBase(w => addDays(w, 7))} className="w-8 h-8 flex items-center justify-center rounded-lg border border-border hover:bg-muted transition-colors">
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <span className="text-sm font-semibold text-foreground ml-1">{weekLabel}</span>
+          </div>
+          <div className="flex items-center gap-4 text-xs text-foreground/50">
+            <span>{totalTasks} task{totalTasks !== 1 ? "s" : ""}</span>
+            {totalSlots > 0 && (
+              <span className={cn("font-semibold", filledSlots === totalSlots ? "text-green-600" : "text-amber-600")}>
+                {filledSlots}/{totalSlots} slots filled
+              </span>
+            )}
+          </div>
+        </div>
+
+        {isLoading && (
+          <div className="flex items-center justify-center py-16 text-foreground/40 text-sm">Loading planner data…</div>
+        )}
+
+        {isError && (
+          <Card className="p-6 border-red-200 bg-red-50/40 flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <p className="text-sm text-red-700">Failed to load planner data. The API may still be restarting.</p>
+          </Card>
+        )}
+
+        {!isLoading && !isError && (
+          <div className="flex gap-4 items-start">
+            {/* Left — Task list by day */}
+            <div className="flex-1 min-w-0 space-y-4">
+              {activeResources.length === 0 && (
+                <Card className="p-4 border-amber-200 bg-amber-50/40 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                  <p className="text-xs text-amber-700">Add resources in the Resources tab before assigning them to tasks.</p>
+                </Card>
+              )}
+              {tasksWithReqs === 0 && tasks.length > 0 && (
+                <Card className="p-4 border-indigo-200 bg-indigo-50/40 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+                  <p className="text-xs text-indigo-700">None of this week's tasks have resource requirements set. Add requirements when creating or editing tasks.</p>
+                </Card>
+              )}
+              {tasks.length === 0 && (
+                <div className="py-12 text-center text-foreground/40 text-sm">No tasks this week.</div>
+              )}
+              {days.map(({ date, iso }) => {
+                const dayTasks = byDate.get(iso) ?? [];
+                if (dayTasks.length === 0) return null;
+                const dayLabel = date.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" });
+                const isToday = iso === isoDate(new Date());
+                return (
+                  <div key={iso}>
+                    <div className={cn("flex items-center gap-2 mb-2")}>
+                      <span className={cn("text-xs font-bold", isToday ? "text-indigo-600" : "text-foreground/50")}>{dayLabel}</span>
+                      {isToday && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">TODAY</span>}
+                    </div>
+                    <div className="space-y-2">
+                      {dayTasks.map(task => (
+                        <PlannerTaskCard
+                          key={task.taskRef}
+                          task={task}
+                          allocations={allocations.filter(a => a.task_ref === task.taskRef)}
+                          onRemoveAllocation={id => removeMut.mutate(id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Right — Available resources */}
+            <div className="w-56 flex-shrink-0 sticky top-4">
+              <Card className="p-4 border-border">
+                <h3 className="font-bold text-xs text-foreground/60 uppercase tracking-wider mb-3">Resources</h3>
+                {activeResources.length === 0 ? (
+                  <p className="text-xs text-foreground/40 italic">No resources added yet.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {RESOURCE_TYPES.map(rt => {
+                      const typeResources = activeResources.filter(r => r.type === rt.value);
+                      if (typeResources.length === 0) return null;
+                      return (
+                        <div key={rt.value}>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40 mb-1.5">{rt.label}</p>
+                          <div className="space-y-1.5">
+                            {typeResources.map(r => (
+                              <DraggableResourceChip
+                                key={r.id}
+                                resource={r}
+                                isCommitted={committedIds.has(r.id)}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <div className="mt-4 pt-3 border-t border-border/40">
+                  <p className="text-[10px] text-foreground/40 leading-relaxed">Drag a resource onto an empty slot on a task to assign it. Hover a filled slot to remove it.</p>
+                </div>
+              </Card>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Drag overlay */}
+      <DragOverlay>
+        {activeDrag && (
+          <div className="flex items-center gap-2 rounded-lg border border-indigo-300 bg-white shadow-lg px-2.5 py-1.5 text-xs font-medium text-foreground cursor-grabbing">
+            <GripVertical className="w-3 h-3 text-indigo-400" />
+            {activeDrag.resourceName}
+          </div>
+        )}
+      </DragOverlay>
+    </DndContext>
   );
 }
 
@@ -456,8 +806,7 @@ export default function ResourcesPage() {
   if (!farmId) return <Redirect href="/select" />;
 
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [editingResource, setEditingResource] = useState<FarmResource | null>(null);
+  const [activeTab, setActiveTab] = useState<"resources" | "planner">("resources");
   const [showArchived, setShowArchived] = useState(false);
 
   const { data, isLoading } = useQuery<{ resources: FarmResource[] }>({
@@ -465,29 +814,9 @@ export default function ResourcesPage() {
     queryFn: () => fetch(`/api/farms/${farmId}/resources?showAll=${showArchived}`).then(r => r.json()),
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["resources", farmId] });
-
-  const createMut = useMutation({
-    mutationFn: (body: object) => fetch(`/api/farms/${farmId}/resources`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }).then(r => r.json()),
-    onSuccess: () => { invalidate(); setShowForm(false); toast({ title: "Resource added" }); },
-  });
-
-  const updateMut = useMutation({
-    mutationFn: ({ id, ...body }: { id: number } & object) => fetch(`/api/farms/${farmId}/resources/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }).then(r => r.json()),
-    onSuccess: () => { invalidate(); setEditingResource(null); toast({ title: "Resource updated" }); },
-  });
-
   const archiveMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/resources/${id}`, { method: "DELETE" }).then(r => r.json()),
-    onSuccess: () => { invalidate(); toast({ title: "Resource archived" }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["resources", farmId] }); toast({ title: "Resource archived" }); },
   });
 
   const restoreMut = useMutation({
@@ -496,22 +825,10 @@ export default function ResourcesPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isActive: true }),
     }).then(r => r.json()),
-    onSuccess: () => { invalidate(); toast({ title: "Resource restored" }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["resources", farmId] }); toast({ title: "Resource restored" }); },
   });
 
   const resources = data?.resources ?? [];
-
-  const grouped = new Map<string, FarmResource[]>();
-  const typeOrder = RESOURCE_TYPES.map(t => t.value);
-  for (const r of resources) {
-    if (!grouped.has(r.type)) grouped.set(r.type, []);
-    grouped.get(r.type)!.push(r);
-  }
-  const typeOrderStr: string[] = [...typeOrder];
-  const sortedGroups = [...grouped.entries()].sort(
-    (a, b) => (typeOrderStr.indexOf(a[0]) ?? 99) - (typeOrderStr.indexOf(b[0]) ?? 99)
-  );
-
   const totalActive = resources.filter(r => r.isActive).length;
 
   return (
@@ -522,107 +839,165 @@ export default function ResourcesPage() {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <p className="text-sm text-foreground/50 mt-0.5">
-              Assign your tractors, implements, vehicles and staff to tasks in the Week Ahead planner.
+              Manage your farm's resources and assign them to tasks week-by-week.
             </p>
             {totalActive > 0 && (
               <p className="text-xs text-foreground/40 mt-1">{totalActive} active resource{totalActive !== 1 ? "s" : ""}</p>
             )}
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={() => setShowArchived(p => !p)}
-              className={cn(
-                "text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors",
-                showArchived ? "bg-muted text-foreground border-border" : "text-foreground/50 border-transparent hover:bg-muted/50"
-              )}
-            >
-              {showArchived ? "Hide archived" : "Show archived"}
-            </button>
-            <button
-              onClick={() => { setEditingResource(null); setShowForm(true); }}
-              className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Add custom
-            </button>
-          </div>
         </div>
 
-        {/* Import panel — always shown while importable items exist */}
-        <ImportPanel farmId={farmId} onImported={invalidate} />
-
-        {/* Manual add form */}
-        {showForm && !editingResource && (
-          <ResourceForm
-            onSave={data => createMut.mutate(data)}
-            onCancel={() => setShowForm(false)}
-            isPending={createMut.isPending}
-          />
-        )}
-
-        {/* Loading */}
-        {isLoading && (
-          <div className="flex items-center justify-center py-16 text-foreground/30 text-sm">Loading resources…</div>
-        )}
-
-        {/* Empty state */}
-        {!isLoading && resources.length === 0 && (
-          <div className="rounded-2xl border-2 border-dashed border-border bg-muted/20 py-12 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-4">
-              <Tractor className="w-7 h-7 text-foreground/20" />
-            </div>
-            <h3 className="font-bold text-foreground/50 mb-1">No resources yet</h3>
-            <p className="text-sm text-foreground/35 max-w-xs mx-auto mb-1">
-              Import from your Equipment Register and Staff list above, or add a custom resource.
-            </p>
-          </div>
-        )}
-
-        {/* Grouped resource lists */}
-        {sortedGroups.map(([type, items]) => {
-          const { label, icon: Icon } = getTypeInfo(type);
-          const active = items.filter(r => r.isActive);
-          const archived = items.filter(r => !r.isActive);
-          const displayItems = showArchived ? items : active;
-          if (displayItems.length === 0) return null;
-          return (
-            <div key={type}>
-              <div className="flex items-center gap-2 mb-3">
-                <Icon className="w-4 h-4 text-foreground/40" />
-                <h2 className="font-bold text-sm text-foreground/70">{label}s</h2>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-muted text-foreground/50">{active.length}</span>
-                {archived.length > 0 && showArchived && (
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-muted/50 text-foreground/30">{archived.length} archived</span>
-                )}
-              </div>
-
-              {/* Edit form for item in this group */}
-              {editingResource && items.some(i => i.id === editingResource.id) && (
-                <div className="mb-3">
-                  <ResourceForm
-                    initial={editingResource}
-                    onSave={d => updateMut.mutate({ id: editingResource.id, ...d })}
-                    onCancel={() => setEditingResource(null)}
-                    isPending={updateMut.isPending}
-                  />
-                </div>
+        {/* Tabs */}
+        <div className="flex items-center gap-1 border-b border-border">
+          {(["resources", "planner"] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={cn(
+                "pb-2.5 px-4 text-sm font-semibold border-b-2 transition-colors -mb-px",
+                activeTab === tab
+                  ? "border-primary text-primary"
+                  : "border-transparent text-foreground/50 hover:text-foreground"
               )}
+            >
+              {tab === "resources" ? "Resources" : "Planner"}
+            </button>
+          ))}
+        </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {displayItems.map(r => (
-                  <ResourceCard
-                    key={r.id}
-                    resource={r}
-                    onEdit={res => { setEditingResource(res); setShowForm(false); }}
-                    onArchive={id => archiveMut.mutate(id)}
-                    onRestore={id => restoreMut.mutate(id)}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        })}
+        {activeTab === "resources" ? (
+          <ResourcesTabSimple
+            farmId={farmId}
+            resources={resources}
+            isLoading={isLoading}
+            showArchived={showArchived}
+            setShowArchived={setShowArchived}
+            onArchive={archiveMut.mutate}
+            onRestore={restoreMut.mutate}
+            onInvalidate={() => queryClient.invalidateQueries({ queryKey: ["resources", farmId] })}
+          />
+        ) : (
+          <PlannerTab farmId={farmId} resources={resources.filter(r => r.isActive)} />
+        )}
       </div>
     </AppLayout>
+  );
+}
+
+// ─── ResourcesTabSimple — resource management content ─────────────────────────
+
+function ResourcesTabSimple({ farmId, resources, isLoading, showArchived, setShowArchived, onArchive, onRestore, onInvalidate }: {
+  farmId: number;
+  resources: FarmResource[];
+  isLoading: boolean;
+  showArchived: boolean;
+  setShowArchived: (v: boolean) => void;
+  onArchive: (id: number) => void;
+  onRestore: (id: number) => void;
+  onInvalidate: () => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [editingResource, setEditingResource] = useState<FarmResource | null>(null);
+
+  const createMut = useMutation({
+    mutationFn: (body: object) => fetch(`/api/farms/${farmId}/resources`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(r => r.json()),
+    onSuccess: () => { onInvalidate(); setShowForm(false); toast({ title: "Resource added" }); },
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, ...body }: { id: number } & object) => fetch(`/api/farms/${farmId}/resources/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(r => r.json()),
+    onSuccess: () => { onInvalidate(); setEditingResource(null); toast({ title: "Resource updated" }); },
+  });
+
+  const grouped = new Map<string, FarmResource[]>();
+  for (const r of resources) {
+    if (!grouped.has(r.type)) grouped.set(r.type, []);
+    grouped.get(r.type)!.push(r);
+  }
+  const sortedGroups = [...grouped.entries()].sort(
+    (a, b) => RESOURCE_TYPES.findIndex(t => t.value === a[0]) - RESOURCE_TYPES.findIndex(t => t.value === b[0])
+  );
+
+  return (
+    <div className="space-y-6">
+      <ImportPanel farmId={farmId} onImported={onInvalidate} />
+
+      {/* Add button */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => { setShowForm(true); setEditingResource(null); }}
+          className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm"
+        >
+          <Plus className="w-4 h-4" />
+          Add resource
+        </button>
+      </div>
+
+      {showForm && !editingResource && (
+        <ResourceForm
+          onSave={data => createMut.mutate(data)}
+          onCancel={() => setShowForm(false)}
+          isPending={createMut.isPending}
+        />
+      )}
+
+      {isLoading ? (
+        <div className="py-12 text-center text-foreground/40 text-sm">Loading resources…</div>
+      ) : resources.length === 0 ? (
+        <div className="py-12 text-center">
+          <p className="text-foreground/40 text-sm">No resources yet.</p>
+          <p className="text-xs text-foreground/30 mt-1">Add tractors, implements, vehicles, staff and more above.</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {sortedGroups.map(([type, group]) => {
+            const { label } = getTypeInfo(type);
+            return (
+              <div key={type}>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40 mb-2">{label}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {group.map(r =>
+                    editingResource?.id === r.id ? (
+                      <ResourceForm
+                        key={r.id}
+                        initial={r}
+                        onSave={data => updateMut.mutate({ id: r.id, ...data })}
+                        onCancel={() => setEditingResource(null)}
+                        isPending={updateMut.isPending}
+                      />
+                    ) : (
+                      <ResourceCard
+                        key={r.id}
+                        resource={r}
+                        onEdit={setEditingResource}
+                        onArchive={onArchive}
+                        onRestore={onRestore}
+                      />
+                    )
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 pt-2">
+        <button
+          onClick={() => setShowArchived(!showArchived)}
+          className={cn("text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors", showArchived ? "border-foreground/30 bg-muted text-foreground" : "border-border text-foreground/50 hover:bg-muted")}
+        >
+          {showArchived ? "Hide archived" : "Show archived"}
+        </button>
+      </div>
+    </div>
   );
 }

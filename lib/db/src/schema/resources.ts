@@ -20,6 +20,9 @@ export const farmTaskResourceAllocationsTable = pgTable("farm_task_resource_allo
   taskRef: text("task_ref").notNull(),
   taskTitle: text("task_title"),
   allocatedDate: text("allocated_date").notNull(),
+  startTime: text("start_time"),
+  endTime: text("end_time"),
+  taskAssignmentId: integer("task_assignment_id"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
