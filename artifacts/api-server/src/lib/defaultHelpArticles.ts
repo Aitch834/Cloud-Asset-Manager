@@ -322,6 +322,7 @@ const TITLES: [string, string][] = [
   ["Poultry Transport Welfare Documentation (WATD) — Journey Records and 65 km Threshold", "Poultry Production"],
   ["HPAI Zone Alerting — Platform Alerts, Farm Zone Status and Organic 16-Week Housing Clock", "Poultry Production"],
   ["Poultry Placement Delivery Fields — Organic Certification Status and Derogation Period at Arrival", "Poultry Production"],
+  ["GI Compliance Tab — PDO & PGI Designations, Block Compliance, Certifications and Harvest Declarations", "Viticulture"],
 ];
 
 const CONTENT: [string, string][] = [
@@ -6360,6 +6361,80 @@ The Livestock Information Service has confirmed that LIP Cattle API submissions 
 
 <h3>Viewing Placement Records</h3>
 <p>All delivery and organic certification fields are displayed in the placement view dialog alongside the standard flock and hatchery details. Document attachments (hatchery certificates, delivery notes, certifier correspondence) can be added to the placement record using the RecordAttachments panel in the view dialog.</p>`,
+  ],
+  // GI Compliance Tab — PDO & PGI Designations, Block Compliance, Certifications and Harvest Declarations
+  [
+    "How to use the GI Compliance tab in BDE Farm Trac to manage PDO and PGI geographical indication obligations for UK vineyards.",
+    `<h2>GI Compliance Tab — PDO & PGI Designations, Block Compliance, Certifications and Harvest Declarations</h2>
+<p>The GI Compliance tab (Viticulture → GI Compliance) provides a dedicated workspace for managing your vineyard's obligations under UK wine geographical indication (GI) regulations. UK wine GIs — Protected Designation of Origin (PDO) and Protected Geographical Indication (PGI) — are administered by the Animal and Plant Health Agency (APHA) Wine Standards branch. Compliance requires maintaining approved variety lists, maximum yield thresholds, per-vintage APHA assessments, and annual harvest declarations.</p>
+<p>The tab contains four sub-tabs: Designations, Block Compliance, Certifications, and Harvest Declarations.</p>
+
+<h2>Designations</h2>
+<p>The Designations sub-tab is the foundation of GI compliance. Each record represents one PDO or PGI designation your vineyard holds or is registered under.</p>
+<h3>Adding a designation</h3>
+<p>Click <strong>New Designation</strong> and complete the form:</p>
+<ul>
+<li><strong>Designation Name</strong> (required) — the exact name of the GI, e.g. <em>English Wine PDO</em> or <em>English Wine PGI</em>. This name must match the GI Classification value on your vine register rows for the Block Compliance view to link them correctly.</li>
+<li><strong>Type</strong> — PDO or PGI.</li>
+<li><strong>APHA Reference Number</strong> — the reference issued by APHA Wine Standards for this designation.</li>
+<li><strong>Competent Authority</strong> — defaults to <em>APHA Wine Standards</em>; edit if your designation is administered by a different body.</li>
+<li><strong>Region</strong> — the geographical area covered (e.g. <em>England</em>, <em>Wales</em>, <em>Kent</em>).</li>
+<li><strong>Approved Varieties</strong> — enter the grape varieties permitted under this designation, separated by commas (e.g. <em>Chardonnay, Pinot Noir, Pinot Meunier</em>). These are checked against the registered variety on each vine register row in the Block Compliance view.</li>
+<li><strong>Max Yield (kg/ha)</strong> — the maximum permitted harvest yield in kilograms per hectare for this designation. This is compared against actual harvest yield in the Block Compliance and Harvest Declarations views.</li>
+<li><strong>Registration Date</strong> and <strong>Next Assessment Date</strong> — track when the designation was registered and when the next APHA assessment is due.</li>
+<li><strong>Status</strong> — Active, Suspended, or Revoked.</li>
+</ul>
+
+<h2>Block Compliance</h2>
+<p>The Block Compliance sub-tab is an automatically computed view. It does not require any manual data entry — it cross-references your existing vine register rows, harvest records, and the designations you have registered above to produce a per-block compliance summary.</p>
+<h3>How blocks appear in the compliance view</h3>
+<p>A vine register row appears in the Block Compliance view only if its <strong>GI Classification</strong> field is set and matches the name of a registered designation. To link a vine register row:</p>
+<ol>
+<li>Go to Viticulture → Vine Register.</li>
+<li>Open the edit form for the row (pencil icon or Edit in the view dialog).</li>
+<li>In the <strong>GI Classification</strong> field, select the appropriate option — English Wine PDO, English Wine PGI, Welsh Wine PDO, Welsh Wine PGI, UK Table Wine, or No GI.</li>
+<li>Save. The block will now appear in Block Compliance, matched against any designation whose name contains that GI classification string.</li>
+</ol>
+<h3>Compliance checks performed</h3>
+<ul>
+<li><strong>Variety approval</strong> — the vine register row's <em>Variety</em> is checked against the designation's <em>Approved Varieties</em> list. A green tick indicates the variety is approved; a red cross indicates it is not on the list. Review your designation's approved variety list if a variety is incorrectly flagged.</li>
+<li><strong>Yield vs threshold</strong> — the most recent harvest record for that block is retrieved and its yield (kg/ha) is compared against the designation's Max Yield (kg/ha). A green tick indicates the yield is within the permitted maximum; a red flag shows the actual exceedance figure (e.g. <em>452 kg/ha over limit</em>). If the block has no harvest record yet, the yield column shows <em>No harvest data</em>.</li>
+</ul>
+<p>A summary strip at the top of the sub-tab shows the total number of GI-linked blocks, the number that are fully compliant, and the number with issues.</p>
+
+<h2>Certifications</h2>
+<p>The Certifications sub-tab records the per-vintage APHA analytical and organoleptic assessments required for PDO and PGI wine certification.</p>
+<h3>Fields captured</h3>
+<ul>
+<li><strong>Vintage Year</strong> and <strong>Designation</strong> (required).</li>
+<li><strong>Submission Date</strong> — the date the wine sample was submitted to APHA.</li>
+<li><strong>Assessment Type</strong> — Analytical only, Organoleptic only, or Both (the standard PDO/PGI route).</li>
+<li><strong>Result</strong> — Passed (green), Failed (red), Pending (amber), or Withdrawn (grey).</li>
+<li><strong>Certificate Number</strong>, <strong>Issue Date</strong>, and <strong>Expiry Date</strong> — details of the certificate issued by APHA on a Passed result.</li>
+<li><strong>Assessor Name</strong> and <strong>Assessor Organisation</strong> — the APHA-approved panel assessor(s).</li>
+<li><strong>Sample Reference</strong> and <strong>Wine Lot Reference</strong> — for traceability back to the specific wine lot assessed.</li>
+<li><strong>Volume Assessed (litres)</strong> — the volume of wine assessed in the assessment round.</li>
+<li><strong>Failure Reason</strong> — recorded for Failed results to document the basis for refusal and any corrective action required before resubmission.</li>
+</ul>
+<h3>Expiry alerts</h3>
+<p>Certificates expiring within 90 days show an amber <em>Expiring Soon</em> badge. Expired certificates show a red <em>Expired</em> badge. An amber summary banner at the top of the sub-tab lists any certificates with upcoming expiry.</p>
+
+<h2>Harvest Declarations</h2>
+<p>The Harvest Declarations sub-tab records the annual yield declarations submitted to APHA as part of PDO and PGI scheme obligations. Each declaration covers one vintage for one designation.</p>
+<h3>Fields captured</h3>
+<ul>
+<li><strong>Vintage Year</strong> and <strong>Designation</strong> (required).</li>
+<li><strong>Declaration Date</strong> — the date the declaration was submitted or prepared.</li>
+<li><strong>Total Yield (kg)</strong> and <strong>Area (ha)</strong> — the total harvest yield and area covered by this designation and vintage.</li>
+<li><strong>Yield (kg/ha)</strong> — calculated automatically; a green <em>Within Limit</em> badge or red <em>Exceeds Limit</em> badge appears based on the designation's Max Yield threshold.</li>
+<li><strong>Total Volume Produced (litres)</strong> — the volume of wine produced from this harvest.</li>
+<li><strong>Status</strong> — Draft, Submitted, Acknowledged, or Queried.</li>
+<li><strong>APHA Reference</strong> — the reference number assigned by APHA on submission.</li>
+<li><strong>Submission Method</strong> — how the declaration was submitted (e.g. Online portal, Email, Post).</li>
+<li><strong>Notes</strong> — any additional detail relevant to the declaration.</li>
+</ul>
+<h3>Populate from Harvest Data</h3>
+<p>Click the <strong>Populate from Harvest Data</strong> button in the declaration form to automatically pull figures from your harvest records. The system filters harvest records by the selected vintage year and by vine register rows linked to the chosen designation, sums the total yield (kg) and area (ha) across all matching blocks, and calculates yield per hectare. It then checks the calculated yield against the designation's Max Yield threshold and pre-fills the compliance flag. Review the auto-filled figures before saving — you can manually adjust any field if your final declaration figures differ from the raw harvest records.</p>`,
   ],
 ];
 
