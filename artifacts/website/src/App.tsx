@@ -28,6 +28,9 @@ import Login from "./pages/Login";
 import Admin from "./pages/Admin";
 import HelpCentre from "./pages/HelpCentre";
 import RegisterInterest from "./pages/RegisterInterest";
+import Sectors from "./pages/Sectors";
+import Partners from "./pages/Partners";
+import Resources from "./pages/Resources";
 
 const queryClient = new QueryClient();
 
@@ -47,6 +50,9 @@ function Router() {
       <Route path="/admin" component={Admin} />
       <Route path="/help" component={HelpCentre} />
       <Route path="/register-interest" component={RegisterInterest} />
+      <Route path="/sectors" component={Sectors} />
+      <Route path="/partners" component={Partners} />
+      <Route path="/resources" component={Resources} />
       <Route component={NotFound} />
     </Switch>
   );
