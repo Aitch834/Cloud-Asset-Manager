@@ -7,11 +7,13 @@ import {
   RotateCcw, X, ChevronDown, Download, CheckSquare, Square, Sparkles,
   ChevronLeft, ChevronRight, CalendarDays, AlertCircle, GripVertical, Trash2,
   Clock, ClipboardList, CheckCircle2, CircleDashed, BadgeCheck, Undo2,
+  Search, BarChart2, FileDown, History, CalendarRange,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import {
   DndContext, DragOverlay, useDraggable, useDroppable,
   useSensors, useSensor, PointerSensor,
@@ -959,10 +961,24 @@ function MaterialWeeklySummary({ weekMaterials }: { weekMaterials: Map<string, W
 
 // ─── Planner Tab ──────────────────────────────────────────────────────────────
 
+function exportPlannerCSV(weekLabel: string, tasks: PlannerTask[], allocations: PlannerAllocation[]) {
+  const rows: string[][] = [["Date", "Task", "Tractors Req", "Implements Req", "Vehicles Req", "Sprayers Req", "Trailers Req", "Staff Req", "Allocated Resources", "Materials"]];
+  for (const t of tasks) {
+    const taskAllocs = allocations.filter(a => a.task_ref === t.taskRef).map(a => a.resource_name ?? a.resource_id).join("; ");
+    const mats = t.req_materials.filter(m => m.name).map(m => `${m.quantity} ${m.unit} ${m.name}`).join("; ");
+    rows.push([t.due_date, t.title, String(t.req_tractors || 0), String(t.req_implements || 0), String(t.req_vehicles || 0), String(t.req_sprayers || 0), String(t.req_trailers || 0), String(t.req_staff || 0), taskAllocs, mats]);
+  }
+  const csv = "\uFEFF" + rows.map(r => r.map(c => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  const a = document.createElement("a"); a.href = url; a.download = `week-plan-${weekLabel.replace(/[^a-z0-9]/gi, "-")}.csv`; a.click(); URL.revokeObjectURL(url);
+}
+
 function PlannerTab({ farmId, resources }: { farmId: number; resources: FarmResource[] }) {
   const queryClient = useQueryClient();
   const [weekBase, setWeekBase] = useState(() => weekStart(new Date()));
   const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
+  const [poolFilter, setPoolFilter] = useState<string | null>(null);
+  const jumpRef = useRef<HTMLInputElement>(null);
 
   const fromDate = isoDate(weekBase);
   const toDate = isoDate(addDays(weekBase, 6));
@@ -1148,13 +1164,40 @@ function PlannerTab({ farmId, resources }: { farmId: number; resources: FarmReso
               <ChevronRight className="w-4 h-4" />
             </button>
             <span className="text-sm font-semibold text-foreground ml-1">{weekLabel}</span>
+            {/* Jump to date */}
+            <div className="relative ml-1">
+              <button
+                onClick={() => jumpRef.current?.showPicker?.()}
+                className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border border-border hover:bg-muted transition-colors text-foreground/50"
+                title="Jump to date"
+              >
+                <CalendarRange className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Jump to</span>
+              </button>
+              <input
+                ref={jumpRef}
+                type="date"
+                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                onChange={e => { if (e.target.value) { setWeekBase(weekStart(new Date(e.target.value + "T12:00:00"))); e.target.value = ""; } }}
+              />
+            </div>
           </div>
-          <div className="flex items-center gap-4 text-xs text-foreground/50">
+          <div className="flex items-center gap-3 text-xs text-foreground/50">
             <span>{totalTasks} task{totalTasks !== 1 ? "s" : ""}</span>
             {totalSlots > 0 && (
               <span className={cn("font-semibold", filledSlots === totalSlots ? "text-green-600" : "text-amber-600")}>
                 {filledSlots}/{totalSlots} slots filled
               </span>
+            )}
+            {tasks.length > 0 && (
+              <button
+                onClick={() => exportPlannerCSV(weekLabel, tasks, allocations)}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-border hover:bg-muted transition-colors text-foreground/60"
+                title="Export week plan to CSV"
+              >
+                <FileDown className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Export CSV</span>
+              </button>
             )}
           </div>
         </div>
@@ -1234,12 +1277,41 @@ function PlannerTab({ farmId, resources }: { farmId: number; resources: FarmReso
             <div className="w-56 flex-shrink-0 sticky top-4">
               <DroppablePoolZone isReturning={!!(activeDrag?.isReturn)}>
               <Card className="p-4 border-border">
-                <h3 className="font-bold text-xs text-foreground/60 uppercase tracking-wider mb-3">Resources</h3>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-bold text-xs text-foreground/60 uppercase tracking-wider">Resources</h3>
+                  {poolFilter && (
+                    <button onClick={() => setPoolFilter(null)} className="text-[10px] text-foreground/40 hover:text-foreground flex items-center gap-0.5">
+                      <X className="w-3 h-3" /> All
+                    </button>
+                  )}
+                </div>
+                {/* Type filter pills */}
+                {activeResources.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-3">
+                    {RESOURCE_TYPES.filter(rt => activeResources.some(r => r.type === rt.value)).map(rt => {
+                      const Icon = rt.icon;
+                      const active = poolFilter === rt.value;
+                      return (
+                        <button
+                          key={rt.value}
+                          onClick={() => setPoolFilter(active ? null : rt.value)}
+                          className={cn(
+                            "flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full border transition-colors",
+                            active ? "bg-primary text-primary-foreground border-primary" : "border-border text-foreground/50 hover:bg-muted"
+                          )}
+                        >
+                          <Icon className="w-2.5 h-2.5" />{rt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 {activeResources.length === 0 ? (
                   <p className="text-xs text-foreground/40 italic">No resources added yet.</p>
                 ) : (
                   <div className="space-y-4">
                     {RESOURCE_TYPES.map(rt => {
+                      if (poolFilter && poolFilter !== rt.value) return null;
                       const typeResources = activeResources.filter(r => r.type === rt.value);
                       if (typeResources.length === 0) return null;
                       const supply = typeResources.length;
@@ -1311,7 +1383,7 @@ export default function ResourcesPage() {
   if (!farmId) return <Redirect href="/select" />;
 
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"resources" | "planner" | "status">("resources");
+  const [activeTab, setActiveTab] = useState<"resources" | "planner" | "status" | "analytics">("resources");
   const [showArchived, setShowArchived] = useState(false);
 
   const { data, isLoading } = useQuery<{ resources: FarmResource[] }>({
@@ -1353,19 +1425,19 @@ export default function ResourcesPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-1 border-b border-border">
-          {(["resources", "planner", "status"] as const).map(tab => (
+        <div className="flex items-center gap-1 border-b border-border overflow-x-auto">
+          {(["resources", "planner", "status", "analytics"] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
-                "pb-2.5 px-4 text-sm font-semibold border-b-2 transition-colors -mb-px",
+                "pb-2.5 px-4 text-sm font-semibold border-b-2 transition-colors -mb-px whitespace-nowrap flex items-center gap-1.5",
                 activeTab === tab
                   ? "border-primary text-primary"
                   : "border-transparent text-foreground/50 hover:text-foreground"
               )}
             >
-              {tab === "resources" ? "Resources" : tab === "planner" ? "Planner" : "Planning Status"}
+              {tab === "resources" ? "Resources" : tab === "planner" ? "Planner" : tab === "status" ? "Planning Status" : <><BarChart2 className="w-3.5 h-3.5" />Analytics</>}
             </button>
           ))}
         </div>
@@ -1383,8 +1455,10 @@ export default function ResourcesPage() {
           />
         ) : activeTab === "planner" ? (
           <PlannerTab farmId={farmId} resources={resources.filter(r => r.isActive)} />
-        ) : (
+        ) : activeTab === "status" ? (
           <PlanningStatusTab farmId={farmId} />
+        ) : (
+          <AnalyticsTab farmId={farmId} resources={resources} />
         )}
       </div>
     </AppLayout>
@@ -1405,6 +1479,7 @@ function ResourcesTabSimple({ farmId, resources, isLoading, showArchived, setSho
 }) {
   const [showForm, setShowForm] = useState(false);
   const [editingResource, setEditingResource] = useState<FarmResource | null>(null);
+  const [resSearch, setResSearch] = useState("");
 
   const createMut = useMutation({
     mutationFn: (body: object) => fetch(`/api/farms/${farmId}/resources`, {
@@ -1424,8 +1499,13 @@ function ResourcesTabSimple({ farmId, resources, isLoading, showArchived, setSho
     onSuccess: () => { onInvalidate(); setEditingResource(null); toast({ title: "Resource updated" }); },
   });
 
+  const q = resSearch.trim().toLowerCase();
+  const filteredResources = q
+    ? resources.filter(r => r.name.toLowerCase().includes(q) || (r.description ?? "").toLowerCase().includes(q))
+    : resources;
+
   const grouped = new Map<string, FarmResource[]>();
-  for (const r of resources) {
+  for (const r of filteredResources) {
     if (!grouped.has(r.type)) grouped.set(r.type, []);
     grouped.get(r.type)!.push(r);
   }
@@ -1437,8 +1517,24 @@ function ResourcesTabSimple({ farmId, resources, isLoading, showArchived, setSho
     <div className="space-y-6">
       <ImportPanel farmId={farmId} onImported={onInvalidate} />
 
-      {/* Add button */}
-      <div className="flex justify-end">
+      {/* Search + Add */}
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/40 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search resources…"
+            value={resSearch}
+            onChange={e => setResSearch(e.target.value)}
+            className="w-full pl-8 pr-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary/40"
+          />
+          {resSearch && (
+            <button onClick={() => setResSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+        <div className="flex-1" />
         <button
           onClick={() => { setShowForm(true); setEditingResource(null); }}
           className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm"
@@ -1571,13 +1667,41 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Failed to update task", variant: "destructive" }),
   });
 
+  const [dateRange, setDateRange] = useState<"1w" | "2w" | "4w" | "8w" | "all">("all");
+  const [search, setSearch] = useState("");
+  const [showPast, setShowPast] = useState(false);
+
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
 
-  const upcoming = useMemo(() =>
+  const cutoff = useMemo(() => {
+    if (dateRange === "all") return null;
+    const d = new Date(today);
+    d.setDate(d.getDate() + ({ "1w": 7, "2w": 14, "4w": 28, "8w": 56 } as Record<string, number>)[dateRange]);
+    return d;
+  }, [dateRange, today]);
+
+  const sq = search.trim().toLowerCase();
+
+  const allUpcoming = useMemo(() =>
     events
       .filter(e => new Date(e.eventDate) >= today)
       .sort((a, b) => new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime()),
     [events, today]
+  );
+
+  const upcoming = useMemo(() =>
+    allUpcoming
+      .filter(e => !cutoff || new Date(e.eventDate) <= cutoff)
+      .filter(e => !sq || e.title.toLowerCase().includes(sq)),
+    [allUpcoming, cutoff, sq]
+  );
+
+  const past = useMemo(() =>
+    events
+      .filter(e => new Date(e.eventDate) < today)
+      .filter(e => !sq || e.title.toLowerCase().includes(sq))
+      .sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime()),
+    [events, today, sq]
   );
 
   const notStarted = upcoming.filter(e => getPlanningStatus(e) === "not_started");
@@ -1586,6 +1710,24 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
 
   const fmtDate = (s: string) =>
     new Date(s).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+
+  function exportStatusCSV() {
+    const rows: string[][] = [["Date", "Task", "Status", "Requirements", "Committed By", "Committed At"]];
+    for (const e of upcoming) {
+      const status = getPlanningStatus(e);
+      const parts: string[] = [];
+      if (e.reqTractors > 0) parts.push(`${e.reqTractors} tractors`);
+      if (e.reqImplements > 0) parts.push(`${e.reqImplements} implements`);
+      if (e.reqVehicles > 0) parts.push(`${e.reqVehicles} vehicles`);
+      if (e.reqSprayers > 0) parts.push(`${e.reqSprayers} sprayers`);
+      if (e.reqTrailers > 0) parts.push(`${e.reqTrailers} trailers`);
+      if (e.reqStaff > 0) parts.push(`${e.reqStaff} staff`);
+      rows.push([e.eventDate, e.title, status, parts.join("; "), e.reqCommittedBy ?? "", e.reqCommittedAt ? new Date(e.reqCommittedAt).toLocaleDateString("en-GB") : ""]);
+    }
+    const csv = "\uFEFF" + rows.map(r => r.map(c => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const a = document.createElement("a"); a.href = url; a.download = "planning-status.csv"; a.click(); URL.revokeObjectURL(url);
+  }
 
   if (isLoading) {
     return (
@@ -1717,6 +1859,46 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-6 max-w-3xl">
+      {/* Toolbar */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        {/* Date range pills */}
+        <div className="flex items-center gap-1 flex-wrap">
+          {(["1w", "2w", "4w", "8w", "all"] as const).map(r => (
+            <button
+              key={r}
+              onClick={() => setDateRange(r)}
+              className={cn(
+                "text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors",
+                dateRange === r ? "bg-primary text-primary-foreground border-primary" : "border-border text-foreground/50 hover:bg-muted"
+              )}
+            >
+              {r === "all" ? "All upcoming" : r === "1w" ? "Next week" : r === "2w" ? "2 weeks" : r === "4w" ? "4 weeks" : "8 weeks"}
+            </button>
+          ))}
+        </div>
+        {/* Search */}
+        <div className="relative flex-1 min-w-0 sm:max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/40 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search tasks…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-8 pr-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary/40"
+          />
+          {search && <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground"><X className="w-3.5 h-3.5" /></button>}
+        </div>
+        {/* Export */}
+        {upcoming.length > 0 && (
+          <button
+            onClick={exportStatusCSV}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-border hover:bg-muted transition-colors text-foreground/60 shrink-0"
+          >
+            <FileDown className="w-3.5 h-3.5" /> Export CSV
+          </button>
+        )}
+      </div>
+
       {/* Summary strip */}
       <div className="grid grid-cols-3 gap-3">
         {([
@@ -1735,29 +1917,330 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
       </div>
 
       <p className="text-xs text-foreground/40 -mt-2">
-        Showing upcoming tasks from today onwards. Enter resource and material requirements on a task, then click <strong>Commit</strong> to mark it as fully planned. Committed tasks will not slip through the net.
+        Enter resource and material requirements on a task, then click <strong>Commit</strong> to mark it as fully planned.
+        {dateRange !== "all" && <> Showing tasks in the next {dateRange === "1w" ? "week" : dateRange === "2w" ? "2 weeks" : dateRange === "4w" ? "4 weeks" : "8 weeks"}.</>}
       </p>
 
-      <div className="space-y-4">
-        <Section
-          title="Not started — planning required"
-          icon={<CircleDashed className="w-3.5 h-3.5" />}
-          items={notStarted}
-          accent="bg-red-50 text-red-700"
-        />
-        <Section
-          title="Requirements entered — awaiting sign-off"
-          icon={<ClipboardList className="w-3.5 h-3.5" />}
-          items={planned}
-          accent="bg-amber-50 text-amber-700"
-        />
-        <Section
-          title="Committed — planning complete"
-          icon={<BadgeCheck className="w-3.5 h-3.5" />}
-          items={committed}
-          accent="bg-green-50 text-green-700"
-        />
+      {upcoming.length === 0 && !showPast ? (
+        <Card className="p-8 text-center text-sm text-foreground/50">
+          No tasks match this filter. Try a wider date range or clear the search.
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          <Section
+            title="Not started — planning required"
+            icon={<CircleDashed className="w-3.5 h-3.5" />}
+            items={notStarted}
+            accent="bg-red-50 text-red-700"
+          />
+          <Section
+            title="Requirements entered — awaiting sign-off"
+            icon={<ClipboardList className="w-3.5 h-3.5" />}
+            items={planned}
+            accent="bg-amber-50 text-amber-700"
+          />
+          <Section
+            title="Committed — planning complete"
+            icon={<BadgeCheck className="w-3.5 h-3.5" />}
+            items={committed}
+            accent="bg-green-50 text-green-700"
+          />
+        </div>
+      )}
+
+      {/* Past tasks toggle */}
+      <div className="pt-2 border-t border-border">
+        <button
+          onClick={() => setShowPast(p => !p)}
+          className={cn(
+            "flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors",
+            showPast ? "border-foreground/30 bg-muted text-foreground" : "border-border text-foreground/50 hover:bg-muted"
+          )}
+        >
+          <History className="w-3.5 h-3.5" />
+          {showPast ? "Hide past tasks" : `Show past tasks${past.length > 0 ? ` (${past.length})` : ""}`}
+        </button>
+        {showPast && past.length > 0 && (
+          <div className="mt-3 space-y-1">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-50 text-gray-600">
+              <History className="w-3.5 h-3.5" />
+              <span>Past tasks</span>
+              <span className="ml-auto font-normal opacity-70">{past.length} task{past.length !== 1 ? "s" : ""}</span>
+            </div>
+            <Card className="overflow-hidden">
+              {past.map(e => <EventRow key={e.id} e={e} />)}
+            </Card>
+          </div>
+        )}
+        {showPast && past.length === 0 && (
+          <p className="mt-3 text-xs text-foreground/40 px-1">No past tasks found.</p>
+        )}
       </div>
+    </div>
+  );
+}
+
+// ─── Analytics Tab ─────────────────────────────────────────────────────────────
+
+type AllocRow = {
+  resource_id: number;
+  resource_name: string;
+  resource_type: string;
+  resource_colour: string;
+  allocated_date: string;
+  task_ref: string;
+};
+
+function AnalyticsTab({ farmId, resources }: { farmId: number; resources: FarmResource[] }) {
+  const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
+
+  const start = isoDate(addDays(today, -365));
+  const end   = isoDate(addDays(today, 365));
+
+  const { data: events = [] } = useQuery<PlannerEventRecord[]>({
+    queryKey: ["planner-events-all", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/planner-events`).then(r => r.json()),
+  });
+
+  const { data: allocData, isLoading: allocLoading } = useQuery<{ allocations: AllocRow[] }>({
+    queryKey: ["analytics-allocs", farmId, start, end],
+    queryFn: () => fetch(`/api/farms/${farmId}/task-resource-allocations?start=${start}&end=${end}`).then(r => r.json()),
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const allocations: AllocRow[] = allocData?.allocations ?? [];
+
+  // ── Planning status breakdown ────────────────────────────────────────────────
+  const upcoming = useMemo(() => events.filter(e => new Date(e.eventDate) >= today), [events, today]);
+
+  const statusCounts = useMemo(() => {
+    let notStarted = 0, planned = 0, committed = 0;
+    for (const e of upcoming) {
+      const s = getPlanningStatus(e);
+      if (s === "not_started") notStarted++;
+      else if (s === "planned") planned++;
+      else committed++;
+    }
+    return [
+      { name: "Not started", value: notStarted, fill: "#fca5a5" },
+      { name: "Needs sign-off", value: planned, fill: "#fcd34d" },
+      { name: "Committed", value: committed, fill: "#86efac" },
+    ];
+  }, [upcoming]);
+
+  // ── Resource demand by type ──────────────────────────────────────────────────
+  const demandByType = useMemo(() => {
+    const totals: Record<string, number> = {};
+    for (const e of upcoming) {
+      if (e.reqTractors > 0)   totals["Tractors"]   = (totals["Tractors"]   || 0) + e.reqTractors;
+      if (e.reqImplements > 0) totals["Implements"] = (totals["Implements"] || 0) + e.reqImplements;
+      if (e.reqVehicles > 0)   totals["Vehicles"]   = (totals["Vehicles"]   || 0) + e.reqVehicles;
+      if (e.reqSprayers > 0)   totals["Sprayers"]   = (totals["Sprayers"]   || 0) + e.reqSprayers;
+      if (e.reqTrailers > 0)   totals["Trailers"]   = (totals["Trailers"]   || 0) + e.reqTrailers;
+      if (e.reqStaff > 0)      totals["Staff"]      = (totals["Staff"]      || 0) + e.reqStaff;
+    }
+    return Object.entries(totals).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [upcoming]);
+
+  // ── Tasks by week (next 8 weeks) ─────────────────────────────────────────────
+  const byWeek = useMemo(() => {
+    const weeks: { label: string; notStarted: number; planned: number; committed: number }[] = [];
+    for (let i = 0; i < 8; i++) {
+      const ws = addDays(weekStart(today), i * 7);
+      const we = addDays(ws, 6);
+      const wsStr = isoDate(ws);
+      const weStr = isoDate(we);
+      const label = ws.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+      let notStarted = 0, planned = 0, committed = 0;
+      for (const e of upcoming) {
+        if (e.eventDate >= wsStr && e.eventDate <= weStr) {
+          const s = getPlanningStatus(e);
+          if (s === "not_started") notStarted++;
+          else if (s === "planned") planned++;
+          else committed++;
+        }
+      }
+      if (notStarted + planned + committed > 0) weeks.push({ label, notStarted, planned, committed });
+    }
+    return weeks;
+  }, [upcoming, today]);
+
+  // ── Resource utilisation: times each resource is allocated ───────────────────
+  const utilisationData = useMemo(() => {
+    const counts: Record<number, { name: string; type: string; colour: string; count: number }> = {};
+    for (const r of resources) {
+      counts[r.id] = { name: r.name, type: r.type, colour: r.colour || "#6366f1", count: 0 };
+    }
+    for (const a of allocations) {
+      if (counts[a.resource_id]) counts[a.resource_id].count++;
+      else counts[a.resource_id] = { name: a.resource_name, type: a.resource_type, colour: a.resource_colour || "#6366f1", count: 1 };
+    }
+    return Object.values(counts).filter(r => r.count > 0).sort((a, b) => b.count - a.count).slice(0, 12);
+  }, [allocations, resources]);
+
+  // ── Material totals ──────────────────────────────────────────────────────────
+  const materialTotals = useMemo(() => {
+    const acc: Record<string, { name: string; unit: string; total: number }> = {};
+    for (const e of upcoming) {
+      const mats = parseSafe<MaterialReq>(e.reqMaterials);
+      for (const m of mats) {
+        if (!m.name) continue;
+        const key = `${m.name}__${m.unit}`;
+        if (!acc[key]) acc[key] = { name: m.name, unit: m.unit, total: 0 };
+        acc[key].total += Number(m.quantity) || 0;
+      }
+    }
+    return Object.values(acc).sort((a, b) => a.name.localeCompare(b.name));
+  }, [upcoming]);
+
+  const totalUpcoming = upcoming.length;
+  const committedPct = totalUpcoming > 0
+    ? Math.round((statusCounts[2].value / totalUpcoming) * 100) : 0;
+
+  return (
+    <div className="space-y-6">
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Upcoming tasks", value: totalUpcoming, sub: "from today", color: "text-foreground" },
+          { label: "Planning complete", value: `${committedPct}%`, sub: `${statusCounts[2].value} committed`, color: committedPct === 100 ? "text-green-600" : committedPct >= 50 ? "text-amber-600" : "text-red-500" },
+          { label: "Resources on file", value: resources.filter(r => r.isActive).length, sub: `${resources.length} total`, color: "text-foreground" },
+          { label: "Allocations (±1yr)", value: allocLoading ? "…" : allocations.length, sub: "resource assignments", color: "text-foreground" },
+        ].map(k => (
+          <Card key={k.label} className="px-4 py-3">
+            <div className={`text-2xl font-bold leading-none ${k.color}`}>{k.value}</div>
+            <div className="text-xs font-semibold mt-1">{k.label}</div>
+            <div className="text-[11px] text-foreground/40 mt-0.5">{k.sub}</div>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Planning status donut-style bar */}
+        <Card className="p-5">
+          <h3 className="text-sm font-semibold mb-4 flex items-center gap-2"><BarChart2 className="w-4 h-4 text-foreground/50" />Planning Status — Upcoming</h3>
+          {totalUpcoming === 0 ? (
+            <p className="text-xs text-foreground/40 italic py-6 text-center">No upcoming tasks yet.</p>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={140}>
+                <BarChart data={statusCounts} layout="vertical" margin={{ left: 16, right: 16, top: 4, bottom: 4 }}>
+                  <CartesianGrid horizontal={false} stroke="currentColor" strokeOpacity={0.06} />
+                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={90} />
+                  <Tooltip formatter={(v: number) => [`${v} task${v !== 1 ? "s" : ""}`, ""]} />
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                    {statusCounts.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+              {/* Progress bar */}
+              <div className="mt-4">
+                <div className="flex items-center justify-between text-[11px] text-foreground/50 mb-1">
+                  <span>Overall planning progress</span>
+                  <span className="font-bold">{committedPct}%</span>
+                </div>
+                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div className="h-full rounded-full bg-green-400 transition-all" style={{ width: `${committedPct}%` }} />
+                </div>
+              </div>
+            </>
+          )}
+        </Card>
+
+        {/* Tasks per week (next 8 weeks) */}
+        <Card className="p-5">
+          <h3 className="text-sm font-semibold mb-4 flex items-center gap-2"><CalendarDays className="w-4 h-4 text-foreground/50" />Tasks by Week — Next 8 Weeks</h3>
+          {byWeek.length === 0 ? (
+            <p className="text-xs text-foreground/40 italic py-6 text-center">No upcoming tasks in this period.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={byWeek} margin={{ left: 0, right: 8, top: 4, bottom: 4 }}>
+                <CartesianGrid vertical={false} stroke="currentColor" strokeOpacity={0.06} />
+                <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="committed" stackId="a" fill="#86efac" name="Committed" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="planned" stackId="a" fill="#fcd34d" name="Needs sign-off" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="notStarted" stackId="a" fill="#fca5a5" name="Not started" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
+
+        {/* Resource demand by type */}
+        <Card className="p-5">
+          <h3 className="text-sm font-semibold mb-4 flex items-center gap-2"><Tractor className="w-4 h-4 text-foreground/50" />Resource Demand — Upcoming Tasks</h3>
+          {demandByType.length === 0 ? (
+            <p className="text-xs text-foreground/40 italic py-6 text-center">No resource requirements entered yet.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={demandByType} margin={{ left: 0, right: 8, top: 4, bottom: 4 }}>
+                <CartesianGrid vertical={false} stroke="currentColor" strokeOpacity={0.06} />
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <Tooltip formatter={(v: number) => [`${v} slot${v !== 1 ? "s" : ""}`, "Required"]} />
+                <Bar dataKey="value" fill="#818cf8" radius={[4, 4, 0, 0]} name="Required" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
+
+        {/* Resource utilisation */}
+        <Card className="p-5">
+          <h3 className="text-sm font-semibold mb-4 flex items-center gap-2"><Sparkles className="w-4 h-4 text-foreground/50" />Resource Utilisation — Allocations (±1yr)</h3>
+          {allocLoading ? (
+            <div className="flex items-center gap-2 text-xs text-foreground/40 py-6 justify-center"><Clock className="w-3.5 h-3.5 animate-spin" /> Loading…</div>
+          ) : utilisationData.length === 0 ? (
+            <p className="text-xs text-foreground/40 italic py-6 text-center">No allocation data yet. Assign resources to tasks in the Planner.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={utilisationData} layout="vertical" margin={{ left: 0, right: 16, top: 4, bottom: 4 }}>
+                <CartesianGrid horizontal={false} stroke="currentColor" strokeOpacity={0.06} />
+                <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={90} />
+                <Tooltip formatter={(v: number) => [`${v} assignment${v !== 1 ? "s" : ""}`, "Used"]} />
+                <Bar dataKey="count" radius={[0, 4, 4, 0]} name="Assignments">
+                  {utilisationData.map((entry, i) => <Cell key={i} fill={entry.colour} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
+      </div>
+
+      {/* Material totals table */}
+      {materialTotals.length > 0 && (
+        <Card className="p-5">
+          <h3 className="text-sm font-semibold mb-4 flex items-center gap-2"><Package className="w-4 h-4 text-foreground/50" />Material Requirements — Upcoming Tasks</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left py-2 px-3 text-xs font-semibold text-foreground/50">Material</th>
+                  <th className="text-right py-2 px-3 text-xs font-semibold text-foreground/50">Total qty</th>
+                  <th className="text-left py-2 px-3 text-xs font-semibold text-foreground/50">Unit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {materialTotals.map(m => (
+                  <tr key={`${m.name}__${m.unit}`} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
+                    <td className="py-2 px-3 font-medium">{m.name}</td>
+                    <td className="py-2 px-3 text-right tabular-nums">{m.total % 1 === 0 ? m.total : m.total.toFixed(2)}</td>
+                    <td className="py-2 px-3 text-foreground/60">{m.unit}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {materialTotals.length === 0 && upcoming.length > 0 && (
+        <Card className="p-5 text-center text-sm text-foreground/40">
+          No material requirements entered on upcoming tasks yet. Add materials when editing tasks in the Planner tab.
+        </Card>
+      )}
     </div>
   );
 }
