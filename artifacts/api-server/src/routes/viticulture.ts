@@ -25,6 +25,9 @@ import {
   vineyardSprayDiaryTable,
   vineyardSoilAnalysisTable,
   suppliersTable,
+  wineGiDesignationsTable,
+  wineGiCertificationsTable,
+  wineGiHarvestDeclarationsTable,
 } from "@workspace/db";
 import { eq, and, desc, isNull } from "drizzle-orm";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
@@ -874,6 +877,131 @@ router.post("/farms/:farmId/vineyard-block-boundaries", requireAuth, requireTena
   const { blockId, polygonPoints, capturedBy } = req.body;
   const [record] = await db.insert(vineyardBlockBoundariesTable).values({ blockId: Number(blockId), polygonPoints, capturedBy: capturedBy ?? null }).returning();
   res.status(201).json({ record });
+});
+
+// ─── Wine GI Designations ─────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/wine-gi-designations", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const rows = await db.select().from(wineGiDesignationsTable).where(eq(wineGiDesignationsTable.farmId, farmId)).orderBy(wineGiDesignationsTable.designationName);
+  res.json({ records: rows });
+});
+
+router.post("/farms/:farmId/wine-gi-designations", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const { designationName, designationType, aphaRef, competentAuthority, region, approvedVarieties, maxYieldKgPerHa, registrationDate, nextAssessmentDate, status, notes } = sanitiseBody(req.body as Record<string, unknown>);
+  const [record] = await db.insert(wineGiDesignationsTable).values({ farmId, designationName: String(designationName), designationType: String(designationType), aphaRef: aphaRef ? String(aphaRef) : null, competentAuthority: competentAuthority ? String(competentAuthority) : null, region: region ? String(region) : null, approvedVarieties: approvedVarieties ?? null, maxYieldKgPerHa: maxYieldKgPerHa ? String(maxYieldKgPerHa) : null, registrationDate: registrationDate ? String(registrationDate) : null, nextAssessmentDate: nextAssessmentDate ? String(nextAssessmentDate) : null, status: status ? String(status) : "active", notes: notes ? String(notes) : null }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/wine-gi-designations/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const { designationName, designationType, aphaRef, competentAuthority, region, approvedVarieties, maxYieldKgPerHa, registrationDate, nextAssessmentDate, status, notes } = sanitiseBody(req.body as Record<string, unknown>);
+  const [record] = await db.update(wineGiDesignationsTable).set({ designationName: String(designationName), designationType: String(designationType), aphaRef: aphaRef ? String(aphaRef) : null, competentAuthority: competentAuthority ? String(competentAuthority) : null, region: region ? String(region) : null, approvedVarieties: approvedVarieties ?? null, maxYieldKgPerHa: maxYieldKgPerHa ? String(maxYieldKgPerHa) : null, registrationDate: registrationDate ? String(registrationDate) : null, nextAssessmentDate: nextAssessmentDate ? String(nextAssessmentDate) : null, status: status ? String(status) : "active", notes: notes ? String(notes) : null }).where(and(eq(wineGiDesignationsTable.id, id), eq(wineGiDesignationsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/wine-gi-designations/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  await db.delete(wineGiDesignationsTable).where(and(eq(wineGiDesignationsTable.id, id), eq(wineGiDesignationsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Wine GI Certifications ───────────────────────────────────────────────────
+
+router.get("/farms/:farmId/wine-gi-certifications", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const rows = await db.select().from(wineGiCertificationsTable).where(eq(wineGiCertificationsTable.farmId, farmId)).orderBy(desc(wineGiCertificationsTable.vintageYear));
+  res.json({ records: rows });
+});
+
+router.post("/farms/:farmId/wine-gi-certifications", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const vals: Record<string, unknown> = { farmId };
+  if (body.designationId != null) vals.designationId = Number(body.designationId);
+  if (body.vintageYear != null) vals.vintageYear = Number(body.vintageYear);
+  const dateFields = ["submissionDate", "assessmentDate", "certificateIssueDate", "certificateExpiryDate"];
+  const textFields = ["assessmentType", "result", "certificateNumber", "assessorName", "assessorOrganisation", "sampleReference", "wineLotReference", "failureReason", "notes"];
+  dateFields.forEach(f => { if (body[f]) vals[f] = String(body[f]); });
+  textFields.forEach(f => { if (body[f] != null) vals[f] = body[f] ? String(body[f]) : null; });
+  if (body.volumeAssessedL != null) vals.volumeAssessedL = String(body.volumeAssessedL);
+  if (body.resubmissionRequired != null) vals.resubmissionRequired = Boolean(body.resubmissionRequired);
+  const [record] = await db.insert(wineGiCertificationsTable).values(vals as any).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/wine-gi-certifications/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const vals: Record<string, unknown> = {};
+  if (body.designationId != null) vals.designationId = Number(body.designationId);
+  if (body.vintageYear != null) vals.vintageYear = Number(body.vintageYear);
+  const dateFields = ["submissionDate", "assessmentDate", "certificateIssueDate", "certificateExpiryDate"];
+  const textFields = ["assessmentType", "result", "certificateNumber", "assessorName", "assessorOrganisation", "sampleReference", "wineLotReference", "failureReason", "notes"];
+  dateFields.forEach(f => { vals[f] = body[f] ? String(body[f]) : null; });
+  textFields.forEach(f => { vals[f] = body[f] ? String(body[f]) : null; });
+  if (body.volumeAssessedL != null) vals.volumeAssessedL = body.volumeAssessedL ? String(body.volumeAssessedL) : null;
+  if (body.resubmissionRequired != null) vals.resubmissionRequired = Boolean(body.resubmissionRequired);
+  const [record] = await db.update(wineGiCertificationsTable).set(vals as any).where(and(eq(wineGiCertificationsTable.id, id), eq(wineGiCertificationsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/wine-gi-certifications/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  await db.delete(wineGiCertificationsTable).where(and(eq(wineGiCertificationsTable.id, id), eq(wineGiCertificationsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Wine GI Harvest Declarations ────────────────────────────────────────────
+
+router.get("/farms/:farmId/wine-gi-harvest-declarations", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const rows = await db.select().from(wineGiHarvestDeclarationsTable).where(eq(wineGiHarvestDeclarationsTable.farmId, farmId)).orderBy(desc(wineGiHarvestDeclarationsTable.vintageYear));
+  res.json({ records: rows });
+});
+
+router.post("/farms/:farmId/wine-gi-harvest-declarations", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const vals: Record<string, unknown> = { farmId };
+  if (body.designationId != null) vals.designationId = Number(body.designationId);
+  if (body.vintageYear != null) vals.vintageYear = Number(body.vintageYear);
+  const numFields = ["totalRegisteredAreaHa", "totalYieldKg", "declaredYieldKgPerHa", "maxPermittedYieldKgPerHa"];
+  const dateFields = ["submissionDate"];
+  const textFields = ["declarationRef", "submittedBy", "status", "aphaAcknowledgementRef", "notes"];
+  numFields.forEach(f => { if (body[f] != null) vals[f] = String(body[f]); });
+  dateFields.forEach(f => { if (body[f]) vals[f] = String(body[f]); });
+  textFields.forEach(f => { if (body[f] != null) vals[f] = body[f] ? String(body[f]) : null; });
+  if (body.yieldWithinLimit != null) vals.yieldWithinLimit = Boolean(body.yieldWithinLimit);
+  const [record] = await db.insert(wineGiHarvestDeclarationsTable).values(vals as any).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/wine-gi-harvest-declarations/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const vals: Record<string, unknown> = {};
+  if (body.designationId != null) vals.designationId = Number(body.designationId);
+  if (body.vintageYear != null) vals.vintageYear = Number(body.vintageYear);
+  const numFields = ["totalRegisteredAreaHa", "totalYieldKg", "declaredYieldKgPerHa", "maxPermittedYieldKgPerHa"];
+  const dateFields = ["submissionDate"];
+  const textFields = ["declarationRef", "submittedBy", "status", "aphaAcknowledgementRef", "notes"];
+  numFields.forEach(f => { vals[f] = body[f] ? String(body[f]) : null; });
+  dateFields.forEach(f => { vals[f] = body[f] ? String(body[f]) : null; });
+  textFields.forEach(f => { vals[f] = body[f] ? String(body[f]) : null; });
+  if (body.yieldWithinLimit != null) vals.yieldWithinLimit = Boolean(body.yieldWithinLimit);
+  const [record] = await db.update(wineGiHarvestDeclarationsTable).set(vals as any).where(and(eq(wineGiHarvestDeclarationsTable.id, id), eq(wineGiHarvestDeclarationsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/wine-gi-harvest-declarations/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId); const id = Number(req.params.id);
+  await db.delete(wineGiHarvestDeclarationsTable).where(and(eq(wineGiHarvestDeclarationsTable.id, id), eq(wineGiHarvestDeclarationsTable.farmId, farmId)));
+  res.json({ success: true });
 });
 
 export default router;

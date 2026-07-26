@@ -51,6 +51,7 @@ export * from "./grain-store";
 export * from "./settlement-notes";
 export * from "./medicated-feed";
 export * from "./viticulture";
+export * from "./wine-gi";
 export * from "./small-ruminant-dairy";
 export * from "./venison-production";
 export * from "./resources";
