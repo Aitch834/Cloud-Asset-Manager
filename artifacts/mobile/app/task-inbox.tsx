@@ -35,6 +35,7 @@ type Assignment = {
   smsSent: boolean;
   completedAt: string | null;
   completionNote: string | null;
+  reqMaterials: string | null;
   createdAt: string;
 };
 
@@ -213,6 +214,29 @@ function AssignmentCard({
               <Text style={styles.noteText}>{item.assignmentNote}</Text>
             </View>
           )}
+          {(() => {
+            if (!item.reqMaterials) return null;
+            try {
+              const mats: Array<{ name: string; quantity: number; unit: string }> = JSON.parse(item.reqMaterials);
+              const named = mats.filter(m => m.name?.trim());
+              if (named.length === 0) return null;
+              return (
+                <View style={styles.materialsBox}>
+                  <Text style={styles.materialsLabel}>Materials needed</Text>
+                  {named.map((m, i) => (
+                    <View key={i} style={styles.materialRow}>
+                      <Text style={styles.materialBullet}>•</Text>
+                      <Text style={styles.materialText}>
+                        {m.quantity ? `${m.quantity}${m.unit ? " " + m.unit : ""} ` : ""}{m.name}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              );
+            } catch {
+              return null;
+            }
+          })()}
           {item.completionNote && (
             <View style={[styles.noteBox, styles.completionNoteBox]}>
               <Text style={[styles.noteLabel, styles.completionNoteLabel]}>Completion note</Text>
@@ -513,6 +537,11 @@ const styles = StyleSheet.create({
   completionNoteBox: { backgroundColor: "#f0fdf4" },
   completionNoteLabel: { color: "#15803d" },
   completionNoteText: { color: "#15803d" },
+  materialsBox: { backgroundColor: "#eff6ff", borderRadius: 8, padding: spacing.sm, marginTop: spacing.sm },
+  materialsLabel: { fontFamily: fonts.bold, fontSize: 11, color: "#1d4ed8", marginBottom: 4 },
+  materialRow: { flexDirection: "row" as const, alignItems: "flex-start" as const, gap: 6, marginTop: 2 },
+  materialBullet: { fontFamily: fonts.bold, fontSize: fontSize.sm, color: "#3b82f6", marginTop: 1 },
+  materialText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: "#1e40af", lineHeight: 18, flex: 1 },
   completedAt: { fontFamily: fonts.regular, fontSize: 11, color: colors.textSecondary, marginTop: spacing.sm },
 
   timesheetConfirm: {
