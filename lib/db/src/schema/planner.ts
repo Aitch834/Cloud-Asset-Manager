@@ -22,6 +22,8 @@ export const farmPlannerEventsTable = pgTable("farm_planner_events", {
   reqOtherNotes: text("req_other_notes"),
   reqMaterials: text("req_materials"),
   reqCommitted: boolean("req_committed").notNull().default(false),
+  reqCommittedBy: text("req_committed_by"),
+  reqCommittedAt: timestamp("req_committed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -1527,6 +1527,8 @@ type PlannerEventRecord = {
   reqOtherNotes: string | null;
   reqMaterials: string | null;
   reqCommitted: boolean;
+  reqCommittedBy: string | null;
+  reqCommittedAt: string | null;
 };
 
 type PlanningStatus = "committed" | "planned" | "not_started";
@@ -1639,9 +1641,20 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
         <div className="flex-shrink-0 flex items-center gap-2">
           {status === "committed" ? (
             <>
-              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
-                <BadgeCheck className="w-3.5 h-3.5" /> Committed
-              </span>
+              <div className="hidden sm:flex flex-col items-end gap-0.5">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                  <BadgeCheck className="w-3.5 h-3.5" /> Committed
+                </span>
+                {(e.reqCommittedBy || e.reqCommittedAt) && (
+                  <span className="text-[10px] text-foreground/40 leading-tight">
+                    {e.reqCommittedBy ?? ""}
+                    {e.reqCommittedBy && e.reqCommittedAt ? " · " : ""}
+                    {e.reqCommittedAt
+                      ? new Date(e.reqCommittedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+                      : ""}
+                  </span>
+                )}
+              </div>
               <button
                 onClick={() => commitMut.mutate({ id: e.id, committed: false })}
                 disabled={pending}

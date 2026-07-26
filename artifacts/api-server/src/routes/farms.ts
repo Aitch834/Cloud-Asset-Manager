@@ -9124,7 +9124,19 @@ router.patch("/farms/:farmId/planner-events/:recordId", requireAuth, requireTena
   if (reqOther !== undefined) updates.reqOther = Number(reqOther) || 0;
   if (reqOtherNotes !== undefined) updates.reqOtherNotes = reqOtherNotes ? JSON.stringify(reqOtherNotes) : null;
   if (reqMaterials !== undefined) updates.reqMaterials = reqMaterials ? JSON.stringify(reqMaterials) : null;
-  if (reqCommitted !== undefined) updates.reqCommitted = Boolean(reqCommitted);
+  if (reqCommitted !== undefined) {
+    updates.reqCommitted = Boolean(reqCommitted);
+    if (Boolean(reqCommitted)) {
+      const userId = req.userId ?? "unknown";
+      const [member] = await db.select({ firstName: farmMembersTable.firstName, lastName: farmMembersTable.lastName })
+        .from(farmMembersTable).where(eq(farmMembersTable.linkedUserId, userId as any)).limit(1);
+      updates.reqCommittedBy = member ? `${member.firstName} ${member.lastName}`.trim() : "Unknown";
+      updates.reqCommittedAt = new Date();
+    } else {
+      updates.reqCommittedBy = null;
+      updates.reqCommittedAt = null;
+    }
+  }
   const [record] = await db.update(farmPlannerEventsTable).set(updates).where(and(eq(farmPlannerEventsTable.id, recordId), eq(farmPlannerEventsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json(record);
