@@ -1605,6 +1605,236 @@ function ResourcesTabSimple({ farmId, resources, isLoading, showArchived, setSho
   );
 }
 
+// ─── Plan vs Actual — Actual Completion Modal ─────────────────────────────────
+
+type ActualFormState = {
+  actualDate: string;
+  actualTractors: number;
+  actualImplements: number;
+  actualVehicles: number;
+  actualSprayers: number;
+  actualTrailers: number;
+  actualStaff: number;
+  actualMaterials: MaterialReq[];
+  actualNotes: string;
+  actualStatus: "completed" | "partial" | "abandoned";
+};
+
+function ActualCompletionModal({
+  event,
+  farmId,
+  onClose,
+  onSaved,
+}: {
+  event: PlannerEventRecord;
+  farmId: number;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState<ActualFormState>(() => ({
+    actualDate: event.actualDate ?? event.eventDate.slice(0, 10),
+    actualTractors:   event.actualTractors   || event.reqTractors,
+    actualImplements: event.actualImplements || event.reqImplements,
+    actualVehicles:   event.actualVehicles   || event.reqVehicles,
+    actualSprayers:   event.actualSprayers   || event.reqSprayers,
+    actualTrailers:   event.actualTrailers   || event.reqTrailers,
+    actualStaff:      event.actualStaff      || event.reqStaff,
+    actualMaterials:  parseSafe<MaterialReq>(event.actualMaterials).length
+      ? parseSafe<MaterialReq>(event.actualMaterials)
+      : parseSafe<MaterialReq>(event.reqMaterials).map(m => ({ ...m })),
+    actualNotes: event.actualNotes ?? "",
+    actualStatus: (event.actualStatus as ActualFormState["actualStatus"]) ?? "completed",
+  }));
+
+  const mut = useMutation({
+    mutationFn: (data: ActualFormState) =>
+      fetch(`/api/farms/${farmId}/planner-events/${event.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...data, actualMaterials: data.actualMaterials }),
+      }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Actuals recorded ✓" }); onSaved(); onClose(); },
+    onError: () => toast({ title: "Failed to save actuals", variant: "destructive" }),
+  });
+
+  const clearMut = useMutation({
+    mutationFn: () =>
+      fetch(`/api/farms/${farmId}/planner-events/${event.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clearActuals: true }),
+      }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Actuals cleared" }); onSaved(); onClose(); },
+    onError: () => toast({ title: "Failed to clear actuals", variant: "destructive" }),
+  });
+
+  const set = <K extends keyof ActualFormState>(k: K, v: ActualFormState[K]) =>
+    setForm(f => ({ ...f, [k]: v }));
+
+  const fmtPlanned = (n: number) => n > 0 ? String(n) : "—";
+
+  const resourceFields = ([
+    { key: "actualTractors"   as const, label: "Tractors",   planned: event.reqTractors },
+    { key: "actualImplements" as const, label: "Implements", planned: event.reqImplements },
+    { key: "actualVehicles"   as const, label: "Vehicles",   planned: event.reqVehicles },
+    { key: "actualSprayers"   as const, label: "Sprayers",   planned: event.reqSprayers },
+    { key: "actualTrailers"   as const, label: "Trailers",   planned: event.reqTrailers },
+    { key: "actualStaff"      as const, label: "Staff",      planned: event.reqStaff },
+  ] as { key: keyof ActualFormState; label: string; planned: number }[]).filter(f => f.planned > 0 || (form[f.key] as number) > 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-background rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-background border-b border-border px-6 py-4 flex items-start justify-between gap-3 rounded-t-xl">
+          <div>
+            <h2 className="text-base font-bold">Record Actuals</h2>
+            <p className="text-xs text-foreground/50 mt-0.5">{event.title}</p>
+          </div>
+          <button onClick={onClose} className="text-foreground/40 hover:text-foreground mt-0.5"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="px-6 py-5 space-y-5">
+          {/* Outcome */}
+          <div>
+            <label className="text-xs font-semibold text-foreground/60 uppercase tracking-wider block mb-2">Outcome</label>
+            <div className="flex gap-2 flex-wrap">
+              {(["completed", "partial", "abandoned"] as const).map(s => (
+                <button
+                  key={s}
+                  onClick={() => set("actualStatus", s)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors",
+                    form.actualStatus === s
+                      ? s === "completed" ? "bg-green-600 text-white border-green-600"
+                        : s === "partial"  ? "bg-amber-500 text-white border-amber-500"
+                        : "bg-red-500 text-white border-red-500"
+                      : "border-border text-foreground/50 hover:bg-muted"
+                  )}
+                >
+                  {s === "completed" ? "✓ Completed" : s === "partial" ? "⚡ Partial" : "✕ Abandoned"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Date */}
+          <div>
+            <label className="text-xs font-semibold text-foreground/60 uppercase tracking-wider block mb-2">
+              Actual date <span className="normal-case font-normal text-foreground/40">(planned: {new Date(event.eventDate).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })})</span>
+            </label>
+            <input
+              type="date"
+              value={form.actualDate}
+              onChange={e => set("actualDate", e.target.value)}
+              className="border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 w-48"
+            />
+          </div>
+
+          {/* Resources */}
+          {resourceFields.length > 0 && (
+            <div>
+              <label className="text-xs font-semibold text-foreground/60 uppercase tracking-wider block mb-2">Resources used</label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {resourceFields.map(f => {
+                  const actual = form[f.key] as number;
+                  const delta = actual - f.planned;
+                  return (
+                    <div key={f.key}>
+                      <label className="text-xs text-foreground/50 mb-1 block">{f.label} <span className="text-foreground/30">(planned: {fmtPlanned(f.planned)})</span></label>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number" min="0"
+                          value={actual}
+                          onChange={e => set(f.key, Number(e.target.value) as ActualFormState[typeof f.key])}
+                          className="w-16 border border-border rounded px-2 py-1 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 text-center"
+                        />
+                        {delta !== 0 && f.planned > 0 && (
+                          <span className={cn("text-[10px] font-bold", delta > 0 ? "text-red-500" : "text-green-600")}>
+                            {delta > 0 ? `+${delta}` : delta}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Materials */}
+          {form.actualMaterials.length > 0 && (
+            <div>
+              <label className="text-xs font-semibold text-foreground/60 uppercase tracking-wider block mb-2">Materials used</label>
+              <div className="space-y-2">
+                {form.actualMaterials.map((m, i) => {
+                  const planned = parseSafe<MaterialReq>(event.reqMaterials)[i];
+                  return (
+                    <div key={i} className="flex items-center gap-2 text-sm">
+                      <span className="flex-1 text-foreground/70">{m.name || `Item ${i + 1}`}</span>
+                      <input
+                        type="number" min="0" step="0.01"
+                        value={m.quantity}
+                        onChange={e => setForm(f => {
+                          const mats = [...f.actualMaterials];
+                          mats[i] = { ...mats[i], quantity: Number(e.target.value) };
+                          return { ...f, actualMaterials: mats };
+                        })}
+                        className="w-20 border border-border rounded px-2 py-1 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 text-center"
+                      />
+                      <span className="text-foreground/50 text-xs">{m.unit}</span>
+                      {planned && Number(m.quantity) !== Number(planned.quantity) && (
+                        <span className={cn("text-[10px] font-bold", Number(m.quantity) > Number(planned.quantity) ? "text-red-500" : "text-green-600")}>
+                          {Number(m.quantity) > Number(planned.quantity) ? `+${(Number(m.quantity) - Number(planned.quantity)).toFixed(2)}` : (Number(m.quantity) - Number(planned.quantity)).toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Notes */}
+          <div>
+            <label className="text-xs font-semibold text-foreground/60 uppercase tracking-wider block mb-2">Notes / deviation reason</label>
+            <textarea
+              value={form.actualNotes}
+              onChange={e => set("actualNotes", e.target.value)}
+              placeholder="e.g. Weather delay, additional resource required due to wet ground conditions…"
+              rows={3}
+              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 resize-none"
+            />
+          </div>
+        </div>
+
+        <div className="sticky bottom-0 bg-background border-t border-border px-6 py-4 flex items-center justify-between gap-3 rounded-b-xl">
+          <div className="flex gap-2">
+            {event.actualStatus && (
+              <button
+                onClick={() => clearMut.mutate()}
+                disabled={clearMut.isPending}
+                className="text-xs text-foreground/40 hover:text-red-500 transition-colors disabled:opacity-40"
+              >
+                Clear actuals
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-border hover:bg-muted transition-colors">Cancel</button>
+            <button
+              onClick={() => mut.mutate(form)}
+              disabled={mut.isPending}
+              className="px-4 py-2 text-sm font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40"
+            >
+              {mut.isPending ? "Saving…" : "Save actuals"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Planning Status Tab ──────────────────────────────────────────────────────
 
 type PlannerEventRecord = {
@@ -1625,6 +1855,19 @@ type PlannerEventRecord = {
   reqCommitted: boolean;
   reqCommittedBy: string | null;
   reqCommittedAt: string | null;
+  // Actuals
+  actualDate: string | null;
+  actualTractors: number;
+  actualImplements: number;
+  actualVehicles: number;
+  actualSprayers: number;
+  actualTrailers: number;
+  actualStaff: number;
+  actualMaterials: string | null;
+  actualNotes: string | null;
+  actualStatus: string | null;
+  actualCompletedAt: string | null;
+  actualCompletedBy: string | null;
 };
 
 type PlanningStatus = "committed" | "planned" | "not_started";
@@ -1670,6 +1913,8 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
   const [dateRange, setDateRange] = useState<"1w" | "2w" | "4w" | "8w" | "all">("all");
   const [search, setSearch] = useState("");
   const [showPast, setShowPast] = useState(false);
+  const [showPva, setShowPva] = useState(false);
+  const [actingOn, setActingOn] = useState<PlannerEventRecord | null>(null);
 
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
 
@@ -1761,9 +2006,24 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
     return <span className="text-xs text-foreground/60">{parts.join(" · ")}</span>;
   }
 
-  function EventRow({ e }: { e: PlannerEventRecord }) {
+  function EventRow({ e, showActualsBtn }: { e: PlannerEventRecord; showActualsBtn?: boolean }) {
     const status = getPlanningStatus(e);
     const pending = commitMut.isPending && (commitMut.variables as { id: number } | undefined)?.id === e.id;
+    const hasActuals = !!e.actualStatus;
+
+    const ActualBadge = () => {
+      if (!hasActuals) return null;
+      const cfg = e.actualStatus === "completed"
+        ? { cls: "bg-green-100 text-green-700", label: "✓ Completed" }
+        : e.actualStatus === "partial"
+          ? { cls: "bg-amber-100 text-amber-700", label: "⚡ Partial" }
+          : { cls: "bg-red-100 text-red-600", label: "✕ Abandoned" };
+      return (
+        <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border", cfg.cls)}>
+          {cfg.label}
+        </span>
+      );
+    };
 
     return (
       <div className="flex items-start gap-3 px-4 py-3 border-b border-border last:border-0">
@@ -1773,14 +2033,38 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium leading-snug">{e.title}</span>
+            <ActualBadge />
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <span className="text-xs text-foreground/50">{fmtDate(e.eventDate)}</span>
+            {e.actualDate && e.actualDate !== e.eventDate.slice(0, 10) && (
+              <>
+                <span className="text-foreground/30 text-xs">→</span>
+                <span className="text-xs text-foreground/50">actual: {new Date(e.actualDate + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</span>
+              </>
+            )}
             <span className="text-foreground/30 text-xs">·</span>
             <ReqSummary e={e} />
           </div>
+          {e.actualNotes && (
+            <p className="text-xs text-foreground/40 italic mt-1 leading-snug">"{e.actualNotes}"</p>
+          )}
         </div>
         <div className="flex-shrink-0 flex items-center gap-2">
+          {showActualsBtn && (
+            <button
+              onClick={() => setActingOn(e)}
+              className={cn(
+                "inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold transition-colors border",
+                hasActuals
+                  ? "border-primary/30 text-primary hover:bg-primary/10"
+                  : "border-border text-foreground/50 hover:bg-muted"
+              )}
+            >
+              <ClipboardList className="w-3 h-3" />
+              {hasActuals ? "Edit actuals" : "Record actuals"}
+            </button>
+          )}
           {status === "committed" ? (
             <>
               <div className="hidden sm:flex flex-col items-end gap-0.5">
@@ -1968,7 +2252,7 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
               <span className="ml-auto font-normal opacity-70">{past.length} task{past.length !== 1 ? "s" : ""}</span>
             </div>
             <Card className="overflow-hidden">
-              {past.map(e => <EventRow key={e.id} e={e} />)}
+              {past.map(e => <EventRow key={e.id} e={e} showActualsBtn />)}
             </Card>
           </div>
         )}
@@ -1976,6 +2260,107 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
           <p className="mt-3 text-xs text-foreground/40 px-1">No past tasks found.</p>
         )}
       </div>
+
+      {/* Plan vs Actual comparison table */}
+      {(() => {
+        const withActuals = events.filter(e => !!e.actualStatus);
+        return (
+          <div className="pt-2 border-t border-border">
+            <button
+              onClick={() => setShowPva(p => !p)}
+              className={cn(
+                "flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors",
+                showPva ? "border-foreground/30 bg-muted text-foreground" : "border-border text-foreground/50 hover:bg-muted"
+              )}
+            >
+              <BarChart2 className="w-3.5 h-3.5" />
+              {showPva ? "Hide plan vs actual" : `Plan vs Actual${withActuals.length > 0 ? ` (${withActuals.length} task${withActuals.length !== 1 ? "s" : ""} recorded)` : " — record actuals on past tasks above"}`}
+            </button>
+            {showPva && withActuals.length === 0 && (
+              <p className="mt-3 text-xs text-foreground/40 px-1">No actuals recorded yet. Use the "Record actuals" button on past tasks above.</p>
+            )}
+            {showPva && withActuals.length > 0 && (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-xs min-w-[640px]">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/30">
+                      <th className="text-left py-2 px-3 font-semibold text-foreground/50">Task</th>
+                      <th className="text-center py-2 px-3 font-semibold text-foreground/50">Planned date</th>
+                      <th className="text-center py-2 px-3 font-semibold text-foreground/50">Actual date</th>
+                      <th className="text-center py-2 px-3 font-semibold text-foreground/50">Date slip</th>
+                      <th className="text-center py-2 px-3 font-semibold text-foreground/50">Planned res.</th>
+                      <th className="text-center py-2 px-3 font-semibold text-foreground/50">Actual res.</th>
+                      <th className="text-center py-2 px-3 font-semibold text-foreground/50">Res. delta</th>
+                      <th className="text-left py-2 px-3 font-semibold text-foreground/50">Outcome</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {withActuals.sort((a, b) => (a.actualDate ?? a.eventDate).localeCompare(b.actualDate ?? b.eventDate)).map(e => {
+                      const plannedDate = new Date(e.eventDate.slice(0, 10) + "T12:00:00");
+                      const actualDate  = e.actualDate ? new Date(e.actualDate + "T12:00:00") : null;
+                      const slipDays    = actualDate ? Math.round((actualDate.getTime() - plannedDate.getTime()) / 86400000) : null;
+                      const plannedRes  = e.reqTractors + e.reqImplements + e.reqVehicles + e.reqSprayers + e.reqTrailers + e.reqStaff;
+                      const actualRes   = e.actualTractors + e.actualImplements + e.actualVehicles + e.actualSprayers + e.actualTrailers + e.actualStaff;
+                      const resDelta    = actualRes - plannedRes;
+                      const fmtD = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+                      const outcomeCfg = e.actualStatus === "completed"
+                        ? "text-green-600 font-semibold"
+                        : e.actualStatus === "partial" ? "text-amber-600 font-semibold" : "text-red-500 font-semibold";
+                      return (
+                        <tr key={e.id} className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors">
+                          <td className="py-2 px-3 font-medium max-w-[180px] truncate" title={e.title}>{e.title}</td>
+                          <td className="py-2 px-3 text-center text-foreground/60">{fmtD(plannedDate)}</td>
+                          <td className="py-2 px-3 text-center text-foreground/60">{actualDate ? fmtD(actualDate) : <span className="text-foreground/30">—</span>}</td>
+                          <td className="py-2 px-3 text-center">
+                            {slipDays === null ? <span className="text-foreground/30">—</span>
+                              : slipDays === 0 ? <span className="text-green-600 font-semibold">On time</span>
+                              : slipDays > 0  ? <span className="text-red-500 font-semibold">+{slipDays}d</span>
+                              : <span className="text-blue-600 font-semibold">{slipDays}d early</span>}
+                          </td>
+                          <td className="py-2 px-3 text-center text-foreground/60">{plannedRes || "—"}</td>
+                          <td className="py-2 px-3 text-center text-foreground/60">{actualRes || "—"}</td>
+                          <td className="py-2 px-3 text-center">
+                            {plannedRes === 0 ? <span className="text-foreground/30">—</span>
+                              : resDelta === 0 ? <span className="text-green-600 font-semibold">=</span>
+                              : resDelta > 0  ? <span className="text-red-500 font-semibold">+{resDelta}</span>
+                              : <span className="text-green-600 font-semibold">{resDelta}</span>}
+                          </td>
+                          <td className={cn("py-2 px-3", outcomeCfg)}>
+                            {e.actualStatus === "completed" ? "✓ Completed" : e.actualStatus === "partial" ? "⚡ Partial" : "✕ Abandoned"}
+                            {e.actualCompletedBy && <span className="text-foreground/40 font-normal"> · {e.actualCompletedBy}</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {withActuals.some(e => e.actualNotes) && (
+                  <div className="mt-4 space-y-1.5">
+                    <p className="text-xs font-semibold text-foreground/50 px-1">Deviation notes</p>
+                    {withActuals.filter(e => e.actualNotes).map(e => (
+                      <div key={e.id} className="px-3 py-2 bg-muted/40 rounded-lg text-xs">
+                        <span className="font-medium">{e.title}</span>
+                        <span className="text-foreground/40"> — </span>
+                        <span className="text-foreground/60 italic">{e.actualNotes}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Actual Completion Modal */}
+      {actingOn && (
+        <ActualCompletionModal
+          event={actingOn}
+          farmId={farmId}
+          onClose={() => setActingOn(null)}
+          onSaved={() => queryClient.invalidateQueries({ queryKey: ["planner-events-all", farmId] })}
+        />
+      )}
     </div>
   );
 }
@@ -2241,6 +2626,124 @@ function AnalyticsTab({ farmId, resources }: { farmId: number; resources: FarmRe
           No material requirements entered on upcoming tasks yet. Add materials when editing tasks in the Planner tab.
         </Card>
       )}
+
+      {/* Plan vs Actual variance charts */}
+      {(() => {
+        const withActuals = events.filter(e => !!e.actualStatus);
+        if (withActuals.length === 0) return (
+          <Card className="p-5 text-center text-sm text-foreground/40">
+            <p className="font-medium text-foreground/60 mb-1">Plan vs Actual analytics will appear here</p>
+            Record actuals on completed tasks in the Planning Status tab to start tracking planning accuracy.
+          </Card>
+        );
+
+        // Date slip distribution
+        const slipData: { label: string; count: number; fill: string }[] = [
+          { label: "Early", count: 0, fill: "#60a5fa" },
+          { label: "On time", count: 0, fill: "#86efac" },
+          { label: "1–3d late", count: 0, fill: "#fcd34d" },
+          { label: "4–7d late", count: 0, fill: "#fb923c" },
+          { label: ">7d late", count: 0, fill: "#f87171" },
+        ];
+        let totalSlip = 0; let slipCount = 0;
+        for (const e of withActuals) {
+          if (!e.actualDate) continue;
+          const slip = Math.round((new Date(e.actualDate + "T12:00:00").getTime() - new Date(e.eventDate.slice(0, 10) + "T12:00:00").getTime()) / 86400000);
+          totalSlip += slip; slipCount++;
+          if (slip < 0) slipData[0].count++;
+          else if (slip === 0) slipData[1].count++;
+          else if (slip <= 3) slipData[2].count++;
+          else if (slip <= 7) slipData[3].count++;
+          else slipData[4].count++;
+        }
+        const avgSlip = slipCount > 0 ? (totalSlip / slipCount).toFixed(1) : "—";
+
+        // Resource variance by type
+        type ResKey = "Tractors" | "Implements" | "Vehicles" | "Sprayers" | "Trailers" | "Staff";
+        const resVariance: Record<ResKey, { planned: number; actual: number }> = {
+          Tractors:   { planned: 0, actual: 0 }, Implements: { planned: 0, actual: 0 },
+          Vehicles:   { planned: 0, actual: 0 }, Sprayers:   { planned: 0, actual: 0 },
+          Trailers:   { planned: 0, actual: 0 }, Staff:      { planned: 0, actual: 0 },
+        };
+        for (const e of withActuals) {
+          resVariance.Tractors.planned   += e.reqTractors;   resVariance.Tractors.actual   += e.actualTractors;
+          resVariance.Implements.planned += e.reqImplements; resVariance.Implements.actual += e.actualImplements;
+          resVariance.Vehicles.planned   += e.reqVehicles;   resVariance.Vehicles.actual   += e.actualVehicles;
+          resVariance.Sprayers.planned   += e.reqSprayers;   resVariance.Sprayers.actual   += e.actualSprayers;
+          resVariance.Trailers.planned   += e.reqTrailers;   resVariance.Trailers.actual   += e.actualTrailers;
+          resVariance.Staff.planned      += e.reqStaff;      resVariance.Staff.actual      += e.actualStaff;
+        }
+        const resData = (Object.entries(resVariance) as [ResKey, { planned: number; actual: number }][])
+          .filter(([, v]) => v.planned > 0 || v.actual > 0)
+          .map(([name, v]) => ({ name, planned: v.planned, actual: v.actual }));
+
+        // Outcome breakdown
+        const outcomeCounts = [
+          { name: "Completed", value: withActuals.filter(e => e.actualStatus === "completed").length, fill: "#86efac" },
+          { name: "Partial", value: withActuals.filter(e => e.actualStatus === "partial").length, fill: "#fcd34d" },
+          { name: "Abandoned", value: withActuals.filter(e => e.actualStatus === "abandoned").length, fill: "#f87171" },
+        ].filter(o => o.value > 0);
+
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 pt-2 border-t border-border">
+              <BarChart2 className="w-4 h-4 text-foreground/40" />
+              <h3 className="text-sm font-semibold text-foreground/80">Plan vs Actual — {withActuals.length} task{withActuals.length !== 1 ? "s" : ""} recorded</h3>
+              {slipCount > 0 && (
+                <span className={cn("ml-auto text-xs font-bold px-2 py-0.5 rounded-full", Number(avgSlip) > 0 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700")}>
+                  Avg slip: {Number(avgSlip) > 0 ? `+${avgSlip}d` : Number(avgSlip) < 0 ? `${avgSlip}d early` : "On time"}
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="p-5">
+                <h4 className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-4">Date Slip Distribution</h4>
+                <ResponsiveContainer width="100%" height={150}>
+                  <BarChart data={slipData.filter(d => d.count > 0)} margin={{ left: 0, right: 8, top: 4, bottom: 4 }}>
+                    <CartesianGrid vertical={false} stroke="currentColor" strokeOpacity={0.06} />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                    <Tooltip formatter={(v: number) => [`${v} task${v !== 1 ? "s" : ""}`, ""]} />
+                    <Bar dataKey="count" radius={[4, 4, 0, 0]} name="Tasks">
+                      {slipData.filter(d => d.count > 0).map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </Card>
+              {resData.length > 0 ? (
+                <Card className="p-5">
+                  <h4 className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-4">Resource Planned vs Actual (totals)</h4>
+                  <ResponsiveContainer width="100%" height={150}>
+                    <BarChart data={resData} margin={{ left: 0, right: 8, top: 4, bottom: 4 }}>
+                      <CartesianGrid vertical={false} stroke="currentColor" strokeOpacity={0.06} />
+                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                      <Tooltip />
+                      <Bar dataKey="planned" fill="#a5b4fc" name="Planned" radius={[2, 2, 0, 0]} />
+                      <Bar dataKey="actual"  fill="#6366f1" name="Actual"  radius={[2, 2, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Card>
+              ) : (
+                <Card className="p-5">
+                  <h4 className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-4">Task Outcomes</h4>
+                  <ResponsiveContainer width="100%" height={150}>
+                    <BarChart data={outcomeCounts} layout="vertical" margin={{ left: 16, right: 16, top: 4, bottom: 4 }}>
+                      <CartesianGrid horizontal={false} stroke="currentColor" strokeOpacity={0.06} />
+                      <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} />
+                      <Tooltip formatter={(v: number) => [`${v} task${v !== 1 ? "s" : ""}`, ""]} />
+                      <Bar dataKey="value" radius={[0, 4, 4, 0]} name="Tasks">
+                        {outcomeCounts.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Card>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -9137,6 +9137,30 @@ router.patch("/farms/:farmId/planner-events/:recordId", requireAuth, requireTena
       updates.reqCommittedAt = null;
     }
   }
+  // Actuals (Plan vs Actual / As-Built)
+  const { actualDate, actualTractors, actualImplements, actualVehicles, actualSprayers, actualTrailers, actualStaff, actualMaterials, actualNotes, actualStatus, clearActuals } = req.body;
+  if (clearActuals) {
+    updates.actualDate = null; updates.actualTractors = 0; updates.actualImplements = 0;
+    updates.actualVehicles = 0; updates.actualSprayers = 0; updates.actualTrailers = 0;
+    updates.actualStaff = 0; updates.actualMaterials = null; updates.actualNotes = null;
+    updates.actualStatus = null; updates.actualCompletedAt = null; updates.actualCompletedBy = null;
+  } else if (actualStatus !== undefined) {
+    if (actualDate !== undefined) updates.actualDate = actualDate || null;
+    if (actualTractors !== undefined) updates.actualTractors = Number(actualTractors) || 0;
+    if (actualImplements !== undefined) updates.actualImplements = Number(actualImplements) || 0;
+    if (actualVehicles !== undefined) updates.actualVehicles = Number(actualVehicles) || 0;
+    if (actualSprayers !== undefined) updates.actualSprayers = Number(actualSprayers) || 0;
+    if (actualTrailers !== undefined) updates.actualTrailers = Number(actualTrailers) || 0;
+    if (actualStaff !== undefined) updates.actualStaff = Number(actualStaff) || 0;
+    if (actualMaterials !== undefined) updates.actualMaterials = actualMaterials ? JSON.stringify(actualMaterials) : null;
+    if (actualNotes !== undefined) updates.actualNotes = actualNotes || null;
+    updates.actualStatus = actualStatus;
+    updates.actualCompletedAt = new Date();
+    const userId = req.userId ?? "unknown";
+    const [member] = await db.select({ firstName: farmMembersTable.firstName, lastName: farmMembersTable.lastName })
+      .from(farmMembersTable).where(eq(farmMembersTable.linkedUserId, userId as any)).limit(1);
+    updates.actualCompletedBy = member ? `${member.firstName} ${member.lastName}`.trim() : "Unknown";
+  }
   const [record] = await db.update(farmPlannerEventsTable).set(updates).where(and(eq(farmPlannerEventsTable.id, recordId), eq(farmPlannerEventsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json(record);

@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp, numeric, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, numeric, boolean, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 
 export const farmPlannerEventsTable = pgTable("farm_planner_events", {
@@ -24,6 +24,19 @@ export const farmPlannerEventsTable = pgTable("farm_planner_events", {
   reqCommitted: boolean("req_committed").notNull().default(false),
   reqCommittedBy: text("req_committed_by"),
   reqCommittedAt: timestamp("req_committed_at", { withTimezone: true }),
+  // Actuals (Plan vs Actual / As-Built)
+  actualDate: date("actual_date"),
+  actualTractors: integer("actual_tractors").notNull().default(0),
+  actualImplements: integer("actual_implements").notNull().default(0),
+  actualVehicles: integer("actual_vehicles").notNull().default(0),
+  actualSprayers: integer("actual_sprayers").notNull().default(0),
+  actualTrailers: integer("actual_trailers").notNull().default(0),
+  actualStaff: integer("actual_staff").notNull().default(0),
+  actualMaterials: text("actual_materials"),
+  actualNotes: text("actual_notes"),
+  actualStatus: text("actual_status"),
+  actualCompletedAt: timestamp("actual_completed_at", { withTimezone: true }),
+  actualCompletedBy: text("actual_completed_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
