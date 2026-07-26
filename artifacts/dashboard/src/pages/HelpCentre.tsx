@@ -281,6 +281,20 @@ const WORKFLOWS: Workflow[] = [
     ],
   },
   {
+    id: "planning-status-tab",
+    title: "Using the Planning Status Tab",
+    icon: ClipboardCheck,
+    moduleKey: "resource-planner",
+    steps: [
+      { title: "Open Planning Status", detail: "In the Resource Planner page, click the Planning Status tab (the third tab, alongside Resources and Planner). The tab loads all upcoming tasks from today onwards — every planner event that has not yet passed." },
+      { title: "Read the summary strip", detail: "Three cards at the top show the count of tasks in each state: Not started (red — no requirements entered), Needs sign-off (amber — requirements entered but not yet committed), and Committed (green — fully planned and signed off). These give you an at-a-glance picture of how far through the planning process you are for the week." },
+      { title: "Understand the three groups", detail: "Tasks are listed under three headings. Not started: no resource or material requirements have been entered — you cannot commit these until you have done the planning work. Needs sign-off: requirements are in place and the task is ready for a manager to review and commit. Committed: planning is complete and the task is ready to proceed." },
+      { title: "Commit a task", detail: "Find a task in the 'Needs sign-off' group and click the Commit button. Your name and the date are recorded automatically against the task — no extra step needed. The task moves immediately to the Committed group. The Commit button is intentionally disabled on Not started tasks so planning cannot be signed off without requirements being set first." },
+      { title: "Review who committed and when", detail: "On each committed task you will see a small line below the green badge showing the name of the person who committed it and the date — for example 'James Fletcher · 25 Jul 2026'. This is the audit trail of who signed off the planning, stored permanently in the database." },
+      { title: "Uncommit if plans change", detail: "If a task needs to be re-planned — a resource changes, a date shifts, a material is no longer available — click Uncommit. The task moves back to Needs sign-off, the previous commitment record is cleared, and the manager who re-commits will be recorded afresh once the updated planning is in place." },
+    ],
+  },
+  {
     id: "biosecurity-event",
     title: "Recording a Biosecurity Event",
     icon: Shield,
