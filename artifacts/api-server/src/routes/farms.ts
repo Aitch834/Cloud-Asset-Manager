@@ -9105,7 +9105,7 @@ router.patch("/farms/:farmId/planner-events/:recordId", requireAuth, requireTena
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
-  const { title, description, eventDate, endDate, colour, estimatedDurationHours, startTime, endTime, reqTractors, reqImplements, reqVehicles, reqSprayers, reqTrailers, reqStaff, reqOther, reqOtherNotes, reqMaterials } = req.body;
+  const { title, description, eventDate, endDate, colour, estimatedDurationHours, startTime, endTime, reqTractors, reqImplements, reqVehicles, reqSprayers, reqTrailers, reqStaff, reqOther, reqOtherNotes, reqMaterials, reqCommitted } = req.body;
   const updates: Record<string, unknown> = {};
   if (title !== undefined) updates.title = title;
   if (description !== undefined) updates.description = description;
@@ -9124,6 +9124,7 @@ router.patch("/farms/:farmId/planner-events/:recordId", requireAuth, requireTena
   if (reqOther !== undefined) updates.reqOther = Number(reqOther) || 0;
   if (reqOtherNotes !== undefined) updates.reqOtherNotes = reqOtherNotes ? JSON.stringify(reqOtherNotes) : null;
   if (reqMaterials !== undefined) updates.reqMaterials = reqMaterials ? JSON.stringify(reqMaterials) : null;
+  if (reqCommitted !== undefined) updates.reqCommitted = Boolean(reqCommitted);
   const [record] = await db.update(farmPlannerEventsTable).set(updates).where(and(eq(farmPlannerEventsTable.id, recordId), eq(farmPlannerEventsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json(record);

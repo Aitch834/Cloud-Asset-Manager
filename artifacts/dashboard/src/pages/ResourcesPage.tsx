@@ -6,7 +6,7 @@ import {
   Plus, Pencil, Archive, Tractor, Wrench, Truck, Droplets, Package, User,
   RotateCcw, X, ChevronDown, Download, CheckSquare, Square, Sparkles,
   ChevronLeft, ChevronRight, CalendarDays, AlertCircle, GripVertical, Trash2,
-  Clock,
+  Clock, ClipboardList, CheckCircle2, CircleDashed, BadgeCheck, Undo2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useMemo } from "react";
@@ -1311,7 +1311,7 @@ export default function ResourcesPage() {
   if (!farmId) return <Redirect href="/select" />;
 
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"resources" | "planner">("resources");
+  const [activeTab, setActiveTab] = useState<"resources" | "planner" | "status">("resources");
   const [showArchived, setShowArchived] = useState(false);
 
   const { data, isLoading } = useQuery<{ resources: FarmResource[] }>({
@@ -1354,7 +1354,7 @@ export default function ResourcesPage() {
 
         {/* Tabs */}
         <div className="flex items-center gap-1 border-b border-border">
-          {(["resources", "planner"] as const).map(tab => (
+          {(["resources", "planner", "status"] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -1365,7 +1365,7 @@ export default function ResourcesPage() {
                   : "border-transparent text-foreground/50 hover:text-foreground"
               )}
             >
-              {tab === "resources" ? "Resources" : "Planner"}
+              {tab === "resources" ? "Resources" : tab === "planner" ? "Planner" : "Planning Status"}
             </button>
           ))}
         </div>
@@ -1381,8 +1381,10 @@ export default function ResourcesPage() {
             onRestore={restoreMut.mutate}
             onInvalidate={() => queryClient.invalidateQueries({ queryKey: ["resources", farmId] })}
           />
-        ) : (
+        ) : activeTab === "planner" ? (
           <PlannerTab farmId={farmId} resources={resources.filter(r => r.isActive)} />
+        ) : (
+          <PlanningStatusTab farmId={farmId} />
         )}
       </div>
     </AppLayout>
@@ -1502,6 +1504,246 @@ function ResourcesTabSimple({ farmId, resources, isLoading, showArchived, setSho
         >
           {showArchived ? "Hide archived" : "Show archived"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Planning Status Tab ──────────────────────────────────────────────────────
+
+type PlannerEventRecord = {
+  id: number;
+  title: string;
+  eventDate: string;
+  endDate: string | null;
+  colour: string;
+  reqTractors: number;
+  reqImplements: number;
+  reqVehicles: number;
+  reqSprayers: number;
+  reqTrailers: number;
+  reqStaff: number;
+  reqOther: number;
+  reqOtherNotes: string | null;
+  reqMaterials: string | null;
+  reqCommitted: boolean;
+};
+
+type PlanningStatus = "committed" | "planned" | "not_started";
+
+function parseSafe<T>(s: string | null): T[] {
+  if (!s) return [];
+  try { return JSON.parse(s) as T[]; } catch { return []; }
+}
+
+function getPlanningStatus(e: PlannerEventRecord): PlanningStatus {
+  if (e.reqCommitted) return "committed";
+  const hasReqs =
+    e.reqTractors > 0 || e.reqImplements > 0 || e.reqVehicles > 0 ||
+    e.reqSprayers > 0 || e.reqTrailers > 0 || e.reqStaff > 0 || e.reqOther > 0;
+  const otherNotes = parseSafe<string>(e.reqOtherNotes);
+  const materials = parseSafe<MaterialReq>(e.reqMaterials);
+  if (hasReqs || otherNotes.length > 0 || materials.length > 0) return "planned";
+  return "not_started";
+}
+
+function PlanningStatusTab({ farmId }: { farmId: number }) {
+  const queryClient = useQueryClient();
+
+  const { data: events = [], isLoading } = useQuery<PlannerEventRecord[]>({
+    queryKey: ["planner-events-all", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/planner-events`).then(r => r.json()),
+  });
+
+  const commitMut = useMutation({
+    mutationFn: ({ id, committed }: { id: number; committed: boolean }) =>
+      fetch(`/api/farms/${farmId}/planner-events/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reqCommitted: committed }),
+      }).then(r => r.json()),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["planner-events-all", farmId] });
+      toast({ title: vars.committed ? "Task committed ✓" : "Commitment removed" });
+    },
+    onError: () => toast({ title: "Failed to update task", variant: "destructive" }),
+  });
+
+  const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
+
+  const upcoming = useMemo(() =>
+    events
+      .filter(e => new Date(e.eventDate) >= today)
+      .sort((a, b) => new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime()),
+    [events, today]
+  );
+
+  const notStarted = upcoming.filter(e => getPlanningStatus(e) === "not_started");
+  const planned    = upcoming.filter(e => getPlanningStatus(e) === "planned");
+  const committed  = upcoming.filter(e => getPlanningStatus(e) === "committed");
+
+  const fmtDate = (s: string) =>
+    new Date(s).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-foreground/50 py-10">
+        <Clock className="w-4 h-4 animate-spin" /> Loading tasks…
+      </div>
+    );
+  }
+
+  if (upcoming.length === 0) {
+    return (
+      <Card className="p-10 text-center text-sm text-foreground/50">
+        No upcoming planner tasks found. Add tasks in the Planner tab first.
+      </Card>
+    );
+  }
+
+  function ReqSummary({ e }: { e: PlannerEventRecord }) {
+    const parts: string[] = [];
+    if (e.reqTractors > 0)   parts.push(`${e.reqTractors} tractor${e.reqTractors > 1 ? "s" : ""}`);
+    if (e.reqImplements > 0) parts.push(`${e.reqImplements} implement${e.reqImplements > 1 ? "s" : ""}`);
+    if (e.reqVehicles > 0)   parts.push(`${e.reqVehicles} vehicle${e.reqVehicles > 1 ? "s" : ""}`);
+    if (e.reqSprayers > 0)   parts.push(`${e.reqSprayers} sprayer${e.reqSprayers > 1 ? "s" : ""}`);
+    if (e.reqTrailers > 0)   parts.push(`${e.reqTrailers} trailer${e.reqTrailers > 1 ? "s" : ""}`);
+    if (e.reqStaff > 0)      parts.push(`${e.reqStaff} staff`);
+    const others = parseSafe<string>(e.reqOtherNotes);
+    if (others.length > 0)   parts.push(`${others.length} other`);
+    const mats = parseSafe<MaterialReq>(e.reqMaterials);
+    if (mats.length > 0)     parts.push(`${mats.length} material${mats.length > 1 ? "s" : ""}`);
+    if (parts.length === 0)  return <span className="text-xs text-foreground/40 italic">No requirements entered yet</span>;
+    return <span className="text-xs text-foreground/60">{parts.join(" · ")}</span>;
+  }
+
+  function EventRow({ e }: { e: PlannerEventRecord }) {
+    const status = getPlanningStatus(e);
+    const pending = commitMut.isPending && (commitMut.variables as { id: number } | undefined)?.id === e.id;
+
+    return (
+      <div className="flex items-start gap-3 px-4 py-3 border-b border-border last:border-0">
+        <div className={cn("w-1 self-stretch rounded-full flex-shrink-0 mt-0.5",
+          status === "committed" ? "bg-green-400" : status === "planned" ? "bg-amber-400" : "bg-red-300"
+        )} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium leading-snug">{e.title}</span>
+          </div>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <span className="text-xs text-foreground/50">{fmtDate(e.eventDate)}</span>
+            <span className="text-foreground/30 text-xs">·</span>
+            <ReqSummary e={e} />
+          </div>
+        </div>
+        <div className="flex-shrink-0 flex items-center gap-2">
+          {status === "committed" ? (
+            <>
+              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                <BadgeCheck className="w-3.5 h-3.5" /> Committed
+              </span>
+              <button
+                onClick={() => commitMut.mutate({ id: e.id, committed: false })}
+                disabled={pending}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs text-foreground/50 hover:bg-muted border border-border transition-colors disabled:opacity-40"
+              >
+                <Undo2 className="w-3 h-3" /> Uncommit
+              </button>
+            </>
+          ) : (
+            <>
+              <span className={cn(
+                "hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold",
+                status === "planned" ? "bg-amber-100 text-amber-700" : "bg-red-50 text-red-500"
+              )}>
+                {status === "planned"
+                  ? <><ClipboardList className="w-3.5 h-3.5" /> Needs sign-off</>
+                  : <><CircleDashed className="w-3.5 h-3.5" /> Not started</>
+                }
+              </span>
+              <button
+                onClick={() => commitMut.mutate({ id: e.id, committed: true })}
+                disabled={pending || status === "not_started"}
+                title={status === "not_started" ? "Enter resource or material requirements before committing" : "Mark planning complete for this task"}
+                className={cn(
+                  "inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
+                  status === "planned"
+                    ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                    : "bg-muted text-foreground/40 border border-border"
+                )}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" /> Commit
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function Section({ title, icon, items, accent }: {
+    title: string;
+    icon: React.ReactNode;
+    items: PlannerEventRecord[];
+    accent: string;
+  }) {
+    if (items.length === 0) return null;
+    return (
+      <div className="space-y-1">
+        <div className={cn("flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold", accent)}>
+          {icon}
+          <span>{title}</span>
+          <span className="ml-auto font-normal opacity-70">{items.length} task{items.length !== 1 ? "s" : ""}</span>
+        </div>
+        <Card className="overflow-hidden">
+          {items.map(e => <EventRow key={e.id} e={e} />)}
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 max-w-3xl">
+      {/* Summary strip */}
+      <div className="grid grid-cols-3 gap-3">
+        {([
+          { label: "Not started", count: notStarted.length, color: "bg-red-50 border-red-200 text-red-600", icon: <CircleDashed className="w-4 h-4" /> },
+          { label: "Needs sign-off", count: planned.length, color: "bg-amber-50 border-amber-200 text-amber-700", icon: <ClipboardList className="w-4 h-4" /> },
+          { label: "Committed", count: committed.length, color: "bg-green-50 border-green-200 text-green-700", icon: <BadgeCheck className="w-4 h-4" /> },
+        ] as const).map(s => (
+          <Card key={s.label} className={cn("flex items-center gap-3 px-4 py-3 border", s.color)}>
+            {s.icon}
+            <div>
+              <div className="text-2xl font-bold leading-none">{s.count}</div>
+              <div className="text-xs opacity-80 mt-0.5">{s.label}</div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      <p className="text-xs text-foreground/40 -mt-2">
+        Showing upcoming tasks from today onwards. Enter resource and material requirements on a task, then click <strong>Commit</strong> to mark it as fully planned. Committed tasks will not slip through the net.
+      </p>
+
+      <div className="space-y-4">
+        <Section
+          title="Not started — planning required"
+          icon={<CircleDashed className="w-3.5 h-3.5" />}
+          items={notStarted}
+          accent="bg-red-50 text-red-700"
+        />
+        <Section
+          title="Requirements entered — awaiting sign-off"
+          icon={<ClipboardList className="w-3.5 h-3.5" />}
+          items={planned}
+          accent="bg-amber-50 text-amber-700"
+        />
+        <Section
+          title="Committed — planning complete"
+          icon={<BadgeCheck className="w-3.5 h-3.5" />}
+          items={committed}
+          accent="bg-green-50 text-green-700"
+        />
       </div>
     </div>
   );

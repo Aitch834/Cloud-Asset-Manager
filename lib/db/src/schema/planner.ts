@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp, numeric } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, numeric, boolean } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 
 export const farmPlannerEventsTable = pgTable("farm_planner_events", {
@@ -21,6 +21,7 @@ export const farmPlannerEventsTable = pgTable("farm_planner_events", {
   reqOther: integer("req_other").notNull().default(0),
   reqOtherNotes: text("req_other_notes"),
   reqMaterials: text("req_materials"),
+  reqCommitted: boolean("req_committed").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
