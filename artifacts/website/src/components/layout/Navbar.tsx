@@ -5,14 +5,12 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 
 const navLinks = [
-  { href: "/", label: "Home" },
   { href: "/features", label: "Features" },
   { href: "/pricing", label: "Pricing" },
   { href: "/sectors", label: "Sectors" },
   { href: "/resources", label: "Guides" },
   { href: "/partners", label: "Partners" },
   { href: "/about", label: "About Us" },
-  { href: "/register-interest", label: "Register Interest" },
 ];
 
 export function Navbar() {
