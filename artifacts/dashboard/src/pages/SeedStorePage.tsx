@@ -576,18 +576,40 @@ export default function SeedStorePage() {
   const segMut = useMutation({
     mutationFn: async (data: any) => {
       const { safeFarmId: fid, editSeg } = _mut.current;
+      const { caDescription, caAssignedToMemberId, caDueDate, ...checkData } = data;
       const url = editSeg
         ? `/api/farms/${fid}/seed-storage-checks/${editSeg.id}`
         : `/api/farms/${fid}/seed-storage-checks`;
-      const res = await fetch(url, { method: editSeg ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      const res = await fetch(url, { method: editSeg ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(checkData) });
       if (!res.ok) throw new Error("Failed to save");
-      return res.json();
+      const saved = await res.json();
+      const isNonCompliant = !checkData.isCompliant || checkData.treatedSeedStoredLoose;
+      if (isNonCompliant && caDescription?.trim() && caAssignedToMemberId) {
+        const checkId = saved.id ?? editSeg?.id;
+        await fetch(`/api/farms/${fid}/task-assignments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            assignedToMemberId: Number(caAssignedToMemberId),
+            title: "Correct seed segregation non-compliance",
+            description: caDescription.trim(),
+            dueDate: caDueDate || null,
+            module: "seed-store",
+            href: "/seed-store?tab=segregation",
+            taskType: "compliance_corrective",
+            taskSourceId: `seed-seg-check-${checkId}`,
+          }),
+        });
+        return { ...saved, taskCreated: true };
+      }
+      return saved;
     },
-    onSuccess: () => {
-      const { invalidateSeg, setShowSegDialog, toast: t, editSeg } = _mut.current;
+    onSuccess: (result: any) => {
+      const { invalidateSeg, setShowSegDialog, toast: t, editSeg, qc: qcRef, safeFarmId: fid } = _mut.current;
       invalidateSeg();
+      qcRef.invalidateQueries({ queryKey: ["seg-corrective-tasks", fid] });
       setShowSegDialog(false);
-      t({ title: editSeg ? "Check updated" : "Segregation check logged" });
+      t({ title: result?.taskCreated ? "Check logged — corrective action task created" : (editSeg ? "Check updated" : "Segregation check logged") });
     },
     onError: () => _mut.current.toast({ title: "Failed to save check", variant: "destructive" }),
   });
@@ -616,6 +638,14 @@ export default function SeedStorePage() {
 
   const { data: membersData, isLoading: membersLoading } = useFarmMembers(safeFarmId);
   const staffNames = (membersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
+  const activeMembers: any[] = (membersData?.members ?? []).filter((m: any) => m.isActive);
+
+  const corrTasksQ = useQuery({
+    queryKey: ["seg-corrective-tasks", safeFarmId],
+    queryFn: () => fetch(`/api/farms/${safeFarmId}/task-assignments?module=seed-store&taskType=compliance_corrective`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!safeFarmId,
+  });
+  const corrTasks: any[] = corrTasksQ.data ?? [];
 
   const { data: cropsData } = useCrops(safeFarmId);
   const cropRows: any[] = (cropsData as any)?.records ?? [];
@@ -849,6 +879,9 @@ export default function SeedStorePage() {
     treatedSeedStoredLoose: false,
     notes: "",
     checkedBy: "",
+    caDescription: "",
+    caAssignedToMemberId: "",
+    caDueDate: "",
   };
   const [showSegDialog, setShowSegDialog] = useState(false);
   const [editSeg, setEditSeg] = useState<any | null>(null);
@@ -967,7 +1000,7 @@ export default function SeedStorePage() {
   // Refresh the mutation state-bag on every render so callbacks always
   // operate on the latest state values.
   _mut.current = {
-    safeFarmId, toast, invalidate, invalidateSeg,
+    safeFarmId, toast, invalidate, invalidateSeg, qc,
     editing, setEditing, setOpen, setForm, setDeleteTarget,
     editPo, setShowPoDialog, setDeletePoTarget, setReceivePoId,
     editSeg, setShowSegDialog, setDeleteSegTarget,
@@ -1262,7 +1295,7 @@ export default function SeedStorePage() {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      {["Storage Location", "Check Date", "Method", "Compliant?", "Checked By", "Evidence", "Actions"].map(h => (
+                      {["Storage Location", "Check Date", "Method", "Compliant?", "Corrective Action", "Checked By", "Evidence", "Actions"].map(h => (
                         <th key={h} className="text-left px-3 py-2 font-medium text-gray-600 whitespace-nowrap text-xs uppercase tracking-wide">{h}</th>
                       ))}
                     </tr>
@@ -1270,6 +1303,9 @@ export default function SeedStorePage() {
                   <tbody className="divide-y">
                     {segChecks.map((c: any) => {
                       const nonCompliant = c.isCompliant === false || c.treatedSeedStoredLoose === true;
+                      const corrTask = corrTasks.find((t: any) => t.taskSourceId === `seed-seg-check-${c.id}`);
+                      const today = new Date().toISOString().slice(0, 10);
+                      const taskOverdue = corrTask && corrTask.status !== "completed" && corrTask.dueDate && corrTask.dueDate < today;
                       return (
                         <tr key={c.id} className="hover:bg-gray-50">
                           <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-900">{c.storageLocationName || "—"}</td>
@@ -1282,6 +1318,21 @@ export default function SeedStorePage() {
                               <Badge className="text-xs bg-red-100 text-red-700 border-none flex items-center gap-1 w-fit"><XCircle className="w-3 h-3" />Non-compliant</Badge>
                             ) : (
                               <Badge className="text-xs bg-green-100 text-green-700 border-none flex items-center gap-1 w-fit"><ShieldCheck className="w-3 h-3" />Compliant</Badge>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {corrTask ? (
+                              corrTask.status === "completed" ? (
+                                <Badge className="text-xs bg-green-100 text-green-700 border-none flex items-center gap-1 w-fit"><ShieldCheck className="w-3 h-3" />Resolved</Badge>
+                              ) : taskOverdue ? (
+                                <Badge className="text-xs bg-red-100 text-red-700 border-none flex items-center gap-1 w-fit"><AlertCircle className="w-3 h-3" />Task overdue</Badge>
+                              ) : (
+                                <Badge className="text-xs bg-amber-100 text-amber-700 border-none flex items-center gap-1 w-fit"><Clock className="w-3 h-3" />Task open</Badge>
+                              )
+                            ) : nonCompliant ? (
+                              <span className="text-xs text-gray-400">No task raised</span>
+                            ) : (
+                              <span className="text-xs text-gray-300">—</span>
                             )}
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap text-gray-600">{c.checkedBy || "—"}</td>
@@ -1406,6 +1457,37 @@ export default function SeedStorePage() {
                 <Label className="text-xs mb-1 block">Notes</Label>
                 <Textarea value={segForm.notes ?? ""} onChange={e => setSegForm((f: any) => ({ ...f, notes: e.target.value }))} placeholder="e.g. Rigid steel bin used to separate treated seed from grain heap" rows={2} />
               </div>
+              {(!segForm.isCompliant || segForm.treatedSeedStoredLoose) && (
+                <div className="space-y-3 border border-amber-200 bg-amber-50 rounded-lg p-3">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    <p className="text-sm font-medium text-amber-800">Corrective Action</p>
+                  </div>
+                  <p className="text-xs text-amber-700">Describe what needs to be remedied, assign to a staff member and set a deadline — a task will be raised automatically and will appear in the Resource Planner.</p>
+                  <div>
+                    <Label className="text-xs mb-1 block">What needs to be corrected?</Label>
+                    <Textarea value={segForm.caDescription ?? ""} onChange={e => setSegForm((f: any) => ({ ...f, caDescription: e.target.value }))} placeholder="e.g. Install rigid divider to separate treated seed from grain in Store 2" rows={2} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs mb-1 block">Assign To</Label>
+                      <Select value={segForm.caAssignedToMemberId ?? ""} onValueChange={v => setSegForm((f: any) => ({ ...f, caAssignedToMemberId: v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select staff member..." /></SelectTrigger>
+                        <SelectContent>
+                          {activeMembers.map((m: any) => (
+                            <SelectItem key={m.id} value={String(m.id)}>{m.firstName} {m.lastName}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs mb-1 block">Due Date</Label>
+                      <Input type="date" value={segForm.caDueDate ?? ""} onChange={e => setSegForm((f: any) => ({ ...f, caDueDate: e.target.value }))} />
+                    </div>
+                  </div>
+                  <p className="text-xs text-amber-600 italic">Leave blank to record without raising a task.</p>
+                </div>
+              )}
               {editSeg && (
                 <div className="pt-2 border-t">
                   <SeedStoreRecordAttachments farmId={safeFarmId} recordType="seed_storage_segregation_check" recordId={editSeg.id} />
@@ -1425,6 +1507,9 @@ export default function SeedStorePage() {
                     treatedSeedStoredLoose: !!segForm.treatedSeedStoredLoose,
                     notes: segForm.notes || null,
                     checkedBy: segForm.checkedBy || null,
+                    caDescription: segForm.caDescription || null,
+                    caAssignedToMemberId: segForm.caAssignedToMemberId || null,
+                    caDueDate: segForm.caDueDate || null,
                   };
                   segMut.mutate(data);
                 }}

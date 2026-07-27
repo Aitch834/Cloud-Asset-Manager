@@ -5,7 +5,8 @@ import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tan
 import { DocAttach } from "@/components/DocAttach";
 import { PigEnterpriseReport } from "@/components/PigEnterpriseReport";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
-import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby, ShieldCheck, Pill, CheckCircle2, Clock, MapPin, LayoutDashboard, XCircle, TrendingUp, Scale, FileDown, Eye, Paperclip, Printer, Syringe, Activity } from "lucide-react";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
+import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, ClipboardList, AlertTriangle, Baby, ShieldCheck, Pill, CheckCircle2, Clock, MapPin, LayoutDashboard, XCircle, TrendingUp, Scale, FileDown, Eye, Paperclip, Printer, Syringe, Activity } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1696,6 +1697,7 @@ function PigRedTractorChecklistTab({ farmId }: { farmId: number }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const { data: allRtcRecords = [], isLoading } = useQuery({ queryKey: ["pig-rt-checklist", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-red-tractor-checklists`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
   const [rtcYearFilter, setRtcYearFilter] = useState("all");
@@ -1799,11 +1801,28 @@ function PigRedTractorChecklistTab({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Corrective Actions Required</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.correctiveActions ?? "—")}</p></div>
             </div>
             <DialogFooter>
+              {(String(viewRecord.overallStatus) === "fail" || String(viewRecord.overallStatus) === "conditional-pass") && (
+                <Button variant="outline" className="text-purple-700 border-purple-200 hover:bg-purple-50 mr-auto" onClick={() => { setRaiseTaskFor(viewRecord); setViewRecord(null); }}>
+                  <ClipboardList className="w-3.5 h-3.5 mr-1" />Raise Corrective Action Task
+                </Button>
+              )}
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
               <Button onClick={() => setViewRecord(null)}>Close</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+          defaultTitle="Corrective Action — Red Tractor Pig Assessment"
+          defaultDescription={String(raiseTaskFor.correctiveActions ?? "") || `Assessment date: ${raiseTaskFor.assessmentDate ?? "—"} · Status: ${raiseTaskFor.overallStatus ?? "—"} · Non-conformances: ${raiseTaskFor.nonConformances ?? "—"}`}
+          taskType="compliance_corrective"
+          module="pig-production"
+          onAssigned={() => setRaiseTaskFor(null)}
+        />
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>

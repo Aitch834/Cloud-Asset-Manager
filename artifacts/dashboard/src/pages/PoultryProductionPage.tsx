@@ -2363,6 +2363,7 @@ function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, unknown>>({});
   const flocks = useFlocks(farmId);
   const { data: rawHouses = [] } = useQuery({ queryKey: ["poultry-houses", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-houses`), { credentials: "include" }).then(r => r.json()) });
@@ -2502,11 +2503,28 @@ function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
               <div className="col-span-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
             </div>
             <DialogFooter>
+              {viewRecord.overallComplianceStatus === "non-compliant" && (
+                <Button variant="outline" className="text-purple-700 border-purple-200 hover:bg-purple-50 mr-auto" onClick={() => { setRaiseTaskFor(viewRecord); setViewRecord(null); }}>
+                  <ClipboardList className="w-3.5 h-3.5 mr-1" />Raise Corrective Action Task
+                </Button>
+              )}
               <Button variant="outline" onClick={() => { setEditing(viewRecord); setForm({ ...viewRecord, houseId: viewRecord.houseId ? String(viewRecord.houseId) : "__none__", previousFlockId: viewRecord.previousFlockId ? String(viewRecord.previousFlockId) : "__none__" }); setOpen(true); setViewRecord(null); }}>Edit</Button>
               <Button onClick={() => setViewRecord(null)}>Close</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+      {raiseTaskFor && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskFor}
+          onClose={() => setRaiseTaskFor(null)}
+          defaultTitle="Corrective Action — Poultry Biosecurity Checklist"
+          defaultDescription={`Cleanout start: ${raiseTaskFor.cleanoutStartDate ?? "—"} · House: ${raiseTaskFor.houseName ?? raiseTaskFor.houseId ?? "—"} · Status: ${raiseTaskFor.overallComplianceStatus ?? "—"}`}
+          taskType="compliance_corrective"
+          module="poultry-biosecurity"
+          onAssigned={() => setRaiseTaskFor(null)}
+        />
       )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "52rem" }} className="max-h-[90vh] overflow-y-auto">

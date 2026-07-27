@@ -9178,10 +9178,12 @@ router.delete("/farms/:farmId/planner-events/:recordId", requireAuth, requireTen
 router.get("/farms/:farmId/task-assignments", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { status, memberId } = req.query as Record<string, string>;
+  const { status, memberId, module: moduleFilter, taskType: taskTypeFilter } = req.query as Record<string, string>;
   const conditions = [eq(farmTaskAssignmentsTable.farmId, farmId)];
   if (status) conditions.push(eq(farmTaskAssignmentsTable.status, status));
   if (memberId && !isNaN(Number(memberId))) conditions.push(eq(farmTaskAssignmentsTable.assignedToMemberId, Number(memberId)));
+  if (moduleFilter) conditions.push(eq(farmTaskAssignmentsTable.module, moduleFilter));
+  if (taskTypeFilter) conditions.push(eq(farmTaskAssignmentsTable.taskType, taskTypeFilter));
   const records = await db.select().from(farmTaskAssignmentsTable).where(and(...conditions)).orderBy(desc(farmTaskAssignmentsTable.createdAt));
   res.json({ records });
 });
