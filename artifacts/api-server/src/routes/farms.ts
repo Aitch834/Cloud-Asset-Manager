@@ -8184,6 +8184,36 @@ router.delete("/farms/:farmId/inspections/:recordId", requireAuth, requireTenant
   res.json({ success: true });
 });
 
+// ─── Inspection Communications ───────────────────────────────────────────────
+router.get("/farms/:farmId/inspections/:inspectionId/communications", requireAuth, requireTenant, requireModuleByKey("inspections", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const inspectionId = parseInt(req.params.inspectionId as string, 10);
+  if (isNaN(inspectionId)) { res.status(400).json({ error: "Invalid inspection ID" }); return; }
+  const rows = await db.execute(sql`SELECT * FROM inspection_communications WHERE inspection_id = ${inspectionId} AND farm_id = ${farmId} ORDER BY comm_date DESC, created_at DESC`);
+  res.json(rows.rows);
+});
+
+router.post("/farms/:farmId/inspections/:inspectionId/communications", requireAuth, requireTenant, requireModuleByKey("inspections", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const inspectionId = parseInt(req.params.inspectionId as string, 10);
+  if (isNaN(inspectionId)) { res.status(400).json({ error: "Invalid inspection ID" }); return; }
+  const { commDate, commType, direction, subject, summary } = req.body as any;
+  if (!commDate || !commType || !subject) { res.status(400).json({ error: "commDate, commType and subject are required" }); return; }
+  const result = await db.execute(sql`INSERT INTO inspection_communications (inspection_id, farm_id, comm_date, comm_type, direction, subject, summary) VALUES (${inspectionId}, ${farmId}, ${commDate}::date, ${commType}, ${direction ?? 'outbound'}, ${subject}, ${summary ?? null}) RETURNING *`);
+  res.json(result.rows[0]);
+});
+
+router.delete("/farms/:farmId/inspections/:inspectionId/communications/:commId", requireAuth, requireTenant, requireModuleByKey("inspections", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const commId = parseInt(req.params.commId as string, 10);
+  if (isNaN(commId)) { res.status(400).json({ error: "Invalid communication ID" }); return; }
+  await db.execute(sql`DELETE FROM inspection_communications WHERE id = ${commId} AND farm_id = ${farmId}`);
+  res.json({ success: true });
+});
+
 router.delete("/farms/:farmId/nonconformances/:recordId", requireAuth, requireTenant, requireModuleByKey("inspections", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
@@ -8209,6 +8239,36 @@ router.delete("/farms/:farmId/agri-schemes/:recordId", requireAuth, requireTenan
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(agriEnvironmentSchemeRecordsTable).where(and(eq(agriEnvironmentSchemeRecordsTable.id, recordId), eq(agriEnvironmentSchemeRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Agri-Environment Scheme Communications ───────────────────────────────────
+router.get("/farms/:farmId/agri-schemes/:schemeId/communications", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const schemeId = parseInt(req.params.schemeId as string, 10);
+  if (isNaN(schemeId)) { res.status(400).json({ error: "Invalid scheme ID" }); return; }
+  const rows = await db.execute(sql`SELECT * FROM agri_scheme_communications WHERE agri_scheme_id = ${schemeId} AND farm_id = ${farmId} ORDER BY comm_date DESC, created_at DESC`);
+  res.json(rows.rows);
+});
+
+router.post("/farms/:farmId/agri-schemes/:schemeId/communications", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const schemeId = parseInt(req.params.schemeId as string, 10);
+  if (isNaN(schemeId)) { res.status(400).json({ error: "Invalid scheme ID" }); return; }
+  const { commDate, commType, direction, subject, summary } = req.body as any;
+  if (!commDate || !commType || !subject) { res.status(400).json({ error: "commDate, commType and subject are required" }); return; }
+  const result = await db.execute(sql`INSERT INTO agri_scheme_communications (agri_scheme_id, farm_id, comm_date, comm_type, direction, subject, summary) VALUES (${schemeId}, ${farmId}, ${commDate}::date, ${commType}, ${direction ?? 'outbound'}, ${subject}, ${summary ?? null}) RETURNING *`);
+  res.json(result.rows[0]);
+});
+
+router.delete("/farms/:farmId/agri-schemes/:schemeId/communications/:commId", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const commId = parseInt(req.params.commId as string, 10);
+  if (isNaN(commId)) { res.status(400).json({ error: "Invalid communication ID" }); return; }
+  await db.execute(sql`DELETE FROM agri_scheme_communications WHERE id = ${commId} AND farm_id = ${farmId}`);
   res.json({ success: true });
 });
 

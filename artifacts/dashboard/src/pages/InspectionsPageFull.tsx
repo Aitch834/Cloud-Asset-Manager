@@ -14,7 +14,7 @@ import { OtherSelect } from "@/components/ui/other-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, AlertTriangle, CheckCircle2, ClipboardList, Wrench, Award, Pencil, Eye, Paperclip, File as FileIcon, Loader2, ExternalLink, ChevronDown, ChevronRight, ChevronUp, Printer, RefreshCw } from "lucide-react";
+import { Plus, Trash2, AlertTriangle, CheckCircle2, ClipboardList, Wrench, Award, Pencil, Eye, Paperclip, File as FileIcon, Loader2, ExternalLink, ChevronDown, ChevronRight, ChevronUp, Printer, RefreshCw, MessageSquare } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { useFarmMembers } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -146,6 +146,9 @@ function InspectionsTab({ farmId, openInspId, onSwitchToIssues }: { farmId: numb
   const [docUploading, setDocUploading] = useState(false);
   const addFileRef = useRef<HTMLInputElement>(null);
   const [postSavePrompt, setPostSavePrompt] = useState<{ result: string; inspType: string } | null>(null);
+  const [viewInspTab, setViewInspTab] = useState<"details" | "communications">("details");
+  const [inspCommOpen, setInspCommOpen] = useState(false);
+  const [inspCommForm, setInspCommForm] = useState<any>({ commDate: new Date().toISOString().slice(0, 10), commType: "", direction: "outbound", subject: "", summary: "" });
 
   const q = useQuery({
     queryKey: ["inspections", farmId],
@@ -202,6 +205,22 @@ function InspectionsTab({ farmId, openInspId, onSwitchToIssues }: { farmId: numb
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/inspections/${id}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  const inspCommsQ = useQuery({
+    queryKey: ["inspection-comms", farmId, viewRecord?.id],
+    queryFn: () => fetch(`/api/farms/${farmId}/inspections/${viewRecord!.id}/communications`).then(r => r.json()),
+    enabled: !!viewRecord,
+  });
+  const addCommMut = useMutation({
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/inspections/${viewRecord?.id}/communications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["inspection-comms", farmId, viewRecord?.id] }); setInspCommOpen(false); setInspCommForm({ commDate: new Date().toISOString().slice(0, 10), commType: "", direction: "outbound", subject: "", summary: "" }); toast({ title: "Communication logged" }); },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+  const delCommMut = useMutation({
+    mutationFn: (commId: number) => fetch(`/api/farms/${farmId}/inspections/${viewRecord?.id}/communications/${commId}`, { method: "DELETE" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["inspection-comms", farmId, viewRecord?.id] }); toast({ title: "Deleted" }); },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
@@ -302,51 +321,128 @@ function InspectionsTab({ farmId, openInspId, onSwitchToIssues }: { farmId: numb
       )}
 
       {viewRecord && (
-        <Dialog open onOpenChange={() => setViewRecord(null)}>
-          <DialogContent style={{ maxWidth: 560 }}>
+        <Dialog open onOpenChange={() => { setViewRecord(null); setViewInspTab("details"); }}>
+          <DialogContent style={{ maxWidth: 600 }}>
             <DialogHeader><DialogTitle>Inspection Record</DialogTitle></DialogHeader>
-            {(() => {
-              const r = viewRecord;
-              const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
-              const F = ({ label, value }: { label: string; value?: string | null }) => (
-                <div><div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
-                <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value || "—"}</div></div>
-              );
-              return (
-                <div style={{ display: "grid", gap: 14 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <F label="Date" value={fmtD(r.inspectionDate)} />
-                    <F label="Type" value={r.inspectionType} />
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <F label="Inspector Name" value={r.inspectorName} />
-                    <F label="Inspection Body" value={r.inspectionBody} />
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <div>
-                      <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Overall Result</div>
-                      {r.overallResult ? <StatusBadge status={r.overallResult} /> : <span style={{ color: "#d1d5db", fontSize: "0.875rem" }}>—</span>}
+            {/* Tab selector */}
+            <div style={{ display: "flex", gap: 4, borderBottom: "1px solid #e5e7eb", marginBottom: 16 }}>
+              {(["details", "communications"] as const).map(t => (
+                <button key={t} onClick={() => setViewInspTab(t)} style={{ border: "none", background: "none", padding: "8px 14px", fontSize: "0.8125rem", fontWeight: viewInspTab === t ? 600 : 400, color: viewInspTab === t ? "#166534" : "#6b7280", borderBottom: viewInspTab === t ? "2px solid #166534" : "2px solid transparent", cursor: "pointer" }}>
+                  {t === "details" ? "Details" : `Communications${(inspCommsQ.data as any[])?.length > 0 ? ` (${(inspCommsQ.data as any[]).length})` : ""}`}
+                </button>
+              ))}
+            </div>
+            {viewInspTab === "details" ? (
+              (() => {
+                const r = viewRecord;
+                const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+                const F = ({ label, value }: { label: string; value?: string | null }) => (
+                  <div><div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
+                  <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value || "—"}</div></div>
+                );
+                return (
+                  <div style={{ display: "grid", gap: 14 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      <F label="Date" value={fmtD(r.inspectionDate)} />
+                      <F label="Type" value={r.inspectionType} />
                     </div>
-                    <F label="Next Inspection Due" value={fmtD(r.nextInspectionDue)} />
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      <F label="Inspector Name" value={r.inspectorName} />
+                      <F label="Inspection Body" value={r.inspectionBody} />
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      <div>
+                        <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Overall Result</div>
+                        {r.overallResult ? <StatusBadge status={r.overallResult} /> : <span style={{ color: "#d1d5db", fontSize: "0.875rem" }}>—</span>}
+                      </div>
+                      <F label="Next Inspection Due" value={fmtD(r.nextInspectionDue)} />
+                    </div>
+                    {r.summary && <F label="Summary" value={r.summary} />}
+                    {r.notes && <F label="Notes" value={r.notes} />}
+                    <div>
+                      <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Report Document</div>
+                      {r.documentPath ? (
+                        <a href={`/api/storage${r.documentPath}`} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "0.875rem", color: "#2563eb", textDecoration: "none" }}>
+                          <FileIcon size={14} />{r.documentName || "View Report"}
+                        </a>
+                      ) : (
+                        <span style={{ fontSize: "0.875rem", color: "#d1d5db" }}>No report document attached</span>
+                      )}
+                    </div>
                   </div>
-                  {r.summary && <F label="Summary" value={r.summary} />}
-                  {r.notes && <F label="Notes" value={r.notes} />}
-                  <div>
-                    <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Report Document</div>
-                    {r.documentPath ? (
-                      <a href={`/api/storage${r.documentPath}`} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "0.875rem", color: "#2563eb", textDecoration: "none" }}>
-                        <FileIcon size={14} />{r.documentName || "View Report"}
-                      </a>
-                    ) : (
-                      <span style={{ fontSize: "0.875rem", color: "#d1d5db" }}>No report document attached</span>
-                    )}
-                  </div>
+                );
+              })()
+            ) : (
+              <div>
+                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+                  <Button size="sm" onClick={() => { setInspCommForm({ commDate: new Date().toISOString().slice(0, 10), commType: "", direction: "outbound", subject: "", summary: "" }); setInspCommOpen(true); }}><Plus size={14} className="mr-1" />Log Communication</Button>
                 </div>
-              );
-            })()}
+                {inspCommsQ.isLoading ? <p style={{ color: "#9ca3af", textAlign: "center", padding: "2rem" }}>Loading…</p> : (inspCommsQ.data as any[])?.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "2rem", color: "#9ca3af" }}>
+                    <MessageSquare size={28} style={{ margin: "0 auto 8px", opacity: 0.4 }} />
+                    <p style={{ fontWeight: 600, color: "#374151" }}>No correspondence logged</p>
+                    <p style={{ fontSize: "0.8rem" }}>Log emails, letters, phone calls, and meetings relating to this inspection.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {(inspCommsQ.data as any[]).map((c: any) => (
+                      <div key={c.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "0.75rem 1rem", background: "#fff" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                            <span style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", padding: "2px 8px", borderRadius: 20, background: c.direction === "inbound" ? "#eff6ff" : "#f0fdf4", color: c.direction === "inbound" ? "#1d4ed8" : "#15803d" }}>{c.direction === "inbound" ? "Received" : "Sent"}</span>
+                            <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#374151" }}>{c.comm_type}</span>
+                            <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>·</span>
+                            <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>{c.comm_date ? new Date(c.comm_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : ""}</span>
+                          </div>
+                          <button onClick={() => delCommMut.mutate(c.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 2 }} title="Delete"><Trash2 size={13} /></button>
+                        </div>
+                        <p style={{ fontWeight: 600, fontSize: "0.875rem", color: "#111827", marginTop: 6, marginBottom: c.summary ? 4 : 0 }}>{c.subject}</p>
+                        {c.summary && <p style={{ fontSize: "0.8125rem", color: "#6b7280", margin: 0 }}>{c.summary}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <DialogFooter className="mt-4">
-              <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
-              <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit Inspection</Button>
+              <Button variant="outline" onClick={() => { setViewRecord(null); setViewInspTab("details"); }}>Close</Button>
+              {viewInspTab === "details" && <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit Inspection</Button>}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {inspCommOpen && (
+        <Dialog open onOpenChange={o => { setInspCommOpen(o); }}>
+          <DialogContent style={{ maxWidth: 480 }}>
+            <DialogHeader><DialogTitle>Log Communication</DialogTitle></DialogHeader>
+            <div className="space-y-3 py-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Date</Label><Input type="date" value={inspCommForm.commDate} onChange={e => setInspCommForm((f: any) => ({ ...f, commDate: e.target.value }))} /></div>
+                <div><Label>Direction</Label>
+                  <Select value={inspCommForm.direction} onValueChange={v => setInspCommForm((f: any) => ({ ...f, direction: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="outbound">Sent / Outgoing</SelectItem>
+                      <SelectItem value="inbound">Received / Incoming</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div><Label>Type</Label>
+                <Select value={inspCommForm.commType} onValueChange={v => setInspCommForm((f: any) => ({ ...f, commType: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger>
+                  <SelectContent>
+                    {["Email", "Letter", "Phone call", "Meeting", "Site visit", "Video call", "Other"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Subject <span style={{ color: "#ef4444" }}>*</span></Label><Input placeholder="e.g. Response to inspection report" value={inspCommForm.subject} onChange={e => setInspCommForm((f: any) => ({ ...f, subject: e.target.value }))} /></div>
+              <div><Label>Notes / Summary</Label><Textarea rows={3} value={inspCommForm.summary} onChange={e => setInspCommForm((f: any) => ({ ...f, summary: e.target.value }))} /></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setInspCommOpen(false)}>Cancel</Button>
+              <Button onClick={() => addCommMut.mutate(inspCommForm)} disabled={!inspCommForm.subject || !inspCommForm.commType || addCommMut.isPending}>Save</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -25,6 +25,8 @@ import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { FieldOperation } from "@/lib/types";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 // ─── Operation type groups ─────────────────────────
 interface OpType {
@@ -124,6 +126,13 @@ export default function FieldOperationScreen() {
   const [quantity, setQuantity] = useState("");
   const [quantityUnit, setQuantityUnit] = useState("");
   const [operator, setOperator] = useState(user?.name || "");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) =>
+      setStaffOptions(members.map(m => ({ id: m.id, label: m.label, sublabel: m.role || undefined })))
+    );
+  }, [currentFarm?.id]);
   const [notes, setNotes] = useState("");
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [showUnitPicker, setShowUnitPicker] = useState(false);
@@ -359,11 +368,14 @@ export default function FieldOperationScreen() {
           )}
 
           {/* Operator */}
-          <Input
+          <LookupPicker
             label="Operator"
-            placeholder="Name"
             value={operator}
-            onChangeText={setOperator}
+            options={staffOptions}
+            onSelect={(_id, label) => setOperator(label)}
+            placeholder="Select or type name…"
+            allowFreeText
+            icon="user"
           />
 
           {/* Notes */}

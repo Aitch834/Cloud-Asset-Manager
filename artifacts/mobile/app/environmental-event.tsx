@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -23,6 +23,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { EnvironmentalEvent } from "@/lib/types";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 const EVENT_TYPES: { value: string; label: string }[] = [
   { value: "hedge_trimming",        label: "Hedge Trimming / Laying" },
@@ -53,6 +55,13 @@ export default function EnvironmentalEventScreen() {
   const [featureName, setFeatureName] = useState("");
   const [description, setDescription] = useState("");
   const [operator, setOperator] = useState(user?.name || "");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) =>
+      setStaffOptions(members.map(m => ({ id: m.id, label: m.label, sublabel: m.role || undefined })))
+    );
+  }, [currentFarm?.id]);
   const [contractorUsed, setContractorUsed] = useState(false);
   const [contractorName, setContractorName] = useState("");
   const [notes, setNotes] = useState("");
@@ -194,13 +203,25 @@ export default function EnvironmentalEventScreen() {
           {/* Operator or contractor */}
           <View style={styles.row}>
             <View style={styles.flex}>
-              <Input
-                label={contractorUsed ? "Contractor Name" : "Carried out by"}
-                placeholder={contractorUsed ? "Company / contractor name" : "Your name"}
-                value={contractorUsed ? contractorName : operator}
-                onChangeText={contractorUsed ? setContractorName : setOperator}
-                containerStyle={styles.flex}
-              />
+              {contractorUsed ? (
+                <Input
+                  label="Contractor Name"
+                  placeholder="Company / contractor name"
+                  value={contractorName}
+                  onChangeText={setContractorName}
+                  containerStyle={styles.flex}
+                />
+              ) : (
+                <LookupPicker
+                  label="Carried out by"
+                  value={operator}
+                  options={staffOptions}
+                  onSelect={(_id, label) => setOperator(label)}
+                  placeholder="Select or type name…"
+                  allowFreeText
+                  icon="user"
+                />
+              )}
             </View>
           </View>
 

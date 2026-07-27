@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, Leaf, TreePine, MapPin, Printer, ClipboardCheck, CalendarDays, Pencil, Eye, AlertTriangle, Droplets } from "lucide-react";
+import { Plus, Trash2, Leaf, TreePine, MapPin, Printer, ClipboardCheck, CalendarDays, Pencil, Eye, AlertTriangle, Droplets, MessageSquare } from "lucide-react";
 import { StorageLocationMapPicker } from "@/components/storage/StorageLocationMapPicker";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -686,6 +686,10 @@ function AgriEnvSchemesTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [viewScheme, setViewScheme] = useState<any | null>(null);
+  const [schemeTab, setSchemeTab] = useState<"details" | "communications">("details");
+  const [schemeCommOpen, setSchemeCommOpen] = useState(false);
+  const [schemeCommForm, setSchemeCommForm] = useState<any>({ commDate: new Date().toISOString().slice(0, 10), commType: "", direction: "outbound", subject: "", summary: "" });
   const [form, setForm] = useState<any>({
     schemeName: "", agreementNumber: "", startDate: "", endDate: "",
     annualPaymentPence: "", obligations: "", status: "active", notes: "",
@@ -717,6 +721,23 @@ function AgriEnvSchemesTab({ farmId }: { farmId: number }) {
   });
 
   const resetForm = () => setForm({ schemeName: "", agreementNumber: "", startDate: "", endDate: "", annualPaymentPence: "", obligations: "", status: "active", notes: "" });
+
+  const schemeCommsQ = useQuery({
+    queryKey: ["scheme-comms", farmId, viewScheme?.id],
+    queryFn: () => fetch(`/api/farms/${farmId}/agri-schemes/${viewScheme!.id}/communications`).then(r => r.json()),
+    enabled: !!viewScheme,
+  });
+  const addSchemeCommMut = useMutation({
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/agri-schemes/${viewScheme?.id}/communications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["scheme-comms", farmId, viewScheme?.id] }); setSchemeCommOpen(false); setSchemeCommForm({ commDate: new Date().toISOString().slice(0, 10), commType: "", direction: "outbound", subject: "", summary: "" }); toast({ title: "Communication logged" }); },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+  const delSchemeCommMut = useMutation({
+    mutationFn: (commId: number) => fetch(`/api/farms/${farmId}/agri-schemes/${viewScheme?.id}/communications/${commId}`, { method: "DELETE" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["scheme-comms", farmId, viewScheme?.id] }); toast({ title: "Deleted" }); },
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
   const records: any[] = q.data ?? [];
   const activeSchemes = records.filter(r => r.status === "active");
   const totalAnnual = activeSchemes.reduce((s, r) => s + (r.annualPaymentPence ?? 0), 0);
@@ -772,7 +793,10 @@ function AgriEnvSchemesTab({ farmId }: { farmId: number }) {
                   <td style={{ padding: "0.625rem 0.875rem" }}><StatusBadge status={r.status || "active"} /></td>
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", maxWidth: 220, fontSize: "0.8rem" }}>{r.obligations || "—"}</td>
                   <td style={{ padding: "0.5rem" }}>
-                    <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <button onClick={() => { setViewScheme(r); setSchemeTab("details"); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="View"><Eye size={13} /></button>
+                      <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -827,6 +851,119 @@ function AgriEnvSchemesTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Scheme detail + Communications dialog */}
+      {viewScheme && (
+        <Dialog open onOpenChange={() => { setViewScheme(null); setSchemeTab("details"); }}>
+          <DialogContent style={{ maxWidth: 600 }}>
+            <DialogHeader><DialogTitle>{viewScheme.schemeName}</DialogTitle></DialogHeader>
+            <div style={{ display: "flex", gap: 4, borderBottom: "1px solid #e5e7eb", marginBottom: 16 }}>
+              {(["details", "communications"] as const).map(t => (
+                <button key={t} onClick={() => setSchemeTab(t)} style={{ border: "none", background: "none", padding: "8px 14px", fontSize: "0.8125rem", fontWeight: schemeTab === t ? 600 : 400, color: schemeTab === t ? "#166534" : "#6b7280", borderBottom: schemeTab === t ? "2px solid #166534" : "2px solid transparent", cursor: "pointer" }}>
+                  {t === "details" ? "Details" : `Communications${(schemeCommsQ.data as any[])?.length > 0 ? ` (${(schemeCommsQ.data as any[]).length})` : ""}`}
+                </button>
+              ))}
+            </div>
+            {schemeTab === "details" ? (
+              (() => {
+                const s = viewScheme;
+                const F = ({ label, value }: { label: string; value?: string | null }) => (
+                  <div><div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
+                  <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value || "—"}</div></div>
+                );
+                return (
+                  <div style={{ display: "grid", gap: 14 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      <F label="Agreement Number" value={s.agreementNumber} />
+                      <div>
+                        <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Status</div>
+                        <StatusBadge status={s.status || "active"} />
+                      </div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      <F label="Start Date" value={s.startDate ? fmt(s.startDate) : null} />
+                      <F label="End Date" value={s.endDate ? fmt(s.endDate) : null} />
+                    </div>
+                    <F label="Annual Payment" value={s.annualPaymentPence ? fmtAmt(s.annualPaymentPence) : null} />
+                    {s.obligations && <F label="Obligations" value={s.obligations} />}
+                    {s.notes && <F label="Notes" value={s.notes} />}
+                  </div>
+                );
+              })()
+            ) : (
+              <div>
+                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+                  <Button size="sm" onClick={() => { setSchemeCommForm({ commDate: new Date().toISOString().slice(0, 10), commType: "", direction: "outbound", subject: "", summary: "" }); setSchemeCommOpen(true); }}><Plus size={14} className="mr-1" />Log Communication</Button>
+                </div>
+                {schemeCommsQ.isLoading ? <p style={{ color: "#9ca3af", textAlign: "center", padding: "2rem" }}>Loading…</p> : (schemeCommsQ.data as any[])?.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "2rem", color: "#9ca3af" }}>
+                    <MessageSquare size={28} style={{ margin: "0 auto 8px", opacity: 0.4 }} />
+                    <p style={{ fontWeight: 600, color: "#374151" }}>No correspondence logged</p>
+                    <p style={{ fontSize: "0.8rem" }}>Log emails, letters, calls, and meetings with scheme administrators (Natural England, RPA, etc.).</p>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {(schemeCommsQ.data as any[]).map((c: any) => (
+                      <div key={c.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "0.75rem 1rem", background: "#fff" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                            <span style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", padding: "2px 8px", borderRadius: 20, background: c.direction === "inbound" ? "#eff6ff" : "#f0fdf4", color: c.direction === "inbound" ? "#1d4ed8" : "#15803d" }}>{c.direction === "inbound" ? "Received" : "Sent"}</span>
+                            <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#374151" }}>{c.comm_type}</span>
+                            <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>·</span>
+                            <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>{c.comm_date ? new Date(c.comm_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : ""}</span>
+                          </div>
+                          <button onClick={() => delSchemeCommMut.mutate(c.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 2 }} title="Delete"><Trash2 size={13} /></button>
+                        </div>
+                        <p style={{ fontWeight: 600, fontSize: "0.875rem", color: "#111827", marginTop: 6, marginBottom: c.summary ? 4 : 0 }}>{c.subject}</p>
+                        {c.summary && <p style={{ fontSize: "0.8125rem", color: "#6b7280", margin: 0 }}>{c.summary}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => { setViewScheme(null); setSchemeTab("details"); }}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {schemeCommOpen && (
+        <Dialog open onOpenChange={o => { setSchemeCommOpen(o); }}>
+          <DialogContent style={{ maxWidth: 480 }}>
+            <DialogHeader><DialogTitle>Log Communication</DialogTitle></DialogHeader>
+            <div className="space-y-3 py-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Date</Label><Input type="date" value={schemeCommForm.commDate} onChange={e => setSchemeCommForm((f: any) => ({ ...f, commDate: e.target.value }))} /></div>
+                <div><Label>Direction</Label>
+                  <Select value={schemeCommForm.direction} onValueChange={v => setSchemeCommForm((f: any) => ({ ...f, direction: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="outbound">Sent / Outgoing</SelectItem>
+                      <SelectItem value="inbound">Received / Incoming</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div><Label>Type</Label>
+                <Select value={schemeCommForm.commType} onValueChange={v => setSchemeCommForm((f: any) => ({ ...f, commType: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger>
+                  <SelectContent>
+                    {["Email", "Letter", "Phone call", "Meeting", "Site visit", "Video call", "Other"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Subject <span style={{ color: "#ef4444" }}>*</span></Label><Input placeholder="e.g. Annual payment query" value={schemeCommForm.subject} onChange={e => setSchemeCommForm((f: any) => ({ ...f, subject: e.target.value }))} /></div>
+              <div><Label>Notes / Summary</Label><Textarea rows={3} value={schemeCommForm.summary} onChange={e => setSchemeCommForm((f: any) => ({ ...f, summary: e.target.value }))} /></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSchemeCommOpen(false)}>Cancel</Button>
+              <Button onClick={() => addSchemeCommMut.mutate(schemeCommForm)} disabled={!schemeCommForm.subject || !schemeCommForm.commType || addSchemeCommMut.isPending}>Save</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

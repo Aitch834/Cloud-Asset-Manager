@@ -38716,7 +38716,7 @@ function FieldBoundaryMapDialog({ fieldId, fieldName, open, onClose, onSaved }) 
   const [existingBoundary, setExistingBoundary] = reactExports.useState(null);
   reactExports.useEffect(() => {
     if (open) {
-      __vitePreload(() => import("./leaflet-src-CqQiwtR4.js").then((n2) => n2.l), true ? [] : void 0).then((L2) => {
+      __vitePreload(() => import("./leaflet-src-Co72jLng.js").then((n2) => n2.l), true ? [] : void 0).then((L2) => {
         if (!("_leafletLoaded" in window)) {
           const link = document.createElement("link");
           link.rel = "stylesheet";
@@ -49621,7 +49621,7 @@ function TrialMapView({ trials, cropYear }) {
   const [leafletReady, setLeafletReady] = reactExports.useState(false);
   const [loading, setLoading] = reactExports.useState(true);
   reactExports.useEffect(() => {
-    __vitePreload(() => import("./leaflet-src-CqQiwtR4.js").then((n2) => n2.l), true ? [] : void 0).then((L2) => {
+    __vitePreload(() => import("./leaflet-src-Co72jLng.js").then((n2) => n2.l), true ? [] : void 0).then((L2) => {
       if (!("_leafletLoaded" in window)) {
         const link = document.createElement("link");
         link.rel = "stylesheet";
@@ -128933,7 +128933,7 @@ function SoilLocationPicker({ lat, lng, locationDescription, onLatLngChange, onD
   const [leafletReady, setLeafletReady] = reactExports.useState(false);
   const [expanded, setExpanded] = reactExports.useState(!!(lat && lng));
   reactExports.useEffect(() => {
-    __vitePreload(() => import("./leaflet-src-CqQiwtR4.js").then((n2) => n2.l), true ? [] : void 0).then((L2) => {
+    __vitePreload(() => import("./leaflet-src-Co72jLng.js").then((n2) => n2.l), true ? [] : void 0).then((L2) => {
       if (!("_leafletLoaded" in window)) {
         const link = document.createElement("link");
         link.rel = "stylesheet";
@@ -130050,7 +130050,7 @@ function MapTab({ farmId }) {
   });
   const allLoaded = gpsTests.length === 0 || !detailResults.some((r2) => r2.isLoading);
   reactExports.useEffect(() => {
-    __vitePreload(() => import("./leaflet-src-CqQiwtR4.js").then((n2) => n2.l), true ? [] : void 0).then((L2) => {
+    __vitePreload(() => import("./leaflet-src-Co72jLng.js").then((n2) => n2.l), true ? [] : void 0).then((L2) => {
       if (!("_leafletLoaded" in window)) {
         const link = document.createElement("link");
         link.rel = "stylesheet";
@@ -136873,6 +136873,9 @@ function InspectionsTab$1({ farmId, openInspId, onSwitchToIssues }) {
   const [docUploading, setDocUploading] = reactExports.useState(false);
   const addFileRef = reactExports.useRef(null);
   const [postSavePrompt, setPostSavePrompt] = reactExports.useState(null);
+  const [viewInspTab, setViewInspTab] = reactExports.useState("details");
+  const [inspCommOpen, setInspCommOpen] = reactExports.useState(false);
+  const [inspCommForm, setInspCommForm] = reactExports.useState({ commDate: (/* @__PURE__ */ new Date()).toISOString().slice(0, 10), commType: "", direction: "outbound", subject: "", summary: "" });
   const q = useQuery({
     queryKey: ["inspections", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/inspections`).then((r2) => r2.json()),
@@ -136936,6 +136939,29 @@ function InspectionsTab$1({ farmId, openInspId, onSwitchToIssues }) {
       toast2({ title: "Deleted" });
       invalidate();
       setDeleteId(null);
+    },
+    onError: () => toast2({ title: "Failed to delete", variant: "destructive" })
+  });
+  const inspCommsQ = useQuery({
+    queryKey: ["inspection-comms", farmId, viewRecord?.id],
+    queryFn: () => fetch(`/api/farms/${farmId}/inspections/${viewRecord.id}/communications`).then((r2) => r2.json()),
+    enabled: !!viewRecord
+  });
+  const addCommMut = useMutation({
+    mutationFn: (body) => fetch(`/api/farms/${farmId}/inspections/${viewRecord?.id}/communications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r2) => r2.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["inspection-comms", farmId, viewRecord?.id] });
+      setInspCommOpen(false);
+      setInspCommForm({ commDate: (/* @__PURE__ */ new Date()).toISOString().slice(0, 10), commType: "", direction: "outbound", subject: "", summary: "" });
+      toast2({ title: "Communication logged" });
+    },
+    onError: () => toast2({ title: "Failed to save", variant: "destructive" })
+  });
+  const delCommMut = useMutation({
+    mutationFn: (commId) => fetch(`/api/farms/${farmId}/inspections/${viewRecord?.id}/communications/${commId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["inspection-comms", farmId, viewRecord?.id] });
+      toast2({ title: "Deleted" });
     },
     onError: () => toast2({ title: "Failed to delete", variant: "destructive" })
   });
@@ -137029,9 +137055,13 @@ function InspectionsTab$1({ farmId, openInspId, onSwitchToIssues }) {
         }
       ) })
     ] }),
-    viewRecord && /* @__PURE__ */ jsxRuntimeExports.jsx(Dialog, { open: true, onOpenChange: () => setViewRecord(null), children: /* @__PURE__ */ jsxRuntimeExports.jsxs(DialogContent, { style: { maxWidth: 560 }, children: [
+    viewRecord && /* @__PURE__ */ jsxRuntimeExports.jsx(Dialog, { open: true, onOpenChange: () => {
+      setViewRecord(null);
+      setViewInspTab("details");
+    }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(DialogContent, { style: { maxWidth: 600 }, children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(DialogHeader, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(DialogTitle, { children: "Inspection Record" }) }),
-      (() => {
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { display: "flex", gap: 4, borderBottom: "1px solid #e5e7eb", marginBottom: 16 }, children: ["details", "communications"].map((t) => /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => setViewInspTab(t), style: { border: "none", background: "none", padding: "8px 14px", fontSize: "0.8125rem", fontWeight: viewInspTab === t ? 600 : 400, color: viewInspTab === t ? "#166534" : "#6b7280", borderBottom: viewInspTab === t ? "2px solid #166534" : "2px solid transparent", cursor: "pointer" }, children: t === "details" ? "Details" : `Communications${inspCommsQ.data?.length > 0 ? ` (${inspCommsQ.data.length})` : ""}` }, t)) }),
+      viewInspTab === "details" ? (() => {
         const r2 = viewRecord;
         const fmtD = (d) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
         const F2 = ({ label, value }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
@@ -137064,14 +137094,87 @@ function InspectionsTab$1({ farmId, openInspId, onSwitchToIssues }) {
             ] }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { fontSize: "0.875rem", color: "#d1d5db" }, children: "No report document attached" })
           ] })
         ] });
-      })(),
+      })() : /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { display: "flex", justifyContent: "flex-end", marginBottom: 12 }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Button, { size: "sm", onClick: () => {
+          setInspCommForm({ commDate: (/* @__PURE__ */ new Date()).toISOString().slice(0, 10), commType: "", direction: "outbound", subject: "", summary: "" });
+          setInspCommOpen(true);
+        }, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Plus, { size: 14, className: "mr-1" }),
+          "Log Communication"
+        ] }) }),
+        inspCommsQ.isLoading ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { style: { color: "#9ca3af", textAlign: "center", padding: "2rem" }, children: "Loading…" }) : inspCommsQ.data?.length === 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { textAlign: "center", padding: "2rem", color: "#9ca3af" }, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(MessageSquare, { size: 28, style: { margin: "0 auto 8px", opacity: 0.4 } }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { style: { fontWeight: 600, color: "#374151" }, children: "No correspondence logged" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { style: { fontSize: "0.8rem" }, children: "Log emails, letters, phone calls, and meetings relating to this inspection." })
+        ] }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { display: "flex", flexDirection: "column", gap: 8 }, children: inspCommsQ.data.map((c2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { border: "1px solid #e5e7eb", borderRadius: 8, padding: "0.75rem 1rem", background: "#fff" }, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", padding: "2px 8px", borderRadius: 20, background: c2.direction === "inbound" ? "#eff6ff" : "#f0fdf4", color: c2.direction === "inbound" ? "#1d4ed8" : "#15803d" }, children: c2.direction === "inbound" ? "Received" : "Sent" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { fontSize: "0.8125rem", fontWeight: 600, color: "#374151" }, children: c2.comm_type }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { fontSize: "0.75rem", color: "#9ca3af" }, children: "·" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { fontSize: "0.75rem", color: "#6b7280" }, children: c2.comm_date ? new Date(c2.comm_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "" })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => delCommMut.mutate(c2.id), style: { background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 2 }, title: "Delete", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Trash2, { size: 13 }) })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { style: { fontWeight: 600, fontSize: "0.875rem", color: "#111827", marginTop: 6, marginBottom: c2.summary ? 4 : 0 }, children: c2.subject }),
+          c2.summary && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { style: { fontSize: "0.8125rem", color: "#6b7280", margin: 0 }, children: c2.summary })
+        ] }, c2.id)) })
+      ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsxs(DialogFooter, { className: "mt-4", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { variant: "outline", onClick: () => setViewRecord(null), children: "Close" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { onClick: () => {
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { variant: "outline", onClick: () => {
+          setViewRecord(null);
+          setViewInspTab("details");
+        }, children: "Close" }),
+        viewInspTab === "details" && /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { onClick: () => {
           const r2 = viewRecord;
           setViewRecord(null);
           openEdit(r2);
         }, children: "Edit Inspection" })
+      ] })
+    ] }) }),
+    inspCommOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(Dialog, { open: true, onOpenChange: (o) => {
+      setInspCommOpen(o);
+    }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(DialogContent, { style: { maxWidth: 480 }, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(DialogHeader, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(DialogTitle, { children: "Log Communication" }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-3 py-2", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-2 gap-3", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(Label$3, { children: "Date" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(Input, { type: "date", value: inspCommForm.commDate, onChange: (e) => setInspCommForm((f) => ({ ...f, commDate: e.target.value })) })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(Label$3, { children: "Direction" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs(Select, { value: inspCommForm.direction, onValueChange: (v) => setInspCommForm((f) => ({ ...f, direction: v })), children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(SelectTrigger, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(SelectValue, {}) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs(SelectContent, { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(SelectItem, { value: "outbound", children: "Sent / Outgoing" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(SelectItem, { value: "inbound", children: "Received / Incoming" })
+              ] })
+            ] })
+          ] })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Label$3, { children: "Type" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(Select, { value: inspCommForm.commType, onValueChange: (v) => setInspCommForm((f) => ({ ...f, commType: v })), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(SelectTrigger, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(SelectValue, { placeholder: "Select type…" }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(SelectContent, { children: ["Email", "Letter", "Phone call", "Meeting", "Site visit", "Video call", "Other"].map((t) => /* @__PURE__ */ jsxRuntimeExports.jsx(SelectItem, { value: t, children: t }, t)) })
+          ] })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(Label$3, { children: [
+            "Subject ",
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { color: "#ef4444" }, children: "*" })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Input, { placeholder: "e.g. Response to inspection report", value: inspCommForm.subject, onChange: (e) => setInspCommForm((f) => ({ ...f, subject: e.target.value })) })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Label$3, { children: "Notes / Summary" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Textarea, { rows: 3, value: inspCommForm.summary, onChange: (e) => setInspCommForm((f) => ({ ...f, summary: e.target.value })) })
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs(DialogFooter, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { variant: "outline", onClick: () => setInspCommOpen(false), children: "Cancel" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { onClick: () => addCommMut.mutate(inspCommForm), disabled: !inspCommForm.subject || !inspCommForm.commType || addCommMut.isPending, children: "Save" })
       ] })
     ] }) }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Dialog, { open: formOpen, onOpenChange: (o) => {
@@ -151208,7 +151311,7 @@ function StorageLocationMapPicker({ value, onChange, mapHeight = 280 }) {
   const onChangeRef = reactExports.useRef(onChange);
   onChangeRef.current = onChange;
   reactExports.useEffect(() => {
-    __vitePreload(() => import("./leaflet-src-CqQiwtR4.js").then((n2) => n2.l), true ? [] : void 0).then((L2) => {
+    __vitePreload(() => import("./leaflet-src-Co72jLng.js").then((n2) => n2.l), true ? [] : void 0).then((L2) => {
       if (!window._leafletLoaded) {
         const link = document.createElement("link");
         link.rel = "stylesheet";
@@ -152062,6 +152165,10 @@ function AgriEnvSchemesTab({ farmId }) {
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = reactExports.useState(false);
   const [deleteId, setDeleteId] = reactExports.useState(null);
+  const [viewScheme, setViewScheme] = reactExports.useState(null);
+  const [schemeTab, setSchemeTab] = reactExports.useState("details");
+  const [schemeCommOpen, setSchemeCommOpen] = reactExports.useState(false);
+  const [schemeCommForm, setSchemeCommForm] = reactExports.useState({ commDate: (/* @__PURE__ */ new Date()).toISOString().slice(0, 10), commType: "", direction: "outbound", subject: "", summary: "" });
   const [form, setForm] = reactExports.useState({
     schemeName: "",
     agreementNumber: "",
@@ -152103,6 +152210,29 @@ function AgriEnvSchemesTab({ farmId }) {
     onError: () => toast2({ title: "Failed to delete", variant: "destructive" })
   });
   const resetForm = () => setForm({ schemeName: "", agreementNumber: "", startDate: "", endDate: "", annualPaymentPence: "", obligations: "", status: "active", notes: "" });
+  const schemeCommsQ = useQuery({
+    queryKey: ["scheme-comms", farmId, viewScheme?.id],
+    queryFn: () => fetch(`/api/farms/${farmId}/agri-schemes/${viewScheme.id}/communications`).then((r2) => r2.json()),
+    enabled: !!viewScheme
+  });
+  const addSchemeCommMut = useMutation({
+    mutationFn: (body) => fetch(`/api/farms/${farmId}/agri-schemes/${viewScheme?.id}/communications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r2) => r2.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["scheme-comms", farmId, viewScheme?.id] });
+      setSchemeCommOpen(false);
+      setSchemeCommForm({ commDate: (/* @__PURE__ */ new Date()).toISOString().slice(0, 10), commType: "", direction: "outbound", subject: "", summary: "" });
+      toast2({ title: "Communication logged" });
+    },
+    onError: () => toast2({ title: "Failed to save", variant: "destructive" })
+  });
+  const delSchemeCommMut = useMutation({
+    mutationFn: (commId) => fetch(`/api/farms/${farmId}/agri-schemes/${viewScheme?.id}/communications/${commId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["scheme-comms", farmId, viewScheme?.id] });
+      toast2({ title: "Deleted" });
+    },
+    onError: () => toast2({ title: "Failed to delete", variant: "destructive" })
+  });
   const records = q.data ?? [];
   const activeSchemes = records.filter((r2) => r2.status === "active");
   const totalAnnual = activeSchemes.reduce((s2, r2) => s2 + (r2.annualPaymentPence ?? 0), 0);
@@ -152144,7 +152274,13 @@ function AgriEnvSchemesTab({ farmId }) {
         /* @__PURE__ */ jsxRuntimeExports.jsx("td", { style: { padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }, children: fmtAmt(r2.annualPaymentPence) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("td", { style: { padding: "0.625rem 0.875rem" }, children: /* @__PURE__ */ jsxRuntimeExports.jsx(StatusBadge$5, { status: r2.status || "active" }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("td", { style: { padding: "0.625rem 0.875rem", color: "#6b7280", maxWidth: 220, fontSize: "0.8rem" }, children: r2.obligations || "—" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { style: { padding: "0.5rem" }, children: /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => setDeleteId(r2.id), style: { background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }, title: "Delete", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Trash2, { size: 14 }) }) })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { style: { padding: "0.5rem" }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex", gap: 4 }, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => {
+            setViewScheme(r2);
+            setSchemeTab("details");
+          }, style: { background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }, title: "View", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Eye, { size: 13 }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => setDeleteId(r2.id), style: { background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }, title: "Delete", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Trash2, { size: 14 }) })
+        ] }) })
       ] }, r2.id)) })
     ] }) }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Dialog, { open: addOpen, onOpenChange: (o) => {
@@ -152217,6 +152353,110 @@ function AgriEnvSchemesTab({ farmId }) {
       /* @__PURE__ */ jsxRuntimeExports.jsxs(DialogFooter, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { variant: "outline", onClick: () => setDeleteId(null), children: "Cancel" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { variant: "destructive", onClick: () => deleteId !== null && deleteMut.mutate(deleteId), disabled: deleteMut.isPending, children: "Delete" })
+      ] })
+    ] }) }),
+    viewScheme && /* @__PURE__ */ jsxRuntimeExports.jsx(Dialog, { open: true, onOpenChange: () => {
+      setViewScheme(null);
+      setSchemeTab("details");
+    }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(DialogContent, { style: { maxWidth: 600 }, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(DialogHeader, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(DialogTitle, { children: viewScheme.schemeName }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { display: "flex", gap: 4, borderBottom: "1px solid #e5e7eb", marginBottom: 16 }, children: ["details", "communications"].map((t) => /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => setSchemeTab(t), style: { border: "none", background: "none", padding: "8px 14px", fontSize: "0.8125rem", fontWeight: schemeTab === t ? 600 : 400, color: schemeTab === t ? "#166534" : "#6b7280", borderBottom: schemeTab === t ? "2px solid #166534" : "2px solid transparent", cursor: "pointer" }, children: t === "details" ? "Details" : `Communications${schemeCommsQ.data?.length > 0 ? ` (${schemeCommsQ.data.length})` : ""}` }, t)) }),
+      schemeTab === "details" ? (() => {
+        const s2 = viewScheme;
+        const F2 = ({ label, value }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }, children: label }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }, children: value || "—" })
+        ] });
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "grid", gap: 14 }, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(F2, { label: "Agreement Number", value: s2.agreementNumber }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }, children: "Status" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(StatusBadge$5, { status: s2.status || "active" })
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(F2, { label: "Start Date", value: s2.startDate ? fmt$y(s2.startDate) : null }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(F2, { label: "End Date", value: s2.endDate ? fmt$y(s2.endDate) : null })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(F2, { label: "Annual Payment", value: s2.annualPaymentPence ? fmtAmt(s2.annualPaymentPence) : null }),
+          s2.obligations && /* @__PURE__ */ jsxRuntimeExports.jsx(F2, { label: "Obligations", value: s2.obligations }),
+          s2.notes && /* @__PURE__ */ jsxRuntimeExports.jsx(F2, { label: "Notes", value: s2.notes })
+        ] });
+      })() : /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { display: "flex", justifyContent: "flex-end", marginBottom: 12 }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Button, { size: "sm", onClick: () => {
+          setSchemeCommForm({ commDate: (/* @__PURE__ */ new Date()).toISOString().slice(0, 10), commType: "", direction: "outbound", subject: "", summary: "" });
+          setSchemeCommOpen(true);
+        }, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Plus, { size: 14, className: "mr-1" }),
+          "Log Communication"
+        ] }) }),
+        schemeCommsQ.isLoading ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { style: { color: "#9ca3af", textAlign: "center", padding: "2rem" }, children: "Loading…" }) : schemeCommsQ.data?.length === 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { textAlign: "center", padding: "2rem", color: "#9ca3af" }, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(MessageSquare, { size: 28, style: { margin: "0 auto 8px", opacity: 0.4 } }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { style: { fontWeight: 600, color: "#374151" }, children: "No correspondence logged" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { style: { fontSize: "0.8rem" }, children: "Log emails, letters, calls, and meetings with scheme administrators (Natural England, RPA, etc.)." })
+        ] }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { display: "flex", flexDirection: "column", gap: 8 }, children: schemeCommsQ.data.map((c2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { border: "1px solid #e5e7eb", borderRadius: 8, padding: "0.75rem 1rem", background: "#fff" }, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", padding: "2px 8px", borderRadius: 20, background: c2.direction === "inbound" ? "#eff6ff" : "#f0fdf4", color: c2.direction === "inbound" ? "#1d4ed8" : "#15803d" }, children: c2.direction === "inbound" ? "Received" : "Sent" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { fontSize: "0.8125rem", fontWeight: 600, color: "#374151" }, children: c2.comm_type }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { fontSize: "0.75rem", color: "#9ca3af" }, children: "·" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { fontSize: "0.75rem", color: "#6b7280" }, children: c2.comm_date ? new Date(c2.comm_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "" })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("button", { onClick: () => delSchemeCommMut.mutate(c2.id), style: { background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 2 }, title: "Delete", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Trash2, { size: 13 }) })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { style: { fontWeight: 600, fontSize: "0.875rem", color: "#111827", marginTop: 6, marginBottom: c2.summary ? 4 : 0 }, children: c2.subject }),
+          c2.summary && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { style: { fontSize: "0.8125rem", color: "#6b7280", margin: 0 }, children: c2.summary })
+        ] }, c2.id)) })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(DialogFooter, { className: "mt-4", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { variant: "outline", onClick: () => {
+        setViewScheme(null);
+        setSchemeTab("details");
+      }, children: "Close" }) })
+    ] }) }),
+    schemeCommOpen && /* @__PURE__ */ jsxRuntimeExports.jsx(Dialog, { open: true, onOpenChange: (o) => {
+      setSchemeCommOpen(o);
+    }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(DialogContent, { style: { maxWidth: 480 }, children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(DialogHeader, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(DialogTitle, { children: "Log Communication" }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-3 py-2", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "grid grid-cols-2 gap-3", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(Label$3, { children: "Date" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(Input, { type: "date", value: schemeCommForm.commDate, onChange: (e) => setSchemeCommForm((f) => ({ ...f, commDate: e.target.value })) })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(Label$3, { children: "Direction" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs(Select, { value: schemeCommForm.direction, onValueChange: (v) => setSchemeCommForm((f) => ({ ...f, direction: v })), children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(SelectTrigger, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(SelectValue, {}) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs(SelectContent, { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(SelectItem, { value: "outbound", children: "Sent / Outgoing" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(SelectItem, { value: "inbound", children: "Received / Incoming" })
+              ] })
+            ] })
+          ] })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Label$3, { children: "Type" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(Select, { value: schemeCommForm.commType, onValueChange: (v) => setSchemeCommForm((f) => ({ ...f, commType: v })), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(SelectTrigger, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(SelectValue, { placeholder: "Select type…" }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(SelectContent, { children: ["Email", "Letter", "Phone call", "Meeting", "Site visit", "Video call", "Other"].map((t) => /* @__PURE__ */ jsxRuntimeExports.jsx(SelectItem, { value: t, children: t }, t)) })
+          ] })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(Label$3, { children: [
+            "Subject ",
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { color: "#ef4444" }, children: "*" })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Input, { placeholder: "e.g. Annual payment query", value: schemeCommForm.subject, onChange: (e) => setSchemeCommForm((f) => ({ ...f, subject: e.target.value })) })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Label$3, { children: "Notes / Summary" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Textarea, { rows: 3, value: schemeCommForm.summary, onChange: (e) => setSchemeCommForm((f) => ({ ...f, summary: e.target.value })) })
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs(DialogFooter, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { variant: "outline", onClick: () => setSchemeCommOpen(false), children: "Cancel" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { onClick: () => addSchemeCommMut.mutate(schemeCommForm), disabled: !schemeCommForm.subject || !schemeCommForm.commType || addSchemeCommMut.isPending, children: "Save" })
       ] })
     ] }) })
   ] });
@@ -166990,7 +167230,7 @@ function useFarmMap(containerRef, locations, onSelect) {
   const mapRef = reactExports.useRef(null);
   const markersRef = reactExports.useRef(new globalThis.Map());
   reactExports.useEffect(() => {
-    __vitePreload(() => import("./leaflet-src-CqQiwtR4.js").then((n2) => n2.l), true ? [] : void 0).then((L2) => {
+    __vitePreload(() => import("./leaflet-src-Co72jLng.js").then((n2) => n2.l), true ? [] : void 0).then((L2) => {
       if (!window._leafletLoaded) {
         const link = document.createElement("link");
         link.rel = "stylesheet";
@@ -167475,7 +167715,7 @@ function useResourceMap(containerRef, pings, assets) {
   const staffMarkersRef = reactExports.useRef(/* @__PURE__ */ new Map());
   const assetMarkersRef = reactExports.useRef(/* @__PURE__ */ new Map());
   reactExports.useEffect(() => {
-    __vitePreload(() => import("./leaflet-src-CqQiwtR4.js").then((n2) => n2.l), true ? [] : void 0).then((L2) => {
+    __vitePreload(() => import("./leaflet-src-Co72jLng.js").then((n2) => n2.l), true ? [] : void 0).then((L2) => {
       if (!window._leafletLoaded) {
         const link = document.createElement("link");
         link.rel = "stylesheet";
@@ -192733,7 +192973,7 @@ function KillRecordsTab({ farmId }) {
   ] });
 }
 async function generatePigAuditPDF(farmId) {
-  const [jsPDFModule, autoTableModule] = await Promise.all([__vitePreload(() => import("./jspdf.es.min-CCLysXi5.js").then((n2) => n2.j), true ? [] : void 0), __vitePreload(() => import("./jspdf.plugin.autotable-rNuKHwSj.js"), true ? [] : void 0)]);
+  const [jsPDFModule, autoTableModule] = await Promise.all([__vitePreload(() => import("./jspdf.es.min-CNCvarjg.js").then((n2) => n2.j), true ? [] : void 0), __vitePreload(() => import("./jspdf.plugin.autotable-rNuKHwSj.js"), true ? [] : void 0)]);
   const jsPDF = jsPDFModule.default;
   const autoTable = autoTableModule.default;
   const [flocks, movements, medicine, fci, feed, vet, stockmanship, tailBiting, farrowing, redTractor, killRecords] = await Promise.all([
@@ -198223,7 +198463,7 @@ async function generateAuditPDF(farmId) {
     get2("poultry-biosecurity-checklists"),
     get2("poultry-scheme-records")
   ]);
-  const jsPDFModule = await __vitePreload(() => import("./jspdf.es.min-CCLysXi5.js").then((n2) => n2.j), true ? [] : void 0);
+  const jsPDFModule = await __vitePreload(() => import("./jspdf.es.min-CNCvarjg.js").then((n2) => n2.j), true ? [] : void 0);
   const autoTableModule = await __vitePreload(() => import("./jspdf.plugin.autotable-rNuKHwSj.js"), true ? [] : void 0);
   const jsPDF = jsPDFModule.default;
   const autoTable = autoTableModule.default;
@@ -208164,7 +208404,7 @@ function VineyardBlockBoundaryMapDialog({ blockId, blockName, open, onClose, onS
   const [existingBoundary, setExistingBoundary] = reactExports.useState(null);
   reactExports.useEffect(() => {
     if (open) {
-      __vitePreload(() => import("./leaflet-src-CqQiwtR4.js").then((n2) => n2.l), true ? [] : void 0).then((L2) => {
+      __vitePreload(() => import("./leaflet-src-Co72jLng.js").then((n2) => n2.l), true ? [] : void 0).then((L2) => {
         if (!("_leafletLoaded" in window)) {
           const link = document.createElement("link");
           link.rel = "stylesheet";
@@ -214104,7 +214344,7 @@ function BlockBoundaryMapDialog({ blockId, blockName, open, onClose, onSaved }) 
   const [existingBoundary, setExistingBoundary] = reactExports.useState(null);
   reactExports.useEffect(() => {
     if (open) {
-      __vitePreload(() => import("./leaflet-src-CqQiwtR4.js").then((n2) => n2.l), true ? [] : void 0).then((L2) => {
+      __vitePreload(() => import("./leaflet-src-Co72jLng.js").then((n2) => n2.l), true ? [] : void 0).then((L2) => {
         if (!("_leafletLoaded" in window)) {
           const link = document.createElement("link");
           link.rel = "stylesheet";
@@ -276149,7 +276389,7 @@ function SMSAlertsPage() {
     ] }) }) })
   ] });
 }
-const FlyTippingPage = React.lazy(() => __vitePreload(() => import("./FlyTippingPage-DWP4KM5d.js"), true ? [] : void 0));
+const FlyTippingPage = React.lazy(() => __vitePreload(() => import("./FlyTippingPage-DEw9arXP.js"), true ? [] : void 0));
 const clerkPubKey = "pk_test_Z2l2aW5nLWdyaWZmb24tNjguY2xlcmsuYWNjb3VudHMuZGV2JA";
 const clerkProxyUrl = void 0;
 const basePath = "/dashboard/".replace(/\/$/, "");

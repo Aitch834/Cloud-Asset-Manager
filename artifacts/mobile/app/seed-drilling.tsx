@@ -28,6 +28,8 @@ import { useApiCrops } from "@/lib/hooks/useApiCrops";
 import { useApiFields } from "@/lib/hooks/useApiFields";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { SeedDrillingRecord } from "@/lib/types";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 function todayDate(): string {
   return new Date().toISOString().split("T")[0];
@@ -51,6 +53,13 @@ export default function SeedDrillingScreen() {
   const [isTreated, setIsTreated] = useState(false);
   const [treatmentProduct, setTreatmentProduct] = useState("");
   const [operator, setOperator] = useState(user?.name || "");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) =>
+      setStaffOptions(members.map(m => ({ id: m.id, label: m.label, sublabel: m.role || undefined })))
+    );
+  }, [currentFarm?.id]);
   const [areaSeededHa, setAreaSeededHa] = useState("");
   const [areaAutoFilled, setAreaAutoFilled] = useState(false);
   const [soilConditions, setSoilConditions] = useState("");
@@ -520,11 +529,14 @@ export default function SeedDrillingScreen() {
             <Text style={styles.sectionTitle}>Operator &amp; Notes</Text>
 
             <View style={styles.field}>
-              <Text style={styles.label}>Operator / Driller</Text>
-              <Input
-                placeholder="Name of operator"
+              <LookupPicker
+                label="Operator / Driller"
                 value={operator}
-                onChangeText={setOperator}
+                options={staffOptions}
+                onSelect={(_id, label) => setOperator(label)}
+                placeholder="Select or type name…"
+                allowFreeText
+                icon="user"
               />
             </View>
 

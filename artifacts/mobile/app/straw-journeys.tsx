@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -22,6 +22,8 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 const STORAGE_TYPES = ["Indoor", "Outdoor Covered", "Outdoor Uncovered"];
 
@@ -39,6 +41,13 @@ export default function StrawJourneysScreen() {
   const [journeyDate, setJourneyDate] = useState(new Date().toISOString().slice(0, 10));
   const [journeyTime, setJourneyTime] = useState("");
   const [operatorName, setOperatorName] = useState("");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) =>
+      setStaffOptions(members.map(m => ({ id: m.id, label: m.label, sublabel: m.role || undefined })))
+    );
+  }, [currentFarm?.id]);
   const [tractorDescription, setTractorDescription] = useState("");
   const [trailerDescription, setTrailerDescription] = useState("");
   const [balesMoved, setBalesMoved] = useState("");
@@ -157,12 +166,14 @@ export default function StrawJourneysScreen() {
             </View>
           </View>
 
-          <Text style={styles.label}>Operator Name</Text>
-          <Input
+          <LookupPicker
+            label="Operator Name"
             value={operatorName}
-            onChangeText={setOperatorName}
-            placeholder="e.g. John Smith"
-            style={styles.input}
+            options={staffOptions}
+            onSelect={(_id, label) => setOperatorName(label)}
+            placeholder="Select or type name…"
+            allowFreeText
+            icon="user"
           />
 
           <Text style={styles.label}>Bales This Journey *</Text>

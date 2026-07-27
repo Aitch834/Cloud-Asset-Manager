@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -24,6 +24,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 const STRAW_TYPES = ["Wheat Straw", "Barley Straw", "Oat Straw", "Oilseed Rape Straw"];
 const BALE_FORMATS = ["Small Rectangular", "Big Round", "Big Square"];
@@ -50,6 +52,13 @@ export default function StrawBalingScreen() {
   const [tractorDescription, setTractorDescription] = useState("");
   const [balerDescription, setBalerDescription] = useState("");
   const [operatorName, setOperatorName] = useState("");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) =>
+      setStaffOptions(members.map(m => ({ id: m.id, label: m.label, sublabel: m.role || undefined })))
+    );
+  }, [currentFarm?.id]);
   const [machineHours, setMachineHours] = useState("");
   const [labourHours, setLabourHours] = useState("");
   const [weatherConditions, setWeatherConditions] = useState("");
@@ -260,12 +269,14 @@ export default function StrawBalingScreen() {
             style={styles.input}
           />
 
-          <Text style={styles.label}>Operator Name</Text>
-          <Input
+          <LookupPicker
+            label="Operator Name"
             value={operatorName}
-            onChangeText={setOperatorName}
-            placeholder="e.g. John Smith"
-            style={styles.input}
+            options={staffOptions}
+            onSelect={(_id, label) => setOperatorName(label)}
+            placeholder="Select or type name…"
+            allowFreeText
+            icon="user"
           />
 
           <View style={styles.row}>

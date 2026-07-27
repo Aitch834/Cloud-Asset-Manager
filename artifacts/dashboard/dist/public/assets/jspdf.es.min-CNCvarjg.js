@@ -1,5 +1,5 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/index.es-BREEaDej.js","assets/index-CTWtk-nE.js","assets/index-CRuLK5Ib.css"])))=>i.map(i=>d[i]);
-import { _ as __vitePreload } from "./index-CTWtk-nE.js";
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/index.es-CHl6SK-u.js","assets/index-RR_1FASL.js","assets/index-kvJqnlvB.css"])))=>i.map(i=>d[i]);
+import { _ as __vitePreload } from "./index-RR_1FASL.js";
 function _typeof(o2) {
   "@babel/helpers - typeof";
   return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(o3) {
@@ -10690,7 +10690,7 @@ function le() {
   var h2 = l2.getContext("2d");
   h2.fillStyle = "#fff", h2.fillRect(0, 0, l2.width, l2.height);
   var f2 = { ignoreMouse: true, ignoreAnimation: true, ignoreDimensions: true }, d2 = this;
-  return (i.canvg ? Promise.resolve(i.canvg) : __vitePreload(() => import("./index.es-BREEaDej.js"), true ? __vite__mapDeps([0,1,2]) : void 0)).catch(function(t3) {
+  return (i.canvg ? Promise.resolve(i.canvg) : __vitePreload(() => import("./index.es-CHl6SK-u.js"), true ? __vite__mapDeps([0,1,2]) : void 0)).catch(function(t3) {
     return Promise.reject(new Error("Could not load canvg: " + t3));
   }).then(function(t3) {
     return t3.default ? t3.default : t3;

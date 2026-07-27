@@ -1,5 +1,5 @@
-import { G as commonjsGlobal, z as getDefaultExportFromCjs } from "./index-CTWtk-nE.js";
-import { _ as _typeof$1 } from "./jspdf.es.min-CCLysXi5.js";
+import { G as commonjsGlobal, z as getDefaultExportFromCjs } from "./index-RR_1FASL.js";
+import { _ as _typeof$1 } from "./jspdf.es.min-CNCvarjg.js";
 var es_promise = {};
 var es_promise_constructor = {};
 var globalThis_1;
