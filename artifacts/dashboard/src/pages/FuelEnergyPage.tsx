@@ -23,6 +23,7 @@ import { ResponsiveContainer, BarChart, Bar, LineChart, Line, XAxis, YAxis, Cart
 import { useUpload } from "@workspace/object-storage-web";
 import { IMPLEMENT_TYPES } from "@/lib/equipmentTypes";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
+import { useFarmMembers } from "@/hooks/use-farm-members";
 import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 
 function getCropYear(date: Date): { label: string; start: Date; end: Date } {
@@ -1398,6 +1399,8 @@ export default function FuelEnergyPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [raiseTaskFor, setRaiseTaskFor] = useState<any>(null);
+  const { data: fuelMembersData } = useFarmMembers(farmId ?? 0);
+  const fuelActiveMembers = (fuelMembersData?.members ?? []).filter((m: any) => m.isActive);
 
   const tanksQ = useQuery({
     queryKey: ["fuel-tanks", farmId],
@@ -2750,7 +2753,18 @@ export default function FuelEnergyPage() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Inspector</Label><Input value={inspForm.inspector ?? ""} onChange={e => setInspForm(f => ({ ...f, inspector: e.target.value }))} /></div>
+              <div>
+                <Label>Inspector</Label>
+                <Select value={inspForm.inspector ?? ""} onValueChange={v => setInspForm(f => ({ ...f, inspector: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select inspector…" /></SelectTrigger>
+                  <SelectContent>
+                    {fuelActiveMembers.map((m: any) => {
+                      const name = `${m.firstName} ${m.lastName}`.trim();
+                      return <SelectItem key={m.id} value={name}>{name}</SelectItem>;
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
               <div><Label>Result *</Label>
                 <Select value={inspForm.overallResult ?? "pass"} onValueChange={v => setInspForm(f => ({ ...f, overallResult: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>

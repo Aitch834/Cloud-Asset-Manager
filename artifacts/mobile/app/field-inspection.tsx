@@ -428,15 +428,14 @@ export default function FieldInspectionScreen() {
             </Pressable>
           </View>
 
-          <View style={styles.sectionLabel}>
-            <Feather name="user" size={14} color={colors.textSecondary} />
-            <Text style={styles.sectionTitle}>Inspector</Text>
-          </View>
-          <Input
-            label="Inspector Name"
+          <LookupPicker
+            label="Inspector"
             value={inspector}
-            onChangeText={setInspector}
-            placeholder="Your name"
+            options={staffOptions}
+            onSelect={(_id, label) => setInspector(label)}
+            placeholder="Select or type name…"
+            allowFreeText
+            icon="user"
           />
           <Input
             label="Notes"
