@@ -632,7 +632,13 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
-const EMPTY_TRIAL = { trialName: "", season: cropYearLabel(currentCropYear()), cropName: "", cropOther: "", trialPurpose: "", trialType: "", trialsBody: "", contactName: "", numberOfTreatments: "", numberOfReplications: "", totalAreaHa: "", startDate: "", endDate: "", status: "planned", fieldId: "", notes: "" };
+const TRIALS_BODIES = [
+  "AHDB", "NIAB", "NIAB TAG", "Agrii", "Frontier Agriculture", "Hutchinsons",
+  "ProCam", "Velcourt", "KWS", "Limagrain", "Bayer Crop Science", "Syngenta",
+  "Corteva Agriscience", "DSV Seeds", "RAGT Seeds", "Elsoms Seeds", "BASIS", "Own Farm",
+];
+
+const EMPTY_TRIAL = { trialName: "", season: cropYearLabel(currentCropYear()), cropName: "", cropOther: "", trialPurpose: "", trialType: "", trialsBody: "", trialsBodyOther: "", contactName: "", numberOfTreatments: "", numberOfReplications: "", totalAreaHa: "", startDate: "", endDate: "", status: "planned", fieldId: "", notes: "" };
 
 export default function CropTrialsPage() {
   const { farmId } = useAppStore();
@@ -677,7 +683,9 @@ export default function CropTrialsPage() {
     setForm({
       trialName: t.trialName, season: t.season ?? cropYearLabel(currentCropYear()), cropName: isKnown ? existingCrop : (existingCrop ? "Other" : ""),
       cropOther: isKnown ? "" : existingCrop,
-      trialPurpose: t.trialPurpose, trialType: t.trialType ?? "", trialsBody: t.trialsBody ?? "",
+      trialPurpose: t.trialPurpose, trialType: t.trialType ?? "",
+      trialsBody: TRIALS_BODIES.includes(t.trialsBody ?? "") ? (t.trialsBody ?? "") : (t.trialsBody ? "__other__" : ""),
+      trialsBodyOther: TRIALS_BODIES.includes(t.trialsBody ?? "") ? "" : (t.trialsBody ?? ""),
       contactName: t.contactName ?? "", numberOfTreatments: t.numberOfTreatments ? String(t.numberOfTreatments) : "",
       numberOfReplications: t.numberOfReplications ? String(t.numberOfReplications) : "",
       totalAreaHa: t.totalAreaHa ?? "", startDate: t.startDate ?? "", endDate: t.endDate ?? "",
@@ -701,9 +709,12 @@ export default function CropTrialsPage() {
 
   function handleSave() {
     const resolvedCrop = form.cropName === "Other" ? form.cropOther.trim() : form.cropName;
+    const resolvedBody = form.trialsBody === "__other__" ? form.trialsBodyOther.trim() : form.trialsBody;
+    const { trialsBodyOther: _drop, ...rest } = form;
     const body = {
-      ...form,
+      ...rest,
       cropName: resolvedCrop,
+      trialsBody: resolvedBody || null,
       fieldId: form.fieldId && form.fieldId !== "__none__" ? parseInt(form.fieldId) : null,
       numberOfTreatments: form.numberOfTreatments ? parseInt(String(form.numberOfTreatments)) : null,
       numberOfReplications: form.numberOfReplications ? parseInt(String(form.numberOfReplications)) : null,
@@ -951,7 +962,19 @@ export default function CropTrialsPage() {
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <div><Label>Conducting Body</Label><Input className="mt-1" value={form.trialsBody} onChange={e => setForm(f => ({ ...f, trialsBody: e.target.value }))} placeholder="e.g. AHDB, Agrii, own farm" /></div>
+                  <div>
+                    <Label>Conducting Body *</Label>
+                    <Select value={form.trialsBody} onValueChange={v => setForm(f => ({ ...f, trialsBody: v, trialsBodyOther: v !== "__other__" ? "" : f.trialsBodyOther }))}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Select conducting body…" /></SelectTrigger>
+                      <SelectContent>
+                        {TRIALS_BODIES.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                        <SelectItem value="__other__">— Other (specify below) —</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {form.trialsBody === "__other__" && (
+                      <Input className="mt-2" value={form.trialsBodyOther} onChange={e => setForm(f => ({ ...f, trialsBodyOther: e.target.value }))} placeholder="Enter conducting body name…" />
+                    )}
+                  </div>
                   <div><Label>Contact / Agronomist</Label><Input className="mt-1" value={form.contactName} onChange={e => setForm(f => ({ ...f, contactName: e.target.value }))} /></div>
                 </div>
 
@@ -996,7 +1019,7 @@ export default function CropTrialsPage() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setAddOpen(false); setEditItem(null); }}>Cancel</Button>
-                <Button disabled={!form.trialName.trim() || !form.trialPurpose || createMut.isPending || updateMut.isPending} onClick={handleSave}>
+                <Button disabled={!form.trialName.trim() || !form.trialPurpose || !form.trialsBody || (form.trialsBody === "__other__" && !form.trialsBodyOther.trim()) || createMut.isPending || updateMut.isPending} onClick={handleSave}>
                   {editItem ? "Update Trial" : "Create Trial"}
                 </Button>
               </DialogFooter>
