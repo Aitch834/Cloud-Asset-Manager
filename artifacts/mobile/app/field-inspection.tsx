@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
 import { FieldPicker } from "@/components/ui/FieldPicker";
 import { RaiseTaskSheet } from "@/components/ui/RaiseTaskSheet";
 import { colors } from "@/constants/colors";
@@ -26,6 +27,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 import { useApiFields } from "@/lib/hooks/useApiFields";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import { kvGet } from "@/lib/database";
@@ -139,9 +141,18 @@ export default function FieldInspectionScreen() {
   const [actionRequired, setActionRequired] = useState<ActionRequired>("none");
   const [recommendedAction, setRecommendedAction] = useState("");
   const [inspector, setInspector] = useState(user?.name || "");
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
   const [notes, setNotes] = useState("");
   const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [taskSheet, setTaskSheet] = useState<{ title: string; description: string } | null>(null);
+
+  // Load staff members for inspector picker
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) => {
+      setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
+    });
+  }, [currentFarm?.id]);
 
   // Auto-populate crop from field register when fieldName changes
   useEffect(() => {

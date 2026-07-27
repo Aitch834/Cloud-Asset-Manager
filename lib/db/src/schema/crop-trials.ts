@@ -13,6 +13,8 @@ export const cropTrialsTable = pgTable("crop_trials", {
   trialType: text("trial_type"),
   trialsBody: text("trials_body"),
   contactName: text("contact_name"),
+  contactEmail: text("contact_email"),
+  contactPhone: text("contact_phone"),
   numberOfTreatments: integer("number_of_treatments"),
   numberOfReplications: integer("number_of_replications"),
   totalAreaHa: numeric("total_area_ha", { precision: 8, scale: 4 }),
@@ -74,6 +76,18 @@ export const cropTrialObservationsTable = pgTable("crop_trial_observations", {
   pestName: text("pest_name"),
   generalCondition: text("general_condition"),
   notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const cropTrialCommunicationsTable = pgTable("crop_trial_communications", {
+  id: serial("id").primaryKey(),
+  trialId: integer("trial_id").notNull().references(() => cropTrialsTable.id, { onDelete: "cascade" }),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  commDate: date("comm_date").notNull(),
+  commType: text("comm_type").notNull(),
+  direction: text("direction").notNull().default("outbound"),
+  subject: text("subject").notNull(),
+  summary: text("summary"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

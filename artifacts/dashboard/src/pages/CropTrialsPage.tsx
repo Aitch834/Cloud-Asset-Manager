@@ -16,7 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   FlaskConical, Plus, ChevronLeft, Printer, Trash2, PlusCircle,
   Sprout, TestTube, Eye, Wheat, BarChart3, AlertTriangle, CheckCircle, Loader2,
-  MapPin, Map, List, FileText, Navigation,
+  MapPin, Map, List, FileText, Navigation, Mail, Phone, MessageSquare,
+  ArrowDownLeft, ArrowUpRight,
 } from "lucide-react";
 import { TrialMapView } from "@/components/crop-trials/TrialMapView";
 
@@ -82,7 +83,8 @@ interface Plot { id: number; plotNumber: string; treatmentLabel: string | null; 
 interface Treatment { id: number; plotId: number; treatmentDate: string; treatmentType: string; productName: string | null; applicationRate: string | null; unit: string | null; notes: string | null; }
 interface Observation { id: number; plotId: number; observationDate: string; growthStage: string | null; plantCount: number | null; diseasePresent: boolean; diseaseName: string | null; pestPresent: boolean; notes: string | null; }
 interface Yield { id: number; plotId: number; harvestDate: string; freshWeightKg: string | null; moisturePercent: string | null; adjustedDryWeightKg: string | null; yieldTha: string | null; }
-interface Trial { id: number; trialName: string; season: string | null; cropName: string | null; trialPurpose: string; trialType: string | null; trialsBody: string | null; contactName: string | null; numberOfTreatments: number | null; numberOfReplications: number | null; totalAreaHa: string | null; startDate: string | null; endDate: string | null; status: string; notes: string | null; plots: Plot[]; fieldId: number | null; }
+interface Trial { id: number; trialName: string; season: string | null; cropName: string | null; trialPurpose: string; trialType: string | null; trialsBody: string | null; contactName: string | null; contactEmail: string | null; contactPhone: string | null; numberOfTreatments: number | null; numberOfReplications: number | null; totalAreaHa: string | null; startDate: string | null; endDate: string | null; status: string; notes: string | null; plots: Plot[]; fieldId: number | null; }
+interface Comm { id: number; trialId: number; commDate: string; commType: string; direction: string; subject: string; summary: string | null; createdAt: string; }
 
 function StatusBadge({ status }: { status: string }) {
   const s = STATUS_MAP[status] ?? STATUS_MAP.planned;
@@ -146,7 +148,7 @@ function YieldComparisonTable({ plots }: { plots: Plot[] }) {
 function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farmId: number; onBack: () => void; fields: any[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [detailTab, setDetailTab] = useState<"plots" | "treatments" | "observations" | "results">("plots");
+  const [detailTab, setDetailTab] = useState<"plots" | "treatments" | "observations" | "results" | "comms">("plots");
   const [addPlotOpen, setAddPlotOpen] = useState(false);
   const [selectedPlot, setSelectedPlot] = useState<Plot | null>(null);
   const [addTreatmentOpen, setAddTreatmentOpen] = useState(false);
@@ -154,6 +156,8 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
   const [addYieldOpen, setAddYieldOpen] = useState(false);
   const [deletePlotId, setDeletePlotId] = useState<number | null>(null);
   const [statusPickerOpen, setStatusPickerOpen] = useState(false);
+  const [addCommOpen, setAddCommOpen] = useState(false);
+  const [commForm, setCommForm] = useState({ commDate: new Date().toISOString().slice(0, 10), commType: "email", direction: "inbound", subject: "", summary: "" });
 
   const updateStatusMut = useMutation({
     mutationFn: (status: string) => fetch(`/api/farms/${farmId}/crop-trials/${trial.id}`, {
@@ -169,6 +173,22 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
   const [yieldForm, setYieldForm] = useState({ harvestDate: new Date().toISOString().slice(0, 10), freshWeightKg: "", moisturePercent: "", adjustedDryWeightKg: "", yieldTha: "", grainProteinPercent: "", specificWeight: "", notes: "" });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["crop-trials", farmId] });
+
+  const commsQ = useQuery<Comm[]>({
+    queryKey: ["trial-comms", trial.id],
+    queryFn: () => fetch(`/api/farms/${farmId}/crop-trials/${trial.id}/communications`).then(r => r.json()),
+    enabled: detailTab === "comms",
+  });
+  const comms = commsQ.data ?? [];
+
+  const addCommMut = useMutation({
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/crop-trials/${trial.id}/communications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Communication logged" }); qc.invalidateQueries({ queryKey: ["trial-comms", trial.id] }); setAddCommOpen(false); setCommForm({ commDate: new Date().toISOString().slice(0, 10), commType: "email", direction: "inbound", subject: "", summary: "" }); },
+  });
+  const deleteCommMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/crop-trials/${trial.id}/communications/${id}`, { method: "DELETE" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["trial-comms", trial.id] }); },
+  });
 
   const EMPTY_PLOT_FORM = { plotNumber: "", treatmentLabel: "", isControl: false, areaHa: "", locationDescription: "", replicationBlock: "", latitude: "", longitude: "" };
   const addPlotMut = useMutation({
@@ -338,7 +358,7 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
 
       {/* Tab bar */}
       <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "2px solid #e5e7eb", paddingBottom: 0 }}>
-        {([["plots", "Plots", Sprout], ["treatments", "Treatments", TestTube], ["observations", "Observations", Eye], ["results", "Results", BarChart3]] as const).map(([key, label, Icon]) => (
+        {([["plots", "Plots", Sprout], ["treatments", "Treatments", TestTube], ["observations", "Observations", Eye], ["results", "Results", BarChart3], ["comms", "Communications", MessageSquare]] as const).map(([key, label, Icon]) => (
           <button
             key={key}
             onClick={() => setDetailTab(key)}
@@ -457,6 +477,111 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
           </div>
         </div>
       )}
+
+      {/* Comms tab */}
+      {detailTab === "comms" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div>
+              <p style={{ fontSize: "0.875rem", color: "#6b7280", margin: 0 }}>Correspondence log — emails, calls, letters and meetings with the conducting body.</p>
+              {(trial.contactName || trial.contactEmail || trial.contactPhone) && (
+                <div style={{ display: "flex", gap: 16, marginTop: 8, flexWrap: "wrap", fontSize: "0.8125rem", color: "#374151" }}>
+                  {trial.contactName && <span style={{ display: "flex", alignItems: "center", gap: 5 }}><MessageSquare size={13} style={{ color: "#6b7280" }} />{trial.contactName}</span>}
+                  {trial.contactEmail && <a href={`mailto:${trial.contactEmail}`} style={{ display: "flex", alignItems: "center", gap: 5, color: "#2563eb", textDecoration: "none" }}><Mail size={13} />{trial.contactEmail}</a>}
+                  {trial.contactPhone && <a href={`tel:${trial.contactPhone}`} style={{ display: "flex", alignItems: "center", gap: 5, color: "#2563eb", textDecoration: "none" }}><Phone size={13} />{trial.contactPhone}</a>}
+                </div>
+              )}
+            </div>
+            <Button size="sm" onClick={() => setAddCommOpen(true)}><Plus size={13} className="mr-1" /> Log Communication</Button>
+          </div>
+          {commsQ.isLoading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}><Loader2 size={22} className="animate-spin" style={{ color: "#9ca3af" }} /></div>
+          ) : comms.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "40px 20px", color: "#9ca3af" }}>
+              <MessageSquare size={32} style={{ margin: "0 auto 8px", opacity: 0.3 }} />
+              <p style={{ fontWeight: 600, color: "#374151" }}>No communications logged yet</p>
+              <p style={{ fontSize: "0.875rem" }}>Record emails, phone calls, letters and meetings with the trial body here.</p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {comms.map(c => {
+                const typeIcons: Record<string, React.ReactNode> = { email: <Mail size={13} />, letter: <FileText size={13} />, phone: <Phone size={13} />, meeting: <MessageSquare size={13} />, "site visit": <MapPin size={13} />, "video call": <MessageSquare size={13} /> };
+                const dirColor = c.direction === "inbound" ? { bg: "#eff6ff", border: "#bfdbfe", badge: "#2563eb" } : { bg: "#f0fdf4", border: "#bbf7d0", badge: "#16a34a" };
+                return (
+                  <div key={c.id} style={{ padding: "12px 14px", border: `1px solid ${dirColor.border}`, borderRadius: 8, background: dirColor.bg }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 10, fontSize: "0.7rem", fontWeight: 700, background: dirColor.badge, color: "#fff" }}>
+                          {c.direction === "inbound" ? <ArrowDownLeft size={11} /> : <ArrowUpRight size={11} />}
+                          {c.direction === "inbound" ? "Received" : "Sent"}
+                        </span>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.75rem", color: "#6b7280", padding: "2px 8px", background: "#f3f4f6", borderRadius: 10 }}>
+                          {typeIcons[c.commType] ?? <MessageSquare size={11} />} {c.commType.charAt(0).toUpperCase() + c.commType.slice(1)}
+                        </span>
+                        <span style={{ fontSize: "0.8125rem", color: "#374151", fontWeight: 600 }}>{c.subject}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: "0.75rem", color: "#9ca3af", whiteSpace: "nowrap" }}>{new Date(c.commDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+                        <button onClick={() => deleteCommMut.mutate(c.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 2 }}><Trash2 size={12} /></button>
+                      </div>
+                    </div>
+                    {c.summary && <p style={{ fontSize: "0.8125rem", color: "#6b7280", marginTop: 6, marginBottom: 0 }}>{c.summary}</p>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Add Communication dialog */}
+      <Dialog open={addCommOpen} onOpenChange={o => { if (!o) { setAddCommOpen(false); } }}>
+        <DialogContent style={{ maxWidth: 460 }}>
+          <DialogHeader><DialogTitle>Log Communication</DialogTitle></DialogHeader>
+          <div style={{ display: "grid", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <Label>Date *</Label>
+                <Input type="date" className="mt-1" value={commForm.commDate} onChange={e => setCommForm(f => ({ ...f, commDate: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Type *</Label>
+                <Select value={commForm.commType} onValueChange={v => setCommForm(f => ({ ...f, commType: v }))}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="email">Email</SelectItem>
+                    <SelectItem value="letter">Letter</SelectItem>
+                    <SelectItem value="phone">Phone call</SelectItem>
+                    <SelectItem value="meeting">Meeting</SelectItem>
+                    <SelectItem value="site visit">Site visit</SelectItem>
+                    <SelectItem value="video call">Video call</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>Direction *</Label>
+              <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                {([["inbound", "Received / Incoming", "#eff6ff", "#2563eb"], ["outbound", "Sent / Outgoing", "#f0fdf4", "#16a34a"]] as const).map(([val, label, bg, color]) => (
+                  <button key={val} onClick={() => setCommForm(f => ({ ...f, direction: val }))}
+                    style={{ flex: 1, padding: "8px 12px", borderRadius: 7, border: `2px solid ${commForm.direction === val ? color : "#e5e7eb"}`, background: commForm.direction === val ? bg : "#fff", cursor: "pointer", fontSize: "0.8125rem", fontWeight: commForm.direction === val ? 700 : 400, color: commForm.direction === val ? color : "#6b7280" }}>
+                    {val === "inbound" ? <ArrowDownLeft size={13} style={{ display: "inline", marginRight: 4 }} /> : <ArrowUpRight size={13} style={{ display: "inline", marginRight: 4 }} />}
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div><Label>Subject *</Label><Input className="mt-1" value={commForm.subject} onChange={e => setCommForm(f => ({ ...f, subject: e.target.value }))} placeholder="e.g. Protocol agreement, Results summary" /></div>
+            <div><Label>Notes / Summary</Label><Textarea className="mt-1" rows={3} value={commForm.summary} onChange={e => setCommForm(f => ({ ...f, summary: e.target.value }))} placeholder="Key points, decisions, action items…" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddCommOpen(false)}>Cancel</Button>
+            <Button disabled={!commForm.commDate || !commForm.subject.trim() || addCommMut.isPending} onClick={() => addCommMut.mutate(commForm)}>
+              Log Communication
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Plot dialog */}
       <Dialog open={addPlotOpen} onOpenChange={o => { if (!o) setAddPlotOpen(false); }}>
@@ -638,7 +763,7 @@ const TRIALS_BODIES = [
   "Corteva Agriscience", "DSV Seeds", "RAGT Seeds", "Elsoms Seeds", "BASIS", "Own Farm",
 ];
 
-const EMPTY_TRIAL = { trialName: "", season: cropYearLabel(currentCropYear()), cropName: "", cropOther: "", trialPurpose: "", trialType: "", trialsBody: "", trialsBodyOther: "", contactName: "", numberOfTreatments: "", numberOfReplications: "", totalAreaHa: "", startDate: "", endDate: "", status: "planned", fieldId: "", notes: "" };
+const EMPTY_TRIAL = { trialName: "", season: cropYearLabel(currentCropYear()), cropName: "", cropOther: "", trialPurpose: "", trialType: "", trialsBody: "", trialsBodyOther: "", contactName: "", contactEmail: "", contactPhone: "", numberOfTreatments: "", numberOfReplications: "", totalAreaHa: "", startDate: "", endDate: "", status: "planned", fieldId: "", notes: "" };
 
 export default function CropTrialsPage() {
   const { farmId } = useAppStore();
@@ -686,7 +811,8 @@ export default function CropTrialsPage() {
       trialPurpose: t.trialPurpose, trialType: t.trialType ?? "",
       trialsBody: TRIALS_BODIES.includes(t.trialsBody ?? "") ? (t.trialsBody ?? "") : (t.trialsBody ? "__other__" : ""),
       trialsBodyOther: TRIALS_BODIES.includes(t.trialsBody ?? "") ? "" : (t.trialsBody ?? ""),
-      contactName: t.contactName ?? "", numberOfTreatments: t.numberOfTreatments ? String(t.numberOfTreatments) : "",
+      contactName: t.contactName ?? "", contactEmail: t.contactEmail ?? "", contactPhone: t.contactPhone ?? "",
+      numberOfTreatments: t.numberOfTreatments ? String(t.numberOfTreatments) : "",
       numberOfReplications: t.numberOfReplications ? String(t.numberOfReplications) : "",
       totalAreaHa: t.totalAreaHa ?? "", startDate: t.startDate ?? "", endDate: t.endDate ?? "",
       status: t.status, fieldId: t.fieldId ? String(t.fieldId) : "", notes: t.notes ?? "",
@@ -975,7 +1101,11 @@ export default function CropTrialsPage() {
                       <Input className="mt-2" value={form.trialsBodyOther} onChange={e => setForm(f => ({ ...f, trialsBodyOther: e.target.value }))} placeholder="Enter conducting body name…" />
                     )}
                   </div>
-                  <div><Label>Contact / Agronomist</Label><Input className="mt-1" value={form.contactName} onChange={e => setForm(f => ({ ...f, contactName: e.target.value }))} /></div>
+                  <div><Label>Contact / Agronomist</Label><Input className="mt-1" value={form.contactName} onChange={e => setForm(f => ({ ...f, contactName: e.target.value }))} placeholder="Name of lead contact" /></div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div><Label>Contact Email</Label><Input className="mt-1" type="email" value={form.contactEmail} onChange={e => setForm(f => ({ ...f, contactEmail: e.target.value }))} placeholder="contact@example.com" /></div>
+                  <div><Label>Contact Phone</Label><Input className="mt-1" type="tel" value={form.contactPhone} onChange={e => setForm(f => ({ ...f, contactPhone: e.target.value }))} placeholder="+44 7700 000000" /></div>
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>

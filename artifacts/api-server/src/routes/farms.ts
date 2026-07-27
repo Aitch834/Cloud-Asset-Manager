@@ -138,6 +138,7 @@ import {
   cropTrialTreatmentsTable,
   cropTrialObservationsTable,
   cropTrialYieldsTable,
+  cropTrialCommunicationsTable,
   agriEnvironmentSchemeRecordsTable,
   environmentalAssessmentsTable,
   environmentalManagementEventsTable,
@@ -24704,6 +24705,35 @@ router.delete("/farms/:farmId/crop-trials/:trialId/plots/:plotId/yields/:yieldId
   const yieldId = parseInt(req.params.yieldId as string, 10);
   if (isNaN(yieldId)) { res.status(400).json({ error: "Invalid yield ID" }); return; }
   await db.delete(cropTrialYieldsTable).where(and(eq(cropTrialYieldsTable.id, yieldId), eq(cropTrialYieldsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Crop Trial Communications ───────────────────────────────────────────────
+router.get("/farms/:farmId/crop-trials/:trialId/communications", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const trialId = parseInt(req.params.trialId as string, 10);
+  if (isNaN(trialId)) { res.status(400).json({ error: "Invalid trial ID" }); return; }
+  const records = await db.select().from(cropTrialCommunicationsTable).where(and(eq(cropTrialCommunicationsTable.trialId, trialId), eq(cropTrialCommunicationsTable.farmId, farmId))).orderBy(desc(cropTrialCommunicationsTable.commDate));
+  res.json(records);
+});
+
+router.post("/farms/:farmId/crop-trials/:trialId/communications", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const trialId = parseInt(req.params.trialId as string, 10);
+  if (isNaN(trialId)) { res.status(400).json({ error: "Invalid trial ID" }); return; }
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [record] = await db.insert(cropTrialCommunicationsTable).values({ ...body, farmId, trialId }).returning();
+  res.json(record);
+});
+
+router.delete("/farms/:farmId/crop-trials/:trialId/communications/:commId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const commId = parseInt(req.params.commId as string, 10);
+  if (isNaN(commId)) { res.status(400).json({ error: "Invalid communication ID" }); return; }
+  await db.delete(cropTrialCommunicationsTable).where(and(eq(cropTrialCommunicationsTable.id, commId), eq(cropTrialCommunicationsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
