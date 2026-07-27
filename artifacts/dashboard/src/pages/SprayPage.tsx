@@ -2414,6 +2414,8 @@ function ipmStatusBadge(status: string) {
 function IpmPlanTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { data: ipmMembersData } = useFarmMembers(farmId);
+  const ipmActiveMembers: any[] = (ipmMembersData?.members ?? []).filter((m: any) => m.isActive);
   const [planOpen, setPlanOpen] = useState(false);
   const [threshOpen, setThreshOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
@@ -3022,7 +3024,18 @@ ${(monitoringLogs as any[]).length === 0 ? "<p style='font-style:italic;color:#8
               <label htmlFor="threshBreached" className="text-sm font-medium text-gray-700 cursor-pointer">Economic threshold breached — action required</label>
             </div>
             <div className="col-span-2"><Label>Action Taken</Label><Input value={logForm.actionTaken || ""} onChange={e => setL("actionTaken", e.target.value)} placeholder="e.g. Monitoring only, applied fungicide T1, cultural control…" /></div>
-            <div><Label>Inspector / Scout</Label><Input value={logForm.inspector || ""} onChange={e => setL("inspector", e.target.value)} placeholder="Name" /></div>
+            <div>
+              <Label>Inspector / Scout</Label>
+              <Select value={logForm.inspector || ""} onValueChange={v => setL("inspector", v)}>
+                <SelectTrigger><SelectValue placeholder="Select staff member…" /></SelectTrigger>
+                <SelectContent>
+                  {ipmActiveMembers.map((m: any) => {
+                    const name = memberFullName(m);
+                    return <SelectItem key={m.id} value={name}>{name}</SelectItem>;
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={logForm.notes || ""} onChange={e => setL("notes", e.target.value)} /></div>
           </div>
           <DialogFooter>

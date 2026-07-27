@@ -974,13 +974,23 @@ export default function FieldInspectionsPage() {
               </div>
               <div>
                 <Label>Inspector</Label>
-                <Input placeholder="Inspector name" value={form.inspector} onChange={e => setForm(f => ({ ...f, inspector: e.target.value }))} />
+                <Select value={form.inspector || ""} onValueChange={v => setForm(f => ({ ...f, inspector: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select inspector…" /></SelectTrigger>
+                  <SelectContent>
+                    {staff.filter(s => s.isActive).map(s => {
+                      const name = `${s.firstName} ${s.lastName}`.trim();
+                      return <SelectItem key={s.id} value={name}>{name}</SelectItem>;
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-            <div>
-              <Label>Recommended Action</Label>
-              <Input placeholder="e.g. Apply fungicide within 48 hours" value={form.recommendedAction} onChange={e => setForm(f => ({ ...f, recommendedAction: e.target.value }))} />
-            </div>
+            {form.actionRequired !== "none" && (
+              <div>
+                <Label>Recommended Action</Label>
+                <Input placeholder="e.g. Apply fungicide within 48 hours" value={form.recommendedAction} onChange={e => setForm(f => ({ ...f, recommendedAction: e.target.value }))} />
+              </div>
+            )}
             <div>
               <Label>Notes</Label>
               <Textarea rows={2} placeholder="Additional notes…" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
