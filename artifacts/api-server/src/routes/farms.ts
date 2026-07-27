@@ -39159,3 +39159,48 @@ router.post("/farms/:farmId/scoteid-submit/:movementId", requireAuth, requireTen
 
   res.json({ success: result.success, sandbox: result.sandboxMode, reference: result.reference, errorMessage: result.errorMessage });
 });
+
+// ── Account Profile ────────────────────────────────────────────────────────────
+
+router.get("/account/profile", async (req, res) => {
+  const userId = req.userId;
+  if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
+  const [user] = await db.select({
+    id: usersTable.id,
+    email: usersTable.email,
+    firstName: usersTable.firstName,
+    lastName: usersTable.lastName,
+    phoneNumber: usersTable.phoneNumber,
+    smsOptIn: usersTable.smsOptIn,
+    smsConsentAt: usersTable.smsConsentAt,
+  }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  res.json(user);
+});
+
+router.put("/account/profile", async (req, res) => {
+  const userId = req.userId;
+  if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
+  const { phoneNumber, smsOptIn } = req.body as { phoneNumber?: string; smsOptIn?: string };
+  const validOptIn = ["all", "critical", "none"];
+  if (smsOptIn && !validOptIn.includes(smsOptIn)) {
+    res.status(400).json({ error: "Invalid smsOptIn value" }); return;
+  }
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  if (phoneNumber !== undefined) updates.phoneNumber = phoneNumber.trim() || null;
+  if (smsOptIn !== undefined) {
+    updates.smsOptIn = smsOptIn;
+    if (smsOptIn !== "none") updates.smsConsentAt = new Date();
+  }
+  await db.update(usersTable).set(updates).where(eq(usersTable.id, userId));
+  const [updated] = await db.select({
+    id: usersTable.id,
+    email: usersTable.email,
+    firstName: usersTable.firstName,
+    lastName: usersTable.lastName,
+    phoneNumber: usersTable.phoneNumber,
+    smsOptIn: usersTable.smsOptIn,
+    smsConsentAt: usersTable.smsConsentAt,
+  }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  res.json(updated);
+});
