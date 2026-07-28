@@ -70,17 +70,13 @@
     padding: 5.5vh 7vw 5vh 7.5vw;
   }
 
-  /* Logo — on semi-transparent cream pill so PNG natural colours read on dark */
-  .logo-wrap {
-    display: inline-flex;
-    background: rgba(255,255,255,0.10);
-    border-radius: 0.6vw;
-    padding: 0.8vh 1.6vw 0.8vh 1vw;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+  .logo {
+    height: 7.5vh;
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 1px 8px rgba(0,0,0,0.55));
     align-self: flex-start;
   }
-  .logo { height: 7.5vh; width: auto; object-fit: contain; }
 
   .content { display: flex; flex-direction: column; gap: 1.8vh; }
 
@@ -208,9 +204,7 @@
   <div class="top-rule"></div>
 
   <div class="inner">
-    <div class="logo-wrap">
-      <img class="logo" src="/__mockup/bde-farm-trac-logo.png" alt="BDE Farm Trac"/>
-    </div>
+    <img class="logo" src="/__mockup/bde-farm-trac-logo.png" alt="BDE Farm Trac"/>
 
     <div class="content">
       <div class="eyebrow">Cloud-based farm compliance · UK farming · Red Tractor assured</div>

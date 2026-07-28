@@ -28,14 +28,14 @@
     z-index: 0;
   }
 
-  /* Deep dark overlay */
+  /* Lighter overlay — lets the vineyard landscape breathe */
   .bg-overlay {
     position: absolute;
     inset: 0;
     background: linear-gradient(110deg,
-      rgba(12,8,6,0.93) 0%,
-      rgba(15,10,8,0.86) 55%,
-      rgba(12,8,6,0.58) 100%);
+      rgba(12,8,6,0.78) 0%,
+      rgba(15,10,8,0.62) 52%,
+      rgba(12,8,6,0.30) 100%);
     z-index: 1;
   }
 
@@ -70,17 +70,13 @@
     padding: 6vh 7vw 5.5vh 7.5vw;
   }
 
-  /* Logo pill — frosted so PNG reads on dark bg */
-  .logo-wrap {
-    display: inline-flex;
-    background: rgba(255,255,255,0.10);
-    border-radius: 0.6vw;
-    padding: 0.8vh 1.6vw 0.8vh 1vw;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+  .logo {
+    height: 7vh;
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 1px 10px rgba(0,0,0,0.65));
     align-self: flex-start;
   }
-  .logo { height: 7vh; width: auto; object-fit: contain; }
 
   .content { display: flex; flex-direction: column; gap: 1.8vh; max-width: 62vw; }
 
@@ -259,9 +255,7 @@
   </div>
 
   <div class="inner">
-    <div class="logo-wrap">
-      <img class="logo" src="/__mockup/bde-farm-trac-logo.png" alt="BDE Farm Trac"/>
-    </div>
+    <img class="logo" src="/__mockup/bde-farm-trac-logo.png" alt="BDE Farm Trac"/>
 
     <div class="content">
       <div class="eyebrow">Viticulture compliance · Cloud-based · UK vineyards</div>
