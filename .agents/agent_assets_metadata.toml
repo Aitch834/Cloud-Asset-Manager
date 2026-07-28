@@ -24,3 +24,9 @@ id = "zHPRFjXwOyFFAXzsR5ks_"
 uri = "file://docs/lis-proxy-setup.md"
 type = "text"
 title = "LIS UK Proxy — Setup Guide"
+
+[[outputs]]
+id = "Qu4pWeTuGm3G9-Y_r5svh"
+uri = "file://artifacts/mockup-sandbox/public/bde-farm-trac-logo.svg"
+type = "image"
+title = "BDE Farm Trac Logo (SVG — for embroidery & print)"

@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BDE Farm Trac — Print Advertising Brief</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap');
+
+  :root {
+    --forest:  #005028;
+    --leaf:    #64b43c;
+    --copper:  #8c5028;
+    --ink:     #1a1a1a;
+    --mid:     #5a5a5a;
+    --pale:    #f6f9f5;
+    --rule:    #d0ddd0;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    font-size: 11pt;
+    line-height: 1.55;
+    color: var(--ink);
+    background: #fff;
+  }
+
+  /* ── Page layout ── */
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    padding: 16mm 18mm 16mm 18mm;
+    page-break-after: always;
+  }
+
+  @media print {
+    body { background: white; }
+    .page {
+      width: 210mm;
+      padding: 14mm 16mm;
+      page-break-after: always;
+      margin: 0;
+    }
+    .no-print { display: none !important; }
+    .ad-iframe { display: none !important; }
+    .ad-notice { display: block !important; }
+  }
+
+  /* ── Header ── */
+  .doc-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 2.5px solid var(--forest);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+  }
+  .doc-header img { height: 44px; width: auto; }
+  .doc-header .meta { text-align: right; }
+  .doc-header .meta p { font-size: 9pt; color: var(--mid); }
+  .doc-header .meta strong { color: var(--forest); font-size: 10pt; }
+
+  h1 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 22pt;
+    color: var(--forest);
+    margin-bottom: 4px;
+  }
+  h2 {
+    font-family: 'Inter', sans-serif;
+    font-size: 12pt;
+    font-weight: 700;
+    color: var(--forest);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 22px 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--rule);
+  }
+  h3 {
+    font-size: 10pt;
+    font-weight: 600;
+    color: var(--copper);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 14px 0 5px;
+  }
+  p { margin-bottom: 6px; }
+
+  /* ── Intro box ── */
+  .intro-box {
+    background: var(--pale);
+    border-left: 4px solid var(--leaf);
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    border-radius: 0 6px 6px 0;
+    font-size: 10.5pt;
+  }
+
+  /* ── Tables ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10pt;
+    margin-bottom: 10px;
+  }
+  th {
+    background: var(--forest);
+    color: white;
+    font-weight: 600;
+    padding: 7px 10px;
+    text-align: left;
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: var(--pale); }
+  td:first-child { font-weight: 500; }
+
+  /* ── Colour swatches ── */
+  .swatches { display: flex; gap: 14px; margin: 12px 0 16px; }
+  .swatch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #f8f8f8;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 8px 12px;
+    flex: 1;
+  }
+  .swatch-dot {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1px solid rgba(0,0,0,0.12);
+  }
+  .swatch-info { font-size: 9pt; line-height: 1.4; }
+  .swatch-info strong { font-size: 10.5pt; display: block; }
+
+  /* ── Ad preview cards ── */
+  .ads-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin: 14px 0;
+  }
+  .ad-card {
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .ad-card-head {
+    background: var(--forest);
+    color: white;
+    padding: 6px 10px;
+    font-size: 9pt;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .ad-card-head span { opacity: 0.7; font-weight: 400; }
+  .ad-iframe {
+    width: 100%;
+    height: 170px;
+    border: none;
+    display: block;
+  }
+  .ad-notice {
+    display: none;
+    padding: 30px;
+    text-align: center;
+    color: var(--mid);
+    font-size: 9pt;
+    background: var(--pale);
+  }
+  .ad-meta {
+    padding: 8px 10px;
+    font-size: 9pt;
+    color: var(--mid);
+    background: #f8f8f8;
+    border-top: 1px solid var(--rule);
+  }
+  .ad-meta strong { color: var(--ink); }
+
+  /* ── Spec blocks ── */
+  .spec-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 10px 0;
+  }
+  .spec-block {
+    background: var(--pale);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  .spec-block h4 {
+    font-size: 9pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--forest);
+    margin-bottom: 6px;
+  }
+  .spec-block ul {
+    list-style: none;
+    font-size: 9.5pt;
+  }
+  .spec-block ul li::before { content: "→ "; color: var(--leaf); font-weight: 700; }
+
+  /* ── Copy blocks ── */
+  .copy-section {
+    background: var(--pale);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin: 10px 0;
+    page-break-inside: avoid;
+  }
+  .copy-section h4 {
+    font-size: 9pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--forest);
+    margin-bottom: 8px;
+  }
+  .copy-row {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 6px;
+    margin-bottom: 5px;
+    font-size: 9.5pt;
+  }
+  .copy-label {
+    font-weight: 600;
+    color: var(--mid);
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding-top: 1px;
+  }
+  .copy-text { color: var(--ink); }
+
+  /* ── Footer ── */
+  .doc-footer {
+    margin-top: 20px;
+    padding-top: 10px;
+    border-top: 1px solid var(--rule);
+    font-size: 8.5pt;
+    color: var(--mid);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* ── Print button ── */
+  .print-btn {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--forest);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    font-family: Inter, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    box-shadow: 0 2px 12px rgba(0,80,40,0.3);
+    z-index: 999;
+  }
+  .print-btn:hover { background: #003d1e; }
+
+  /* ── QR code reference ── */
+  .qr-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 10px 0;
+  }
+  .qr-img {
+    width: 70px;
+    height: 70px;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 4px;
+  }
+  .qr-info { font-size: 9.5pt; }
+  .qr-info strong { color: var(--forest); }
+
+  /* ── Callout ── */
+  .callout {
+    background: #fff8e6;
+    border-left: 4px solid #e5a000;
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 9.5pt;
+    margin: 10px 0;
+  }
+  .callout strong { color: #7a5000; }
+</style>
+</head>
+<body>
+
+<button class="print-btn no-print" onclick="window.print()">⬇ Save as PDF</button>
+
+<!-- ══════════════════════════════════════════════════════ PAGE 1 ══ -->
+<div class="page">
+
+  <div class="doc-header">
+    <img src="/__mockup/bde-farm-trac-logo.png" alt="BDE Farm Trac">
+    <div class="meta">
+      <strong>Trade Press Advertising Brief</strong>
+      <p>Document date: July 2026</p>
+      <p>Prepared for: Publisher / Design Studio</p>
+      <p>Contact: <a href="https://bdefarmtrac.co.uk" style="color:var(--forest)">bdefarmtrac.co.uk</a></p>
+    </div>
+  </div>
+
+  <h1>Print Advertising Brief</h1>
+  <p style="color:var(--mid);font-size:10pt;margin-bottom:16px">BDE Farm Trac — Four half-page landscape advertisement concepts for UK trade publications</p>
+
+  <div class="intro-box">
+    This brief provides all content, copy, colour references, and technical specifications required to produce
+    press-ready print advertisements for BDE Farm Trac. Four ad variants are included, each targeting a
+    distinct farming audience. Concept artwork is shown on page 2; press-ready file requirements are on page 3.
+  </div>
+
+  <h2>About BDE Farm Trac</h2>
+  <p>BDE Farm Trac is a cloud-based farm management platform for UK farmers, covering compliance, livestock traceability, arable crop records, IPM, machinery tracking, and financial reporting. It is designed to make UK regulatory compliance (BCMS, APHA, Red Tractor, Organic) straightforward and to be accessed securely from any device in any location.</p>
+  <p>Website: <strong>bdefarmtrac.co.uk</strong></p>
+
+  <h2>Brand Colours</h2>
+  <p style="font-size:9.5pt;color:var(--mid);margin-bottom:10px">These are the exact colours to be reproduced in CMYK print. Hex values are provided for reference; all print production must use the Pantone (spot) or CMYK equivalents.</p>
+  <div class="swatches">
+    <div class="swatch">
+      <div class="swatch-dot" style="background:#005028"></div>
+      <div class="swatch-info">
+        <strong>Forest Green</strong>
+        Hex: #005028<br>
+        Pantone: <strong>349 C</strong><br>
+        CMYK: 100 / 38 / 84 / 44<br>
+        Madeira thread: 1056<br>
+        Isacord: 5534
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-dot" style="background:#64b43c"></div>
+      <div class="swatch-info">
+        <strong>Leaf Green</strong>
+        Hex: #64b43c<br>
+        Pantone: <strong>368 C</strong><br>
+        CMYK: 52 / 0 / 81 / 0<br>
+        Madeira thread: 1176<br>
+        Isacord: 5532
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-dot" style="background:#8c5028"></div>
+      <div class="swatch-info">
+        <strong>Copper Brown</strong>
+        Hex: #8c5028<br>
+        Pantone: <strong>7526 C</strong><br>
+        CMYK: 0 / 54 / 72 / 45<br>
+        Madeira thread: 1182<br>
+        Isacord: 1219
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-dot" style="background:#ffffff;border:2px solid #ddd"></div>
+      <div class="swatch-info">
+        <strong>White</strong>
+        Hex: #ffffff<br>
+        Pantone: White<br>
+        CMYK: 0 / 0 / 0 / 0<br>
+        Madeira thread: White<br>
+        Isacord: White
+      </div>
+    </div>
+  </div>
+
+  <h2>Typography</h2>
+  <table>
+    <tr><th>Role</th><th>Typeface</th><th>Weight</th><th>Notes</th></tr>
+    <tr><td>Headlines</td><td>Playfair Display</td><td>Bold (700)</td><td>Google Fonts — must be embedded/outlined in print PDF</td></tr>
+    <tr><td>Body / UI text</td><td>Inter</td><td>Regular (400) / SemiBold (600)</td><td>Google Fonts — embed/outline for print</td></tr>
+    <tr><td>Fallback stack</td><td>Georgia, Times New Roman</td><td>—</td><td>For serif; Arial/Helvetica for sans if fonts unavailable</td></tr>
+  </table>
+
+  <h2>QR Code</h2>
+  <div class="qr-row">
+    <img class="qr-img" src="/__mockup/qr-bdefarmtrac.png" alt="QR code">
+    <div class="qr-info">
+      <strong>All four ads include the same QR code</strong><br>
+      Destination URL: <strong>https://bdefarmtrac.co.uk</strong><br>
+      The QR code PNG file must be provided to the designer at 300 DPI minimum.<br>
+      Minimum printed size: 20 mm × 20 mm to ensure scanability.<br>
+      Position: bottom-right of each ad (see concept artwork).
+    </div>
+  </div>
+
+  <div class="doc-footer">
+    <span>BDE Farm Trac — Confidential advertiser brief</span>
+    <span>Page 1 of 3</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ PAGE 2 ══ -->
+<div class="page">
+
+  <div class="doc-header">
+    <img src="/__mockup/bde-farm-trac-logo.png" alt="BDE Farm Trac">
+    <div class="meta">
+      <strong>Concept Artwork — Four Ad Variants</strong>
+      <p>For editorial approval only — not press-ready</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>Note for designers:</strong> The artwork below is an HTML concept proof rendered at screen resolution.
+    All four ads are half-page landscape format. Background photography must be sourced at 300 DPI for print production
+    (Pexels/Unsplash royalty-free source files noted per ad below). Final ads must be rebuilt in InDesign / Affinity Publisher.
+  </div>
+
+  <h2>Ad Concept Artwork</h2>
+
+  <div class="ads-grid">
+
+    <div class="ad-card">
+      <div class="ad-card-head">Ad 1 — General Farming <span>All UK sectors</span></div>
+      <iframe class="ad-iframe"
+        src="/__mockup/ads/ad-farming.html?v=7"
+        scrolling="no" title="Ad 1 General Farming"></iframe>
+      <div class="ad-notice">Ad 1 — General Farming<br>(view in browser for live preview)</div>
+      <div class="ad-meta">
+        <strong>Headline:</strong> Your Farm. Your Data. Always Compliant.<br>
+        <strong>Background:</strong> UK farm estate at golden hour<br>
+        <strong>Image source:</strong> Pexels (royalty-free)
+      </div>
+    </div>
+
+    <div class="ad-card">
+      <div class="ad-card-head">Ad 2 — Arable &amp; Livestock <span>Mixed farms</span></div>
+      <iframe class="ad-iframe"
+        src="/__mockup/ads/ad-arable.html?v=9"
+        scrolling="no" title="Ad 2 Arable"></iframe>
+      <div class="ad-notice">Ad 2 — Arable &amp; Livestock<br>(view in browser for live preview)</div>
+      <div class="ad-meta">
+        <strong>Headline:</strong> From Field to Feed — Total Farm Compliance<br>
+        <strong>Background:</strong> Golden wheat field, rural England<br>
+        <strong>Image source:</strong> Pexels 12708487 (royalty-free)
+      </div>
+    </div>
+
+    <div class="ad-card">
+      <div class="ad-card-head">Ad 3 — Viticulture <span>UK vineyards</span></div>
+      <iframe class="ad-iframe"
+        src="/__mockup/ads/ad-viticulture.html?v=7"
+        scrolling="no" title="Ad 3 Viticulture"></iframe>
+      <div class="ad-notice">Ad 3 — Viticulture<br>(view in browser for live preview)</div>
+      <div class="ad-meta">
+        <strong>Headline:</strong> For the Modern UK Vineyard<br>
+        <strong>Background:</strong> Rolling vineyard, green hills<br>
+        <strong>Image source:</strong> Pexels 943700 (royalty-free)
+      </div>
+    </div>
+
+    <div class="ad-card">
+      <div class="ad-card-head">Ad 4 — Livestock &amp; Dairy <span>Cattle / dairy farms</span></div>
+      <iframe class="ad-iframe"
+        src="/__mockup/ads/ad-livestock.html?v=3"
+        scrolling="no" title="Ad 4 Livestock"></iframe>
+      <div class="ad-notice">Ad 4 — Livestock &amp; Dairy<br>(view in browser for live preview)</div>
+      <div class="ad-meta">
+        <strong>Headline:</strong> Livestock &amp; Dairy — Built for the Modern UK Farm<br>
+        <strong>Background:</strong> Holstein herd, green pasture, blue sky<br>
+        <strong>Image source:</strong> Pexels 13340334 (royalty-free)
+      </div>
+    </div>
+
+  </div>
+
+  <h2>Ad Copy — All Variants</h2>
+
+  <div class="copy-section">
+    <h4>Ad 1 — General Farming (all UK sectors)</h4>
+    <div class="copy-row"><span class="copy-label">Headline</span><span class="copy-text">Your Farm. Your Data. Always Compliant.</span></div>
+    <div class="copy-row"><span class="copy-label">Subheadline</span><span class="copy-text">BDE Farm Trac brings livestock traceability, crop records, compliance and machinery management together in one secure cloud platform — accessible from the field, the yard or the office.</span></div>
+    <div class="copy-row"><span class="copy-label">Bullets</span><span class="copy-text">✓ Red Tractor &amp; APHA compliance ready &nbsp;|&nbsp; ✓ Works offline on any device &nbsp;|&nbsp; ✓ Secure cloud — your data, protected &nbsp;|&nbsp; ✓ No long-term contract</span></div>
+    <div class="copy-row"><span class="copy-label">CTA</span><span class="copy-text">Start Free Trial — bdefarmtrac.co.uk</span></div>
+  </div>
+
+  <div class="copy-section">
+    <h4>Ad 2 — Arable &amp; Livestock (mixed farms)</h4>
+    <div class="copy-row"><span class="copy-label">Headline</span><span class="copy-text">From Field to Feed — Total Farm Compliance</span></div>
+    <div class="copy-row"><span class="copy-label">Subheadline</span><span class="copy-text">Manage field records, soil maps, IPM plans, spray records and livestock movements from one platform. Red Tractor audit-ready. Automatically.</span></div>
+    <div class="copy-row"><span class="copy-label">Bullets</span><span class="copy-text">✓ Cross Compliance &amp; NVZ records &nbsp;|&nbsp; ✓ Spray &amp; IPM logs auto-dated &nbsp;|&nbsp; ✓ Linked arable + livestock records &nbsp;|&nbsp; ✓ Soil &amp; variety mapping</span></div>
+    <div class="copy-row"><span class="copy-label">CTA</span><span class="copy-text">Start Free Trial — bdefarmtrac.co.uk</span></div>
+  </div>
+
+  <div class="copy-section">
+    <h4>Ad 3 — Viticulture (UK vineyards)</h4>
+    <div class="copy-row"><span class="copy-label">Headline</span><span class="copy-text">For the Modern UK Vineyard</span></div>
+    <div class="copy-row"><span class="copy-label">Subheadline</span><span class="copy-text">Precision vineyard record-keeping — variety mapping, spray records, harvest weights, pruning logs and vintage data — all in the cloud. Built for WineGB members.</span></div>
+    <div class="copy-row"><span class="copy-label">Bullets</span><span class="copy-text">✓ Block &amp; variety management &nbsp;|&nbsp; ✓ WineGB &amp; WOWGB compliance records &nbsp;|&nbsp; ✓ Spray &amp; IPM logs &nbsp;|&nbsp; ✓ Harvest &amp; vintage data</span></div>
+    <div class="copy-row"><span class="copy-label">CTA</span><span class="copy-text">Start Free Trial — bdefarmtrac.co.uk</span></div>
+  </div>
+
+  <div class="copy-section">
+    <h4>Ad 4 — Livestock &amp; Dairy</h4>
+    <div class="copy-row"><span class="copy-label">Headline</span><span class="copy-text">Livestock &amp; Dairy — Built for the Modern UK Farm</span></div>
+    <div class="copy-row"><span class="copy-label">Subheadline</span><span class="copy-text">BCMS cattle movements, APHA health plans, BVD monitoring and milk recording — all connected in one platform with automatic compliance alerts.</span></div>
+    <div class="copy-row"><span class="copy-label">Bullets</span><span class="copy-text">✓ BCMS cattle &amp; tag management &nbsp;|&nbsp; ✓ APHA health plan records &nbsp;|&nbsp; ✓ BVD &amp; withdrawal alerts &nbsp;|&nbsp; ✓ Milk recording &amp; herd performance</span></div>
+    <div class="copy-row"><span class="copy-label">CTA</span><span class="copy-text">Start Free Trial — bdefarmtrac.co.uk</span></div>
+  </div>
+
+  <div class="doc-footer">
+    <span>BDE Farm Trac — Confidential advertiser brief</span>
+    <span>Page 2 of 3</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ PAGE 3 ══ -->
+<div class="page">
+
+  <div class="doc-header">
+    <img src="/__mockup/bde-farm-trac-logo.png" alt="BDE Farm Trac">
+    <div class="meta">
+      <strong>Technical Specifications</strong>
+      <p>For designer / print studio use</p>
+    </div>
+  </div>
+
+  <h2>Ad Format &amp; Dimensions</h2>
+  <p style="font-size:9.5pt;color:var(--mid);margin-bottom:10px">All four ads are half-page landscape. Exact dimensions must be confirmed against each publication's media pack before production — typical UK trade press dimensions are listed below.</p>
+  <table>
+    <tr><th>Specification</th><th>Value</th><th>Notes</th></tr>
+    <tr><td>Format</td><td>Half-page landscape</td><td>Horizontal orientation</td></tr>
+    <tr><td>Typical trim size</td><td>265 mm × 190 mm</td><td>Confirm with each publication</td></tr>
+    <tr><td>Bleed</td><td>3 mm all sides</td><td>Total with bleed: 271 mm × 196 mm</td></tr>
+    <tr><td>Safe area (text)</td><td>5 mm inside trim</td><td>No live text within 5 mm of trim edge</td></tr>
+    <tr><td>Orientation</td><td>Landscape (horizontal)</td><td>Width > Height</td></tr>
+    <tr><td>Colour mode</td><td>CMYK</td><td>Convert all RGB assets before output</td></tr>
+    <tr><td>Resolution</td><td>300 DPI minimum at print size</td><td>Background photos must be sourced at full resolution</td></tr>
+    <tr><td>File format</td><td>PDF/X-1a or PDF/X-4</td><td>Ask publication which standard they require</td></tr>
+    <tr><td>Fonts</td><td>All fonts embedded / outlined</td><td>Playfair Display Bold + Inter (various weights)</td></tr>
+    <tr><td>Black text</td><td>K=100 only (not rich black)</td><td>Avoid registration for small body text</td></tr>
+  </table>
+
+  <h2>Background Photography</h2>
+  <p style="font-size:9.5pt;color:var(--mid);margin-bottom:8px">All images are sourced from Pexels (royalty-free, commercial use permitted). Download the full-resolution versions (original size) for print production — do not use the web-compressed thumbnails.</p>
+  <table>
+    <tr><th>Ad</th><th>Pexels Photo ID</th><th>Download URL</th><th>Subject</th></tr>
+    <tr><td>Ad 2 — Arable</td><td>12708487</td><td>pexels.com/photo/12708487</td><td>Golden wheat field, rural England</td></tr>
+    <tr><td>Ad 3 — Viticulture</td><td>943700</td><td>pexels.com/photo/943700</td><td>Rolling vineyard, green hills</td></tr>
+    <tr><td>Ad 4 — Livestock</td><td>13340334</td><td>pexels.com/photo/13340334</td><td>Holstein herd, green pasture, blue sky</td></tr>
+    <tr><td>Ad 1 — Farming</td><td>Unsplash / see concept</td><td>unsplash.com (UK farm estate)</td><td>UK farm estate, golden hour</td></tr>
+  </table>
+  <div class="callout">
+    <strong>Important:</strong> When downloading from Pexels, select "Original" size (not any compressed variant).
+    The original files are typically 4000 px+ wide and will print cleanly at 300 DPI for the required ad dimensions.
+  </div>
+
+  <h2>Assets to Supply to Designer</h2>
+  <div class="spec-grid">
+    <div class="spec-block">
+      <h4>Logo files</h4>
+      <ul>
+        <li>bde-farm-trac-logo.svg (vector, supplied)</li>
+        <li>bde-farm-trac-logo.png (774 × 173 px, RGBA)</li>
+        <li>Request white/reversed version if dark background</li>
+      </ul>
+    </div>
+    <div class="spec-block">
+      <h4>Photography</h4>
+      <ul>
+        <li>Download original-size versions from Pexels links above</li>
+        <li>Ensure licence confirmation saved (Pexels free licence)</li>
+        <li>Provide designer with photo IDs for attribution</li>
+      </ul>
+    </div>
+    <div class="spec-block">
+      <h4>QR code</h4>
+      <ul>
+        <li>Supply as PNG at 300 DPI / 1200 × 1200 px minimum</li>
+        <li>Or supply as SVG for lossless scaling</li>
+        <li>Target URL: https://bdefarmtrac.co.uk</li>
+      </ul>
+    </div>
+    <div class="spec-block">
+      <h4>This brief document</h4>
+      <ul>
+        <li>All copy is in this document — no reformatting needed</li>
+        <li>Colour values on page 1 for CMYK matching</li>
+        <li>Concept screenshots on page 2 as visual guide</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Suggested Workflow for Designer</h2>
+  <table>
+    <tr><th>Step</th><th>Action</th></tr>
+    <tr><td>1</td><td>Obtain media pack (ad spec sheet) from each publication — confirm exact trim size and PDF standard</td></tr>
+    <tr><td>2</td><td>Download original-resolution background photos from Pexels (IDs above)</td></tr>
+    <tr><td>3</td><td>Place BDE Farm Trac logo (SVG) — scale to fit, maintain proportions</td></tr>
+    <tr><td>4</td><td>Set all colours to CMYK equivalents (page 1) — do not use RGB swatches</td></tr>
+    <tr><td>5</td><td>Set type in Playfair Display Bold (headlines) and Inter (body/bullets)</td></tr>
+    <tr><td>6</td><td>Embed QR code at minimum 20 mm × 20 mm, bottom-right of each ad</td></tr>
+    <tr><td>7</td><td>Export as PDF/X-1a (or PDF/X-4 if requested), with 3 mm bleed + crop marks</td></tr>
+    <tr><td>8</td><td>Supply proof to advertiser (BDE Farm Trac) for sign-off before submission</td></tr>
+  </table>
+
+  <h2>Contact &amp; Approval</h2>
+  <table>
+    <tr><th>Item</th><th>Detail</th></tr>
+    <tr><td>Brand website</td><td>https://bdefarmtrac.co.uk</td></tr>
+    <tr><td>CTA destination</td><td>https://bdefarmtrac.co.uk (all four ads)</td></tr>
+    <tr><td>Copy approval</td><td>All copy in this brief is approved for use as-is or adapted by designer</td></tr>
+    <tr><td>Logo usage</td><td>Logo may not be recoloured, stretched, or cropped without approval</td></tr>
+    <tr><td>Minimum clear space</td><td>Leave clear space equal to logo height on all sides</td></tr>
+  </table>
+
+  <div class="doc-footer">
+    <span>BDE Farm Trac — Confidential advertiser brief &nbsp;|&nbsp; bdefarmtrac.co.uk</span>
+    <span>Page 3 of 3</span>
+  </div>
+</div>
+
+</body>
+</html>
