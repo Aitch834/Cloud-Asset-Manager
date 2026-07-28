@@ -34,6 +34,7 @@ import {
   Wrench,
   Gauge,
   Fuel,
+  Database,
   Warehouse,
   Smartphone,
   Shovel,
@@ -215,6 +216,10 @@ const documentsNav: NavItem[] = [
   { name: "Documents", href: "/documents", icon: FileText, moduleKeys: ["document-management"] },
 ];
 
+const integrationsNav: NavItem[] = [
+  { name: "Data API Access", href: "/data-api", icon: Database, moduleKeys: ["data-api"] },
+];
+
 const ROLE_RANK: Record<FarmRole, number> = { operator: 0, senior: 1, manager: 2, owner: 3 };
 
 const bottomNav: NavItem[] = [
@@ -280,7 +285,7 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
   filteredCoreNav, filteredPeopleNav, filteredFarmManagementNav, filteredLivestockNav,
   filteredBiosecurityNav, filteredComplianceNav, filteredOrganicFarmingNav,
   filteredSpecialistNav, filteredFinanceNav, filteredEnvironmentalNav,
-  filteredReportingNav, filteredDocumentsNav, filteredBottomNav, trialInfo,
+  filteredReportingNav, filteredDocumentsNav, filteredIntegrationsNav, filteredBottomNav, trialInfo,
 }: {
   onNavClick?: () => void;
   onLogout: () => void;
@@ -298,6 +303,7 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
   filteredEnvironmentalNav: NavItem[];
   filteredReportingNav: NavItem[];
   filteredDocumentsNav: NavItem[];
+  filteredIntegrationsNav: NavItem[];
   filteredBottomNav: NavItem[];
   trialInfo?: TrialInfo | null;
 }) {
@@ -373,6 +379,7 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
         <NavSection title="Environmental" items={filteredEnvironmentalNav} onNavClick={onNavClick} />
         <NavSection title="Reporting" items={filteredReportingNav} onNavClick={onNavClick} />
         <NavSection title="Documents" items={filteredDocumentsNav} onNavClick={onNavClick} />
+        <NavSection title="Integrations & API" items={filteredIntegrationsNav} onNavClick={onNavClick} />
       </nav>
 
       {trialInfo && (
@@ -525,6 +532,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const filteredEnvironmentalNav = filterNavItems(environmentalNav, activeModuleKeys, farmSectors, userRole);
   const filteredReportingNav = filterNavItems(reportingNav, activeModuleKeys, farmSectors, userRole);
   const filteredDocumentsNav = filterNavItems(documentsNav, activeModuleKeys, farmSectors, userRole);
+  const filteredIntegrationsNav = filterNavItems(integrationsNav, activeModuleKeys, farmSectors, userRole);
   const filteredBottomNav = filterNavItems(bottomNav, new Set(), { hasLivestock: true }, userRole);
 
   const handleLogout = () => {
@@ -550,6 +558,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     filteredEnvironmentalNav,
     filteredReportingNav,
     filteredDocumentsNav,
+    filteredIntegrationsNav,
     filteredBottomNav,
     trialInfo,
   };

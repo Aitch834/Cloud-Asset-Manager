@@ -15,6 +15,7 @@ import eaRouter from "./ea";
 import viticultureRouter from "./viticulture";
 import mobileRouter from "./mobile";
 import sandboxRouter from "./sandbox";
+import dataExportRouter from "./dataExport";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(eaRouter);
 router.use(viticultureRouter);
 router.use(mobileRouter);
 router.use(sandboxRouter);
+router.use(dataExportRouter);
 
 export default router;

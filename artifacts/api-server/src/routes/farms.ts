@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { createHmac, timingSafeEqual } from "crypto";
-import { db, pool, dbSchema, helpArticlesTable, farmResourcesTable, farmTaskResourceAllocationsTable, staffLocationPingsTable, gpsIntegrationsTable, gpsAssetPositionsTable, sensorIntegrationsTable, apiSensorReadingsTable, supportTicketsTable, supportTicketMessagesTable } from "@workspace/db";
+import { createHmac, timingSafeEqual, randomBytes, createHash } from "crypto";
+import { db, pool, dbSchema, helpArticlesTable, farmResourcesTable, farmTaskResourceAllocationsTable, staffLocationPingsTable, gpsIntegrationsTable, gpsAssetPositionsTable, sensorIntegrationsTable, apiSensorReadingsTable, supportTicketsTable, supportTicketMessagesTable, dataApiKeysTable } from "@workspace/db";
 import { sendSms } from "../lib/sms";
 import { sendAdminEmail, sendCustomerReplyAlert } from "../lib/mailer";
 import { sanitiseBody } from "../lib/sanitise";
@@ -34100,7 +34100,82 @@ router.delete("/farms/:farmId/straw-hot-works-permits/:id", requireAuth, require
   res.status(204).end();
 });
 
+
+// ─── Data API Key Management ──────────────────────────────────────────────────
+
+router.get("/farms/:farmId/api-keys", async (req, res) => {
+  const tenantId = (req as any).tenantId as number | undefined;
+  const farmId = Number(req.params.farmId);
+  if (!tenantId) { res.status(401).json({ error: "Not authenticated" }); return; }
+  const keys = await db
+    .select({
+      id: dataApiKeysTable.id,
+      name: dataApiKeysTable.name,
+      keyPrefix: dataApiKeysTable.keyPrefix,
+      createdAt: dataApiKeysTable.createdAt,
+      lastUsedAt: dataApiKeysTable.lastUsedAt,
+      revokedAt: dataApiKeysTable.revokedAt,
+    })
+    .from(dataApiKeysTable)
+    .where(and(
+      eq(dataApiKeysTable.farmId, farmId),
+      eq(dataApiKeysTable.tenantId, tenantId),
+    ))
+    .orderBy(desc(dataApiKeysTable.createdAt));
+  res.json({ keys });
+});
+
+router.post("/farms/:farmId/api-keys", async (req, res) => {
+  const tenantId = (req as any).tenantId as number | undefined;
+  const farmId = Number(req.params.farmId);
+  if (!tenantId) { res.status(401).json({ error: "Not authenticated" }); return; }
+  const { name } = req.body as { name?: string };
+  if (!name || !name.trim()) { res.status(400).json({ error: "Key name is required" }); return; }
+
+  const rawBytes = randomBytes(32);
+  const rawKey = `bdeft_${rawBytes.toString("base64url")}`;
+  const keyHash = createHash("sha256").update(rawKey).digest("hex");
+  const keyPrefix = rawKey.slice(0, 14);
+
+  const [created] = await db.insert(dataApiKeysTable).values({
+    tenantId,
+    farmId,
+    name: name.trim(),
+    keyHash,
+    keyPrefix,
+  }).returning({
+    id: dataApiKeysTable.id,
+    name: dataApiKeysTable.name,
+    keyPrefix: dataApiKeysTable.keyPrefix,
+    createdAt: dataApiKeysTable.createdAt,
+  });
+
+  res.status(201).json({ key: created, rawKey });
+});
+
+router.delete("/farms/:farmId/api-keys/:keyId", async (req, res) => {
+  const tenantId = (req as any).tenantId as number | undefined;
+  const farmId = Number(req.params.farmId);
+  const keyId = Number(req.params.keyId);
+  if (!tenantId) { res.status(401).json({ error: "Not authenticated" }); return; }
+
+  const [revoked] = await db
+    .update(dataApiKeysTable)
+    .set({ revokedAt: new Date() })
+    .where(and(
+      eq(dataApiKeysTable.id, keyId),
+      eq(dataApiKeysTable.farmId, farmId),
+      eq(dataApiKeysTable.tenantId, tenantId),
+      isNull(dataApiKeysTable.revokedAt),
+    ))
+    .returning({ id: dataApiKeysTable.id });
+
+  if (!revoked) { res.status(404).json({ error: "Key not found or already revoked" }); return; }
+  res.json({ success: true });
+});
+
 export default router;
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SHEEP DAIRY ROUTES
