@@ -10,6 +10,16 @@ function ScrollToTop() {
   const [location] = useLocation();
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    // Fire-and-forget visit tracking — never blocks the UI
+    fetch("/api/analytics/visit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: location,
+        referrer: document.referrer || null,
+      }),
+      keepalive: true,
+    }).catch(() => {});
   }, [location]);
   return null;
 }

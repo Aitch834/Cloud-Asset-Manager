@@ -83,6 +83,19 @@ export interface ModuleAdoptionEntry {
   activeCount: number;
 }
 
+export interface WebsiteVisitDay {
+  date: string;
+  count: number;
+}
+
+export interface WebsiteVisitStats {
+  total: number;
+  today: number;
+  thisWeek: number;
+  thisMonth: number;
+  dailyLast14: WebsiteVisitDay[];
+}
+
 export interface Stats {
   totalTenants: number;
   totalFarms: number;
@@ -93,6 +106,7 @@ export interface Stats {
   churnRatePct: number;
   leadSourceBreakdown: LeadSourceEntry[];
   moduleAdoption: ModuleAdoptionEntry[];
+  websiteVisits?: WebsiteVisitStats;
 }
 
 export interface Tenant {

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { api, type Stats } from "@/lib/api";
+import { api, type Stats, type WebsiteVisitDay } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
 import {
   Users, Building2, CreditCard, UserCheck, TrendingUp,
-  TrendingDown, BarChart3, Puzzle, AlertTriangle,
+  TrendingDown, BarChart3, Puzzle, AlertTriangle, Globe, CalendarDays, Activity,
 } from "lucide-react";
 
 function StatCard({
@@ -31,6 +31,49 @@ function StatCard({
         <p className={`text-2xl font-bold mt-0.5 ${alert ? "text-red-700" : "text-foreground"}`}>{value}</p>
         {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
       </div>
+    </div>
+  );
+}
+
+// ── Mini bar chart for daily visit data ──────────────────────────────────────
+function VisitSparkBar({ data }: { data: WebsiteVisitDay[] }) {
+  if (data.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground text-center py-6">
+        No visit data yet — visits will appear here once the website goes live.
+      </p>
+    );
+  }
+  const maxCount = Math.max(...data.map((d) => d.count), 1);
+  // Build a full 14-day array filling in zeros for missing days
+  const days: WebsiteVisitDay[] = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    const found = data.find((r) => r.date === dateStr);
+    days.push({ date: dateStr, count: found?.count ?? 0 });
+  }
+  return (
+    <div className="flex items-end gap-1 h-16 w-full mt-3">
+      {days.map((day) => {
+        const heightPct = Math.max((day.count / maxCount) * 100, day.count > 0 ? 8 : 3);
+        const label = day.date.slice(5); // MM-DD
+        return (
+          <div key={day.date} className="flex-1 flex flex-col items-center gap-0.5 group relative">
+            <div
+              className="w-full rounded-sm bg-emerald-500/80 group-hover:bg-emerald-600 transition-all"
+              style={{ height: `${heightPct}%` }}
+            />
+            {/* tooltip on hover */}
+            <div className="absolute bottom-full mb-1 hidden group-hover:flex flex-col items-center z-10 pointer-events-none">
+              <div className="bg-foreground text-background text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap">
+                {label}: {day.count}
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -133,6 +176,38 @@ export default function Dashboard() {
               </p>
             </div>
           )}
+
+          {/* Website Visits */}
+          <div className="border border-border rounded-xl p-6 bg-card">
+            <div className="flex items-center gap-2 mb-5">
+              <Globe className="w-4 h-4 text-muted-foreground" />
+              <h2 className="text-sm font-semibold text-foreground">Website Traffic</h2>
+              <span className="ml-auto text-xs text-muted-foreground">
+                {stats.websiteVisits?.total ?? 0} total visits
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-4 mb-5">
+              <div className="flex flex-col items-center bg-emerald-50 rounded-lg p-3">
+                <Activity className="w-4 h-4 text-emerald-600 mb-1" />
+                <span className="text-2xl font-bold text-emerald-700">{stats.websiteVisits?.today ?? 0}</span>
+                <span className="text-xs text-muted-foreground mt-0.5">Today</span>
+              </div>
+              <div className="flex flex-col items-center bg-blue-50 rounded-lg p-3">
+                <CalendarDays className="w-4 h-4 text-blue-600 mb-1" />
+                <span className="text-2xl font-bold text-blue-700">{stats.websiteVisits?.thisWeek ?? 0}</span>
+                <span className="text-xs text-muted-foreground mt-0.5">This week</span>
+              </div>
+              <div className="flex flex-col items-center bg-violet-50 rounded-lg p-3">
+                <Globe className="w-4 h-4 text-violet-600 mb-1" />
+                <span className="text-2xl font-bold text-violet-700">{stats.websiteVisits?.thisMonth ?? 0}</span>
+                <span className="text-xs text-muted-foreground mt-0.5">This month</span>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Daily visits — last 14 days</p>
+              <VisitSparkBar data={stats.websiteVisits?.dailyLast14 ?? []} />
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Lead Source Breakdown */}

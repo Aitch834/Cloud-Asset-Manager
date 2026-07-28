@@ -14,6 +14,7 @@ import { runStrawMigrations } from "./lib/strawMigrations";
 import { runPoultryMigrations } from "./lib/poultryMigrations";
 import { runDataApiMigrations } from "./lib/dataApiMigrations";
 import { runReportBuilderMigrations } from "./lib/reportBuilderMigrations";
+import { runAnalyticsMigrations } from "./lib/analyticsMigrations";
 
 interface EnvSpec {
   key: string;
@@ -118,5 +119,8 @@ app.listen(port, () => {
   });
   runDataApiMigrations().catch((err) => {
     console.error("[DATA-API-MIGRATE] Failed:", err);
+  });
+  runAnalyticsMigrations().catch((err) => {
+    console.error("[ANALYTICS-MIGRATE] Failed:", err);
   });
 });

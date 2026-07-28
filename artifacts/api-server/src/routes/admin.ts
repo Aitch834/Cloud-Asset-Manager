@@ -65,6 +65,33 @@ async function checkPlatformAdmin(req: Request, res: Response): Promise<boolean>
   return true;
 }
 
+// ─── Public Analytics — no auth required ──────────────────────────────────────
+
+router.post("/analytics/visit", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { path, referrer } = req.body as { path?: string; referrer?: string };
+    if (!path || typeof path !== "string") { res.status(204).end(); return; }
+
+    const { createHash } = await import("node:crypto");
+    const rawIp = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
+      ?? (req.socket as { remoteAddress?: string }).remoteAddress
+      ?? "";
+    const ipHash = rawIp
+      ? createHash("sha256").update(rawIp + "bde-analytics-salt").digest("hex").slice(0, 16)
+      : null;
+
+    await db.execute(sql`
+      INSERT INTO website_visits (path, referrer, ip_hash)
+      VALUES (${path.slice(0, 500)}, ${referrer ? referrer.slice(0, 500) : null}, ${ipHash})
+    `);
+  } catch (err) {
+    console.error("[analytics] visit record failed:", err);
+  }
+  res.status(204).end(); // Always 204 — never surface errors to the website
+});
+
+// ─── Admin Endpoints ───────────────────────────────────────────────────────────
+
 router.get("/admin/tenants", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
 
@@ -212,6 +239,39 @@ router.get("/admin/stats", requireAuth, async (req: Request, res: Response): Pro
     activeCount: Number(r.active_count),
   }));
 
+  // ── Website visit stats ──
+  let websiteVisits = { total: 0, today: 0, thisWeek: 0, thisMonth: 0, dailyLast14: [] as { date: string; count: number }[] };
+  try {
+    const visitTotalsResult = await db.execute(sql`
+      SELECT
+        COUNT(*)                                                      AS total,
+        COUNT(*) FILTER (WHERE visited_at >= CURRENT_DATE)           AS today,
+        COUNT(*) FILTER (WHERE visited_at >= DATE_TRUNC('week',  NOW())) AS this_week,
+        COUNT(*) FILTER (WHERE visited_at >= DATE_TRUNC('month', NOW())) AS this_month
+      FROM website_visits
+    `);
+    const vt = visitTotalsResult.rows[0] as { total: string; today: string; this_week: string; this_month: string } | undefined;
+    if (vt) {
+      websiteVisits.total     = Number(vt.total);
+      websiteVisits.today     = Number(vt.today);
+      websiteVisits.thisWeek  = Number(vt.this_week);
+      websiteVisits.thisMonth = Number(vt.this_month);
+    }
+    const dailyResult = await db.execute(sql`
+      SELECT TO_CHAR(DATE(visited_at), 'YYYY-MM-DD') AS visit_date, COUNT(*)::int AS visit_count
+      FROM website_visits
+      WHERE visited_at >= NOW() - INTERVAL '13 days'
+      GROUP BY DATE(visited_at)
+      ORDER BY visit_date ASC
+    `);
+    websiteVisits.dailyLast14 = (dailyResult.rows as { visit_date: string; visit_count: number }[]).map((r) => ({
+      date: r.visit_date,
+      count: Number(r.visit_count),
+    }));
+  } catch {
+    // Table may not exist yet on first deploy — return zeros gracefully
+  }
+
   res.json({
     stats: {
       totalTenants: tenantCount.count,
@@ -223,6 +283,7 @@ router.get("/admin/stats", requireAuth, async (req: Request, res: Response): Pro
       churnRatePct,
       leadSourceBreakdown,
       moduleAdoption,
+      websiteVisits,
     },
   });
 });
