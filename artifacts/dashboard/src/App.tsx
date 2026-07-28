@@ -48,6 +48,7 @@ import BiosecurityPage from "@/pages/BiosecurityPage";
 import MedicinePageDedicated from "@/pages/MedicinePage";
 import BiofuelPage from "@/pages/BiofuelPage";
 import DataApiPage from "@/pages/DataApiPage";
+import ReportBuilderPage from "@/pages/ReportBuilderPage";
 import InspectionsPageFull from "@/pages/InspectionsPageFull";
 import WeatherPageFull from "@/pages/WeatherPageFull";
 import HaulagePageFull from "@/pages/HaulagePageFull";
@@ -386,6 +387,7 @@ function ProtectedContent() {
         <Route path="/workshop" component={WorkshopPage} />
         <Route path="/biofuel" component={BiofuelPage} />
         <Route path="/data-api" component={DataApiPage} />
+        <Route path="/report-builder" component={ReportBuilderPage} />
         <Route path="/pig-production" component={PigProductionPage} />
         <Route path="/poultry-production" component={PoultryProductionPage} />
         <Route path="/sheep-production" component={SheepProductionPage} />
@@ -524,6 +526,7 @@ function DevBypassContent() {
         <Route path="/workshop" component={WorkshopPage} />
         <Route path="/biofuel" component={BiofuelPage} />
         <Route path="/data-api" component={DataApiPage} />
+        <Route path="/report-builder" component={ReportBuilderPage} />
         <Route path="/pig-production" component={PigProductionPage} />
         <Route path="/poultry-production" component={PoultryProductionPage} />
         <Route path="/sheep-production" component={SheepProductionPage} />

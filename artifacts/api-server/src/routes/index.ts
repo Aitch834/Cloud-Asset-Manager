@@ -16,6 +16,7 @@ import viticultureRouter from "./viticulture";
 import mobileRouter from "./mobile";
 import sandboxRouter from "./sandbox";
 import dataExportRouter from "./dataExport";
+import reportBuilderRouter from "./reportBuilder";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(viticultureRouter);
 router.use(mobileRouter);
 router.use(sandboxRouter);
 router.use(dataExportRouter);
+router.use(reportBuilderRouter);
 
 export default router;

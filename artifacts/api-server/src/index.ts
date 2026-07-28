@@ -13,6 +13,7 @@ import { startSensorPollingJob } from "./lib/sensorPollingJob";
 import { runStrawMigrations } from "./lib/strawMigrations";
 import { runPoultryMigrations } from "./lib/poultryMigrations";
 import { runDataApiMigrations } from "./lib/dataApiMigrations";
+import { runReportBuilderMigrations } from "./lib/reportBuilderMigrations";
 
 interface EnvSpec {
   key: string;
@@ -111,6 +112,9 @@ app.listen(port, () => {
   });
   runPoultryMigrations().catch((err) => {
     console.error("[POULTRY-MIGRATE] Failed:", err);
+  });
+  runReportBuilderMigrations().catch((err) => {
+    console.error("[REPORT-BUILDER-MIGRATE] Failed:", err);
   });
   runDataApiMigrations().catch((err) => {
     console.error("[DATA-API-MIGRATE] Failed:", err);

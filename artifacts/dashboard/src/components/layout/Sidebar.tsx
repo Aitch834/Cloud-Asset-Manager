@@ -218,6 +218,7 @@ const documentsNav: NavItem[] = [
 
 const integrationsNav: NavItem[] = [
   { name: "Data API Access", href: "/data-api", icon: Database, moduleKeys: ["data-api"] },
+  { name: "Report Builder", href: "/report-builder", icon: BarChart3, moduleKeys: ["report-builder"] },
 ];
 
 const ROLE_RANK: Record<FarmRole, number> = { operator: 0, senior: 1, manager: 2, owner: 3 };
