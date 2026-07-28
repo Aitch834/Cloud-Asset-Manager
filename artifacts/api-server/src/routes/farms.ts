@@ -36509,6 +36509,249 @@ router.delete("/farms/:farmId/winery-stock/:itemId/movements/:movId", requireAut
   res.json({ success: true });
 });
 
+
+// ══════════════════════════════════════════════════════════════════
+// WINERY MANAGEMENT — Harvest Reception, Pressing, Fermentation,
+// Vessels, Cellar Ops, Bottling, SO₂ Testing, Equipment
+// ══════════════════════════════════════════════════════════════════
+
+const n = (v: unknown) => (v != null && v !== "" ? String(v) : null);
+const ni = (v: unknown) => (v != null && v !== "" ? parseInt(String(v), 10) : null);
+const nf = (v: unknown) => (v != null && v !== "" ? parseFloat(String(v)) : null);
+const nb = (v: unknown) => v === "true" || v === true || v === "1" || v === 1 ? true : v === "false" || v === false || v === "0" || v === 0 ? false : null;
+
+// ── Harvest Reception ──────────────────────────────────────────────────────────
+router.get("/farms/:farmId/winery-reception", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.execute(sql`SELECT * FROM winery_reception_records WHERE farm_id = ${farmId} ORDER BY reception_date DESC, created_at DESC`);
+  res.json({ records: rows.rows });
+});
+router.post("/farms/:farmId/winery-reception", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body);
+  const r = await db.execute(sql`INSERT INTO winery_reception_records (farm_id,reception_date,vintage_year,block_id,variety,source_type,grower_name,vehicle_reg,driver_name,gross_weight_kg,tare_weight_kg,net_weight_kg,intake_temperature_c,brix,ph,titratable_acidity_gl,potential_alcohol,grape_condition,botrytis_pct,mog_pct,holding_bin,inspector_name,accepted,rejection_reason,notes) VALUES (${farmId},${n(b.receptionDate)},${ni(b.vintageYear)},${ni(b.blockId)},${n(b.variety)},${n(b.sourceType)},${n(b.growerName)},${n(b.vehicleReg)},${n(b.driverName)},${nf(b.grossWeightKg)},${nf(b.tareWeightKg)},${nf(b.netWeightKg)},${nf(b.intakeTemperatureC)},${nf(b.brix)},${nf(b.ph)},${nf(b.titratableAcidityGl)},${nf(b.potentialAlcohol)},${n(b.grapeCondition)},${ni(b.botrytisPct)},${nf(b.mogPct)},${n(b.holdingBin)},${n(b.inspectorName)},${nb(b.accepted) ?? true},${n(b.rejectionReason)},${n(b.notes)}) RETURNING *`);
+  res.status(201).json({ record: r.rows[0] });
+});
+router.put("/farms/:farmId/winery-reception/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string);
+  const b = sanitiseBody(req.body);
+  const r = await db.execute(sql`UPDATE winery_reception_records SET reception_date=${n(b.receptionDate)},vintage_year=${ni(b.vintageYear)},block_id=${ni(b.blockId)},variety=${n(b.variety)},source_type=${n(b.sourceType)},grower_name=${n(b.growerName)},vehicle_reg=${n(b.vehicleReg)},driver_name=${n(b.driverName)},gross_weight_kg=${nf(b.grossWeightKg)},tare_weight_kg=${nf(b.tareWeightKg)},net_weight_kg=${nf(b.netWeightKg)},intake_temperature_c=${nf(b.intakeTemperatureC)},brix=${nf(b.brix)},ph=${nf(b.ph)},titratable_acidity_gl=${nf(b.titratableAcidityGl)},potential_alcohol=${nf(b.potentialAlcohol)},grape_condition=${n(b.grapeCondition)},botrytis_pct=${ni(b.botrytisPct)},mog_pct=${nf(b.mogPct)},holding_bin=${n(b.holdingBin)},inspector_name=${n(b.inspectorName)},accepted=${nb(b.accepted) ?? true},rejection_reason=${n(b.rejectionReason)},notes=${n(b.notes)} WHERE id=${id} AND farm_id=${farmId} RETURNING *`);
+  res.json({ record: r.rows[0] });
+});
+router.delete("/farms/:farmId/winery-reception/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  await db.execute(sql`DELETE FROM winery_reception_records WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId}`);
+  res.json({ success: true });
+});
+
+// ── Pressing Records ───────────────────────────────────────────────────────────
+router.get("/farms/:farmId/winery-pressing", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.execute(sql`SELECT * FROM winery_pressing_records WHERE farm_id = ${farmId} ORDER BY press_date DESC, created_at DESC`);
+  res.json({ records: rows.rows });
+});
+router.post("/farms/:farmId/winery-pressing", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body);
+  const r = await db.execute(sql`INSERT INTO winery_pressing_records (farm_id,press_date,vintage_year,batch_ref,press_type,grapes_pressed_kg,free_run_litres,press_wine_litres,total_juice_litres,press_efficiency_l_per_kg,juice_brix,juice_ph,juice_ta_gl,juice_turbidity,free_run_separated,additions_at_press,settling_method,settling_vessel,settling_hours,operator_name,notes) VALUES (${farmId},${n(b.pressDate)},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.pressType)},${nf(b.grapesPressedKg)},${nf(b.freeRunLitres)},${nf(b.pressWineLitres)},${nf(b.totalJuiceLitres)},${nf(b.pressEfficiencyLPerKg)},${nf(b.juiceBrix)},${nf(b.juicePh)},${nf(b.juiceTaGl)},${n(b.juiceTurbidity)},${nb(b.freeRunSeparated) ?? true},${n(b.additionsAtPress)},${n(b.settlingMethod)},${n(b.settlingVessel)},${ni(b.settlingHours)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
+  res.status(201).json({ record: r.rows[0] });
+});
+router.put("/farms/:farmId/winery-pressing/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body);
+  const r = await db.execute(sql`UPDATE winery_pressing_records SET press_date=${n(b.pressDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},press_type=${n(b.pressType)},grapes_pressed_kg=${nf(b.grapesPressedKg)},free_run_litres=${nf(b.freeRunLitres)},press_wine_litres=${nf(b.pressWineLitres)},total_juice_litres=${nf(b.totalJuiceLitres)},press_efficiency_l_per_kg=${nf(b.pressEfficiencyLPerKg)},juice_brix=${nf(b.juiceBrix)},juice_ph=${nf(b.juicePh)},juice_ta_gl=${nf(b.juiceTaGl)},juice_turbidity=${n(b.juiceTurbidity)},free_run_separated=${nb(b.freeRunSeparated) ?? true},additions_at_press=${n(b.additionsAtPress)},settling_method=${n(b.settlingMethod)},settling_vessel=${n(b.settlingVessel)},settling_hours=${ni(b.settlingHours)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
+  res.json({ record: r.rows[0] });
+});
+router.delete("/farms/:farmId/winery-pressing/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  await db.execute(sql`DELETE FROM winery_pressing_records WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId}`);
+  res.json({ success: true });
+});
+
+// ── Vessel Register ────────────────────────────────────────────────────────────
+router.get("/farms/:farmId/winery-vessels", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.execute(sql`SELECT * FROM winery_vessels WHERE farm_id = ${farmId} ORDER BY vessel_ref ASC`);
+  res.json({ records: rows.rows });
+});
+router.post("/farms/:farmId/winery-vessels", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body);
+  if (!b.vesselRef) { res.status(400).json({ error: "vessel_ref required" }); return; }
+  const r = await db.execute(sql`INSERT INTO winery_vessels (farm_id,vessel_ref,vessel_type,capacity_litres,material,year_purchased,manufacturer,location,current_contents,current_volume_litres,oak_origin,cooperage,fill_number,toasting_level,status,notes) VALUES (${farmId},${n(b.vesselRef)},${n(b.vesselType)},${nf(b.capacityLitres)},${n(b.material)},${ni(b.yearPurchased)},${n(b.manufacturer)},${n(b.location)},${n(b.currentContents)},${nf(b.currentVolumeLitres)},${n(b.oakOrigin)},${n(b.cooperage)},${ni(b.fillNumber)},${n(b.toastingLevel)},${n(b.status) ?? 'active'},${n(b.notes)}) RETURNING *`);
+  res.status(201).json({ record: r.rows[0] });
+});
+router.put("/farms/:farmId/winery-vessels/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body);
+  const r = await db.execute(sql`UPDATE winery_vessels SET vessel_ref=${n(b.vesselRef)},vessel_type=${n(b.vesselType)},capacity_litres=${nf(b.capacityLitres)},material=${n(b.material)},year_purchased=${ni(b.yearPurchased)},manufacturer=${n(b.manufacturer)},location=${n(b.location)},current_contents=${n(b.currentContents)},current_volume_litres=${nf(b.currentVolumeLitres)},oak_origin=${n(b.oakOrigin)},cooperage=${n(b.cooperage)},fill_number=${ni(b.fillNumber)},toasting_level=${n(b.toastingLevel)},status=${n(b.status) ?? 'active'},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
+  res.json({ record: r.rows[0] });
+});
+router.delete("/farms/:farmId/winery-vessels/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  await db.execute(sql`DELETE FROM winery_vessels WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId}`);
+  res.json({ success: true });
+});
+router.get("/farms/:farmId/winery-vessels/:vesselId/cleans", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.execute(sql`SELECT * FROM winery_vessel_cleans WHERE farm_id=${farmId} AND vessel_id=${parseInt(req.params.vesselId as string)} ORDER BY clean_date DESC`);
+  res.json({ records: rows.rows });
+});
+router.post("/farms/:farmId/winery-vessels/:vesselId/cleans", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body); const vesselId = parseInt(req.params.vesselId as string);
+  const r = await db.execute(sql`INSERT INTO winery_vessel_cleans (farm_id,vessel_id,clean_date,clean_type,cleaning_product,concentration_pct,water_temp_c,contact_time_min,rinse_completed,operator_name,notes) VALUES (${farmId},${vesselId},${n(b.cleanDate)},${n(b.cleanType)},${n(b.cleaningProduct)},${nf(b.concentrationPct)},${nf(b.waterTempC)},${ni(b.contactTimeMin)},${nb(b.rinseCompleted) ?? true},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
+  res.status(201).json({ record: r.rows[0] });
+});
+router.delete("/farms/:farmId/winery-vessels/:vesselId/cleans/:cleanId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  await db.execute(sql`DELETE FROM winery_vessel_cleans WHERE id=${parseInt(req.params.cleanId as string)} AND farm_id=${farmId}`);
+  res.json({ success: true });
+});
+
+// ── Fermentation Records ───────────────────────────────────────────────────────
+router.get("/farms/:farmId/winery-fermentation", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.execute(sql`SELECT f.*, v.vessel_ref FROM winery_fermentation_records f LEFT JOIN winery_vessels v ON v.id=f.vessel_id WHERE f.farm_id=${farmId} ORDER BY f.start_date DESC NULLS LAST, f.created_at DESC`);
+  res.json({ records: rows.rows });
+});
+router.post("/farms/:farmId/winery-fermentation", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body);
+  const r = await db.execute(sql`INSERT INTO winery_fermentation_records (farm_id,vintage_year,batch_ref,wine_colour,vessel_id,start_date,fermentation_type,yeast_strain,inoculation_date,inoculation_temp_c,start_brix,end_brix,end_date,end_sg,residual_sugar_gl,max_temp_c,min_temp_c,nutrient_additions,so2_at_fermentation_mg_l,volume_litres,operator_name,notes) VALUES (${farmId},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.wineColour)},${ni(b.vesselId)},${n(b.startDate)},${n(b.fermentationType)},${n(b.yeastStrain)},${n(b.inoculationDate)},${nf(b.inoculationTempC)},${nf(b.startBrix)},${nf(b.endBrix)},${n(b.endDate)},${nf(b.endSg)},${nf(b.residualSugarGl)},${nf(b.maxTempC)},${nf(b.minTempC)},${n(b.nutrientAdditions)},${nf(b.so2AtFermentationMgL)},${nf(b.volumeLitres)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
+  res.status(201).json({ record: r.rows[0] });
+});
+router.put("/farms/:farmId/winery-fermentation/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body);
+  const r = await db.execute(sql`UPDATE winery_fermentation_records SET vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},wine_colour=${n(b.wineColour)},vessel_id=${ni(b.vesselId)},start_date=${n(b.startDate)},fermentation_type=${n(b.fermentationType)},yeast_strain=${n(b.yeastStrain)},inoculation_date=${n(b.inoculationDate)},inoculation_temp_c=${nf(b.inoculationTempC)},start_brix=${nf(b.startBrix)},end_brix=${nf(b.endBrix)},end_date=${n(b.endDate)},end_sg=${nf(b.endSg)},residual_sugar_gl=${nf(b.residualSugarGl)},max_temp_c=${nf(b.maxTempC)},min_temp_c=${nf(b.minTempC)},nutrient_additions=${n(b.nutrientAdditions)},so2_at_fermentation_mg_l=${nf(b.so2AtFermentationMgL)},volume_litres=${nf(b.volumeLitres)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
+  res.json({ record: r.rows[0] });
+});
+router.delete("/farms/:farmId/winery-fermentation/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  await db.execute(sql`DELETE FROM winery_fermentation_records WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId}`);
+  res.json({ success: true });
+});
+
+// ── SO₂ Testing Register ───────────────────────────────────────────────────────
+router.get("/farms/:farmId/winery-so2-tests", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.execute(sql`SELECT t.*, v.vessel_ref, e.equipment_ref FROM winery_so2_tests t LEFT JOIN winery_vessels v ON v.id=t.vessel_id LEFT JOIN winery_equipment e ON e.id=t.equipment_id WHERE t.farm_id=${farmId} ORDER BY t.test_date DESC, t.created_at DESC`);
+  res.json({ records: rows.rows });
+});
+router.post("/farms/:farmId/winery-so2-tests", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body);
+  const r = await db.execute(sql`INSERT INTO winery_so2_tests (farm_id,test_date,vintage_year,batch_ref,wine_colour,vessel_id,test_stage,test_method,equipment_id,lab_name,lab_ref,free_so2_mg_l,total_so2_mg_l,max_permitted_mg_l,so2_compliant,action_taken,operator_name,notes) VALUES (${farmId},${n(b.testDate)},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.wineColour)},${ni(b.vesselId)},${n(b.testStage)},${n(b.testMethod)},${ni(b.equipmentId)},${n(b.labName)},${n(b.labRef)},${nf(b.freeSo2MgL)},${nf(b.totalSo2MgL)},${nf(b.maxPermittedMgL)},${nb(b.so2Compliant)},${n(b.actionTaken)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
+  res.status(201).json({ record: r.rows[0] });
+});
+router.put("/farms/:farmId/winery-so2-tests/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body);
+  const r = await db.execute(sql`UPDATE winery_so2_tests SET test_date=${n(b.testDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},wine_colour=${n(b.wineColour)},vessel_id=${ni(b.vesselId)},test_stage=${n(b.testStage)},test_method=${n(b.testMethod)},equipment_id=${ni(b.equipmentId)},lab_name=${n(b.labName)},lab_ref=${n(b.labRef)},free_so2_mg_l=${nf(b.freeSo2MgL)},total_so2_mg_l=${nf(b.totalSo2MgL)},max_permitted_mg_l=${nf(b.maxPermittedMgL)},so2_compliant=${nb(b.so2Compliant)},action_taken=${n(b.actionTaken)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
+  res.json({ record: r.rows[0] });
+});
+router.delete("/farms/:farmId/winery-so2-tests/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  await db.execute(sql`DELETE FROM winery_so2_tests WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId}`);
+  res.json({ success: true });
+});
+
+// ── Cellar Operations ──────────────────────────────────────────────────────────
+router.get("/farms/:farmId/winery-cellar-ops", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.execute(sql`SELECT o.*, fv.vessel_ref AS from_vessel_ref, tv.vessel_ref AS to_vessel_ref FROM winery_cellar_ops o LEFT JOIN winery_vessels fv ON fv.id=o.from_vessel_id LEFT JOIN winery_vessels tv ON tv.id=o.to_vessel_id WHERE o.farm_id=${farmId} ORDER BY o.op_date DESC, o.created_at DESC`);
+  res.json({ records: rows.rows });
+});
+router.post("/farms/:farmId/winery-cellar-ops", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body);
+  if (!b.opType) { res.status(400).json({ error: "op_type required" }); return; }
+  const r = await db.execute(sql`INSERT INTO winery_cellar_ops (farm_id,op_date,vintage_year,batch_ref,op_type,from_vessel_id,to_vessel_id,volume_moved_litres,lees_depth_cm,top_up_volume_litres,top_up_source,so2_product,so2_quantity_g,free_so2_before_mg_l,free_so2_after_mg_l,fining_agent,fining_dose,contact_time_hours,filter_type,filter_pore_um,clarity_before,clarity_after,operator_name,notes) VALUES (${farmId},${n(b.opDate)},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.opType)},${ni(b.fromVesselId)},${ni(b.toVesselId)},${nf(b.volumeMovedLitres)},${nf(b.leesDepthCm)},${nf(b.topUpVolumeLitres)},${n(b.topUpSource)},${n(b.so2Product)},${nf(b.so2QuantityG)},${nf(b.freeSo2BeforeMgL)},${nf(b.freeSo2AfterMgL)},${n(b.finingAgent)},${n(b.finingDose)},${ni(b.contactTimeHours)},${n(b.filterType)},${nf(b.filterPoreUm)},${n(b.clarityBefore)},${n(b.clarityAfter)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
+  res.status(201).json({ record: r.rows[0] });
+});
+router.put("/farms/:farmId/winery-cellar-ops/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body);
+  const r = await db.execute(sql`UPDATE winery_cellar_ops SET op_date=${n(b.opDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},op_type=${n(b.opType)},from_vessel_id=${ni(b.fromVesselId)},to_vessel_id=${ni(b.toVesselId)},volume_moved_litres=${nf(b.volumeMovedLitres)},lees_depth_cm=${nf(b.leesDepthCm)},top_up_volume_litres=${nf(b.topUpVolumeLitres)},top_up_source=${n(b.topUpSource)},so2_product=${n(b.so2Product)},so2_quantity_g=${nf(b.so2QuantityG)},free_so2_before_mg_l=${nf(b.freeSo2BeforeMgL)},free_so2_after_mg_l=${nf(b.freeSo2AfterMgL)},fining_agent=${n(b.finingAgent)},fining_dose=${n(b.finingDose)},contact_time_hours=${ni(b.contactTimeHours)},filter_type=${n(b.filterType)},filter_pore_um=${nf(b.filterPoreUm)},clarity_before=${n(b.clarityBefore)},clarity_after=${n(b.clarityAfter)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
+  res.json({ record: r.rows[0] });
+});
+router.delete("/farms/:farmId/winery-cellar-ops/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  await db.execute(sql`DELETE FROM winery_cellar_ops WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId}`);
+  res.json({ success: true });
+});
+
+// ── Bottling Records ───────────────────────────────────────────────────────────
+router.get("/farms/:farmId/winery-bottling", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.execute(sql`SELECT b.*, v.vessel_ref AS source_vessel_ref FROM winery_bottling_records b LEFT JOIN winery_vessels v ON v.id=b.source_vessel_id WHERE b.farm_id=${farmId} ORDER BY b.bottling_date DESC, b.created_at DESC`);
+  res.json({ records: rows.rows });
+});
+router.post("/farms/:farmId/winery-bottling", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body);
+  const r = await db.execute(sql`INSERT INTO winery_bottling_records (farm_id,bottling_date,vintage_year,batch_ref,lot_code,wine_colour,source_vessel_id,volume_bottled_litres,bottle_size_ml,bottles_produced,cases_produced,closure_type,cork_grade,label_batch,free_so2_mg_l,total_so2_mg_l,actual_abv_pct,residual_sugar_gl,ph,titratable_acidity_gl,certified_organic,certifier_ref,operator_name,notes) VALUES (${farmId},${n(b.bottlingDate)},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.lotCode)},${n(b.wineColour)},${ni(b.sourceVesselId)},${nf(b.volumeBottledLitres)},${ni(b.bottleSizeMl)},${ni(b.bottlesProduced)},${ni(b.casesProduced)},${n(b.closureType)},${n(b.corkGrade)},${n(b.labelBatch)},${nf(b.freeSo2MgL)},${nf(b.totalSo2MgL)},${nf(b.actualAbvPct)},${nf(b.residualSugarGl)},${nf(b.ph)},${nf(b.titratableAcidityGl)},${nb(b.certifiedOrganic) ?? false},${n(b.certifierRef)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
+  res.status(201).json({ record: r.rows[0] });
+});
+router.put("/farms/:farmId/winery-bottling/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body);
+  const r = await db.execute(sql`UPDATE winery_bottling_records SET bottling_date=${n(b.bottlingDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},lot_code=${n(b.lotCode)},wine_colour=${n(b.wineColour)},source_vessel_id=${ni(b.sourceVesselId)},volume_bottled_litres=${nf(b.volumeBottledLitres)},bottle_size_ml=${ni(b.bottleSizeMl)},bottles_produced=${ni(b.bottlesProduced)},cases_produced=${ni(b.casesProduced)},closure_type=${n(b.closureType)},cork_grade=${n(b.corkGrade)},label_batch=${n(b.labelBatch)},free_so2_mg_l=${nf(b.freeSo2MgL)},total_so2_mg_l=${nf(b.totalSo2MgL)},actual_abv_pct=${nf(b.actualAbvPct)},residual_sugar_gl=${nf(b.residualSugarGl)},ph=${nf(b.ph)},titratable_acidity_gl=${nf(b.titratableAcidityGl)},certified_organic=${nb(b.certifiedOrganic) ?? false},certifier_ref=${n(b.certifierRef)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
+  res.json({ record: r.rows[0] });
+});
+router.delete("/farms/:farmId/winery-bottling/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  await db.execute(sql`DELETE FROM winery_bottling_records WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId}`);
+  res.json({ success: true });
+});
+
+// ── Lab Equipment Register ─────────────────────────────────────────────────────
+router.get("/farms/:farmId/winery-equipment", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.execute(sql`SELECT * FROM winery_equipment WHERE farm_id=${farmId} ORDER BY equipment_ref ASC`);
+  res.json({ records: rows.rows });
+});
+router.post("/farms/:farmId/winery-equipment", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body);
+  if (!b.equipmentRef) { res.status(400).json({ error: "equipment_ref required" }); return; }
+  const r = await db.execute(sql`INSERT INTO winery_equipment (farm_id,equipment_ref,equipment_type,manufacturer,model,serial_number,purchase_date,calibration_frequency,last_calibration_date,next_calibration_due,status,notes) VALUES (${farmId},${n(b.equipmentRef)},${n(b.equipmentType)},${n(b.manufacturer)},${n(b.model)},${n(b.serialNumber)},${n(b.purchaseDate)},${n(b.calibrationFrequency)},${n(b.lastCalibrationDate)},${n(b.nextCalibrationDue)},${n(b.status) ?? 'active'},${n(b.notes)}) RETURNING *`);
+  res.status(201).json({ record: r.rows[0] });
+});
+router.put("/farms/:farmId/winery-equipment/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body);
+  const r = await db.execute(sql`UPDATE winery_equipment SET equipment_ref=${n(b.equipmentRef)},equipment_type=${n(b.equipmentType)},manufacturer=${n(b.manufacturer)},model=${n(b.model)},serial_number=${n(b.serialNumber)},purchase_date=${n(b.purchaseDate)},calibration_frequency=${n(b.calibrationFrequency)},last_calibration_date=${n(b.lastCalibrationDate)},next_calibration_due=${n(b.nextCalibrationDue)},status=${n(b.status) ?? 'active'},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
+  res.json({ record: r.rows[0] });
+});
+router.delete("/farms/:farmId/winery-equipment/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  await db.execute(sql`DELETE FROM winery_equipment WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId}`);
+  res.json({ success: true });
+});
+router.get("/farms/:farmId/winery-equipment/:equipId/calibrations", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.execute(sql`SELECT * FROM winery_equipment_calibrations WHERE farm_id=${farmId} AND equipment_id=${parseInt(req.params.equipId as string)} ORDER BY calibration_date DESC`);
+  res.json({ records: rows.rows });
+});
+router.post("/farms/:farmId/winery-equipment/:equipId/calibrations", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body); const equipId = parseInt(req.params.equipId as string);
+  const r = await db.execute(sql`INSERT INTO winery_equipment_calibrations (farm_id,equipment_id,calibration_date,standard_used,result,pre_calibration_reading,post_calibration_reading,expected_value,deviation,action_taken,operator_name,certificate_ref,notes) VALUES (${farmId},${equipId},${n(b.calibrationDate)},${n(b.standardUsed)},${n(b.result)},${nf(b.preCalibrationReading)},${nf(b.postCalibrationReading)},${nf(b.expectedValue)},${nf(b.deviation)},${n(b.actionTaken)},${n(b.operatorName)},${n(b.certificateRef)},${n(b.notes)}) RETURNING *`);
+  // Update last_calibration_date and next_calibration_due on equipment
+  if (b.calibrationDate) {
+    await db.execute(sql`UPDATE winery_equipment SET last_calibration_date=${n(b.calibrationDate)},next_calibration_due=${n(b.nextCalibrationDue)} WHERE id=${equipId} AND farm_id=${farmId}`);
+  }
+  res.status(201).json({ record: r.rows[0] });
+});
+router.delete("/farms/:farmId/winery-equipment/:equipId/calibrations/:calId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  await db.execute(sql`DELETE FROM winery_equipment_calibrations WHERE id=${parseInt(req.params.calId as string)} AND farm_id=${farmId}`);
+  res.json({ success: true });
+});
+
 // ══════════════════════════════════════════════════════════════════
 // RESOURCE PLANNER — Farm Resources & Task Resource Allocations
 // ══════════════════════════════════════════════════════════════════

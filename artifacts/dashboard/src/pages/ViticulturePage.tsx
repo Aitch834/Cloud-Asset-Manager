@@ -7,13 +7,23 @@ import {
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
-  Award, Globe, BadgeAlert,
+  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
   VintageSeasonReportTab,
   ViticulturalEnterpriseReport,
 } from "@/components/ViticulturalReports";
+import {
+  HarvestReceptionTab,
+  PressingRecordsTab,
+  FermentationRecordsTab,
+  VesselRegisterTab,
+  CellarOpsTab,
+  BottlingRecordsTab,
+  So2TestingTab,
+  EquipmentRegisterTab,
+} from "@/pages/WineryManagementTabs";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -4483,6 +4493,14 @@ const TABS = [
   { id: "age-check", label: "Age Verification", icon: ShieldCheck },
   { id: "wine-production", label: "Wine Production", icon: Wine },
   { id: "winery-stock", label: "Winery Stock", icon: Package },
+  { id: "winery-reception", label: "Grape Intake", icon: Grape },
+  { id: "winery-pressing", label: "Pressing Records", icon: Gauge },
+  { id: "winery-fermentation", label: "Fermentation", icon: Beaker },
+  { id: "winery-vessels", label: "Tank & Vessel Register", icon: Package },
+  { id: "winery-cellar-ops", label: "Cellar Operations", icon: Wrench },
+  { id: "winery-bottling", label: "Bottling Records", icon: Wine },
+  { id: "winery-so2", label: "SO₂ Testing Register", icon: FlaskConical },
+  { id: "winery-equipment", label: "Lab Equipment", icon: ShieldCheck },
   { id: "gi-compliance", label: "GI Compliance", icon: Award },
   { id: "spray-diary", label: "Spray Diary", icon: Droplet },
   { id: "soil-analysis", label: "Soil & Leaf Analysis", icon: FlaskConical },
@@ -5121,6 +5139,14 @@ export default function ViticulturePage() {
           {tab === "age-check" && <AgeVerificationTab farmId={selectedFarmId} />}
           {tab === "wine-production" && <WineProductionTab farmId={selectedFarmId} />}
           {tab === "winery-stock" && <WineryStockTab farmId={selectedFarmId} />}
+          {tab === "winery-reception" && <HarvestReceptionTab farmId={selectedFarmId} blocks={blocks.data} />}
+          {tab === "winery-pressing" && <PressingRecordsTab farmId={selectedFarmId} />}
+          {tab === "winery-fermentation" && <FermentationRecordsTab farmId={selectedFarmId} />}
+          {tab === "winery-vessels" && <VesselRegisterTab farmId={selectedFarmId} />}
+          {tab === "winery-cellar-ops" && <CellarOpsTab farmId={selectedFarmId} />}
+          {tab === "winery-bottling" && <BottlingRecordsTab farmId={selectedFarmId} />}
+          {tab === "winery-so2" && <So2TestingTab farmId={selectedFarmId} />}
+          {tab === "winery-equipment" && <EquipmentRegisterTab farmId={selectedFarmId} />}
           {tab === "gi-compliance" && <GiComplianceTab farmId={selectedFarmId} blocks={blocks.data} />}
           {tab === "spray-diary" && <SprayDiaryTab farmId={selectedFarmId} blocks={blocks.data} />}
           {tab === "soil-analysis" && <SoilAnalysisTab farmId={selectedFarmId} blocks={blocks.data} />}

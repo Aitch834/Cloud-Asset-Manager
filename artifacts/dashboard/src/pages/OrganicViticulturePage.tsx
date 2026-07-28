@@ -30,6 +30,16 @@ import {
   SoilAnalysisTab,
   SO2Chip,
 } from "@/pages/ViticulturePage";
+import {
+  HarvestReceptionTab,
+  PressingRecordsTab,
+  FermentationRecordsTab,
+  VesselRegisterTab,
+  CellarOpsTab,
+  BottlingRecordsTab,
+  So2TestingTab,
+  EquipmentRegisterTab,
+} from "@/pages/WineryManagementTabs";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -54,7 +64,9 @@ function fmtNum(val: number | null | undefined): string {
 
 type Tab = "block-conversion" | "input-log" | "copper-register" | "input-derogations" | "wine-production" | "winery-stock" | "certificates"
          | "vit-overview" | "vine-register" | "phenology" | "operations" | "vit-harvest" | "scouting"
-         | "licensing" | "excise" | "tours" | "age-check" | "spray-diary" | "soil-analysis";
+         | "licensing" | "excise" | "tours" | "age-check" | "spray-diary" | "soil-analysis"
+         | "winery-reception" | "winery-pressing" | "winery-fermentation" | "winery-vessels"
+         | "winery-cellar-ops" | "winery-bottling" | "winery-so2" | "winery-equipment";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "block-conversion", label: "Block Conversion" },
@@ -63,6 +75,14 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "input-derogations", label: "Input Derogations" },
   { id: "wine-production", label: "Wine Production" },
   { id: "winery-stock", label: "Winery Stock" },
+  { id: "winery-reception", label: "Grape Intake" },
+  { id: "winery-pressing", label: "Pressing Records" },
+  { id: "winery-fermentation", label: "Fermentation" },
+  { id: "winery-vessels", label: "Tank & Vessel Register" },
+  { id: "winery-cellar-ops", label: "Cellar Operations" },
+  { id: "winery-bottling", label: "Bottling Records" },
+  { id: "winery-so2", label: "SO₂ Testing Register" },
+  { id: "winery-equipment", label: "Lab Equipment" },
   { id: "certificates", label: "Certificates" },
   { id: "vit-overview", label: "Overview" },
   { id: "vine-register", label: "Vine Register" },
@@ -1497,6 +1517,14 @@ export default function OrganicViticulturePage() {
           {tab === "input-derogations" && <InputDerogationsTab farmId={farmId} />}
           {tab === "wine-production" && <WineProductionTab farmId={farmId} />}
           {tab === "winery-stock" && <WineryStockTab farmId={farmId} />}
+          {tab === "winery-reception" && <HarvestReceptionTab farmId={farmId} blocks={vineyardBlocks} />}
+          {tab === "winery-pressing" && <PressingRecordsTab farmId={farmId} />}
+          {tab === "winery-fermentation" && <FermentationRecordsTab farmId={farmId} />}
+          {tab === "winery-vessels" && <VesselRegisterTab farmId={farmId} />}
+          {tab === "winery-cellar-ops" && <CellarOpsTab farmId={farmId} />}
+          {tab === "winery-bottling" && <BottlingRecordsTab farmId={farmId} />}
+          {tab === "winery-so2" && <So2TestingTab farmId={farmId} />}
+          {tab === "winery-equipment" && <EquipmentRegisterTab farmId={farmId} />}
           {tab === "certificates" && <CertificatesTab farmId={farmId} />}
           {tab === "vit-overview" && <VitOverviewTab farmId={farmId} />}
           {tab === "vine-register" && <VineRegisterTab farmId={farmId} blocks={vineyardBlocks} />}
