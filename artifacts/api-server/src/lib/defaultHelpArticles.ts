@@ -323,6 +323,8 @@ const TITLES: [string, string][] = [
   ["HPAI Zone Alerting — Platform Alerts, Farm Zone Status and Organic 16-Week Housing Clock", "Poultry Production"],
   ["Poultry Placement Delivery Fields — Organic Certification Status and Derogation Period at Arrival", "Poultry Production"],
   ["GI Compliance Tab — PDO & PGI Designations, Block Compliance, Certifications and Harvest Declarations", "Viticulture"],
+  ["Inspection Correspondence Log — Recording Communications Against Inspection Records", "Inspections"],
+  ["Agri-Environment Scheme Correspondence Log — Recording Communications with Scheme Administrators", "Environmental"],
 ];
 
 const CONTENT: [string, string][] = [
@@ -6435,6 +6437,62 @@ The Livestock Information Service has confirmed that LIP Cattle API submissions 
 </ul>
 <h3>Populate from Harvest Data</h3>
 <p>Click the <strong>Populate from Harvest Data</strong> button in the declaration form to automatically pull figures from your harvest records. The system filters harvest records by the selected vintage year and by vine register rows linked to the chosen designation, sums the total yield (kg) and area (ha) across all matching blocks, and calculates yield per hectare. It then checks the calculated yield against the designation's Max Yield threshold and pre-fills the compliance flag. Review the auto-filled figures before saving — you can manually adjust any field if your final declaration figures differ from the raw harvest records.</p>`,
+  ],
+  [
+    "How to use the inspection correspondence log to record all communications related to a Red Tractor or scheme inspection record.",
+    `<h2>Inspection Correspondence Log</h2>
+<p>The Inspections module in BDE Farm Trac includes a correspondence log on every inspection record. This lets you capture a complete, date-ordered paper trail of all communications associated with a formal inspection — assessor appointment letters, pre-visit questionnaires, your response to raised non-conformances, corrective action confirmation letters, and any follow-up correspondence.</p>
+<h3>Opening the correspondence log</h3>
+<p>Navigate to <strong>Inspections &amp; Audits</strong> in the dashboard sidebar. In the Inspections table, click the Eye icon on any inspection row to open the inspection detail dialog. The dialog has two tabs: <strong>Details</strong> and <strong>Communications</strong>.</p>
+<h3>Logging a communication</h3>
+<p>Switch to the <strong>Communications</strong> tab and click <strong>Log Communication</strong>. The form captures:</p>
+<ul>
+<li><strong>Date</strong> — defaults to today; change to the actual date of the communication.</li>
+<li><strong>Direction</strong> — <em>Sent / Outgoing</em> (you sent it) or <em>Received / Incoming</em> (you received it).</li>
+<li><strong>Type</strong> — Email, Letter, Phone call, Meeting, Site visit, Video call, or Other.</li>
+<li><strong>Subject</strong> — a brief description of the communication (required).</li>
+<li><strong>Notes / Summary</strong> — an optional summary of the content or outcome.</li>
+</ul>
+<p>Click <strong>Save</strong>. The entry appears immediately in the communications list, ordered with the most recent first.</p>
+<h3>Reading the communications list</h3>
+<p>Each entry shows a direction badge — green for <em>Sent</em>, blue for <em>Received</em> — alongside the communication type, date, subject, and summary. Delete any entry using the bin icon on the right.</p>
+<h3>When to use this log</h3>
+<p>Log communications at each of these key stages:</p>
+<ul>
+<li>Assessor appointment confirmation (date, time, assessor name).</li>
+<li>Pre-inspection questionnaire sent or received.</li>
+<li>Your written response to any non-conformances raised during the visit.</li>
+<li>Corrective action completion notice sent to the certifying body.</li>
+<li>Conditional pass or certificate confirmation letter received.</li>
+</ul>
+<p>When a follow-up assessor asks to see evidence that a previous non-conformance was addressed within the required timeframe, the correspondence log provides the date-stamped record of your response alongside the structured non-conformance record — without searching through email archives.</p>`,
+  ],
+  [
+    "How to record correspondence with Natural England, the RPA, and other scheme administrators against an agri-environment scheme record.",
+    `<h2>Agri-Environment Scheme Correspondence Log</h2>
+<p>Each agri-environment scheme record in BDE Farm Trac — whether an SFI, Countryside Stewardship, Higher Level Stewardship, or ELM agreement — has a built-in correspondence log. This lets you record every communication with scheme administrators such as Natural England and the Rural Payments Agency (RPA) directly against the scheme, creating a complete, date-ordered audit trail alongside the structured agreement data.</p>
+<h3>Opening the correspondence log</h3>
+<p>Navigate to <strong>Environmental</strong> in the dashboard sidebar and open the <strong>Agri-Environment Schemes</strong> tab. Click the Eye icon on any scheme row to open the scheme detail dialog. The dialog has two tabs: <strong>Details</strong> (showing agreement number, status, start and end dates, annual payment, and obligations) and <strong>Communications</strong>.</p>
+<h3>Logging a communication</h3>
+<p>Switch to the <strong>Communications</strong> tab and click <strong>Log Communication</strong>. The form captures:</p>
+<ul>
+<li><strong>Date</strong> — defaults to today; change to the actual date of the communication.</li>
+<li><strong>Direction</strong> — <em>Sent / Outgoing</em> (you sent it) or <em>Received / Incoming</em> (you received it).</li>
+<li><strong>Type</strong> — Email, Letter, Phone call, Meeting, Site visit, Video call, or Other.</li>
+<li><strong>Subject</strong> — a brief description of the communication (required).</li>
+<li><strong>Notes / Summary</strong> — an optional summary of the content or outcome.</li>
+</ul>
+<p>Click <strong>Save</strong>. The entry appears in the communications list, ordered with the most recent first. Direction is colour-coded — green for sent, blue for received.</p>
+<h3>Typical communications to log</h3>
+<ul>
+<li>Agreement offer and acceptance letters from Natural England or RPA.</li>
+<li>Payment notification letters and any queries about payment calculations.</li>
+<li>Monitoring visit appointment notices and outcomes.</li>
+<li>Compliance or technical query correspondence (for example, asking whether a particular management action satisfies a scheme option).</li>
+<li>Variation requests — changes to agreement start/end dates, option areas, or payment rates.</li>
+<li>Any notice of potential recovery of scheme payments.</li>
+</ul>
+<p>Keeping a complete correspondence log means that if an RPA inspector or Natural England monitor questions whether a variation was requested and approved, or whether a monitoring visit outcome was acknowledged, the evidence is accessible instantly within the platform alongside the structured scheme record.</p>`,
   ],
 ];
 

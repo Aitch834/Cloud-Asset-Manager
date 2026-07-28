@@ -628,6 +628,7 @@ const sections: Section[] = [
           "Accident Book — RIDDOR-compliant incident register with a four-stage investigation workflow: Reported (initial record with incident type, severity, location, injured person, witnesses, and RIDDOR flag) → Under Investigation (investigating officer, date, and investigation notes) → Corrective Action Recorded (corrective action, who completed it, and date) → Signed Off (manager name and sign-off date); each stage is gated by the previous; RIDDOR flag auto-set for Over 3-Day, Major Injury, and Fatal severities; mobile app captures the initial incident in the field with GPS, photo evidence, and RIDDOR auto-flag; print incident record for H&S file",
           "Mobile incident reporting — log fly-tipping and encampments in the field with on-device camera capture; syncs to dashboard automatically",
           "Inspection records — formal site, process, and compliance inspections with pass / fail / advisory outcomes",
+          "Inspection correspondence log — log every communication relating to each inspection record directly against it: emails, letters, phone calls, meetings, site visits, and video calls; captures direction (sent/received), type, date, subject, and a summary note; a Communications tab sits alongside the Details view so the full correspondence trail is accessible in one place; provides a date-ordered audit trail of all pre- and post-inspection correspondence for Red Tractor, RSPCA Assured, and other scheme assessors",
           "Non-conformance logging with corrective action workflow and close-out tracking",
           "Print-ready audit summaries and incident registers — A4 format suitable for Red Tractor assessor presentation",
         ],
@@ -661,6 +662,7 @@ const sections: Section[] = [
         features: [
           "Environmental feature mapping",
           "Agri-environment scheme records — Stewardship agreement logging with habitat, hedgerow, and management event records",
+          "Agri-environment scheme correspondence log — log correspondence with scheme administrators such as Natural England and the Rural Payments Agency (RPA) directly against each scheme record; entries capture direction (sent/received), type (email, letter, phone call, meeting, site visit, video call, or other), date, subject, and a summary note; a Communications tab in the scheme detail view provides a complete date-ordered paper trail from initial application through to payment confirmations, monitoring visit notices, and compliance decisions",
           "Scheme obligation tracking per event — link each management action to the corresponding SFI, CS, or ELM agreement option",
           "Dedicated SFI & ELM dashboard page — full-page agreement manager in the sidebar; add and manage SFI, Countryside Stewardship, and ELM agreements with individual action and option codes, payment rates, and target areas; evidence-due deadline alerts surface automatically in amber (within 60 days) and red (within 14 days); print-ready compliance report for RPA inspection visits",
           "SFI / ELMs Actions — log agreements with action codes, payment rates, area, and annual review tracking",
