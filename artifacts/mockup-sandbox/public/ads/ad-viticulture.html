@@ -18,24 +18,24 @@
     overflow: hidden;
   }
 
-  /* Full-bleed vineyard photograph */
+  /* Full-bleed vineyard LANDSCAPE photo — wide rows of vines over rolling hills */
   .bg-img {
     position: absolute;
     inset: 0;
-    background-image: url('https://images.unsplash.com/photo-1510066888983-1f79bfba68ca?w=1400&q=80&auto=format&fit=crop');
+    background-image: url('https://images.unsplash.com/photo-1508193638397-1c4234db14d8?w=1400&q=80&auto=format&fit=crop');
     background-size: cover;
-    background-position: center 30%;
+    background-position: center 45%;
     z-index: 0;
   }
 
-  /* Deep dark overlay for readability */
+  /* Deep dark overlay */
   .bg-overlay {
     position: absolute;
     inset: 0;
-    background: linear-gradient(105deg,
-      rgba(15,10,8,0.92) 0%,
-      rgba(18,14,10,0.85) 55%,
-      rgba(15,10,8,0.60) 100%);
+    background: linear-gradient(110deg,
+      rgba(12,8,6,0.93) 0%,
+      rgba(15,10,8,0.86) 55%,
+      rgba(12,8,6,0.58) 100%);
     z-index: 1;
   }
 
@@ -70,7 +70,17 @@
     padding: 6vh 7vw 5.5vh 7.5vw;
   }
 
-  .logo { height: 8vh; width: auto; }
+  /* Logo pill — frosted so PNG reads on dark bg */
+  .logo-wrap {
+    display: inline-flex;
+    background: rgba(255,255,255,0.10);
+    border-radius: 0.6vw;
+    padding: 0.8vh 1.6vw 0.8vh 1vw;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    align-self: flex-start;
+  }
+  .logo { height: 7vh; width: auto; object-fit: contain; }
 
   .content { display: flex; flex-direction: column; gap: 1.8vh; max-width: 62vw; }
 
@@ -84,15 +94,12 @@
 
   .headline {
     font-family: 'Playfair Display', serif;
-    font-size: 6.8vw;
+    font-size: 6.5vw;
     font-weight: 700;
     line-height: 1.02;
     color: #ffffff;
   }
-  .headline em {
-    font-style: italic;
-    color: #C49A6C;
-  }
+  .headline em { font-style: italic; color: #C49A6C; }
 
   .subline {
     font-size: 1.45vw;
@@ -102,12 +109,12 @@
     max-width: 56vw;
   }
 
-  /* Module list — two columns */
+  /* Module two-column grid */
   .module-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.8vh 3vw;
-    max-width: 58vw;
+    gap: 0.9vh 3vw;
+    max-width: 56vw;
     margin-top: 0.4vh;
   }
   .module-item {
@@ -116,7 +123,7 @@
     gap: 0.5vw;
     font-size: 1.05vw;
     font-weight: 500;
-    color: rgba(255,255,255,0.8);
+    color: rgba(255,255,255,0.82);
   }
   .module-item .dot {
     width: 0.42vw;
@@ -126,52 +133,51 @@
     flex-shrink: 0;
   }
 
-  /* ── Glassmorphism sidebar — right ── */
+  /* Glassmorphism sidebar — NARROWER and more see-through */
   .sidebar {
     position: absolute;
-    right: 5vw;
+    right: 4.5vw;
     top: 50%;
     transform: translateY(-50%);
-    width: 21vw;
-    background: rgba(255,255,255,0.07);
-    backdrop-filter: blur(18px) saturate(1.2);
-    -webkit-backdrop-filter: blur(18px) saturate(1.2);
-    border: 1px solid rgba(196,154,108,0.30);
-    border-radius: 1.2vw;
-    padding: 3.5vh 2.4vw;
+    width: 18vw;
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(22px) saturate(1.3);
+    -webkit-backdrop-filter: blur(22px) saturate(1.3);
+    border: 1px solid rgba(196,154,108,0.25);
+    border-radius: 1vw;
+    padding: 3vh 2vw;
     display: flex;
     flex-direction: column;
-    gap: 0;
     z-index: 5;
   }
 
   .sidebar-title {
     font-family: 'Playfair Display', serif;
-    font-size: 1.3vw;
+    font-size: 1.2vw;
     font-weight: 700;
     font-style: italic;
     color: #C49A6C;
-    margin-bottom: 2.2vh;
-    line-height: 1.25;
+    margin-bottom: 2vh;
+    line-height: 1.2;
   }
 
   .sf {
-    padding: 1.8vh 0;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding: 1.6vh 0;
+    border-bottom: 1px solid rgba(255,255,255,0.09);
   }
   .sf:last-of-type { border-bottom: none; padding-bottom: 0; }
 
   .sf-title {
-    font-size: 1.0vw;
+    font-size: 0.95vw;
     font-weight: 700;
-    color: #ffffff;
-    margin-bottom: 0.3vh;
+    color: rgba(255,255,255,0.90);
+    margin-bottom: 0.25vh;
   }
   .sf-desc {
-    font-size: 0.88vw;
+    font-size: 0.82vw;
     font-weight: 400;
-    color: rgba(255,255,255,0.55);
-    line-height: 1.38;
+    color: rgba(255,255,255,0.50);
+    line-height: 1.35;
   }
 
   /* Bottom row */
@@ -181,7 +187,6 @@
     justify-content: space-between;
   }
 
-  /* Cloud trust */
   .trust-strip {
     display: flex;
     flex-direction: column;
@@ -190,7 +195,7 @@
   .trust-item {
     font-size: 1.0vw;
     font-weight: 400;
-    color: rgba(255,255,255,0.55);
+    color: rgba(255,255,255,0.52);
     display: flex;
     align-items: center;
     gap: 0.45vw;
@@ -209,13 +214,13 @@
     background: transparent;
     color: #C49A6C;
     font-weight: 800;
-    font-size: 1.3vw;
+    font-size: 1.35vw;
     padding: 1.3vh 3vw;
     border-radius: 0.5vw;
     border: 2px solid #C49A6C;
     text-decoration: none;
     white-space: nowrap;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.02em;
   }
   .url {
     font-size: 0.9vw;
@@ -232,51 +237,31 @@
   <div class="top-line"></div>
   <div class="left-strip"></div>
 
-  <!-- Glassmorphism sidebar -->
+  <!-- Narrower glass sidebar -->
   <div class="sidebar">
     <div class="sidebar-title">Full farm platform included</div>
     <div class="sf">
-      <div class="sf-title">Red Tractor Compliance</div>
-      <div class="sf-desc">Spray logs, staff certs, equipment &amp; inspection evidence</div>
+      <div class="sf-title">Red Tractor</div>
+      <div class="sf-desc">Spray logs, staff certs &amp; inspection evidence</div>
     </div>
     <div class="sf">
       <div class="sf-title">Organic Certification</div>
-      <div class="sf-desc">Input derogation register, certifier records &amp; correspondence</div>
+      <div class="sf-desc">Input register, derogation &amp; certifier records</div>
     </div>
     <div class="sf">
-      <div class="sf-title">Countryside Stewardship</div>
-      <div class="sf-desc">Scheme records, payment tracking &amp; agri-env log</div>
+      <div class="sf-title">Stewardship Schemes</div>
+      <div class="sf-desc">Scheme records &amp; payment tracking</div>
     </div>
     <div class="sf">
       <div class="sf-title">Cloud Security</div>
-      <div class="sf-desc">Encrypted storage, auto-backups &amp; built-in disaster recovery</div>
+      <div class="sf-desc">Encrypted, auto-backed-up, disaster-recovery ready</div>
     </div>
   </div>
 
   <div class="inner">
-    <!-- Official BDE Farm Trac logo — white/tan wordmark for dark bg -->
-    <svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 185" role="img" aria-label="BDE Farm Trac">
-      <ellipse cx="94" cy="172" rx="86" ry="9" fill="#8B5E3C" opacity="0.22"/>
-      <path d="M 12,160 C -2,132 -2,80 10,52 C 22,28 42,22 64,22 L 80,10 L 122,10 L 122,76 L 175,92 L 173,114 L 114,110 L 112,132 Z" fill="#5A8F5A"/>
-      <rect x="114" y="109" width="63" height="26" rx="4" fill="#5A8F5A"/>
-      <circle cx="62" cy="125" r="47" fill="#1F4F1F"/>
-      <circle cx="62" cy="125" r="33" fill="rgba(255,255,255,0.15)"/>
-      <circle cx="62" cy="125" r="15" fill="#C49A6C"/>
-      <circle cx="62" cy="125" r="5" fill="#2D6A2E"/>
-      <rect x="68" y="10" width="60" height="14" rx="5" fill="#7CB87C"/>
-      <rect x="85" y="24" width="31" height="44" rx="3" fill="#7CB87C" opacity="0.65"/>
-      <rect x="110" y="108" width="14" height="20" rx="2" fill="#7CB87C"/>
-      <rect x="117" y="2" width="8" height="70" rx="4" fill="#C49A6C"/>
-      <ellipse cx="121" cy="2" rx="4.5" ry="2.5" fill="#8B5E3C"/>
-      <rect x="129" y="14" width="6" height="58" rx="3" fill="#C49A6C"/>
-      <ellipse cx="132" cy="14" rx="3.5" ry="2" fill="#8B5E3C"/>
-      <circle cx="160" cy="147" r="25" fill="#1F4F1F"/>
-      <circle cx="160" cy="147" r="17" fill="rgba(255,255,255,0.15)"/>
-      <circle cx="160" cy="147" r="8" fill="#C49A6C"/>
-      <circle cx="160" cy="147" r="3" fill="#2D6A2E"/>
-      <text x="208" y="102" font-family="Inter, 'Arial Black', sans-serif" font-weight="800" font-size="100" fill="#ffffff">BDE</text>
-      <text x="208" y="177" font-family="Inter, 'Arial Black', sans-serif" font-weight="800" font-size="74" letter-spacing="5" fill="#C49A6C">FARM TRAC</text>
-    </svg>
+    <div class="logo-wrap">
+      <img class="logo" src="/__mockup/bde-farm-trac-logo.png" alt="BDE Farm Trac"/>
+    </div>
 
     <div class="content">
       <div class="eyebrow">Viticulture compliance · Cloud-based · UK vineyards</div>
@@ -295,9 +280,9 @@
 
     <div class="bottom-row">
       <div class="trust-strip">
-        <div class="trust-item"><span class="trust-dot"></span>Cloud-hosted — no software, no local backups, no data loss risk</div>
-        <div class="trust-item"><span class="trust-dot"></span>Enterprise-grade encrypted storage with automatic disaster recovery</div>
-        <div class="trust-item"><span class="trust-dot"></span>No large upfront cost — simple monthly subscription · 30-day free trial</div>
+        <div class="trust-item"><span class="trust-dot"></span>Cloud-hosted — no software to install, access anywhere, nothing to back up manually</div>
+        <div class="trust-item"><span class="trust-dot"></span>Enterprise-grade encrypted storage with automatic disaster recovery built in</div>
+        <div class="trust-item"><span class="trust-dot"></span>No large upfront cost — simple monthly subscription · 30-day free trial, no card required</div>
       </div>
       <div class="cta-block">
         <a class="cta" href="#">Register your interest today</a>
