@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<title>BDE Farm Trac — Livestock & Dairy</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100vw; height: 100vh; overflow: hidden; font-family: 'Inter', sans-serif; }
+
+  .ad {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Full-bleed livestock/dairy pastoral photo */
+  .bg-img {
+    position: absolute;
+    inset: 0;
+    background-image: url('https://images.pexels.com/photos/2885320/pexels-photo-2885320.jpeg?auto=compress&cs=tinysrgb&w=1920');
+    background-size: cover;
+    background-position: center 50%;
+    z-index: 0;
+  }
+
+  /* Forest-green wash — lighter right side so animals remain visible */
+  .bg-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(115deg,
+      rgba(18,46,18,0.82) 0%,
+      rgba(22,54,22,0.72) 52%,
+      rgba(18,46,18,0.45) 100%);
+    z-index: 1;
+  }
+
+  /* Tan left accent strip */
+  .accent-strip {
+    position: absolute;
+    left: 0; top: 0;
+    width: 0.9vw;
+    height: 100%;
+    background: #C49A6C;
+    z-index: 3;
+  }
+
+  /* Tan top rule */
+  .top-rule {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 0.5vh;
+    background: #C49A6C;
+    z-index: 3;
+  }
+
+  /* Main layout */
+  .inner {
+    position: relative;
+    z-index: 4;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 5.5vh 7vw 5vh 7.5vw;
+  }
+
+  .logo {
+    height: 7.5vh;
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 1px 8px rgba(0,0,0,0.55));
+    align-self: flex-start;
+  }
+
+  .content { display: flex; flex-direction: column; gap: 1.8vh; }
+
+  .eyebrow {
+    font-size: 1.05vw;
+    font-weight: 600;
+    color: #C49A6C;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .headline {
+    font-size: 6.4vw;
+    font-weight: 900;
+    line-height: 0.97;
+    color: #ffffff;
+    letter-spacing: -0.035em;
+  }
+  .headline em { font-style: normal; color: #C49A6C; }
+
+  .subline {
+    font-size: 1.5vw;
+    font-weight: 400;
+    color: rgba(255,255,255,0.78);
+    line-height: 1.5;
+    max-width: 60vw;
+  }
+
+  /* Module grid */
+  .modules {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1vh 2.5vw;
+    max-width: 74vw;
+    margin-top: 0.3vh;
+  }
+  .module-item {
+    display: flex;
+    align-items: center;
+    gap: 0.55vw;
+    font-size: 1.1vw;
+    font-weight: 500;
+    color: rgba(255,255,255,0.85);
+  }
+  .module-item::before {
+    content: '';
+    width: 0.42vw;
+    height: 0.42vw;
+    border-radius: 50%;
+    background: #C49A6C;
+    flex-shrink: 0;
+  }
+
+  /* Cloud / trust strip */
+  .trust-strip {
+    display: flex;
+    gap: 2.4vw;
+    border-top: 1px solid rgba(255,255,255,0.15);
+    padding-top: 1.5vh;
+    margin-top: 0.4vh;
+    flex-wrap: wrap;
+  }
+  .trust-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5vw;
+    font-size: 1.0vw;
+    font-weight: 500;
+    color: rgba(255,255,255,0.62);
+  }
+  .t-icon {
+    width: 1.2vw;
+    height: 1.2vw;
+    flex-shrink: 0;
+    opacity: 0.8;
+  }
+
+  /* Bottom row */
+  .bottom-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+
+  .bullets {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5vh;
+  }
+  .bullet {
+    font-size: 0.95vw;
+    color: rgba(255,255,255,0.48);
+    display: flex;
+    align-items: center;
+    gap: 0.4vw;
+  }
+  .bullet::before { content: '·'; color: #C49A6C; font-size: 1.3em; }
+
+  .cta-block { display: flex; flex-direction: column; align-items: flex-end; gap: 0.6vh; }
+  .cta {
+    display: inline-block;
+    background: #C49A6C;
+    color: #1a2e1a;
+    font-weight: 800;
+    font-size: 1.45vw;
+    padding: 1.4vh 3.2vw;
+    border-radius: 0.5vw;
+    text-decoration: none;
+    white-space: nowrap;
+    letter-spacing: 0.01em;
+  }
+  .url {
+    font-size: 0.95vw;
+    color: rgba(255,255,255,0.32);
+    letter-spacing: 0.04em;
+    text-align: right;
+  }
+  .qr-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4vh;
+    margin-left: 1.8vw;
+  }
+  .qr-wrap img {
+    width: 8vh;
+    height: 8vh;
+    border-radius: 0.4vw;
+    display: block;
+  }
+  .qr-label {
+    font-size: 0.75vw;
+    color: rgba(255,255,255,0.38);
+    letter-spacing: 0.04em;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="ad">
+  <div class="bg-img"></div>
+  <div class="bg-overlay"></div>
+  <div class="accent-strip"></div>
+  <div class="top-rule"></div>
+
+  <div class="inner">
+    <img class="logo" src="/__mockup/bde-farm-trac-logo.png" alt="BDE Farm Trac"/>
+
+    <div class="content">
+      <div class="eyebrow">BCMS · APHA · BVD · Medicine Records · Milk Recording · Cloud-based</div>
+      <div class="headline">Every animal.<br>Every record.<br><em>Always compliant.</em></div>
+      <div class="subline">Medicine withdrawals, movement records, milk yields, health plans — all in one secure cloud platform. Audit-ready for BCMS, APHA and Red Tractor at any time.</div>
+
+      <div class="modules">
+        <div class="module-item">Livestock Movements (BCMS)</div>
+        <div class="module-item">Medicine & Withdrawals</div>
+        <div class="module-item">Milk Recording & Yields</div>
+        <div class="module-item">Cattle Health Plans</div>
+        <div class="module-item">BVD & TB Testing Records</div>
+        <div class="module-item">APHA Reporting</div>
+        <div class="module-item">Sheep & Goat Records</div>
+        <div class="module-item">Red Tractor Livestock</div>
+        <div class="module-item">Staff Training & Certs</div>
+      </div>
+
+      <div class="trust-strip">
+        <div class="trust-item">
+          <svg class="t-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
+          Cloud-hosted — nothing to install
+        </div>
+        <div class="trust-item">
+          <svg class="t-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Enterprise-grade data security
+        </div>
+        <div class="trust-item">
+          <svg class="t-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7"/><path d="M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4"/><path d="M4 12c0 2.21 3.582 4 8 4s8-1.79 8-4"/></svg>
+          Automatic backups &amp; disaster recovery built in
+        </div>
+        <div class="trust-item">
+          <svg class="t-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          No significant upfront cost — simple monthly subscription
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-row">
+      <div class="bullets">
+        <div class="bullet">Withdrawal period alerts sent direct to your phone — never miss a date</div>
+        <div class="bullet">Your data is yours — hosted securely, never shared</div>
+        <div class="bullet">30-day free trial, no card required</div>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:1.4vw;">
+        <div class="cta-block">
+          <a class="cta" href="https://bdefarmtrac.co.uk" target="_blank" rel="noopener">Register your interest today</a>
+          <span class="url">bdefarmtrac.co.uk</span>
+        </div>
+        <div class="qr-wrap">
+          <img src="/__mockup/qr-bdefarmtrac.png" alt="QR code — bdefarmtrac.co.uk"/>
+          <span class="qr-label">Scan to visit</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
