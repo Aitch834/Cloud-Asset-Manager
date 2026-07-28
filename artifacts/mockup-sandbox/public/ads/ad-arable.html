@@ -14,75 +14,76 @@
   .ad {
     width: 100vw;
     height: 100vh;
-    background: #F7F3EC;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 5.5vh 6vw 5vh 6vw;
     position: relative;
     overflow: hidden;
+    background: #F5F0E8;
   }
 
-  /* Bottom green band */
-  .bottom-band {
+  /* Background photo — subtle, on left side behind the copy */
+  .bg-img {
     position: absolute;
-    bottom: 0; left: 0; right: 0;
-    height: 22%;
-    background: #2D6A2E;
+    left: 0; top: 0;
+    width: 68vw;
+    height: 100%;
+    background-image: url('https://images.unsplash.com/photo-1574943320219-553eb213f72d?w=1200&q=80&auto=format&fit=crop');
+    background-size: cover;
+    background-position: center;
     z-index: 0;
   }
-  /* Tan border on the band */
-  .band-border {
+
+  /* Warm cream wash over the left photo area */
+  .bg-overlay {
     position: absolute;
-    bottom: 22%;
-    left: 0; right: 0;
-    height: 0.7vh;
-    background: #C49A6C;
+    left: 0; top: 0;
+    width: 68vw;
+    height: 100%;
+    background: linear-gradient(100deg,
+      rgba(245,240,232,0.96) 0%,
+      rgba(245,240,232,0.90) 55%,
+      rgba(245,240,232,0.0) 100%);
     z-index: 1;
   }
 
-  /* Left accent strip */
-  .left-strip {
+  /* Green right panel */
+  .right-panel {
     position: absolute;
-    top: 0; left: 0;
-    width: 1.2vw;
-    height: 78%;
+    top: 0; right: 0;
+    width: 36vw;
+    height: 100%;
     background: #2D6A2E;
-    z-index: 1;
-  }
-
-  .top-row {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
     z-index: 2;
   }
 
-  /* Full official logo — natural colours work on cream */
-  .logo { height: 8.5vh; width: auto; }
+  /* Tan divider between left and right */
+  .divider {
+    position: absolute;
+    top: 0;
+    right: 36vw;
+    width: 0.8vw;
+    height: 100%;
+    background: #C49A6C;
+    z-index: 3;
+  }
 
-  .scheme-badges {
+  /* Left content */
+  .left {
+    position: absolute;
+    top: 0; left: 0;
+    width: 63vw;
+    height: 100%;
     display: flex;
-    gap: 0.8vw;
-    align-items: center;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 5.5vh 4vw 5vh 6vw;
+    z-index: 4;
   }
-  .badge {
-    font-size: 0.9vw;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    padding: 0.5vh 1.2vw;
-    border-radius: 0.4vw;
-    white-space: nowrap;
-  }
-  .badge-green { background: #2D6A2E; color: #ffffff; }
-  .badge-brown { background: #8B5E3C; color: #ffffff; }
-  .badge-outline { border: 1.5px solid #2D6A2E; color: #2D6A2E; }
 
-  .mid { display: flex; flex-direction: column; gap: 2vh; z-index: 2; }
+  .logo { height: 8vh; width: auto; }
+
+  .content { display: flex; flex-direction: column; gap: 2vh; }
 
   .eyebrow {
-    font-size: 1.1vw;
+    font-size: 1.0vw;
     font-weight: 600;
     color: #8B5E3C;
     letter-spacing: 0.14em;
@@ -90,7 +91,7 @@
   }
 
   .headline {
-    font-size: 7vw;
+    font-size: 6.8vw;
     font-weight: 900;
     line-height: 0.97;
     color: #1a2e1a;
@@ -98,91 +99,137 @@
   }
   .headline em { font-style: normal; color: #2D6A2E; }
 
-  .feature-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 1.5vh 2vw;
-    margin-top: 0.5vh;
-  }
-  .feature {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4vh;
-  }
-  .feature-title {
-    font-size: 1.15vw;
-    font-weight: 700;
-    color: #2D6A2E;
-  }
-  .feature-desc {
-    font-size: 1.0vw;
+  .subline {
+    font-size: 1.5vw;
     font-weight: 400;
     color: #4B5563;
-    line-height: 1.35;
+    line-height: 1.5;
+    max-width: 50vw;
   }
 
-  /* Bottom band content */
-  .bottom-content {
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    height: 22%;
+  /* Cloud trust icons */
+  .trust-strip {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7vh;
+    border-left: 2px solid #C49A6C;
+    padding-left: 1.2vw;
+    margin-top: 0.5vh;
+  }
+  .trust-item {
+    font-size: 1.0vw;
+    font-weight: 500;
+    color: #4B5563;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0 6vw;
-    z-index: 2;
+    gap: 0.5vw;
+  }
+  .trust-icon {
+    width: 1.1vw;
+    height: 1.1vw;
+    color: #2D6A2E;
+    flex-shrink: 0;
   }
 
   .bottom-left {
     display: flex;
     flex-direction: column;
-    gap: 0.5vh;
-  }
-  .bottom-headline {
-    font-size: 1.8vw;
-    font-weight: 800;
-    color: #ffffff;
-    letter-spacing: -0.01em;
-  }
-  .bottom-sub {
-    font-size: 1.1vw;
-    font-weight: 400;
-    color: rgba(255,255,255,0.7);
+    gap: 0.8vh;
   }
 
-  .cta-group { display: flex; flex-direction: column; align-items: flex-end; gap: 0.8vh; }
   .cta {
     display: inline-block;
-    background: #C49A6C;
-    color: #1a2e1a;
+    background: #2D6A2E;
+    color: #ffffff;
     font-weight: 800;
-    font-size: 1.3vw;
-    padding: 1.2vh 3vw;
+    font-size: 1.4vw;
+    padding: 1.4vh 3vw;
     border-radius: 0.5vw;
     text-decoration: none;
     white-space: nowrap;
+    align-self: flex-start;
   }
-  .url {
+
+  .footer-note {
+    font-size: 0.92vw;
+    color: #9CA3AF;
+  }
+
+  /* Right panel content */
+  .right-content {
+    position: absolute;
+    top: 0; right: 0;
+    width: 36vw;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 4vh 3.5vw;
+    z-index: 5;
+  }
+
+  .panel-label {
+    font-size: 0.9vw;
+    font-weight: 700;
+    color: rgba(255,255,255,0.45);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-bottom: 2.5vh;
+    text-align: center;
+  }
+
+  .stat-block {
+    width: 100%;
+    text-align: center;
+    padding: 2.8vh 0;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+  }
+  .stat-block:last-of-type { border-bottom: none; }
+
+  .stat-num {
+    font-size: 5.5vw;
+    font-weight: 900;
+    color: #C49A6C;
+    line-height: 1;
+    letter-spacing: -0.04em;
+  }
+  .stat-label {
+    font-size: 1.1vw;
+    font-weight: 400;
+    color: rgba(255,255,255,0.7);
+    line-height: 1.35;
+    margin-top: 0.5vh;
+  }
+
+  .panel-url {
+    margin-top: 2.5vh;
     font-size: 1.0vw;
-    color: rgba(255,255,255,0.5);
-    letter-spacing: 0.03em;
+    font-weight: 600;
+    color: #C49A6C;
+    letter-spacing: 0.06em;
+    text-align: center;
+    text-transform: uppercase;
   }
 </style>
 </head>
 <body>
 <div class="ad">
-  <div class="bottom-band"></div>
-  <div class="band-border"></div>
-  <div class="left-strip"></div>
+  <div class="bg-img"></div>
+  <div class="bg-overlay"></div>
+  <div class="right-panel"></div>
+  <div class="divider"></div>
 
-  <div class="top-row">
-    <!-- Full official BDE Farm Trac logo — natural colours on cream -->
+  <!-- Left -->
+  <div class="left">
+    <!-- Official BDE Farm Trac logo — natural colours on light bg -->
     <svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 185" role="img" aria-label="BDE Farm Trac">
       <ellipse cx="94" cy="172" rx="86" ry="9" fill="#8B5E3C" opacity="0.22"/>
       <path d="M 12,160 C -2,132 -2,80 10,52 C 22,28 42,22 64,22 L 80,10 L 122,10 L 122,76 L 175,92 L 173,114 L 114,110 L 112,132 Z" fill="#2D6A2E"/>
       <rect x="114" y="109" width="63" height="26" rx="4" fill="#2D6A2E"/>
       <circle cx="62" cy="125" r="47" fill="#1F4F1F"/>
-      <circle cx="62" cy="125" r="33" fill="#F7F3EC"/>
+      <circle cx="62" cy="125" r="33" fill="#FFFFFF"/>
       <circle cx="62" cy="125" r="15" fill="#C49A6C"/>
       <circle cx="62" cy="125" r="5" fill="#2D6A2E"/>
       <rect x="68" y="10" width="60" height="14" rx="5" fill="#5A8F5A"/>
@@ -193,61 +240,60 @@
       <rect x="129" y="14" width="6" height="58" rx="3" fill="#C49A6C"/>
       <ellipse cx="132" cy="14" rx="3.5" ry="2" fill="#8B5E3C"/>
       <circle cx="160" cy="147" r="25" fill="#1F4F1F"/>
-      <circle cx="160" cy="147" r="17" fill="#F7F3EC"/>
+      <circle cx="160" cy="147" r="17" fill="#FFFFFF"/>
       <circle cx="160" cy="147" r="8" fill="#C49A6C"/>
       <circle cx="160" cy="147" r="3" fill="#2D6A2E"/>
       <text x="208" y="102" font-family="Inter, 'Arial Black', sans-serif" font-weight="800" font-size="100" fill="#2D6A2E">BDE</text>
       <text x="208" y="177" font-family="Inter, 'Arial Black', sans-serif" font-weight="800" font-size="74" letter-spacing="5" fill="#8B5E3C">FARM TRAC</text>
     </svg>
 
-    <div class="scheme-badges">
-      <span class="badge badge-green">Red Tractor</span>
-      <span class="badge badge-brown">Organic</span>
-      <span class="badge badge-outline">Countryside Stewardship</span>
-    </div>
-  </div>
+    <div class="content">
+      <div class="eyebrow">Red Tractor · Organic · Countryside Stewardship</div>
+      <div class="headline">Every record.<br><em>Always ready.</em></div>
+      <div class="subline">Sprays, medicines, livestock movements, soil tests — all in one place, all audit-ready. Fully cloud-hosted, so your data is safe and accessible from anywhere.</div>
 
-  <div class="mid">
-    <div class="eyebrow">The complete farm compliance platform</div>
-    <div class="headline">Every record.<br><em>Always ready.</em></div>
-
-    <div class="feature-grid">
-      <div class="feature">
-        <div class="feature-title">Spray Records</div>
-        <div class="feature-desc">Full FACTS-compliant spray logs, product, MAPP, weather conditions, operator, and buffer zones</div>
-      </div>
-      <div class="feature">
-        <div class="feature-title">Livestock & Movements</div>
-        <div class="feature-desc">Herd registers, CTS movements, medicine withdrawal periods, and vet prescriptions</div>
-      </div>
-      <div class="feature">
-        <div class="feature-title">Soil & Nutrient</div>
-        <div class="feature-desc">Soil tests, NVZ management, field risk maps, and fertiliser application records</div>
-      </div>
-      <div class="feature">
-        <div class="feature-title">Inspections</div>
-        <div class="feature-desc">Red Tractor, organic, and farm assurance inspection records with non-conformance tracking</div>
-      </div>
-      <div class="feature">
-        <div class="feature-title">Staff Training</div>
-        <div class="feature-desc">PA1/PA2, first aid, forklift, and all certificate expiry dates with advance alerts</div>
-      </div>
-      <div class="feature">
-        <div class="feature-title">Mobile App</div>
-        <div class="feature-desc">Record on the go — works offline in fields and lambing sheds, syncs when back in range</div>
+      <div class="trust-strip">
+        <div class="trust-item">
+          <svg class="trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
+          Cloud-based — no software to install, works on any device
+        </div>
+        <div class="trust-item">
+          <svg class="trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Secure, encrypted data storage with built-in disaster recovery
+        </div>
+        <div class="trust-item">
+          <svg class="trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7"/><path d="M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4"/></svg>
+          Automatic backups — never lose a record, no manual effort needed
+        </div>
+        <div class="trust-item">
+          <svg class="trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          No large upfront cost — simple monthly subscription
+        </div>
       </div>
     </div>
-  </div>
 
-  <div class="bottom-content">
     <div class="bottom-left">
-      <div class="bottom-headline">From £1 per day · 30-day free trial</div>
-      <div class="bottom-sub">No long-term contracts · Cancel any time · No card required to trial</div>
-    </div>
-    <div class="cta-group">
       <a class="cta" href="#">Register your interest today</a>
-      <span class="url">bdefarmtrac.co.uk</span>
+      <div class="footer-note">bdefarmtrac.co.uk · 30-day free trial · No card required</div>
     </div>
+  </div>
+
+  <!-- Right panel -->
+  <div class="right-content">
+    <div class="panel-label">Why BDE Farm Trac?</div>
+    <div class="stat-block">
+      <div class="stat-num">15+</div>
+      <div class="stat-label">compliance modules<br>in one platform</div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-num">100%</div>
+      <div class="stat-label">cloud-hosted<br>no local install</div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-num">30</div>
+      <div class="stat-label">day free trial,<br>no card required</div>
+    </div>
+    <div class="panel-url">bdefarmtrac.co.uk</div>
   </div>
 </div>
 </body>
