@@ -140,9 +140,16 @@
   .swatch-dot {
     width: 36px;
     height: 36px;
-    border-radius: 50%;
     flex-shrink: 0;
-    border: 1px solid rgba(0,0,0,0.12);
+    /* SVG circle used instead of background-color for PDF print compatibility */
+  }
+  .swatch-dot svg { display: block; }
+
+  /* Force ALL background colours to print — belt-and-braces for PDF export */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
   }
   .swatch-info { font-size: 9pt; line-height: 1.4; }
   .swatch-info strong { font-size: 10.5pt; display: block; }
@@ -347,7 +354,7 @@
   <p style="font-size:9.5pt;color:var(--mid);margin-bottom:10px">These are the exact colours to be reproduced in CMYK print. Hex values are provided for reference; all print production must use the Pantone (spot) or CMYK equivalents.</p>
   <div class="swatches">
     <div class="swatch">
-      <div class="swatch-dot" style="background:#005028"></div>
+      <div class="swatch-dot"><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="17" fill="#005028" stroke="rgba(0,0,0,0.12)" stroke-width="1"/></svg></div>
       <div class="swatch-info">
         <strong>Forest Green</strong>
         Hex: #005028<br>
@@ -358,7 +365,7 @@
       </div>
     </div>
     <div class="swatch">
-      <div class="swatch-dot" style="background:#64b43c"></div>
+      <div class="swatch-dot"><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="17" fill="#64b43c" stroke="rgba(0,0,0,0.12)" stroke-width="1"/></svg></div>
       <div class="swatch-info">
         <strong>Leaf Green</strong>
         Hex: #64b43c<br>
@@ -369,7 +376,7 @@
       </div>
     </div>
     <div class="swatch">
-      <div class="swatch-dot" style="background:#8c5028"></div>
+      <div class="swatch-dot"><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="17" fill="#8c5028" stroke="rgba(0,0,0,0.12)" stroke-width="1"/></svg></div>
       <div class="swatch-info">
         <strong>Copper Brown</strong>
         Hex: #8c5028<br>
@@ -380,7 +387,7 @@
       </div>
     </div>
     <div class="swatch">
-      <div class="swatch-dot" style="background:#ffffff;border:2px solid #ddd"></div>
+      <div class="swatch-dot"><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="17" fill="#ffffff" stroke="#cccccc" stroke-width="2"/></svg></div>
       <div class="swatch-info">
         <strong>White</strong>
         Hex: #ffffff<br>
