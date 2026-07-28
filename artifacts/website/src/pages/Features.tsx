@@ -6,7 +6,7 @@ import {
   Droplets, AlertTriangle, Leaf, Fuel, Zap,
   Ham, Bird, Flower2, Store, Waves, Landmark, WheatIcon,
   Warehouse, Wrench, HeartPulse, Milk, Grape, Crosshair, CalendarClock,
-  FlaskConical,
+  FlaskConical, Database, BarChart3,
 } from "lucide-react";
 
 type Badge = "required" | "module" | "included";
@@ -1029,6 +1029,37 @@ const sections: Section[] = [
           "Certificates Register — store organic viticulture and wine certificates: certifying body, certificate number, certificate type (Vineyard Organic, Organic Wine, In-Conversion, Other), issue date, expiry date, scope, and status; expiry urgency badges at 90 / 30 days",
           "Mobile app — dedicated Organic Viticulture Derogations screen: read-only register of all input derogation cases with status chips (including Action Required on refused cases without a corrective action), expandable case detail (certifier, dates, internal decision date, expiry urgency, availability search evidence, justification, approval conditions, refusal reason, refusal reference, corrective action in green when recorded), and a dashboard prompt for correspondence and document management",
           "Full standard Viticulture module access within Organic Viticulture — the Organic Viticulture page includes all standard Viticulture tabs alongside the organic compliance tabs: Overview (vineyard block overview and summary), Vine Register (variety, rootstock, and planting records), Phenology (BBCH growth stage log), Pruning & Canopy (all canopy operations from winter pruning through to green harvest), Harvest (yield and must chemistry records), Disease Scouting (pest and disease pressure walkabout log with APHA notifiable organism alerts), Licensing, Excise & Duty, Tastings & Tours, Age Verification, Wine Production, and Winery Stock; organic producers have their complete vineyard operational, winery compliance, and organic certification records in one place without navigating between modules",
+        ],
+      },
+      {
+        title: "Data API",
+        icon: Database,
+        color: "bg-slate-50 text-slate-600 border-slate-100",
+        badge: "module",
+        features: [
+          "Read-only REST API giving external systems direct access to your farm data — fields, livestock, medicines, sprays, soil tests, crop assignments, inspections, training records, equipment, and financials",
+          "10 structured JSON endpoints — one per datasource, all scoped to your holding and returning current live data",
+          "Secure API key management — generate named keys, view the prefix for identification, revoke instantly; the full key value is shown once on creation for security",
+          "Suitable for connecting to third-party farm management systems, Power Query spreadsheets, Power BI, or custom business intelligence tools",
+          "In-app documentation — endpoint URLs, authentication header format, and example JSON responses shown on the Data API dashboard page",
+          "No manual CSV export needed — external tools can poll the API on a schedule and always have current data",
+          "£15/month add-on",
+        ],
+      },
+      {
+        title: "Report Builder",
+        icon: BarChart3,
+        color: "bg-indigo-50 text-indigo-600 border-indigo-100",
+        badge: "module",
+        features: [
+          "4-step report wizard — choose a datasource, pick columns, apply filters, then preview and save",
+          "10 datasources — fields, livestock, medicines, sprays, soil tests, crop assignments, inspections, training, equipment, and financials",
+          "Column picker — include or exclude any available column; select-all and clear-all for speed",
+          "Filters — date range picker plus field-level equals / contains / greater-than / less-than filters to target exactly the records you need",
+          "Optional charts — bar, line, or pie; configure label field, value field, and aggregation (count, sum, or average) to turn raw records into visual insight",
+          "CSV export — download any result set as a formatted spreadsheet in one click",
+          "Saved reports — name and save report definitions; re-run with fresh live data any time from the saved reports list",
+          "£20/month add-on — unlimited custom reports without writing SQL or exporting raw data",
         ],
       },
       {

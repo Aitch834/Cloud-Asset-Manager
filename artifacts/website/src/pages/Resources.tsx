@@ -4,7 +4,7 @@ import { Link } from "wouter";
 import { useState } from "react";
 import {
   BookOpen, ArrowRight, ChevronRight, Clock, Tag,
-  Wheat, Beef, Sprout, Tractor, ClipboardList, Leaf,
+  Wheat, Beef, Sprout, Tractor, ClipboardList, Leaf, BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -200,6 +200,41 @@ const ARTICLES: Article[] = [
       {
         heading: "Using the data to drive management change",
         content: "The analytical value of lambing records comes from asking specific questions of the data:\n\n• Are losses higher in one flock group than another — and if so, does that group have a different nutritional history, lambing date, or housing density?\n• Are stillbirths concentrated on a specific date range, suggesting a synchronisation or vaccination timing issue?\n• Are neonatal deaths (alive at birth, dead within 24h) higher than expected — suggesting colostrum failure, chilling, or mismothering rather than parturition problems?\n• Are triplet-bearing ewes accounting for a disproportionate share of lamb mortality — suggesting that triplets are being left on the ewe rather than fostered or bottle-reared?\n\nNone of these questions can be answered from a total lamb count. A structured record — even a minimal one — is what turns lambing data from a number into a management tool.",
+      },
+    ],
+  },
+  {
+    slug: "report-builder-guide",
+    tag: "Data & Reporting",
+    tagColor: "bg-indigo-100 text-indigo-700",
+    icon: BarChart3,
+    title: "How to use the BDE Farm Trac Report Builder to analyse your farm data",
+    summary: "The Report Builder lets you build custom reports from any of your farm records in four steps — no spreadsheet export needed. Here is how to use it to answer the questions that actually matter for your operation.",
+    readTime: "5 min read",
+    body: [
+      {
+        heading: "Why a custom report builder matters for farm businesses",
+        content: "Standard compliance reports answer one question: have you recorded everything you need to? A custom report builder answers a different set of questions: which fields had the most spray applications this season? Which medicines were used most frequently last quarter? Which pieces of equipment are overdue for a service? Which staff training certificates expire in the next six months?\n\nThese are farm management questions, not just compliance questions. They are the kind of analysis that used to require exporting raw data to a spreadsheet, cleaning it, and building a pivot table — a process that either took a skilled administrator or did not happen at all. The BDE Farm Trac Report Builder makes this kind of analysis available to every farm manager, directly in the platform, in under two minutes.",
+      },
+      {
+        heading: "Step 1 — Choose your datasource",
+        content: "Open Integrations & API → Report Builder in the dashboard sidebar and click New Report. The first step asks you to select a datasource. Ten are available:\n\n• Fields — your full field register\n• Livestock — herd and flock data\n• Medicine Records — all veterinary medicine applications\n• Spray Applications — all spray records\n• Soil Tests — soil analysis results\n• Crop Assignments — field-to-crop assignments by season\n• Inspections — scheme inspection records\n• Training Records — staff training and certificates\n• Equipment — equipment register and service records\n• Financials — purchase orders and financial records\n\nChoose the one that contains the data you want to analyse. Each datasource exposes all the fields stored in that module.",
+      },
+      {
+        heading: "Step 2 — Pick your columns",
+        content: "The column picker shows every available field for your chosen datasource. Tick only the columns you need — a report with fewer columns is easier to read and analyse. Use Select All to include everything, or Clear to start fresh.\n\nFor example, a medicine cost report from Medicine Records might include: Animal Tag, Product Name, Withdrawal Period (days), Treatment Date, and Dose Administered. You do not need Unit Cost in the Report Builder — add that analysis in your spreadsheet after export if required.",
+      },
+      {
+        heading: "Step 3 — Apply filters to narrow your results",
+        content: "Without filters, the report returns every record for your farm from that datasource. Two types of filter let you focus on exactly the data you need:\n\nDate range — set a From and To date. For example, to see all spray applications from the 2024-25 season, set From to 1 August 2024 and To to 31 July 2025.\n\nField-level filters — add one or more conditions using an equals, contains, greater-than, or less-than operator. Examples:\n• Field Name equals 'Top Field' — restrict results to a single field\n• Area (ha) greater than 20 — only large fields\n• Status equals 'Expired' — only expired training certificates\n\nFilters stack: a date range filter combined with a field filter gives you records matching both conditions.",
+      },
+      {
+        heading: "Step 4 — Preview, chart, and export",
+        content: "The preview table shows your results immediately. From here you have three options:\n\nExport to CSV — download the data as a spreadsheet. The file opens directly in Excel or Google Sheets. This is the fastest route if you want to do further analysis, share with an agronomist, or attach to an inspection file.\n\nAdd a chart — configure a bar, line, or pie chart to visualise your results without leaving the platform. Select a Label Field (what appears on the axis or as segments), a Value Field (the number to measure), and an Aggregation:\n• Count — how many records per label (e.g. number of spray events per field)\n• Sum — total of the value field (e.g. total area treated per crop type)\n• Average — mean value per label (e.g. average dose per product)\n\nSave the report — give it a name and save the definition. The next time you need this report, click Run from the saved reports list on the Report Builder home page and it executes against your current live data. Saved reports are report definitions, not snapshots — they always show current data when run.",
+      },
+      {
+        heading: "Practical report ideas for different farm types",
+        content: "Arable farms:\n• Spray application summary by field and product — filter to current season, group by field name with count to see application frequency per field; export for agronomist review\n• Soil test status report — filter Status equals 'Pending' to see which fields are awaiting results\n• Crop assignment history — run unfiltered with field name, crop, and sow date to see rotation at a glance\n\nLivestock farms:\n• Medicine usage review — filter to last 90 days, bar chart on Product Name with count aggregation; identify the most-used products for vet ledger review\n• Withdrawal period exposure — filter Treatment Date to last 30 days; export for withdrawal period cross-check\n• Training certificate expiry — Training Records datasource, filter Expiry Date less than a date 6 months ahead to plan renewal conversations\n\nAll farm types:\n• Equipment service overdue — Equipment datasource, filter Next Service Date less than today; export and share with the workshop\n• Inspection non-conformance review — Inspections datasource, filter Outcome equals 'Non-Conformance'; see recurring patterns across years",
       },
     ],
   },

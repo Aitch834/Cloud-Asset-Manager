@@ -14775,6 +14775,104 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <h3>Document Attachment</h3>
 <p>Attach the laboratory report or APHA correspondence directly to the monitoring record using the compact attach/view button on the row. For AI surveillance, retaining the original laboratory report is recommended as supporting evidence for your Veterinary Health Plan.</p>`,
     },
+    {
+      id: 10056,
+      title: 'Data API — Generating and Managing API Keys',
+      category: 'Integrations & API',
+      content: `<h2>Data API — Generating and Managing API Keys</h2>
+<p>The Data API module gives your external tools — spreadsheets, business intelligence platforms, farm management systems — direct read-only access to your BDE Farm Trac farm data via a secure REST API. No manual CSV exports, no copying and pasting: your third-party system queries the API and always receives current data.</p>
+
+<h3>Enabling the Data API</h3>
+<p>The Data API is an optional add-on module at £15 per month. Once active on your subscription, navigate to <strong>Integrations &amp; API → Data API</strong> in the dashboard sidebar. The page shows your list of API keys and the full endpoint documentation.</p>
+
+<h3>Generating an API Key</h3>
+<p>Click <strong>Generate New Key</strong>. Enter a descriptive name — for example &quot;Power BI connector&quot; or &quot;Third-party FMS&quot; — so you can identify which system each key belongs to. The full API key is shown <strong>once only</strong> immediately after generation. Copy and store it securely — it will not be shown again. Once closed, only the key prefix (the first eight characters) is visible in the key list, allowing you to identify a key without exposing it.</p>
+
+<h3>Using Your API Key</h3>
+<p>Include the key in every API request using the <code>x-api-key</code> HTTP header:</p>
+<pre><code>GET https://bdefarmtrac.co.uk/api/data-export/fields
+x-api-key: your_full_api_key_here</code></pre>
+<p>All 10 endpoints follow the same pattern — replace <code>fields</code> with the datasource name. Available endpoints are shown in the Data API page in the dashboard.</p>
+
+<h3>Available Datasources</h3>
+<ul>
+<li><strong>fields</strong> — field register with area, soil type, NVZ status, and crop history</li>
+<li><strong>livestock</strong> — herd and flock register with species, count, and tags</li>
+<li><strong>medicines</strong> — medicine records with product, batch, withdrawal periods, and animal IDs</li>
+<li><strong>sprays</strong> — spray applications with product, MAPP number, area, operator, and weather conditions</li>
+<li><strong>soil-tests</strong> — soil analysis results with field, pH, P, K, Mg, and status</li>
+<li><strong>crop-assignments</strong> — current crop assignments per field with variety and sow date</li>
+<li><strong>inspections</strong> — inspection records with scheme, outcome, and non-conformances</li>
+<li><strong>training</strong> — staff training and certificate records with expiry dates</li>
+<li><strong>equipment</strong> — equipment register with service history and MOT due dates</li>
+<li><strong>financials</strong> — financial records including purchase orders and sales</li>
+</ul>
+
+<h3>Revoking a Key</h3>
+<p>To revoke a key, click the <strong>Revoke</strong> button on the key row. The key is immediately disabled — any requests using it will receive a 401 Unauthorised response. Revoked keys remain visible in the list (shown as Revoked) for audit purposes. You cannot un-revoke a key; generate a new one if needed.</p>
+
+<h3>Security Best Practice</h3>
+<ul>
+<li>Treat API keys like passwords — do not embed them in publicly visible code or share them in emails.</li>
+<li>Generate a separate key per system so you can revoke one without affecting others.</li>
+<li>Rotate keys periodically or immediately if you suspect a key has been exposed.</li>
+</ul>`,
+    },
+    {
+      id: 10057,
+      title: 'Report Builder — Creating, Running and Saving Custom Reports',
+      category: 'Integrations & API',
+      content: `<h2>Report Builder — Creating, Running and Saving Custom Reports</h2>
+<p>The Report Builder module lets you build tailored data reports from your BDE Farm Trac farm records — without writing SQL or exporting raw data. Design reports using a four-step wizard, optionally add a chart, export the results to CSV, and save report definitions to re-run any time with fresh live data.</p>
+
+<h3>Enabling the Report Builder</h3>
+<p>The Report Builder is an optional add-on module at £20 per month. Once active, navigate to <strong>Integrations &amp; API → Report Builder</strong> in the dashboard sidebar.</p>
+
+<h3>Step 1 — Choose a Datasource</h3>
+<p>Select one of the 10 available datasources:</p>
+<ul>
+<li><strong>Fields</strong> — field register records</li>
+<li><strong>Livestock</strong> — herd and flock data</li>
+<li><strong>Medicine Records</strong> — veterinary medicine applications</li>
+<li><strong>Spray Applications</strong> — all spray records</li>
+<li><strong>Soil Tests</strong> — soil analysis results</li>
+<li><strong>Crop Assignments</strong> — field-to-crop assignments</li>
+<li><strong>Inspections</strong> — scheme inspection records</li>
+<li><strong>Training Records</strong> — staff training and certificates</li>
+<li><strong>Equipment</strong> — equipment register and service records</li>
+<li><strong>Financials</strong> — purchase orders and financial records</li>
+</ul>
+
+<h3>Step 2 — Pick Columns</h3>
+<p>Tick the columns you want to appear in your report. Use <strong>Select All</strong> to include every column, or <strong>Clear</strong> to start fresh. Column names match the field labels you see in the dashboard record forms — for example, Spray Applications includes Product Name, MAPP Number, Field, Area (ha), Application Date, Operator, Wind Speed, and Wind Direction.</p>
+
+<h3>Step 3 — Apply Filters</h3>
+<p>Narrow your results using two types of filter:</p>
+<ul>
+<li><strong>Date range</strong> — set a From and To date to restrict results to a specific period (e.g. the current spray season, or the last financial year).</li>
+<li><strong>Field filters</strong> — add one or more field-level conditions. Choose a column, choose an operator (equals, contains, greater than, less than), and enter a value. For example: Field Name equals &quot;Top Field&quot;, or Area (ha) greater than 10.</li>
+</ul>
+<p>Filters are optional. Leaving them blank returns all records for the selected datasource.</p>
+
+<h3>Step 4 — Preview, Chart, and Save</h3>
+<p>The preview table shows your results immediately. You can:</p>
+<ul>
+<li><strong>Export to CSV</strong> — download the current result set as a spreadsheet for use in Excel or another tool.</li>
+<li><strong>Add a chart</strong> — optionally configure a bar, line, or pie chart. Select the Label Field (the X-axis or segment), the Value Field (the metric to measure), and the Aggregation (Count — total records per label, Sum — total of the value field, or Average — mean of the value field). The chart renders immediately from your result data.</li>
+<li><strong>Save the report</strong> — give the report a name and click Save. The definition (datasource, columns, filters, and chart config) is stored permanently. Find it in the Saved Reports list on the Report Builder home page and re-run it at any time — it always runs against live current data.</li>
+</ul>
+
+<h3>Managing Saved Reports</h3>
+<p>The Report Builder home page shows a list of all your saved report definitions. Each card shows the report name, datasource, last run time, and filter count. Click <strong>Run</strong> to execute a saved report immediately with fresh data. Click <strong>Delete</strong> to remove a saved definition — the definition is deleted but no underlying farm data is affected.</p>
+
+<h3>Practical examples</h3>
+<ul>
+<li><strong>Spray cost summary</strong> — Spray Applications datasource, filter to this season's date range, export CSV for agronomist review.</li>
+<li><strong>Overdue equipment service</strong> — Equipment datasource, filter Next Service Due less than today's date, export or send to workshop manager.</li>
+<li><strong>Medicine withdrawal exposure</strong> — Medicine Records datasource, all columns, filter to last 90 days; bar chart on Product Name with count aggregation to see most-used products.</li>
+<li><strong>Training certificate expiry</strong> — Training Records datasource, filter Expiry Date to the next 6 months for advance renewal planning.</li>
+</ul>`,
+    },
   ];
 
   // Overlay published DB articles: replace matching hardcoded entries by ID, append DB-only articles
