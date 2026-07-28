@@ -22,7 +22,7 @@
   .bg-img {
     position: absolute;
     inset: 0;
-    background-image: url('https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=1400&q=80&auto=format&fit=crop');
+    background-image: url('https://images.pexels.com/photos/943700/pexels-photo-943700.jpeg?auto=compress&cs=tinysrgb&w=1920');
     background-size: cover;
     background-position: center 45%;
     z-index: 0;
@@ -224,6 +224,25 @@
     letter-spacing: 0.06em;
     text-align: right;
   }
+  .qr-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4vh;
+    margin-left: 1.8vw;
+  }
+  .qr-wrap img {
+    width: 8vh;
+    height: 8vh;
+    border-radius: 0.4vw;
+    display: block;
+  }
+  .qr-label {
+    font-size: 0.75vw;
+    color: rgba(255,255,255,0.35);
+    letter-spacing: 0.04em;
+    text-align: center;
+  }
 </style>
 </head>
 <body>
@@ -278,9 +297,15 @@
         <div class="trust-item"><span class="trust-dot"></span>Enterprise-grade encrypted storage with automatic disaster recovery built in</div>
         <div class="trust-item"><span class="trust-dot"></span>No large upfront cost — simple monthly subscription · 30-day free trial, no card required</div>
       </div>
-      <div class="cta-block">
-        <a class="cta" href="https://bdefarmtrac.co.uk" target="_blank" rel="noopener">Register your interest today</a>
-        <span class="url">bdefarmtrac.co.uk</span>
+      <div style="display:flex;align-items:flex-end;gap:1.4vw;">
+        <div class="cta-block">
+          <a class="cta" href="https://bdefarmtrac.co.uk" target="_blank" rel="noopener">Register your interest today</a>
+          <span class="url">bdefarmtrac.co.uk</span>
+        </div>
+        <div class="qr-wrap">
+          <img src="/__mockup/qr-bdefarmtrac.png" alt="QR code — bdefarmtrac.co.uk"/>
+          <span class="qr-label">Scan to visit</span>
+        </div>
       </div>
     </div>
   </div>

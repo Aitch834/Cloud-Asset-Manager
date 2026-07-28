@@ -194,6 +194,25 @@
     letter-spacing: 0.04em;
     text-align: right;
   }
+  .qr-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4vh;
+    margin-left: 1.8vw;
+  }
+  .qr-wrap img {
+    width: 8vh;
+    height: 8vh;
+    border-radius: 0.4vw;
+    display: block;
+  }
+  .qr-label {
+    font-size: 0.75vw;
+    color: rgba(255,255,255,0.38);
+    letter-spacing: 0.04em;
+    text-align: center;
+  }
 </style>
 </head>
 <body>
@@ -237,8 +256,8 @@
           Automatic backups &amp; disaster recovery built in
         </div>
         <div class="trust-item">
-          <svg class="t-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-          No significant upfront cost
+          <svg class="t-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          No significant upfront cost — simple monthly subscription
         </div>
       </div>
     </div>
@@ -249,9 +268,15 @@
         <div class="bullet">Your data is yours — hosted securely, never shared</div>
         <div class="bullet">30-day free trial, no card required</div>
       </div>
-      <div class="cta-block">
-        <a class="cta" href="https://bdefarmtrac.co.uk" target="_blank" rel="noopener">Register your interest today</a>
-        <span class="url">bdefarmtrac.co.uk</span>
+      <div style="display:flex;align-items:flex-end;gap:1.4vw;">
+        <div class="cta-block">
+          <a class="cta" href="https://bdefarmtrac.co.uk" target="_blank" rel="noopener">Register your interest today</a>
+          <span class="url">bdefarmtrac.co.uk</span>
+        </div>
+        <div class="qr-wrap">
+          <img src="/__mockup/qr-bdefarmtrac.png" alt="QR code — bdefarmtrac.co.uk"/>
+          <span class="qr-label">Scan to visit</span>
+        </div>
       </div>
     </div>
   </div>
