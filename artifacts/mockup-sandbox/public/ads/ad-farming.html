@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
+<title>BDE Farm Trac — General Farming Ad</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100vw; height: 100vh; overflow: hidden; }
+
+  .ad {
+    width: 100vw;
+    height: 100vh;
+    background: #2D6A2E;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 6vh 7vw;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Subtle background tractor silhouette */
+  .bg-tractor {
+    position: absolute;
+    right: -2vw;
+    bottom: -2vh;
+    width: 48vw;
+    height: auto;
+    opacity: 0.08;
+  }
+
+  /* Accent bar */
+  .accent-bar {
+    position: absolute;
+    top: 0; left: 0;
+    width: 1.2vw;
+    height: 100%;
+    background: #C49A6C;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 1.4vw;
+    z-index: 2;
+  }
+  .logo svg { height: 7vh; width: auto; }
+  .logo-text {
+    font-family: 'Inter', sans-serif;
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 1.05;
+  }
+  .logo-text .bde { font-size: 3.8vh; letter-spacing: -0.02em; }
+  .logo-text .farmtrac { font-size: 2.2vh; color: #C49A6C; letter-spacing: 0.12em; }
+
+  .middle {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5vh;
+    z-index: 2;
+    max-width: 62vw;
+  }
+
+  .headline {
+    font-family: 'Inter', sans-serif;
+    font-weight: 900;
+    font-size: 7.8vw;
+    line-height: 1.0;
+    color: #ffffff;
+    letter-spacing: -0.03em;
+  }
+  .headline em {
+    font-style: normal;
+    color: #C49A6C;
+  }
+
+  .benefit {
+    font-family: 'Inter', sans-serif;
+    font-weight: 400;
+    font-size: 1.8vw;
+    color: rgba(255,255,255,0.82);
+    line-height: 1.5;
+    max-width: 52vw;
+  }
+
+  .cta {
+    display: inline-block;
+    background: #C49A6C;
+    color: #1F2937;
+    font-family: 'Inter', sans-serif;
+    font-weight: 800;
+    font-size: 1.6vw;
+    padding: 1.6vh 3.8vw;
+    border-radius: 0.6vw;
+    letter-spacing: 0.02em;
+    align-self: flex-start;
+    text-decoration: none;
+  }
+
+  .footer {
+    font-family: 'Inter', sans-serif;
+    font-size: 1.3vw;
+    color: rgba(255,255,255,0.45);
+    z-index: 2;
+    letter-spacing: 0.04em;
+  }
+</style>
+</head>
+<body>
+<div class="ad">
+  <div class="accent-bar"></div>
+
+  <!-- Logo -->
+  <div class="logo">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 185 185" role="img" aria-label="BDE Farm Trac tractor icon">
+      <ellipse cx="94" cy="172" rx="86" ry="9" fill="#8B5E3C" opacity="0.3"/>
+      <path d="M 12,160 C -2,132 -2,80 10,52 C 22,28 42,22 64,22 L 80,10 L 122,10 L 122,76 L 175,92 L 173,114 L 114,110 L 112,132 Z" fill="#5A8F5A"/>
+      <rect x="114" y="109" width="63" height="26" rx="4" fill="#5A8F5A"/>
+      <circle cx="62" cy="125" r="47" fill="#1F4F1F"/>
+      <circle cx="62" cy="125" r="33" fill="#ffffff"/>
+      <circle cx="62" cy="125" r="15" fill="#C49A6C"/>
+      <circle cx="62" cy="125" r="5" fill="#2D6A2E"/>
+      <rect x="68" y="10" width="60" height="14" rx="5" fill="#7CB87C"/>
+      <rect x="85" y="24" width="31" height="44" rx="3" fill="#7CB87C" opacity="0.65"/>
+      <rect x="110" y="108" width="14" height="20" rx="2" fill="#7CB87C"/>
+      <rect x="117" y="2" width="8" height="70" rx="4" fill="#C49A6C"/>
+      <ellipse cx="121" cy="2" rx="4.5" ry="2.5" fill="#8B5E3C"/>
+      <rect x="129" y="14" width="6" height="58" rx="3" fill="#C49A6C"/>
+      <ellipse cx="132" cy="14" rx="3.5" ry="2" fill="#8B5E3C"/>
+      <circle cx="160" cy="147" r="25" fill="#1F4F1F"/>
+      <circle cx="160" cy="147" r="17" fill="#ffffff"/>
+      <circle cx="160" cy="147" r="8" fill="#C49A6C"/>
+      <circle cx="160" cy="147" r="3" fill="#2D6A2E"/>
+    </svg>
+    <div class="logo-text">
+      <div class="bde">BDE</div>
+      <div class="farmtrac">FARM TRAC</div>
+    </div>
+  </div>
+
+  <!-- Headline + benefit + CTA -->
+  <div class="middle">
+    <div class="headline">Farm compliance.<br><em>Finally sorted.</em></div>
+    <div class="benefit">Red Tractor, organic, livestock, sprays, medicines — every record you need, ready when the inspector arrives.</div>
+    <a class="cta" href="#">Register your interest today</a>
+  </div>
+
+  <div class="footer">bdefarmtrac.co.uk</div>
+</div>
+</body>
+</html>
