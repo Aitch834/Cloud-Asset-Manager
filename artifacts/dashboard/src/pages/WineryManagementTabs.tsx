@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -89,6 +90,19 @@ function useEquipment(farmId: number) {
     enabled: !!farmId,
     staleTime: 60_000,
   });
+}
+
+function useStaff(farmId: number) {
+  const { data, isLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
+    queryKey: ["staff", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/staff`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 60_000,
+  });
+  return {
+    staffNames: (data?.staff ?? []).map((s: { name: string }) => s.name),
+    isLoading,
+  };
 }
 
 function ViewField({ label, value }: { label: string; value: React.ReactNode }) {
@@ -393,6 +407,9 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
 // ─── Pressing Records Tab ─────────────────────────────────────────────────────
 export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const crud = useCrud(farmId, "winery-pressing", "winery-pressing");
+  const { data: vessels = [] } = useVessels(farmId);
+  const { data: equipment = [] } = useEquipment(farmId);
+  const { staffNames, isLoading: staffLoading } = useStaff(farmId);
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
@@ -400,6 +417,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [pressTypeOther, setPressTypeOther] = useState(false);
   const sf = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
 
   const freeRun = parseFloat(String(form.freeRunLitres || "0"));
@@ -407,9 +425,28 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const total = !isNaN(freeRun) && !isNaN(press) && (freeRun > 0 || press > 0) ? freeRun + press : null;
   const gPressed = parseFloat(String(form.grapesPressedKg || "0"));
   const efficiency = total !== null && gPressed > 0 ? (total / gPressed).toFixed(3) : null;
+  const freeRunSep = form.freeRunSeparated !== "false" && form.freeRunSeparated !== false;
 
-  const openAdd = () => { setEditing(null); setForm({ pressDate: today, vintageYear: String(new Date().getFullYear()), freeRunSeparated: "true" }); setOpen(true); };
-  const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
+  // Instruments that could be used for juice analysis
+  const analysisEquipmentList = equipment.filter(e =>
+    ["refractometer", "ph-meter", "hydrometer", "ripper-burette", "enzymatic-analyser", "ao-apparatus"].includes(String(e.equipment_type))
+  );
+  const activeVessels = vessels.filter(v => String(v.status) === "active");
+
+  const KNOWN_PRESS_TYPES = PRESS_TYPE_OPTIONS.slice(0, -1); // all except "Other"
+
+  const openAdd = () => {
+    setEditing(null);
+    setForm({ pressDate: today, vintageYear: String(new Date().getFullYear()), freeRunSeparated: "true" });
+    setPressTypeOther(false);
+    setOpen(true);
+  };
+  const openEdit = (r: Record<string, unknown>) => {
+    setEditing(r.id as number);
+    setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
+    setPressTypeOther(!!r.press_type && !KNOWN_PRESS_TYPES.includes(String(r.press_type)));
+    setOpen(true);
+  };
   const save = async () => {
     const payload = { ...form, totalJuiceLitres: total != null ? String(total) : form.totalJuiceLitres, pressEfficiencyLPerKg: efficiency ?? form.pressEfficiencyLPerKg };
     if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...payload } as Record<string, unknown> & { id: number });
@@ -423,17 +460,19 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const pressCsvCols = [
     { key: "vintage_year", label: "Vintage" },
     { key: "press_date", label: "Press Date", fmt: (r: Record<string, unknown>) => fmtDate(r.press_date) },
-    { key: "grape_variety", label: "Variety" },
     { key: "press_type", label: "Press Type" },
     { key: "grapes_pressed_kg", label: "Grapes Pressed (kg)" },
     { key: "free_run_litres", label: "Free Run (L)" },
     { key: "press_wine_litres", label: "Press Wine (L)" },
     { key: "total_juice_litres", label: "Total Juice (L)" },
     { key: "press_efficiency_l_per_kg", label: "Efficiency (L/kg)" },
-    { key: "ta_g_l", label: "TA (g/L)" },
-    { key: "ph", label: "pH" },
-    { key: "yeast_assimilable_nitrogen", label: "YAN (mg/L)" },
+    { key: "juice_brix", label: "Brix °" },
+    { key: "juice_ph", label: "pH" },
+    { key: "juice_ta_gl", label: "TA (g/L)" },
+    { key: "juice_analysis_source", label: "Analysis Source" },
     { key: "settling_method", label: "Settling Method" },
+    { key: "settling_vessel", label: "Settling Vessel" },
+    { key: "operator_name", label: "Operator" },
     { key: "notes", label: "Notes" },
   ];
 
@@ -502,22 +541,49 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Press Date *</Label><Input type="date" max={today} value={String(form.pressDate ?? "")} onChange={e => sf("pressDate", e.target.value)} /></div>
               <div><Label>Vintage Year</Label><Input type="number" value={String(form.vintageYear ?? "")} onChange={e => sf("vintageYear", e.target.value)} /></div>
-              <div><Label>Batch / Lot Reference</Label><Input value={String(form.batchRef ?? "")} onChange={e => sf("batchRef", e.target.value)} placeholder="e.g. LOT-2024-001" /></div>
+              <div>
+                <Label>Batch / Lot Reference</Label>
+                <Input value={String(form.batchRef ?? "")} onChange={e => sf("batchRef", e.target.value)} placeholder="e.g. PRESS-2025-001" />
+                <p className="text-xs text-muted-foreground mt-1">Use your vineyard's reference format. Auto-generation with configurable prefix/sequence is on the roadmap.</p>
+              </div>
               <div>
                 <Label>Press Type</Label>
-                <Select value={String(form.pressType ?? "")} onValueChange={v => sf("pressType", v)}>
+                <Select
+                  value={pressTypeOther ? "Other" : String(form.pressType ?? "")}
+                  onValueChange={v => { if (v === "Other") { setPressTypeOther(true); sf("pressType", ""); } else { setPressTypeOther(false); sf("pressType", v); } }}
+                >
                   <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>{PRESS_TYPE_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                 </Select>
+                {pressTypeOther && <Input className="mt-1.5" placeholder="Describe your press type…" value={String(form.pressType ?? "")} onChange={e => sf("pressType", e.target.value)} />}
               </div>
-              <div><Label>Operator</Label><Input value={String(form.operatorName ?? "")} onChange={e => sf("operatorName", e.target.value)} /></div>
             </div>
-            <SectionLabel>Weights & yield</SectionLabel>
+            <div>
+              <Label>Operator</Label>
+              <StaffSelect value={String(form.operatorName ?? "")} onChange={v => sf("operatorName", v)} staffNames={staffNames} loading={staffLoading} />
+              <p className="text-xs text-muted-foreground mt-1">No specific certification is required for pressing in UK winemaking — any trained winery staff member may operate the press.</p>
+            </div>
+            <SectionLabel>Weights & Yield</SectionLabel>
+            <div className="space-y-2">
+              <div className="flex items-start gap-3 rounded-md border px-3 py-2.5">
+                <Checkbox id="frs-chk" checked={freeRunSep} onCheckedChange={v => sf("freeRunSeparated", v ? "true" : "false")} className="mt-0.5" />
+                <div>
+                  <Label htmlFor="frs-chk" className="cursor-pointer">Free run and press wine kept separate</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Tick if free run juice and press fractions are collected and tracked individually.</p>
+                </div>
+              </div>
+              {!freeRunSep && (
+                <div className="flex items-start gap-2 rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+                  <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  <span>Free run and press wine will be blended — record only the total juice volume. Combined pressing may affect quality classification and organic certification traceability.</span>
+                </div>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Grapes Pressed (kg)</Label><Input type="number" step="0.1" value={String(form.grapesPressedKg ?? "")} onChange={e => sf("grapesPressedKg", e.target.value)} /></div>
-              <div><Label>Free Run (L)</Label><Input type="number" step="0.1" value={String(form.freeRunLitres ?? "")} onChange={e => sf("freeRunLitres", e.target.value)} /></div>
-              <div><Label>Press Wine (L)</Label><Input type="number" step="0.1" value={String(form.pressWineLitres ?? "")} onChange={e => sf("pressWineLitres", e.target.value)} /></div>
-              <div>
+              {freeRunSep && <div><Label>Free Run (L)</Label><Input type="number" step="0.1" value={String(form.freeRunLitres ?? "")} onChange={e => sf("freeRunLitres", e.target.value)} /></div>}
+              {freeRunSep && <div><Label>Press Wine (L)</Label><Input type="number" step="0.1" value={String(form.pressWineLitres ?? "")} onChange={e => sf("pressWineLitres", e.target.value)} /></div>}
+              <div className={freeRunSep ? "" : "col-span-2"}>
                 <Label>Total Juice (L)</Label>
                 {total !== null
                   ? <div className="border rounded-md px-3 py-2 bg-blue-50 text-blue-900 font-mono text-sm mt-1">{total.toFixed(1)} <span className="text-blue-600 text-xs">auto</span></div>
@@ -525,11 +591,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
               </div>
               {efficiency && <div className="col-span-2"><Label>Press Efficiency</Label><div className="border rounded-md px-3 py-2 bg-blue-50 text-blue-900 font-mono text-sm mt-1">{efficiency} L/kg <span className="text-blue-600 text-xs">auto</span></div></div>}
             </div>
-            <div className="flex items-center gap-3 rounded-md border px-3 py-2">
-              <Checkbox id="frs-chk" checked={form.freeRunSeparated !== "false" && form.freeRunSeparated !== false} onCheckedChange={v => sf("freeRunSeparated", v ? "true" : "false")} />
-              <Label htmlFor="frs-chk" className="cursor-pointer">Free run and press wine kept separate</Label>
-            </div>
-            <SectionLabel>Juice analysis</SectionLabel>
+            <SectionLabel>Juice Analysis</SectionLabel>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div><Label>Brix °</Label><Input type="number" step="0.1" value={String(form.juiceBrix ?? "")} onChange={e => sf("juiceBrix", e.target.value)} /></div>
               <div><Label>pH</Label><Input type="number" step="0.01" value={String(form.juicePh ?? "")} onChange={e => sf("juicePh", e.target.value)} /></div>
@@ -542,7 +604,37 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                 </Select>
               </div>
             </div>
-            <div><Label>Additions at press</Label><Input value={String(form.additionsAtPress ?? "")} onChange={e => sf("additionsAtPress", e.target.value)} placeholder="e.g. Pectinase 2g/hL, SO₂ 50mg/L" /></div>
+            <div>
+              <Label>Analysis Source (equipment or lab)</Label>
+              <Input
+                list="press-analysis-equip-list"
+                value={String(form.juiceAnalysisSource ?? "")}
+                onChange={e => sf("juiceAnalysisSource", e.target.value)}
+                placeholder="e.g. Refractometer R1 or WineServices Lab, Bristol"
+              />
+              {analysisEquipmentList.length > 0 && (
+                <datalist id="press-analysis-equip-list">
+                  {analysisEquipmentList.map(e => <option key={String(e.id)} value={String(e.equipment_ref)} />)}
+                </datalist>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                {analysisEquipmentList.length > 0
+                  ? "Select from registered equipment above, or type an external lab name."
+                  : "Record which on-site instrument or external lab provided these values. Add instruments in the Equipment Register tab."}
+              </p>
+            </div>
+            <div>
+              <Label>Additions at Press</Label>
+              <Textarea
+                value={String(form.additionsAtPress ?? "")}
+                onChange={e => sf("additionsAtPress", e.target.value)}
+                rows={3}
+                placeholder={"e.g.\nPectinase (Lallzyme EX) — 2 g/hL\nKMS (SO₂) — 50 mg/kg\nBentonite — 50 g/hL"}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                UK-permitted additions at pressing (retained EU Reg 2019/934): SO₂/KMS, pectolytic enzymes, bentonite (white must), ascorbic acid (max 250 mg/L), activated charcoal. Record product name, rate, and unit per line. Conventional max SO₂ at pressing: 200 mg/kg for white/rosé; organic limit: 90 mg/kg. A structured additive picker with dose enforcement is on the roadmap.
+              </p>
+            </div>
             <SectionLabel>Settling</SectionLabel>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -552,7 +644,25 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                   <SelectContent>{SETTLING_METHOD_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Settling Vessel</Label><Input value={String(form.settlingVessel ?? "")} onChange={e => sf("settlingVessel", e.target.value)} placeholder="e.g. T3" /></div>
+              <div>
+                <Label>Settling Vessel</Label>
+                {activeVessels.length > 0 ? (
+                  <Select value={String(form.settlingVessel ?? "")} onValueChange={v => sf("settlingVessel", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select registered vessel…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">— None —</SelectItem>
+                      {activeVessels.map(v => (
+                        <SelectItem key={String(v.id)} value={String(v.vessel_ref)}>
+                          {String(v.vessel_ref)}{v.vessel_type ? ` — ${String(v.vessel_type).replace(/-/g, " ")}` : ""}{v.capacity_litres ? ` (${fmtNum(v.capacity_litres, 0)} L)` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input value={String(form.settlingVessel ?? "")} onChange={e => sf("settlingVessel", e.target.value)} placeholder="Register vessels in Tank Register" />
+                )}
+                {activeVessels.length === 0 && <p className="text-xs text-muted-foreground mt-1">Register your vessels in the Tank Register tab to enable the vessel picker here.</p>}
+              </div>
               <div><Label>Settling Time (hours)</Label><Input type="number" value={String(form.settlingHours ?? "")} onChange={e => sf("settlingHours", e.target.value)} /></div>
             </div>
             <div><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
@@ -575,23 +685,24 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
               <ViewField label="Vintage Year" value={fmt(view.vintage_year)} />
               <ViewField label="Batch Ref" value={fmt(view.batch_ref)} />
               <ViewField label="Press Type" value={fmt(view.press_type)} />
+              <ViewField label="Operator" value={fmt(view.operator_name)} />
+              <ViewField label="Free Run Separated" value={view.free_run_separated ? "Yes" : "No"} />
               <ViewField label="Grapes Pressed" value={view.grapes_pressed_kg ? `${fmtNum(view.grapes_pressed_kg, 0)} kg` : "—"} />
               <ViewField label="Free Run" value={view.free_run_litres ? `${fmtNum(view.free_run_litres, 1)} L` : "—"} />
               <ViewField label="Press Wine" value={view.press_wine_litres ? `${fmtNum(view.press_wine_litres, 1)} L` : "—"} />
               <ViewField label="Total Juice" value={view.total_juice_litres ? `${fmtNum(view.total_juice_litres, 1)} L` : "—"} />
               <ViewField label="Press Efficiency" value={view.press_efficiency_l_per_kg ? `${fmtNum(view.press_efficiency_l_per_kg, 3)} L/kg` : "—"} />
-              <ViewField label="Free Run Separated" value={view.free_run_separated ? "Yes" : "No"} />
               <ViewField label="Juice Brix °" value={fmtNum(view.juice_brix, 1)} />
               <ViewField label="Juice pH" value={fmtNum(view.juice_ph, 2)} />
               <ViewField label="Juice TA (g/L)" value={fmtNum(view.juice_ta_gl, 1)} />
               <ViewField label="Turbidity" value={fmt(view.juice_turbidity)} />
+              {!!view.juice_analysis_source && <div className="col-span-2"><ViewField label="Analysis Source" value={fmt(view.juice_analysis_source)} /></div>}
+              {!!view.additions_at_press && <div className="col-span-2"><ViewField label="Additions at Press" value={<span className="whitespace-pre-wrap">{fmt(view.additions_at_press)}</span>} /></div>}
               <ViewField label="Settling Method" value={fmt(view.settling_method)} />
               <ViewField label="Settling Vessel" value={fmt(view.settling_vessel)} />
               <ViewField label="Settling Time" value={view.settling_hours ? `${view.settling_hours} hours` : "—"} />
-              <ViewField label="Additions at Press" value={fmt(view.additions_at_press)} />
-              <ViewField label="Operator" value={fmt(view.operator_name)} />
-              {!!view.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>}
             </div>
+            {!!view.notes && <p className="text-xs text-muted-foreground mt-2 border-t pt-2 whitespace-pre-wrap">{String(view.notes)}</p>}
             {typeof view.id === "number" && <div className="border-t pt-3 mt-1"><RecordAttachments farmId={farmId} recordType="winery-pressing" recordId={view.id} /></div>}
             <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
           </DialogContent>
@@ -614,6 +725,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
 export function FermentationRecordsTab({ farmId }: { farmId: number }) {
   const crud = useCrud(farmId, "winery-fermentation", "winery-fermentation");
   const { data: vessels = [] } = useVessels(farmId);
+  const { staffNames, isLoading: staffLoading } = useStaff(farmId);
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
@@ -760,7 +872,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
                 </Select>
               </div>
               <div><Label>Volume (L)</Label><Input type="number" step="0.1" value={form.volumeLitres ?? ""} onChange={e => sf("volumeLitres", e.target.value)} /></div>
-              <div><Label>Operator</Label><Input value={form.operatorName ?? ""} onChange={e => sf("operatorName", e.target.value)} /></div>
+              <div><Label>Operator</Label><StaffSelect value={form.operatorName ?? ""} onChange={v => sf("operatorName", v)} staffNames={staffNames} loading={staffLoading} /></div>
             </div>
             <SectionLabel>Fermentation type</SectionLabel>
             <div className="grid grid-cols-2 gap-3">
@@ -1110,6 +1222,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
 export function CellarOpsTab({ farmId }: { farmId: number }) {
   const crud = useCrud(farmId, "winery-cellar-ops", "winery-cellar-ops");
   const { data: vessels = [] } = useVessels(farmId);
+  const { staffNames, isLoading: staffLoading } = useStaff(farmId);
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
@@ -1250,7 +1363,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                 </div>
               )}
               {(isRacking || !opType) && <div><Label>Volume Moved (L)</Label><Input type="number" step="0.1" value={form.volumeMovedLitres ?? ""} onChange={e => sf("volumeMovedLitres", e.target.value)} /></div>}
-              <div><Label>Operator</Label><Input value={form.operatorName ?? ""} onChange={e => sf("operatorName", e.target.value)} /></div>
+              <div><Label>Operator</Label><StaffSelect value={form.operatorName ?? ""} onChange={v => sf("operatorName", v)} staffNames={staffNames} loading={staffLoading} /></div>
             </div>
             {isRacking && (
               <>
@@ -1367,6 +1480,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
 export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const crud = useCrud(farmId, "winery-bottling", "winery-bottling");
   const { data: vessels = [] } = useVessels(farmId);
+  const { staffNames, isLoading: staffLoading } = useStaff(farmId);
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
@@ -1497,7 +1611,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                   <SelectContent><SelectItem value="">— None —</SelectItem>{vessels.map(v => <SelectItem key={String(v.id)} value={String(v.id)}>{String(v.vessel_ref)}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Operator</Label><Input value={String(form.operatorName ?? "")} onChange={e => sf("operatorName", e.target.value)} /></div>
+              <div><Label>Operator</Label><StaffSelect value={String(form.operatorName ?? "")} onChange={v => sf("operatorName", v)} staffNames={staffNames} loading={staffLoading} /></div>
             </div>
             <SectionLabel>Volume & format</SectionLabel>
             <div className="grid grid-cols-2 gap-3">
@@ -1609,6 +1723,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
   const crud = useCrud(farmId, "winery-so2-tests", "winery-so2-tests");
   const { data: vessels = [] } = useVessels(farmId);
   const { data: equipment = [] } = useEquipment(farmId);
+  const { staffNames, isLoading: staffLoading } = useStaff(farmId);
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
@@ -1782,7 +1897,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
                   <SelectContent>{SO2_TEST_STAGES.map(o => <SelectItem key={o} value={o}>{SO2_TEST_STAGE_LABELS[o]}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Operator</Label><Input value={form.operatorName ?? ""} onChange={e => sf("operatorName", e.target.value)} /></div>
+              <div><Label>Operator</Label><StaffSelect value={form.operatorName ?? ""} onChange={v => sf("operatorName", v)} staffNames={staffNames} loading={staffLoading} /></div>
             </div>
             <SectionLabel>Test method</SectionLabel>
             <div className="grid grid-cols-2 gap-3">

@@ -392,6 +392,7 @@ export const wineryPressingRecordsTable = pgTable("winery_pressing_records", {
   settlingMethod: text("settling_method"), // static-cold | static-warm | centrifuge | flocculant | none
   settlingVessel: text("settling_vessel"),
   settlingHours: integer("settling_hours"),
+  juiceAnalysisSource: text("juice_analysis_source"),
   operatorName: text("operator_name"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
