@@ -451,6 +451,7 @@ export const wineryFermentationRecordsTable = pgTable("winery_fermentation_recor
   batchRef: text("batch_ref"),
   wineColour: text("wine_colour"),
   vesselId: integer("vessel_id").references(() => wineryVesselsTable.id),
+  pressingRecordId: integer("pressing_record_id").references(() => wineryPressingRecordsTable.id),
   startDate: date("start_date"),
   fermentationType: text("fermentation_type"), // wild | inoculated
   yeastStrain: text("yeast_strain"),

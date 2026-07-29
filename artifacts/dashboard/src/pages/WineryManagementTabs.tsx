@@ -1213,16 +1213,19 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
-  const pressingBatchRefs = pressingRecords
+  // Pressing records sorted newest-first for the link select
+  const sortedPressingRecords = [...pressingRecords]
     .filter(r => r.batch_ref)
-    .map(r => ({ batchRef: String(r.batch_ref), vintageYear: String(r.vintage_year ?? "") }))
-    .sort((a, b) => b.batchRef.localeCompare(a.batchRef));
+    .sort((a, b) => String(b.press_date ?? "").localeCompare(String(a.press_date ?? "")));
 
-  const handleFermBatchRefChange = (val: string) => {
-    sf("batchRef", val);
-    // Auto-fill vintage year if blank and the value matches a pressing record
-    const match = pressingBatchRefs.find(p => p.batchRef === val);
-    if (match && !form.vintageYear) sf("vintageYear", match.vintageYear);
+  const handlePressingLinkChange = (val: string) => {
+    sf("pressingRecordId", val);
+    if (!val) return;
+    const match = pressingRecords.find(p => String(p.id) === val);
+    if (!match) return;
+    // Auto-fill batch ref and vintage year when linking a pressing record
+    if (!form.batchRef && match.batch_ref) sf("batchRef", String(match.batch_ref));
+    if (!form.vintageYear && match.vintage_year) sf("vintageYear", String(match.vintage_year));
   };
 
   const openAdd = () => { setEditing(null); setForm({ vintageYear: String(new Date().getFullYear()) }); setOpen(true); };
@@ -1344,26 +1347,32 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>{editing !== null ? "Edit" : "Add"} Fermentation Record</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <SectionLabel>Batch identity</SectionLabel>
+            {sortedPressingRecords.length > 0 && (
+              <div>
+                <Label>Link to Pressing Batch</Label>
+                <Select value={form.pressingRecordId ?? ""} onValueChange={handlePressingLinkChange}>
+                  <SelectTrigger><SelectValue placeholder="— Not linked to a pressing record —" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">— Not linked —</SelectItem>
+                    {sortedPressingRecords.map(p => (
+                      <SelectItem key={String(p.id)} value={String(p.id)}>
+                        {String(p.batch_ref)}{p.vintage_year ? ` (${String(p.vintage_year)})` : ""}{p.press_date ? ` — ${new Date(String(p.press_date)).toLocaleDateString("en-GB")}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">Linking a pressing batch makes its additions visible in this fermentation record's view.</p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Vintage Year</Label><Input type="number" value={form.vintageYear ?? ""} onChange={e => sf("vintageYear", e.target.value)} /></div>
               <div>
                 <Label>Batch / Lot Reference</Label>
                 <Input
-                  list="ferm-pressing-refs"
                   value={form.batchRef ?? ""}
-                  onChange={e => handleFermBatchRefChange(e.target.value)}
+                  onChange={e => sf("batchRef", e.target.value)}
                   placeholder="e.g. LOT-2024-001"
                 />
-                {pressingBatchRefs.length > 0 && (
-                  <datalist id="ferm-pressing-refs">
-                    {pressingBatchRefs.map(p => (
-                      <option key={p.batchRef} value={p.batchRef} label={p.vintageYear ? `Vintage ${p.vintageYear}` : undefined} />
-                    ))}
-                  </datalist>
-                )}
-                {pressingBatchRefs.length > 0 && (
-                  <p className="text-xs text-muted-foreground mt-1">Select a pressing batch ref to link, or type a custom reference.</p>
-                )}
               </div>
               <div>
                 <Label>Wine Colour</Label>
@@ -1421,7 +1430,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
 
       {view && (
         <Dialog open onOpenChange={() => setView(null)}>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Fermentation — {fmt(view.batch_ref) !== "—" ? String(view.batch_ref) : `Vintage ${String(view.vintage_year)}`}</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <ViewField label="Vintage Year" value={fmt(view.vintage_year)} />
@@ -1445,6 +1454,57 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
               {!!view.nutrient_additions && <div className="col-span-2"><ViewField label="Nutrient Additions" value={fmt(view.nutrient_additions)} /></div>}
               {!!view.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>}
             </div>
+            {/* Pressing additions — shown when this fermentation record is linked to a pressing batch */}
+            {!!view.pressing_record_id && (() => {
+              const additions = Array.isArray(view.pressing_additions) ? view.pressing_additions as Record<string, unknown>[] : [];
+              // Find the pressing SO₂ addition for the SO₂ baseline callout
+              const pressingSo2 = additions.find(a => String(a.category ?? "") === "so2");
+              return (
+                <div className="border-t pt-3 mt-1 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Additions added at pressing
+                    {view.pressing_batch_ref ? ` — Batch ${String(view.pressing_batch_ref)}` : ""}
+                    {view.pressing_press_date ? ` (${fmtDate(view.pressing_press_date)})` : ""}
+                  </p>
+                  {pressingSo2 && (
+                    <div className="flex items-center gap-2 rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-900">
+                      <FlaskConical className="w-3.5 h-3.5 shrink-0" />
+                      <span>
+                        <strong>SO₂ baseline at pressing:</strong>{" "}
+                        {pressingSo2.dose != null ? `${String(pressingSo2.dose)} ${String(pressingSo2.unit ?? "")}` : "recorded"}
+                        {pressingSo2.additive_name ? ` — ${String(pressingSo2.additive_name)}` : ""}
+                      </span>
+                    </div>
+                  )}
+                  {additions.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic">No structured additions recorded for the linked pressing batch.</p>
+                  ) : (
+                    <div className="rounded-md border overflow-hidden text-xs">
+                      <table className="w-full">
+                        <thead className="bg-muted/40"><tr>
+                          <th className="text-left p-2 font-medium">Additive</th>
+                          <th className="text-left p-2 font-medium">Category</th>
+                          <th className="text-right p-2 font-medium">Dose</th>
+                          <th className="text-left p-2 font-medium">Unit</th>
+                          <th className="text-left p-2 font-medium">Notes</th>
+                        </tr></thead>
+                        <tbody className="divide-y">
+                          {additions.map((a, i) => (
+                            <tr key={String(a.id ?? i)} className="hover:bg-muted/20">
+                              <td className="p-2 font-medium">{fmt(a.additive_name)}</td>
+                              <td className="p-2 text-muted-foreground">{fmt(a.category)}</td>
+                              <td className="p-2 text-right font-mono">{fmt(a.dose)}</td>
+                              <td className="p-2">{fmt(a.unit)}</td>
+                              <td className="p-2 text-muted-foreground">{fmt(a.notes)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {typeof view.id === "number" && <div className="border-t pt-3 mt-1"><RecordAttachments farmId={farmId} recordType="winery-fermentation" recordId={view.id} /></div>}
             <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
           </DialogContent>

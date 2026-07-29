@@ -36801,19 +36801,49 @@ router.delete("/farms/:farmId/winery-vessels/:vesselId/cleans/:cleanId", require
 // ── Fermentation Records ───────────────────────────────────────────────────────
 router.get("/farms/:farmId/winery-fermentation", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const rows = await db.execute(sql`SELECT f.*, v.vessel_ref FROM winery_fermentation_records f LEFT JOIN winery_vessels v ON v.id=f.vessel_id WHERE f.farm_id=${farmId} ORDER BY f.start_date DESC NULLS LAST, f.created_at DESC`);
+  // Join pressing record and aggregate its additions so the client can render them read-only.
+  // Both the pressing record and its additions are filtered by farm_id to prevent cross-tenant leakage.
+  const rows = await db.execute(sql`
+    SELECT f.*,
+      v.vessel_ref,
+      p.batch_ref  AS pressing_batch_ref,
+      p.press_date AS pressing_press_date,
+      COALESCE(
+        json_agg(a.* ORDER BY a.id) FILTER (WHERE a.id IS NOT NULL),
+        '[]'::json
+      ) AS pressing_additions
+    FROM winery_fermentation_records f
+    LEFT JOIN winery_vessels v ON v.id = f.vessel_id
+    LEFT JOIN winery_pressing_records p ON p.id = f.pressing_record_id AND p.farm_id = ${farmId}
+    LEFT JOIN winery_pressing_additions a ON a.pressing_record_id = f.pressing_record_id AND a.farm_id = ${farmId}
+    WHERE f.farm_id = ${farmId}
+    GROUP BY f.id, v.vessel_ref, p.batch_ref, p.press_date
+    ORDER BY f.start_date DESC NULLS LAST, f.created_at DESC
+  `);
   res.json({ records: rows.rows });
 });
 router.post("/farms/:farmId/winery-fermentation", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const b = sanitiseBody(req.body);
-  const r = await db.execute(sql`INSERT INTO winery_fermentation_records (farm_id,vintage_year,batch_ref,wine_colour,vessel_id,start_date,fermentation_type,yeast_strain,inoculation_date,inoculation_temp_c,start_brix,end_brix,end_date,end_sg,residual_sugar_gl,max_temp_c,min_temp_c,nutrient_additions,so2_at_fermentation_mg_l,volume_litres,operator_name,notes) VALUES (${farmId},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.wineColour)},${ni(b.vesselId)},${n(b.startDate)},${n(b.fermentationType)},${n(b.yeastStrain)},${n(b.inoculationDate)},${nf(b.inoculationTempC)},${nf(b.startBrix)},${nf(b.endBrix)},${n(b.endDate)},${nf(b.endSg)},${nf(b.residualSugarGl)},${nf(b.maxTempC)},${nf(b.minTempC)},${n(b.nutrientAdditions)},${nf(b.so2AtFermentationMgL)},${nf(b.volumeLitres)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
+  // Validate that the referenced pressing record belongs to this farm before linking it
+  const pressingId = ni(b.pressingRecordId);
+  if (pressingId !== null) {
+    const chk = await db.execute(sql`SELECT id FROM winery_pressing_records WHERE id = ${pressingId} AND farm_id = ${farmId}`);
+    if (!chk.rows.length) { res.status(400).json({ error: "Invalid pressing_record_id: record not found for this farm" }); return; }
+  }
+  const r = await db.execute(sql`INSERT INTO winery_fermentation_records (farm_id,vintage_year,batch_ref,wine_colour,vessel_id,pressing_record_id,start_date,fermentation_type,yeast_strain,inoculation_date,inoculation_temp_c,start_brix,end_brix,end_date,end_sg,residual_sugar_gl,max_temp_c,min_temp_c,nutrient_additions,so2_at_fermentation_mg_l,volume_litres,operator_name,notes) VALUES (${farmId},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.wineColour)},${ni(b.vesselId)},${pressingId},${n(b.startDate)},${n(b.fermentationType)},${n(b.yeastStrain)},${n(b.inoculationDate)},${nf(b.inoculationTempC)},${nf(b.startBrix)},${nf(b.endBrix)},${n(b.endDate)},${nf(b.endSg)},${nf(b.residualSugarGl)},${nf(b.maxTempC)},${nf(b.minTempC)},${n(b.nutrientAdditions)},${nf(b.so2AtFermentationMgL)},${nf(b.volumeLitres)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
   res.status(201).json({ record: r.rows[0] });
 });
 router.put("/farms/:farmId/winery-fermentation/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const b = sanitiseBody(req.body);
-  const r = await db.execute(sql`UPDATE winery_fermentation_records SET vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},wine_colour=${n(b.wineColour)},vessel_id=${ni(b.vesselId)},start_date=${n(b.startDate)},fermentation_type=${n(b.fermentationType)},yeast_strain=${n(b.yeastStrain)},inoculation_date=${n(b.inoculationDate)},inoculation_temp_c=${nf(b.inoculationTempC)},start_brix=${nf(b.startBrix)},end_brix=${nf(b.endBrix)},end_date=${n(b.endDate)},end_sg=${nf(b.endSg)},residual_sugar_gl=${nf(b.residualSugarGl)},max_temp_c=${nf(b.maxTempC)},min_temp_c=${nf(b.minTempC)},nutrient_additions=${n(b.nutrientAdditions)},so2_at_fermentation_mg_l=${nf(b.so2AtFermentationMgL)},volume_litres=${nf(b.volumeLitres)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
+  // Validate that the referenced pressing record belongs to this farm before linking it
+  const pressingId = ni(b.pressingRecordId);
+  if (pressingId !== null) {
+    const chk = await db.execute(sql`SELECT id FROM winery_pressing_records WHERE id = ${pressingId} AND farm_id = ${farmId}`);
+    if (!chk.rows.length) { res.status(400).json({ error: "Invalid pressing_record_id: record not found for this farm" }); return; }
+  }
+  const r = await db.execute(sql`UPDATE winery_fermentation_records SET vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},wine_colour=${n(b.wineColour)},vessel_id=${ni(b.vesselId)},pressing_record_id=${pressingId},start_date=${n(b.startDate)},fermentation_type=${n(b.fermentationType)},yeast_strain=${n(b.yeastStrain)},inoculation_date=${n(b.inoculationDate)},inoculation_temp_c=${nf(b.inoculationTempC)},start_brix=${nf(b.startBrix)},end_brix=${nf(b.endBrix)},end_date=${n(b.endDate)},end_sg=${nf(b.endSg)},residual_sugar_gl=${nf(b.residualSugarGl)},max_temp_c=${nf(b.maxTempC)},min_temp_c=${nf(b.minTempC)},nutrient_additions=${n(b.nutrientAdditions)},so2_at_fermentation_mg_l=${nf(b.so2AtFermentationMgL)},volume_litres=${nf(b.volumeLitres)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
   res.json({ record: r.rows[0] });
 });
 router.delete("/farms/:farmId/winery-fermentation/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
