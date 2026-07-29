@@ -36620,6 +36620,45 @@ router.post("/farms/:farmId/winery-pressing", requireAuth, requireTenant, requir
     throw err;
   }
 });
+
+// ── Pressing Additions — per-vintage summary (Additions Report) ────────────────
+// Must sit before the /:id routes so Express doesn't match "additions-summary" as an id.
+router.get("/farms/:farmId/winery-pressing/additions-summary", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.execute(sql`
+    SELECT
+      p.vintage_year,
+      a.additive_name,
+      a.category,
+      a.unit,
+      COUNT(DISTINCT a.pressing_record_id)::int  AS batch_count,
+      ROUND(SUM(a.dose)::numeric, 3)              AS total_dose,
+      ROUND(MIN(a.dose)::numeric, 3)              AS min_dose,
+      ROUND(MAX(a.dose)::numeric, 3)              AS max_dose,
+      ROUND(AVG(a.dose)::numeric, 3)              AS avg_dose
+    FROM winery_pressing_additions a
+    JOIN winery_pressing_records p ON p.id = a.pressing_record_id
+    WHERE p.farm_id = ${farmId}
+    GROUP BY p.vintage_year, a.additive_name, a.category, a.unit
+    ORDER BY p.vintage_year DESC NULLS LAST, a.category, a.additive_name
+  `);
+  res.json({ summary: rows.rows });
+});
+
+// ── Pressing Additions — flat list with pressing context (for CSV denormalisation) ──
+router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.execute(sql`
+    SELECT a.pressing_record_id, p.vintage_year, p.batch_ref,
+           a.additive_name, a.category, a.dose, a.unit, a.notes
+    FROM winery_pressing_additions a
+    JOIN winery_pressing_records p ON p.id = a.pressing_record_id
+    WHERE p.farm_id = ${farmId}
+    ORDER BY p.vintage_year DESC, p.press_date DESC, a.id ASC
+  `);
+  res.json({ additions: rows.rows });
+});
+
 router.put("/farms/:farmId/winery-pressing/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const b = sanitiseBody(req.body);

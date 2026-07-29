@@ -105,6 +105,32 @@ function usePressing(farmId: number) {
   });
 }
 
+function useAdditionsSummary(farmId: number) {
+  return useQuery<Record<string, unknown>[]>({
+    queryKey: ["winery-pressing-additions-summary", farmId],
+    queryFn: async () => {
+      const r = await fetch(api(`farms/${farmId}/winery-pressing/additions-summary`), { credentials: "include" });
+      const d = await r.json();
+      return (d.summary ?? []) as Record<string, unknown>[];
+    },
+    enabled: !!farmId,
+    staleTime: 30_000,
+  });
+}
+
+function useAllPressAdditions(farmId: number) {
+  return useQuery<Record<string, unknown>[]>({
+    queryKey: ["winery-pressing-all-additions", farmId],
+    queryFn: async () => {
+      const r = await fetch(api(`farms/${farmId}/winery-pressing/all-additions`), { credentials: "include" });
+      const d = await r.json();
+      return (d.additions ?? []) as Record<string, unknown>[];
+    },
+    enabled: !!farmId,
+    staleTime: 30_000,
+  });
+}
+
 function useStaff(farmId: number) {
   const { data, isLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
     queryKey: ["staff", farmId],
@@ -487,6 +513,9 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [additionsRows, setAdditionsRows] = useState<AdditionRow[]>([]);
   const [batchRefError, setBatchRefError] = useState<string | null>(null);
   const addRowCounter = useRef(0);
+  const [showReport, setShowReport] = useState(false);
+  const { data: additionsSummary = [] } = useAdditionsSummary(farmId);
+  const { data: allAdditions = [] } = useAllPressAdditions(farmId);
   const sf = (k: string, v: string | boolean) => {
     if (k === "batchRef") setBatchRefError(null);
     setForm(f => ({ ...f, [k]: v }));
@@ -621,6 +650,27 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
   if (!years.includes(String(new Date().getFullYear()))) years.unshift(String(new Date().getFullYear()));
   const filtered = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
+
+  // ── Additions Report derived data ────────────────────────────────────────────
+  const filteredSummary = yearFilter === "all" ? additionsSummary : additionsSummary.filter(r => String(r.vintage_year) === yearFilter);
+  const so2ByVintage = new Map<string, number>();
+  additionsSummary.filter(r => r.category === "so2").forEach(r => {
+    const v = String(r.vintage_year ?? "?");
+    so2ByVintage.set(v, (so2ByVintage.get(v) ?? 0) + parseFloat(String(r.total_dose ?? 0)));
+  });
+  const so2ChartData = Array.from(so2ByVintage.entries()).map(([vintage, total]) => ({ vintage, total })).sort((a, b) => a.vintage.localeCompare(b.vintage));
+  const summaryCsvCols = [
+    { key: "vintage_year", label: "Vintage" },
+    { key: "additive_name", label: "Additive" },
+    { key: "category", label: "Category" },
+    { key: "unit", label: "Unit" },
+    { key: "batch_count", label: "Batches Used In" },
+    { key: "total_dose", label: "Total Dose" },
+    { key: "avg_dose", label: "Avg Dose per Batch" },
+    { key: "min_dose", label: "Min Dose" },
+    { key: "max_dose", label: "Max Dose" },
+  ];
+
   const pressCsvCols = [
     { key: "vintage_year", label: "Vintage" },
     { key: "press_date", label: "Press Date", fmt: (r: Record<string, unknown>) => fmtDate(r.press_date) },
@@ -639,6 +689,11 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     { key: "operator_name", label: "Operator" },
     { key: "additions_at_press", label: "Additions (legacy text)" },
     { key: "notes", label: "Notes" },
+    { key: "structured_additions", label: "Structured Additions", fmt: (r: Record<string, unknown>) => {
+      const rows = allAdditions.filter((a: Record<string, unknown>) => a.pressing_record_id === r.id);
+      if (!rows.length) return "";
+      return rows.map((a: Record<string, unknown>) => `${String(a.additive_name)}: ${String(a.dose ?? "")}${a.unit ? ` ${String(a.unit)}` : ""}${a.notes ? ` (${String(a.notes)})` : ""}`).join("; ");
+    }},
   ];
 
   return (
@@ -659,7 +714,8 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
           <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
         </Select>
-        <Button size="sm" variant="outline" className="ml-auto" onClick={() => exportCSV(filtered, "pressing-records.csv", pressCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+        <Button size="sm" variant={showReport ? "default" : "outline"} className="ml-auto" onClick={() => setShowReport(v => !v)}><Beaker className="w-3.5 h-3.5 mr-1" />Additions Report</Button>
+        <Button size="sm" variant="outline" onClick={() => exportCSV(filtered, "pressing-records.csv", pressCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
       </div>
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
@@ -698,6 +754,90 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* ── Additions Report Panel ────────────────────────────────────────────── */}
+      {showReport && (
+        <div className="border rounded-lg p-4 space-y-4 bg-muted/5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold text-sm flex items-center gap-1.5"><Beaker className="h-4 w-4 text-muted-foreground" />Additions Report</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Additive usage totals across pressing batches. Covers all structured additions — not the legacy text field. Use the vintage filter above to scope results.</p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => exportCSV(filteredSummary, `pressing-additions-report-${yearFilter}.csv`, summaryCsvCols)} disabled={!filteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export Summary</Button>
+          </div>
+
+          {/* SO₂ bar chart across vintages — only shown when there is data for >1 vintage */}
+          {so2ChartData.length > 1 && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">SO₂ / KMS — Total dose by vintage</p>
+              <p className="text-xs text-muted-foreground mb-2">Stacked total across all pressing batches per vintage. Units may differ between records — check individual rows below.</p>
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={so2ChartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="vintage" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(v: unknown) => [typeof v === "number" ? v.toFixed(1) : String(v), "Total dose"]} />
+                  <ReferenceLine y={200} stroke="#ef4444" strokeDasharray="4 2" />
+                  <ReferenceLine y={90} stroke="#f59e0b" strokeDasharray="4 2" />
+                  <Bar dataKey="total" fill="#6366f1" radius={[3, 3, 0, 0]} name="Total SO₂ dose" />
+                </BarChart>
+              </ResponsiveContainer>
+              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-3">
+                <span className="flex items-center gap-1"><span className="inline-block w-4 border-t-2 border-dashed border-red-500" />Conv. max 200 mg/kg</span>
+                <span className="flex items-center gap-1"><span className="inline-block w-4 border-t-2 border-dashed border-amber-500" />Organic limit 90 mg/kg</span>
+              </p>
+            </div>
+          )}
+
+          {filteredSummary.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">No structured additions recorded{yearFilter !== "all" ? ` for ${yearFilter}` : ""}. Add additives when logging a press record.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40"><tr>
+                  <th className="text-left p-2.5 font-medium">Additive</th>
+                  {yearFilter === "all" && <th className="text-left p-2.5 font-medium">Vintage</th>}
+                  <th className="text-right p-2.5 font-medium">Batches</th>
+                  <th className="text-right p-2.5 font-medium">Total dose</th>
+                  <th className="text-right p-2.5 font-medium">Avg / batch</th>
+                  <th className="text-right p-2.5 font-medium">Min</th>
+                  <th className="text-right p-2.5 font-medium">Max</th>
+                  <th className="text-left p-2.5 font-medium">Unit</th>
+                  <th className="text-left p-2.5 font-medium">Limit reference</th>
+                </tr></thead>
+                <tbody className="divide-y">
+                  {filteredSummary.map((row, i) => {
+                    const avgDose = parseFloat(String(row.avg_dose ?? 0));
+                    const warnConventional = row.category === "so2" && avgDose > 200;
+                    const warnOrganic = row.category === "so2" && !warnConventional && avgDose > 90;
+                    const warnAscorbic = row.category === "ascorbic_acid" && avgDose > 250;
+                    const hasWarn = warnConventional || warnOrganic || warnAscorbic;
+                    return (
+                      <tr key={i} className={warnConventional ? "bg-red-50" : warnOrganic || warnAscorbic ? "bg-amber-50" : "hover:bg-muted/20"}>
+                        <td className="p-2.5 font-medium">{String(row.additive_name)}</td>
+                        {yearFilter === "all" && <td className="p-2.5 text-muted-foreground">{String(row.vintage_year ?? "—")}</td>}
+                        <td className="p-2.5 text-right">{String(row.batch_count)}</td>
+                        <td className="p-2.5 text-right font-mono">{parseFloat(String(row.total_dose ?? 0)).toFixed(1)}</td>
+                        <td className="p-2.5 text-right font-mono">{avgDose.toFixed(1)}</td>
+                        <td className="p-2.5 text-right font-mono">{parseFloat(String(row.min_dose ?? 0)).toFixed(1)}</td>
+                        <td className="p-2.5 text-right font-mono">{parseFloat(String(row.max_dose ?? 0)).toFixed(1)}</td>
+                        <td className="p-2.5 text-muted-foreground text-xs">{String(row.unit ?? "—")}</td>
+                        <td className="p-2.5 text-xs">
+                          {warnConventional && <span className="text-red-700 font-medium flex items-center gap-1"><AlertTriangle className="h-3 w-3 shrink-0" />Avg exceeds conv. max (200 {String(row.unit ?? "mg/kg")})</span>}
+                          {warnOrganic && <span className="text-amber-700 flex items-center gap-1"><AlertTriangle className="h-3 w-3 shrink-0" />Avg exceeds organic limit (90 {String(row.unit ?? "mg/kg")})</span>}
+                          {warnAscorbic && <span className="text-red-700 font-medium flex items-center gap-1"><AlertTriangle className="h-3 w-3 shrink-0" />Avg exceeds max (250 mg/L)</span>}
+                          {!hasWarn && row.category === "so2" && <span className="text-muted-foreground">Conv. max 200 {String(row.unit ?? "mg/kg")}</span>}
+                          {!hasWarn && row.category === "ascorbic_acid" && <span className="text-muted-foreground">Max 250 mg/L</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
