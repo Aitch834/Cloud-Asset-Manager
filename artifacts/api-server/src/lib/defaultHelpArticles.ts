@@ -327,6 +327,16 @@ const TITLES: [string, string][] = [
   ["Agri-Environment Scheme Correspondence Log — Recording Communications with Scheme Administrators", "Environmental"],
   ["Data API — Generating and Managing API Keys", "Integrations & API"],
   ["Report Builder — Creating, Running and Saving Custom Reports", "Integrations & API"],
+  ["Winery Management — Overview: Harvest Reception, Pressing, Fermentation, Vessel Register, Cellar Ops, Bottling, SO₂ Testing and Equipment Register", "Winery Management"],
+  ["Winery Harvest Reception — Grape Intake Records, Source Block Traceability and Must Chemistry", "Winery Management"],
+  ["Winery Pressing Records — Press Run Log, Free-Run and Press-Run Volume Fractions", "Winery Management"],
+  ["Winery Fermentation — Vessel Logs, Yeast Strain, Daily Gravity, Temperature and pH Reading Series", "Winery Management"],
+  ["Winery Vessel Register — Tank and Barrel Register, Capacity, Contents and Status", "Winery Management"],
+  ["Winery Cellar Operations — Racking, Fining, Filtering, Blending, SO₂ Addition and Vessel Transfers", "Winery Management"],
+  ["Winery Bottling Records — Bottling Run Log, Bottle Type, Closure Type and Label Batch", "Winery Management"],
+  ["Winery SO₂ Testing — Analytical Log, Free, Bound and Total SO₂ Readings with UK Limit Compliance Check", "Winery Management"],
+  ["Winery Equipment Register — Press, Tank, Filter, Pump and Bottling Line Register with Service Interval Alerts", "Winery Management"],
+  ["Mobile App — Winery Production Screens: Reception, Pressing, Fermentation, Cellar Ops and SO₂ Testing with Offline Sync", "Mobile App"],
 ];
 
 const CONTENT: [string, string][] = [
