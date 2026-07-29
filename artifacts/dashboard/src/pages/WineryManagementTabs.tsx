@@ -92,6 +92,19 @@ function useEquipment(farmId: number) {
   });
 }
 
+function usePressing(farmId: number) {
+  return useQuery<Record<string, unknown>[]>({
+    queryKey: ["winery-pressing", farmId],
+    queryFn: async () => {
+      const r = await fetch(api(`farms/${farmId}/winery-pressing`), { credentials: "include" });
+      const d = await r.json();
+      return (d.records ?? []) as Record<string, unknown>[];
+    },
+    enabled: !!farmId,
+    staleTime: 60_000,
+  });
+}
+
 function useStaff(farmId: number) {
   const { data, isLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
     queryKey: ["staff", farmId],
@@ -989,6 +1002,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
 export function FermentationRecordsTab({ farmId }: { farmId: number }) {
   const crud = useCrud(farmId, "winery-fermentation", "winery-fermentation");
   const { data: vessels = [] } = useVessels(farmId);
+  const { data: pressingRecords = [] } = usePressing(farmId);
   const { staffNames, isLoading: staffLoading } = useStaff(farmId);
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -998,6 +1012,18 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  const pressingBatchRefs = pressingRecords
+    .filter(r => r.batch_ref)
+    .map(r => ({ batchRef: String(r.batch_ref), vintageYear: String(r.vintage_year ?? "") }))
+    .sort((a, b) => b.batchRef.localeCompare(a.batchRef));
+
+  const handleFermBatchRefChange = (val: string) => {
+    sf("batchRef", val);
+    // Auto-fill vintage year if blank and the value matches a pressing record
+    const match = pressingBatchRefs.find(p => p.batchRef === val);
+    if (match && !form.vintageYear) sf("vintageYear", match.vintageYear);
+  };
 
   const openAdd = () => { setEditing(null); setForm({ vintageYear: String(new Date().getFullYear()) }); setOpen(true); };
   const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
@@ -1120,7 +1146,25 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
             <SectionLabel>Batch identity</SectionLabel>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Vintage Year</Label><Input type="number" value={form.vintageYear ?? ""} onChange={e => sf("vintageYear", e.target.value)} /></div>
-              <div><Label>Batch / Lot Reference</Label><Input value={form.batchRef ?? ""} onChange={e => sf("batchRef", e.target.value)} placeholder="e.g. LOT-2024-001" /></div>
+              <div>
+                <Label>Batch / Lot Reference</Label>
+                <Input
+                  list="ferm-pressing-refs"
+                  value={form.batchRef ?? ""}
+                  onChange={e => handleFermBatchRefChange(e.target.value)}
+                  placeholder="e.g. LOT-2024-001"
+                />
+                {pressingBatchRefs.length > 0 && (
+                  <datalist id="ferm-pressing-refs">
+                    {pressingBatchRefs.map(p => (
+                      <option key={p.batchRef} value={p.batchRef} label={p.vintageYear ? `Vintage ${p.vintageYear}` : undefined} />
+                    ))}
+                  </datalist>
+                )}
+                {pressingBatchRefs.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">Select a pressing batch ref to link, or type a custom reference.</p>
+                )}
+              </div>
               <div>
                 <Label>Wine Colour</Label>
                 <Select value={form.wineColour ?? ""} onValueChange={v => sf("wineColour", v)}>
@@ -1486,6 +1530,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
 export function CellarOpsTab({ farmId }: { farmId: number }) {
   const crud = useCrud(farmId, "winery-cellar-ops", "winery-cellar-ops");
   const { data: vessels = [] } = useVessels(farmId);
+  const { data: pressingRecords = [] } = usePressing(farmId);
   const { staffNames, isLoading: staffLoading } = useStaff(farmId);
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -1496,6 +1541,17 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [opFilter, setOpFilter] = useState("all");
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  const cellarPressingRefs = pressingRecords
+    .filter(r => r.batch_ref)
+    .map(r => ({ batchRef: String(r.batch_ref), vintageYear: String(r.vintage_year ?? "") }))
+    .sort((a, b) => b.batchRef.localeCompare(a.batchRef));
+
+  const handleCellarBatchRefChange = (val: string) => {
+    sf("batchRef", val);
+    const match = cellarPressingRefs.find(p => p.batchRef === val);
+    if (match && !form.vintageYear) sf("vintageYear", match.vintageYear);
+  };
 
   const opType = form.opType ?? "";
   const isRacking = opType === "racking";
@@ -1609,7 +1665,25 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                 </Select>
               </div>
               <div><Label>Vintage Year</Label><Input type="number" value={form.vintageYear ?? ""} onChange={e => sf("vintageYear", e.target.value)} /></div>
-              <div><Label>Batch Reference</Label><Input value={form.batchRef ?? ""} onChange={e => sf("batchRef", e.target.value)} placeholder="e.g. LOT-2024-001" /></div>
+              <div>
+                <Label>Batch Reference</Label>
+                <Input
+                  list="cellar-pressing-refs"
+                  value={form.batchRef ?? ""}
+                  onChange={e => handleCellarBatchRefChange(e.target.value)}
+                  placeholder="e.g. LOT-2024-001"
+                />
+                {cellarPressingRefs.length > 0 && (
+                  <datalist id="cellar-pressing-refs">
+                    {cellarPressingRefs.map(p => (
+                      <option key={p.batchRef} value={p.batchRef} label={p.vintageYear ? `Vintage ${p.vintageYear}` : undefined} />
+                    ))}
+                  </datalist>
+                )}
+                {cellarPressingRefs.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">Select a pressing batch ref to link, or type a custom reference.</p>
+                )}
+              </div>
               <div>
                 <Label>{isTopping ? "Top-up Source Vessel" : "From Vessel"}</Label>
                 <Select value={form.fromVesselId ?? ""} onValueChange={v => sf("fromVesselId", v)}>
