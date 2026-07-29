@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck } from "lucide-react";
+import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
+import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from "recharts";
 
 // ─── Local helpers ─────────────────────────────────────────────────────────────
 const api = (path: string) => `/api/${path}`;
@@ -18,6 +19,16 @@ const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
 const fmtNum = (v: unknown, dp = 1) => (v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp));
 const today = new Date().toISOString().split("T")[0];
+
+function exportCSV(rows: Record<string, unknown>[], filename: string, cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]) {
+  const header = cols.map(c => `"${c.label}"`).join(",");
+  const body = rows.map(r => cols.map(c => {
+    const v = c.fmt ? c.fmt(r) : (r[c.key] ?? "");
+    return `"${String(v).replace(/"/g, '""')}"`;
+  }).join(",")).join("\n");
+  const blob = new Blob([header + "\n" + body], { type: "text/csv" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+}
 
 function useCrud<T extends Record<string, unknown>>(farmId: number, endpoint: string, key: string) {
   const qc = useQueryClient();
@@ -171,6 +182,21 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
   if (!years.includes(String(new Date().getFullYear()))) years.unshift(String(new Date().getFullYear()));
   const filtered = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
+  const harvestCsvCols = [
+    { key: "vintage_year", label: "Vintage" },
+    { key: "reception_date", label: "Reception Date", fmt: (r: Record<string, unknown>) => fmtDate(r.reception_date) },
+    { key: "grower_name", label: "Grower" },
+    { key: "grape_variety", label: "Variety" },
+    { key: "source_block", label: "Block/Source" },
+    { key: "gross_weight_kg", label: "Gross Weight (kg)" },
+    { key: "tare_weight_kg", label: "Tare (kg)" },
+    { key: "net_weight_kg", label: "Net Weight (kg)" },
+    { key: "sugar_brix", label: "Sugar (Brix)" },
+    { key: "ph", label: "pH" },
+    { key: "temperature_c", label: "Temp (°C)" },
+    { key: "accepted", label: "Accepted", fmt: (r: Record<string, unknown>) => String(r.accepted) === "true" ? "Yes" : "No" },
+    { key: "notes", label: "Notes" },
+  ];
 
   return (
     <div className="space-y-4">
@@ -187,7 +213,8 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
           <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
         </Select>
-        <span className="text-xs text-muted-foreground ml-auto">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
+        <Button size="sm" variant="outline" className="ml-auto" onClick={() => exportCSV(filtered, "harvest-reception.csv", harvestCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+        <span className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
       </div>
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         : filtered.length === 0 ? <EmptyState icon={Wine} title="No intake records yet" sub="Log grape deliveries received at the winery gate." />
@@ -393,6 +420,22 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
   if (!years.includes(String(new Date().getFullYear()))) years.unshift(String(new Date().getFullYear()));
   const filtered = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
+  const pressCsvCols = [
+    { key: "vintage_year", label: "Vintage" },
+    { key: "press_date", label: "Press Date", fmt: (r: Record<string, unknown>) => fmtDate(r.press_date) },
+    { key: "grape_variety", label: "Variety" },
+    { key: "press_type", label: "Press Type" },
+    { key: "grapes_pressed_kg", label: "Grapes Pressed (kg)" },
+    { key: "free_run_litres", label: "Free Run (L)" },
+    { key: "press_wine_litres", label: "Press Wine (L)" },
+    { key: "total_juice_litres", label: "Total Juice (L)" },
+    { key: "press_efficiency_l_per_kg", label: "Efficiency (L/kg)" },
+    { key: "ta_g_l", label: "TA (g/L)" },
+    { key: "ph", label: "pH" },
+    { key: "yeast_assimilable_nitrogen", label: "YAN (mg/L)" },
+    { key: "settling_method", label: "Settling Method" },
+    { key: "notes", label: "Notes" },
+  ];
 
   return (
     <div className="space-y-4">
@@ -409,7 +452,8 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
           <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
         </Select>
-        <span className="text-xs text-muted-foreground ml-auto">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
+        <Button size="sm" variant="outline" className="ml-auto" onClick={() => exportCSV(filtered, "pressing-records.csv", pressCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+        <span className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
       </div>
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         : filtered.length === 0 ? <EmptyState icon={Gauge} title="No pressing records yet" sub="Add a record for each pressing run to track juice yield and composition." />
@@ -590,12 +634,33 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
   if (!years.includes(String(new Date().getFullYear()))) years.unshift(String(new Date().getFullYear()));
   const filtered = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
+  const fermentCsvCols = [
+    { key: "vintage_year", label: "Vintage" },
+    { key: "batch_ref", label: "Batch Ref" },
+    { key: "wine_type", label: "Wine Type" },
+    { key: "grape_variety", label: "Variety" },
+    { key: "initial_volume_l", label: "Initial Volume (L)" },
+    { key: "inoculation_date", label: "Inoculation Date", fmt: (r: Record<string, unknown>) => fmtDate(r.inoculation_date) },
+    { key: "start_date", label: "Start Date", fmt: (r: Record<string, unknown>) => fmtDate(r.start_date) },
+    { key: "end_date", label: "End Date", fmt: (r: Record<string, unknown>) => fmtDate(r.end_date) },
+    { key: "initial_sg", label: "Initial SG" },
+    { key: "final_sg", label: "Final SG" },
+    { key: "peak_temp_c", label: "Peak Temp (°C)" },
+    { key: "yeast_strain", label: "Yeast Strain" },
+    { key: "notes", label: "Notes" },
+  ];
 
   const fermentStatus = (r: Record<string, unknown>) => {
     if (r.end_date) return <span className="text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5">Complete</span>;
     if (r.start_date) return <span className="text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">Active</span>;
     return <span className="text-xs bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">Pending</span>;
   };
+
+  const brixChartData = filtered.filter(r => r.start_brix || r.end_brix).map(r => ({
+    batch: String(r.batch_ref ?? r.id).slice(0, 12),
+    "Start Brix": r.start_brix ? parseFloat(String(r.start_brix)) : null,
+    "End Brix": r.end_brix ? parseFloat(String(r.end_brix)) : null,
+  }));
 
   return (
     <div className="space-y-4">
@@ -612,8 +677,25 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
           <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
         </Select>
-        <span className="text-xs text-muted-foreground ml-auto">{filtered.length} batch{filtered.length !== 1 ? "es" : ""}</span>
+        <Button size="sm" variant="outline" className="ml-auto" onClick={() => exportCSV(filtered, "fermentation-records.csv", fermentCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+        <span className="text-xs text-muted-foreground">{filtered.length} batch{filtered.length !== 1 ? "es" : ""}</span>
       </div>
+      {brixChartData.length > 1 && (
+        <div className="bg-white rounded-lg border p-4">
+          <p className="text-xs font-medium text-muted-foreground mb-2">Start vs End Brix by Batch</p>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={brixChartData} margin={{ top: 4, right: 12, bottom: 24, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="batch" tick={{ fontSize: 9 }} angle={-30} textAnchor="end" />
+              <YAxis tick={{ fontSize: 10 }} width={32} />
+              <Tooltip contentStyle={{ fontSize: 11 }} />
+              <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="Start Brix" fill="#8b5cf6" radius={[2, 2, 0, 0]} />
+              <Bar dataKey="End Brix" fill="#10b981" radius={[2, 2, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         : filtered.length === 0 ? <EmptyState icon={Beaker} title="No fermentation records yet" sub="Add a record when you begin each fermentation batch." />
         : (
@@ -861,6 +943,17 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     if (v === "retired") return <span className="text-xs bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">Retired</span>;
     return <span className="text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">{v}</span>;
   };
+  const vesselCsvCols = [
+    { key: "vessel_ref", label: "Vessel Ref" },
+    { key: "vessel_type", label: "Vessel Type" },
+    { key: "capacity_litres", label: "Capacity (L)" },
+    { key: "location", label: "Location" },
+    { key: "current_contents", label: "Current Contents" },
+    { key: "volume_current_litres", label: "Current Volume (L)" },
+    { key: "status", label: "Status" },
+    { key: "last_cleaned_date", label: "Last Cleaned", fmt: (r: Record<string, unknown>) => fmtDate(r.last_cleaned_date) },
+    { key: "notes", label: "Notes" },
+  ];
 
   return (
     <div className="space-y-4">
@@ -869,7 +962,10 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
           <p className="font-semibold text-sm">Tank & Vessel Register</p>
           <p className="text-xs text-muted-foreground mt-0.5">Register all winery vessels — tanks, barrels, amphorae — with capacity, current contents, and cleaning history. Used as a reference in fermentation, cellar ops, SO₂ testing, and bottling records.</p>
         </div>
-        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Vessel</Button>
+        <div className="flex gap-2 items-center">
+          <Button size="sm" variant="outline" onClick={() => exportCSV(crud.data, "vessels.csv", vesselCsvCols)} disabled={!crud.data.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Vessel</Button>
+        </div>
       </div>
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         : crud.data.length === 0 ? <EmptyState icon={Package} title="No vessels registered yet" sub="Add your tanks, barrels, and other winery vessels to the register." />
@@ -1046,6 +1142,17 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const filtered = crud.data
     .filter(r => yearFilter === "all" || String(r.vintage_year) === yearFilter)
     .filter(r => opFilter === "all" || String(r.op_type) === opFilter);
+  const cellarCsvCols = [
+    { key: "vintage_year", label: "Vintage" },
+    { key: "op_date", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.op_date) },
+    { key: "op_type", label: "Operation Type" },
+    { key: "volume_l", label: "Volume (L)" },
+    { key: "product_used", label: "Product Used" },
+    { key: "quantity_used", label: "Quantity Used" },
+    { key: "so2_added_mg_l", label: "SO₂ Added (mg/L)" },
+    { key: "operator_name", label: "Operator" },
+    { key: "notes", label: "Notes" },
+  ];
 
   return (
     <div className="space-y-4">
@@ -1067,7 +1174,8 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
           <SelectTrigger className="w-36 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">All types</SelectItem>{CELLAR_OP_TYPES.map(o => <SelectItem key={o} value={o}>{CELLAR_OP_LABELS[o]}</SelectItem>)}</SelectContent>
         </Select>
-        <span className="text-xs text-muted-foreground ml-auto">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
+        <Button size="sm" variant="outline" className="ml-auto" onClick={() => exportCSV(filtered, "cellar-ops.csv", cellarCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+        <span className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
       </div>
 
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
@@ -1291,6 +1399,21 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   if (!years.includes(String(new Date().getFullYear()))) years.unshift(String(new Date().getFullYear()));
   const filtered = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
 
+  const bottlingCsvCols = [
+    { key: "vintage_year", label: "Vintage" },
+    { key: "bottling_date", label: "Bottling Date", fmt: (r: Record<string, unknown>) => fmtDate(r.bottling_date) },
+    { key: "lot_code", label: "Lot Code" },
+    { key: "wine_name", label: "Wine Name" },
+    { key: "volume_bottled_litres", label: "Volume Bottled (L)" },
+    { key: "bottle_size_ml", label: "Bottle Size (ml)" },
+    { key: "bottles_produced", label: "Bottles" },
+    { key: "cases_produced", label: "Cases" },
+    { key: "closure_type", label: "Closure Type" },
+    { key: "certified_organic", label: "Certified Organic", fmt: (r: Record<string, unknown>) => r.certified_organic ? "Yes" : "No" },
+    { key: "pre_bottling_so2_mg_l", label: "Pre-Bottling SO₂ (mg/L)" },
+    { key: "notes", label: "Notes" },
+  ];
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
@@ -1306,7 +1429,8 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
           <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
         </Select>
-        <span className="text-xs text-muted-foreground ml-auto">{filtered.length} run{filtered.length !== 1 ? "s" : ""}</span>
+        <Button size="sm" variant="outline" className="ml-auto" onClick={() => exportCSV(filtered, "bottling-records.csv", bottlingCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+        <span className="text-xs text-muted-foreground">{filtered.length} run{filtered.length !== 1 ? "s" : ""}</span>
       </div>
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         : filtered.length === 0 ? <EmptyState icon={Wine} title="No bottling records yet" sub="Add a record for each bottling run." />
@@ -1525,6 +1649,29 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
   if (!years.includes(String(new Date().getFullYear()))) years.unshift(String(new Date().getFullYear()));
   const filtered = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
+  const so2CsvCols = [
+    { key: "vintage_year", label: "Vintage" },
+    { key: "test_date", label: "Test Date", fmt: (r: Record<string, unknown>) => fmtDate(r.test_date) },
+    { key: "wine_name", label: "Wine Name" },
+    { key: "wine_colour", label: "Colour" },
+    { key: "test_stage", label: "Stage" },
+    { key: "free_so2_mg_l", label: "Free SO₂ (mg/L)" },
+    { key: "total_so2_mg_l", label: "Total SO₂ (mg/L)" },
+    { key: "max_permitted_mg_l", label: "Max Permitted (mg/L)" },
+    { key: "so2_compliant", label: "Compliant", fmt: (r: Record<string, unknown>) => r.so2_compliant ? "Yes" : "No" },
+    { key: "test_method", label: "Test Method" },
+    { key: "notes", label: "Notes" },
+  ];
+
+  const so2ChartData = [...filtered]
+    .sort((a, b) => String(a.test_date ?? "").localeCompare(String(b.test_date ?? "")))
+    .map(r => ({
+      date: r.test_date ? new Date(String(r.test_date)).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "—",
+      "Free SO₂": r.free_so2_mg_l ? parseFloat(String(r.free_so2_mg_l)) : null,
+      "Total SO₂": r.total_so2_mg_l ? parseFloat(String(r.total_so2_mg_l)) : null,
+      max: r.max_permitted_mg_l ? parseFloat(String(r.max_permitted_mg_l)) : null,
+    }));
+  const so2MaxLimit = so2ChartData.length > 0 ? Math.max(...so2ChartData.map(d => d.max ?? 0)) : 0;
 
   return (
     <div className="space-y-4">
@@ -1544,8 +1691,26 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
           <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
         </Select>
-        <span className="text-xs text-muted-foreground ml-auto">{filtered.length} test{filtered.length !== 1 ? "s" : ""}</span>
+        <Button size="sm" variant="outline" className="ml-auto" onClick={() => exportCSV(filtered, "so2-testing.csv", so2CsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+        <span className="text-xs text-muted-foreground">{filtered.length} test{filtered.length !== 1 ? "s" : ""}</span>
       </div>
+      {so2ChartData.length > 1 && (
+        <div className="bg-white rounded-lg border p-4">
+          <p className="text-xs font-medium text-muted-foreground mb-2">SO₂ Levels Over Time (mg/L)</p>
+          <ResponsiveContainer width="100%" height={180}>
+            <LineChart data={so2ChartData} margin={{ top: 4, right: 12, bottom: 4, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 10 }} width={36} />
+              <Tooltip contentStyle={{ fontSize: 11 }} />
+              <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+              {so2MaxLimit > 0 && <ReferenceLine y={so2MaxLimit} stroke="#ef4444" strokeDasharray="4 2" label={{ value: `Limit ${so2MaxLimit}`, position: "insideTopRight", fontSize: 9, fill: "#ef4444" }} />}
+              <Line type="monotone" dataKey="Total SO₂" stroke="#8b5cf6" dot={{ r: 3 }} connectNulls />
+              <Line type="monotone" dataKey="Free SO₂" stroke="#3b82f6" dot={{ r: 3 }} connectNulls />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         : filtered.length === 0 ? <EmptyState icon={FlaskConical} title="No SO₂ tests logged" sub="Record each SO₂ analysis here — at pressing, post-racking, and pre-bottling." />
         : (
@@ -1825,6 +1990,19 @@ export function EquipmentRegisterTab({ farmId }: { farmId: number }) {
     if (d <= soon) return <span className="text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">Due soon</span>;
     return <span className="text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5">Current</span>;
   };
+  const equipCsvCols = [
+    { key: "equipment_ref", label: "Equipment Ref" },
+    { key: "equipment_type", label: "Equipment Type" },
+    { key: "manufacturer", label: "Manufacturer" },
+    { key: "model", label: "Model" },
+    { key: "serial_number", label: "Serial Number" },
+    { key: "status", label: "Status" },
+    { key: "last_calibration_date", label: "Last Calibrated", fmt: (r: Record<string, unknown>) => fmtDate(r.last_calibration_date) },
+    { key: "next_calibration_due", label: "Next Calibration Due", fmt: (r: Record<string, unknown>) => fmtDate(r.next_calibration_due) },
+    { key: "calibration_interval_months", label: "Interval (months)" },
+    { key: "location", label: "Location" },
+    { key: "notes", label: "Notes" },
+  ];
 
   return (
     <div className="space-y-4">
@@ -1833,7 +2011,10 @@ export function EquipmentRegisterTab({ farmId }: { farmId: number }) {
           <p className="font-semibold text-sm">Lab Equipment Register</p>
           <p className="text-xs text-muted-foreground mt-0.5">Register all winemaking analytical equipment with calibration records. Required for traceability of on-site SO₂ testing results. Third-party lab results don't require this — their accreditation covers traceability.</p>
         </div>
-        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Equipment</Button>
+        <div className="flex gap-2 items-center">
+          <Button size="sm" variant="outline" onClick={() => exportCSV(crud.data, "equipment.csv", equipCsvCols)} disabled={!crud.data.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Equipment</Button>
+        </div>
       </div>
       {overdue.length > 0 && (
         <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-lg p-3">

@@ -11,10 +11,11 @@ import {
   Eye, Info, Package, CheckCircle2, Clock, Grape,
   ChevronDown, ChevronUp, Wine, Beaker, Award, ClipboardList,
   BarChart3, Bug, Scissors, Droplet, Gauge, Wrench, CalendarCheck,
-  Sprout, Map, Receipt, BookOpen, TrendingUp,
+  Sprout, Map, Receipt, BookOpen, TrendingUp, FileDown,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import {
   OverviewTab as VitOverviewTab,
   VineRegisterTab,
@@ -70,6 +71,15 @@ function fmtDate(val: string | null | undefined): string {
 function fmtNum(val: number | null | undefined): string {
   if (val === null || val === undefined) return "—";
   return String(val);
+}
+function exportCSV(rows: Record<string, unknown>[], filename: string, cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]) {
+  const header = cols.map(c => `"${c.label}"`).join(",");
+  const body = rows.map(r => cols.map(c => {
+    const v = c.fmt ? c.fmt(r) : (r[c.key] ?? "");
+    return `"${String(v).replace(/"/g, '""')}"`;
+  }).join(",")).join("\n");
+  const blob = new Blob([header + "\n" + body], { type: "text/csv" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
 }
 
 type Tab =
@@ -201,6 +211,7 @@ function BlockConversionTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<any>(null);
   const [deleting, setDeleting] = useState<any>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const { data, isLoading } = useQuery<{ records: any[] }>({
     queryKey: ["org-vit-block-status", farmId],
@@ -246,23 +257,68 @@ function BlockConversionTab({ farmId }: { farmId: number }) {
   const landUseTypes = useLookupStrings("organic_land_use_types", ["Conventional arable", "Conventional grassland", "Set-aside / fallow", "Woodland / forestry", "Previously certified organic", "Other"]);
 
   const records = data?.records ?? [];
+  const statusFiltered = statusFilter === "all" ? records : records.filter((r: any) => String(r.status) === statusFilter);
+  const convCsvCols = [
+    { key: "blockName", label: "Block" },
+    { key: "certifyingBody", label: "Certifying Body" },
+    { key: "status", label: "Status" },
+    { key: "conversionStartDate", label: "Conversion Start", fmt: (r: Record<string, unknown>) => fmtDate(r.conversionStartDate as string) },
+    { key: "fullyOrganicDate", label: "Fully Organic Date", fmt: (r: Record<string, unknown>) => fmtDate(r.fullyOrganicDate as string) },
+    { key: "preConversionLandUse", label: "Pre-Conversion Land Use" },
+    { key: "syntheticHistory", label: "Synthetic History" },
+    { key: "notes", label: "Notes" },
+  ];
+
+  const convStatusChart = Object.entries(
+    records.reduce((acc: Record<string, number>, r: any) => {
+      const s = String(r.status ?? "unknown").replace(/-/g, " ");
+      acc[s] = (acc[s] ?? 0) + 1;
+      return acc;
+    }, {})
+  ).map(([status, count]) => ({ status, count }));
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2 justify-between">
         <p className="text-sm text-gray-600">Organic conversion register for each vineyard block — certifying body, conversion dates, and pre-conversion land-use history.</p>
-        <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Block</Button>
+        <div className="flex gap-2 items-center shrink-0">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-36 h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="in-conversion">In Conversion</SelectItem>
+              <SelectItem value="certified-organic">Certified Organic</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(statusFiltered as Record<string, unknown>[], "block-conversion.csv", convCsvCols)} disabled={!statusFiltered.length}><FileDown className="h-4 w-4 mr-1" />Export CSV</Button>
+          <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Block</Button>
+        </div>
       </div>
+      {convStatusChart.length > 1 && (
+        <div className="bg-white rounded-lg border p-4">
+          <p className="text-xs font-medium text-muted-foreground mb-2">Blocks by Conversion Status</p>
+          <ResponsiveContainer width="100%" height={140}>
+            <BarChart data={convStatusChart} margin={{ top: 4, right: 12, bottom: 24, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="status" tick={{ fontSize: 9 }} angle={-20} textAnchor="end" />
+              <YAxis tick={{ fontSize: 10 }} width={28} allowDecimals={false} />
+              <Tooltip contentStyle={{ fontSize: 11 }} />
+              <Bar dataKey="count" name="Blocks" fill="#10b981" radius={[2, 2, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
         <strong>UK Organic Regs 2020:</strong> A 3-year conversion period applies to vineyard blocks. Records must be retained for at least 5 years. Certifying bodies include Soil Association and OF&G.
       </div>
       {isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
-      ) : records.length === 0 ? (
-        <Card className="p-8 text-center text-gray-500">No block conversion records yet. Add your first block above.</Card>
+      ) : statusFiltered.length === 0 ? (
+        <Card className="p-8 text-center text-gray-500">{records.length === 0 ? "No block conversion records yet. Add your first block above." : "No records match the selected status."}</Card>
       ) : (
         <div className="space-y-3">
-          {records.map((r: any) => (
+          {statusFiltered.map((r: any) => (
             <Card key={r.id} className="p-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
@@ -355,6 +411,7 @@ function InputLogTab({ farmId, blocks }: { farmId: number; blocks: Record<string
   const [editing, setEditing] = useState<any>(null);
   const [deleting, setDeleting] = useState<any>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [productLookupId, setProductLookupId] = useState<string>("");
   const inputUnits = useLookupStrings("organic_input_units", ["kg/ha", "g/ha", "L/ha", "mL/ha", "kg", "g", "L", "mL", "t/ha", "Other"]);
   const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
@@ -434,6 +491,31 @@ function InputLogTab({ farmId, blocks }: { farmId: number; blocks: Record<string
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
 
   const records = data?.records ?? [];
+  const inputYears = Array.from(new Set(records.map((r: any) => String(r.vintageYear)).filter(Boolean))).sort().reverse();
+  if (!inputYears.includes(String(new Date().getFullYear()))) inputYears.unshift(String(new Date().getFullYear()));
+  const filteredInputs = yearFilter === "all" ? records : records.filter((r: any) => String(r.vintageYear) === yearFilter);
+  const inputCsvCols = [
+    { key: "dateApplied", label: "Date Applied", fmt: (r: Record<string, unknown>) => fmtDate(r.dateApplied as string) },
+    { key: "vintageYear", label: "Vintage Year" },
+    { key: "productName", label: "Product" },
+    { key: "inputType", label: "Type" },
+    { key: "blockName", label: "Block" },
+    { key: "quantity", label: "Quantity" },
+    { key: "unit", label: "Unit" },
+    { key: "areaHa", label: "Area (ha)" },
+    { key: "approvalStatus", label: "Approval Status" },
+    { key: "certifierApprovalRef", label: "Certifier Ref" },
+    { key: "appliedBy", label: "Applied By" },
+    { key: "notes", label: "Notes" },
+  ];
+
+  const inputTypeChart = Object.entries(
+    filteredInputs.reduce((acc: Record<string, number>, r: any) => {
+      const t = String(r.inputType ?? "Unknown");
+      acc[t] = (acc[t] ?? 0) + 1;
+      return acc;
+    }, {})
+  ).map(([type, count]) => ({ type, count }));
 
   return (
     <div className="space-y-4">
@@ -444,6 +526,28 @@ function InputLogTab({ farmId, blocks }: { farmId: number; blocks: Record<string
         </div>
         <Button size="sm" className="shrink-0" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Input</Button>
       </div>
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-gray-500">Vintage:</span>
+        <Select value={yearFilter} onValueChange={setYearFilter}>
+          <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="all">All years</SelectItem>{inputYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+        </Select>
+        <Button size="sm" variant="outline" className="ml-auto" onClick={() => exportCSV(filteredInputs as Record<string, unknown>[], "organic-inputs.csv", inputCsvCols)} disabled={!filteredInputs.length}><FileDown className="h-4 w-4 mr-1" />Export CSV</Button>
+      </div>
+      {inputTypeChart.length > 1 && (
+        <div className="bg-white rounded-lg border p-4">
+          <p className="text-xs font-medium text-muted-foreground mb-2">Applications by Input Type</p>
+          <ResponsiveContainer width="100%" height={140}>
+            <BarChart data={inputTypeChart} margin={{ top: 4, right: 12, bottom: 24, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="type" tick={{ fontSize: 9 }} angle={-20} textAnchor="end" />
+              <YAxis tick={{ fontSize: 10 }} width={28} allowDecimals={false} />
+              <Tooltip contentStyle={{ fontSize: 11 }} />
+              <Bar dataKey="count" name="Applications" fill="#8b5cf6" radius={[2, 2, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
       {primaryCertifier && (
         <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
           <Leaf className="h-4 w-4 text-green-600 shrink-0" />
@@ -452,8 +556,8 @@ function InputLogTab({ farmId, blocks }: { farmId: number; blocks: Record<string
       )}
       {isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
-      ) : records.length === 0 ? (
-        <Card className="p-8 text-center text-gray-500">No input records yet.</Card>
+      ) : filteredInputs.length === 0 ? (
+        <Card className="p-8 text-center text-gray-500">{records.length === 0 ? "No input records yet." : "No records match the selected vintage year."}</Card>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
@@ -470,7 +574,7 @@ function InputLogTab({ farmId, blocks }: { farmId: number; blocks: Record<string
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {records.map((r: any) => (
+              {filteredInputs.map((r: any) => (
                 <tr key={r.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2 whitespace-nowrap">{fmtDate(r.dateApplied)}</td>
                   <td className="px-3 py-2 font-medium">{r.productName}</td>
@@ -600,6 +704,7 @@ function CopperRegisterTab({ farmId, blocks }: { farmId: number; blocks: Record<
   const [editing, setEditing] = useState<any>(null);
   const [deleting, setDeleting] = useState<any>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [yearFilter, setYearFilter] = useState("all");
   const copperProducts = useLookupStrings("organic_copper_products", ["Bordeaux Mixture WP", "Copper Hydroxide WP", "Copper Oxychloride WP", "Copper Sulfate (tribasic)", "Nordox 75 WG", "Trophy WG", "Other"]);
   const sprayMethods = useLookupStrings("vineyard_spray_application_methods", ["Knapsack Sprayer", "Tractor-mounted Boom Sprayer", "Air-blast / Vineyard Sprayer", "Lean-to / Facing Sprayer", "Drone Application", "Hand-held Lance", "Other"]);
   const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
@@ -655,6 +760,22 @@ function CopperRegisterTab({ farmId, blocks }: { farmId: number; blocks: Record<
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
 
   const records = data?.records ?? [];
+  const copperYears = Array.from(new Set(records.map((r: any) => r.applicationDate ? String(r.applicationDate).slice(0, 4) : null).filter((x): x is string => Boolean(x)))).sort().reverse();
+  if (!copperYears.includes(String(new Date().getFullYear()))) copperYears.unshift(String(new Date().getFullYear()));
+  const filteredCopper = yearFilter === "all" ? records : records.filter((r: any) => r.applicationDate && String(r.applicationDate).slice(0, 4) === yearFilter);
+  const copperCsvCols = [
+    { key: "applicationDate", label: "Date Applied", fmt: (r: Record<string, unknown>) => fmtDate(r.applicationDate as string) },
+    { key: "blockName", label: "Block" },
+    { key: "productName", label: "Product" },
+    { key: "copperContent", label: "Copper Content (%)" },
+    { key: "quantityApplied", label: "Quantity Applied" },
+    { key: "quantityUnit", label: "Unit" },
+    { key: "areaHa", label: "Area (ha)" },
+    { key: "copperKgApplied", label: "Cu Applied (kg)" },
+    { key: "applicationMethod", label: "Method" },
+    { key: "operatorName", label: "Operator" },
+    { key: "notes", label: "Notes" },
+  ];
 
   // Running total of copper kg applied
   const totalCopperKg = useMemo(() => {
@@ -672,7 +793,14 @@ function CopperRegisterTab({ farmId, blocks }: { farmId: number; blocks: Record<
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-600">Running register of all copper-based fungicide applications. UK Organic Regs 2020 cap copper at 28 kg/ha over any 7-year period (equivalent to 4 kg/ha/year average).</p>
-        <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Application</Button>
+        <div className="flex gap-2 items-center">
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{copperYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredCopper as Record<string, unknown>[], "copper-register.csv", copperCsvCols)} disabled={!filteredCopper.length}><FileDown className="h-4 w-4 mr-1" />Export CSV</Button>
+          <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Application</Button>
+        </div>
       </div>
 
       {/* 7-year running total widget */}
@@ -691,8 +819,8 @@ function CopperRegisterTab({ farmId, blocks }: { farmId: number; blocks: Record<
 
       {isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
-      ) : records.length === 0 ? (
-        <Card className="p-8 text-center text-gray-500">No copper applications recorded yet.</Card>
+      ) : filteredCopper.length === 0 ? (
+        <Card className="p-8 text-center text-gray-500">{records.length === 0 ? "No copper applications recorded yet." : "No records match the selected year."}</Card>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
@@ -709,7 +837,7 @@ function CopperRegisterTab({ farmId, blocks }: { farmId: number; blocks: Record<
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {records.map((r: any) => (
+              {filteredCopper.map((r: any) => (
                 <tr key={r.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2 whitespace-nowrap">{fmtDate(r.applicationDate)}</td>
                   <td className="px-3 py-2 font-medium">{r.productName}</td>
@@ -910,6 +1038,7 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
   const [deleting, setDeleting] = useState<DerogCase | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [yearFilter, setYearFilter] = useState("all");
   const [raiseTaskFor, setRaiseTaskFor] = useState<{ title: string; description: string; dueDate?: string } | null>(null);
   const [recordDecisionFor, setRecordDecisionFor] = useState<DerogCase | null>(null);
   const certifyingBodies = useLookupStrings("organic_certifying_bodies", ["Soil Association", "Organic Farmers & Growers (OF&G)", "Biodynamic Association (BDAA)", "Quality Welsh Food Certification (QWFC)", "Other"]);
@@ -1014,6 +1143,24 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
 
   const cases = data?.cases ?? [];
   const corrItems = corrData?.items ?? [];
+  const derogYears = Array.from(new Set(cases.map((c: any) => c.vintageYear ? String(c.vintageYear) : null).filter((x): x is string => Boolean(x)))).sort().reverse();
+  if (!derogYears.includes(String(new Date().getFullYear()))) derogYears.unshift(String(new Date().getFullYear()));
+  const filteredCases = yearFilter === "all" ? cases : cases.filter((c: any) => String(c.vintageYear) === yearFilter);
+  const derogCsvCols = [
+    { key: "inputName", label: "Input Name" },
+    { key: "inputType", label: "Type" },
+    { key: "vintageYear", label: "Vintage Year" },
+    { key: "certifier", label: "Certifier" },
+    { key: "certifierRef", label: "Certifier Ref" },
+    { key: "status", label: "Status" },
+    { key: "applicationDate", label: "Application Date", fmt: (r: Record<string, unknown>) => fmtDate(r.applicationDate as string) },
+    { key: "decisionDate", label: "Decision Date", fmt: (r: Record<string, unknown>) => fmtDate(r.decisionDate as string) },
+    { key: "expiryDate", label: "Expiry Date", fmt: (r: Record<string, unknown>) => fmtDate(r.expiryDate as string) },
+    { key: "regulatoryBasis", label: "Regulatory Basis" },
+    { key: "approvalConditions", label: "Approval Conditions" },
+    { key: "justification", label: "Justification" },
+    { key: "notes", label: "Notes" },
+  ];
 
   // Expiry urgency
   function expiryBadge(expiry: string | null | undefined) {
@@ -1027,12 +1174,41 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
     return null;
   }
 
+  const derogStatusChart = Object.entries(
+    cases.reduce((acc: Record<string, number>, c: any) => {
+      const s = String(c.status ?? "unknown");
+      acc[s] = (acc[s] ?? 0) + 1;
+      return acc;
+    }, {})
+  ).map(([status, count]) => ({ status, count }));
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-600">Manage UK Organic Regs 2020 Sch. 1 / Annex II input derogation cases — availability searches, certifier correspondence, and decisions.</p>
-        <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />New Case</Button>
+        <div className="flex gap-2 items-center">
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All years</SelectItem>{derogYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredCases as Record<string, unknown>[], "input-derogations.csv", derogCsvCols)} disabled={!filteredCases.length}><FileDown className="h-4 w-4 mr-1" />Export CSV</Button>
+          <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />New Case</Button>
+        </div>
       </div>
+      {derogStatusChart.length > 0 && (
+        <div className="bg-white rounded-lg border p-4">
+          <p className="text-xs font-medium text-muted-foreground mb-2">Derogation Cases by Status</p>
+          <ResponsiveContainer width="100%" height={Math.max(100, derogStatusChart.length * 32)}>
+            <BarChart data={derogStatusChart} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 64 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
+              <YAxis type="category" dataKey="status" tick={{ fontSize: 9 }} width={64} />
+              <Tooltip contentStyle={{ fontSize: 11 }} />
+              <Bar dataKey="count" name="Cases" fill="#f59e0b" radius={[0, 2, 2, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900 space-y-1.5">
         <p><strong>Derogation requirement:</strong> Where an approved organic input is not available in sufficient quantity, farmers may apply to their certifying body for a time-limited derogation to use a non-organic equivalent. An availability search must be completed and documented before application.</p>
         <p className="text-amber-800 text-xs border-t border-amber-200 pt-1.5">This tab is for <strong>vineyard input derogation cases only</strong>. For livestock and dairy feed ingredient derogations (e.g. non-organic protein sources), use <em>Organic Livestock → Feed Derogations</em>. For restricted products that don't require a formal case, log them directly in the <em>Organic Inputs</em> tab with status set to Restricted.</p>
@@ -1040,11 +1216,11 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
 
       {isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
-      ) : cases.length === 0 ? (
-        <Card className="p-8 text-center text-gray-500">No derogation cases yet.</Card>
+      ) : filteredCases.length === 0 ? (
+        <Card className="p-8 text-center text-gray-500">{cases.length === 0 ? "No derogation cases yet." : "No cases match the selected vintage year."}</Card>
       ) : (
         <div className="space-y-3">
-          {cases.map((c) => {
+          {filteredCases.map((c) => {
             const isOpen = expandedId === c.id;
             return (
               <Card key={c.id} className="overflow-hidden">
@@ -1395,11 +1571,25 @@ function CertificatesTab({ farmId }: { farmId: number }) {
     return null;
   }
 
+  const certCsvCols = [
+    { key: "certifyingBody", label: "Certifying Body" },
+    { key: "certificateNumber", label: "Certificate Number" },
+    { key: "certificateType", label: "Type" },
+    { key: "status", label: "Status" },
+    { key: "issueDate", label: "Issue Date", fmt: (r: Record<string, unknown>) => fmtDate(r.issueDate as string) },
+    { key: "expiryDate", label: "Expiry Date", fmt: (r: Record<string, unknown>) => fmtDate(r.expiryDate as string) },
+    { key: "scope", label: "Scope" },
+    { key: "notes", label: "Notes" },
+  ];
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-600">Store organic viticulture and wine certificates issued by your certifying body.</p>
-        <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Certificate</Button>
+        <div className="flex gap-2 items-center">
+          <Button size="sm" variant="outline" onClick={() => exportCSV(records as Record<string, unknown>[], "certificates.csv", certCsvCols)} disabled={!records.length}><FileDown className="h-4 w-4 mr-1" />Export CSV</Button>
+          <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Certificate</Button>
+        </div>
       </div>
 
       {isLoading ? (

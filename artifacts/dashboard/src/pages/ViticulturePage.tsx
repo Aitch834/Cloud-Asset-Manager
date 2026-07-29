@@ -25,6 +25,7 @@ import {
   EquipmentRegisterTab,
 } from "@/pages/WineryManagementTabs";
 import { sanitiseCsvCell } from "@/lib/csv";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -485,6 +486,20 @@ export function OverviewTab({ farmId }: { farmId: number }) {
           ))}
         </div>
       </div>
+      <div className="bg-slate-50 border rounded-lg p-4 text-sm text-slate-700 space-y-2">
+        <p className="font-semibold text-slate-800 flex items-center gap-1.5"><BookOpen className="w-4 h-4 text-slate-500" />About This Module</p>
+        <p>The <strong>Viticulture</strong> module covers all aspects of UK vineyard and winery management under current English and Welsh wine regulations.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 text-xs text-slate-600 pt-1">
+          <div><strong>Vineyard Blocks</strong> — permanent block sites with full planting lifecycle (active / suspended / removed). Replanting creates a new planting history on the same block.</div>
+          <div><strong>Vine Register</strong> — FSA statutory register. All vines producing wine for sale must be registered; notify the FSA within 30 days of planting, grubbing or variety change.</div>
+          <div><strong>Spray Diary</strong> — all pesticide applications must be recorded within 48 hours under UK Plant Protection Products regulations (SI 2011/2131).</div>
+          <div><strong>Disease Scouting</strong> — monitor for Xylella fastidiosa (notifiable), downy/powdery mildew and botrytis. Scouting records support spray diary decision trails.</div>
+          <div><strong>Harvest Records</strong> — log yield, Brix, pH and grape condition per block. These feed Winery Reception and are required for vintage GI declarations.</div>
+          <div><strong>GI Compliance</strong> — manage WSET-recognised GI labels (English Wine PGI, WO, Chapel Down etc.), variety approval, and annual yield declarations to HMRC.</div>
+          <div><strong>Winery</strong> — fermentation records, vessel register, SO₂ testing, bottling records, and consumables stock. SO₂ total tracked against organic and conventional limits.</div>
+          <div><strong>Licensing &amp; AV</strong> — WOWGR excise licences, premises licences, and age-verification policy records required for direct retail sales.</div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -865,6 +880,18 @@ export function BlocksTab({ farmId }: { farmId: number }) {
           </div>
           <Button size="sm" variant="outline" onClick={() => exportCSV(data, "vineyard-blocks.csv", csvCols)} disabled={!data.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Block</Button>
+        </div>
+      </div>
+
+      <div className="bg-slate-50 border rounded-lg p-4 text-xs text-slate-600 space-y-1.5">
+        <p className="font-semibold text-slate-700 text-sm flex items-center gap-1.5"><BookOpen className="w-4 h-4 text-slate-500" />Block &amp; Planting Lifecycle</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-1">
+          <div><strong>Active</strong> — block is currently in production. Record spray applications, scouting and harvest under this status.</div>
+          <div><strong>Suspended</strong> — temporarily out of production (e.g. post-grubbing awaiting replant). No yield obligation but block remains on register.</div>
+          <div><strong>Removed / Grubbed up</strong> — planting permanently ended. Notify the FSA Vine Register within 30 days. The block site persists in the system for history.</div>
+          <div><strong>Replanting</strong> — use the Replant action on an active or suspended block to close the current planting and open a new one with a fresh variety, rootstock and spacing record.</div>
+          <div><strong>FSA notification deadlines</strong> — new planting: within 30 days of planting; removal: within 30 days of grubbing; variety change: before the new planting is established.</div>
+          <div><strong>Organic blocks</strong> — flag blocks under conversion or certified organic. These will appear in the Organic Viticulture module for copper/sulphur input tracking and certifier compliance.</div>
         </div>
       </div>
 
@@ -2427,6 +2454,7 @@ export function LicensingTab({ farmId }: { farmId: number }) {
   const [view, setView] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [editing, setEditing] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState("all");
   const sf = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
   const openAdd = () => { setEditing(null); setForm({ status: "active" }); setOpen(true); };
   const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm({ ...r }); setOpen(true); };
@@ -2434,11 +2462,37 @@ export function LicensingTab({ farmId }: { farmId: number }) {
   const today30 = new Date(); today30.setDate(today30.getDate() + 30); const now = new Date();
   const expiringDps = crud.data.filter(r => r.dpsPersonalLicenceExpiry && new Date(r.dpsPersonalLicenceExpiry as string) <= today30 && new Date(r.dpsPersonalLicenceExpiry as string) >= now);
   const dueReview = crud.data.filter(r => r.reviewDate && new Date(r.reviewDate as string) <= today30 && new Date(r.reviewDate as string) >= now);
+  const licenceFiltered = statusFilter === "all" ? crud.data : crud.data.filter(r => String(r.status) === statusFilter);
+  const licenceCsvCols = [
+    { key: "licenceNumber", label: "Licence No." },
+    { key: "licenceType", label: "Licence Type" },
+    { key: "localAuthority", label: "Issuing Council" },
+    { key: "dpsName", label: "DPS Name" },
+    { key: "dpsPersonalLicenceNumber", label: "DPS Licence No." },
+    { key: "dpsPersonalLicenceExpiry", label: "DPS Expiry", fmt: (r: Record<string, unknown>) => fmtDate(r.dpsPersonalLicenceExpiry) },
+    { key: "grantedDate", label: "Granted Date", fmt: (r: Record<string, unknown>) => fmtDate(r.grantedDate) },
+    { key: "reviewDate", label: "Review Date", fmt: (r: Record<string, unknown>) => fmtDate(r.reviewDate) },
+    { key: "status", label: "Status" },
+    { key: "conditions", label: "Conditions" },
+    { key: "notes", label: "Notes" },
+  ];
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div><h3 className="font-semibold text-sm">Premises Licences & DPS</h3><p className="text-xs text-muted-foreground mt-0.5">Licensing Act 2003 — premises licence, Designated Premises Supervisor personal licence, and review dates.</p></div>
-        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Licence</Button>
+        <div className="flex gap-2 items-center">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="suspended">Suspended</SelectItem>
+              <SelectItem value="lapsed">Lapsed</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(licenceFiltered, "licences.csv", licenceCsvCols)} disabled={!licenceFiltered.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
+          <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Licence</Button>
+        </div>
       </div>
       {expiringDps.length > 0 && <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800"><AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" /><p><strong>DPS Personal Licence expiring soon:</strong> {expiringDps.map(r => fmt(r.dpsName)).join(", ")}. Renewal must be completed before it lapses.</p></div>}
       {dueReview.length > 0 && <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800"><AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" /><p><strong>Premises licence review due within 30 days:</strong> {dueReview.map(r => fmt(r.licenceNumber) || "unlicensed record").join(", ")}.</p></div>}
@@ -2452,7 +2506,7 @@ export function LicensingTab({ farmId }: { farmId: number }) {
             { key: "reviewDate", label: "Review Date", render: r => fmtDate(r.reviewDate) },
             { key: "status", label: "Status", render: r => <span className={`text-xs rounded-full px-2 py-0.5 ${LICENCE_STATUS_COLORS[String(r.status)] ?? "bg-gray-100 text-gray-600"}`}>{fmt(r.status)}</span> },
           ]}
-          rows={crud.data}
+          rows={licenceFiltered}
           onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)}
         />
       )}
@@ -3030,6 +3084,7 @@ export function AgeVerificationTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [editing, setEditing] = useState<number | null>(null);
   const [providerOther, setProviderOther] = useState(false);
+  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
 
   const sf = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
@@ -3054,8 +3109,24 @@ export function AgeVerificationTab({ farmId }: { farmId: number }) {
 
   const now = new Date();
   const soon = new Date(); soon.setDate(soon.getDate() + 90);
-  const trainings = crud.data.filter(r => r.recordType === "training");
-  const refusals = crud.data.filter(r => r.recordType === "refusal");
+  const ageYears = Array.from(new Set(crud.data.map(r => r.recordDate ? new Date(r.recordDate as string).getFullYear() : null).filter(Boolean) as number[])).sort((a, b) => b - a);
+  if (!ageYears.includes(new Date().getFullYear())) ageYears.unshift(new Date().getFullYear());
+  const yearFiltered = yearFilter === "all" ? crud.data : crud.data.filter(r => r.recordDate && new Date(r.recordDate as string).getFullYear() === Number(yearFilter));
+  const trainings = yearFiltered.filter(r => r.recordType === "training");
+  const refusals = yearFiltered.filter(r => r.recordType === "refusal");
+  const ageCsvCols = [
+    { key: "recordDate", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.recordDate) },
+    { key: "recordType", label: "Type" },
+    { key: "staffName", label: "Staff Member" },
+    { key: "trainingProvider", label: "Training Provider" },
+    { key: "trainingCourse", label: "Course" },
+    { key: "trainingExpiryDate", label: "Expiry Date", fmt: (r: Record<string, unknown>) => fmtDate(r.trainingExpiryDate) },
+    { key: "idDocumentType", label: "ID Type" },
+    { key: "idRequested", label: "ID Requested", fmt: (r: Record<string, unknown>) => r.idRequested ? "Yes" : "No" },
+    { key: "idProduced", label: "ID Produced", fmt: (r: Record<string, unknown>) => r.idProduced ? "Yes" : "No" },
+    { key: "supervisorNotified", label: "Supervisor Notified", fmt: (r: Record<string, unknown>) => r.supervisorNotified ? "Yes" : "No" },
+    { key: "notes", label: "Notes" },
+  ];
   const expiredTraining = trainings.filter(r => r.trainingExpiryDate && new Date(r.trainingExpiryDate as string) < now);
   const expiringSoon = trainings.filter(r => {
     if (!r.trainingExpiryDate) return false;
@@ -3078,7 +3149,15 @@ export function AgeVerificationTab({ farmId }: { farmId: number }) {
           <h3 className="font-semibold text-sm">Age Verification — Challenge 25</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Staff training records and refusal log. Both are typically required by premises licence conditions and must be available for inspection.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center flex-wrap justify-end">
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {ageYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(yearFiltered, "age-verification.csv", ageCsvCols)} disabled={!yearFiltered.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
           <Button size="sm" variant="outline" onClick={() => openAdd("refusal")}><Plus className="w-3.5 h-3.5 mr-1" />Log Refusal</Button>
           <Button size="sm" onClick={() => openAdd("training")}><Plus className="w-3.5 h-3.5 mr-1" />Add Training</Button>
         </div>
@@ -3329,6 +3408,7 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
   const [productLookupId, setProductLookupId] = useState<string>("");
   const [weatherFetching, setWeatherFetching] = useState(false);
   const [weatherMsg, setWeatherMsg] = useState<string | null>(null);
+  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
   const sfv = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
@@ -3451,6 +3531,10 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
     { key: "harvestIntervalDays", label: "Harvest Interval (days)" },
   ];
 
+  const sprayYears = Array.from(new Set(crud.data.map(r => new Date(r.applicationDate as string).getFullYear()))).sort((a, b) => b - a);
+  if (!sprayYears.includes(new Date().getFullYear())) sprayYears.unshift(new Date().getFullYear());
+  const filteredSpray = yearFilter === "all" ? crud.data : crud.data.filter(r => new Date(r.applicationDate as string).getFullYear() === Number(yearFilter));
+
   const maxApps = selectedProduct?.maxApplicationsPerSeason;
   const seasonLimitReached = maxApps != null && seasonApplicationCount >= maxApps;
   const coshh = selectedProduct?.coshhRecord;
@@ -3465,8 +3549,15 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
             Records must be completed within 48 hours of application and kept for 3 years (Plant Protection Products Regs 2011). Required for WineGB, Red Tractor, and cross-compliance audits.
           </p>
         </div>
-        <div className="flex gap-2 shrink-0">
-          <Button size="sm" variant="outline" onClick={() => exportCSV(crud.data, "spray-diary.csv", csvCols)} disabled={!crud.data.length}><FileDown className="w-4 h-4 mr-1" />CSV</Button>
+        <div className="flex gap-2 shrink-0 items-center">
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {sprayYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredSpray, "spray-diary.csv", csvCols)} disabled={!filteredSpray.length}><FileDown className="w-4 h-4 mr-1" />CSV</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Application</Button>
         </div>
       </div>
@@ -3482,7 +3573,7 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
             { key: "areaTreatedHa", label: "Area (ha)", render: r => fmtNum(r.areaTreatedHa, 4) },
             { key: "operatorName", label: "Operator" },
           ]}
-          rows={crud.data}
+          rows={filteredSpray}
           onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)}
         />
       )}
@@ -3793,6 +3884,7 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
   const sfv = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
   const blockName = (id: unknown) => (blocks.find(b => b.id === id) as Record<string, unknown> | undefined)?.blockName ?? id;
+  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
 
   const close = () => { setMode(null); setActive(null); setForm({}); };
 
@@ -3840,6 +3932,31 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
   const saveDispatch = () => { edit.mutate({ id: active!.id as number, ...form, status: "awaiting_results" } as any); close(); };
   const saveResults = () => { edit.mutate({ id: active!.id as number, ...form, status: "complete" } as any); close(); };
 
+  const soilYears = Array.from(new Set((records as Record<string, unknown>[]).map(r => {
+    const d = r.requestDate ?? r.analysisDate;
+    return d ? new Date(d as string).getFullYear() : null;
+  }).filter(Boolean) as number[])).sort((a, b) => b - a);
+  if (!soilYears.includes(new Date().getFullYear())) soilYears.unshift(new Date().getFullYear());
+  const filteredSoil = yearFilter === "all" ? (records as Record<string, unknown>[]) : (records as Record<string, unknown>[]).filter(r => {
+    const d = r.requestDate ?? r.analysisDate;
+    return d ? new Date(d as string).getFullYear() === Number(yearFilter) : false;
+  });
+  const soilCsvCols = [
+    { key: "requestDate", label: "Requested", fmt: (r: Record<string, unknown>) => fmtDate(r.requestDate ?? r.analysisDate) },
+    { key: "blockId", label: "Block", fmt: (r: Record<string, unknown>) => String(blockName(r.blockId)) },
+    { key: "analysisType", label: "Analysis Type" },
+    { key: "labName", label: "Laboratory" },
+    { key: "sampleReference", label: "Sample Ref" },
+    { key: "status", label: "Status" },
+    { key: "analysisDate", label: "Results Date", fmt: (r: Record<string, unknown>) => fmtDate(r.analysisDate) },
+    { key: "ph", label: "pH" },
+    { key: "organicMatterPct", label: "Organic Matter (%)" },
+    { key: "phosphorusMgL", label: "Phosphorus (mg/L)" },
+    { key: "potassiumMgL", label: "Potassium (mg/L)" },
+    { key: "magnesiumMgL", label: "Magnesium (mg/L)" },
+    { key: "recommendations", label: "Recommendations" },
+  ];
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -3850,9 +3967,19 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
             Multi-stage workflow: request a sample → field collection → dispatch to lab → record results. Attach lab report PDFs to completed records.
           </p>
         </div>
-        <Button size="sm" onClick={openRequest} className="shrink-0">
-          <Plus className="w-3.5 h-3.5 mr-1" />Request Analysis
-        </Button>
+        <div className="flex gap-2 items-center shrink-0">
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All years</SelectItem>
+              {soilYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredSoil, "soil-analysis.csv", soilCsvCols)} disabled={!filteredSoil.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
+          <Button size="sm" onClick={openRequest} className="shrink-0">
+            <Plus className="w-3.5 h-3.5 mr-1" />Request Analysis
+          </Button>
+        </div>
       </div>
 
       {/* Status banners */}
@@ -3900,7 +4027,7 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
               );
             }},
           ]}
-          rows={records}
+          rows={filteredSoil}
           onView={openView}
           onDelete={r => remove.mutate(r.id as number)}
         />
@@ -4169,6 +4296,7 @@ export function WineryStockTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
 
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [itemDialog, setItemDialog] = useState<"add" | "edit" | null>(null);
   const [editingItem, setEditingItem] = useState<WineryItem | null>(null);
   const [deletingItem, setDeletingItem] = useState<WineryItem | null>(null);
@@ -4185,6 +4313,15 @@ export function WineryStockTab({ farmId }: { farmId: number }) {
     enabled: !!farmId,
   });
   const items = itemsData?.items ?? [];
+  const filteredItems = categoryFilter === "all" ? items : items.filter(item => item.category === categoryFilter);
+  const stockCsvCols = [
+    { key: "name", label: "Item Name" },
+    { key: "category", label: "Category" },
+    { key: "balance", label: "Balance" },
+    { key: "unit", label: "Unit" },
+    { key: "minimum_stock", label: "Low Stock Alert" },
+    { key: "notes", label: "Notes" },
+  ];
 
   const { data: histData, isLoading: histLoading } = useQuery<{ movements: WineryMovement[] }>({
     queryKey: ["winery-stock-movements", farmId, histDialog?.id],
@@ -4248,6 +4385,10 @@ export function WineryStockTab({ farmId }: { farmId: number }) {
   };
 
   const movCanSave = movForm.movementDate && (isStocktake ? !!movForm.stocktakeActual : !!movForm.quantity);
+  const stockChartData = filteredItems.slice(0, 15).map(item => ({
+    name: item.name.length > 16 ? item.name.slice(0, 15) + "…" : item.name,
+    Balance: Number(item.balance),
+  }));
 
   return (
     <div className="space-y-4">
@@ -4260,6 +4401,32 @@ export function WineryStockTab({ farmId }: { farmId: number }) {
           <Plus className="h-4 w-4 mr-1" />Add Item
         </Button>
       </div>
+      <div className="flex gap-2 items-center flex-wrap">
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="w-44 h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All categories</SelectItem>
+            {WINERY_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Button size="sm" variant="outline" onClick={() => exportCSV(filteredItems as unknown as Record<string, unknown>[], "winery-stock.csv", stockCsvCols)} disabled={!filteredItems.length}>
+          <FileDown className="h-4 w-4 mr-1" />Export CSV
+        </Button>
+      </div>
+      {stockChartData.length > 0 && (
+        <div className="bg-white rounded-lg border p-4">
+          <p className="text-xs font-medium text-muted-foreground mb-2">Current Stock Levels</p>
+          <ResponsiveContainer width="100%" height={Math.max(140, stockChartData.length * 26)}>
+            <BarChart data={stockChartData} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 90 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis type="number" tick={{ fontSize: 10 }} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={90} />
+              <Tooltip contentStyle={{ fontSize: 11 }} />
+              <Bar dataKey="Balance" fill="#8b5cf6" radius={[0, 2, 2, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {isLoading && <div className="text-center py-8 text-muted-foreground text-sm">Loading…</div>}
 
@@ -4284,7 +4451,7 @@ export function WineryStockTab({ farmId }: { farmId: number }) {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {items.map(item => {
+              {filteredItems.map(item => {
                 const low = isLowStock(item);
                 return (
                   <tr key={item.id} className={low ? "bg-amber-50" : ""}>
@@ -4960,8 +5127,22 @@ function GiDeclarationsSection({ farmId: _farmId, decls, designations, harvestRo
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
+  const [yearFilter, setYearFilter] = useState("all");
   const sf = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
   const desigName = (id: unknown) => { const d = designations.find(d => String(d.id) === String(id)); return d ? String(d.designationName) : `Designation ${id}`; };
+  const declYears = Array.from(new Set(decls.data.map((d: Record<string, unknown>) => String(d.vintageYear ?? "")).filter(Boolean))).sort().reverse();
+  if (!declYears.includes(String(new Date().getFullYear() - 1))) declYears.unshift(String(new Date().getFullYear() - 1));
+  const filteredDecls = yearFilter === "all" ? decls.data : decls.data.filter((d: Record<string, unknown>) => String(d.vintageYear) === yearFilter);
+  const declCsvCols = [
+    { key: "vintageYear", label: "Vintage Year" },
+    { key: "designationId", label: "Designation", fmt: (r: Record<string, unknown>) => desigName(r.designationId) },
+    { key: "declarationRef", label: "Declaration Ref" },
+    { key: "totalRegisteredAreaHa", label: "Registered Area (ha)" },
+    { key: "totalYieldKg", label: "Total Yield (kg)" },
+    { key: "declaredYieldKgPerHa", label: "Yield (kg/ha)" },
+    { key: "submissionDate", label: "Submitted", fmt: (r: Record<string, unknown>) => fmtDate(r.submissionDate as string | null | undefined) },
+    { key: "status", label: "Status" },
+  ];
 
   function openNew() { setForm({ status: "draft", vintageYear: new Date().getFullYear() - 1 }); setEditing({}); }
   function openEdit(r: Record<string, unknown>) { setForm({ ...r }); setEditing(r); }
@@ -4995,7 +5176,21 @@ function GiDeclarationsSection({ farmId: _farmId, decls, designations, harvestRo
         <StatCard label="Submitted" value={decls.data.filter(d => d.status === "submitted" || d.status === "acknowledged").length} sub="filed with APHA" color="green" />
         <StatCard label="Drafts" value={decls.data.filter(d => d.status === "draft").length} sub="not yet submitted" color="amber" />
       </div>
-      <div className="flex justify-end"><Button size="sm" onClick={openNew}><Plus className="w-4 h-4 mr-1" />Add Declaration</Button></div>
+      <div className="flex gap-2 items-center justify-between flex-wrap">
+        <div className="flex gap-2 items-center">
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-36 h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All vintages</SelectItem>
+              {declYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredDecls, "gi-declarations.csv", declCsvCols)} disabled={!filteredDecls.length}>
+            <FileDown className="w-4 h-4 mr-1" />Export CSV
+          </Button>
+        </div>
+        <Button size="sm" onClick={openNew}><Plus className="w-4 h-4 mr-1" />Add Declaration</Button>
+      </div>
       {decls.data.length === 0 ? <Empty msg="No harvest declarations yet. Producers holding PDO or PGI status must submit a harvest declaration to APHA Wine Standards after each vintage." /> : (
         <DataTable
           cols={[
@@ -5007,7 +5202,7 @@ function GiDeclarationsSection({ farmId: _farmId, decls, designations, harvestRo
             { key: "submissionDate", label: "Submitted", render: (r) => <span className="text-sm">{fmtDate(r.submissionDate)}</span> },
             { key: "status", label: "Status", render: (r) => declStatusBadge(r.status) },
           ]}
-          rows={decls.data} onView={setViewing} onEdit={openEdit} onDelete={setDeleting}
+          rows={filteredDecls} onView={setViewing} onEdit={openEdit} onDelete={setDeleting}
         />
       )}
       <Dialog open={!!viewing} onOpenChange={() => setViewing(null)}>
