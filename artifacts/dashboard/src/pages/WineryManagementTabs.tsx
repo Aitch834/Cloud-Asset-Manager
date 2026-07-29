@@ -2078,6 +2078,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
 export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const crud = useCrud(farmId, "winery-bottling", "winery-bottling");
   const { data: vessels = [] } = useVessels(farmId);
+  const { data: pressingRecords = [] } = usePressing(farmId);
   const { staffNames, isLoading: staffLoading } = useStaff(farmId);
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -2087,6 +2088,17 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const sf = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
+
+  const bottlingPressingRefs = pressingRecords
+    .filter(r => r.batch_ref)
+    .map(r => ({ batchRef: String(r.batch_ref), vintageYear: String(r.vintage_year ?? "") }))
+    .sort((a, b) => b.batchRef.localeCompare(a.batchRef));
+
+  const handleBottlingBatchRefChange = (val: string) => {
+    sf("batchRef", val);
+    const match = bottlingPressingRefs.find(p => p.batchRef === val);
+    if (match && !form.vintageYear) sf("vintageYear", match.vintageYear);
+  };
 
   // Auto-calculate bottles from volume and size
   const volL = parseFloat(String(form.volumeBottledLitres || "0"));
@@ -2193,7 +2205,20 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Bottling Date *</Label><Input type="date" max={today} value={String(form.bottlingDate ?? "")} onChange={e => sf("bottlingDate", e.target.value)} /></div>
               <div><Label>Vintage Year</Label><Input type="number" value={String(form.vintageYear ?? "")} onChange={e => sf("vintageYear", e.target.value)} /></div>
-              <div><Label>Batch Reference</Label><Input value={String(form.batchRef ?? "")} onChange={e => sf("batchRef", e.target.value)} placeholder="e.g. LOT-2024-001" /></div>
+              <div>
+                <Label>Batch Reference</Label>
+                <Input
+                  list="bottling-pressing-refs"
+                  value={String(form.batchRef ?? "")}
+                  onChange={e => handleBottlingBatchRefChange(e.target.value)}
+                  placeholder="e.g. LOT-2024-001"
+                />
+                <datalist id="bottling-pressing-refs">
+                  {bottlingPressingRefs.map(p => (
+                    <option key={p.batchRef} value={p.batchRef} label={p.vintageYear ? `Vintage ${p.vintageYear}` : undefined} />
+                  ))}
+                </datalist>
+              </div>
               <div><Label>Lot Code *</Label><Input value={String(form.lotCode ?? "")} onChange={e => sf("lotCode", e.target.value)} placeholder="e.g. LOT2024001A" /></div>
               <div>
                 <Label>Wine Colour</Label>
@@ -2321,6 +2346,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
   const crud = useCrud(farmId, "winery-so2-tests", "winery-so2-tests");
   const { data: vessels = [] } = useVessels(farmId);
   const { data: equipment = [] } = useEquipment(farmId);
+  const { data: pressingRecords = [] } = usePressing(farmId);
   const { staffNames, isLoading: staffLoading } = useStaff(farmId);
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -2330,6 +2356,17 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  const so2PressingRefs = pressingRecords
+    .filter(r => r.batch_ref)
+    .map(r => ({ batchRef: String(r.batch_ref), vintageYear: String(r.vintage_year ?? "") }))
+    .sort((a, b) => b.batchRef.localeCompare(a.batchRef));
+
+  const handleSo2BatchRefChange = (val: string) => {
+    sf("batchRef", val);
+    const match = so2PressingRefs.find(p => p.batchRef === val);
+    if (match && !form.vintageYear) sf("vintageYear", match.vintageYear);
+  };
 
   const isLab = form.testMethod === "Third-party laboratory";
   const isOnSite = form.testMethod?.startsWith("On-site");
@@ -2473,7 +2510,20 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Test Date *</Label><Input type="date" max={today} value={form.testDate ?? ""} onChange={e => sf("testDate", e.target.value)} /></div>
               <div><Label>Vintage Year</Label><Input type="number" value={form.vintageYear ?? ""} onChange={e => sf("vintageYear", e.target.value)} /></div>
-              <div><Label>Batch Reference</Label><Input value={form.batchRef ?? ""} onChange={e => sf("batchRef", e.target.value)} placeholder="e.g. LOT-2024-001" /></div>
+              <div>
+                <Label>Batch Reference</Label>
+                <Input
+                  list="so2-pressing-refs"
+                  value={form.batchRef ?? ""}
+                  onChange={e => handleSo2BatchRefChange(e.target.value)}
+                  placeholder="e.g. LOT-2024-001"
+                />
+                <datalist id="so2-pressing-refs">
+                  {so2PressingRefs.map(p => (
+                    <option key={p.batchRef} value={p.batchRef} label={p.vintageYear ? `Vintage ${p.vintageYear}` : undefined} />
+                  ))}
+                </datalist>
+              </div>
               <div>
                 <Label>Wine Colour</Label>
                 <Select value={form.wineColour ?? ""} onValueChange={handleColourChange}>
