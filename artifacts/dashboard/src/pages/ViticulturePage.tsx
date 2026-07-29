@@ -39,6 +39,7 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useToast } from "@/hooks/use-toast";
 import { VineyardBlockBoundaryMapDialog } from "@/components/viticulture/VineyardBlockBoundaryMapDialog";
+import { VineyardBlockMapTab } from "@/components/viticulture/VineyardBlockMapTab";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLookupStrings } from "@/hooks/use-lookup";
 
@@ -4483,6 +4484,7 @@ const TABS = [
   { id: "overview", label: "Overview", icon: BarChart3 },
   { id: "vine-register", label: "Vine Register", icon: ClipboardList },
   { id: "blocks", label: "Blocks", icon: Sprout },
+  { id: "block-map", label: "Block Map", icon: Map },
   { id: "phenology", label: "Phenology", icon: Leaf },
   { id: "operations", label: "Pruning & Canopy", icon: Scissors },
   { id: "harvest", label: "Harvest", icon: Grape },
@@ -5129,6 +5131,7 @@ export default function ViticulturePage() {
           {tab === "overview" && <OverviewTab farmId={selectedFarmId} />}
           {tab === "vine-register" && <VineRegisterTab farmId={selectedFarmId} blocks={blocks.data} />}
           {tab === "blocks" && <BlocksTab farmId={selectedFarmId} />}
+          {tab === "block-map" && <VineyardBlockMapTab farmId={selectedFarmId} blocks={blocks.data} />}
           {tab === "phenology" && <PhenologyTab farmId={selectedFarmId} blocks={blocks.data} />}
           {tab === "operations" && <OperationsTab farmId={selectedFarmId} blocks={blocks.data} />}
           {tab === "harvest" && <HarvestTab farmId={selectedFarmId} blocks={blocks.data} />}

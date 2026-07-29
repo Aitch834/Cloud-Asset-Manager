@@ -29,7 +29,7 @@ import {
   wineGiCertificationsTable,
   wineGiHarvestDeclarationsTable,
 } from "@workspace/db";
-import { eq, and, desc, isNull } from "drizzle-orm";
+import { eq, and, desc, isNull, inArray } from "drizzle-orm";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 import { createScoutingAlerts } from "../lib/alertingJob";
 import { sanitiseBody } from "../lib/sanitise";
@@ -876,6 +876,41 @@ router.get("/farms/:farmId/vineyard-block-boundaries/:blockId", requireAuth, req
 router.post("/farms/:farmId/vineyard-block-boundaries", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const { blockId, polygonPoints, capturedBy } = req.body;
   const [record] = await db.insert(vineyardBlockBoundariesTable).values({ blockId: Number(blockId), polygonPoints, capturedBy: capturedBy ?? null }).returning();
+  res.status(201).json({ record });
+});
+
+// ─── Vineyard Block Boundaries — path-style routes used by the draw dialog ───
+
+// GET /farms/:farmId/vineyard-blocks/boundaries  — all latest boundaries for the farm (for block map overview)
+router.get("/farms/:farmId/vineyard-blocks/boundaries", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const farmBlocks = await db.select({ id: vineyardBlocksTable.id }).from(vineyardBlocksTable).where(eq(vineyardBlocksTable.farmId, farmId));
+  const blockIds = farmBlocks.map((b) => b.id);
+  if (blockIds.length === 0) { res.json({ boundaries: [] }); return; }
+  const all = await db.select().from(vineyardBlockBoundariesTable)
+    .where(inArray(vineyardBlockBoundariesTable.blockId, blockIds))
+    .orderBy(desc(vineyardBlockBoundariesTable.capturedAt));
+  // Return only the most-recent boundary per block
+  const seen = new Set<number>();
+  const latest = all.filter((b) => { if (seen.has(b.blockId)) return false; seen.add(b.blockId); return true; });
+  res.json({ boundaries: latest });
+});
+
+// GET /farms/:farmId/vineyard-blocks/:blockId/boundary  — latest boundary for one block
+router.get("/farms/:farmId/vineyard-blocks/:blockId/boundary", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const blockId = Number(req.params.blockId);
+  const [boundary] = await db.select().from(vineyardBlockBoundariesTable)
+    .where(eq(vineyardBlockBoundariesTable.blockId, blockId))
+    .orderBy(desc(vineyardBlockBoundariesTable.capturedAt))
+    .limit(1);
+  res.json({ boundary: boundary ?? null });
+});
+
+// POST /farms/:farmId/vineyard-blocks/:blockId/boundary  — save boundary for one block
+router.post("/farms/:farmId/vineyard-blocks/:blockId/boundary", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const blockId = Number(req.params.blockId);
+  const { polygonPoints, capturedBy } = req.body;
+  const [record] = await db.insert(vineyardBlockBoundariesTable).values({ blockId, polygonPoints, capturedBy: capturedBy ?? null }).returning();
   res.status(201).json({ record });
 });
 
