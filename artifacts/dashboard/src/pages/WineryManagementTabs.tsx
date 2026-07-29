@@ -563,6 +563,21 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const gPressed = parseFloat(String(form.grapesPressedKg || "0"));
   const efficiency = total !== null && gPressed > 0 ? (total / gPressed).toFixed(3) : null;
   const freeRunSep = form.freeRunSeparated !== "false" && form.freeRunSeparated !== false;
+  const batchIsOrganicFlag = form.isOrganic === true || form.isOrganic === "true";
+
+  // Compute whether any addition row breaches its applicable hard limit (used to block Save).
+  const hasBlockingAdditionError = additionsRows.some(row => {
+    const def = PERMITTED_ADDITIVES.find(a => a.name === row.additiveName);
+    if (!def || !row.unit) return false;
+    const doseVal = parseFloat(row.dose);
+    if (isNaN(doseVal)) return false;
+    if (batchIsOrganicFlag) {
+      const orgMax = def.organicMaxPerUnit?.[row.unit];
+      return orgMax !== undefined && doseVal > orgMax;
+    }
+    const convMax = def.maxPerUnit?.[row.unit];
+    return convMax !== undefined && doseVal > convMax;
+  });
 
   // Instruments that could be used for juice analysis
   const analysisEquipmentList = equipment.filter(e =>
@@ -674,6 +689,8 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const pressCsvCols = [
     { key: "vintage_year", label: "Vintage" },
     { key: "press_date", label: "Press Date", fmt: (r: Record<string, unknown>) => fmtDate(r.press_date) },
+    { key: "batch_ref", label: "Batch Ref" },
+    { key: "is_organic", label: "Certified Organic", fmt: (r: Record<string, unknown>) => (r.is_organic === true || r.is_organic === "true" || r.is_organic === 1) ? "Yes" : "No" },
     { key: "press_type", label: "Press Type" },
     { key: "grapes_pressed_kg", label: "Grapes Pressed (kg)" },
     { key: "free_run_litres", label: "Free Run (L)" },
@@ -879,6 +896,13 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                 {pressTypeOther && <Input className="mt-1.5" placeholder="Describe your press type…" value={String(form.pressType ?? "")} onChange={e => sf("pressType", e.target.value)} />}
               </div>
             </div>
+            <div className="flex items-start gap-3 rounded-md border px-3 py-2.5">
+              <Checkbox id="organic-chk" checked={form.isOrganic === true || form.isOrganic === "true"} onCheckedChange={v => sf("isOrganic", v ? "true" : "false")} className="mt-0.5" />
+              <div>
+                <Label htmlFor="organic-chk" className="cursor-pointer">Certified organic batch</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">The SO₂ warning threshold will automatically switch to the organic limit (90 mg/kg) when this is ticked.</p>
+              </div>
+            </div>
             <div>
               <Label>Operator</Label>
               <StaffSelect value={String(form.operatorName ?? "")} onChange={v => sf("operatorName", v)} staffNames={staffNames} loading={staffLoading} />
@@ -946,17 +970,27 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             </div>
             <SectionLabel>Additions at Press</SectionLabel>
             <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">UK-permitted additions (retained EU Reg 2019/934). Conventional SO₂ max: 200 mg/kg; organic limit: 90 mg/kg. Ascorbic acid max: 250 mg/L.</p>
+              {(form.isOrganic === true || form.isOrganic === "true") ? (
+                <p className="text-xs text-muted-foreground">UK-permitted additions (retained EU Reg 2019/934). <span className="font-medium text-amber-700">Organic batch — SO₂ limit is 90 mg/kg.</span> Ascorbic acid max: 250 mg/L.</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">UK-permitted additions (retained EU Reg 2019/934). Conventional SO₂ max: 200 mg/kg; organic limit: 90 mg/kg. Ascorbic acid max: 250 mg/L.</p>
+              )}
               {additionsRows.map((row) => {
                 const additiveDef = PERMITTED_ADDITIVES.find(a => a.name === row.additiveName);
                 const doseVal = parseFloat(row.dose);
+                const batchIsOrganic = form.isOrganic === true || form.isOrganic === "true";
                 let exceedsConventional = false;
                 let exceedsOrganic = false;
                 if (additiveDef && !isNaN(doseVal) && row.unit) {
                   const convMax = additiveDef.maxPerUnit?.[row.unit];
                   const orgMax = additiveDef.organicMaxPerUnit?.[row.unit];
-                  if (convMax !== undefined && doseVal > convMax) exceedsConventional = true;
-                  else if (orgMax !== undefined && doseVal > orgMax) exceedsOrganic = true;
+                  if (batchIsOrganic) {
+                    // For organic batches: warn at organic limit; API still enforces conventional ceiling
+                    if (orgMax !== undefined && doseVal > orgMax) exceedsOrganic = true;
+                  } else {
+                    if (convMax !== undefined && doseVal > convMax) exceedsConventional = true;
+                    else if (orgMax !== undefined && doseVal > orgMax) exceedsOrganic = true;
+                  }
                 }
                 const setRow = (k: keyof AdditionRow, v: string) =>
                   setAdditionsRows(rs => rs.map(r => r.tempId === row.tempId ? { ...r, [k]: v } : r));
@@ -987,7 +1021,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                         <AlertTriangle className="h-3 w-3 shrink-0" />Exceeds conventional max ({additiveDef?.maxPerUnit?.[row.unit]} {row.unit})
                       </div>
                     )}
-                    {!exceedsConventional && exceedsOrganic && (
+                    {!exceedsConventional && exceedsOrganic && batchIsOrganic && (
+                      <div className="flex items-center gap-1.5 text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">
+                        <AlertTriangle className="h-3 w-3 shrink-0" />Exceeds organic limit ({additiveDef?.organicMaxPerUnit?.[row.unit]} {row.unit}) — cannot save for a certified organic batch
+                      </div>
+                    )}
+                    {!exceedsConventional && exceedsOrganic && !batchIsOrganic && (
                       <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
                         <AlertTriangle className="h-3 w-3 shrink-0" />Exceeds organic limit ({additiveDef?.organicMaxPerUnit?.[row.unit]} {row.unit}) — permitted for conventional wine only
                       </div>
@@ -1033,7 +1072,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={save} disabled={!form.pressDate || crud.add.isPending || crud.edit.isPending}>
+            <Button onClick={save} disabled={!form.pressDate || crud.add.isPending || crud.edit.isPending || hasBlockingAdditionError}>
               {(crud.add.isPending || crud.edit.isPending) && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Save
             </Button>
           </DialogFooter>
@@ -1049,6 +1088,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
               <ViewField label="Vintage Year" value={fmt(view.vintage_year)} />
               <ViewField label="Batch Ref" value={fmt(view.batch_ref)} />
               <ViewField label="Press Type" value={fmt(view.press_type)} />
+              <ViewField label="Certified Organic" value={(view.is_organic === true || view.is_organic === "true" || view.is_organic === 1) ? <span className="inline-flex items-center gap-1 text-green-700 font-medium"><ShieldCheck className="h-3.5 w-3.5" />Yes — organic SO₂ limits apply</span> : "No"} />
               <ViewField label="Operator" value={fmt(view.operator_name)} />
               <ViewField label="Free Run Separated" value={view.free_run_separated ? "Yes" : "No"} />
               <ViewField label="Grapes Pressed" value={view.grapes_pressed_kg ? `${fmtNum(view.grapes_pressed_kg, 0)} kg` : "—"} />

@@ -47,5 +47,8 @@ export async function runWineryMigrations(): Promise<void> {
     WHERE batch_ref IS NOT NULL
   `);
 
+  // Certified organic flag on pressing records — drives automatic SO₂ limit enforcement
+  await db.execute(sql`ALTER TABLE winery_pressing_records ADD COLUMN IF NOT EXISTS is_organic boolean NOT NULL DEFAULT false`);
+
   console.log("[WINERY-MIGRATE] Done.");
 }

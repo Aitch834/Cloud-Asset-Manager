@@ -36609,7 +36609,7 @@ router.post("/farms/:farmId/winery-pressing", requireAuth, requireTenant, requir
     batchRef = buildBatchRef(s.prefix, s.year_format, s.padding_digits, s.issued_seq);
   }
   try {
-    const r = await db.execute(sql`INSERT INTO winery_pressing_records (farm_id,press_date,vintage_year,batch_ref,press_type,grapes_pressed_kg,free_run_litres,press_wine_litres,total_juice_litres,press_efficiency_l_per_kg,juice_brix,juice_ph,juice_ta_gl,juice_turbidity,free_run_separated,additions_at_press,settling_method,settling_vessel,settling_hours,juice_analysis_source,operator_name,notes) VALUES (${farmId},${n(b.pressDate)},${ni(b.vintageYear)},${batchRef},${n(b.pressType)},${nf(b.grapesPressedKg)},${nf(b.freeRunLitres)},${nf(b.pressWineLitres)},${nf(b.totalJuiceLitres)},${nf(b.pressEfficiencyLPerKg)},${nf(b.juiceBrix)},${nf(b.juicePh)},${nf(b.juiceTaGl)},${n(b.juiceTurbidity)},${nb(b.freeRunSeparated) ?? true},${n(b.additionsAtPress)},${n(b.settlingMethod)},${n(b.settlingVessel)},${ni(b.settlingHours)},${n(b.juiceAnalysisSource)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
+    const r = await db.execute(sql`INSERT INTO winery_pressing_records (farm_id,press_date,vintage_year,batch_ref,press_type,grapes_pressed_kg,free_run_litres,press_wine_litres,total_juice_litres,press_efficiency_l_per_kg,juice_brix,juice_ph,juice_ta_gl,juice_turbidity,free_run_separated,additions_at_press,settling_method,settling_vessel,settling_hours,juice_analysis_source,is_organic,operator_name,notes) VALUES (${farmId},${n(b.pressDate)},${ni(b.vintageYear)},${batchRef},${n(b.pressType)},${nf(b.grapesPressedKg)},${nf(b.freeRunLitres)},${nf(b.pressWineLitres)},${nf(b.totalJuiceLitres)},${nf(b.pressEfficiencyLPerKg)},${nf(b.juiceBrix)},${nf(b.juicePh)},${nf(b.juiceTaGl)},${n(b.juiceTurbidity)},${nb(b.freeRunSeparated) ?? true},${n(b.additionsAtPress)},${n(b.settlingMethod)},${n(b.settlingVessel)},${ni(b.settlingHours)},${n(b.juiceAnalysisSource)},${nb(b.isOrganic) ?? false},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
     res.status(201).json({ record: r.rows[0] });
   } catch (err: unknown) {
     // PostgreSQL unique-constraint violation — (farm_id, batch_ref) index
@@ -36662,7 +36662,7 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
 router.put("/farms/:farmId/winery-pressing/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const b = sanitiseBody(req.body);
-  const r = await db.execute(sql`UPDATE winery_pressing_records SET press_date=${n(b.pressDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},press_type=${n(b.pressType)},grapes_pressed_kg=${nf(b.grapesPressedKg)},free_run_litres=${nf(b.freeRunLitres)},press_wine_litres=${nf(b.pressWineLitres)},total_juice_litres=${nf(b.totalJuiceLitres)},press_efficiency_l_per_kg=${nf(b.pressEfficiencyLPerKg)},juice_brix=${nf(b.juiceBrix)},juice_ph=${nf(b.juicePh)},juice_ta_gl=${nf(b.juiceTaGl)},juice_turbidity=${n(b.juiceTurbidity)},free_run_separated=${nb(b.freeRunSeparated) ?? true},additions_at_press=${n(b.additionsAtPress)},settling_method=${n(b.settlingMethod)},settling_vessel=${n(b.settlingVessel)},settling_hours=${ni(b.settlingHours)},juice_analysis_source=${n(b.juiceAnalysisSource)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
+  const r = await db.execute(sql`UPDATE winery_pressing_records SET press_date=${n(b.pressDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},press_type=${n(b.pressType)},grapes_pressed_kg=${nf(b.grapesPressedKg)},free_run_litres=${nf(b.freeRunLitres)},press_wine_litres=${nf(b.pressWineLitres)},total_juice_litres=${nf(b.totalJuiceLitres)},press_efficiency_l_per_kg=${nf(b.pressEfficiencyLPerKg)},juice_brix=${nf(b.juiceBrix)},juice_ph=${nf(b.juicePh)},juice_ta_gl=${nf(b.juiceTaGl)},juice_turbidity=${n(b.juiceTurbidity)},free_run_separated=${nb(b.freeRunSeparated) ?? true},additions_at_press=${n(b.additionsAtPress)},settling_method=${n(b.settlingMethod)},settling_vessel=${n(b.settlingVessel)},settling_hours=${ni(b.settlingHours)},juice_analysis_source=${n(b.juiceAnalysisSource)},is_organic=${nb(b.isOrganic) ?? false},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
   res.json({ record: r.rows[0] });
 });
 router.delete("/farms/:farmId/winery-pressing/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -36696,12 +36696,20 @@ const WINERY_PERMITTED_ADDITIVES: Record<string, { units: string[]; maxPerUnit?:
   "Other":                                 { units: ["mg/kg", "mg/L", "g/hL", "g/L", "mL/hL"] },
 };
 
+// Organic SO₂ limits (retained EU Reg 2019/934 Annex I.A Part B).
+// Keyed by the same units as WINERY_PERMITTED_ADDITIVES.maxPerUnit.
+const WINERY_ORGANIC_MAX: Record<string, Record<string, number>> = {
+  "SO₂ / Potassium metabisulphite (KMS)": { "mg/kg": 90, "mg/L": 90 },
+  "Ascorbic acid": { "mg/L": 250 }, // same limit for organic/conventional
+};
+
 // Replace all additions for a pressing record atomically inside a transaction.
 router.put("/farms/:farmId/winery-pressing/:pressingId/additions/batch", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const pressingId = parseInt(req.params.pressingId as string);
-  const check = await db.execute(sql`SELECT id FROM winery_pressing_records WHERE id = ${pressingId} AND farm_id = ${farmId}`);
+  const check = await db.execute(sql`SELECT id, is_organic FROM winery_pressing_records WHERE id = ${pressingId} AND farm_id = ${farmId}`);
   if (!check.rows.length) { res.status(404).json({ error: "Pressing record not found" }); return; }
+  const pressingIsOrganic = !!(check.rows[0] as { is_organic: boolean }).is_organic;
   const additions: Array<Record<string, unknown>> = Array.isArray(req.body?.additions) ? req.body.additions : [];
 
   // Validate all rows before writing anything
@@ -36723,10 +36731,15 @@ router.put("/farms/:farmId/winery-pressing/:pressingId/additions/batch", require
       res.status(422).json({ error: `Dose for "${b.additiveName}" must be a non-negative number.` });
       return;
     }
-    if (def.maxPerUnit && unit && dose !== null && isFinite(dose)) {
-      const ceiling = def.maxPerUnit[unit];
+    if (unit && dose !== null && isFinite(dose)) {
+      // For organic batches, apply the stricter organic ceiling; otherwise use the conventional ceiling.
+      const orgLimits = WINERY_ORGANIC_MAX[String(b.additiveName)];
+      const ceiling = pressingIsOrganic && orgLimits?.[unit] !== undefined
+        ? orgLimits[unit]
+        : def.maxPerUnit?.[unit];
       if (ceiling !== undefined && dose > ceiling) {
-        res.status(422).json({ error: `Dose of ${dose} ${unit} for "${b.additiveName}" exceeds the maximum permitted level of ${ceiling} ${unit} under retained EU Reg 2019/934.` });
+        const limitLabel = pressingIsOrganic ? "organic maximum" : "maximum permitted level";
+        res.status(422).json({ error: `Dose of ${dose} ${unit} for "${b.additiveName}" exceeds the ${limitLabel} of ${ceiling} ${unit} under retained EU Reg 2019/934${pressingIsOrganic ? " (organic batch)" : ""}.` });
         return;
       }
     }
