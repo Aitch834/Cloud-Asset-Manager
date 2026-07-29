@@ -46,7 +46,7 @@ function useCrud<T extends Record<string, unknown>>(farmId: number, endpoint: st
   const add = useMutation({
     mutationFn: async (body: Partial<T>) => {
       const r = await fetch(api(`farms/${farmId}/${endpoint}`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
-      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Save failed"); }
+      if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || "Save failed"); (err as Error & { code?: string }).code = e.code; throw err; }
       return r.json();
     },
     onSuccess: invalidate,
@@ -485,8 +485,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsForm, setSettingsForm] = useState<Record<string, string>>({});
   const [additionsRows, setAdditionsRows] = useState<AdditionRow[]>([]);
+  const [batchRefError, setBatchRefError] = useState<string | null>(null);
   const addRowCounter = useRef(0);
-  const sf = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
+  const sf = (k: string, v: string | boolean) => {
+    if (k === "batchRef") setBatchRefError(null);
+    setForm(f => ({ ...f, [k]: v }));
+  };
   const ssf = (k: string, v: string) => setSettingsForm(f => ({ ...f, [k]: v }));
 
   // Fetch existing additions when editing a pressing record
@@ -544,6 +548,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     setForm({ pressDate: today, vintageYear: String(new Date().getFullYear()), freeRunSeparated: "true" });
     setPressTypeOther(false);
     setAdditionsRows([]);
+    setBatchRefError(null);
     setOpen(true);
   };
   const openEdit = (r: Record<string, unknown>) => {
@@ -553,13 +558,25 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     setOpen(true);
   };
   const save = async () => {
+    setBatchRefError(null);
     const payload = { ...form, totalJuiceLitres: total != null ? String(total) : form.totalJuiceLitres, pressEfficiencyLPerKg: efficiency ?? form.pressEfficiencyLPerKg };
     let pressingId: number;
     if (editing !== null) {
       await crud.edit.mutateAsync({ id: editing, ...payload } as Record<string, unknown> & { id: number });
       pressingId = editing;
     } else {
-      const result = await crud.add.mutateAsync(payload);
+      let result: unknown;
+      try {
+        result = await crud.add.mutateAsync(payload);
+      } catch (err) {
+        const e = err as Error & { code?: string };
+        if (e.code === "DUPLICATE_BATCH_REF") {
+          setBatchRefError(e.message);
+        } else {
+          toast({ title: "Save failed", description: e.message || "An unexpected error occurred.", variant: "destructive" });
+        }
+        return;
+      }
       pressingId = (result as { record: { id: number } }).record?.id;
       // Switch immediately into edit mode so that if the additions save below fails,
       // retrying Save updates this record rather than creating a duplicate.
@@ -699,9 +716,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                     value={String(form.batchRef ?? "")}
                     onChange={e => sf("batchRef", e.target.value)}
                     placeholder={editing !== null ? "e.g. PRESS-2025-001" : (batchSettings.data?.nextRef ?? "e.g. PRESS-2025-001")}
+                    className={batchRefError ? "border-red-500 focus-visible:ring-red-500" : ""}
                   />
                 </div>
-                {editing === null && (
+                {batchRefError ? (
+                  <p className="text-xs text-red-600 mt-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3 shrink-0" />{batchRefError}</p>
+                ) : editing === null && (
                   <p className="text-xs text-muted-foreground mt-1">
                     Leave blank to auto-assign <span className="font-mono text-foreground">{batchSettings.data?.nextRef ?? "…"}</span>. Override by typing a custom reference.
                   </p>

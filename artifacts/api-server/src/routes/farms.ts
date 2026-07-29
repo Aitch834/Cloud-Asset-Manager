@@ -36608,8 +36608,17 @@ router.post("/farms/:farmId/winery-pressing", requireAuth, requireTenant, requir
     const s = upd.rows[0] as { prefix: string; year_format: string; padding_digits: number; issued_seq: number };
     batchRef = buildBatchRef(s.prefix, s.year_format, s.padding_digits, s.issued_seq);
   }
-  const r = await db.execute(sql`INSERT INTO winery_pressing_records (farm_id,press_date,vintage_year,batch_ref,press_type,grapes_pressed_kg,free_run_litres,press_wine_litres,total_juice_litres,press_efficiency_l_per_kg,juice_brix,juice_ph,juice_ta_gl,juice_turbidity,free_run_separated,additions_at_press,settling_method,settling_vessel,settling_hours,juice_analysis_source,operator_name,notes) VALUES (${farmId},${n(b.pressDate)},${ni(b.vintageYear)},${batchRef},${n(b.pressType)},${nf(b.grapesPressedKg)},${nf(b.freeRunLitres)},${nf(b.pressWineLitres)},${nf(b.totalJuiceLitres)},${nf(b.pressEfficiencyLPerKg)},${nf(b.juiceBrix)},${nf(b.juicePh)},${nf(b.juiceTaGl)},${n(b.juiceTurbidity)},${nb(b.freeRunSeparated) ?? true},${n(b.additionsAtPress)},${n(b.settlingMethod)},${n(b.settlingVessel)},${ni(b.settlingHours)},${n(b.juiceAnalysisSource)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
-  res.status(201).json({ record: r.rows[0] });
+  try {
+    const r = await db.execute(sql`INSERT INTO winery_pressing_records (farm_id,press_date,vintage_year,batch_ref,press_type,grapes_pressed_kg,free_run_litres,press_wine_litres,total_juice_litres,press_efficiency_l_per_kg,juice_brix,juice_ph,juice_ta_gl,juice_turbidity,free_run_separated,additions_at_press,settling_method,settling_vessel,settling_hours,juice_analysis_source,operator_name,notes) VALUES (${farmId},${n(b.pressDate)},${ni(b.vintageYear)},${batchRef},${n(b.pressType)},${nf(b.grapesPressedKg)},${nf(b.freeRunLitres)},${nf(b.pressWineLitres)},${nf(b.totalJuiceLitres)},${nf(b.pressEfficiencyLPerKg)},${nf(b.juiceBrix)},${nf(b.juicePh)},${nf(b.juiceTaGl)},${n(b.juiceTurbidity)},${nb(b.freeRunSeparated) ?? true},${n(b.additionsAtPress)},${n(b.settlingMethod)},${n(b.settlingVessel)},${ni(b.settlingHours)},${n(b.juiceAnalysisSource)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
+    res.status(201).json({ record: r.rows[0] });
+  } catch (err: unknown) {
+    // PostgreSQL unique-constraint violation — (farm_id, batch_ref) index
+    if (typeof err === "object" && err !== null && (err as { code?: string }).code === "23505") {
+      res.status(409).json({ error: `Batch reference "${batchRef}" is already used by another pressing record. Please choose a different reference.`, code: "DUPLICATE_BATCH_REF" });
+      return;
+    }
+    throw err;
+  }
 });
 router.put("/farms/:farmId/winery-pressing/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;

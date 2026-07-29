@@ -39,5 +39,13 @@ export async function runWineryMigrations(): Promise<void> {
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_wpa_farm_id           ON winery_pressing_additions(farm_id)`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_wpa_pressing_record_id ON winery_pressing_additions(pressing_record_id)`);
 
+  // Unique batch refs per farm — NULL allowed (auto-generated refs never collide because the
+  // sequence is atomic), but two non-NULL values with the same (farm_id, batch_ref) are rejected.
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_wpr_farm_batch_ref
+    ON winery_pressing_records(farm_id, batch_ref)
+    WHERE batch_ref IS NOT NULL
+  `);
+
   console.log("[WINERY-MIGRATE] Done.");
 }
