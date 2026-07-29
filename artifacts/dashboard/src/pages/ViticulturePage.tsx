@@ -515,9 +515,15 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
   const [viewing, setViewing] = useState<VineReg | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<VineReg | null>(null);
   const varieties = useLookupStrings("vineyard_grape_varieties", UK_GRAPE_VARIETIES);
+  const [varietyOther, setVarietyOther] = useState(false);
 
-  const openAdd = () => { setForm({}); setCurrent(null); setOpen(true); };
-  const openEdit = (r: VineReg) => { setForm({ ...r }); setCurrent(r); setOpen(true); };
+  const openAdd = () => { setForm({}); setCurrent(null); setVarietyOther(false); setOpen(true); };
+  const openEdit = (r: VineReg) => {
+    setForm({ ...r });
+    setCurrent(r);
+    setVarietyOther(!!r.registeredVariety && !UK_GRAPE_VARIETIES.includes(String(r.registeredVariety)));
+    setOpen(true);
+  };
   const sf = (k: string, v: unknown) => setForm(p => ({ ...p, [k]: v }));
   const save = async () => {
     if (current) await edit.mutateAsync({ ...form, id: current.id as number });
@@ -624,10 +630,14 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
               <div><Label>FSA Vine Register Ref</Label><Input value={String(form.fsaVineRegisterRef ?? "")} onChange={e => sf("fsaVineRegisterRef", e.target.value)} placeholder="e.g. WPR-12345" /></div>
               <div>
                 <Label>Registered Variety *</Label>
-                <Select value={String(form.registeredVariety ?? "")} onValueChange={v => sf("registeredVariety", v)}>
+                <Select
+                  value={varietyOther ? "Other" : String(form.registeredVariety ?? "")}
+                  onValueChange={v => { if (v === "Other") { setVarietyOther(true); sf("registeredVariety", ""); } else { setVarietyOther(false); sf("registeredVariety", v); } }}
+                >
                   <SelectTrigger><SelectValue placeholder="Select variety…" /></SelectTrigger>
                   <SelectContent>{varieties.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                 </Select>
+                {varietyOther && <Input className="mt-1.5" placeholder="Enter variety name…" value={String(form.registeredVariety ?? "")} onChange={e => sf("registeredVariety", e.target.value)} />}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -702,25 +712,36 @@ function PlantingFormFields({ form, sf }: { form: Block; sf: (k: string, v: unkn
   const varieties = useLookupStrings("vineyard_grape_varieties", UK_GRAPE_VARIETIES);
   const rootstocks = useLookupStrings("vineyard_rootstocks", UK_ROOTSTOCKS);
   const trainingSystems = useLookupStrings("vineyard_training_systems", ["Double Guyot", "Single Guyot", "Cordon", "Scott Henry", "Lenz Moser", "VSP", "Other"]);
+  const [varietyOther, setVarietyOther] = useState(() => { const v = String(form.variety ?? ""); return !!v && !UK_GRAPE_VARIETIES.includes(v); });
+  const [rootstockOther, setRootstockOther] = useState(() => { const v = String(form.rootstock ?? ""); return !!v && !UK_ROOTSTOCKS.includes(v); });
+  const [trainingOther, setTrainingOther] = useState(() => { const v = String(form.trainingSystem ?? ""); return !!v && !["Double Guyot", "Single Guyot", "Cordon", "Scott Henry", "Lenz Moser", "VSP", "Other"].includes(v); });
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label>Variety *</Label>
-          <Select value={String(form.variety ?? "")} onValueChange={v => sf("variety", v)}>
+          <Select
+            value={varietyOther ? "Other" : String(form.variety ?? "")}
+            onValueChange={v => { if (v === "Other") { setVarietyOther(true); sf("variety", ""); } else { setVarietyOther(false); sf("variety", v); } }}
+          >
             <SelectTrigger><SelectValue placeholder="Select variety…" /></SelectTrigger>
             <SelectContent>{varieties.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
           </Select>
+          {varietyOther && <Input className="mt-1.5" placeholder="Enter variety name…" value={String(form.variety ?? "")} onChange={e => sf("variety", e.target.value)} />}
         </div>
         <div><Label>Clone</Label><Input value={String(form.clone ?? "")} onChange={e => sf("clone", e.target.value)} placeholder="e.g. Chardonnay 96" /></div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label>Rootstock</Label>
-          <Select value={String(form.rootstock ?? "")} onValueChange={v => sf("rootstock", v)}>
+          <Select
+            value={rootstockOther ? "Other" : String(form.rootstock ?? "")}
+            onValueChange={v => { if (v === "Other") { setRootstockOther(true); sf("rootstock", ""); } else { setRootstockOther(false); sf("rootstock", v); } }}
+          >
             <SelectTrigger><SelectValue placeholder="Select rootstock…" /></SelectTrigger>
             <SelectContent>{rootstocks.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
           </Select>
+          {rootstockOther && <Input className="mt-1.5" placeholder="Enter rootstock name…" value={String(form.rootstock ?? "")} onChange={e => sf("rootstock", e.target.value)} />}
         </div>
         <div><Label>Planting Year</Label><Input type="number" min="1900" max={new Date().getFullYear()} value={String(form.plantingYear ?? "")} onChange={e => sf("plantingYear", e.target.value)} placeholder="e.g. 2018" /></div>
       </div>
@@ -736,12 +757,16 @@ function PlantingFormFields({ form, sf }: { form: Block; sf: (k: string, v: unkn
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label>Training System</Label>
-          <Select value={String(form.trainingSystem ?? "")} onValueChange={v => sf("trainingSystem", v)}>
+          <Select
+            value={trainingOther ? "Other" : String(form.trainingSystem ?? "")}
+            onValueChange={v => { if (v === "Other") { setTrainingOther(true); sf("trainingSystem", ""); } else { setTrainingOther(false); sf("trainingSystem", v); } }}
+          >
             <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
             <SelectContent>
               {trainingSystems.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
             </SelectContent>
           </Select>
+          {trainingOther && <Input className="mt-1.5" placeholder="Enter training system…" value={String(form.trainingSystem ?? "")} onChange={e => sf("trainingSystem", e.target.value)} />}
         </div>
         <div><Label>Trellis Type</Label><Input value={String(form.trellisType ?? "")} onChange={e => sf("trellisType", e.target.value)} placeholder="e.g. High wire, 2-wire" /></div>
       </div>
@@ -1344,6 +1369,7 @@ export function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Reco
   const [raiseTaskFor, setRaiseTaskFor] = useState<Operation | null>(null);
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const operationTypes = useLookupStrings("vineyard_operation_types", OPERATION_TYPES);
+  const [pruningOther, setPruningOther] = useState(false);
   const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
     queryKey: ["farm-staff", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/staff`), { credentials: "include" }).then(r => r.json()),
@@ -1352,8 +1378,13 @@ export function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Reco
   });
   const staffNames: string[] = (staffData?.staff ?? []).map((s: { name: string }) => s.name);
 
-  const openAdd = () => { setForm({ operationDate: today, operatorName: displayName ?? "" }); setCurrent(null); setOpen(true); };
-  const openEdit = (r: Operation) => { setForm({ ...r }); setCurrent(r); setOpen(true); };
+  const openAdd = () => { setForm({ operationDate: today, operatorName: displayName ?? "" }); setCurrent(null); setPruningOther(false); setOpen(true); };
+  const openEdit = (r: Operation) => {
+    setForm({ ...r });
+    setCurrent(r);
+    setPruningOther(!!r.pruningSystem && !["Double Guyot", "Single Guyot", "Cordon Spur", "Scott Henry", "Cane Replacement", "Other"].includes(String(r.pruningSystem)));
+    setOpen(true);
+  };
   const sf = (k: string, v: unknown) => setForm(p => ({ ...p, [k]: v }));
   const blockName = (id: unknown) => blocks.find(b => b.id === id)?.blockName ?? id;
   const save = async () => {
@@ -1492,12 +1523,16 @@ export function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Reco
               <>
                 <div>
                   <Label>Pruning System</Label>
-                  <Select value={String(form.pruningSystem ?? "")} onValueChange={v => sf("pruningSystem", v)}>
+                  <Select
+                    value={pruningOther ? "Other" : String(form.pruningSystem ?? "")}
+                    onValueChange={v => { if (v === "Other") { setPruningOther(true); sf("pruningSystem", ""); } else { setPruningOther(false); sf("pruningSystem", v); } }}
+                  >
                     <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
                     <SelectContent>
                       {["Double Guyot", "Single Guyot", "Cordon Spur", "Scott Henry", "Cane Replacement", "Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                  {pruningOther && <Input className="mt-1.5" placeholder="Enter pruning system…" value={String(form.pruningSystem ?? "")} onChange={e => sf("pruningSystem", e.target.value)} />}
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div><Label>Target Buds/Vine</Label><Input type="number" value={String(form.budsPerVineTarget ?? "")} onChange={e => sf("budsPerVineTarget", e.target.value)} /></div>
@@ -3084,6 +3119,7 @@ export function AgeVerificationTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [editing, setEditing] = useState<number | null>(null);
   const [providerOther, setProviderOther] = useState(false);
+  const [locationOther, setLocationOther] = useState(false);
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
 
   const sf = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
@@ -3092,6 +3128,7 @@ export function AgeVerificationTab({ farmId }: { farmId: number }) {
     setEditing(null);
     setForm({ recordType: type, recordDate: today, idRequested: false, idProduced: false, supervisorNotified: false });
     setProviderOther(false);
+    setLocationOther(false);
     setOpen(true);
   };
   const openEdit = (r: Record<string, unknown>) => {
@@ -3099,6 +3136,7 @@ export function AgeVerificationTab({ farmId }: { farmId: number }) {
     setForm({ ...r });
     const isKnown = UK_TRAINING_PROVIDERS.includes(r.trainingProvider as string);
     setProviderOther(!isKnown && !!r.trainingProvider);
+    setLocationOther(!!r.refusalLocation && !["shop", "tour", "event", "cellar-door"].includes(String(r.refusalLocation)));
     setOpen(true);
   };
   const save = () => {
@@ -3298,7 +3336,10 @@ export function AgeVerificationTab({ farmId }: { farmId: number }) {
             </> : <>
               <div>
                 <Label>Refusal Location</Label>
-                <Select value={String(form.refusalLocation ?? "")} onValueChange={v => sf("refusalLocation", v)}>
+                <Select
+                  value={locationOther ? "other" : String(form.refusalLocation ?? "")}
+                  onValueChange={v => { if (v === "other") { setLocationOther(true); sf("refusalLocation", ""); } else { setLocationOther(false); sf("refusalLocation", v); } }}
+                >
                   <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="shop">Farm Shop</SelectItem>
@@ -3308,6 +3349,7 @@ export function AgeVerificationTab({ farmId }: { farmId: number }) {
                     <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
+                {locationOther && <Input className="mt-1.5" placeholder="Describe the location…" value={String(form.refusalLocation ?? "")} onChange={e => sf("refusalLocation", e.target.value)} />}
               </div>
               <div><Label>Customer's Estimated Age</Label><Input type="number" value={String(form.estimatedAge ?? "")} onChange={e => sf("estimatedAge", e.target.value)} /></div>
               <div className="flex items-center gap-2"><Checkbox checked={!!form.idRequested} onCheckedChange={v => sf("idRequested", !!v)} id="idr" /><Label htmlFor="idr">ID Requested</Label></div>

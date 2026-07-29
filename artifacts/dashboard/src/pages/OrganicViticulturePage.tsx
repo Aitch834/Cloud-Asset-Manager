@@ -1039,6 +1039,7 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [yearFilter, setYearFilter] = useState("all");
+  const [regulatoryOther, setRegulatoryOther] = useState(false);
   const [raiseTaskFor, setRaiseTaskFor] = useState<{ title: string; description: string; dueDate?: string } | null>(null);
   const [recordDecisionFor, setRecordDecisionFor] = useState<DerogCase | null>(null);
   const certifyingBodies = useLookupStrings("organic_certifying_bodies", ["Soil Association", "Organic Farmers & Growers (OF&G)", "Biodynamic Association (BDAA)", "Quality Welsh Food Certification (QWFC)", "Other"]);
@@ -1066,7 +1067,7 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
     enabled: expandedId !== null,
   });
 
-  const openAdd = () => { setForm({ status: "pending", vintageYear: String(new Date().getFullYear()), internalDecisionDate: "", rejectionReason: "", rejectionRef: "", correctiveAction: "", certifier: primaryCertifier?.certifier ?? "" }); setShowAdd(true); };
+  const openAdd = () => { setForm({ status: "pending", vintageYear: String(new Date().getFullYear()), internalDecisionDate: "", rejectionReason: "", rejectionRef: "", correctiveAction: "", certifier: primaryCertifier?.certifier ?? "" }); setRegulatoryOther(false); setShowAdd(true); };
   const openEdit = (c: DerogCase) => {
     setForm({
       inputName: c.inputName ?? "",
@@ -1089,6 +1090,7 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
       correctiveAction: c.correctiveAction ?? "",
       notes: c.notes ?? "",
     });
+    setRegulatoryOther(!!c.regulatoryBasis && !["UK Organic Regs 2020, Sch. 1 Part A", "UK Organic Regs 2020, Sch. 1 Part B", "UK Organic Regs 2020, Annex II", "Certifier derogation guidance"].includes(c.regulatoryBasis ?? ""));
     setEditing(c);
   };
 
@@ -1352,12 +1354,16 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
             </div>
             <div>
               <Label>Regulatory Basis</Label>
-              <Select value={form.regulatoryBasis ?? ""} onValueChange={v => setForm(f => ({ ...f, regulatoryBasis: v }))}>
+              <Select
+                value={regulatoryOther ? "Other" : (form.regulatoryBasis ?? "")}
+                onValueChange={v => { if (v === "Other") { setRegulatoryOther(true); setForm(f => ({ ...f, regulatoryBasis: "" })); } else { setRegulatoryOther(false); setForm(f => ({ ...f, regulatoryBasis: v })); } }}
+              >
                 <SelectTrigger><SelectValue placeholder="Select regulatory basis…" /></SelectTrigger>
                 <SelectContent>
                   {["UK Organic Regs 2020, Sch. 1 Part A", "UK Organic Regs 2020, Sch. 1 Part B", "UK Organic Regs 2020, Annex II", "Certifier derogation guidance", "Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {regulatoryOther && <Input className="mt-1.5" placeholder="Describe regulatory basis…" value={form.regulatoryBasis ?? ""} onChange={e => setForm(f => ({ ...f, regulatoryBasis: e.target.value }))} />}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
