@@ -384,6 +384,13 @@ function InputLogTab({ farmId, blocks }: { farmId: number; blocks: Record<string
     queryFn: () => fetch(`/api/farms/${farmId}/organic-viticulture/input-log`).then(r => r.json()),
   });
 
+  const { data: certRegData } = useQuery<{ records: any[] }>({
+    queryKey: ["org-certification", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/organic-certification`).then(r => r.json()),
+    staleTime: 300_000,
+  });
+  const primaryCertifier = certRegData?.records?.[0] ?? null;
+
   const openAdd = () => { setProductLookupId(""); setForm({ approvalStatus: "permitted", vintageYear: String(new Date().getFullYear()) }); setShowAdd(true); };
   const openEdit = (r: any) => {
     setProductLookupId("");
@@ -437,6 +444,12 @@ function InputLogTab({ farmId, blocks }: { farmId: number; blocks: Record<string
         </div>
         <Button size="sm" className="shrink-0" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Input</Button>
       </div>
+      {primaryCertifier && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+          <Leaf className="h-4 w-4 text-green-600 shrink-0" />
+          <span>Registered certifier: <strong>{primaryCertifier.certifier}</strong>{primaryCertifier.operatorNumber ? <> · Operator No: <strong>{primaryCertifier.operatorNumber}</strong></> : null}</span>
+        </div>
+      )}
       {isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
       ) : records.length === 0 ? (
@@ -543,7 +556,11 @@ function InputLogTab({ farmId, blocks }: { farmId: number; blocks: Record<string
                 <SelectContent>{APPROVAL_STATUS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o.charAt(0).toUpperCase() + o.slice(1)}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Certifier Approval Ref</Label><Input value={form.certifierApprovalRef ?? ""} onChange={sf("certifierApprovalRef")} placeholder="Reference if certifier pre-approval was required" /></div>
+            <div>
+              <Label>Certifier Approval Ref</Label>
+              <Input value={form.certifierApprovalRef ?? ""} onChange={sf("certifierApprovalRef")} placeholder="Reference if certifier pre-approval was required" />
+              {primaryCertifier && <p className="text-xs text-green-700 mt-1">Your registered certifier: <strong>{primaryCertifier.certifier}</strong>{primaryCertifier.operatorNumber ? ` (Op. No: ${primaryCertifier.operatorNumber})` : ""}</p>}
+            </div>
             <div><Label>Applied By</Label><StaffSelect value={form.appliedBy ?? ""} onChange={v => setForm(f => ({ ...f, appliedBy: v }))} staffNames={staffNames} loading={staffLoading} /></div>
             <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={sf("notes")} rows={2} /></div>
           </div>
@@ -896,6 +913,12 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
   const [raiseTaskFor, setRaiseTaskFor] = useState<{ title: string; description: string; dueDate?: string } | null>(null);
   const [recordDecisionFor, setRecordDecisionFor] = useState<DerogCase | null>(null);
   const certifyingBodies = useLookupStrings("organic_certifying_bodies", ["Soil Association", "Organic Farmers & Growers (OF&G)", "Biodynamic Association (BDAA)", "Quality Welsh Food Certification (QWFC)", "Other"]);
+  const { data: certRegData } = useQuery<{ records: any[] }>({
+    queryKey: ["org-certification", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/organic-certification`).then(r => r.json()),
+    staleTime: 300_000,
+  });
+  const primaryCertifier = certRegData?.records?.[0] ?? null;
 
   // Correspondence
   const [showAddCorr, setShowAddCorr] = useState(false);
@@ -914,7 +937,7 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
     enabled: expandedId !== null,
   });
 
-  const openAdd = () => { setForm({ status: "pending", vintageYear: String(new Date().getFullYear()), internalDecisionDate: "", rejectionReason: "", rejectionRef: "", correctiveAction: "" }); setShowAdd(true); };
+  const openAdd = () => { setForm({ status: "pending", vintageYear: String(new Date().getFullYear()), internalDecisionDate: "", rejectionReason: "", rejectionRef: "", correctiveAction: "", certifier: primaryCertifier?.certifier ?? "" }); setShowAdd(true); };
   const openEdit = (c: DerogCase) => {
     setForm({
       inputName: c.inputName ?? "",
@@ -1311,13 +1334,19 @@ function CertificatesTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [raiseTaskFor, setRaiseTaskFor] = useState<{ title: string; description: string; dueDate?: string } | null>(null);
   const certifyingBodies = useLookupStrings("organic_certifying_bodies", ["Soil Association", "Organic Farmers & Growers (OF&G)", "Biodynamic Association (BDAA)", "Quality Welsh Food Certification (QWFC)", "Other"]);
+  const { data: certRegData } = useQuery<{ records: any[] }>({
+    queryKey: ["org-certification", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/organic-certification`).then(r => r.json()),
+    staleTime: 300_000,
+  });
+  const primaryCertifier = certRegData?.records?.[0] ?? null;
 
   const { data, isLoading } = useQuery<{ records: any[] }>({
     queryKey: ["org-vit-certs", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/organic-viticulture/certificates`).then(r => r.json()),
   });
 
-  const openAdd = () => { setForm({ status: "active" }); setShowAdd(true); };
+  const openAdd = () => { setForm({ status: "active", certifyingBody: primaryCertifier?.certifier ?? "" }); setShowAdd(true); };
   const openEdit = (r: any) => {
     setForm({
       certifyingBody: r.certifyingBody ?? "",
