@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Settings2, RefreshCw } from "lucide-react";
@@ -167,6 +167,28 @@ const EQUIPMENT_STATUS_OPTIONS = ["active", "out-of-service", "retired"];
 const CALIBRATION_RESULT_OPTIONS = ["pass", "fail", "adjusted"];
 const CALIBRATION_FREQ_OPTIONS = ["Per use", "Daily", "Weekly", "Monthly", "Quarterly", "Annually"];
 const TOASTING_OPTIONS = ["Light (L)", "Medium (M)", "Medium+ (M+)", "Heavy (H)", "Extra Heavy (EH)", "None"];
+
+// ─── Press Additive Catalogue ─────────────────────────────────────────────────
+// Limits per retained EU Reg 2019/934 (UK-retained law).
+// maxPerUnit: per-unit conventional ceiling (hard limit — API rejects above this).
+// organicMaxPerUnit: lower organic limit (UI warning only, not API enforced at this stage).
+interface PermittedAdditive {
+  name: string; category: string; defaultUnit: string; units: string[];
+  maxPerUnit?: Record<string, number>;
+  organicMaxPerUnit?: Record<string, number>;
+}
+const PERMITTED_ADDITIVES: PermittedAdditive[] = [
+  { name: "SO₂ / Potassium metabisulphite (KMS)", category: "so2",           defaultUnit: "mg/kg", units: ["mg/kg", "mg/L"],        maxPerUnit: { "mg/kg": 200, "mg/L": 200 }, organicMaxPerUnit: { "mg/kg": 90, "mg/L": 90 } },
+  { name: "Ascorbic acid",                         category: "ascorbic_acid", defaultUnit: "mg/L",  units: ["mg/L"],                 maxPerUnit: { "mg/L": 250 },               organicMaxPerUnit: { "mg/L": 250 } },
+  { name: "Pectolytic enzyme (Pectinase)",         category: "pectolytic",    defaultUnit: "g/hL",  units: ["g/hL", "mL/hL"] },
+  { name: "Bentonite (white must only)",           category: "fining",        defaultUnit: "g/hL",  units: ["g/hL"] },
+  { name: "Activated charcoal (white must only)",  category: "fining",        defaultUnit: "g/hL",  units: ["g/hL"] },
+  { name: "Diammonium phosphate (DAP)",            category: "nutrient",      defaultUnit: "g/hL",  units: ["g/hL"] },
+  { name: "Tartaric acid",                         category: "acidification", defaultUnit: "g/L",   units: ["g/L", "g/hL"] },
+  { name: "Other",                                 category: "other",         defaultUnit: "g/hL",  units: ["mg/kg", "mg/L", "g/hL", "g/L", "mL/hL"] },
+];
+const ALL_DOSE_UNITS = ["mg/kg", "mg/L", "g/hL", "g/L", "mL/hL"];
+interface AdditionRow { tempId: number; id?: number; additiveName: string; category: string; dose: string; unit: string; notes: string }
 
 // ─── Harvest Reception Tab ─────────────────────────────────────────────────────
 export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
@@ -449,8 +471,45 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [pressTypeOther, setPressTypeOther] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsForm, setSettingsForm] = useState<Record<string, string>>({});
+  const [additionsRows, setAdditionsRows] = useState<AdditionRow[]>([]);
+  const addRowCounter = useRef(0);
   const sf = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
   const ssf = (k: string, v: string) => setSettingsForm(f => ({ ...f, [k]: v }));
+
+  // Fetch existing additions when editing a pressing record
+  const { data: fetchedAdditions } = useQuery<AdditionRow[]>({
+    queryKey: ["winery-pressing-additions", farmId, editing],
+    queryFn: async () => {
+      const r = await fetch(api(`farms/${farmId}/winery-pressing/${editing}/additions`), { credentials: "include" });
+      const d = await r.json();
+      return (d.additions ?? []).map((a: Record<string, unknown>) => ({
+        tempId: ++addRowCounter.current,
+        id: a.id as number,
+        additiveName: String(a.additive_name ?? ""),
+        category: String(a.category ?? "other"),
+        dose: String(a.dose ?? ""),
+        unit: String(a.unit ?? "mg/kg"),
+        notes: String(a.notes ?? ""),
+      }));
+    },
+    enabled: editing !== null && open,
+    staleTime: 0,
+  });
+  useEffect(() => {
+    if (open && editing !== null && fetchedAdditions) setAdditionsRows(fetchedAdditions);
+  }, [fetchedAdditions, open, editing]);
+
+  // Fetch additions for the view dialog
+  const { data: viewAdditions } = useQuery<Record<string, unknown>[]>({
+    queryKey: ["winery-pressing-additions-view", farmId, view?.id],
+    queryFn: async () => {
+      const r = await fetch(api(`farms/${farmId}/winery-pressing/${view!.id}/additions`), { credentials: "include" });
+      const d = await r.json();
+      return d.additions ?? [];
+    },
+    enabled: !!view?.id,
+    staleTime: 0,
+  });
 
   const freeRun = parseFloat(String(form.freeRunLitres || "0"));
   const press = parseFloat(String(form.pressWineLitres || "0"));
@@ -471,6 +530,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     setEditing(null);
     setForm({ pressDate: today, vintageYear: String(new Date().getFullYear()), freeRunSeparated: "true" });
     setPressTypeOther(false);
+    setAdditionsRows([]);
     setOpen(true);
   };
   const openEdit = (r: Record<string, unknown>) => {
@@ -481,8 +541,30 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   };
   const save = async () => {
     const payload = { ...form, totalJuiceLitres: total != null ? String(total) : form.totalJuiceLitres, pressEfficiencyLPerKg: efficiency ?? form.pressEfficiencyLPerKg };
-    if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...payload } as Record<string, unknown> & { id: number });
-    else await crud.add.mutateAsync(payload);
+    let pressingId: number;
+    if (editing !== null) {
+      await crud.edit.mutateAsync({ id: editing, ...payload } as Record<string, unknown> & { id: number });
+      pressingId = editing;
+    } else {
+      const result = await crud.add.mutateAsync(payload);
+      pressingId = (result as { record: { id: number } }).record?.id;
+      // Switch immediately into edit mode so that if the additions save below fails,
+      // retrying Save updates this record rather than creating a duplicate.
+      setEditing(pressingId);
+    }
+    // Sync structured additions (batch replace) — check response and surface errors
+    const validRows = additionsRows.filter(r => r.additiveName);
+    const addRes = await fetch(api(`farms/${farmId}/winery-pressing/${pressingId}/additions/batch`), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ additions: validRows }),
+    });
+    if (!addRes.ok) {
+      const e = await addRes.json().catch(() => ({}));
+      toast({ title: "Additions not saved", description: String(e.error || "Failed to save additions — please check dose limits and try again."), variant: "destructive" });
+      return;
+    }
     toast({ title: "Saved" }); setOpen(false);
   };
   const openSettings = () => {
@@ -525,6 +607,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     { key: "settling_method", label: "Settling Method" },
     { key: "settling_vessel", label: "Settling Vessel" },
     { key: "operator_name", label: "Operator" },
+    { key: "additions_at_press", label: "Additions (legacy text)" },
     { key: "notes", label: "Notes" },
   ];
 
@@ -688,17 +771,60 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                   : "Record which on-site instrument or external lab provided these values. Add instruments in the Equipment Register tab."}
               </p>
             </div>
-            <div>
-              <Label>Additions at Press</Label>
-              <Textarea
-                value={String(form.additionsAtPress ?? "")}
-                onChange={e => sf("additionsAtPress", e.target.value)}
-                rows={3}
-                placeholder={"e.g.\nPectinase (Lallzyme EX) — 2 g/hL\nKMS (SO₂) — 50 mg/kg\nBentonite — 50 g/hL"}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                UK-permitted additions at pressing (retained EU Reg 2019/934): SO₂/KMS, pectolytic enzymes, bentonite (white must), ascorbic acid (max 250 mg/L), activated charcoal. Record product name, rate, and unit per line. Conventional max SO₂ at pressing: 200 mg/kg for white/rosé; organic limit: 90 mg/kg. A structured additive picker with dose enforcement is on the roadmap.
-              </p>
+            <SectionLabel>Additions at Press</SectionLabel>
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">UK-permitted additions (retained EU Reg 2019/934). Conventional SO₂ max: 200 mg/kg; organic limit: 90 mg/kg. Ascorbic acid max: 250 mg/L.</p>
+              {additionsRows.map((row) => {
+                const additiveDef = PERMITTED_ADDITIVES.find(a => a.name === row.additiveName);
+                const doseVal = parseFloat(row.dose);
+                let exceedsConventional = false;
+                let exceedsOrganic = false;
+                if (additiveDef && !isNaN(doseVal) && row.unit) {
+                  const convMax = additiveDef.maxPerUnit?.[row.unit];
+                  const orgMax = additiveDef.organicMaxPerUnit?.[row.unit];
+                  if (convMax !== undefined && doseVal > convMax) exceedsConventional = true;
+                  else if (orgMax !== undefined && doseVal > orgMax) exceedsOrganic = true;
+                }
+                const setRow = (k: keyof AdditionRow, v: string) =>
+                  setAdditionsRows(rs => rs.map(r => r.tempId === row.tempId ? { ...r, [k]: v } : r));
+                return (
+                  <div key={row.tempId} className="border rounded-md p-2 space-y-1.5 bg-muted/20">
+                    <div className="flex gap-2 items-center">
+                      <div className="flex-1 min-w-0">
+                        <Select value={row.additiveName} onValueChange={v => {
+                          const def = PERMITTED_ADDITIVES.find(a => a.name === v);
+                          setAdditionsRows(rs => rs.map(r => r.tempId === row.tempId ? { ...r, additiveName: v, category: def?.category ?? "other", unit: def?.defaultUnit ?? "g/hL" } : r));
+                        }}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select additive…" /></SelectTrigger>
+                          <SelectContent>{PERMITTED_ADDITIVES.map(a => <SelectItem key={a.name} value={a.name}>{a.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <Input className="w-24 h-8 text-xs" type="number" step="0.1" min="0" placeholder="Dose" value={row.dose} onChange={e => setRow("dose", e.target.value)} />
+                      <Select value={row.unit} onValueChange={v => setRow("unit", v)}>
+                        <SelectTrigger className="w-24 h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>{(additiveDef?.units ?? ALL_DOSE_UNITS).map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                      </Select>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 shrink-0" type="button" onClick={() => setAdditionsRows(rs => rs.filter(r => r.tempId !== row.tempId))}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
+                    {row.additiveName === "Other" && (
+                      <Input className="h-7 text-xs" placeholder="Describe additive or product…" value={row.notes} onChange={e => setRow("notes", e.target.value)} />
+                    )}
+                    {exceedsConventional && (
+                      <div className="flex items-center gap-1.5 text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">
+                        <AlertTriangle className="h-3 w-3 shrink-0" />Exceeds conventional max ({additiveDef?.maxPerUnit?.[row.unit]} {row.unit})
+                      </div>
+                    )}
+                    {!exceedsConventional && exceedsOrganic && (
+                      <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                        <AlertTriangle className="h-3 w-3 shrink-0" />Exceeds organic limit ({additiveDef?.organicMaxPerUnit?.[row.unit]} {row.unit}) — permitted for conventional wine only
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              <Button size="sm" variant="outline" type="button" onClick={() => setAdditionsRows(rs => [...rs, { tempId: ++addRowCounter.current, additiveName: "", category: "other", dose: "", unit: "mg/kg", notes: "" }])}>
+                <Plus className="h-3.5 w-3.5 mr-1" />Add Additive
+              </Button>
             </div>
             <SectionLabel>Settling</SectionLabel>
             <div className="grid grid-cols-2 gap-3">
@@ -762,7 +888,22 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
               <ViewField label="Juice TA (g/L)" value={fmtNum(view.juice_ta_gl, 1)} />
               <ViewField label="Turbidity" value={fmt(view.juice_turbidity)} />
               {!!view.juice_analysis_source && <div className="col-span-2"><ViewField label="Analysis Source" value={fmt(view.juice_analysis_source)} /></div>}
-              {!!view.additions_at_press && <div className="col-span-2"><ViewField label="Additions at Press" value={<span className="whitespace-pre-wrap">{fmt(view.additions_at_press)}</span>} /></div>}
+              {(viewAdditions?.length ?? 0) > 0 ? (
+                <div className="col-span-2">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Additions at Press</p>
+                  <div className="mt-1 space-y-1">
+                    {(viewAdditions ?? []).map((a, i) => (
+                      <div key={i} className="flex gap-2 text-sm flex-wrap">
+                        <span className="font-medium">{String(a.additive_name)}</span>
+                        {(a.dose != null && a.dose !== "") && <span className="text-muted-foreground">{String(a.dose)} {String(a.unit ?? "")}</span>}
+                        {!!(a.notes) && <span className="text-xs text-muted-foreground">— {String(a.notes)}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : !!view.additions_at_press ? (
+                <div className="col-span-2"><ViewField label="Additions at Press" value={<span className="whitespace-pre-wrap">{fmt(view.additions_at_press)}</span>} /></div>
+              ) : null}
               <ViewField label="Settling Method" value={fmt(view.settling_method)} />
               <ViewField label="Settling Vessel" value={fmt(view.settling_vessel)} />
               <ViewField label="Settling Time" value={view.settling_hours ? `${view.settling_hours} hours` : "—"} />

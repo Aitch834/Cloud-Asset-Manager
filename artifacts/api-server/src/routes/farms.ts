@@ -36623,6 +36623,79 @@ router.delete("/farms/:farmId/winery-pressing/:id", requireAuth, requireTenant, 
   res.json({ success: true });
 });
 
+// ── Pressing Additions (child rows of winery_pressing_records) ─────────────────
+router.get("/farms/:farmId/winery-pressing/:pressingId/additions", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const pressingId = parseInt(req.params.pressingId as string);
+  const check = await db.execute(sql`SELECT id FROM winery_pressing_records WHERE id = ${pressingId} AND farm_id = ${farmId}`);
+  if (!check.rows.length) { res.status(404).json({ error: "Pressing record not found" }); return; }
+  const rows = await db.execute(sql`SELECT * FROM winery_pressing_additions WHERE pressing_record_id = ${pressingId} ORDER BY id ASC`);
+  res.json({ additions: rows.rows });
+});
+
+// Permitted additives catalogue for backend validation (retained EU Reg 2019/934).
+// maxPerUnit maps each permitted unit to the absolute conventional ceiling for that unit.
+// Requests exceeding ANY unit's ceiling are rejected with 422.
+const WINERY_PERMITTED_ADDITIVES: Record<string, { units: string[]; maxPerUnit?: Record<string, number> }> = {
+  // SO₂ limit at pressing: 200 mg/kg (white/rosé conventional). Same cap enforced for mg/L.
+  "SO₂ / Potassium metabisulphite (KMS)": { units: ["mg/kg", "mg/L"], maxPerUnit: { "mg/kg": 200, "mg/L": 200 } },
+  "Ascorbic acid":                         { units: ["mg/L"],           maxPerUnit: { "mg/L": 250 } },
+  "Pectolytic enzyme (Pectinase)":         { units: ["g/hL", "mL/hL"] },
+  "Bentonite (white must only)":           { units: ["g/hL"] },
+  "Activated charcoal (white must only)":  { units: ["g/hL"] },
+  "Diammonium phosphate (DAP)":            { units: ["g/hL"] },
+  "Tartaric acid":                         { units: ["g/L", "g/hL"] },
+  "Other":                                 { units: ["mg/kg", "mg/L", "g/hL", "g/L", "mL/hL"] },
+};
+
+// Replace all additions for a pressing record atomically inside a transaction.
+router.put("/farms/:farmId/winery-pressing/:pressingId/additions/batch", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const pressingId = parseInt(req.params.pressingId as string);
+  const check = await db.execute(sql`SELECT id FROM winery_pressing_records WHERE id = ${pressingId} AND farm_id = ${farmId}`);
+  if (!check.rows.length) { res.status(404).json({ error: "Pressing record not found" }); return; }
+  const additions: Array<Record<string, unknown>> = Array.isArray(req.body?.additions) ? req.body.additions : [];
+
+  // Validate all rows before writing anything
+  for (const a of additions) {
+    const b = sanitiseBody(a);
+    if (!b.additiveName) continue;
+    const def = WINERY_PERMITTED_ADDITIVES[String(b.additiveName)];
+    if (!def) {
+      res.status(422).json({ error: `"${b.additiveName}" is not on the UK-permitted additive list (retained EU Reg 2019/934). Use "Other" for unlisted products.` });
+      return;
+    }
+    const unit = String(b.unit ?? "");
+    if (unit && !def.units.includes(unit)) {
+      res.status(422).json({ error: `Unit "${unit}" is not valid for "${b.additiveName}". Permitted units: ${def.units.join(", ")}.` });
+      return;
+    }
+    const dose = b.dose !== undefined && b.dose !== "" ? parseFloat(String(b.dose)) : null;
+    if (dose !== null && (!isFinite(dose) || dose < 0)) {
+      res.status(422).json({ error: `Dose for "${b.additiveName}" must be a non-negative number.` });
+      return;
+    }
+    if (def.maxPerUnit && unit && dose !== null && isFinite(dose)) {
+      const ceiling = def.maxPerUnit[unit];
+      if (ceiling !== undefined && dose > ceiling) {
+        res.status(422).json({ error: `Dose of ${dose} ${unit} for "${b.additiveName}" exceeds the maximum permitted level of ${ceiling} ${unit} under retained EU Reg 2019/934.` });
+        return;
+      }
+    }
+  }
+
+  // Delete all existing rows then insert the validated set.
+  // Atomicity is provided by the request-scoped transaction started by farmRlsMiddleware — no manual BEGIN/COMMIT needed.
+  await db.execute(sql`DELETE FROM winery_pressing_additions WHERE pressing_record_id = ${pressingId}`);
+  for (const a of additions) {
+    const b = sanitiseBody(a);
+    if (!b.additiveName) continue;
+    await db.execute(sql`INSERT INTO winery_pressing_additions (farm_id, pressing_record_id, additive_name, category, product_brand, dose, unit, is_organic, notes) VALUES (${farmId}, ${pressingId}, ${n(b.additiveName)}, ${n(b.category)}, ${n(b.productBrand)}, ${nf(b.dose)}, ${n(b.unit)}, ${nb(b.isOrganic) ?? false}, ${n(b.notes)})`);
+  }
+  const rows = await db.execute(sql`SELECT * FROM winery_pressing_additions WHERE pressing_record_id = ${pressingId} ORDER BY id ASC`);
+  res.json({ additions: rows.rows });
+});
+
 // ── Vessel Register ────────────────────────────────────────────────────────────
 router.get("/farms/:farmId/winery-vessels", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;

@@ -578,7 +578,22 @@ export const wineryBatchSettingsTable = pgTable("winery_batch_settings", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// ─── Winery Bottling Records ───────────────────────────────────────────────────
+export const wineryPressingAdditionsTable = pgTable("winery_pressing_additions", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  pressingRecordId: integer("pressing_record_id").notNull().references(() => wineryPressingRecordsTable.id, { onDelete: "cascade" }),
+  // e.g. "SO₂ / Potassium metabisulphite (KMS)", "Ascorbic acid", "Pectolytic enzyme (Pectinase)"
+  additiveName: text("additive_name").notNull(),
+  // so2 | ascorbic_acid | pectolytic_enzyme | fining | nutrient | acidification | other
+  category: text("category"),
+  productBrand: text("product_brand"),
+  dose: numeric("dose", { precision: 10, scale: 3 }),
+  // mg/kg | mg/L | g/hL | g/L | mL/hL
+  unit: text("unit"),
+  isOrganic: boolean("is_organic").default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
 export const wineryBottlingRecordsTable = pgTable("winery_bottling_records", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
