@@ -36546,6 +36546,45 @@ router.delete("/farms/:farmId/winery-reception/:id", requireAuth, requireTenant,
 });
 
 // ── Pressing Records ───────────────────────────────────────────────────────────
+// ── Winery Batch Settings ──────────────────────────────────────────────────────
+// Helper: build the next batch ref string from settings (does NOT increment)
+function buildBatchRef(prefix: string, yearFormat: string, paddingDigits: number, seq: number): string {
+  const year = yearFormat === "YY" ? String(new Date().getFullYear()).slice(-2) : String(new Date().getFullYear());
+  const seqStr = String(seq).padStart(paddingDigits, "0");
+  return `${prefix}-${year}-${seqStr}`;
+}
+
+router.get("/farms/:farmId/winery-batch-settings", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.execute(sql`SELECT * FROM winery_batch_settings WHERE farm_id = ${farmId} LIMIT 1`);
+  const settings = rows.rows[0] ?? { prefix: "PRESS", year_format: "YYYY", padding_digits: 3, next_sequence: 1 };
+  const nextRef = buildBatchRef(String(settings.prefix), String(settings.year_format), Number(settings.padding_digits), Number(settings.next_sequence));
+  res.json({ settings, nextRef });
+});
+
+router.put("/farms/:farmId/winery-batch-settings", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body);
+  const prefix = n(b.prefix) ?? "PRESS";
+  const yearFormat = (b.yearFormat === "YY" ? "YY" : "YYYY");
+  const paddingDigits = Math.max(1, Math.min(6, parseInt(String(b.paddingDigits || "3"), 10) || 3));
+  const nextSequence = Math.max(1, parseInt(String(b.nextSequence || "1"), 10) || 1);
+  const r = await db.execute(sql`
+    INSERT INTO winery_batch_settings (farm_id, prefix, year_format, padding_digits, next_sequence, updated_at)
+    VALUES (${farmId}, ${prefix}, ${yearFormat}, ${paddingDigits}, ${nextSequence}, NOW())
+    ON CONFLICT (farm_id) DO UPDATE SET
+      prefix = EXCLUDED.prefix,
+      year_format = EXCLUDED.year_format,
+      padding_digits = EXCLUDED.padding_digits,
+      next_sequence = EXCLUDED.next_sequence,
+      updated_at = NOW()
+    RETURNING *
+  `);
+  const settings = r.rows[0];
+  const nextRef = buildBatchRef(String(settings.prefix), String(settings.year_format), Number(settings.padding_digits), Number(settings.next_sequence));
+  res.json({ settings, nextRef });
+});
+
 router.get("/farms/:farmId/winery-pressing", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.execute(sql`SELECT * FROM winery_pressing_records WHERE farm_id = ${farmId} ORDER BY press_date DESC, created_at DESC`);
@@ -36554,7 +36593,22 @@ router.get("/farms/:farmId/winery-pressing", requireAuth, requireTenant, require
 router.post("/farms/:farmId/winery-pressing", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const b = sanitiseBody(req.body);
-  const r = await db.execute(sql`INSERT INTO winery_pressing_records (farm_id,press_date,vintage_year,batch_ref,press_type,grapes_pressed_kg,free_run_litres,press_wine_litres,total_juice_litres,press_efficiency_l_per_kg,juice_brix,juice_ph,juice_ta_gl,juice_turbidity,free_run_separated,additions_at_press,settling_method,settling_vessel,settling_hours,juice_analysis_source,operator_name,notes) VALUES (${farmId},${n(b.pressDate)},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.pressType)},${nf(b.grapesPressedKg)},${nf(b.freeRunLitres)},${nf(b.pressWineLitres)},${nf(b.totalJuiceLitres)},${nf(b.pressEfficiencyLPerKg)},${nf(b.juiceBrix)},${nf(b.juicePh)},${nf(b.juiceTaGl)},${n(b.juiceTurbidity)},${nb(b.freeRunSeparated) ?? true},${n(b.additionsAtPress)},${n(b.settlingMethod)},${n(b.settlingVessel)},${ni(b.settlingHours)},${n(b.juiceAnalysisSource)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
+  // Auto-generate batch ref if the caller omits it
+  let batchRef = n(b.batchRef);
+  if (!batchRef) {
+    // Atomically increment next_sequence and return the generated ref
+    const upd = await db.execute(sql`
+      INSERT INTO winery_batch_settings (farm_id, prefix, year_format, padding_digits, next_sequence, updated_at)
+      VALUES (${farmId}, 'PRESS', 'YYYY', 3, 2, NOW())
+      ON CONFLICT (farm_id) DO UPDATE SET
+        next_sequence = winery_batch_settings.next_sequence + 1,
+        updated_at = NOW()
+      RETURNING prefix, year_format, padding_digits, next_sequence - 1 AS issued_seq
+    `);
+    const s = upd.rows[0] as { prefix: string; year_format: string; padding_digits: number; issued_seq: number };
+    batchRef = buildBatchRef(s.prefix, s.year_format, s.padding_digits, s.issued_seq);
+  }
+  const r = await db.execute(sql`INSERT INTO winery_pressing_records (farm_id,press_date,vintage_year,batch_ref,press_type,grapes_pressed_kg,free_run_litres,press_wine_litres,total_juice_litres,press_efficiency_l_per_kg,juice_brix,juice_ph,juice_ta_gl,juice_turbidity,free_run_separated,additions_at_press,settling_method,settling_vessel,settling_hours,juice_analysis_source,operator_name,notes) VALUES (${farmId},${n(b.pressDate)},${ni(b.vintageYear)},${batchRef},${n(b.pressType)},${nf(b.grapesPressedKg)},${nf(b.freeRunLitres)},${nf(b.pressWineLitres)},${nf(b.totalJuiceLitres)},${nf(b.pressEfficiencyLPerKg)},${nf(b.juiceBrix)},${nf(b.juicePh)},${nf(b.juiceTaGl)},${n(b.juiceTurbidity)},${nb(b.freeRunSeparated) ?? true},${n(b.additionsAtPress)},${n(b.settlingMethod)},${n(b.settlingVessel)},${ni(b.settlingHours)},${n(b.juiceAnalysisSource)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
   res.status(201).json({ record: r.rows[0] });
 });
 router.put("/farms/:farmId/winery-pressing/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {

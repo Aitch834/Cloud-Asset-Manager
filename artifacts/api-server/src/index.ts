@@ -15,6 +15,7 @@ import { runPoultryMigrations } from "./lib/poultryMigrations";
 import { runDataApiMigrations } from "./lib/dataApiMigrations";
 import { runReportBuilderMigrations } from "./lib/reportBuilderMigrations";
 import { runAnalyticsMigrations } from "./lib/analyticsMigrations";
+import { runWineryMigrations } from "./lib/wineryMigrations";
 
 interface EnvSpec {
   key: string;
@@ -122,5 +123,8 @@ app.listen(port, () => {
   });
   runAnalyticsMigrations().catch((err) => {
     console.error("[ANALYTICS-MIGRATE] Failed:", err);
+  });
+  runWineryMigrations().catch((err) => {
+    console.error("[WINERY-MIGRATE] Failed:", err);
   });
 });

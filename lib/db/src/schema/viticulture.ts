@@ -556,6 +556,23 @@ export const wineryCellarOpsTable = pgTable("winery_cellar_ops", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// ─── Winery Batch / Lot Number Settings ───────────────────────────────────────
+// One row per farm. Controls auto-generation of pressing batch references.
+export const wineryBatchSettingsTable = pgTable("winery_batch_settings", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id).unique(),
+  // e.g. "PRESS", "LOT", "VIN" — prefix used when auto-generating
+  prefix: text("prefix").notNull().default("PRESS"),
+  // "YYYY" = full year (2025), "YY" = short year (25)
+  yearFormat: text("year_format").notNull().default("YYYY"),
+  // Zero-padding width for the sequence number (3 = 001, 002…)
+  paddingDigits: integer("padding_digits").notNull().default(3),
+  // Next sequence number to issue — incremented atomically on each auto-generate
+  nextSequence: integer("next_sequence").notNull().default(1),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // ─── Winery Bottling Records ───────────────────────────────────────────────────
 export const wineryBottlingRecordsTable = pgTable("winery_bottling_records", {
   id: serial("id").primaryKey(),

@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown } from "lucide-react";
+import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Settings2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -404,12 +404,41 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
   );
 }
 
+// ─── Winery Batch Settings hook ───────────────────────────────────────────────
+function useWineryBatchSettings(farmId: number) {
+  const qc = useQueryClient();
+  const q = useQuery<{ settings: Record<string, unknown>; nextRef: string }>({
+    queryKey: ["winery-batch-settings", farmId],
+    queryFn: async () => {
+      const r = await fetch(api(`farms/${farmId}/winery-batch-settings`), { credentials: "include" });
+      return r.json();
+    },
+    enabled: !!farmId,
+    staleTime: 30_000,
+  });
+  const save = useMutation({
+    mutationFn: async (body: Record<string, unknown>) => {
+      const r = await fetch(api(`farms/${farmId}/winery-batch-settings`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Save failed"); }
+      return r.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["winery-batch-settings", farmId] }),
+  });
+  return { data: q.data, isLoading: q.isLoading, save };
+}
+
 // ─── Pressing Records Tab ─────────────────────────────────────────────────────
 export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const crud = useCrud(farmId, "winery-pressing", "winery-pressing");
   const { data: vessels = [] } = useVessels(farmId);
   const { data: equipment = [] } = useEquipment(farmId);
   const { staffNames, isLoading: staffLoading } = useStaff(farmId);
+  const batchSettings = useWineryBatchSettings(farmId);
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
@@ -418,7 +447,10 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [pressTypeOther, setPressTypeOther] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsForm, setSettingsForm] = useState<Record<string, string>>({});
   const sf = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
+  const ssf = (k: string, v: string) => setSettingsForm(f => ({ ...f, [k]: v }));
 
   const freeRun = parseFloat(String(form.freeRunLitres || "0"));
   const press = parseFloat(String(form.pressWineLitres || "0"));
@@ -453,6 +485,26 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     else await crud.add.mutateAsync(payload);
     toast({ title: "Saved" }); setOpen(false);
   };
+  const openSettings = () => {
+    const s = batchSettings.data?.settings ?? {};
+    setSettingsForm({
+      prefix: String(s.prefix ?? "PRESS"),
+      yearFormat: String(s.year_format ?? "YYYY"),
+      paddingDigits: String(s.padding_digits ?? "3"),
+      nextSequence: String(s.next_sequence ?? "1"),
+    });
+    setSettingsOpen(true);
+  };
+  const saveSettings = async () => {
+    await batchSettings.save.mutateAsync({
+      prefix: settingsForm.prefix || "PRESS",
+      yearFormat: settingsForm.yearFormat,
+      paddingDigits: parseInt(settingsForm.paddingDigits || "3", 10),
+      nextSequence: parseInt(settingsForm.nextSequence || "1", 10),
+    });
+    toast({ title: "Batch settings saved" });
+    setSettingsOpen(false);
+  };
 
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
   if (!years.includes(String(new Date().getFullYear()))) years.unshift(String(new Date().getFullYear()));
@@ -483,7 +535,10 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
           <p className="font-semibold text-sm">Pressing Records</p>
           <p className="text-xs text-muted-foreground mt-0.5">Log each pressing session — press type, grape weight in, juice yield, analysis, and settling method. One record per pressing run.</p>
         </div>
-        <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Press Record</Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={openSettings}><Settings2 className="w-3.5 h-3.5 mr-1" />Batch Settings</Button>
+          <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Press Record</Button>
+        </div>
       </div>
       <div className="flex items-center gap-2">
         <span className="text-xs text-muted-foreground">Vintage:</span>
@@ -543,8 +598,18 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
               <div><Label>Vintage Year</Label><Input type="number" value={String(form.vintageYear ?? "")} onChange={e => sf("vintageYear", e.target.value)} /></div>
               <div>
                 <Label>Batch / Lot Reference</Label>
-                <Input value={String(form.batchRef ?? "")} onChange={e => sf("batchRef", e.target.value)} placeholder="e.g. PRESS-2025-001" />
-                <p className="text-xs text-muted-foreground mt-1">Use your vineyard's reference format. Auto-generation with configurable prefix/sequence is on the roadmap.</p>
+                <div className="relative">
+                  <Input
+                    value={String(form.batchRef ?? "")}
+                    onChange={e => sf("batchRef", e.target.value)}
+                    placeholder={editing !== null ? "e.g. PRESS-2025-001" : (batchSettings.data?.nextRef ?? "e.g. PRESS-2025-001")}
+                  />
+                </div>
+                {editing === null && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Leave blank to auto-assign <span className="font-mono text-foreground">{batchSettings.data?.nextRef ?? "…"}</span>. Override by typing a custom reference.
+                  </p>
+                )}
               </div>
               <div>
                 <Label>Press Type</Label>
@@ -714,6 +779,64 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => { crud.remove.mutate(Number(deleting!.id)); setDeleting(null); }}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Batch Settings Dialog */}
+      <Dialog open={settingsOpen} onOpenChange={o => !o && setSettingsOpen(false)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Winery Batch Settings</DialogTitle>
+            <DialogDescription>Configure how pressing batch references are auto-generated. Leave the Batch / Lot Reference blank when adding a press record to use the next number.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Prefix</Label>
+              <Input value={settingsForm.prefix ?? ""} onChange={e => ssf("prefix", e.target.value.toUpperCase())} placeholder="PRESS" maxLength={12} />
+              <p className="text-xs text-muted-foreground mt-1">Short code used at the start of each reference, e.g. PRESS, LOT, VIN.</p>
+            </div>
+            <div>
+              <Label>Year Format</Label>
+              <Select value={settingsForm.yearFormat ?? "YYYY"} onValueChange={v => ssf("yearFormat", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="YYYY">Full year — YYYY (e.g. 2025)</SelectItem>
+                  <SelectItem value="YY">Short year — YY (e.g. 25)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Sequence Padding</Label>
+              <Select value={String(settingsForm.paddingDigits ?? "3")} onValueChange={v => ssf("paddingDigits", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 digit (1, 2, 3…)</SelectItem>
+                  <SelectItem value="2">2 digits (01, 02…)</SelectItem>
+                  <SelectItem value="3">3 digits (001, 002…)</SelectItem>
+                  <SelectItem value="4">4 digits (0001, 0002…)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Next Sequence Number</Label>
+              <Input type="number" min="1" value={settingsForm.nextSequence ?? "1"} onChange={e => ssf("nextSequence", e.target.value)} />
+              <p className="text-xs text-muted-foreground mt-1">The number that will be issued on the next auto-generated reference. Increase to skip ahead; reduce to reset (use with care).</p>
+            </div>
+            {(settingsForm.prefix || settingsForm.yearFormat) && (
+              <div className="rounded-md bg-muted/60 px-3 py-2 text-sm">
+                <span className="text-muted-foreground text-xs">Next ref preview: </span>
+                <span className="font-mono font-semibold">
+                  {(settingsForm.prefix || "PRESS")}-{settingsForm.yearFormat === "YY" ? String(new Date().getFullYear()).slice(-2) : new Date().getFullYear()}-{String(settingsForm.nextSequence || "1").padStart(parseInt(settingsForm.paddingDigits || "3", 10), "0")}
+                </span>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSettingsOpen(false)}>Cancel</Button>
+            <Button onClick={saveSettings} disabled={batchSettings.save.isPending}>
+              {batchSettings.save.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Save Settings
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
