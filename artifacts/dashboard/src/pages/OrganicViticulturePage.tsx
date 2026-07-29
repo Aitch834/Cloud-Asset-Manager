@@ -10,12 +10,15 @@ import {
   Leaf, ShieldCheck, FlaskConical, FileText,
   Eye, Info, Package, CheckCircle2, Clock, Grape,
   ChevronDown, ChevronUp, Wine, Beaker, Award, ClipboardList,
+  BarChart3, Bug, Scissors, Droplet, Gauge, Wrench, CalendarCheck,
+  Sprout, Map, Receipt, BookOpen, TrendingUp,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import {
   OverviewTab as VitOverviewTab,
   VineRegisterTab,
+  BlocksTab,
   PhenologyTab,
   OperationsTab,
   HarvestTab as VitHarvestTab,
@@ -28,8 +31,15 @@ import {
   WineryStockTab,
   SprayDiaryTab,
   SoilAnalysisTab,
+  GiComplianceTab,
   SO2Chip,
 } from "@/pages/ViticulturePage";
+import {
+  ViticulturalAnalyticsTab,
+  VintageSeasonReportTab,
+  ViticulturalEnterpriseReport,
+} from "@/components/ViticulturalReports";
+import { VineyardBlockMapTab } from "@/components/viticulture/VineyardBlockMapTab";
 import {
   HarvestReceptionTab,
   PressingRecordsTab,
@@ -62,40 +72,50 @@ function fmtNum(val: number | null | undefined): string {
   return String(val);
 }
 
-type Tab = "block-conversion" | "input-log" | "copper-register" | "input-derogations" | "wine-production" | "winery-stock" | "certificates"
-         | "vit-overview" | "vine-register" | "phenology" | "operations" | "vit-harvest" | "scouting"
-         | "licensing" | "excise" | "tours" | "age-check" | "spray-diary" | "soil-analysis"
-         | "winery-reception" | "winery-pressing" | "winery-fermentation" | "winery-vessels"
-         | "winery-cellar-ops" | "winery-bottling" | "winery-so2" | "winery-equipment";
+type Tab =
+  | "vit-overview" | "vine-register" | "blocks" | "block-map"
+  | "block-conversion" | "input-log" | "copper-register" | "input-derogations" | "certificates"
+  | "phenology" | "operations" | "vit-harvest" | "scouting"
+  | "gi-compliance" | "licensing" | "excise" | "tours" | "age-check"
+  | "wine-production" | "winery-stock" | "winery-reception" | "winery-pressing"
+  | "winery-fermentation" | "winery-vessels" | "winery-cellar-ops" | "winery-bottling"
+  | "winery-so2" | "winery-equipment"
+  | "spray-diary" | "soil-analysis" | "analytics" | "vintage-report" | "enterprise-report";
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: "block-conversion", label: "Block Conversion" },
-  { id: "input-log", label: "Organic Inputs" },
-  { id: "copper-register", label: "Copper Register" },
-  { id: "input-derogations", label: "Input Derogations" },
-  { id: "wine-production", label: "Wine Production" },
-  { id: "winery-stock", label: "Winery Stock" },
-  { id: "winery-reception", label: "Grape Intake" },
-  { id: "winery-pressing", label: "Pressing Records" },
-  { id: "winery-fermentation", label: "Fermentation" },
-  { id: "winery-vessels", label: "Tank & Vessel Register" },
-  { id: "winery-cellar-ops", label: "Cellar Operations" },
-  { id: "winery-bottling", label: "Bottling Records" },
-  { id: "winery-so2", label: "SO₂ Testing Register" },
-  { id: "winery-equipment", label: "Lab Equipment" },
-  { id: "certificates", label: "Certificates" },
-  { id: "vit-overview", label: "Overview" },
-  { id: "vine-register", label: "Vine Register" },
-  { id: "phenology", label: "Phenology" },
-  { id: "operations", label: "Pruning & Canopy" },
-  { id: "vit-harvest", label: "Harvest" },
-  { id: "scouting", label: "Disease Scouting" },
-  { id: "licensing", label: "Licensing" },
-  { id: "excise", label: "Excise & Duty" },
-  { id: "tours", label: "Tastings & Tours" },
-  { id: "age-check", label: "Age Verification" },
-  { id: "spray-diary", label: "Spray Diary" },
-  { id: "soil-analysis", label: "Soil & Leaf Analysis" },
+const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
+  { id: "vit-overview",      label: "Overview",              icon: BarChart3 },
+  { id: "vine-register",     label: "Vine Register",         icon: ClipboardList },
+  { id: "blocks",            label: "Blocks",                icon: Sprout },
+  { id: "block-map",         label: "Block Map",             icon: Map },
+  { id: "block-conversion",  label: "Block Conversion",      icon: ArrowRight },
+  { id: "input-log",         label: "Organic Inputs",        icon: ClipboardList },
+  { id: "copper-register",   label: "Copper Register",       icon: FlaskConical },
+  { id: "input-derogations", label: "Input Derogations",     icon: FileText },
+  { id: "certificates",      label: "Certificates",          icon: Award },
+  { id: "phenology",         label: "Phenology",             icon: Leaf },
+  { id: "operations",        label: "Pruning & Canopy",      icon: Scissors },
+  { id: "vit-harvest",       label: "Harvest",               icon: Grape },
+  { id: "scouting",          label: "Disease Scouting",      icon: Bug },
+  { id: "gi-compliance",     label: "GI Compliance",         icon: Award },
+  { id: "licensing",         label: "Licensing",             icon: FileText },
+  { id: "excise",            label: "Excise & Duty",         icon: Receipt },
+  { id: "tours",             label: "Tastings & Tours",      icon: CalendarCheck },
+  { id: "age-check",         label: "Age Verification",      icon: ShieldCheck },
+  { id: "wine-production",   label: "Wine Production",       icon: Wine },
+  { id: "winery-stock",      label: "Winery Stock",          icon: Package },
+  { id: "winery-reception",  label: "Grape Intake",          icon: Grape },
+  { id: "winery-pressing",   label: "Pressing Records",      icon: Gauge },
+  { id: "winery-fermentation", label: "Fermentation",        icon: Beaker },
+  { id: "winery-vessels",    label: "Tank & Vessel Register",icon: Package },
+  { id: "winery-cellar-ops", label: "Cellar Operations",     icon: Wrench },
+  { id: "winery-bottling",   label: "Bottling Records",      icon: Wine },
+  { id: "winery-so2",        label: "SO₂ Testing Register",  icon: FlaskConical },
+  { id: "winery-equipment",  label: "Lab Equipment",         icon: ShieldCheck },
+  { id: "spray-diary",       label: "Spray Diary",           icon: Droplet },
+  { id: "soil-analysis",     label: "Soil & Leaf Analysis",  icon: FlaskConical },
+  { id: "analytics",         label: "Analytics",             icon: BarChart3 },
+  { id: "vintage-report",    label: "Vintage Report",        icon: BookOpen },
+  { id: "enterprise-report", label: "Enterprise Report",     icon: TrendingUp },
 ];
 
 const BLOCK_STATUS_OPTIONS = ["in-conversion", "fully-organic", "suspended", "withdrawn"];
@@ -1505,6 +1525,7 @@ export default function OrganicViticulturePage() {
         <TabBar>
           {TABS.map(t => (
             <TabButton key={t.id} active={tab === t.id} onClick={() => setTab(t.id)}>
+              <t.icon className="w-3.5 h-3.5 mr-1" />
               {t.label}
             </TabButton>
           ))}
@@ -1528,16 +1549,22 @@ export default function OrganicViticulturePage() {
           {tab === "certificates" && <CertificatesTab farmId={farmId} />}
           {tab === "vit-overview" && <VitOverviewTab farmId={farmId} />}
           {tab === "vine-register" && <VineRegisterTab farmId={farmId} blocks={vineyardBlocks} />}
+          {tab === "blocks" && <BlocksTab farmId={farmId} />}
+          {tab === "block-map" && <VineyardBlockMapTab farmId={farmId} blocks={vineyardBlocks} />}
           {tab === "phenology" && <PhenologyTab farmId={farmId} blocks={vineyardBlocks} />}
           {tab === "operations" && <OperationsTab farmId={farmId} blocks={vineyardBlocks} />}
           {tab === "vit-harvest" && <VitHarvestTab farmId={farmId} blocks={vineyardBlocks} />}
           {tab === "scouting" && <ScoutingTab farmId={farmId} blocks={vineyardBlocks} />}
+          {tab === "gi-compliance" && <GiComplianceTab farmId={farmId} blocks={vineyardBlocks} />}
           {tab === "licensing" && <LicensingTab farmId={farmId} />}
           {tab === "excise" && <ExciseDutyTab farmId={farmId} />}
           {tab === "tours" && <TastingsToursTab farmId={farmId} />}
           {tab === "age-check" && <AgeVerificationTab farmId={farmId} />}
           {tab === "spray-diary" && <SprayDiaryTab farmId={farmId} blocks={vineyardBlocks} />}
           {tab === "soil-analysis" && <SoilAnalysisTab farmId={farmId} blocks={vineyardBlocks} />}
+          {tab === "analytics" && <ViticulturalAnalyticsTab farmId={farmId} />}
+          {tab === "vintage-report" && <VintageSeasonReportTab farmId={farmId} />}
+          {tab === "enterprise-report" && <ViticulturalEnterpriseReport farmId={farmId} />}
         </Card>
       </div>
     </AppLayout>
