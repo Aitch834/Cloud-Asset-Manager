@@ -83,6 +83,11 @@ export const vineRegisterTable = pgTable("vine_register", {
   removalDate: date("removal_date"),
   removalReason: text("removal_reason"),
   notes: text("notes"),
+  // Ampelographic / pedigree fields (VIVC nomenclature)
+  motherVariety: text("mother_variety"),
+  fatherVariety: text("father_variety"),
+  vivcNumber: text("vivc_number"),
+  varietyColour: text("variety_colour"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

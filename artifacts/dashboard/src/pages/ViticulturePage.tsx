@@ -534,6 +534,10 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
   const csvCols = [
     { key: "fsaVineRegisterRef", label: "FSA Ref" },
     { key: "registeredVariety", label: "Variety" },
+    { key: "vivcNumber", label: "VIVC Number" },
+    { key: "varietyColour", label: "Berry Colour" },
+    { key: "motherVariety", label: "Mother Variety" },
+    { key: "fatherVariety", label: "Father Variety" },
     { key: "registeredAreaHa", label: "Area (ha)" },
     { key: "giClassification", label: "GI Classification" },
     { key: "wineColour", label: "Wine Colour" },
@@ -580,21 +584,45 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Vine Register Entry</DialogTitle></DialogHeader>
           {viewing && (
-            <div className="grid grid-cols-2 gap-3">
-              <ViewField label="FSA Ref" value={fmt(viewing.fsaVineRegisterRef)} />
-              <ViewField label="Registered Variety" value={fmt(viewing.registeredVariety)} />
-              <ViewField label="Registered Area (ha)" value={fmtNum(viewing.registeredAreaHa, 4)} />
-              <ViewField label="GI Classification" value={fmt(viewing.giClassification)} />
-              <ViewField label="Wine Colour" value={fmt(viewing.wineColour)} />
-              <ViewField label="Linked Block" value={fmt(blocks.find(b => b.id === viewing.blockId)?.blockName)} />
-              <ViewField label="Date Registered" value={fmtDate(viewing.dateRegistered)} />
-              <ViewField label="Date Amended" value={fmtDate(viewing.dateAmended)} />
-              <ViewField label="Status" value={!!viewing.isRemovedFromRegister ? <Badge variant="destructive">Removed</Badge> : <Badge>Active</Badge>} />
-              {!!viewing.isRemovedFromRegister && <>
-                <ViewField label="Removal Date" value={fmtDate(viewing.removalDate)} />
-                <div className="col-span-2"><ViewField label="Removal Reason" value={fmt(viewing.removalReason)} /></div>
-              </>}
-              {!!viewing.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(viewing.notes)} /></div>}
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <ViewField label="FSA Ref" value={fmt(viewing.fsaVineRegisterRef)} />
+                <ViewField label="Registered Variety" value={fmt(viewing.registeredVariety)} />
+              </div>
+              {!!(viewing.motherVariety || viewing.fatherVariety || viewing.vivcNumber || viewing.varietyColour) && (
+                <div className="rounded-md border bg-muted/30 px-3 py-2.5 space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Variety Pedigree</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {!!(viewing.motherVariety || viewing.fatherVariety) && (
+                      <div className="col-span-2">
+                        <p className="text-xs text-muted-foreground mb-0.5">Parentage (VIVC nomenclature)</p>
+                        <p className="text-sm font-mono">
+                          {String(viewing.motherVariety || "?")}
+                          <span className="text-muted-foreground mx-1.5">♀ ×</span>
+                          {String(viewing.fatherVariety || "?")}
+                          <span className="text-muted-foreground ml-1.5">♂</span>
+                        </p>
+                      </div>
+                    )}
+                    {!!viewing.vivcNumber && <ViewField label="VIVC Number" value={fmt(viewing.vivcNumber)} />}
+                    {!!viewing.varietyColour && <ViewField label="Berry Colour" value={fmt(viewing.varietyColour)} />}
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <ViewField label="Registered Area (ha)" value={fmtNum(viewing.registeredAreaHa, 4)} />
+                <ViewField label="GI Classification" value={fmt(viewing.giClassification)} />
+                <ViewField label="Wine Colour" value={fmt(viewing.wineColour)} />
+                <ViewField label="Linked Block" value={fmt(blocks.find(b => b.id === viewing.blockId)?.blockName)} />
+                <ViewField label="Date Registered" value={fmtDate(viewing.dateRegistered)} />
+                <ViewField label="Date Amended" value={fmtDate(viewing.dateAmended)} />
+                <ViewField label="Status" value={!!viewing.isRemovedFromRegister ? <Badge variant="destructive">Removed</Badge> : <Badge>Active</Badge>} />
+                {!!viewing.isRemovedFromRegister && <>
+                  <ViewField label="Removal Date" value={fmtDate(viewing.removalDate)} />
+                  <div className="col-span-2"><ViewField label="Removal Reason" value={fmt(viewing.removalReason)} /></div>
+                </>}
+                {!!viewing.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(viewing.notes)} /></div>}
+              </div>
             </div>
           )}
           {viewing && typeof viewing.id === "number" && (
@@ -639,6 +667,45 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
                 </Select>
                 {varietyOther && <Input className="mt-1.5" placeholder="Enter variety name…" value={String(form.registeredVariety ?? "")} onChange={e => sf("registeredVariety", e.target.value)} />}
               </div>
+            </div>
+            {/* Pedigree / ampelographic fields */}
+            <div className="rounded-md border bg-muted/30 px-3 py-3 space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Variety Pedigree <span className="normal-case font-normal">(VIVC nomenclature — optional)</span></p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Mother Variety <span className="text-muted-foreground font-normal">(♀ seed parent)</span></Label>
+                  <Input value={String(form.motherVariety ?? "")} onChange={e => sf("motherVariety", e.target.value)} placeholder="e.g. Sirius" />
+                </div>
+                <div>
+                  <Label>Father Variety <span className="text-muted-foreground font-normal">(♂ pollen parent)</span></Label>
+                  <Input value={String(form.fatherVariety ?? "")} onChange={e => sf("fatherVariety", e.target.value)} placeholder="e.g. Villard Blanc" />
+                </div>
+                <div>
+                  <Label>VIVC Number</Label>
+                  <Input value={String(form.vivcNumber ?? "")} onChange={e => sf("vivcNumber", e.target.value)} placeholder="e.g. 21074" />
+                  <p className="text-xs text-muted-foreground mt-1">Vitis International Variety Catalogue accession. Look up at <span className="font-mono">vivc.de</span></p>
+                </div>
+                <div>
+                  <Label>Berry Colour</Label>
+                  <Select value={String(form.varietyColour ?? "")} onValueChange={v => sf("varietyColour", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                    <SelectContent>
+                      {["White", "Black", "Grey", "Rosé/Pink", "Teinturier"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">Colour of berry skin — VIVC classification</p>
+                </div>
+              </div>
+              {!!(form.motherVariety || form.fatherVariety) && (
+                <div className="rounded bg-background border px-3 py-2 text-sm font-mono text-muted-foreground">
+                  {String(form.registeredVariety || "—")}
+                  <span className="mx-2 text-xs">=</span>
+                  {String(form.motherVariety || "?")}
+                  <span className="mx-1.5">♀ ×</span>
+                  {String(form.fatherVariety || "?")}
+                  <span className="ml-1.5">♂</span>
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Registered Area (ha) *</Label><Input type="number" step="0.0001" value={String(form.registeredAreaHa ?? "")} onChange={e => sf("registeredAreaHa", e.target.value)} /></div>
