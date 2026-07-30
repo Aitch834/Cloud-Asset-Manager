@@ -806,9 +806,12 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 flex-wrap">
             <GitBranch className="h-4 w-4 text-blue-600" />
             Batch Trail — {batchRef ?? (vintageYear ? `Vintage ${vintageYear}` : "—")}
+            {(pressing.is_organic === true || pressing.is_organic === "true" || pressing.is_organic === 1) && (
+              <Badge className="text-xs bg-green-100 text-green-800 border-0 inline-flex items-center gap-0.5 font-normal"><Leaf className="w-3 h-3" />Organic</Badge>
+            )}
           </DialogTitle>
           <DialogDescription>
             {isVintageScoped
@@ -865,6 +868,9 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium">{r.start_date ? fmtDate(r.start_date) : "—"}{r.end_date ? ` → ${fmtDate(r.end_date)}` : ""}</span>
                           {!!r.wine_colour && <Badge variant="outline" className="text-xs">{String(r.wine_colour)}</Badge>}
+                          {(r.is_organic === true || r.is_organic === "true" || r.is_organic === 1) && (
+                            <Badge className="text-xs bg-green-100 text-green-800 border-0 inline-flex items-center gap-0.5"><Leaf className="w-3 h-3" />Organic</Badge>
+                          )}
                           {!!r.vessel_ref && <span className="text-xs text-muted-foreground">Vessel: {String(r.vessel_ref)}</span>}
                           {isVintageScoped && (r.batch_ref ? <span className="text-xs font-mono bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">{String(r.batch_ref)}</span> : <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">No ref</span>)}
                         </div>
@@ -1309,6 +1315,7 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
   <span><strong>${escHtml(farmName)}</strong></span>
   <span>Batch ref: <strong>${escHtml(batchRef)}</strong></span>
   ${vintage ? `<span>Vintage: <strong>${escHtml(vintage)}</strong></span>` : ""}
+  ${(pressing.is_organic === true || pressing.is_organic === "true" || pressing.is_organic === 1) ? `<span style="color:#166534;font-weight:600">🌿 Organic batch — reduced SO₂ ceilings apply</span>` : ""}
   <span>Printed: ${escHtml(printedOn)}</span>
 </p>
 
