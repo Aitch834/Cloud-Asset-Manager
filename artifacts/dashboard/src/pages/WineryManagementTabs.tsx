@@ -2045,7 +2045,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                   <td className="p-3 text-right">{fmtNum(r.juice_brix, 1)}</td>
                   <td className="p-3 text-right">{fmtNum(r.juice_ph, 2)}</td>
                   <td className="p-3 text-right whitespace-nowrap">
-                    <Button variant="ghost" size="icon" className={`h-7 w-7 ${r.batch_ref ? "text-blue-600" : "text-muted-foreground"}`} title={r.batch_ref ? `View batch trail for ${String(r.batch_ref)}` : "No batch reference — showing full vintage trail"} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>
+                    {!!r.batch_ref && <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title={`View batch trail for ${String(r.batch_ref)}`} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>}
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
@@ -2773,7 +2773,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
                   <td className="p-3 text-right">{fmtNum(r.end_brix, 1)}</td>
                   <td className="p-3">{fermentStatus(r)}</td>
                   <td className="p-3 text-right whitespace-nowrap">
-                    <Button variant="ghost" size="icon" className={`h-7 w-7 ${r.batch_ref ? "text-blue-600" : "text-muted-foreground"}`} title={r.batch_ref ? `View batch trail for ${String(r.batch_ref)}` : "No batch reference — showing full vintage trail"} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>
+                    {!!r.batch_ref && <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title={`View batch trail for ${String(r.batch_ref)}`} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>}
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
@@ -3439,7 +3439,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                     <td className="p-3 text-muted-foreground text-xs">{detail}</td>
                     <td className="p-3 text-muted-foreground">{fmt(r.operator_name)}</td>
                     <td className="p-3 text-right whitespace-nowrap">
-                      <Button variant="ghost" size="icon" className={`h-7 w-7 ${r.batch_ref ? "text-blue-600" : "text-muted-foreground"}`} title={r.batch_ref ? `View batch trail for ${String(r.batch_ref)}` : "No batch reference — showing full vintage trail"} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>
+                      {!!r.batch_ref && <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title={`View batch trail for ${String(r.batch_ref)}`} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>}
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
@@ -3969,7 +3969,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                     return <So2Badge compliant={total <= parseFloat(ceiling)} />;
                   })()}</td>
                   <td className="p-3 text-right whitespace-nowrap">
-                    <Button variant="ghost" size="icon" className={`h-7 w-7 ${r.batch_ref ? "text-blue-600" : "text-muted-foreground"}`} title={r.batch_ref ? `View batch trail for ${String(r.batch_ref)}` : "No batch reference — batch trail unavailable"} disabled={!r.batch_ref} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>
+                    {!!r.batch_ref && <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title={`View batch trail for ${String(r.batch_ref)}`} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>}
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
@@ -4491,7 +4491,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
                   <td className="p-3 text-right text-muted-foreground">{r.max_permitted_mg_l ? `${fmtNum(r.max_permitted_mg_l, 0)}` : "—"}</td>
                   <td className="p-3"><So2Badge compliant={r.so2_compliant} /></td>
                   <td className="p-3 text-right whitespace-nowrap">
-                    <Button variant="ghost" size="icon" className={`h-7 w-7 ${r.batch_ref ? "text-blue-600" : "text-muted-foreground"}`} title={r.batch_ref ? `View batch trail for ${String(r.batch_ref)}` : "No batch reference — showing full vintage trail"} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>
+                    {!!r.batch_ref && <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title={`View batch trail for ${String(r.batch_ref)}`} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>}
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
