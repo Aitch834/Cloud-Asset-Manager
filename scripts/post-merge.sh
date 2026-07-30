@@ -10,4 +10,4 @@ cd ../..
 
 # Rebuild the dashboard static bundle (it serves from dist/)
 # NODE_OPTIONS needed — Vite chunk rendering is memory-intensive on this large bundle
-NODE_OPTIONS=--max-old-space-size=4096 PORT=3000 BASE_PATH=/dashboard/ pnpm --filter @workspace/dashboard run build
+NODE_OPTIONS=--max-old-space-size=6144 PORT=3000 BASE_PATH=/dashboard/ pnpm --filter @workspace/dashboard run build
