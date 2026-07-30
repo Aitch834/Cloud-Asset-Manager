@@ -60,7 +60,7 @@ function useCrud<T extends Record<string, unknown>>(farmId: number, endpoint: st
     onSuccess: invalidate,
   });
   const remove = useMutation({
-    mutationFn: async (id: number) => { await fetch(api(`farms/${farmId}/${endpoint}/${id}`), { method: "DELETE", credentials: "include" }); },
+    mutationFn: async (id: number) => { const r = await fetch(api(`farms/${farmId}/${endpoint}/${id}`), { method: "DELETE", credentials: "include" }); if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Delete failed"); } },
     onSuccess: invalidate,
   });
   return { data: q.data ?? [], isLoading: q.isLoading, add, edit, remove };
@@ -249,9 +249,14 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
   const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
   const save = async () => {
     const payload = { ...form, netWeightKg: autoNet != null ? String(autoNet) : form.netWeightKg };
-    if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...payload } as Record<string, unknown> & { id: number });
-    else await crud.add.mutateAsync(payload);
-    toast({ title: "Saved" }); setOpen(false);
+    try {
+      if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...payload } as Record<string, unknown> & { id: number });
+      else await crud.add.mutateAsync(payload);
+      toast({ title: "Saved" }); setOpen(false);
+    } catch (err) {
+      const e = err as Error;
+      toast({ title: "Save failed", description: e.message || "An unexpected error occurred.", variant: "destructive" });
+    }
   };
 
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
@@ -1459,9 +1464,14 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
   const openAdd = () => { setEditing(null); setForm({ vintageYear: String(new Date().getFullYear()) }); setOpen(true); };
   const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
   const save = async () => {
-    if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...form } as Record<string, unknown> & { id: number });
-    else await crud.add.mutateAsync(form);
-    toast({ title: "Saved" }); setOpen(false);
+    try {
+      if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...form } as Record<string, unknown> & { id: number });
+      else await crud.add.mutateAsync(form);
+      toast({ title: "Saved" }); setOpen(false);
+    } catch (err) {
+      const e = err as Error;
+      toast({ title: "Save failed", description: e.message || "An unexpected error occurred.", variant: "destructive" });
+    }
   };
 
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
@@ -1839,10 +1849,15 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   const openAdd = () => { setEditing(null); setForm({ status: "active" }); setOpen(true); };
   const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
   const save = async () => {
-    if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...form } as Record<string, unknown> & { id: number });
-    else await crud.add.mutateAsync(form);
-    toast({ title: "Saved" }); setOpen(false);
-    qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] });
+    try {
+      if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...form } as Record<string, unknown> & { id: number });
+      else await crud.add.mutateAsync(form);
+      toast({ title: "Saved" }); setOpen(false);
+      qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] });
+    } catch (err) {
+      const e = err as Error;
+      toast({ title: "Save failed", description: e.message || "An unexpected error occurred.", variant: "destructive" });
+    }
   };
 
   const statusBadge = (s: unknown) => {
@@ -2053,9 +2068,14 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
   const save = async () => {
     if (!form.opType) { toast({ title: "Please select an operation type", variant: "destructive" }); return; }
-    if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...form } as Record<string, unknown> & { id: number });
-    else await crud.add.mutateAsync(form);
-    toast({ title: "Saved" }); setOpen(false);
+    try {
+      if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...form } as Record<string, unknown> & { id: number });
+      else await crud.add.mutateAsync(form);
+      toast({ title: "Saved" }); setOpen(false);
+    } catch (err) {
+      const e = err as Error;
+      toast({ title: "Save failed", description: e.message || "An unexpected error occurred.", variant: "destructive" });
+    }
   };
 
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
@@ -2342,9 +2362,14 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
       bottlesProduced: autoBottles != null ? String(autoBottles) : form.bottlesProduced,
       casesProduced: autoCases != null ? String(autoCases) : form.casesProduced,
     };
-    if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...payload } as Record<string, unknown> & { id: number });
-    else await crud.add.mutateAsync(payload);
-    toast({ title: "Saved" }); setOpen(false);
+    try {
+      if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...payload } as Record<string, unknown> & { id: number });
+      else await crud.add.mutateAsync(payload);
+      toast({ title: "Saved" }); setOpen(false);
+    } catch (err) {
+      const e = err as Error;
+      toast({ title: "Save failed", description: e.message || "An unexpected error occurred.", variant: "destructive" });
+    }
   };
 
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
@@ -2619,9 +2644,14 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
   const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
   const save = async () => {
     const payload = { ...form, so2Compliant: autoCompliant != null ? String(autoCompliant) : form.so2Compliant };
-    if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...payload } as Record<string, unknown> & { id: number });
-    else await crud.add.mutateAsync(payload);
-    toast({ title: "Saved" }); setOpen(false);
+    try {
+      if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...payload } as Record<string, unknown> & { id: number });
+      else await crud.add.mutateAsync(payload);
+      toast({ title: "Saved" }); setOpen(false);
+    } catch (err) {
+      const e = err as Error;
+      toast({ title: "Save failed", description: e.message || "An unexpected error occurred.", variant: "destructive" });
+    }
   };
 
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
@@ -2969,9 +2999,14 @@ export function EquipmentRegisterTab({ farmId }: { farmId: number }) {
   const openAdd = () => { setEditing(null); setForm({ status: "active" }); setOpen(true); };
   const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
   const save = async () => {
-    if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...form } as Record<string, unknown> & { id: number });
-    else await crud.add.mutateAsync(form);
-    toast({ title: "Saved" }); setOpen(false);
+    try {
+      if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...form } as Record<string, unknown> & { id: number });
+      else await crud.add.mutateAsync(form);
+      toast({ title: "Saved" }); setOpen(false);
+    } catch (err) {
+      const e = err as Error;
+      toast({ title: "Save failed", description: e.message || "An unexpected error occurred.", variant: "destructive" });
+    }
   };
 
   const calStatus = (r: Record<string, unknown>) => {
