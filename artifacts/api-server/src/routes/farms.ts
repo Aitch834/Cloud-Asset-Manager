@@ -37250,13 +37250,25 @@ router.post("/farms/:farmId/winery-bottling/bulk", requireAuth, requireTenant, r
   for (let i = 0; i < records.length; i++) {
     const raw = sanitiseBody(records[i] as Record<string, unknown>);
     const lotCode = n(raw.lotCode);
+    const rowNum = i + 1;
+
+    // ── Required-field validation ──
+    const missingFields: string[] = [];
+    if (!n(raw.bottlingDate)) missingFields.push("Bottling Date");
+    if (!ni(raw.vintageYear)) missingFields.push("Vintage Year");
+    if (missingFields.length > 0) {
+      rejected.push({ row: rowNum, lotCode: lotCode ?? "", reason: `Row ${rowNum}: ${missingFields.join(", ")} ${missingFields.length === 1 ? "is" : "are"} required.` });
+      continue;
+    }
+
+    // ── Lot-code uniqueness check ──
     if (lotCode) {
       if (seenInBatch.has(lotCode)) {
-        rejected.push({ row: i + 1, lotCode, reason: `Lot code "${lotCode}" appears more than once in this import.` });
+        rejected.push({ row: rowNum, lotCode, reason: `Lot code "${lotCode}" appears more than once in this import.` });
         continue;
       }
       if (existingLotCodes.has(lotCode)) {
-        rejected.push({ row: i + 1, lotCode, reason: `Lot code "${lotCode}" is already used by an existing bottling record.` });
+        rejected.push({ row: rowNum, lotCode, reason: `Lot code "${lotCode}" is already used by an existing bottling record.` });
         continue;
       }
       seenInBatch.add(lotCode);

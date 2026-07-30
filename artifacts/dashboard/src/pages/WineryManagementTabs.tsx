@@ -4411,7 +4411,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
           <DialogHeader>
             <DialogTitle>Import Bottling Records from CSV</DialogTitle>
             <DialogDescription>
-              Upload a CSV file to bulk-create bottling records. Duplicate lot codes — both within the file and against existing records — will be reported and skipped. Other rows will be imported.
+              Upload a CSV file to bulk-create bottling records. Rows missing required fields (Bottling Date, Vintage Year) or with duplicate lot codes will be reported and skipped. Other rows will be imported.
             </DialogDescription>
           </DialogHeader>
 
@@ -4483,13 +4483,13 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                 <div>
                   <p className="font-medium text-sm">
                     {importResult.insertedCount} record{importResult.insertedCount !== 1 ? "s" : ""} imported successfully.
-                    {importResult.rejectedCount > 0 && ` ${importResult.rejectedCount} row${importResult.rejectedCount !== 1 ? "s" : ""} skipped due to duplicate lot codes.`}
+                    {importResult.rejectedCount > 0 && ` ${importResult.rejectedCount} row${importResult.rejectedCount !== 1 ? "s" : ""} skipped — see details below.`}
                   </p>
                 </div>
               </div>
               {importResult.rejected.length > 0 && (
                 <div className="rounded-md bg-red-50 border border-red-200 p-3 space-y-1.5">
-                  <p className="text-xs font-semibold text-red-800 flex items-center gap-1"><XCircle className="w-3.5 h-3.5" />Skipped rows — duplicate lot codes:</p>
+                  <p className="text-xs font-semibold text-red-800 flex items-center gap-1"><XCircle className="w-3.5 h-3.5" />Skipped rows:</p>
                   <div className="max-h-40 overflow-y-auto space-y-1">
                     {importResult.rejected.map((r, i) => (
                       <div key={i} className="text-xs text-red-700 bg-red-100 rounded px-2 py-1">
