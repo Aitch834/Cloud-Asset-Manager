@@ -117,5 +117,8 @@ export async function runWineryMigrations(): Promise<void> {
     console.log(`[WINERY-MIGRATE] Fixed SO₂ limits on ${rowsFixed} conventional-batch test record(s).`);
   }
 
+  await db.execute(sql`ALTER TABLE winery_fermentation_records ADD COLUMN IF NOT EXISTS end_ph NUMERIC(4,2)`);
+  await db.execute(sql`ALTER TABLE winery_fermentation_records ADD COLUMN IF NOT EXISTS end_ta_gl NUMERIC(6,2)`);
+
   console.log("[WINERY-MIGRATE] Done.");
 }
