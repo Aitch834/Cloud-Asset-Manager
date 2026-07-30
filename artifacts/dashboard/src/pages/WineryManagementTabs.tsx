@@ -23,13 +23,14 @@ const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("e
 const fmtNum = (v: unknown, dp = 1) => (v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp));
 const today = new Date().toISOString().split("T")[0];
 
-function exportCSV(rows: Record<string, unknown>[], filename: string, cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]) {
+function exportCSV(rows: Record<string, unknown>[], filename: string, cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[], prefixLines?: string[]) {
   const header = cols.map(c => `"${c.label}"`).join(",");
   const body = rows.map(r => cols.map(c => {
     const v = c.fmt ? c.fmt(r) : (r[c.key] ?? "");
     return `"${String(v).replace(/"/g, '""')}"`;
   }).join(",")).join("\n");
-  const blob = new Blob([header + "\n" + body], { type: "text/csv" });
+  const prefix = prefixLines && prefixLines.length > 0 ? prefixLines.join("\n") + "\n" : "";
+  const blob = new Blob([prefix + header + "\n" + body], { type: "text/csv" });
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
 }
 
@@ -2354,7 +2355,28 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
               <Button size="sm" variant="outline" onClick={() => exportCSV(searchFilteredSummary, `pressing-additions-report-${yearFilter}.csv`, summaryCsvCols)} disabled={!searchFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export Summary CSV</Button>
               <Button size="sm" variant="outline" onClick={() => {
                 const suffix = txLogBatchFilter.trim() ? txLogBatchFilter.trim().replace(/[^a-zA-Z0-9_-]/g, "_") : yearFilter;
-                exportCSV(filteredTransactionLog, `so2-transaction-log-${suffix}.csv`, transactionLogCsvCols);
+                // Detect mixed SO₂ units per vintage — same logic as the PDF notice
+                const so2UnitsByVintage = new Map<string, Set<string>>();
+                filteredTransactionLog.filter((r: Record<string, unknown>) => r.category === "so2").forEach((r: Record<string, unknown>) => {
+                  const v = String(r.vintage_year ?? "?");
+                  const u = String(r.unit ?? "");
+                  if (!so2UnitsByVintage.has(v)) so2UnitsByVintage.set(v, new Set());
+                  so2UnitsByVintage.get(v)!.add(u);
+                });
+                const mixedUnitVintages = Array.from(so2UnitsByVintage.entries())
+                  .filter(([, units]) => units.size > 1)
+                  .map(([v]) => v)
+                  .sort();
+                const prefixLines: string[] = [];
+                if (mixedUnitVintages.length > 0) {
+                  const vintageList = mixedUnitVintages.length === 1
+                    ? `vintage ${mixedUnitVintages[0]}`
+                    : `vintages ${mixedUnitVintages.join(", ")}`;
+                  prefixLines.push(
+                    `"WARNING: Mixed SO2 units detected — ${vintageList}","This export contains SO2 / KMS records measured in both mg/kg (at pressing) and mg/L (post-fermentation / cellar). The Dose column mixes different units and totals CANNOT be compared or summed. Use the Unit column to interpret each row individually."`,
+                  );
+                }
+                exportCSV(filteredTransactionLog, `so2-transaction-log-${suffix}.csv`, transactionLogCsvCols, prefixLines);
               }} disabled={!filteredTransactionLog.length} title="Export every individual SO₂ and additive record from pressing, fermentation, and cellar as a flat transaction log"><FileDown className="w-3.5 h-3.5 mr-1" />Transaction Log CSV</Button>
             </div>
           </div>
