@@ -3826,12 +3826,34 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
               <th className="text-left p-3 font-medium">From</th>
               <th className="text-left p-3 font-medium">To</th>
               <th className="text-left p-3 font-medium">Detail</th>
+              <th className="text-right p-3 font-medium">Dose Rate</th>
               <th className="text-left p-3 font-medium">Operator</th>
               <th className="p-3"></th>
             </tr></thead>
             <tbody className="divide-y">
               {filtered.map(r => {
                 const detail = r.op_type === "sulfiting" ? (r.free_so2_before_mg_l ? `${fmtNum(r.free_so2_before_mg_l, 0)}→${fmtNum(r.free_so2_after_mg_l, 0)} mg/L` : r.so2_quantity_g ? `${fmtNum(r.so2_quantity_g, 1)} g SO₂` : "") : r.op_type === "topping" ? (r.top_up_volume_litres ? `${fmtNum(r.top_up_volume_litres, 1)} L` : "") : r.op_type === "fining" ? fmt(r.fining_agent) : r.op_type === "filtering" ? fmt(r.filter_type) : "";
+                // Per-row SO₂ dose rate (mg/L) for sulfiting operations
+                let doseRateMgL: number | null = null;
+                let doseRateSource: "vessel" | "volume_moved" | null = null;
+                let doseRateMissingReason = "";
+                if (r.op_type === "sulfiting") {
+                  const g = parseFloat(String(r.so2_quantity_g ?? ""));
+                  const capacityRaw = r.vessel_capacity_litres;
+                  const capacity = capacityRaw != null ? parseFloat(String(capacityRaw)) : NaN;
+                  const moved = parseFloat(String(r.volume_moved_litres ?? ""));
+                  if (isNaN(g) || g <= 0) {
+                    doseRateMissingReason = "SO₂ quantity not recorded";
+                  } else if (!isNaN(capacity) && capacity > 0) {
+                    doseRateMgL = (g * 1000) / capacity;
+                    doseRateSource = "vessel";
+                  } else if (!isNaN(moved) && moved > 0) {
+                    doseRateMgL = (g * 1000) / moved;
+                    doseRateSource = "volume_moved";
+                  } else {
+                    doseRateMissingReason = "No vessel capacity or batch volume recorded";
+                  }
+                }
                 return (
                   <tr key={String(r.id)} className="hover:bg-muted/20">
                     <td className="p-3 whitespace-nowrap">{fmtDate(r.op_date)}</td>
@@ -3846,6 +3868,14 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                     <td className="p-3 font-mono text-xs">{fmt(r.from_vessel_ref ?? vRef(r.from_vessel_id))}</td>
                     <td className="p-3 font-mono text-xs">{fmt(r.to_vessel_ref ?? vRef(r.to_vessel_id))}</td>
                     <td className="p-3 text-muted-foreground text-xs">{detail}</td>
+                    <td className="p-3 text-right font-mono text-xs">
+                      {r.op_type === "sulfiting"
+                        ? doseRateMgL != null
+                          ? <span title={doseRateSource === "vessel" ? "Estimated from vessel capacity" : "Estimated from volume moved"} className="cursor-default">{doseRateMgL.toFixed(1)} <span className="text-muted-foreground font-sans">mg/L</span></span>
+                          : <span title={doseRateMissingReason} className="text-muted-foreground cursor-default">—</span>
+                        : <span className="text-muted-foreground">—</span>
+                      }
+                    </td>
                     <td className="p-3 text-muted-foreground">{fmt(r.operator_name)}</td>
                     <td className="p-3 text-right whitespace-nowrap">
                       {!!r.batch_ref && <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title={`View batch trail for ${String(r.batch_ref)}`} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>}
