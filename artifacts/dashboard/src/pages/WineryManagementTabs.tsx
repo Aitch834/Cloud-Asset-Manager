@@ -4708,7 +4708,13 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
     const organic = match?.isOrganic ?? false;
     setIsSo2BatchOrganic(organic);
     if (match && !form.vintageYear) sf("vintageYear", match.vintageYear);
-    if (match && !form.wineColour && match.wineColour) handleColourChangeWithOrganic(match.wineColour, organic);
+    if (match) {
+      // Use the already-selected wine colour if present, otherwise pull it from the pressing record.
+      // Either way, re-run the ceiling auto-fill so maxPermittedMgL reflects the correct
+      // organic/conventional limit for this batch even when colour was set before the batch ref.
+      const colour = form.wineColour || match.wineColour;
+      if (colour) handleColourChangeWithOrganic(colour, organic);
+    }
   };
 
   const isLab = form.testMethod === "Third-party laboratory";
