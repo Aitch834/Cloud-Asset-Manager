@@ -1501,6 +1501,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [pressingSearch, setPressingSearch] = useState("");
   const [pressTypeOther, setPressTypeOther] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsForm, setSettingsForm] = useState<Record<string, string>>({});
@@ -1676,7 +1677,14 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
 
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
   if (!years.includes(String(new Date().getFullYear()))) years.unshift(String(new Date().getFullYear()));
-  const filtered = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
+  const filteredByYear = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
+  const filtered = pressingSearch.trim() === ""
+    ? filteredByYear
+    : filteredByYear.filter(r => {
+        const q = pressingSearch.trim().toLowerCase();
+        return String(r.batch_ref ?? "").toLowerCase().includes(q)
+          || String(r.press_date ?? "").toLowerCase().includes(q);
+      });
 
   // ── Additions Report derived data ────────────────────────────────────────────
   const filteredSummary = yearFilter === "all" ? additionsSummary : additionsSummary.filter(r => String(r.vintage_year) === yearFilter);
@@ -1775,12 +1783,21 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
           <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Press Record</Button>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-muted-foreground">Vintage:</span>
         <Select value={yearFilter} onValueChange={setYearFilter}>
           <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
         </Select>
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            className="h-8 text-xs pl-7 w-48"
+            placeholder="Batch ref or date…"
+            value={pressingSearch}
+            onChange={e => setPressingSearch(e.target.value)}
+          />
+        </div>
         <Button size="sm" variant={showReport ? "default" : "outline"} className="ml-auto" onClick={() => setShowReport(v => !v)}><Beaker className="w-3.5 h-3.5 mr-1" />Additions Report</Button>
         <Button size="sm" variant="outline" onClick={() => exportCSV(filtered, "pressing-records.csv", pressCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
