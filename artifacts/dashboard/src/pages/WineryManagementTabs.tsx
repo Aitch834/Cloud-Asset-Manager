@@ -1135,11 +1135,14 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
   const rows: string[][] = [];
 
   // Header
-  rows.push(["Stage", "Date", "Type / Additive", "Detail", "SO₂ / Dose", "Unit", "pH", "TA (g/L)", "Vessel", "Operator", "Notes"]);
+  rows.push(["Stage", "Batch Ref", "Date", "Type / Additive", "Detail", "SO₂ / Dose", "Unit", "pH", "TA (g/L)", "Vessel", "Operator", "Notes"]);
+
+  const pressingBatchRef = String(pressing.batch_ref ?? "");
 
   // Pressing — summary row with juice analytics
   rows.push([
     "Pressing — Juice",
+    pressingBatchRef,
     fmtDate(pressing.press_date),
     String(pressing.press_type ?? ""),
     pressing.juice_brix != null ? `Brix: ${fmtNum(pressing.juice_brix, 1)}` : "",
@@ -1156,6 +1159,7 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
   for (const a of data.pressAdditions) {
     rows.push([
       "Pressing — Additive",
+      pressingBatchRef,
       fmtDate(pressing.press_date),
       String(a.additive_name ?? ""),
       String(a.category ?? ""),
@@ -1173,6 +1177,7 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
   for (const r of data.fermentation) {
     rows.push([
       "Fermentation",
+      String(r.batch_ref ?? ""),
       r.start_date ? fmtDate(r.start_date) : "",
       String(r.fermentation_type ?? ""),
       r.yeast_strain ? `Yeast: ${String(r.yeast_strain)}` : "",
@@ -1192,6 +1197,7 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
     const soUnit = r.so2_quantity_g != null ? "g" : (r.free_so2_after_mg_l != null ? "mg/L (after)" : "");
     rows.push([
       "Cellar Operation",
+      String(r.batch_ref ?? ""),
       fmtDate(r.op_date),
       CELLAR_OP_LABELS[String(r.op_type)] ?? String(r.op_type ?? ""),
       r.fining_agent ? `Fining: ${String(r.fining_agent)}` : "",
@@ -1209,6 +1215,7 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
   for (const r of data.so2Tests) {
     rows.push([
       "SO₂ Test",
+      String(r.batch_ref ?? ""),
       fmtDate(r.test_date),
       SO2_TEST_STAGE_LABELS[String(r.test_stage)] ?? String(r.test_stage ?? ""),
       r.so2_compliant === true || r.so2_compliant === "true" ? "Compliant" : r.so2_compliant === false || r.so2_compliant === "false" ? "Exceeds Limit" : "",
@@ -1226,6 +1233,7 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
   for (const r of data.bottling) {
     rows.push([
       "Bottling",
+      String(r.batch_ref ?? ""),
       fmtDate(r.bottling_date),
       r.lot_code ? `Lot: ${String(r.lot_code)}` : "",
       r.bottles_produced != null ? `${String(r.bottles_produced)} bottles` : "",
