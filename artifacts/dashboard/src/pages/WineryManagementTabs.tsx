@@ -2122,11 +2122,23 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const categoryFilteredSummary = categoryFilter.size === 0
     ? filteredSummary
     : filteredSummary.filter(r => categoryFilter.has(String(r.category ?? "other")));
-  const searchFilteredSummary = nameSearch.trim() === ""
+  const searchFilteredSummaryUnsorted = nameSearch.trim() === ""
     ? categoryFilteredSummary
     : categoryFilteredSummary.filter(r =>
         String(r.additive_name ?? "").toLowerCase().includes(nameSearch.trim().toLowerCase())
       );
+  // When showing all vintages, sort by additive → vintage → colour so same-additive rows are adjacent
+  const searchFilteredSummary = yearFilter === "all"
+    ? [...searchFilteredSummaryUnsorted].sort((a, b) => {
+        const nameA = String(a.additive_name ?? "");
+        const nameB = String(b.additive_name ?? "");
+        if (nameA !== nameB) return nameA.localeCompare(nameB);
+        const vinA = String(a.vintage_year ?? "");
+        const vinB = String(b.vintage_year ?? "");
+        if (vinA !== vinB) return vinA.localeCompare(vinB);
+        return String(a.wine_colour ?? "").localeCompare(String(b.wine_colour ?? ""));
+      })
+    : searchFilteredSummaryUnsorted;
   const showSo2Chart = categoryFilter.size === 0 || categoryFilter.has("so2");
   const so2ByVintage = new Map<string, number>();
   additionsSummary.filter(r => r.category === "so2").forEach(r => {
@@ -2454,9 +2466,17 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                       : src === "fermentation"
                       ? "bg-blue-100 text-blue-800"
                       : "bg-emerald-100 text-emerald-800";
+                    // Visual grouping: suppress repeated additive name for consecutive same-additive rows
+                    const prevName = i > 0 ? String(searchFilteredSummary[i - 1].additive_name ?? "") : null;
+                    const isGroupContinuation = yearFilter === "all" && prevName === String(row.additive_name ?? "");
+                    const isGroupStart = yearFilter === "all" && i > 0 && !isGroupContinuation;
                     return (
-                      <tr key={i} className={warnConventional ? "bg-red-50" : warnOrganic || warnAscorbic ? "bg-amber-50" : "hover:bg-muted/20"}>
-                        <td className="p-2.5 font-medium">{String(row.additive_name)}</td>
+                      <tr key={i} className={`${warnConventional ? "bg-red-50" : warnOrganic || warnAscorbic ? "bg-amber-50" : "hover:bg-muted/20"}${isGroupStart ? " border-t-2 border-t-muted" : ""}`}>
+                        <td className="p-2.5 font-medium">
+                          {isGroupContinuation
+                            ? <span className="text-muted-foreground/50 text-xs pl-1">↳</span>
+                            : String(row.additive_name)}
+                        </td>
                         {yearFilter === "all" && <td className="p-2.5 text-muted-foreground">{String(row.vintage_year ?? "—")}</td>}
                         <td className="p-2.5">
                           {wineColour
