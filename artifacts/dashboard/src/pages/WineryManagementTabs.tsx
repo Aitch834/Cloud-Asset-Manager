@@ -471,7 +471,7 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
           <DialogHeader><DialogTitle>Delete Intake Record</DialogTitle><DialogDescription>Remove the intake record for {fmtDate(deleting?.reception_date)}? This cannot be undone.</DialogDescription></DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => { crud.remove.mutate(Number(deleting!.id)); setDeleting(null); }}>Delete</Button>
+            <Button variant="destructive" onClick={async () => { try { await crud.remove.mutateAsync(Number(deleting!.id)); toast({ title: "Deleted" }); } catch (err) { toast({ title: "Delete failed", description: (err as Error).message || "An unexpected error occurred.", variant: "destructive" }); } setDeleting(null); }}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1825,7 +1825,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>Delete Press Record</DialogTitle><DialogDescription>Remove press record from {fmtDate(deleting?.press_date)}?</DialogDescription></DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => { crud.remove.mutate(Number(deleting!.id)); setDeleting(null); }}>Delete</Button>
+            <Button variant="destructive" onClick={async () => { try { await crud.remove.mutateAsync(Number(deleting!.id)); toast({ title: "Deleted" }); } catch (err) { toast({ title: "Delete failed", description: (err as Error).message || "An unexpected error occurred.", variant: "destructive" }); } setDeleting(null); }}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2289,7 +2289,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>Delete Fermentation Record</DialogTitle><DialogDescription>Remove this fermentation batch record? Cannot be undone.</DialogDescription></DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => { crud.remove.mutate(Number(deleting!.id)); setDeleting(null); }}>Delete</Button>
+            <Button variant="destructive" onClick={async () => { try { await crud.remove.mutateAsync(Number(deleting!.id)); toast({ title: "Deleted" }); } catch (err) { toast({ title: "Delete failed", description: (err as Error).message || "An unexpected error occurred.", variant: "destructive" }); } setDeleting(null); }}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2565,7 +2565,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>Delete Vessel</DialogTitle><DialogDescription>Remove vessel {fmt(deleting?.vessel_ref)} from the register? All associated cleaning records will also be deleted.</DialogDescription></DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => { crud.remove.mutate(Number(deleting!.id)); setDeleting(null); }}>Delete</Button>
+            <Button variant="destructive" onClick={async () => { try { await crud.remove.mutateAsync(Number(deleting!.id)); toast({ title: "Deleted" }); } catch (err) { toast({ title: "Delete failed", description: (err as Error).message || "An unexpected error occurred.", variant: "destructive" }); } setDeleting(null); }}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2873,7 +2873,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>Delete Operation</DialogTitle><DialogDescription>Remove this {CELLAR_OP_LABELS[String(deleting?.op_type)] ?? "cellar operation"} record?</DialogDescription></DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => { crud.remove.mutate(Number(deleting!.id)); setDeleting(null); }}>Delete</Button>
+            <Button variant="destructive" onClick={async () => { try { await crud.remove.mutateAsync(Number(deleting!.id)); toast({ title: "Deleted" }); } catch (err) { toast({ title: "Delete failed", description: (err as Error).message || "An unexpected error occurred.", variant: "destructive" }); } setDeleting(null); }}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3212,7 +3212,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>Delete Bottling Record</DialogTitle><DialogDescription>Remove lot {fmt(deleting?.lot_code)}?</DialogDescription></DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => { crud.remove.mutate(Number(deleting!.id)); setDeleting(null); }}>Delete</Button>
+            <Button variant="destructive" onClick={async () => { try { await crud.remove.mutateAsync(Number(deleting!.id)); toast({ title: "Deleted" }); } catch (err) { toast({ title: "Delete failed", description: (err as Error).message || "An unexpected error occurred.", variant: "destructive" }); } setDeleting(null); }}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3539,7 +3539,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>Delete SO₂ Test</DialogTitle><DialogDescription>Remove SO₂ test record from {fmtDate(deleting?.test_date)}?</DialogDescription></DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => { crud.remove.mutate(Number(deleting!.id)); setDeleting(null); }}>Delete</Button>
+            <Button variant="destructive" onClick={async () => { try { await crud.remove.mutateAsync(Number(deleting!.id)); toast({ title: "Deleted" }); } catch (err) { toast({ title: "Delete failed", description: (err as Error).message || "An unexpected error occurred.", variant: "destructive" }); } setDeleting(null); }}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3819,7 +3819,7 @@ export function EquipmentRegisterTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>Delete Equipment</DialogTitle><DialogDescription>Remove {fmt(deleting?.equipment_ref)} and all its calibration records?</DialogDescription></DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => { crud.remove.mutate(Number(deleting!.id)); setDeleting(null); }}>Delete</Button>
+            <Button variant="destructive" onClick={async () => { try { await crud.remove.mutateAsync(Number(deleting!.id)); toast({ title: "Deleted" }); } catch (err) { toast({ title: "Delete failed", description: (err as Error).message || "An unexpected error occurred.", variant: "destructive" }); } setDeleting(null); }}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
