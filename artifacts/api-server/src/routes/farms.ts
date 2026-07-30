@@ -36765,7 +36765,8 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
         SELECT o.id, o.op_date, o.batch_ref, o.vintage_year, o.op_type,
                o.volume_moved_litres, o.so2_quantity_g, o.free_so2_before_mg_l, o.free_so2_after_mg_l,
                o.fining_agent, o.operator_name, o.notes,
-               fv.vessel_ref AS from_vessel_ref, tv.vessel_ref AS to_vessel_ref
+               fv.vessel_ref AS from_vessel_ref, tv.vessel_ref AS to_vessel_ref,
+               fv.capacity_litres AS vessel_capacity_litres
         FROM winery_cellar_ops o
         LEFT JOIN winery_vessels fv ON fv.id = o.from_vessel_id
         LEFT JOIN winery_vessels tv ON tv.id = o.to_vessel_id
@@ -36818,7 +36819,8 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
         SELECT o.id, o.op_date, o.batch_ref, o.vintage_year, o.op_type,
                o.volume_moved_litres, o.so2_quantity_g, o.free_so2_before_mg_l, o.free_so2_after_mg_l,
                o.fining_agent, o.operator_name, o.notes,
-               fv.vessel_ref AS from_vessel_ref, tv.vessel_ref AS to_vessel_ref
+               fv.vessel_ref AS from_vessel_ref, tv.vessel_ref AS to_vessel_ref,
+               fv.capacity_litres AS vessel_capacity_litres
         FROM winery_cellar_ops o
         LEFT JOIN winery_vessels fv ON fv.id = o.from_vessel_id
         LEFT JOIN winery_vessels tv ON tv.id = o.to_vessel_id

@@ -3,18 +3,77 @@ import { sumCellarSo2 } from "./so2-summary";
 
 describe("sumCellarSo2", () => {
   it("returns zero totalG and null cumulativeMgL when no ops", () => {
-    const { totalG, cumulativeMgL } = sumCellarSo2([]);
+    const { totalG, cumulativeMgL, volumeSource } = sumCellarSo2([]);
     expect(totalG).toBe(0);
     expect(cumulativeMgL).toBeNull();
+    expect(volumeSource).toBeNull();
   });
 
-  it("correctly computes a single operation", () => {
+  it("correctly computes a single operation using volume_moved_litres", () => {
     // 50 g into 500 L → 50 * 1000 / 500 = 100 mg/L
-    const { totalG, cumulativeMgL } = sumCellarSo2([
+    const { totalG, cumulativeMgL, volumeSource } = sumCellarSo2([
       { so2_quantity_g: 50, volume_moved_litres: 500 },
     ]);
     expect(totalG).toBeCloseTo(50);
     expect(cumulativeMgL).toBeCloseTo(100);
+    expect(volumeSource).toBe("volume_moved");
+  });
+
+  it("prefers vessel_capacity_litres over volume_moved_litres when both present", () => {
+    // Vessel capacity 1000 L, volume moved 500 L
+    // 50 g / 1000 L → 50 mg/L  (not 100 mg/L from volume moved)
+    const { totalG, cumulativeMgL, volumeSource } = sumCellarSo2([
+      { so2_quantity_g: 50, volume_moved_litres: 500, vessel_capacity_litres: 1000 },
+    ]);
+    expect(totalG).toBeCloseTo(50);
+    expect(cumulativeMgL).toBeCloseTo(50);
+    expect(volumeSource).toBe("vessel");
+  });
+
+  it("falls back to volume_moved_litres when vessel_capacity_litres is null", () => {
+    const { totalG, cumulativeMgL, volumeSource } = sumCellarSo2([
+      { so2_quantity_g: 50, volume_moved_litres: 500, vessel_capacity_litres: null },
+    ]);
+    expect(totalG).toBeCloseTo(50);
+    expect(cumulativeMgL).toBeCloseTo(100);
+    expect(volumeSource).toBe("volume_moved");
+  });
+
+  it("falls back to volume_moved_litres when vessel_capacity_litres is zero", () => {
+    const { totalG, cumulativeMgL, volumeSource } = sumCellarSo2([
+      { so2_quantity_g: 50, volume_moved_litres: 500, vessel_capacity_litres: 0 },
+    ]);
+    expect(totalG).toBeCloseTo(50);
+    expect(cumulativeMgL).toBeCloseTo(100);
+    expect(volumeSource).toBe("volume_moved");
+  });
+
+  it("falls back to volume_moved_litres when vessel_capacity_litres is NaN string", () => {
+    const { totalG, cumulativeMgL, volumeSource } = sumCellarSo2([
+      { so2_quantity_g: 50, volume_moved_litres: 500, vessel_capacity_litres: "abc" },
+    ]);
+    expect(totalG).toBeCloseTo(50);
+    expect(cumulativeMgL).toBeCloseTo(100);
+    expect(volumeSource).toBe("volume_moved");
+  });
+
+  it("reports 'mixed' volumeSource when ops use different volume fields", () => {
+    // Op 1 has vessel capacity, Op 2 falls back to volume moved
+    const { totalG, cumulativeMgL, volumeSource } = sumCellarSo2([
+      { so2_quantity_g: 10, volume_moved_litres: 200, vessel_capacity_litres: 1000 }, // 10 mg/L
+      { so2_quantity_g: 10, volume_moved_litres: 200, vessel_capacity_litres: null }, // 50 mg/L
+    ]);
+    expect(totalG).toBeCloseTo(20);
+    expect(cumulativeMgL).toBeCloseTo(60);
+    expect(volumeSource).toBe("mixed");
+  });
+
+  it("reports 'vessel' volumeSource when all ops use vessel capacity", () => {
+    const { volumeSource } = sumCellarSo2([
+      { so2_quantity_g: 10, vessel_capacity_litres: 1000 },
+      { so2_quantity_g: 20, vessel_capacity_litres: 2000 },
+    ]);
+    expect(volumeSource).toBe("vessel");
   });
 
   it("sums per-operation mg/L increments, not aggregate grams divided by aggregate volume", () => {
@@ -42,12 +101,13 @@ describe("sumCellarSo2", () => {
   });
 
   it("returns null cumulativeMgL when ALL ops lack volume", () => {
-    const { totalG, cumulativeMgL } = sumCellarSo2([
+    const { totalG, cumulativeMgL, volumeSource } = sumCellarSo2([
       { so2_quantity_g: 30, volume_moved_litres: null },
       { so2_quantity_g: 20, volume_moved_litres: undefined },
     ]);
     expect(totalG).toBeCloseTo(50);
     expect(cumulativeMgL).toBeNull();
+    expect(volumeSource).toBeNull();
   });
 
   it("skips rows with invalid or zero volume defensively", () => {
@@ -76,5 +136,14 @@ describe("sumCellarSo2", () => {
     ]);
     expect(totalG).toBeCloseTo(25);
     expect(cumulativeMgL).toBeCloseTo(50);
+  });
+
+  it("handles string-coerced vessel_capacity_litres from API", () => {
+    const { totalG, cumulativeMgL, volumeSource } = sumCellarSo2([
+      { so2_quantity_g: "25", volume_moved_litres: "500", vessel_capacity_litres: "1000" },
+    ]);
+    expect(totalG).toBeCloseTo(25);
+    expect(cumulativeMgL).toBeCloseTo(25); // 25*1000/1000
+    expect(volumeSource).toBe("vessel");
   });
 });

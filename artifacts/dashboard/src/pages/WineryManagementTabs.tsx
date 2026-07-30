@@ -598,6 +598,7 @@ interface So2Summary {
   hasFermSo2: boolean;
   cellarSo2TotalG: number;
   cellarSo2MgL: number | null;
+  cellarVolumeSource: "vessel" | "volume_moved" | "mixed" | null;
   hasCellarSo2: boolean;
   latestTestTotal: number | null;
   latestTestDate: string | null;
@@ -625,7 +626,8 @@ function computeSo2Summary(pressing: Record<string, unknown>, data: BatchTrailDa
   // 3. Cellar sulfiting ops
   const sulfitingOps = data.cellarOps.filter(r => String(r.op_type) === "sulfiting" && r.so2_quantity_g != null);
   // sumCellarSo2: per-operation dose rates are summed independently (not aggregate grams / aggregate vol)
-  const { totalG: cellarSo2TotalG, cumulativeMgL: cellarSo2MgL } = sumCellarSo2(sulfitingOps);
+  // Volume priority: vessel capacity_litres → volume_moved_litres (fallback)
+  const { totalG: cellarSo2TotalG, cumulativeMgL: cellarSo2MgL, volumeSource: cellarVolumeSource } = sumCellarSo2(sulfitingOps);
   const hasCellarSo2 = sulfitingOps.length > 0;
 
   // 4. Latest SO₂ test total (most recent by date)
@@ -660,7 +662,7 @@ function computeSo2Summary(pressing: Record<string, unknown>, data: BatchTrailDa
   return {
     pressSo2MgKg, pressSo2MgL, hasPressingSo2,
     fermSo2Total, hasFermSo2,
-    cellarSo2TotalG, cellarSo2MgL, hasCellarSo2,
+    cellarSo2TotalG, cellarSo2MgL, cellarVolumeSource, hasCellarSo2,
     latestTestTotal, latestTestDate,
     wineColour: wineColour ? String(wineColour) : null,
     isOrganic, conventionalLimit, organicLimit, activeLimit,
@@ -771,7 +773,9 @@ function So2SummaryBlock({ summary }: { summary: So2Summary }) {
         {summary.latestTestTotal == null && (summary.hasPressingSo2 || summary.hasFermSo2 || summary.hasCellarSo2) && (
           <p className="text-xs text-muted-foreground italic">
             * Estimate from addition records. Run an SO₂ test to confirm the true total.
-            {summary.cellarSo2MgL != null ? " Cellar figure uses volume moved as an approximation." : ""}
+            {summary.cellarSo2MgL != null && summary.cellarVolumeSource === "vessel" && " Cellar mg/L uses vessel capacity."}
+            {summary.cellarSo2MgL != null && summary.cellarVolumeSource === "volume_moved" && " Cellar mg/L uses volume moved (no vessel capacity recorded)."}
+            {summary.cellarSo2MgL != null && summary.cellarVolumeSource === "mixed" && " Cellar mg/L uses vessel capacity where available, volume moved otherwise."}
           </p>
         )}
       </div>
@@ -1147,7 +1151,7 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
       <tr>
         <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">Cellar sulfiting</td>
         <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;text-align:right;font-family:monospace">${s2.hasCellarSo2 ? `${s2.cellarSo2TotalG.toFixed(1)} g${s2.cellarSo2MgL != null ? ` (≈ ${s2.cellarSo2MgL.toFixed(1)} mg/L)` : ""}` : "—"}</td>
-        <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">${s2.hasCellarSo2 && s2.cellarSo2MgL != null ? "Estimate using volume moved" : s2.hasCellarSo2 ? "Volume not recorded — no mg/L estimate" : "No sulfiting operations"}</td>
+        <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">${s2.hasCellarSo2 && s2.cellarSo2MgL != null && s2.cellarVolumeSource === "vessel" ? "Estimate using vessel capacity" : s2.hasCellarSo2 && s2.cellarSo2MgL != null && s2.cellarVolumeSource === "mixed" ? "Estimate: vessel capacity where available, volume moved otherwise" : s2.hasCellarSo2 && s2.cellarSo2MgL != null ? "Estimate using volume moved" : s2.hasCellarSo2 ? "Volume not recorded — no mg/L estimate" : "No sulfiting operations"}</td>
       </tr>
       <tr style="font-weight:700">
         <td style="padding:5px 8px">${s2.latestTestTotal != null ? "Latest SO₂ test total" : "Running additions estimate"}</td>
