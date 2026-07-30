@@ -2345,12 +2345,34 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
   };
 
   const openAdd = () => { setEditing(null); setForm({ vintageYear: String(new Date().getFullYear()) }); setIsOrganicForm(false); setSo2FromPressing(false); setOpen(true); };
-  const openEdit = (r: Record<string, unknown>) => {
+  const openEdit = async (r: Record<string, unknown>) => {
     setEditing(r.id as number);
     setForm(Object.fromEntries(Object.entries(r).filter(([k]) => k !== "is_organic").map(([k, v]) => [k, v == null ? "" : String(v)])));
     setIsOrganicForm(!!(r.is_organic === true || r.is_organic === "true"));
     setSo2FromPressing(false);
     setOpen(true);
+    // If the record is already linked to a pressing batch and has an SO₂ value,
+    // check whether that value matches the pressing batch's SO₂ dose so we can
+    // show the 'from pressing' badge without the user having to re-select.
+    if (r.pressing_record_id && r.so2_at_fermentation_mg_l != null && r.so2_at_fermentation_mg_l !== "") {
+      try {
+        const res = await fetch(api(`farms/${farmId}/winery-pressing/${r.pressing_record_id}/additions`), { credentials: "include" });
+        if (res.ok) {
+          const d = await res.json();
+          const additions: Record<string, unknown>[] = d.additions ?? [];
+          const so2Row = additions.find(a => String(a.category ?? "") === "so2");
+          if (so2Row && so2Row.dose != null) {
+            const pressingDose = parseFloat(String(so2Row.dose));
+            const savedDose = parseFloat(String(r.so2_at_fermentation_mg_l));
+            if (!isNaN(pressingDose) && !isNaN(savedDose) && pressingDose === savedDose) {
+              setSo2FromPressing(true);
+            }
+          }
+        }
+      } catch {
+        // non-critical — silently skip if fetch fails
+      }
+    }
   };
   const save = async () => {
     try {
