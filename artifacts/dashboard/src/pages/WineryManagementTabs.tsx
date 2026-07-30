@@ -1365,6 +1365,29 @@ function printAdditionsReport(
   const printedOn = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   const showVintage = rows.length > 0 && rows.some((r, i) => i > 0 && r.vintage_year !== rows[0].vintage_year);
 
+  // Detect mixed SO₂ units per vintage — totals are meaningless when mg/kg and mg/L are combined
+  const so2UnitsByVintage = new Map<string, Set<string>>();
+  rows.filter(r => r.category === "so2").forEach(r => {
+    const v = String(r.vintage_year ?? "?");
+    const u = String(r.unit ?? "");
+    if (!so2UnitsByVintage.has(v)) so2UnitsByVintage.set(v, new Set());
+    so2UnitsByVintage.get(v)!.add(u);
+  });
+  const mixedUnitVintages = Array.from(so2UnitsByVintage.entries())
+    .filter(([, units]) => units.size > 1)
+    .map(([v]) => v)
+    .sort();
+  const hasMixedSo2Units = mixedUnitVintages.length > 0;
+  const mixedUnitsNotice = hasMixedSo2Units
+    ? `<div style="margin-bottom:14px;padding:10px 14px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;display:flex;align-items:flex-start;gap:10px">
+  <span style="font-size:16px;line-height:1.2">⚠</span>
+  <div>
+    <strong style="color:#92400e;font-size:12px">Mixed SO₂ units detected${mixedUnitVintages.length === 1 ? ` — vintage ${escHtml(mixedUnitVintages[0])}` : `: vintages ${mixedUnitVintages.map(escHtml).join(", ")}`}</strong>
+    <p style="color:#78350f;font-size:11px;margin-top:3px">This report contains SO₂ / KMS records measured in both <strong>mg/kg</strong> (at pressing) and <strong>mg/L</strong> (post-fermentation / cellar). Total and average dose figures combine different units and <strong>cannot be compared or summed</strong>. Use the per-row <em>Unit</em> column to interpret each figure individually.</p>
+  </div>
+</div>`
+    : "";
+
   const tableRows = rows.map(row => {
     const avgDose = parseFloat(String(row.avg_dose ?? 0));
     const wineColour = String(row.wine_colour ?? "");
@@ -1446,7 +1469,7 @@ function printAdditionsReport(
   <span>${rows.length} additive row${rows.length !== 1 ? "s" : ""}</span>
   <span>Covers: pressing, fermentation &amp; cellar SO₂</span>
 </p>
-<table>
+${mixedUnitsNotice}<table>
   <thead><tr>
     <th>Additive</th>
     ${vintageHeader}
