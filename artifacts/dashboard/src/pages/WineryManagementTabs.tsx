@@ -1659,14 +1659,19 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     setSettingsOpen(true);
   };
   const saveSettings = async () => {
-    await batchSettings.save.mutateAsync({
-      prefix: settingsForm.prefix || "PRESS",
-      yearFormat: settingsForm.yearFormat,
-      paddingDigits: parseInt(settingsForm.paddingDigits || "3", 10),
-      nextSequence: parseInt(settingsForm.nextSequence || "1", 10),
-    });
-    toast({ title: "Batch settings saved" });
-    setSettingsOpen(false);
+    try {
+      await batchSettings.save.mutateAsync({
+        prefix: settingsForm.prefix || "PRESS",
+        yearFormat: settingsForm.yearFormat,
+        paddingDigits: parseInt(settingsForm.paddingDigits || "3", 10),
+        nextSequence: parseInt(settingsForm.nextSequence || "1", 10),
+      });
+      toast({ title: "Batch settings saved" });
+      setSettingsOpen(false);
+    } catch (err) {
+      const e = err as Error;
+      toast({ title: "Save failed", description: e.message || "An unexpected error occurred.", variant: "destructive" });
+    }
   };
 
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
@@ -2793,12 +2798,14 @@ function VesselCleanRow({ farmId, vesselId }: { farmId: number; vesselId: number
   const sf = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
 
   const addMut = useMutation({
-    mutationFn: async () => { const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/cleans`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(form) }); if (!r.ok) throw new Error("Failed"); },
+    mutationFn: async () => { const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/cleans`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(form) }); if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Save failed"); } },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["winery-vessel-cleans", farmId, vesselId] }); setShowAdd(false); setForm({ cleanDate: today, rinseCompleted: "true" }); toast({ title: "Clean record added" }); },
+    onError: (err: Error) => toast({ title: "Save failed", description: err.message || "An unexpected error occurred.", variant: "destructive" }),
   });
   const delMut = useMutation({
-    mutationFn: async (cleanId: number) => fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/cleans/${cleanId}`), { method: "DELETE", credentials: "include" }),
+    mutationFn: async (cleanId: number) => { const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/cleans/${cleanId}`), { method: "DELETE", credentials: "include" }); if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Delete failed"); } },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["winery-vessel-cleans", farmId, vesselId] }),
+    onError: (err: Error) => toast({ title: "Delete failed", description: err.message || "An unexpected error occurred.", variant: "destructive" }),
   });
 
   return (
@@ -4355,12 +4362,14 @@ function CalibrationRows({ farmId, equipmentId }: { farmId: number; equipmentId:
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   const addMut = useMutation({
-    mutationFn: async () => { const r = await fetch(api(`farms/${farmId}/winery-equipment/${equipmentId}/calibrations`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(form) }); if (!r.ok) throw new Error("Failed"); },
+    mutationFn: async () => { const r = await fetch(api(`farms/${farmId}/winery-equipment/${equipmentId}/calibrations`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(form) }); if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Save failed"); } },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["winery-equipment-cals", farmId, equipmentId] }); qc.invalidateQueries({ queryKey: ["winery-equipment", farmId] }); setShowAdd(false); setForm({ calibrationDate: today, result: "pass" }); toast({ title: "Calibration recorded" }); },
+    onError: (err: Error) => toast({ title: "Save failed", description: err.message || "An unexpected error occurred.", variant: "destructive" }),
   });
   const delMut = useMutation({
-    mutationFn: async (calId: number) => fetch(api(`farms/${farmId}/winery-equipment/${equipmentId}/calibrations/${calId}`), { method: "DELETE", credentials: "include" }),
+    mutationFn: async (calId: number) => { const r = await fetch(api(`farms/${farmId}/winery-equipment/${equipmentId}/calibrations/${calId}`), { method: "DELETE", credentials: "include" }); if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Delete failed"); } },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["winery-equipment-cals", farmId, equipmentId] }),
+    onError: (err: Error) => toast({ title: "Delete failed", description: err.message || "An unexpected error occurred.", variant: "destructive" }),
   });
 
   return (
