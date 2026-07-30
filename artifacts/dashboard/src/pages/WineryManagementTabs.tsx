@@ -2162,6 +2162,8 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     { key: "vintage_year", label: "Vintage" },
     { key: "batch_ref", label: "Batch Ref" },
     { key: "record_date", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.record_date) },
+    { key: "operator_name", label: "Operator" },
+    { key: "vessel_ref", label: "Vessel" },
     { key: "additive_name", label: "Additive" },
     { key: "category", label: "Category" },
     { key: "dose", label: "Dose" },

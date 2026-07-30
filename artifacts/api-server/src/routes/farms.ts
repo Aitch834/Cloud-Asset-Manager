@@ -36694,7 +36694,9 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
     SELECT 'pressing' AS source,
            p.vintage_year, p.batch_ref, p.press_date AS record_date,
            a.additive_name, a.category, a.dose::text AS dose, a.unit, a.notes,
-           a.pressing_record_id
+           a.pressing_record_id,
+           p.operator_name,
+           p.settling_vessel AS vessel_ref
     FROM winery_pressing_additions a
     JOIN winery_pressing_records p ON p.id = a.pressing_record_id
     WHERE p.farm_id = ${farmId}
@@ -36708,8 +36710,11 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
            f.so2_at_fermentation_mg_l::text AS dose,
            'mg/L' AS unit,
            f.notes,
-           NULL::integer AS pressing_record_id
+           NULL::integer AS pressing_record_id,
+           f.operator_name,
+           v.vessel_ref
     FROM winery_fermentation_records f
+    LEFT JOIN winery_vessels v ON v.id = f.vessel_id
     WHERE f.farm_id = ${farmId}
       AND f.so2_at_fermentation_mg_l IS NOT NULL
 
@@ -36722,8 +36727,16 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
            o.so2_quantity_g::text AS dose,
            'g' AS unit,
            o.notes,
-           NULL::integer AS pressing_record_id
+           NULL::integer AS pressing_record_id,
+           o.operator_name,
+           CASE
+             WHEN fv.vessel_ref IS NOT NULL AND tv.vessel_ref IS NOT NULL
+               THEN fv.vessel_ref || ' → ' || tv.vessel_ref
+             ELSE COALESCE(fv.vessel_ref, tv.vessel_ref)
+           END AS vessel_ref
     FROM winery_cellar_ops o
+    LEFT JOIN winery_vessels fv ON fv.id = o.from_vessel_id
+    LEFT JOIN winery_vessels tv ON tv.id = o.to_vessel_id
     WHERE o.farm_id = ${farmId}
       AND o.op_type = 'sulfiting'
       AND o.so2_quantity_g IS NOT NULL
