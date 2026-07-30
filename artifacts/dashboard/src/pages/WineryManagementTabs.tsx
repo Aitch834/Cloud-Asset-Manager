@@ -2846,7 +2846,20 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [so2FromTest, setSo2FromTest] = useState(false);
   const sf = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
+
+  // Read SO₂ test records to enable pre-fill on batch ref selection
+  const { data: so2TestRecords = [] } = useQuery<Record<string, unknown>[]>({
+    queryKey: ["winery-so2-tests", farmId],
+    queryFn: async () => {
+      const r = await fetch(api(`farms/${farmId}/winery-so2-tests`), { credentials: "include" });
+      const d = await r.json();
+      return d.records ?? [];
+    },
+    enabled: !!farmId,
+    staleTime: 30_000,
+  });
 
   const bottlingPressingRefs = pressingRecords
     .filter(r => r.batch_ref)
@@ -2854,10 +2867,25 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     .sort((a, b) => b.batchRef.localeCompare(a.batchRef));
 
   const handleBottlingBatchRefChange = (val: string) => {
-    sf("batchRef", val);
-    const match = bottlingPressingRefs.find(p => p.batchRef === val);
-    if (match && !form.vintageYear) sf("vintageYear", match.vintageYear);
-    if (match && !form.wineColour && match.wineColour) sf("wineColour", match.wineColour);
+    const pressMatch = bottlingPressingRefs.find(p => p.batchRef === val);
+    // Find most recent pre-bottling or at-bottling SO₂ test for this batch
+    const latestTest = val
+      ? so2TestRecords
+          .filter(t => String(t.batch_ref ?? "") === val && (t.test_stage === "pre-bottling" || t.test_stage === "at-bottling"))
+          .sort((a, b) => String(b.test_date ?? "").localeCompare(String(a.test_date ?? "")))[0] ?? null
+      : null;
+    setForm(f => {
+      const next: Record<string, string | boolean> = { ...f, batchRef: val };
+      if (pressMatch && !f.vintageYear) next.vintageYear = pressMatch.vintageYear;
+      if (pressMatch && !f.wineColour && pressMatch.wineColour) next.wineColour = pressMatch.wineColour;
+      let filled = false;
+      if (latestTest) {
+        if (!f.freeSo2MgL && latestTest.free_so2_mg_l != null) { next.freeSo2MgL = String(latestTest.free_so2_mg_l); filled = true; }
+        if (!f.totalSo2MgL && latestTest.total_so2_mg_l != null) { next.totalSo2MgL = String(latestTest.total_so2_mg_l); filled = true; }
+      }
+      if (filled) setSo2FromTest(true);
+      return next;
+    });
   };
 
   // Auto-calculate bottles from volume and size
@@ -2866,8 +2894,8 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const autoBottles = volL > 0 && sizeMl > 0 ? Math.floor((volL * 1000) / sizeMl) : null;
   const autoCases = autoBottles != null ? Math.floor(autoBottles / 12) : null;
 
-  const openAdd = () => { setEditing(null); setForm({ bottlingDate: today, vintageYear: String(new Date().getFullYear()), certifiedOrganic: "false", bottleSizeMl: "750" }); setOpen(true); };
-  const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
+  const openAdd = () => { setEditing(null); setForm({ bottlingDate: today, vintageYear: String(new Date().getFullYear()), certifiedOrganic: "false", bottleSizeMl: "750" }); setSo2FromTest(false); setOpen(true); };
+  const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setSo2FromTest(false); setOpen(true); };
   const save = async () => {
     const payload = {
       ...form,
@@ -3034,9 +3062,15 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
               <div><Label>Label Batch</Label><Input value={String(form.labelBatch ?? "")} onChange={e => sf("labelBatch", e.target.value)} placeholder="e.g. Label-v3" /></div>
             </div>
             <SectionLabel>Pre-bottling analysis</SectionLabel>
+            {so2FromTest && (
+              <p className="text-xs text-blue-600 flex items-center gap-1 -mt-1">
+                <FlaskConical className="h-3 w-3 shrink-0" />
+                Pre-filled from the most recent SO₂ test for this batch — edit to override
+              </p>
+            )}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              <div><Label>Free SO₂ (mg/L)</Label><Input type="number" step="0.1" value={String(form.freeSo2MgL ?? "")} onChange={e => sf("freeSo2MgL", e.target.value)} /></div>
-              <div><Label>Total SO₂ (mg/L)</Label><Input type="number" step="0.1" value={String(form.totalSo2MgL ?? "")} onChange={e => sf("totalSo2MgL", e.target.value)} /></div>
+              <div><Label>Free SO₂ (mg/L)</Label><Input type="number" step="0.1" value={String(form.freeSo2MgL ?? "")} onChange={e => { setSo2FromTest(false); sf("freeSo2MgL", e.target.value); }} /></div>
+              <div><Label>Total SO₂ (mg/L)</Label><Input type="number" step="0.1" value={String(form.totalSo2MgL ?? "")} onChange={e => { setSo2FromTest(false); sf("totalSo2MgL", e.target.value); }} /></div>
               <div><Label>Actual ABV %</Label><Input type="number" step="0.01" value={String(form.actualAbvPct ?? "")} onChange={e => sf("actualAbvPct", e.target.value)} /></div>
               <div><Label>Residual Sugar (g/L)</Label><Input type="number" step="0.1" value={String(form.residualSugarGl ?? "")} onChange={e => sf("residualSugarGl", e.target.value)} /></div>
               <div><Label>pH</Label><Input type="number" step="0.01" value={String(form.ph ?? "")} onChange={e => sf("ph", e.target.value)} /></div>
