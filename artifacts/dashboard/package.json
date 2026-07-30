@@ -48,6 +48,7 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@types/react-signature-canvas": "^1.0.7",
     "@uppy/aws-s3": "^5.0.0",
     "@uppy/core": "^5.0.0",
     "@uppy/dashboard": "^5.0.0",
@@ -95,6 +96,7 @@
     "qrcode": "^1.5.4",
     "qrcode.react": "^4.2.0",
     "react-qr-code": "^2.0.21",
+    "react-signature-canvas": "1.1.0-alpha.2",
     "zustand": "^5.0.11"
   }
 }

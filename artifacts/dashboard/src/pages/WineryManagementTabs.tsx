@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { sumCellarSo2 } from "@/lib/so2-summary";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf, Search, Upload } from "lucide-react";
+import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf, Search, Upload, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from "recharts";
+import SignatureCanvas from "react-signature-canvas";
 
 // ─── Local helpers ─────────────────────────────────────────────────────────────
 const api = (path: string) => `/api/${path}`;
@@ -873,6 +874,49 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
     staleTime: 30_000,
   });
 
+  // ── Signature state ──────────────────────────────────────────────────────────
+  const [sigOpen, setSigOpen] = useState(false);
+  const [localSignature, setLocalSignature] = useState<string | null>(null);
+  const [localSignedAt, setLocalSignedAt] = useState<string | null>(null);
+  const sigRef = useRef<SignatureCanvas | null>(null);
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  const currentSig = localSignature ?? (pressing.audit_signature ? String(pressing.audit_signature) : null);
+  const currentSignedAt = localSignedAt ?? (pressing.audit_signed_at ? String(pressing.audit_signed_at) : null);
+
+  const signOffMutation = useMutation({
+    mutationFn: async (signatureDataUrl: string) => {
+      const r = await fetch(api(`farms/${farmId}/winery-pressing/${pressing.id}/sign-off`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ auditSignature: signatureDataUrl }),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Sign-off failed"); }
+      return r.json();
+    },
+    onSuccess: (result) => {
+      setLocalSignature(result.record.audit_signature);
+      setLocalSignedAt(result.record.audit_signed_at);
+      qc.invalidateQueries({ queryKey: ["winery-pressing", farmId] });
+      setSigOpen(false);
+      toast({ title: "Batch trail signed off", description: "Signature saved successfully." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Sign-off failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleConfirmSignature = () => {
+    if (!sigRef.current || sigRef.current.isEmpty()) {
+      toast({ title: "No signature", description: "Please draw your signature before confirming.", variant: "destructive" });
+      return;
+    }
+    const dataUrl = sigRef.current.getTrimmedCanvas().toDataURL("image/png");
+    signOffMutation.mutate(dataUrl);
+  };
+
   const totalLinked = (data?.fermentation.length ?? 0) + (data?.cellarOps.length ?? 0) + (data?.so2Tests.length ?? 0) + (data?.bottling.length ?? 0);
   const isVintageScoped = data?.scope === "vintageYear";
 
@@ -1187,6 +1231,22 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
               </TrailSection>
             )}
 
+          {/* Audit Signature */}
+          {currentSig && (
+            <div className="rounded-lg border px-4 py-3 space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5 text-green-600" />Audit Sign-off
+              </span>
+              <div className="flex items-start gap-3 flex-wrap">
+                <img src={currentSig} alt="Audit signature" className="border rounded bg-white max-h-16" />
+                <div className="text-xs text-muted-foreground self-center">
+                  Signed: {currentSignedAt ? new Date(currentSignedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
+                  <Button variant="ghost" size="sm" className="ml-2 h-6 text-xs" onClick={() => setSigOpen(true)}>Re-sign</Button>
+                </div>
+              </div>
+            </div>
+          )}
+
           </div>
         )}
 
@@ -1196,14 +1256,45 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
               <Button variant="outline" size="sm" onClick={() => exportBatchTrailCsv(pressing, data)}>
                 <FileDown className="w-3.5 h-3.5 mr-1" />Export CSV
               </Button>
-              <Button variant="outline" size="sm" onClick={() => printBatchTrail(pressing, data, farmName)}>
+              <Button variant="outline" size="sm" onClick={() => printBatchTrail(pressing, data, farmName, currentSig)}>
                 <Printer className="w-3.5 h-3.5 mr-1" />Print / Export PDF
+              </Button>
+              <Button size="sm" variant={currentSig ? "outline" : "default"} onClick={() => setSigOpen(true)}>
+                <PenLine className="w-3.5 h-3.5 mr-1" />{currentSig ? "Re-sign" : "Sign Off"}
               </Button>
             </>
           )}
           <Button variant="outline" onClick={onClose}>Close</Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Signature Canvas Dialog */}
+      {sigOpen && (
+        <Dialog open onOpenChange={o => !o && setSigOpen(false)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2"><PenLine className="h-4 w-4" />Sign Off Batch Trail</DialogTitle>
+              <DialogDescription>Draw your signature below using a finger, stylus, or mouse. This will be saved against the pressing record and embedded in any PDF exported afterward.</DialogDescription>
+            </DialogHeader>
+            <div className="border rounded-lg overflow-hidden bg-white touch-none" style={{ height: 200 }}>
+              <SignatureCanvas
+                ref={sigRef}
+                canvasProps={{ style: { width: "100%", height: "100%" }, className: "signature-pad" }}
+                backgroundColor="white"
+                penColor="#111827"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground text-center">Sign above — draw with your finger, stylus, or mouse</p>
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => sigRef.current?.clear()}>Clear</Button>
+              <Button variant="outline" size="sm" onClick={() => setSigOpen(false)}>Cancel</Button>
+              <Button size="sm" onClick={handleConfirmSignature} disabled={signOffMutation.isPending}>
+                {signOffMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Confirm &amp; Save
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </Dialog>
   );
 }
@@ -1335,12 +1426,28 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
 }
 
 // ─── Batch Trail — Print report ───────────────────────────────────────────────
-function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData, farmName: string) {
+// Safe data-URL validator: only accepts PNG base64 data URLs with safe characters.
+// Base64 chars (A-Za-z0-9+/=) cannot break out of an HTML attribute, so a validated
+// value is safe to interpolate directly into src="...".
+const SAFE_PNG_DATA_URL = /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/;
+const MAX_SIG_BYTES = 600_000;
+
+function sanitiseSignatureForHtml(sig: string | null | undefined): string | null {
+  if (!sig) return null;
+  if (!SAFE_PNG_DATA_URL.test(sig) || sig.length > MAX_SIG_BYTES) return null;
+  return sig;
+}
+
+function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData, farmName: string, auditSig?: string | null) {
   const batchRef = String(pressing.batch_ref ?? "");
   const printedOn = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   const vintage = pressing.vintage_year ? String(pressing.vintage_year) : null;
   const pressDate = pressing.press_date ? fmtDate(pressing.press_date) : "—";
   const isVintageScoped = data.scope === "vintageYear";
+
+  // Validate the signature before any HTML injection — reject anything that isn't
+  // a strict PNG base64 data URL (guards against stored XSS via the sign-off API).
+  const safeSig = sanitiseSignatureForHtml(auditSig);
 
   const batchRefBadge = (r: Record<string, unknown>) =>
     r.batch_ref
@@ -1591,8 +1698,8 @@ ${bottlingRows ? sectionHtml("6. Bottling runs", bottlingHeader + bottlingRows) 
       </div>
       <div>
         <p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#374151;margin-bottom:18px">Reviewed by (auditor)</p>
-        <div style="border-bottom:1px solid #374151;height:28px;margin-bottom:3px"></div>
-        <p style="font-size:9px;color:#6b7280">Signature</p>
+        ${safeSig ? `<div style="margin-bottom:6px"><img src="${safeSig}" alt="Audit signature" style="max-height:56px;border:1px solid #d1d5db;border-radius:4px;background:#fff;display:block" /></div>` : `<div style="border-bottom:1px solid #374151;height:28px;margin-bottom:3px"></div>`}
+        <p style="font-size:9px;color:#6b7280">Signature${safeSig ? ` — signed digitally` : ""}</p>
         <div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>
         <p style="font-size:9px;color:#6b7280">Name</p>
         <div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>

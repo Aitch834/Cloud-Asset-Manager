@@ -36901,6 +36901,34 @@ router.delete("/farms/:farmId/winery-pressing/:id", requireAuth, requireTenant, 
   res.json({ success: true });
 });
 
+// ── Pressing Sign-Off (saves audit signature against the pressing record) ────────
+router.put("/farms/:farmId/winery-pressing/:id/sign-off", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const recordId = parseInt(req.params.id as string);
+  const b = sanitiseBody(req.body);
+  const signature = n(b.auditSignature);
+  if (!signature) {
+    res.status(400).json({ error: "auditSignature is required" });
+    return;
+  }
+  // Strict validation: must be a PNG data URL using only safe base64 characters.
+  // This prevents stored XSS — a malicious value cannot break out of an img src attribute
+  // because base64 chars (A-Za-z0-9+/=) contain no HTML-special characters.
+  const DATA_URL_RE = /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/;
+  const MAX_SIGNATURE_BYTES = 600_000; // ~450 KB PNG
+  if (!DATA_URL_RE.test(signature) || signature.length > MAX_SIGNATURE_BYTES) {
+    res.status(400).json({ error: "auditSignature must be a valid PNG data URL (max 450 KB)" });
+    return;
+  }
+  const now = new Date();
+  const r = await db.execute(sql`UPDATE winery_pressing_records SET audit_signature=${signature}, audit_signed_at=${now} WHERE id=${recordId} AND farm_id=${farmId} RETURNING id, audit_signature, audit_signed_at`);
+  if (r.rows.length === 0) {
+    res.status(404).json({ error: "Record not found" });
+    return;
+  }
+  res.json({ record: r.rows[0] });
+});
+
 // ── Pressing Additions (child rows of winery_pressing_records) ─────────────────
 router.get("/farms/:farmId/winery-pressing/:pressingId/additions", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;

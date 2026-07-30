@@ -401,6 +401,8 @@ export const wineryPressingRecordsTable = pgTable("winery_pressing_records", {
   isOrganic: boolean("is_organic").notNull().default(false),
   operatorName: text("operator_name"),
   notes: text("notes"),
+  auditSignature: text("audit_signature"),
+  auditSignedAt: timestamp("audit_signed_at", { withTimezone: true }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
