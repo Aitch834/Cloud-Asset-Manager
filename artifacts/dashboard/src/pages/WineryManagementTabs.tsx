@@ -1906,6 +1906,15 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
   const [isOrganicForm, setIsOrganicForm] = useState(false);
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [so2FromPressing, setSo2FromPressing] = useState(false);
+  const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
+  const { data: farmsDataFerm } = useQuery<{ records?: Record<string, unknown>[] }>({
+    queryKey: ["farms-list"],
+    queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
+    staleTime: 300_000,
+  });
+  const farmNameFerm: string = (Array.isArray(farmsDataFerm?.records)
+    ? (farmsDataFerm.records.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
+    : undefined) ?? `Farm ${farmId}`;
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   // Pressing records sorted newest-first for the link select
@@ -2068,6 +2077,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
                   <td className="p-3 text-right">{fmtNum(r.end_brix, 1)}</td>
                   <td className="p-3">{fermentStatus(r)}</td>
                   <td className="p-3 text-right whitespace-nowrap">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title="View batch trail" onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
@@ -2283,6 +2293,14 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {trailRecord && (
+        <BatchTrailDialog
+          farmId={farmId}
+          pressing={trailRecord}
+          farmName={farmNameFerm}
+          onClose={() => setTrailRecord(null)}
+        />
+      )}
     </div>
   );
 }
@@ -2569,6 +2587,15 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [opFilter, setOpFilter] = useState("all");
+  const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
+  const { data: farmsDataCellar } = useQuery<{ records?: Record<string, unknown>[] }>({
+    queryKey: ["farms-list"],
+    queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
+    staleTime: 300_000,
+  });
+  const farmNameCellar: string = (Array.isArray(farmsDataCellar?.records)
+    ? (farmsDataCellar.records.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
+    : undefined) ?? `Farm ${farmId}`;
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   const cellarPressingRefs = pressingRecords
@@ -2678,6 +2705,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                     <td className="p-3 text-muted-foreground text-xs">{detail}</td>
                     <td className="p-3 text-muted-foreground">{fmt(r.operator_name)}</td>
                     <td className="p-3 text-right whitespace-nowrap">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title="View batch trail" onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
@@ -2849,6 +2877,14 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {trailRecord && (
+        <BatchTrailDialog
+          farmId={farmId}
+          pressing={trailRecord}
+          farmName={farmNameCellar}
+          onClose={() => setTrailRecord(null)}
+        />
+      )}
     </div>
   );
 }
@@ -2867,6 +2903,15 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [so2FromTest, setSo2FromTest] = useState(false);
+  const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
+  const { data: farmsDataBottling } = useQuery<{ records?: Record<string, unknown>[] }>({
+    queryKey: ["farms-list"],
+    queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
+    staleTime: 300_000,
+  });
+  const farmNameBottling: string = (Array.isArray(farmsDataBottling?.records)
+    ? (farmsDataBottling.records.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
+    : undefined) ?? `Farm ${farmId}`;
   const sf = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
 
   // Read SO₂ test records to enable pre-fill on batch ref selection
@@ -2999,6 +3044,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                   <td className="p-3 text-right">{r.free_so2_mg_l ? `${fmtNum(r.free_so2_mg_l, 0)} mg/L` : "—"}</td>
                   <td className="p-3 text-right">{r.total_so2_mg_l ? `${fmtNum(r.total_so2_mg_l, 0)} mg/L` : "—"}</td>
                   <td className="p-3 text-right whitespace-nowrap">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title="View batch trail" onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
@@ -3156,6 +3202,14 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {trailRecord && (
+        <BatchTrailDialog
+          farmId={farmId}
+          pressing={trailRecord}
+          farmName={farmNameBottling}
+          onClose={() => setTrailRecord(null)}
+        />
+      )}
     </div>
   );
 }
@@ -3174,6 +3228,15 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
+  const { data: farmsDataSo2 } = useQuery<{ records?: Record<string, unknown>[] }>({
+    queryKey: ["farms-list"],
+    queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
+    staleTime: 300_000,
+  });
+  const farmNameSo2: string = (Array.isArray(farmsDataSo2?.records)
+    ? (farmsDataSo2.records.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
+    : undefined) ?? `Farm ${farmId}`;
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   const so2PressingRefs = pressingRecords
@@ -3316,6 +3379,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
                   <td className="p-3 text-right text-muted-foreground">{r.max_permitted_mg_l ? `${fmtNum(r.max_permitted_mg_l, 0)}` : "—"}</td>
                   <td className="p-3"><So2Badge compliant={r.so2_compliant} /></td>
                   <td className="p-3 text-right whitespace-nowrap">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title="View batch trail" onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
@@ -3465,6 +3529,14 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {trailRecord && (
+        <BatchTrailDialog
+          farmId={farmId}
+          pressing={trailRecord}
+          farmName={farmNameSo2}
+          onClose={() => setTrailRecord(null)}
+        />
+      )}
     </div>
   );
 }
