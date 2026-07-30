@@ -180,6 +180,8 @@ function So2Badge({ compliant }: { compliant: unknown }) {
 // ─── Constants ────────────────────────────────────────────────────────────────
 const WINE_COLOUR_OPTIONS = ["Red", "White", "Rosé", "Sparkling", "Orange", "Other"];
 const ORGANIC_MAX_SO2: Record<string, string> = { "Red": "100", "White": "150", "Rosé": "150", "Sparkling": "185", "Orange": "150" };
+// Conventional (non-organic) total SO₂ ceilings — UK-retained Reg 1308/2013 Annex VIII Part B
+const CONVENTIONAL_MAX_SO2: Record<string, string> = { "Red": "150", "White": "200", "Rosé": "200", "Sparkling": "235", "Orange": "200" };
 const SOURCE_TYPE_OPTIONS = ["Own vineyard", "Contract grower", "Purchased grapes"];
 const GRAPE_CONDITION_OPTIONS = ["Excellent", "Good", "Fair", "Poor"];
 const PRESS_TYPE_OPTIONS = ["Pneumatic bladder", "Basket press", "Continuous screw", "Membrane press", "Other"];
@@ -1532,21 +1534,31 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">SO₂ / KMS — Total dose by vintage</p>
               <p className="text-xs text-muted-foreground mb-2">Stacked total across all pressing batches per vintage. Units may differ between records — check individual rows below.</p>
-              <ResponsiveContainer width="100%" height={160}>
-                <BarChart data={so2ChartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="vintage" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: unknown) => [typeof v === "number" ? v.toFixed(1) : String(v), "Total dose"]} />
-                  <ReferenceLine y={200} stroke="#ef4444" strokeDasharray="4 2" />
-                  <ReferenceLine y={90} stroke="#f59e0b" strokeDasharray="4 2" />
-                  <Bar dataKey="total" fill="#6366f1" radius={[3, 3, 0, 0]} name="Total SO₂ dose" />
-                </BarChart>
-              </ResponsiveContainer>
-              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-3">
-                <span className="flex items-center gap-1"><span className="inline-block w-4 border-t-2 border-dashed border-red-500" />Conv. max 200 mg/kg</span>
-                <span className="flex items-center gap-1"><span className="inline-block w-4 border-t-2 border-dashed border-amber-500" />Organic limit 90 mg/kg</span>
-              </p>
+              {(() => {
+                const allFilteredOrganic = filtered.length > 0 && filtered.every(r => r.is_organic === true || r.is_organic === "true" || r.is_organic === 1);
+                const anyFilteredOrganic = filtered.some(r => r.is_organic === true || r.is_organic === "true" || r.is_organic === 1);
+                const showConvLine = !allFilteredOrganic;
+                const showOrgLine = anyFilteredOrganic || !showConvLine;
+                return (
+                  <>
+                    <ResponsiveContainer width="100%" height={160}>
+                      <BarChart data={so2ChartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="vintage" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <Tooltip formatter={(v: unknown) => [typeof v === "number" ? v.toFixed(1) : String(v), "Total dose"]} />
+                        {showConvLine && <ReferenceLine y={200} stroke="#ef4444" strokeDasharray="4 2" />}
+                        {showOrgLine && <ReferenceLine y={90} stroke="#f59e0b" strokeDasharray="4 2" />}
+                        <Bar dataKey="total" fill="#6366f1" radius={[3, 3, 0, 0]} name="Total SO₂ dose" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-3">
+                      {showConvLine && <span className="flex items-center gap-1"><span className="inline-block w-4 border-t-2 border-dashed border-red-500" />Conv. max 200 mg/kg</span>}
+                      {showOrgLine && <span className="flex items-center gap-1"><span className="inline-block w-4 border-t-2 border-dashed border-amber-500" />{allFilteredOrganic ? "Organic limit 90 mg/kg" : "Organic limit 90 mg/kg (🌿 batches)"}</span>}
+                    </p>
+                  </>
+                );
+              })()}
               {so2MixedUnits && (
                 <p className="mt-2 flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                   <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
@@ -2258,6 +2270,23 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
                 value={form.so2AtFermentationMgL ?? ""}
                 onChange={e => { setSo2FromPressing(false); sf("so2AtFermentationMgL", e.target.value); }}
               />
+              {(() => {
+                if (!isOrganicForm || !form.wineColour) return null;
+                const orgLimit = ORGANIC_MAX_SO2[form.wineColour];
+                if (!orgLimit) return null;
+                const dose = parseFloat(form.so2AtFermentationMgL ?? "");
+                const exceeds = !isNaN(dose) && dose > parseFloat(orgLimit);
+                return exceeds ? (
+                  <p className="flex items-center gap-1 text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 mt-1">
+                    <AlertTriangle className="h-3 w-3 shrink-0" />
+                    Exceeds organic total SO₂ limit for {form.wineColour} ({orgLimit} mg/L)
+                  </p>
+                ) : (
+                  <p className="text-xs text-amber-700 mt-1">
+                    <Leaf className="inline h-3 w-3 mr-0.5" />Organic limit for {form.wineColour}: {orgLimit} mg/L total SO₂ — monitor cumulative additions across all stages.
+                  </p>
+                );
+              })()}
             </div>
             <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
           </div>
@@ -3324,14 +3353,18 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
 
   const so2PressingRefs = pressingRecords
     .filter(r => r.batch_ref)
-    .map(r => ({ batchRef: String(r.batch_ref), vintageYear: String(r.vintage_year ?? ""), wineColour: String(r.wine_colour ?? "") }))
+    .map(r => ({ batchRef: String(r.batch_ref), vintageYear: String(r.vintage_year ?? ""), wineColour: String(r.wine_colour ?? ""), isOrganic: !!(r.is_organic === true || r.is_organic === "true" || r.is_organic === 1) }))
     .sort((a, b) => b.batchRef.localeCompare(a.batchRef));
+
+  const [isSo2BatchOrganic, setIsSo2BatchOrganic] = useState(false);
 
   const handleSo2BatchRefChange = (val: string) => {
     sf("batchRef", val);
     const match = so2PressingRefs.find(p => p.batchRef === val);
+    const organic = match?.isOrganic ?? false;
+    setIsSo2BatchOrganic(organic);
     if (match && !form.vintageYear) sf("vintageYear", match.vintageYear);
-    if (match && !form.wineColour && match.wineColour) handleColourChange(match.wineColour);
+    if (match && !form.wineColour && match.wineColour) handleColourChangeWithOrganic(match.wineColour, organic);
   };
 
   const isLab = form.testMethod === "Third-party laboratory";
@@ -3344,17 +3377,29 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
     return total <= max;
   }, [form.totalSo2MgL, form.maxPermittedMgL]);
 
-  const handleColourChange = (colour: string) => {
-    const autoMax = ORGANIC_MAX_SO2[colour];
+  const allSo2LimitValues = [...Object.values(ORGANIC_MAX_SO2), ...Object.values(CONVENTIONAL_MAX_SO2)];
+
+  const handleColourChangeWithOrganic = (colour: string, organic: boolean) => {
+    const autoMax = organic ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour];
     setForm(f => ({
       ...f,
       wineColour: colour,
-      ...(!f.maxPermittedMgL || Object.values(ORGANIC_MAX_SO2).includes(f.maxPermittedMgL) ? { maxPermittedMgL: autoMax ?? f.maxPermittedMgL } : {}),
+      ...(!f.maxPermittedMgL || allSo2LimitValues.includes(f.maxPermittedMgL) ? { maxPermittedMgL: autoMax ?? f.maxPermittedMgL } : {}),
     }));
   };
 
-  const openAdd = () => { setEditing(null); setForm({ testDate: today, vintageYear: String(new Date().getFullYear()), testMethod: "On-site — Ripper titration", testStage: "pre-bottling" }); setOpen(true); };
-  const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
+  const handleColourChange = (colour: string) => handleColourChangeWithOrganic(colour, isSo2BatchOrganic);
+
+  const openAdd = () => { setEditing(null); setIsSo2BatchOrganic(false); setForm({ testDate: today, vintageYear: String(new Date().getFullYear()), testMethod: "On-site — Ripper titration", testStage: "pre-bottling" }); setOpen(true); };
+  const openEdit = (r: Record<string, unknown>) => {
+    setEditing(r.id as number);
+    setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
+    // Determine organic status from linked pressing batch (if any)
+    const batchRef = String(r.batch_ref ?? "");
+    const match = so2PressingRefs.find(p => p.batchRef === batchRef);
+    setIsSo2BatchOrganic(match?.isOrganic ?? false);
+    setOpen(true);
+  };
   const save = async () => {
     const payload = { ...form, so2Compliant: autoCompliant != null ? String(autoCompliant) : form.so2Compliant };
     try {
@@ -3403,8 +3448,10 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
         </div>
         <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Log Test</Button>
       </div>
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-900">
-        <strong>Organic limits (UK-retained Reg 203/2012):</strong> Red wine 100 mg/L total SO₂ · White/Rosé 150 mg/L · Sparkling 185 mg/L. These are <em>total</em> SO₂ limits; free SO₂ should also be recorded for wine stability assessment (typically 20–35 mg/L free SO₂ at bottling for table wines).
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-900 space-y-1">
+        <p><strong>Organic limits (UK-retained Reg 203/2012):</strong> Red 100 mg/L · White/Rosé 150 mg/L · Sparkling 185 mg/L</p>
+        <p><strong>Conventional limits (Reg 1308/2013):</strong> Red 150 mg/L · White/Rosé 200 mg/L · Sparkling 235 mg/L</p>
+        <p>These are <em>total</em> SO₂ limits. The max permitted field auto-fills from the linked batch's organic status — edit it to override.</p>
       </div>
       <div className="flex items-center gap-2">
         <span className="text-xs text-muted-foreground">Vintage:</span>
@@ -3551,9 +3598,11 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <Label>Max Permitted (mg/L)</Label>
-                  {form.wineColour && ORGANIC_MAX_SO2[form.wineColour] && <span className="text-xs text-blue-600">auto from colour</span>}
+                  {form.wineColour && (ORGANIC_MAX_SO2[form.wineColour] || CONVENTIONAL_MAX_SO2[form.wineColour]) && (
+                    <span className="text-xs text-blue-600">{isSo2BatchOrganic ? "🌿 organic limit" : "conv. limit"} auto from colour</span>
+                  )}
                 </div>
-                <Input type="number" step="1" value={form.maxPermittedMgL ?? ""} onChange={e => sf("maxPermittedMgL", e.target.value)} placeholder="100 / 150 / 185" />
+                <Input type="number" step="1" value={form.maxPermittedMgL ?? ""} onChange={e => sf("maxPermittedMgL", e.target.value)} placeholder={isSo2BatchOrganic ? "100 / 150 / 185 (organic)" : "150 / 200 / 235 (conv.)"} />
               </div>
               {autoCompliant !== null && (
                 <div className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
