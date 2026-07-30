@@ -1940,6 +1940,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
   const [nameSearch, setNameSearch] = useState("");
+  const [txLogBatchFilter, setTxLogBatchFilter] = useState("");
   const { data: additionsSummary = [] } = useAdditionsSummary(farmId);
   const { data: allAdditions = [] } = useAllPressAdditions(farmId);
   const sf = (k: string, v: string | boolean) => {
@@ -2170,7 +2171,10 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
 
   const filteredTransactionLog = (yearFilter === "all"
     ? allAdditions
-    : allAdditions.filter((r: Record<string, unknown>) => String(r.vintage_year) === yearFilter));
+    : allAdditions.filter((r: Record<string, unknown>) => String(r.vintage_year) === yearFilter)
+  ).filter((r: Record<string, unknown>) =>
+    txLogBatchFilter.trim() === "" || String(r.batch_ref ?? "").toLowerCase().includes(txLogBatchFilter.trim().toLowerCase())
+  );
 
   const pressCsvCols = [
     { key: "vintage_year", label: "Vintage" },
@@ -2297,8 +2301,30 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={() => printAdditionsReport(searchFilteredSummary, farmName, yearFilter === "all" ? "All vintages" : yearFilter)} disabled={!searchFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
               <Button size="sm" variant="outline" onClick={() => exportCSV(searchFilteredSummary, `pressing-additions-report-${yearFilter}.csv`, summaryCsvCols)} disabled={!searchFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export Summary CSV</Button>
-              <Button size="sm" variant="outline" onClick={() => exportCSV(filteredTransactionLog, `so2-transaction-log-${yearFilter}.csv`, transactionLogCsvCols)} disabled={!filteredTransactionLog.length} title="Export every individual SO₂ and additive record from pressing, fermentation, and cellar as a flat transaction log"><FileDown className="w-3.5 h-3.5 mr-1" />Transaction Log CSV</Button>
+              <Button size="sm" variant="outline" onClick={() => {
+                const suffix = txLogBatchFilter.trim() ? txLogBatchFilter.trim().replace(/[^a-zA-Z0-9_-]/g, "_") : yearFilter;
+                exportCSV(filteredTransactionLog, `so2-transaction-log-${suffix}.csv`, transactionLogCsvCols);
+              }} disabled={!filteredTransactionLog.length} title="Export every individual SO₂ and additive record from pressing, fermentation, and cellar as a flat transaction log"><FileDown className="w-3.5 h-3.5 mr-1" />Transaction Log CSV</Button>
             </div>
+          </div>
+
+          {/* Transaction log batch-ref filter */}
+          <div className="flex items-center gap-2 pb-1 border-b">
+            <span className="text-xs text-muted-foreground shrink-0">Transaction Log filter:</span>
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                value={txLogBatchFilter}
+                onChange={e => setTxLogBatchFilter(e.target.value)}
+                placeholder="Batch ref (leave blank for all)…"
+                className="h-7 pl-6 pr-2 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-indigo-400 w-56"
+              />
+            </div>
+            {txLogBatchFilter.trim() && (
+              <button onClick={() => setTxLogBatchFilter("")} className="text-xs text-muted-foreground hover:text-foreground underline shrink-0">Clear</button>
+            )}
+            <span className="text-xs text-muted-foreground ml-auto">{filteredTransactionLog.length} row{filteredTransactionLog.length !== 1 ? "s" : ""} in export</span>
           </div>
 
           {/* Category filter chips + name search */}
