@@ -1339,6 +1339,15 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     so2ByVintage.set(v, (so2ByVintage.get(v) ?? 0) + parseFloat(String(r.total_dose ?? 0)));
   });
   const so2ChartData = Array.from(so2ByVintage.entries()).map(([vintage, total]) => ({ vintage, total })).sort((a, b) => a.vintage.localeCompare(b.vintage));
+  // Detect mixed units across SO₂ rows — if any vintage combines mg/kg and mg/L the totals are meaningless
+  const so2UnitsByVintage = new Map<string, Set<string>>();
+  additionsSummary.filter(r => r.category === "so2").forEach(r => {
+    const v = String(r.vintage_year ?? "?");
+    const u = String(r.unit ?? "");
+    if (!so2UnitsByVintage.has(v)) so2UnitsByVintage.set(v, new Set());
+    so2UnitsByVintage.get(v)!.add(u);
+  });
+  const so2MixedUnits = Array.from(so2UnitsByVintage.values()).some(units => units.size > 1);
   const summaryCsvCols = [
     { key: "vintage_year", label: "Vintage" },
     { key: "additive_name", label: "Additive" },
@@ -1538,6 +1547,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                 <span className="flex items-center gap-1"><span className="inline-block w-4 border-t-2 border-dashed border-red-500" />Conv. max 200 mg/kg</span>
                 <span className="flex items-center gap-1"><span className="inline-block w-4 border-t-2 border-dashed border-amber-500" />Organic limit 90 mg/kg</span>
               </p>
+              {so2MixedUnits && (
+                <p className="mt-2 flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                  <span><strong>Mixed units detected.</strong> Some SO₂ records for this vintage use mg/kg and others use mg/L — the stacked totals above are numerically meaningless and should not be compared directly. Check the rows below for per-record units.</span>
+                </p>
+              )}
             </div>
           )}
 
