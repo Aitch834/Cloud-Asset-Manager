@@ -60,5 +60,13 @@ export async function runWineryMigrations(): Promise<void> {
   // Organic flag on bottling records — inherited from fermentation/pressing, drives pre-bottling SO₂ ceiling
   await db.execute(sql`ALTER TABLE winery_bottling_records ADD COLUMN IF NOT EXISTS is_organic boolean NOT NULL DEFAULT false`);
 
+  // Unique lot codes per farm — NULL allowed (lot code is optional), but two non-NULL values
+  // with the same (farm_id, lot_code) are rejected at the DB level regardless of which code path writes them.
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS winery_bottling_records_farm_lot_code_uniq
+    ON winery_bottling_records(farm_id, lot_code)
+    WHERE lot_code IS NOT NULL
+  `);
+
   console.log("[WINERY-MIGRATE] Done.");
 }
