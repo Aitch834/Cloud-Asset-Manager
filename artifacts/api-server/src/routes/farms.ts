@@ -36692,7 +36692,7 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.execute(sql`
     SELECT 'pressing' AS source,
-           p.vintage_year, p.batch_ref, p.press_date AS record_date,
+           p.vintage_year, p.batch_ref, p.wine_colour, p.press_date AS record_date,
            a.additive_name, a.category, a.dose::text AS dose, a.unit, a.notes,
            a.pressing_record_id,
            p.operator_name,
@@ -36704,7 +36704,7 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
     UNION ALL
 
     SELECT 'fermentation' AS source,
-           f.vintage_year, f.batch_ref, f.start_date AS record_date,
+           f.vintage_year, f.batch_ref, f.wine_colour, f.start_date AS record_date,
            'SO₂ / Potassium metabisulphite (KMS)' AS additive_name,
            'so2' AS category,
            f.so2_at_fermentation_mg_l::text AS dose,
@@ -36721,7 +36721,7 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
     UNION ALL
 
     SELECT 'cellar' AS source,
-           o.vintage_year, o.batch_ref, o.op_date AS record_date,
+           o.vintage_year, o.batch_ref, o.wine_colour, o.op_date AS record_date,
            'SO₂ / Potassium metabisulphite (KMS)' AS additive_name,
            'so2' AS category,
            o.so2_quantity_g::text AS dose,

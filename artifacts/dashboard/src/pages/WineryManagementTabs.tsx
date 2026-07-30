@@ -2161,6 +2161,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     { key: "source", label: "Source", fmt: (r: Record<string, unknown>) => SOURCE_LABELS[String(r.source ?? "pressing")] ?? String(r.source ?? "pressing") },
     { key: "vintage_year", label: "Vintage" },
     { key: "batch_ref", label: "Batch Ref" },
+    { key: "wine_colour", label: "Wine Colour" },
     { key: "record_date", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.record_date) },
     { key: "operator_name", label: "Operator" },
     { key: "vessel_ref", label: "Vessel" },
