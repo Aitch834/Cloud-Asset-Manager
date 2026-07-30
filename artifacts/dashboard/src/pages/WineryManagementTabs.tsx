@@ -705,6 +705,113 @@ function BatchTrailDialog({ farmId, pressing, onClose }: { farmId: number; press
   );
 }
 
+// ─── Additions Report — Print helper ─────────────────────────────────────────
+function escHtml(v: unknown): string {
+  return String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function printAdditionsReport(
+  rows: Record<string, unknown>[],
+  farmName: string,
+  vintageLabel: string,
+) {
+  const printedOn = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const showVintage = rows.length > 0 && rows.some((r, i) => i > 0 && r.vintage_year !== rows[0].vintage_year);
+
+  const tableRows = rows.map(row => {
+    const avgDose = parseFloat(String(row.avg_dose ?? 0));
+    const warnConv  = row.category === "so2"          && avgDose > 200;
+    const warnOrg   = row.category === "so2"          && !warnConv && avgDose > 90;
+    const warnAsc   = row.category === "ascorbic_acid" && avgDose > 250;
+    const rowStyle  = warnConv ? 'style="background:#fee2e2"'
+                    : (warnOrg || warnAsc) ? 'style="background:#fef3c7"' : "";
+
+    // limitCell contains only trusted static text + escaped unit
+    const unitEsc = escHtml(row.unit ?? "mg/kg");
+    let limitCell = "";
+    if (warnConv)      limitCell = `<span style="color:#b91c1c;font-weight:600">⚠ Avg exceeds conv. max (200 ${unitEsc})</span>`;
+    else if (warnOrg)  limitCell = `<span style="color:#92400e">⚠ Avg exceeds organic limit (90 ${unitEsc})</span>`;
+    else if (warnAsc)  limitCell = `<span style="color:#b91c1c;font-weight:600">⚠ Avg exceeds max (250 mg/L)</span>`;
+    else if (row.category === "so2")          limitCell = `Conv. max 200 ${unitEsc} · Organic 90`;
+    else if (row.category === "ascorbic_acid") limitCell = "Max 250 mg/L";
+
+    const vintageCell = showVintage ? `<td>${escHtml(row.vintage_year ?? "—")}</td>` : "";
+    return `<tr ${rowStyle}>
+      <td style="font-weight:500">${escHtml(row.additive_name)}</td>
+      ${vintageCell}
+      <td style="text-align:right">${escHtml(row.batch_count)}</td>
+      <td style="text-align:right;font-family:monospace">${parseFloat(String(row.total_dose ?? 0)).toFixed(1)}</td>
+      <td style="text-align:right;font-family:monospace">${avgDose.toFixed(1)}</td>
+      <td style="text-align:right;font-family:monospace">${parseFloat(String(row.min_dose ?? 0)).toFixed(1)}</td>
+      <td style="text-align:right;font-family:monospace">${parseFloat(String(row.max_dose ?? 0)).toFixed(1)}</td>
+      <td style="color:#6b7280;font-size:11px">${unitEsc}</td>
+      <td style="font-size:11px">${limitCell}</td>
+    </tr>`;
+  }).join("");
+
+  const vintageHeader = showVintage ? "<th>Vintage</th>" : "";
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Additive Usage Report — ${escHtml(farmName)} — ${escHtml(vintageLabel)}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #111; padding: 24px 32px; }
+  h1 { font-size: 18px; font-weight: 700; margin-bottom: 2px; }
+  .meta { color: #6b7280; font-size: 11px; margin-bottom: 18px; }
+  .meta span { margin-right: 16px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th { background: #f3f4f6; text-align: left; padding: 7px 8px; font-size: 11px; font-weight: 600;
+       text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid #d1d5db; }
+  td { padding: 6px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .legend { margin-top: 16px; font-size: 10px; color: #6b7280; }
+  .legend span { margin-right: 14px; }
+  @media print {
+    body { padding: 0; }
+    @page { margin: 18mm 16mm; }
+  }
+</style>
+</head>
+<body>
+<h1>Additive Usage Report</h1>
+<p class="meta">
+  <span><strong>${escHtml(farmName)}</strong></span>
+  <span>Vintage: <strong>${escHtml(vintageLabel)}</strong></span>
+  <span>Printed: ${escHtml(printedOn)}</span>
+  <span>${rows.length} additive row${rows.length !== 1 ? "s" : ""}</span>
+</p>
+<table>
+  <thead><tr>
+    <th>Additive</th>
+    ${vintageHeader}
+    <th style="text-align:right">Batches</th>
+    <th style="text-align:right">Total dose</th>
+    <th style="text-align:right">Avg / batch</th>
+    <th style="text-align:right">Min</th>
+    <th style="text-align:right">Max</th>
+    <th>Unit</th>
+    <th>Limit reference</th>
+  </tr></thead>
+  <tbody>${tableRows}</tbody>
+</table>
+<p class="legend">
+  <span style="color:#b91c1c">⚠ Red = average dose exceeds conventional maximum</span>
+  <span style="color:#92400e">⚠ Amber = average dose exceeds organic limit</span>
+  <span>Source: EU Reg 2019/934 (UK-retained law)</span>
+</p>
+</body>
+</html>`;
+
+  const w = window.open("", "_blank");
+  if (!w) return;
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 400);
+}
+
 // ─── Pressing Records Tab ─────────────────────────────────────────────────────
 export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const crud = useCrud(farmId, "winery-pressing", "winery-pressing");
@@ -713,6 +820,14 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const { staffNames, isLoading: staffLoading } = useStaff(farmId);
   const batchSettings = useWineryBatchSettings(farmId);
   const { toast } = useToast();
+  const { data: farmsData } = useQuery<{ records?: Record<string, unknown>[] }>({
+    queryKey: ["farms-list"],
+    queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
+    staleTime: 300_000,
+  });
+  const farmName: string = (Array.isArray(farmsData?.records)
+    ? (farmsData.records.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
+    : undefined) ?? `Farm ${farmId}`;
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
   const [view, setView] = useState<Record<string, unknown> | null>(null);
@@ -1015,7 +1130,10 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
               <p className="font-semibold text-sm flex items-center gap-1.5"><Beaker className="h-4 w-4 text-muted-foreground" />Additions Report</p>
               <p className="text-xs text-muted-foreground mt-0.5">Additive usage totals across pressing batches. Covers all structured additions — not the legacy text field. Use the vintage filter above to scope results.</p>
             </div>
-            <Button size="sm" variant="outline" onClick={() => exportCSV(filteredSummary, `pressing-additions-report-${yearFilter}.csv`, summaryCsvCols)} disabled={!filteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export Summary</Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => printAdditionsReport(filteredSummary, farmName, yearFilter === "all" ? "All vintages" : yearFilter)} disabled={!filteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
+              <Button size="sm" variant="outline" onClick={() => exportCSV(filteredSummary, `pressing-additions-report-${yearFilter}.csv`, summaryCsvCols)} disabled={!filteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+            </div>
           </div>
 
           {/* SO₂ bar chart across vintages — only shown when there is data for >1 vintage */}
