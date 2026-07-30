@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf } from "lucide-react";
+import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1157,6 +1157,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [showReport, setShowReport] = useState(false);
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
+  const [nameSearch, setNameSearch] = useState("");
   const { data: additionsSummary = [] } = useAdditionsSummary(farmId);
   const { data: allAdditions = [] } = useAllPressAdditions(farmId);
   const sf = (k: string, v: string | boolean) => {
@@ -1326,6 +1327,11 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const categoryFilteredSummary = categoryFilter.size === 0
     ? filteredSummary
     : filteredSummary.filter(r => categoryFilter.has(String(r.category ?? "other")));
+  const searchFilteredSummary = nameSearch.trim() === ""
+    ? categoryFilteredSummary
+    : categoryFilteredSummary.filter(r =>
+        String(r.additive_name ?? "").toLowerCase().includes(nameSearch.trim().toLowerCase())
+      );
   const showSo2Chart = categoryFilter.size === 0 || categoryFilter.has("so2");
   const so2ByVintage = new Map<string, number>();
   additionsSummary.filter(r => r.category === "so2").forEach(r => {
@@ -1459,45 +1465,58 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
               <p className="text-xs text-muted-foreground mt-0.5">Additive usage totals across pressing batches, fermentation records, and cellar sulfiting operations. SO₂ is captured at all three winemaking stages. Use the vintage filter above to scope results.</p>
             </div>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => printAdditionsReport(categoryFilteredSummary, farmName, yearFilter === "all" ? "All vintages" : yearFilter)} disabled={!categoryFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
-              <Button size="sm" variant="outline" onClick={() => exportCSV(categoryFilteredSummary, `pressing-additions-report-${yearFilter}.csv`, summaryCsvCols)} disabled={!categoryFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+              <Button size="sm" variant="outline" onClick={() => printAdditionsReport(searchFilteredSummary, farmName, yearFilter === "all" ? "All vintages" : yearFilter)} disabled={!searchFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
+              <Button size="sm" variant="outline" onClick={() => exportCSV(searchFilteredSummary, `pressing-additions-report-${yearFilter}.csv`, summaryCsvCols)} disabled={!searchFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
             </div>
           </div>
 
-          {/* Category filter chips */}
-          {availableCategories.length > 1 && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-muted-foreground shrink-0">Filter by category:</span>
-              {availableCategories.map(cat => {
-                const active = categoryFilter.has(cat);
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => setCategoryFilter(prev => {
-                      const next = new Set(prev);
-                      if (next.has(cat)) next.delete(cat); else next.add(cat);
-                      return next;
-                    })}
-                    className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
-                      active
-                        ? "bg-indigo-600 text-white border-indigo-600"
-                        : "bg-background text-muted-foreground border-border hover:border-indigo-400 hover:text-indigo-700"
-                    }`}
-                  >
-                    {ADDITIVE_CATEGORY_LABELS[cat] ?? cat}
-                  </button>
-                );
-              })}
-              {categoryFilter.size > 0 && (
-                <button
-                  onClick={() => setCategoryFilter(new Set())}
-                  className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
-                >
-                  Clear
-                </button>
-              )}
+          {/* Category filter chips + name search */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Name search */}
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                value={nameSearch}
+                onChange={e => setNameSearch(e.target.value)}
+                placeholder="Search additive…"
+                className="h-7 pl-6 pr-2 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-indigo-400 w-40"
+              />
             </div>
-          )}
+            {availableCategories.length > 1 && (
+              <>
+                <span className="text-xs text-muted-foreground shrink-0">Category:</span>
+                {availableCategories.map(cat => {
+                  const active = categoryFilter.has(cat);
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => setCategoryFilter(prev => {
+                        const next = new Set(prev);
+                        if (next.has(cat)) next.delete(cat); else next.add(cat);
+                        return next;
+                      })}
+                      className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                        active
+                          ? "bg-indigo-600 text-white border-indigo-600"
+                          : "bg-background text-muted-foreground border-border hover:border-indigo-400 hover:text-indigo-700"
+                      }`}
+                    >
+                      {ADDITIVE_CATEGORY_LABELS[cat] ?? cat}
+                    </button>
+                  );
+                })}
+                {categoryFilter.size > 0 && (
+                  <button
+                    onClick={() => setCategoryFilter(new Set())}
+                    className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                  >
+                    Clear
+                  </button>
+                )}
+              </>
+            )}
+          </div>
 
           {/* SO₂ bar chart across vintages — only shown when there is data for >1 vintage */}
           {showSo2Chart && so2ChartData.length > 1 && (
@@ -1524,8 +1543,8 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
 
           {filteredSummary.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">No structured additions recorded{yearFilter !== "all" ? ` for ${yearFilter}` : ""}. Add additives when logging a press record.</p>
-          ) : categoryFilteredSummary.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">No rows match the selected category filter. Try selecting a different category or clear the filter.</p>
+          ) : searchFilteredSummary.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">No rows match the current filters. Try a different additive name or clear the category filter.</p>
           ) : (
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
@@ -1542,7 +1561,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                   <th className="text-left p-2.5 font-medium">Limit reference</th>
                 </tr></thead>
                 <tbody className="divide-y">
-                  {categoryFilteredSummary.map((row, i) => {
+                  {searchFilteredSummary.map((row, i) => {
                     const avgDose = parseFloat(String(row.avg_dose ?? 0));
                     const warnConventional = row.category === "so2" && avgDose > 200;
                     const warnOrganic = row.category === "so2" && !warnConventional && avgDose > 90;
