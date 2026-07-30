@@ -36731,8 +36731,27 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
 router.put("/farms/:farmId/winery-pressing/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const b = sanitiseBody(req.body);
-  const r = await db.execute(sql`UPDATE winery_pressing_records SET press_date=${n(b.pressDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},press_type=${n(b.pressType)},grapes_pressed_kg=${nf(b.grapesPressedKg)},free_run_litres=${nf(b.freeRunLitres)},press_wine_litres=${nf(b.pressWineLitres)},total_juice_litres=${nf(b.totalJuiceLitres)},press_efficiency_l_per_kg=${nf(b.pressEfficiencyLPerKg)},juice_brix=${nf(b.juiceBrix)},juice_ph=${nf(b.juicePh)},juice_ta_gl=${nf(b.juiceTaGl)},juice_turbidity=${n(b.juiceTurbidity)},free_run_separated=${nb(b.freeRunSeparated) ?? true},additions_at_press=${n(b.additionsAtPress)},settling_method=${n(b.settlingMethod)},settling_vessel=${n(b.settlingVessel)},settling_hours=${ni(b.settlingHours)},juice_analysis_source=${n(b.juiceAnalysisSource)},is_organic=${nb(b.isOrganic) ?? false},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
-  res.json({ record: r.rows[0] });
+  const recordId = parseInt(req.params.id as string);
+  const batchRef = n(b.batchRef);
+  // Duplicate-ref guard: check whether the new batch_ref is already used by a *different* record
+  if (batchRef) {
+    const dup = await db.execute(sql`SELECT id FROM winery_pressing_records WHERE farm_id=${farmId} AND batch_ref=${batchRef} AND id != ${recordId} LIMIT 1`);
+    if (dup.rows.length > 0) {
+      res.status(409).json({ error: `Batch reference "${batchRef}" is already used by another pressing record. Please choose a different reference.`, code: "DUPLICATE_BATCH_REF" });
+      return;
+    }
+  }
+  try {
+    const r = await db.execute(sql`UPDATE winery_pressing_records SET press_date=${n(b.pressDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${batchRef},press_type=${n(b.pressType)},grapes_pressed_kg=${nf(b.grapesPressedKg)},free_run_litres=${nf(b.freeRunLitres)},press_wine_litres=${nf(b.pressWineLitres)},total_juice_litres=${nf(b.totalJuiceLitres)},press_efficiency_l_per_kg=${nf(b.pressEfficiencyLPerKg)},juice_brix=${nf(b.juiceBrix)},juice_ph=${nf(b.juicePh)},juice_ta_gl=${nf(b.juiceTaGl)},juice_turbidity=${n(b.juiceTurbidity)},free_run_separated=${nb(b.freeRunSeparated) ?? true},additions_at_press=${n(b.additionsAtPress)},settling_method=${n(b.settlingMethod)},settling_vessel=${n(b.settlingVessel)},settling_hours=${ni(b.settlingHours)},juice_analysis_source=${n(b.juiceAnalysisSource)},is_organic=${nb(b.isOrganic) ?? false},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${recordId} AND farm_id=${farmId} RETURNING *`);
+    res.json({ record: r.rows[0] });
+  } catch (err: unknown) {
+    // PostgreSQL unique-constraint violation — (farm_id, batch_ref) index
+    if (typeof err === "object" && err !== null && (err as { code?: string }).code === "23505") {
+      res.status(409).json({ error: `Batch reference "${batchRef}" is already used by another pressing record. Please choose a different reference.`, code: "DUPLICATE_BATCH_REF" });
+      return;
+    }
+    throw err;
+  }
 });
 router.delete("/farms/:farmId/winery-pressing/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;

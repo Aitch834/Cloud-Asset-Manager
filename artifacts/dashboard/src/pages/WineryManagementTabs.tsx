@@ -54,7 +54,7 @@ function useCrud<T extends Record<string, unknown>>(farmId: number, endpoint: st
   const edit = useMutation({
     mutationFn: async ({ id, ...body }: Partial<T> & { id: number }) => {
       const r = await fetch(api(`farms/${farmId}/${endpoint}/${id}`), { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
-      if (!r.ok) throw new Error("Save failed");
+      if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || "Save failed"); (err as Error & { code?: string }).code = e.code; throw err; }
       return r.json();
     },
     onSuccess: invalidate,
@@ -814,7 +814,17 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     const payload = { ...form, totalJuiceLitres: total != null ? String(total) : form.totalJuiceLitres, pressEfficiencyLPerKg: efficiency ?? form.pressEfficiencyLPerKg };
     let pressingId: number;
     if (editing !== null) {
-      await crud.edit.mutateAsync({ id: editing, ...payload } as Record<string, unknown> & { id: number });
+      try {
+        await crud.edit.mutateAsync({ id: editing, ...payload } as Record<string, unknown> & { id: number });
+      } catch (err) {
+        const e = err as Error & { code?: string };
+        if (e.code === "DUPLICATE_BATCH_REF") {
+          setBatchRefError(e.message);
+        } else {
+          toast({ title: "Save failed", description: e.message || "An unexpected error occurred.", variant: "destructive" });
+        }
+        return;
+      }
       pressingId = editing;
     } else {
       let result: unknown;
