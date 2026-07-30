@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Settings2, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Settings2, RefreshCw, GitBranch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -493,6 +493,213 @@ function useWineryBatchSettings(farmId: number) {
   return { data: q.data, isLoading: q.isLoading, save };
 }
 
+// ─── Batch Trail Dialog ───────────────────────────────────────────────────────
+interface BatchTrailData {
+  batchRef: string;
+  fermentation: Record<string, unknown>[];
+  cellarOps: Record<string, unknown>[];
+  so2Tests: Record<string, unknown>[];
+  bottling: Record<string, unknown>[];
+  pressAdditions: Record<string, unknown>[];
+}
+
+function TrailSection({ icon: Icon, title, count, children }: { icon: React.ElementType; title: string; count: number; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <Icon className="h-4 w-4 text-muted-foreground" />
+        <span className="font-semibold text-sm">{title}</span>
+        <span className="ml-auto text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{count}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function BatchTrailDialog({ farmId, pressing, onClose }: { farmId: number; pressing: Record<string, unknown>; onClose: () => void }) {
+  const batchRef = String(pressing.batch_ref ?? "");
+  const { data, isLoading, isError } = useQuery<BatchTrailData>({
+    queryKey: ["winery-batch-trail", farmId, batchRef],
+    queryFn: async () => {
+      const r = await fetch(api(`farms/${farmId}/winery-pressing/batch-trail?batchRef=${encodeURIComponent(batchRef)}`), { credentials: "include" });
+      if (!r.ok) throw new Error("Failed to load batch trail");
+      return r.json();
+    },
+    enabled: !!batchRef,
+    staleTime: 30_000,
+  });
+
+  const totalLinked = (data?.fermentation.length ?? 0) + (data?.cellarOps.length ?? 0) + (data?.so2Tests.length ?? 0) + (data?.bottling.length ?? 0);
+
+  return (
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <GitBranch className="h-4 w-4 text-blue-600" />
+            Batch Trail — {batchRef || "—"}
+          </DialogTitle>
+          <DialogDescription>
+            All records linked to this pressing batch{pressing.vintage_year ? ` (Vintage ${String(pressing.vintage_year)})` : ""}. Press date: {fmtDate(pressing.press_date)}.
+          </DialogDescription>
+        </DialogHeader>
+
+        {isLoading && <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}
+        {isError && <p className="text-sm text-red-600 py-4">Failed to load batch trail. Please try again.</p>}
+
+        {data && (
+          <div className="space-y-5 text-sm">
+
+            {/* Press Additions at pressing */}
+            {data.pressAdditions.length > 0 && (
+              <div>
+                <SectionLabel>Pressing Additives</SectionLabel>
+                <div className="rounded border divide-y mt-2">
+                  {data.pressAdditions.map((a, i) => (
+                    <div key={i} className="flex items-center gap-3 px-3 py-2">
+                      <Beaker className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span className="font-medium">{fmt(a.additive_name)}</span>
+                      <span className="text-muted-foreground text-xs">{a.dose != null ? `${fmtNum(a.dose, 2)} ${fmt(a.unit)}` : "—"}</span>
+                      {!!a.notes && <span className="text-muted-foreground text-xs ml-auto truncate max-w-[160px]">{String(a.notes)}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {totalLinked === 0 && !isLoading && (
+              <EmptyState icon={GitBranch} title="No linked records yet" sub="Fermentation, cellar ops, SO₂ tests, and bottling runs sharing this batch reference will appear here." />
+            )}
+
+            {/* Fermentation */}
+            {data.fermentation.length > 0 && (
+              <TrailSection icon={FlaskConical} title="Fermentation" count={data.fermentation.length}>
+                <div className="rounded border divide-y">
+                  {data.fermentation.map(r => (
+                    <div key={String(r.id)} className="px-3 py-2.5 space-y-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium">{r.start_date ? fmtDate(r.start_date) : "—"}{r.end_date ? ` → ${fmtDate(r.end_date)}` : ""}</span>
+                          {!!r.wine_colour && <Badge variant="outline" className="text-xs">{String(r.wine_colour)}</Badge>}
+                          {!!r.vessel_ref && <span className="text-xs text-muted-foreground">Vessel: {String(r.vessel_ref)}</span>}
+                        </div>
+                        {!!r.operator_name && <span className="text-xs text-muted-foreground shrink-0">{String(r.operator_name)}</span>}
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                        {!!r.fermentation_type && <span>{String(r.fermentation_type)}</span>}
+                        {!!r.yeast_strain && <span>Yeast: {String(r.yeast_strain)}</span>}
+                        {!!r.inoculation_date && <span>Inoculated: {fmtDate(r.inoculation_date)}</span>}
+                        {r.volume_litres != null && <span>{fmtNum(r.volume_litres, 0)} L</span>}
+                        {r.so2_at_fermentation_mg_l != null && <span>SO₂: {fmtNum(r.so2_at_fermentation_mg_l, 1)} mg/L</span>}
+                      </div>
+                      {!!r.notes && <p className="text-xs text-muted-foreground italic">{String(r.notes)}</p>}
+                    </div>
+                  ))}
+                </div>
+              </TrailSection>
+            )}
+
+            {/* Cellar Ops */}
+            {data.cellarOps.length > 0 && (
+              <TrailSection icon={Wrench} title="Cellar Operations" count={data.cellarOps.length}>
+                <div className="rounded border divide-y">
+                  {data.cellarOps.map(r => (
+                    <div key={String(r.id)} className="px-3 py-2.5 space-y-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium">{fmtDate(r.op_date)}</span>
+                          <Badge variant="outline" className="text-xs">{CELLAR_OP_LABELS[String(r.op_type)] ?? fmt(r.op_type)}</Badge>
+                          {!!r.from_vessel_ref && <span className="text-xs text-muted-foreground">{String(r.from_vessel_ref)}{r.to_vessel_ref ? ` → ${String(r.to_vessel_ref)}` : ""}</span>}
+                        </div>
+                        {!!r.operator_name && <span className="text-xs text-muted-foreground shrink-0">{String(r.operator_name)}</span>}
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                        {r.volume_moved_litres != null && <span>{fmtNum(r.volume_moved_litres, 1)} L moved</span>}
+                        {r.so2_quantity_g != null && <span>SO₂: {fmtNum(r.so2_quantity_g, 1)} g</span>}
+                        {r.free_so2_before_mg_l != null && <span>Free SO₂ before: {fmtNum(r.free_so2_before_mg_l, 1)} mg/L</span>}
+                        {r.free_so2_after_mg_l != null && <span>after: {fmtNum(r.free_so2_after_mg_l, 1)} mg/L</span>}
+                        {!!r.fining_agent && <span>Fining: {String(r.fining_agent)}{r.fining_dose ? ` @ ${String(r.fining_dose)}` : ""}</span>}
+                      </div>
+                      {!!r.notes && <p className="text-xs text-muted-foreground italic">{String(r.notes)}</p>}
+                    </div>
+                  ))}
+                </div>
+              </TrailSection>
+            )}
+
+            {/* SO₂ Tests */}
+            {data.so2Tests.length > 0 && (
+              <TrailSection icon={Gauge} title="SO₂ Tests" count={data.so2Tests.length}>
+                <div className="rounded border divide-y">
+                  {data.so2Tests.map(r => (
+                    <div key={String(r.id)} className="px-3 py-2.5 space-y-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium">{fmtDate(r.test_date)}</span>
+                          <Badge variant="outline" className="text-xs">{SO2_TEST_STAGE_LABELS[String(r.test_stage)] ?? fmt(r.test_stage)}</Badge>
+                          {!!r.vessel_ref && <span className="text-xs text-muted-foreground">Vessel: {String(r.vessel_ref)}</span>}
+                        </div>
+                        <So2Badge compliant={r.so2_compliant} />
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                        {r.free_so2_mg_l != null && <span>Free SO₂: {fmtNum(r.free_so2_mg_l, 1)} mg/L</span>}
+                        {r.total_so2_mg_l != null && <span>Total SO₂: {fmtNum(r.total_so2_mg_l, 1)} mg/L</span>}
+                        {r.max_permitted_mg_l != null && <span>Max permitted: {fmtNum(r.max_permitted_mg_l, 0)} mg/L</span>}
+                        {!!r.test_method && <span>{String(r.test_method)}</span>}
+                      </div>
+                      {!!r.action_taken && <p className="text-xs text-muted-foreground">Action: {String(r.action_taken)}</p>}
+                      {!!r.notes && <p className="text-xs text-muted-foreground italic">{String(r.notes)}</p>}
+                    </div>
+                  ))}
+                </div>
+              </TrailSection>
+            )}
+
+            {/* Bottling */}
+            {data.bottling.length > 0 && (
+              <TrailSection icon={Package} title="Bottling Runs" count={data.bottling.length}>
+                <div className="rounded border divide-y">
+                  {data.bottling.map(r => (
+                    <div key={String(r.id)} className="px-3 py-2.5 space-y-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium">{fmtDate(r.bottling_date)}</span>
+                          {!!r.lot_code && <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">Lot: {String(r.lot_code)}</span>}
+                          {!!r.wine_colour && <Badge variant="outline" className="text-xs">{String(r.wine_colour)}</Badge>}
+                          {(r.certified_organic === true || r.certified_organic === "true") && (
+                            <Badge className="text-xs bg-green-100 text-green-800 border-0">Organic</Badge>
+                          )}
+                        </div>
+                        {!!r.operator_name && <span className="text-xs text-muted-foreground shrink-0">{String(r.operator_name)}</span>}
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                        {r.volume_bottled_litres != null && <span>{fmtNum(r.volume_bottled_litres, 1)} L</span>}
+                        {r.bottles_produced != null && <span>{String(r.bottles_produced)} bottles</span>}
+                        {r.cases_produced != null && <span>{String(r.cases_produced)} cases</span>}
+                        {r.bottle_size_ml != null && <span>{String(r.bottle_size_ml)} mL</span>}
+                        {!!r.closure_type && <span>{String(r.closure_type)}</span>}
+                        {r.actual_abv_pct != null && <span>ABV: {fmtNum(r.actual_abv_pct, 1)}%</span>}
+                        {r.free_so2_mg_l != null && <span>Free SO₂: {fmtNum(r.free_so2_mg_l, 1)} mg/L</span>}
+                      </div>
+                      {!!r.source_vessel_ref && <p className="text-xs text-muted-foreground">Source vessel: {String(r.source_vessel_ref)}</p>}
+                      {!!r.notes && <p className="text-xs text-muted-foreground italic">{String(r.notes)}</p>}
+                    </div>
+                  ))}
+                </div>
+              </TrailSection>
+            )}
+
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Pressing Records Tab ─────────────────────────────────────────────────────
 export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const crud = useCrud(farmId, "winery-pressing", "winery-pressing");
@@ -514,6 +721,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [batchRefError, setBatchRefError] = useState<string | null>(null);
   const addRowCounter = useRef(0);
   const [showReport, setShowReport] = useState(false);
+  const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   const { data: additionsSummary = [] } = useAdditionsSummary(farmId);
   const { data: allAdditions = [] } = useAllPressAdditions(farmId);
   const sf = (k: string, v: string | boolean) => {
@@ -763,6 +971,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                   <td className="p-3 text-right">{fmtNum(r.juice_brix, 1)}</td>
                   <td className="p-3 text-right">{fmtNum(r.juice_ph, 2)}</td>
                   <td className="p-3 text-right whitespace-nowrap">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title="View batch trail" onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
@@ -772,6 +981,15 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* ── Batch Trail Dialog ────────────────────────────────────────────────── */}
+      {trailRecord && (
+        <BatchTrailDialog
+          farmId={farmId}
+          pressing={trailRecord}
+          onClose={() => setTrailRecord(null)}
+        />
       )}
 
       {/* ── Additions Report Panel ────────────────────────────────────────────── */}

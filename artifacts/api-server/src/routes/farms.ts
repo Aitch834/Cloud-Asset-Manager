@@ -36659,6 +36659,75 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
   res.json({ additions: rows.rows });
 });
 
+// ── Batch Trail — all records linked to a pressing batch_ref ───────────────────
+// Must sit before /:id routes so Express does not interpret "batch-trail" as an id.
+router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const batchRef = typeof req.query.batchRef === "string" ? req.query.batchRef.trim() : null;
+  if (!batchRef) { res.status(400).json({ error: "batchRef query parameter required" }); return; }
+
+  const [fermentation, cellarOps, so2Tests, bottling, pressAdditions] = await Promise.all([
+    db.execute(sql`
+      SELECT f.id, f.start_date, f.end_date, f.batch_ref, f.vintage_year, f.wine_colour,
+             f.fermentation_type, f.yeast_strain, f.inoculation_date, f.volume_litres,
+             f.so2_at_fermentation_mg_l, f.operator_name, f.notes,
+             v.vessel_ref
+      FROM winery_fermentation_records f
+      LEFT JOIN winery_vessels v ON v.id = f.vessel_id
+      WHERE f.farm_id = ${farmId} AND f.batch_ref = ${batchRef}
+      ORDER BY f.start_date ASC NULLS LAST
+    `),
+    db.execute(sql`
+      SELECT o.id, o.op_date, o.batch_ref, o.vintage_year, o.op_type,
+             o.volume_moved_litres, o.so2_quantity_g, o.free_so2_before_mg_l, o.free_so2_after_mg_l,
+             o.fining_agent, o.operator_name, o.notes,
+             fv.vessel_ref AS from_vessel_ref, tv.vessel_ref AS to_vessel_ref
+      FROM winery_cellar_ops o
+      LEFT JOIN winery_vessels fv ON fv.id = o.from_vessel_id
+      LEFT JOIN winery_vessels tv ON tv.id = o.to_vessel_id
+      WHERE o.farm_id = ${farmId} AND o.batch_ref = ${batchRef}
+      ORDER BY o.op_date ASC NULLS LAST
+    `),
+    db.execute(sql`
+      SELECT t.id, t.test_date, t.batch_ref, t.vintage_year, t.wine_colour,
+             t.test_stage, t.test_method, t.free_so2_mg_l, t.total_so2_mg_l,
+             t.max_permitted_mg_l, t.so2_compliant, t.action_taken, t.operator_name, t.notes,
+             v.vessel_ref
+      FROM winery_so2_tests t
+      LEFT JOIN winery_vessels v ON v.id = t.vessel_id
+      WHERE t.farm_id = ${farmId} AND t.batch_ref = ${batchRef}
+      ORDER BY t.test_date ASC NULLS LAST
+    `),
+    db.execute(sql`
+      SELECT b.id, b.bottling_date, b.batch_ref, b.vintage_year, b.wine_colour,
+             b.lot_code, b.volume_bottled_litres, b.bottle_size_ml, b.bottles_produced,
+             b.cases_produced, b.closure_type, b.free_so2_mg_l, b.total_so2_mg_l,
+             b.actual_abv_pct, b.certified_organic, b.operator_name, b.notes,
+             v.vessel_ref AS source_vessel_ref
+      FROM winery_bottling_records b
+      LEFT JOIN winery_vessels v ON v.id = b.source_vessel_id
+      WHERE b.farm_id = ${farmId} AND b.batch_ref = ${batchRef}
+      ORDER BY b.bottling_date ASC NULLS LAST
+    `),
+    db.execute(sql`
+      SELECT a.additive_name, a.category, a.dose, a.unit, a.notes
+      FROM winery_pressing_additions a
+      JOIN winery_pressing_records p ON p.id = a.pressing_record_id
+      WHERE p.farm_id = ${farmId} AND p.batch_ref = ${batchRef}
+      ORDER BY a.id ASC
+    `),
+  ]);
+
+  res.json({
+    batchRef,
+    fermentation: fermentation.rows,
+    cellarOps: cellarOps.rows,
+    so2Tests: so2Tests.rows,
+    bottling: bottling.rows,
+    pressAdditions: pressAdditions.rows,
+  });
+});
+
 router.put("/farms/:farmId/winery-pressing/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const b = sanitiseBody(req.body);
