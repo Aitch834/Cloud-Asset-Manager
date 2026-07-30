@@ -908,6 +908,85 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
         {data && (
           <div className="space-y-5 text-sm">
 
+            {/* Pressing details */}
+            {(() => {
+              const hasDetails = pressing.press_type || pressing.grapes_pressed_kg || pressing.press_wine_litres ||
+                pressing.juice_brix || pressing.juice_ph || pressing.juice_ta_gl ||
+                pressing.operator_name || pressing.settling_method || pressing.juice_turbidity;
+              if (!hasDetails && !pressing.notes) return null;
+              return (
+                <div className="rounded-lg border bg-muted/20 px-4 py-3 space-y-3">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                    <Wine className="h-3.5 w-3.5" />Pressing Record
+                  </span>
+                  {!!hasDetails && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 text-xs">
+                      {!!pressing.press_type && (
+                        <div>
+                          <p className="text-muted-foreground uppercase tracking-wide" style={{ fontSize: "10px" }}>Press Type</p>
+                          <p className="font-medium">{String(pressing.press_type)}</p>
+                        </div>
+                      )}
+                      {!!pressing.operator_name && (
+                        <div>
+                          <p className="text-muted-foreground uppercase tracking-wide" style={{ fontSize: "10px" }}>Operator</p>
+                          <p className="font-medium">{String(pressing.operator_name)}</p>
+                        </div>
+                      )}
+                      {!!pressing.settling_method && (
+                        <div>
+                          <p className="text-muted-foreground uppercase tracking-wide" style={{ fontSize: "10px" }}>Settling Method</p>
+                          <p className="font-medium">{String(pressing.settling_method)}</p>
+                        </div>
+                      )}
+                      {!!pressing.juice_turbidity && (
+                        <div>
+                          <p className="text-muted-foreground uppercase tracking-wide" style={{ fontSize: "10px" }}>Juice Turbidity</p>
+                          <p className="font-medium">{String(pressing.juice_turbidity)}</p>
+                        </div>
+                      )}
+                      {pressing.grapes_pressed_kg != null && pressing.grapes_pressed_kg !== "" && (
+                        <div>
+                          <p className="text-muted-foreground uppercase tracking-wide" style={{ fontSize: "10px" }}>Grapes Pressed</p>
+                          <p className="font-medium font-mono">{fmtNum(pressing.grapes_pressed_kg, 0)} kg</p>
+                        </div>
+                      )}
+                      {pressing.press_wine_litres != null && pressing.press_wine_litres !== "" && (
+                        <div>
+                          <p className="text-muted-foreground uppercase tracking-wide" style={{ fontSize: "10px" }}>Juice Yield</p>
+                          <p className="font-medium font-mono">{fmtNum(pressing.press_wine_litres, 1)} L</p>
+                        </div>
+                      )}
+                      {pressing.juice_brix != null && pressing.juice_brix !== "" && (
+                        <div>
+                          <p className="text-muted-foreground uppercase tracking-wide" style={{ fontSize: "10px" }}>Brix °</p>
+                          <p className="font-medium font-mono">{fmtNum(pressing.juice_brix, 1)}</p>
+                        </div>
+                      )}
+                      {pressing.juice_ph != null && pressing.juice_ph !== "" && (
+                        <div>
+                          <p className="text-muted-foreground uppercase tracking-wide" style={{ fontSize: "10px" }}>Juice pH</p>
+                          <p className="font-medium font-mono">{fmtNum(pressing.juice_ph, 2)}</p>
+                        </div>
+                      )}
+                      {pressing.juice_ta_gl != null && pressing.juice_ta_gl !== "" && (
+                        <div>
+                          <p className="text-muted-foreground uppercase tracking-wide" style={{ fontSize: "10px" }}>Juice TA (g/L)</p>
+                          <p className="font-medium font-mono">{fmtNum(pressing.juice_ta_gl, 1)}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {!!pressing.notes && (
+                    <div className="border-t pt-2 text-xs">
+                      <span className="font-semibold uppercase tracking-wide text-muted-foreground" style={{ fontSize: "10px" }}>Pressing notes</span>
+                      <p className="mt-0.5 text-foreground whitespace-pre-wrap">{String(pressing.notes)}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* SO₂ cumulative summary */}
             <So2SummaryBlock summary={computeSo2Summary(pressing, data)} />
 
