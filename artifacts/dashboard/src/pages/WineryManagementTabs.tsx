@@ -1614,6 +1614,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
   const [view, setView] = useState<Record<string, unknown> | null>(null);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [isOrganicForm, setIsOrganicForm] = useState(false);
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -1630,14 +1631,22 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
     // Auto-fill batch ref and vintage year when linking a pressing record
     if (!form.batchRef && match.batch_ref) sf("batchRef", String(match.batch_ref));
     if (!form.vintageYear && match.vintage_year) sf("vintageYear", String(match.vintage_year));
+    // Inherit organic status from pressing record (user can override manually)
+    setIsOrganicForm(!!(match.is_organic === true || match.is_organic === "true"));
   };
 
-  const openAdd = () => { setEditing(null); setForm({ vintageYear: String(new Date().getFullYear()) }); setOpen(true); };
-  const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
+  const openAdd = () => { setEditing(null); setForm({ vintageYear: String(new Date().getFullYear()) }); setIsOrganicForm(false); setOpen(true); };
+  const openEdit = (r: Record<string, unknown>) => {
+    setEditing(r.id as number);
+    setForm(Object.fromEntries(Object.entries(r).filter(([k]) => k !== "is_organic").map(([k, v]) => [k, v == null ? "" : String(v)])));
+    setIsOrganicForm(!!(r.is_organic === true || r.is_organic === "true"));
+    setOpen(true);
+  };
   const save = async () => {
     try {
-      if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...form } as Record<string, unknown> & { id: number });
-      else await crud.add.mutateAsync(form);
+      const payload = { ...form, isOrganic: isOrganicForm };
+      if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...payload } as Record<string, unknown> & { id: number });
+      else await crud.add.mutateAsync(payload);
       toast({ title: "Saved" }); setOpen(false);
     } catch (err) {
       const e = err as Error;
@@ -1651,16 +1660,22 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
   const fermentCsvCols = [
     { key: "vintage_year", label: "Vintage" },
     { key: "batch_ref", label: "Batch Ref" },
-    { key: "wine_type", label: "Wine Type" },
-    { key: "grape_variety", label: "Variety" },
-    { key: "initial_volume_l", label: "Initial Volume (L)" },
+    { key: "wine_colour", label: "Wine Colour" },
+    { key: "is_organic", label: "Organic", fmt: (r: Record<string, unknown>) => (r.is_organic === true || r.is_organic === "true") ? "Yes" : "No" },
+    { key: "volume_litres", label: "Volume (L)" },
+    { key: "fermentation_type", label: "Fermentation Type" },
+    { key: "yeast_strain", label: "Yeast Strain" },
     { key: "inoculation_date", label: "Inoculation Date", fmt: (r: Record<string, unknown>) => fmtDate(r.inoculation_date) },
     { key: "start_date", label: "Start Date", fmt: (r: Record<string, unknown>) => fmtDate(r.start_date) },
     { key: "end_date", label: "End Date", fmt: (r: Record<string, unknown>) => fmtDate(r.end_date) },
-    { key: "initial_sg", label: "Initial SG" },
-    { key: "final_sg", label: "Final SG" },
-    { key: "peak_temp_c", label: "Peak Temp (°C)" },
-    { key: "yeast_strain", label: "Yeast Strain" },
+    { key: "start_brix", label: "Start Brix" },
+    { key: "end_brix", label: "End Brix" },
+    { key: "end_sg", label: "End SG" },
+    { key: "residual_sugar_gl", label: "Residual Sugar (g/L)" },
+    { key: "max_temp_c", label: "Max Temp (°C)" },
+    { key: "min_temp_c", label: "Min Temp (°C)" },
+    { key: "so2_at_fermentation_mg_l", label: "SO₂ at Fermentation (mg/L)" },
+    { key: "operator_name", label: "Operator" },
     { key: "notes", label: "Notes" },
   ];
 
@@ -1732,7 +1747,10 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
                 <tr key={String(r.id)} className="hover:bg-muted/20">
                   <td className="p-3">{fmt(r.vintage_year)}</td>
                   <td className="p-3 font-mono text-xs">{fmt(r.batch_ref)}</td>
-                  <td className="p-3">{r.wine_colour ? <span className="text-xs bg-purple-100 text-purple-700 rounded px-1.5 py-0.5">{String(r.wine_colour)}</span> : "—"}</td>
+                  <td className="p-3">
+                    {r.wine_colour ? <span className="text-xs bg-purple-100 text-purple-700 rounded px-1.5 py-0.5">{String(r.wine_colour)}</span> : "—"}
+                    {(r.is_organic === true || r.is_organic === "true") && <span className="ml-1 text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5">Organic</span>}
+                  </td>
                   <td className="p-3 font-mono text-xs">{fmt(r.vessel_ref ?? vessels.find(v => v.id === r.vessel_id)?.vessel_ref)}</td>
                   <td className="p-3 whitespace-nowrap">{fmtDate(r.start_date)}</td>
                   <td className="p-3 text-muted-foreground text-xs">{r.fermentation_type ? String(r.fermentation_type).split(" ")[0] : "—"}</td>
@@ -1759,20 +1777,31 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
             {sortedPressingRecords.length > 0 && (
               <div>
                 <Label>Link to Pressing Batch</Label>
-                <Select value={form.pressingRecordId ?? ""} onValueChange={handlePressingLinkChange}>
+                <Select value={String(form.pressingRecordId ?? "")} onValueChange={handlePressingLinkChange}>
                   <SelectTrigger><SelectValue placeholder="— Not linked to a pressing record —" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">— Not linked —</SelectItem>
                     {sortedPressingRecords.map(p => (
                       <SelectItem key={String(p.id)} value={String(p.id)}>
-                        {String(p.batch_ref)}{p.vintage_year ? ` (${String(p.vintage_year)})` : ""}{p.press_date ? ` — ${new Date(String(p.press_date)).toLocaleDateString("en-GB")}` : ""}
+                        {String(p.batch_ref)}{p.is_organic === true || p.is_organic === "true" ? " 🌿" : ""}{p.vintage_year ? ` (${String(p.vintage_year)})` : ""}{p.press_date ? ` — ${new Date(String(p.press_date)).toLocaleDateString("en-GB")}` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground mt-1">Linking a pressing batch makes its additions visible in this fermentation record's view.</p>
+                <p className="text-xs text-muted-foreground mt-1">Linking a pressing batch makes its additions visible here and inherits the organic status.</p>
               </div>
             )}
+            <div className="flex items-center gap-3 rounded-md border px-3 py-2">
+              <Checkbox
+                id="ferm-organic-chk"
+                checked={isOrganicForm}
+                onCheckedChange={v => setIsOrganicForm(!!v)}
+              />
+              <div>
+                <Label htmlFor="ferm-organic-chk" className="cursor-pointer">Organic batch</Label>
+                <p className="text-xs text-muted-foreground">Automatically inherited from linked pressing record — you can override manually.</p>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Vintage Year</Label><Input type="number" value={form.vintageYear ?? ""} onChange={e => sf("vintageYear", e.target.value)} /></div>
               <div>
@@ -1845,6 +1874,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
               <ViewField label="Vintage Year" value={fmt(view.vintage_year)} />
               <ViewField label="Batch Ref" value={fmt(view.batch_ref)} />
               <ViewField label="Wine Colour" value={fmt(view.wine_colour)} />
+              <ViewField label="Organic" value={(view.is_organic === true || view.is_organic === "true") ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">✓ Organic</span> : <span className="text-muted-foreground text-xs">No</span>} />
               <ViewField label="Vessel" value={fmt(view.vessel_ref ?? vessels.find(v => v.id === view.vessel_id)?.vessel_ref)} />
               <ViewField label="Volume (L)" value={fmtNum(view.volume_litres, 0)} />
               <ViewField label="Fermentation Type" value={fmt(view.fermentation_type)} />
