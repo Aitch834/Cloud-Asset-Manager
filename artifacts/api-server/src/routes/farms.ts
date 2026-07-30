@@ -37159,7 +37159,7 @@ router.delete("/farms/:farmId/winery-so2-tests/:id", requireAuth, requireTenant,
 // ── Cellar Operations ──────────────────────────────────────────────────────────
 router.get("/farms/:farmId/winery-cellar-ops", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const rows = await db.execute(sql`SELECT o.*, fv.vessel_ref AS from_vessel_ref, tv.vessel_ref AS to_vessel_ref FROM winery_cellar_ops o LEFT JOIN winery_vessels fv ON fv.id=o.from_vessel_id LEFT JOIN winery_vessels tv ON tv.id=o.to_vessel_id WHERE o.farm_id=${farmId} ORDER BY o.op_date DESC, o.created_at DESC`);
+  const rows = await db.execute(sql`SELECT o.*, fv.vessel_ref AS from_vessel_ref, tv.vessel_ref AS to_vessel_ref, fv.capacity_litres AS vessel_capacity_litres FROM winery_cellar_ops o LEFT JOIN winery_vessels fv ON fv.id=o.from_vessel_id LEFT JOIN winery_vessels tv ON tv.id=o.to_vessel_id WHERE o.farm_id=${farmId} ORDER BY o.op_date DESC, o.created_at DESC`);
   res.json({ records: rows.rows });
 });
 router.post("/farms/:farmId/winery-cellar-ops", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {

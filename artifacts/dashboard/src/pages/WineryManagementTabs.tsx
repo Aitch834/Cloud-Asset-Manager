@@ -3667,6 +3667,45 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const cellarFreeSo2After = form.freeSo2AfterMgL ? parseFloat(form.freeSo2AfterMgL) : null;
   const cellarSo2OverOrganic = cellarOrgLimit != null && cellarFreeSo2After != null && cellarFreeSo2After > parseFloat(cellarOrgLimit);
 
+  // Cumulative SO₂ running total for the selected batch (excluding the record being edited)
+  const cellarSo2PriorOps = useMemo(() => {
+    if (!form.batchRef || !cellarBatchIsOrganic) return [];
+    return crud.data.filter(r =>
+      String(r.op_type) === "sulfiting" &&
+      String(r.batch_ref) === form.batchRef &&
+      r.so2_quantity_g != null &&
+      (editing === null || Number(r.id) !== editing)
+    );
+  }, [crud.data, form.batchRef, cellarBatchIsOrganic, editing]);
+  // Strip vessel_capacity_litres so sumCellarSo2 uses only the immutable operation-time
+  // volume_moved_litres, not the mutable vessel-register capacity.
+  const cellarSo2Prior = useMemo(() => {
+    const opsForCalc = cellarSo2PriorOps.map(op => ({ ...op, vessel_capacity_litres: undefined }));
+    return sumCellarSo2(opsForCalc);
+  }, [cellarSo2PriorOps]);
+  const cellarSo2PriorWithVolumeCount = useMemo(() =>
+    cellarSo2PriorOps.filter(op => {
+      const v = parseFloat(String(op.volume_moved_litres ?? ""));
+      return !isNaN(v) && v > 0;
+    }).length,
+    [cellarSo2PriorOps]
+  );
+  // Current form contribution (live, as the operator types)
+  const cellarCurrentSo2G = form.so2QuantityG ? parseFloat(form.so2QuantityG) : null;
+  const cellarCurrentVolL = form.volumeMovedLitres ? parseFloat(form.volumeMovedLitres) : null;
+  const cellarCurrentContribMgL =
+    cellarCurrentSo2G != null && !isNaN(cellarCurrentSo2G) && cellarCurrentSo2G > 0 &&
+    cellarCurrentVolL != null && !isNaN(cellarCurrentVolL) && cellarCurrentVolL > 0
+      ? (cellarCurrentSo2G * 1000) / cellarCurrentVolL
+      : null;
+  const cellarProjectedMgL =
+    cellarSo2Prior.cumulativeMgL != null || cellarCurrentContribMgL != null
+      ? (cellarSo2Prior.cumulativeMgL ?? 0) + (cellarCurrentContribMgL ?? 0)
+      : null;
+  const showCumulativeIndicator =
+    cellarBatchIsOrganic && !!cellarOrgLimit &&
+    (cellarSo2PriorOps.length > 0 || (cellarCurrentSo2G != null && !isNaN(cellarCurrentSo2G)));
+
   const opType = form.opType ?? "";
   const isRacking = opType === "racking";
   const isTopping = opType === "topping";
@@ -3676,9 +3715,29 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const vRef = (id: unknown) => vessels.find(v => String(v.id) === String(id))?.vessel_ref ?? id;
 
   const openAdd = () => { setEditing(null); setForm({ opDate: today, vintageYear: String(new Date().getFullYear()) }); setOpen(true); };
-  const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
+  const openEdit = (r: Record<string, unknown>) => {
+    setEditing(r.id as number);
+    const base = Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]));
+    // Restore organic flag from pressing records (not persisted on cellar op rows)
+    const bRef = typeof r.batch_ref === "string" ? r.batch_ref : "";
+    const matchedPress = bRef ? cellarPressingRefs.find(p => p.batchRef === bRef) : undefined;
+    base._batchIsOrganic = matchedPress ? (matchedPress.isOrganic ? "true" : "false") : "";
+    // Map snake_case API field to the camelCase key used by the sulfiting volume input
+    if (r.volume_moved_litres != null && r.volume_moved_litres !== "") {
+      base.volumeMovedLitres = String(r.volume_moved_litres);
+    }
+    setForm(base);
+    setOpen(true);
+  };
   const save = async () => {
     if (!form.opType) { toast({ title: "Please select an operation type", variant: "destructive" }); return; }
+    if (form.opType === "sulfiting") {
+      const vol = parseFloat(form.volumeMovedLitres ?? "");
+      if (isNaN(vol) || vol <= 0) {
+        toast({ title: "Batch volume required", description: "Enter the volume of wine being sulfited to enable SO₂ mg/L tracking.", variant: "destructive" });
+        return;
+      }
+    }
     try {
       if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...form } as Record<string, unknown> & { id: number });
       else await crud.add.mutateAsync(form);
@@ -3868,6 +3927,11 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                   <div><Label>SO₂ Added (g)</Label><Input type="number" step="0.01" value={form.so2QuantityG ?? ""} onChange={e => sf("so2QuantityG", e.target.value)} /></div>
                   <div><Label>Free SO₂ Before (mg/L)</Label><Input type="number" step="0.1" value={form.freeSo2BeforeMgL ?? ""} onChange={e => sf("freeSo2BeforeMgL", e.target.value)} /></div>
                   <div><Label>Free SO₂ After (mg/L)</Label><Input type="number" step="0.1" value={form.freeSo2AfterMgL ?? ""} onChange={e => sf("freeSo2AfterMgL", e.target.value)} /></div>
+                  <div className="col-span-2">
+                    <Label>Batch Volume (L) <span className="text-muted-foreground font-normal text-xs">— volume of wine being sulfited</span></Label>
+                    <Input type="number" step="1" value={form.volumeMovedLitres ?? ""} onChange={e => sf("volumeMovedLitres", e.target.value)} placeholder="e.g. 750" />
+                    <p className="text-xs text-muted-foreground mt-1">Required to calculate the cumulative SO₂ mg/L running total for this batch.</p>
+                  </div>
                 </div>
                 {cellarBatchIsOrganic && cellarOrgLimit && (
                   <div className={`rounded-md border px-3 py-2 text-sm flex items-start gap-2 ${cellarSo2OverOrganic ? "bg-amber-50 border-amber-300 text-amber-800" : "bg-green-50 border-green-200 text-green-800"}`}>
@@ -3878,6 +3942,35 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                         <> The entered post-addition value ({cellarFreeSo2After.toFixed(1)} mg/L) exceeds the organic limit. Review before saving.</>
                       )}
                       {!cellarSo2OverOrganic && <> This addition is within the organic limit.</>}
+                    </span>
+                  </div>
+                )}
+                {showCumulativeIndicator && (
+                  <div className={`rounded-md border px-3 py-2 text-sm flex items-start gap-2 ${
+                    cellarProjectedMgL != null && cellarProjectedMgL >= parseFloat(cellarOrgLimit!)
+                      ? "bg-amber-50 border-amber-300 text-amber-800"
+                      : "bg-blue-50 border-blue-200 text-blue-800"
+                  }`}>
+                    <Gauge className="w-4 h-4 mt-0.5 shrink-0 text-blue-600" />
+                    <span>
+                      <strong>Cumulative SO₂ total for this batch:</strong>{" "}
+                      {cellarProjectedMgL != null
+                        ? <>
+                            <strong>{cellarProjectedMgL.toFixed(1)} mg/L</strong> projected total out of <strong>{cellarOrgLimit} mg/L</strong> organic ceiling
+                            {cellarCurrentContribMgL != null && cellarSo2Prior.cumulativeMgL != null && (
+                              <span className="text-xs ml-1 opacity-80">({cellarSo2Prior.cumulativeMgL.toFixed(1)} mg/L prior + {cellarCurrentContribMgL.toFixed(1)} mg/L this addition)</span>
+                            )}
+                            {cellarSo2PriorWithVolumeCount < cellarSo2PriorOps.length && cellarSo2Prior.cumulativeMgL != null && (
+                              <span className="text-xs ml-1 opacity-80">({cellarSo2PriorWithVolumeCount} of {cellarSo2PriorOps.length} prior operations have a recorded volume — partial estimate)</span>
+                            )}
+                            {cellarSo2PriorOps.length > 0 && cellarSo2Prior.cumulativeMgL == null && (
+                              <span className="text-xs ml-1 opacity-80">({cellarSo2PriorOps.length} prior operation{cellarSo2PriorOps.length !== 1 ? "s" : ""} have no volume recorded)</span>
+                            )}
+                          </>
+                        : <>
+                            <strong>{(cellarSo2Prior.totalG + (cellarCurrentSo2G ?? 0)).toFixed(1)} g</strong> SO₂ across {cellarSo2PriorOps.length + (cellarCurrentSo2G != null && !isNaN(cellarCurrentSo2G) && cellarCurrentSo2G > 0 ? 1 : 0)} operation{(cellarSo2PriorOps.length + 1) !== 1 ? "s" : ""} — enter batch volume above to see mg/L total
+                          </>
+                      }
                     </span>
                   </div>
                 )}
