@@ -1885,6 +1885,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [isOrganicForm, setIsOrganicForm] = useState(false);
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [so2FromPressing, setSo2FromPressing] = useState(false);
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   // Pressing records sorted newest-first for the link select
@@ -1892,8 +1893,9 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
     .filter(r => r.batch_ref)
     .sort((a, b) => String(b.press_date ?? "").localeCompare(String(a.press_date ?? "")));
 
-  const handlePressingLinkChange = (val: string) => {
+  const handlePressingLinkChange = async (val: string) => {
     sf("pressingRecordId", val);
+    setSo2FromPressing(false);
     if (!val) return;
     const match = pressingRecords.find(p => String(p.id) === val);
     if (!match) return;
@@ -1902,13 +1904,32 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
     if (!form.vintageYear && match.vintage_year) sf("vintageYear", String(match.vintage_year));
     // Inherit organic status from pressing record (user can override manually)
     setIsOrganicForm(!!(match.is_organic === true || match.is_organic === "true"));
+    // Fetch pressing additions and pre-fill SO₂ if the field is currently empty
+    try {
+      const res = await fetch(api(`farms/${farmId}/winery-pressing/${val}/additions`), { credentials: "include" });
+      if (res.ok) {
+        const d = await res.json();
+        const additions: Record<string, unknown>[] = d.additions ?? [];
+        const so2Row = additions.find(a => String(a.category ?? "") === "so2");
+        if (so2Row && so2Row.dose != null) {
+          setForm(f => {
+            if (f.so2AtFermentationMgL) return f; // don't overwrite if user already entered a value
+            setSo2FromPressing(true);
+            return { ...f, so2AtFermentationMgL: String(so2Row.dose) };
+          });
+        }
+      }
+    } catch {
+      // non-critical — silently skip if fetch fails
+    }
   };
 
-  const openAdd = () => { setEditing(null); setForm({ vintageYear: String(new Date().getFullYear()) }); setIsOrganicForm(false); setOpen(true); };
+  const openAdd = () => { setEditing(null); setForm({ vintageYear: String(new Date().getFullYear()) }); setIsOrganicForm(false); setSo2FromPressing(false); setOpen(true); };
   const openEdit = (r: Record<string, unknown>) => {
     setEditing(r.id as number);
     setForm(Object.fromEntries(Object.entries(r).filter(([k]) => k !== "is_organic").map(([k, v]) => [k, v == null ? "" : String(v)])));
     setIsOrganicForm(!!(r.is_organic === true || r.is_organic === "true"));
+    setSo2FromPressing(false);
     setOpen(true);
   };
   const save = async () => {
@@ -2123,7 +2144,22 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
               <div><Label>Min Temp (°C)</Label><Input type="number" step="0.1" value={form.minTempC ?? ""} onChange={e => sf("minTempC", e.target.value)} /></div>
             </div>
             <div><Label>Nutrient additions</Label><Input value={form.nutrientAdditions ?? ""} onChange={e => sf("nutrientAdditions", e.target.value)} placeholder="e.g. DAP 20g/hL at inoculation, Thiamine..." /></div>
-            <div><Label>SO₂ addition at fermentation (mg/L)</Label><Input type="number" step="0.1" value={form.so2AtFermentationMgL ?? ""} onChange={e => sf("so2AtFermentationMgL", e.target.value)} /></div>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Label>SO₂ addition at fermentation (mg/L)</Label>
+                {so2FromPressing && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                    from pressing
+                  </span>
+                )}
+              </div>
+              <Input
+                type="number"
+                step="0.1"
+                value={form.so2AtFermentationMgL ?? ""}
+                onChange={e => { setSo2FromPressing(false); sf("so2AtFermentationMgL", e.target.value); }}
+              />
+            </div>
             <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
           </div>
           <DialogFooter>
