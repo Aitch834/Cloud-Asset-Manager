@@ -466,6 +466,7 @@ export const wineryFermentationRecordsTable = pgTable("winery_fermentation_recor
   minTempC: numeric("min_temp_c", { precision: 4, scale: 1 }),
   nutrientAdditions: text("nutrient_additions"),
   so2AtFermentationMgL: numeric("so2_at_fermentation_mg_l", { precision: 7, scale: 2 }),
+  so2FromPressing: boolean("so2_from_pressing").default(false),
   volumeLitres: numeric("volume_litres", { precision: 10, scale: 2 }),
   isOrganic: boolean("is_organic").default(false),
   operatorName: text("operator_name"),
