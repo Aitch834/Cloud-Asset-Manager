@@ -2904,6 +2904,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [so2FromTest, setSo2FromTest] = useState(false);
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
+  const [lotCodeError, setLotCodeError] = useState<string | null>(null);
   const { data: farmsDataBottling } = useQuery<{ records?: Record<string, unknown>[] }>({
     queryKey: ["farms-list"],
     queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
@@ -2959,8 +2960,8 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const autoBottles = volL > 0 && sizeMl > 0 ? Math.floor((volL * 1000) / sizeMl) : null;
   const autoCases = autoBottles != null ? Math.floor(autoBottles / 12) : null;
 
-  const openAdd = () => { setEditing(null); setForm({ bottlingDate: today, vintageYear: String(new Date().getFullYear()), certifiedOrganic: "false", bottleSizeMl: "750" }); setSo2FromTest(false); setOpen(true); };
-  const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setSo2FromTest(false); setOpen(true); };
+  const openAdd = () => { setEditing(null); setForm({ bottlingDate: today, vintageYear: String(new Date().getFullYear()), certifiedOrganic: "false", bottleSizeMl: "750" }); setSo2FromTest(false); setLotCodeError(null); setOpen(true); };
+  const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setSo2FromTest(false); setLotCodeError(null); setOpen(true); };
   const save = async () => {
     const payload = {
       ...form,
@@ -2972,8 +2973,12 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
       else await crud.add.mutateAsync(payload);
       toast({ title: "Saved" }); setOpen(false);
     } catch (err) {
-      const e = err as Error;
-      toast({ title: "Save failed", description: e.message || "An unexpected error occurred.", variant: "destructive" });
+      const e = err as Error & { code?: string };
+      if (e.code === "DUPLICATE_LOT_CODE") {
+        setLotCodeError(e.message);
+      } else {
+        toast({ title: "Save failed", description: e.message || "An unexpected error occurred.", variant: "destructive" });
+      }
     }
   };
 
@@ -3078,7 +3083,16 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                   ))}
                 </datalist>
               </div>
-              <div><Label>Lot Code *</Label><Input value={String(form.lotCode ?? "")} onChange={e => sf("lotCode", e.target.value)} placeholder="e.g. LOT2024001A" /></div>
+              <div>
+                <Label>Lot Code *</Label>
+                <Input
+                  value={String(form.lotCode ?? "")}
+                  onChange={e => { sf("lotCode", e.target.value); setLotCodeError(null); }}
+                  placeholder="e.g. LOT2024001A"
+                  className={lotCodeError ? "border-red-500 focus-visible:ring-red-500" : ""}
+                />
+                {lotCodeError && <p className="text-xs text-red-600 mt-1">{lotCodeError}</p>}
+              </div>
               <div>
                 <Label>Wine Colour</Label>
                 <Select value={String(form.wineColour ?? "")} onValueChange={v => sf("wineColour", v)}>
