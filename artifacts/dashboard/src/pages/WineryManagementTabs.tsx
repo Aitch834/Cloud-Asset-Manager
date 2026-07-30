@@ -1253,6 +1253,12 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
   const printedOn = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   const vintage = pressing.vintage_year ? String(pressing.vintage_year) : null;
   const pressDate = pressing.press_date ? fmtDate(pressing.press_date) : "—";
+  const isVintageScoped = data.scope === "vintageYear";
+
+  const batchRefBadge = (r: Record<string, unknown>) =>
+    r.batch_ref
+      ? `<span style="font-family:monospace;font-size:10px;background:#dbeafe;color:#1e40af;padding:1px 5px;border-radius:3px;white-space:nowrap">${escHtml(String(r.batch_ref))}</span>`
+      : `<span style="font-size:10px;background:#f3f4f6;color:#6b7280;padding:1px 5px;border-radius:3px">No ref</span>`;
 
   const sectionHtml = (title: string, rows: string) =>
     rows ? `<div class="section"><h2>${escHtml(title)}</h2><table>${rows}</table></div>` : "";
@@ -1360,9 +1366,10 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
     <td style="text-align:right;font-family:monospace">${r.end_ph != null ? parseFloat(String(r.end_ph)).toFixed(2) : "—"}</td>
     <td style="text-align:right;font-family:monospace">${r.end_ta_gl != null ? parseFloat(String(r.end_ta_gl)).toFixed(1) : "—"}</td>
     <td>${escHtml(r.operator_name)}</td>
+    ${isVintageScoped ? `<td>${batchRefBadge(r as Record<string, unknown>)}</td>` : ""}
   </tr>`).join("");
 
-  const fermHeader = `<tr class="header-row"><th>Period</th><th>Colour</th><th>Vessel</th><th>Type</th><th>Yeast</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">SO₂ @ ferm.</th><th style="text-align:right">End pH</th><th style="text-align:right">End TA (g/L)</th><th>Operator</th></tr>`;
+  const fermHeader = `<tr class="header-row"><th>Period</th><th>Colour</th><th>Vessel</th><th>Type</th><th>Yeast</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">SO₂ @ ferm.</th><th style="text-align:right">End pH</th><th style="text-align:right">End TA (g/L)</th><th>Operator</th>${isVintageScoped ? "<th>Batch Ref</th>" : ""}</tr>`;
 
   // Cellar ops
   const cellarRows = data.cellarOps.map(r => {
@@ -1378,10 +1385,11 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
     <td style="font-family:monospace">${isSulfiting ? so2Detail : "—"}</td>
     <td>${escHtml(r.fining_agent)}</td>
     <td>${escHtml(r.operator_name)}</td>
+    ${isVintageScoped ? `<td>${batchRefBadge(r as Record<string, unknown>)}</td>` : ""}
   </tr>`;
   }).join("");
 
-  const cellarHeader = `<tr class="header-row"><th>Date</th><th>Operation</th><th>Vessel(s)</th><th style="text-align:right">Volume (L)</th><th>SO₂ detail</th><th>Fining agent</th><th>Operator</th></tr>`;
+  const cellarHeader = `<tr class="header-row"><th>Date</th><th>Operation</th><th>Vessel(s)</th><th style="text-align:right">Volume (L)</th><th>SO₂ detail</th><th>Fining agent</th><th>Operator</th>${isVintageScoped ? "<th>Batch Ref</th>" : ""}</tr>`;
 
   // SO₂ tests
   const so2Rows = data.so2Tests.map(r => {
@@ -1397,10 +1405,11 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
     <td style="text-align:right">${r.max_permitted_mg_l != null ? parseFloat(String(r.max_permitted_mg_l)).toFixed(0) : "—"}</td>
     <td${complianceStyle}>${nonCompliant ? "⚠ Exceeds limit" : compliant ? "✓ Compliant" : "—"}</td>
     <td>${escHtml(r.test_method)}</td>
+    ${isVintageScoped ? `<td>${batchRefBadge(r as Record<string, unknown>)}</td>` : ""}
   </tr>`;
   }).join("");
 
-  const so2Header = `<tr class="header-row"><th>Date</th><th>Stage</th><th>Vessel</th><th style="text-align:right">Free SO₂ (mg/L)</th><th style="text-align:right">Total SO₂ (mg/L)</th><th style="text-align:right">Max permitted</th><th>Compliance</th><th>Method</th></tr>`;
+  const so2Header = `<tr class="header-row"><th>Date</th><th>Stage</th><th>Vessel</th><th style="text-align:right">Free SO₂ (mg/L)</th><th style="text-align:right">Total SO₂ (mg/L)</th><th style="text-align:right">Max permitted</th><th>Compliance</th><th>Method</th>${isVintageScoped ? "<th>Batch Ref</th>" : ""}</tr>`;
 
   // Bottling
   const bottlingRows = data.bottling.map(r => {
@@ -1427,10 +1436,11 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
     <td style="text-align:right">${r.actual_abv_pct != null ? `${parseFloat(String(r.actual_abv_pct)).toFixed(1)}%` : "—"}</td>
     <td>${escHtml(r.closure_type)}</td>
     <td>${isOrg ? "Yes — organic" : "No — conventional"}</td>
+    ${isVintageScoped ? `<td>${batchRefBadge(r as Record<string, unknown>)}</td>` : ""}
   </tr>`;
   }).join("");
 
-  const bottlingHeader = `<tr class="header-row"><th>Date</th><th>Lot Code</th><th>Colour</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">Bottles</th><th style="text-align:right">Free SO₂ (mg/L)</th><th style="text-align:right">Total SO₂ (mg/L)</th><th style="text-align:right">SO₂ ceiling</th><th>Compliance</th><th style="text-align:right">pH</th><th style="text-align:right">TA (g/L)</th><th style="text-align:right">ABV</th><th>Closure</th><th>Organic limits</th></tr>`;
+  const bottlingHeader = `<tr class="header-row"><th>Date</th><th>Lot Code</th><th>Colour</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">Bottles</th><th style="text-align:right">Free SO₂ (mg/L)</th><th style="text-align:right">Total SO₂ (mg/L)</th><th style="text-align:right">SO₂ ceiling</th><th>Compliance</th><th style="text-align:right">pH</th><th style="text-align:right">TA (g/L)</th><th style="text-align:right">ABV</th><th>Closure</th><th>Organic limits</th>${isVintageScoped ? "<th>Batch Ref</th>" : ""}</tr>`;
 
   const html = `<!DOCTYPE html>
 <html lang="en">
