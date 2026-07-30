@@ -68,5 +68,54 @@ export async function runWineryMigrations(): Promise<void> {
     WHERE lot_code IS NOT NULL
   `);
 
+  // ─── One-off data fix: correct SO₂ limits for pre-existing conventional-batch test records ───
+  //
+  // Before the organic flag was introduced, max_permitted_mg_l was always set to the organic
+  // ceiling (Red=100, White/Rosé/Orange=150, Sparkling=185). Records for conventional
+  // (non-organic) batches therefore show a ceiling that is 50 mg/L too low.
+  //
+  // This migration is idempotent: once a row's max_permitted_mg_l has been raised to the
+  // conventional ceiling it will no longer match the WHERE filter, so re-runs are no-ops.
+  //
+  // Organic limits:      Red=100, White/Rosé/Orange=150, Sparkling=185
+  // Conventional limits: Red=150, White/Rosé/Orange=200, Sparkling=235
+  const fixResult = await db.execute(sql`
+    UPDATE winery_so2_tests t
+    SET
+      max_permitted_mg_l = CASE t.wine_colour
+        WHEN 'Red'       THEN 150
+        WHEN 'White'     THEN 200
+        WHEN 'Rosé'      THEN 200
+        WHEN 'Sparkling' THEN 235
+        WHEN 'Orange'    THEN 200
+        ELSE t.max_permitted_mg_l
+      END,
+      so2_compliant = CASE
+        WHEN t.total_so2_mg_l IS NULL THEN t.so2_compliant
+        WHEN t.wine_colour = 'Red'       THEN (t.total_so2_mg_l <= 150)
+        WHEN t.wine_colour = 'White'     THEN (t.total_so2_mg_l <= 200)
+        WHEN t.wine_colour = 'Rosé'      THEN (t.total_so2_mg_l <= 200)
+        WHEN t.wine_colour = 'Sparkling' THEN (t.total_so2_mg_l <= 235)
+        WHEN t.wine_colour = 'Orange'    THEN (t.total_so2_mg_l <= 200)
+        ELSE t.so2_compliant
+      END
+    FROM winery_pressing_records p
+    WHERE t.batch_ref   = p.batch_ref
+      AND t.farm_id     = p.farm_id
+      AND p.is_organic  = false
+      AND t.wine_colour IN ('Red', 'White', 'Rosé', 'Sparkling', 'Orange')
+      AND t.max_permitted_mg_l = CASE t.wine_colour
+        WHEN 'Red'       THEN 100
+        WHEN 'White'     THEN 150
+        WHEN 'Rosé'      THEN 150
+        WHEN 'Sparkling' THEN 185
+        WHEN 'Orange'    THEN 150
+      END
+  `);
+  const rowsFixed = (fixResult as unknown as { rowCount?: number }).rowCount ?? 0;
+  if (rowsFixed > 0) {
+    console.log(`[WINERY-MIGRATE] Fixed SO₂ limits on ${rowsFixed} conventional-batch test record(s).`);
+  }
+
   console.log("[WINERY-MIGRATE] Done.");
 }
