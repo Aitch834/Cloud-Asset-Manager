@@ -1163,7 +1163,8 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
 </div>` : "";
 
   // Pressing summary
-  const pressingRows = `<tr class="header-row"><th>Press Date</th><th>Batch Ref</th><th>Vintage</th><th>Press Type</th><th>Grapes (kg)</th><th>Juice (L)</th><th>Brix °</th><th>pH</th><th>Organic</th></tr>
+  const pressingNotes = pressing.notes ? String(pressing.notes) : "";
+  const pressingRows = `<tr class="header-row"><th>Press Date</th><th>Batch Ref</th><th>Vintage</th><th>Press Type</th><th>Grapes (kg)</th><th>Juice (L)</th><th>Brix °</th><th>pH</th><th>Organic</th><th>Operator</th><th>Settling Method</th><th>Juice Turbidity</th></tr>
 <tr>
   <td>${escHtml(pressDate)}</td>
   <td style="font-family:monospace;font-weight:600">${escHtml(batchRef)}</td>
@@ -1174,7 +1175,13 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
   <td style="text-align:right">${pressing.juice_brix != null ? parseFloat(String(pressing.juice_brix)).toFixed(1) : "—"}</td>
   <td style="text-align:right">${pressing.juice_ph != null ? parseFloat(String(pressing.juice_ph)).toFixed(2) : "—"}</td>
   <td>${(pressing.is_organic === true || pressing.is_organic === "true" || pressing.is_organic === 1) ? "Yes" : "No"}</td>
-</tr>`;
+  <td>${escHtml(pressing.operator_name ?? "—")}</td>
+  <td>${escHtml(pressing.settling_method ?? "—")}</td>
+  <td>${escHtml(pressing.juice_turbidity ?? "—")}</td>
+</tr>${pressingNotes ? `
+<tr>
+  <td colspan="12" style="background:#f9fafb;padding:6px 7px;font-size:10px;color:#374151"><span style="font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Pressing notes: </span>${escHtml(pressingNotes)}</td>
+</tr>` : ""}`;
 
   // Press additives
   const addRows = data.pressAdditions.map(a => `<tr>
