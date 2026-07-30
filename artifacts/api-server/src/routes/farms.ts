@@ -36631,7 +36631,8 @@ router.get("/farms/:farmId/winery-pressing/additions-summary", requireAuth, requ
       a.additive_name,
       a.category,
       a.unit,
-      COUNT(DISTINCT a.pressing_record_id)::int  AS batch_count,
+      'pressing'::text                            AS source,
+      COUNT(DISTINCT a.pressing_record_id)::int   AS batch_count,
       ROUND(SUM(a.dose)::numeric, 3)              AS total_dose,
       ROUND(MIN(a.dose)::numeric, 3)              AS min_dose,
       ROUND(MAX(a.dose)::numeric, 3)              AS max_dose,
@@ -36640,7 +36641,45 @@ router.get("/farms/:farmId/winery-pressing/additions-summary", requireAuth, requ
     JOIN winery_pressing_records p ON p.id = a.pressing_record_id
     WHERE p.farm_id = ${farmId}
     GROUP BY p.vintage_year, a.additive_name, a.category, a.unit
-    ORDER BY p.vintage_year DESC NULLS LAST, a.category, a.additive_name
+
+    UNION ALL
+
+    SELECT
+      f.vintage_year,
+      'SO₂ at fermentation'::text                AS additive_name,
+      'so2'::text                                 AS category,
+      'mg/L'::text                                AS unit,
+      'fermentation'::text                        AS source,
+      COUNT(*)::int                               AS batch_count,
+      ROUND(SUM(f.so2_at_fermentation_mg_l)::numeric, 3) AS total_dose,
+      ROUND(MIN(f.so2_at_fermentation_mg_l)::numeric, 3) AS min_dose,
+      ROUND(MAX(f.so2_at_fermentation_mg_l)::numeric, 3) AS max_dose,
+      ROUND(AVG(f.so2_at_fermentation_mg_l)::numeric, 3) AS avg_dose
+    FROM winery_fermentation_records f
+    WHERE f.farm_id = ${farmId}
+      AND f.so2_at_fermentation_mg_l IS NOT NULL
+    GROUP BY f.vintage_year
+
+    UNION ALL
+
+    SELECT
+      o.vintage_year,
+      'SO₂ (cellar sulfiting)'::text             AS additive_name,
+      'so2'::text                                 AS category,
+      'g'::text                                   AS unit,
+      'cellar'::text                              AS source,
+      COUNT(*)::int                               AS batch_count,
+      ROUND(SUM(o.so2_quantity_g)::numeric, 3)   AS total_dose,
+      ROUND(MIN(o.so2_quantity_g)::numeric, 3)   AS min_dose,
+      ROUND(MAX(o.so2_quantity_g)::numeric, 3)   AS max_dose,
+      ROUND(AVG(o.so2_quantity_g)::numeric, 3)   AS avg_dose
+    FROM winery_cellar_ops o
+    WHERE o.farm_id = ${farmId}
+      AND o.op_type = 'sulfiting'
+      AND o.so2_quantity_g IS NOT NULL
+    GROUP BY o.vintage_year
+
+    ORDER BY vintage_year DESC NULLS LAST, source, category, additive_name
   `);
   res.json({ summary: rows.rows });
 });

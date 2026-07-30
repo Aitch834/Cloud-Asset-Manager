@@ -1002,6 +1002,8 @@ function escHtml(v: unknown): string {
   return String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+const SOURCE_LABELS: Record<string, string> = { pressing: "Pressing", fermentation: "Fermentation", cellar: "Cellar" };
+
 function printAdditionsReport(
   rows: Record<string, unknown>[],
   farmName: string,
@@ -1028,9 +1030,18 @@ function printAdditionsReport(
     else if (row.category === "ascorbic_acid") limitCell = "Max 250 mg/L";
 
     const vintageCell = showVintage ? `<td>${escHtml(row.vintage_year ?? "—")}</td>` : "";
+    const src = String(row.source ?? "pressing");
+    const sourceLabel = SOURCE_LABELS[src] ?? src;
+    const sourceBadgeStyle = src === "pressing"
+      ? 'background:#ede9fe;color:#5b21b6'
+      : src === "fermentation"
+      ? 'background:#dbeafe;color:#1d4ed8'
+      : 'background:#d1fae5;color:#065f46';
+    const sourceBadge = `<span style="display:inline-block;padding:1px 6px;border-radius:9999px;font-size:10px;font-weight:600;${sourceBadgeStyle}">${escHtml(sourceLabel)}</span>`;
     return `<tr ${rowStyle}>
       <td style="font-weight:500">${escHtml(row.additive_name)}</td>
       ${vintageCell}
+      <td>${sourceBadge}</td>
       <td style="text-align:right">${escHtml(row.batch_count)}</td>
       <td style="text-align:right;font-family:monospace">${parseFloat(String(row.total_dose ?? 0)).toFixed(1)}</td>
       <td style="text-align:right;font-family:monospace">${avgDose.toFixed(1)}</td>
@@ -1073,14 +1084,16 @@ function printAdditionsReport(
   <span>Vintage: <strong>${escHtml(vintageLabel)}</strong></span>
   <span>Printed: ${escHtml(printedOn)}</span>
   <span>${rows.length} additive row${rows.length !== 1 ? "s" : ""}</span>
+  <span>Covers: pressing, fermentation &amp; cellar SO₂</span>
 </p>
 <table>
   <thead><tr>
     <th>Additive</th>
     ${vintageHeader}
-    <th style="text-align:right">Batches</th>
+    <th>Stage</th>
+    <th style="text-align:right">Records</th>
     <th style="text-align:right">Total dose</th>
-    <th style="text-align:right">Avg / batch</th>
+    <th style="text-align:right">Avg / record</th>
     <th style="text-align:right">Min</th>
     <th style="text-align:right">Max</th>
     <th>Unit</th>
@@ -1092,6 +1105,7 @@ function printAdditionsReport(
   <span style="color:#b91c1c">⚠ Red = average dose exceeds conventional maximum</span>
   <span style="color:#92400e">⚠ Amber = average dose exceeds organic limit</span>
   <span>Source: EU Reg 2019/934 (UK-retained law)</span>
+  <span>SO₂ units vary by stage: pressing mg/kg · fermentation mg/L · cellar g</span>
 </p>
 </body>
 </html>`;
@@ -1315,10 +1329,11 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     { key: "vintage_year", label: "Vintage" },
     { key: "additive_name", label: "Additive" },
     { key: "category", label: "Category" },
+    { key: "source", label: "Stage", fmt: (r: Record<string, unknown>) => SOURCE_LABELS[String(r.source ?? "pressing")] ?? String(r.source ?? "pressing") },
     { key: "unit", label: "Unit" },
-    { key: "batch_count", label: "Batches Used In" },
+    { key: "batch_count", label: "Records" },
     { key: "total_dose", label: "Total Dose" },
-    { key: "avg_dose", label: "Avg Dose per Batch" },
+    { key: "avg_dose", label: "Avg Dose per Record" },
     { key: "min_dose", label: "Min Dose" },
     { key: "max_dose", label: "Max Dose" },
   ];
@@ -1433,7 +1448,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="font-semibold text-sm flex items-center gap-1.5"><Beaker className="h-4 w-4 text-muted-foreground" />Additions Report</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Additive usage totals across pressing batches. Covers all structured additions — not the legacy text field. Use the vintage filter above to scope results.</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Additive usage totals across pressing batches, fermentation records, and cellar sulfiting operations. SO₂ is captured at all three winemaking stages. Use the vintage filter above to scope results.</p>
             </div>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={() => printAdditionsReport(categoryFilteredSummary, farmName, yearFilter === "all" ? "All vintages" : yearFilter)} disabled={!categoryFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
@@ -1509,9 +1524,10 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                 <thead className="bg-muted/40"><tr>
                   <th className="text-left p-2.5 font-medium">Additive</th>
                   {yearFilter === "all" && <th className="text-left p-2.5 font-medium">Vintage</th>}
-                  <th className="text-right p-2.5 font-medium">Batches</th>
+                  <th className="text-left p-2.5 font-medium">Stage</th>
+                  <th className="text-right p-2.5 font-medium">Records</th>
                   <th className="text-right p-2.5 font-medium">Total dose</th>
-                  <th className="text-right p-2.5 font-medium">Avg / batch</th>
+                  <th className="text-right p-2.5 font-medium">Avg / record</th>
                   <th className="text-right p-2.5 font-medium">Min</th>
                   <th className="text-right p-2.5 font-medium">Max</th>
                   <th className="text-left p-2.5 font-medium">Unit</th>
@@ -1524,10 +1540,21 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                     const warnOrganic = row.category === "so2" && !warnConventional && avgDose > 90;
                     const warnAscorbic = row.category === "ascorbic_acid" && avgDose > 250;
                     const hasWarn = warnConventional || warnOrganic || warnAscorbic;
+                    const src = String(row.source ?? "pressing");
+                    const stageBadgeClass = src === "pressing"
+                      ? "bg-violet-100 text-violet-800"
+                      : src === "fermentation"
+                      ? "bg-blue-100 text-blue-800"
+                      : "bg-emerald-100 text-emerald-800";
                     return (
                       <tr key={i} className={warnConventional ? "bg-red-50" : warnOrganic || warnAscorbic ? "bg-amber-50" : "hover:bg-muted/20"}>
                         <td className="p-2.5 font-medium">{String(row.additive_name)}</td>
                         {yearFilter === "all" && <td className="p-2.5 text-muted-foreground">{String(row.vintage_year ?? "—")}</td>}
+                        <td className="p-2.5">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${stageBadgeClass}`}>
+                            {SOURCE_LABELS[src] ?? src}
+                          </span>
+                        </td>
                         <td className="p-2.5 text-right">{String(row.batch_count)}</td>
                         <td className="p-2.5 text-right font-mono">{parseFloat(String(row.total_dose ?? 0)).toFixed(1)}</td>
                         <td className="p-2.5 text-right font-mono">{avgDose.toFixed(1)}</td>
