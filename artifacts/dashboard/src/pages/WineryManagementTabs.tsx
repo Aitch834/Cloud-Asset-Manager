@@ -553,24 +553,39 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
     staleTime: 60_000,
   });
 
-  // Build sorted, deduplicated list of all known batch refs
+  // Build sorted, deduplicated list of all known batch refs carrying their vintage year.
+  // Pressing is the authoritative source for vintage year; fermentation fills in any gaps.
   const allBatchRefs = useMemo(() => {
-    const refs = new Set<string>();
+    const map = new Map<string, string | null>();
+    // Pressing first — preferred source for vintage year
     for (const r of pressingData ?? []) {
-      if (r.batch_ref) refs.add(String(r.batch_ref));
+      if (r.batch_ref) {
+        const ref = String(r.batch_ref);
+        if (!map.has(ref)) {
+          map.set(ref, r.vintage_year != null ? String(r.vintage_year) : null);
+        }
+      }
     }
+    // Fermentation — only adds refs not already seen from pressing
     for (const r of fermentationData ?? []) {
-      if (r.batch_ref) refs.add(String(r.batch_ref));
+      if (r.batch_ref) {
+        const ref = String(r.batch_ref);
+        if (!map.has(ref)) {
+          map.set(ref, r.vintage_year != null ? String(r.vintage_year) : null);
+        }
+      }
     }
-    return Array.from(refs).sort();
+    return Array.from(map.entries())
+      .map(([ref, vintageYear]) => ({ ref, vintageYear }))
+      .sort((a, b) => a.ref.localeCompare(b.ref));
   }, [pressingData, fermentationData]);
 
   // Case-insensitive partial-match suggestions, capped at 10
   const suggestions = useMemo(() => {
     const trimmed = value.trim();
-    if (!trimmed) return [];
+    if (!trimmed) return [] as { ref: string; vintageYear: string | null }[];
     const lower = trimmed.toLowerCase();
-    return allBatchRefs.filter(ref => ref.toLowerCase().includes(lower)).slice(0, 10);
+    return allBatchRefs.filter(s => s.ref.toLowerCase().includes(lower)).slice(0, 10);
   }, [allBatchRefs, value]);
 
   // Close dropdown on outside click
@@ -625,7 +640,7 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
               setHighlightedIndex(i => Math.max(i - 1, -1));
             } else if (e.key === "Enter") {
               if (highlightedIndex >= 0 && suggestions[highlightedIndex]) {
-                openTrail(suggestions[highlightedIndex]);
+                openTrail(suggestions[highlightedIndex].ref);
               } else {
                 openTrail();
               }
@@ -637,15 +652,18 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
         />
         {dropdownOpen && suggestions.length > 0 && (
           <div ref={listRef} className="absolute z-50 mt-1 w-full min-w-max rounded-md border bg-popover shadow-md overflow-y-auto max-h-60">
-            {suggestions.map((ref, idx) => (
+            {suggestions.map((s, idx) => (
               <button
-                key={ref}
-                className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground${idx === highlightedIndex ? " bg-accent text-accent-foreground" : ""}`}
+                key={s.ref}
+                className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground flex items-center gap-2${idx === highlightedIndex ? " bg-accent text-accent-foreground" : ""}`}
                 // onMouseDown prevents input blur before click registers
-                onMouseDown={e => { e.preventDefault(); openTrail(ref); }}
+                onMouseDown={e => { e.preventDefault(); openTrail(s.ref); }}
                 onMouseEnter={() => setHighlightedIndex(idx)}
               >
-                {ref}
+                <span>{s.ref}</span>
+                {s.vintageYear && (
+                  <span className="text-xs text-muted-foreground">· {s.vintageYear}</span>
+                )}
               </button>
             ))}
           </div>
