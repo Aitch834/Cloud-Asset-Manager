@@ -37151,6 +37151,55 @@ router.delete("/farms/:farmId/winery-bottling/:id", requireAuth, requireTenant, 
   res.json({ success: true });
 });
 
+// ── Bulk import for bottling records (with per-farm lot-code uniqueness guard) ──
+router.post("/farms/:farmId/winery-bottling/bulk", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { records } = req.body as { records?: unknown[] };
+  if (!Array.isArray(records) || records.length === 0) {
+    res.status(400).json({ error: "No records provided." });
+    return;
+  }
+  if (records.length > 500) {
+    res.status(400).json({ error: "Maximum 500 records per import." });
+    return;
+  }
+
+  // Fetch all existing lot codes for this farm in one query
+  const existingRows = await db.execute(sql`SELECT lot_code FROM winery_bottling_records WHERE farm_id=${farmId} AND lot_code IS NOT NULL`);
+  const existingLotCodes = new Set<string>(existingRows.rows.map((r: Record<string, unknown>) => String(r.lot_code)));
+
+  const rejected: { row: number; lotCode: string; reason: string }[] = [];
+  const toInsert: Record<string, unknown>[] = [];
+  // Track lot codes seen within this import batch to catch intra-batch duplicates
+  const seenInBatch = new Set<string>();
+
+  for (let i = 0; i < records.length; i++) {
+    const raw = sanitiseBody(records[i] as Record<string, unknown>);
+    const lotCode = n(raw.lotCode);
+    if (lotCode) {
+      if (seenInBatch.has(lotCode)) {
+        rejected.push({ row: i + 1, lotCode, reason: `Lot code "${lotCode}" appears more than once in this import.` });
+        continue;
+      }
+      if (existingLotCodes.has(lotCode)) {
+        rejected.push({ row: i + 1, lotCode, reason: `Lot code "${lotCode}" is already used by an existing bottling record.` });
+        continue;
+      }
+      seenInBatch.add(lotCode);
+    }
+    toInsert.push(raw);
+  }
+
+  // Insert valid rows individually (keep same column list as single-record POST)
+  const inserted: unknown[] = [];
+  for (const b of toInsert) {
+    const r = await db.execute(sql`INSERT INTO winery_bottling_records (farm_id,bottling_date,vintage_year,batch_ref,lot_code,wine_colour,source_vessel_id,volume_bottled_litres,bottle_size_ml,bottles_produced,cases_produced,closure_type,cork_grade,label_batch,free_so2_mg_l,total_so2_mg_l,actual_abv_pct,residual_sugar_gl,ph,titratable_acidity_gl,is_organic,certified_organic,certifier_ref,operator_name,notes) VALUES (${farmId},${n(b.bottlingDate)},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.lotCode)},${n(b.wineColour)},${ni(b.sourceVesselId)},${nf(b.volumeBottledLitres)},${ni(b.bottleSizeMl)},${ni(b.bottlesProduced)},${ni(b.casesProduced)},${n(b.closureType)},${n(b.corkGrade)},${n(b.labelBatch)},${nf(b.freeSo2MgL)},${nf(b.totalSo2MgL)},${nf(b.actualAbvPct)},${nf(b.residualSugarGl)},${nf(b.ph)},${nf(b.titratableAcidityGl)},${nb(b.isOrganic) ?? false},${nb(b.certifiedOrganic) ?? false},${n(b.certifierRef)},${n(b.operatorName)},${n(b.notes)}) RETURNING id`);
+    inserted.push(r.rows[0]);
+  }
+
+  res.status(201).json({ insertedCount: inserted.length, rejectedCount: rejected.length, rejected });
+});
+
 // ── Lab Equipment Register ─────────────────────────────────────────────────────
 router.get("/farms/:farmId/winery-equipment", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;

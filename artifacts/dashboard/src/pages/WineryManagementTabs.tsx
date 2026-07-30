@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { sumCellarSo2 } from "@/lib/so2-summary";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf, Search } from "lucide-react";
+import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf, Search, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -3381,6 +3381,88 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const [organicAutoSource, setOrganicAutoSource] = useState<"fermentation" | "pressing" | null>(null);
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   const [lotCodeError, setLotCodeError] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importParsed, setImportParsed] = useState<Record<string, string>[]>([]);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importResult, setImportResult] = useState<{ insertedCount: number; rejectedCount: number; rejected: { row: number; lotCode: string; reason: string }[] } | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const importFileRef = useRef<HTMLInputElement>(null);
+  const qc = useQueryClient();
+
+  const CSV_IMPORT_HEADERS = ["Bottling Date", "Vintage", "Batch Ref", "Lot Code", "Wine Colour", "Organic (Yes/No)", "Volume Bottled (L)", "Bottle Size (ml)", "Bottles", "Cases", "Closure Type", "Free SO2 (mg/L)", "Total SO2 (mg/L)", "Notes"];
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setImportError(null);
+    setImportResult(null);
+    setImportParsed([]);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) { setImportError("CSV must have a header row and at least one data row."); return; }
+      const headers = lines[0].split(",").map(h => h.replace(/^"|"$/g, "").trim());
+      const rows: Record<string, string>[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        // Simple CSV split — handles quoted fields with no embedded commas
+        const cells = lines[i].match(/("(?:[^"]|"")*"|[^,]*)/g)?.map(c => c.replace(/^"|"$/g, "").replace(/""/g, '"').trim()) ?? [];
+        const row: Record<string, string> = {};
+        headers.forEach((h, idx) => { row[h] = cells[idx] ?? ""; });
+        rows.push(row);
+      }
+      if (rows.length > 500) { setImportError("Maximum 500 rows per import."); return; }
+      setImportParsed(rows);
+    };
+    reader.readAsText(file);
+  };
+
+  const submitImport = async () => {
+    if (!importParsed.length) return;
+    setImportLoading(true);
+    setImportError(null);
+    try {
+      const records = importParsed.map(row => ({
+        bottlingDate: row["Bottling Date"] || row["bottling_date"] || undefined,
+        vintageYear: row["Vintage"] || row["vintage_year"] || undefined,
+        batchRef: row["Batch Ref"] || row["batch_ref"] || undefined,
+        lotCode: row["Lot Code"] || row["lot_code"] || undefined,
+        wineColour: row["Wine Colour"] || row["wine_colour"] || undefined,
+        isOrganic: (row["Organic (Yes/No)"] || row["Organic SO₂ Limits"] || row["is_organic"] || "").toLowerCase() === "yes" ? "true" : "false",
+        volumeBottledLitres: row["Volume Bottled (L)"] || row["volume_bottled_litres"] || undefined,
+        bottleSizeMl: row["Bottle Size (ml)"] || row["bottle_size_ml"] || undefined,
+        bottlesProduced: row["Bottles"] || row["bottles_produced"] || undefined,
+        casesProduced: row["Cases"] || row["cases_produced"] || undefined,
+        closureType: row["Closure Type"] || row["closure_type"] || undefined,
+        freeSo2MgL: row["Free SO2 (mg/L)"] || row["free_so2_mg_l"] || undefined,
+        totalSo2MgL: row["Total SO2 (mg/L)"] || row["total_so2_mg_l"] || undefined,
+        notes: row["Notes"] || row["notes"] || undefined,
+      }));
+      const r = await fetch(api(`farms/${farmId}/winery-bottling/bulk`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ records }),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Import failed"); }
+      const result = await r.json();
+      setImportResult(result);
+      if (result.insertedCount > 0) qc.invalidateQueries({ queryKey: ["winery-bottling", farmId] });
+    } catch (err) {
+      setImportError((err as Error).message || "Import failed");
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const resetImportDialog = () => {
+    setImportParsed([]);
+    setImportError(null);
+    setImportResult(null);
+    setImportLoading(false);
+    if (importFileRef.current) importFileRef.current.value = "";
+  };
+
   const { data: farmsDataBottling } = useQuery<{ records?: Record<string, unknown>[] }>({
     queryKey: ["farms-list"],
     queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
@@ -3541,6 +3623,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
           <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
         </Select>
         <Button size="sm" variant="outline" className="ml-auto" onClick={() => exportCSV(filtered, "bottling-records.csv", bottlingCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+        <Button size="sm" variant="outline" onClick={() => { resetImportDialog(); setImportOpen(true); }}><Upload className="w-3.5 h-3.5 mr-1" />Import CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} run{filtered.length !== 1 ? "s" : ""}</span>
       </div>
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
@@ -3788,6 +3871,125 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
           onClose={() => setTrailRecord(null)}
         />
       )}
+
+      {/* CSV Import Dialog */}
+      <Dialog open={importOpen} onOpenChange={o => { if (!o) { setImportOpen(false); resetImportDialog(); } }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Import Bottling Records from CSV</DialogTitle>
+            <DialogDescription>
+              Upload a CSV file to bulk-create bottling records. Duplicate lot codes — both within the file and against existing records — will be reported and skipped. Other rows will be imported.
+            </DialogDescription>
+          </DialogHeader>
+
+          {!importResult && (
+            <div className="space-y-4">
+              <div className="rounded-md border border-dashed p-4 bg-muted/30 text-xs text-muted-foreground space-y-1">
+                <p className="font-medium text-foreground">Expected CSV columns (header row required):</p>
+                <p className="font-mono">{CSV_IMPORT_HEADERS.join(", ")}</p>
+                <p className="mt-1">Exports from this register use a compatible format and can be re-imported directly.</p>
+              </div>
+              <div>
+                <Label>Select CSV file</Label>
+                <input
+                  ref={importFileRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={handleImportFile}
+                  className="mt-1 block w-full text-sm file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
+                />
+              </div>
+              {importError && (
+                <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>{importError}</span>
+                </div>
+              )}
+              {importParsed.length > 0 && !importError && (
+                <div className="rounded-md bg-blue-50 border border-blue-200 p-3 text-sm text-blue-800">
+                  <p className="font-medium">{importParsed.length} row{importParsed.length !== 1 ? "s" : ""} parsed from file.</p>
+                  {importParsed.length > 0 && (
+                    <p className="text-xs mt-1 text-blue-600">
+                      Lot codes found: {importParsed.filter(r => r["Lot Code"] || r["lot_code"]).length} of {importParsed.length} rows have a lot code.
+                    </p>
+                  )}
+                  <div className="mt-2 max-h-32 overflow-y-auto rounded border border-blue-200 bg-white">
+                    <table className="w-full text-xs">
+                      <thead className="bg-blue-100"><tr>
+                        <th className="text-left p-1.5 font-medium">Date</th>
+                        <th className="text-left p-1.5 font-medium">Lot Code</th>
+                        <th className="text-left p-1.5 font-medium">Batch Ref</th>
+                        <th className="text-left p-1.5 font-medium">Colour</th>
+                        <th className="text-right p-1.5 font-medium">Volume (L)</th>
+                      </tr></thead>
+                      <tbody className="divide-y">
+                        {importParsed.slice(0, 10).map((row, i) => (
+                          <tr key={i} className="hover:bg-muted/10">
+                            <td className="p-1.5">{row["Bottling Date"] || row["bottling_date"] || "—"}</td>
+                            <td className="p-1.5 font-mono">{row["Lot Code"] || row["lot_code"] || "—"}</td>
+                            <td className="p-1.5 font-mono">{row["Batch Ref"] || row["batch_ref"] || "—"}</td>
+                            <td className="p-1.5">{row["Wine Colour"] || row["wine_colour"] || "—"}</td>
+                            <td className="p-1.5 text-right">{row["Volume Bottled (L)"] || row["volume_bottled_litres"] || "—"}</td>
+                          </tr>
+                        ))}
+                        {importParsed.length > 10 && (
+                          <tr><td colSpan={5} className="p-1.5 text-center text-muted-foreground">… and {importParsed.length - 10} more rows</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {importResult && (
+            <div className="space-y-3">
+              <div className={`rounded-md p-3 border flex items-start gap-2 ${importResult.insertedCount > 0 ? "bg-green-50 border-green-200 text-green-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}>
+                {importResult.insertedCount > 0 ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" /> : <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />}
+                <div>
+                  <p className="font-medium text-sm">
+                    {importResult.insertedCount} record{importResult.insertedCount !== 1 ? "s" : ""} imported successfully.
+                    {importResult.rejectedCount > 0 && ` ${importResult.rejectedCount} row${importResult.rejectedCount !== 1 ? "s" : ""} skipped due to duplicate lot codes.`}
+                  </p>
+                </div>
+              </div>
+              {importResult.rejected.length > 0 && (
+                <div className="rounded-md bg-red-50 border border-red-200 p-3 space-y-1.5">
+                  <p className="text-xs font-semibold text-red-800 flex items-center gap-1"><XCircle className="w-3.5 h-3.5" />Skipped rows — duplicate lot codes:</p>
+                  <div className="max-h-40 overflow-y-auto space-y-1">
+                    {importResult.rejected.map((r, i) => (
+                      <div key={i} className="text-xs text-red-700 bg-red-100 rounded px-2 py-1">
+                        <span className="font-medium">Row {r.row}</span>{r.lotCode ? <span className="font-mono ml-1">[{r.lotCode}]</span> : ""}: {r.reason}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setImportOpen(false); resetImportDialog(); }}>
+              {importResult ? "Close" : "Cancel"}
+            </Button>
+            {!importResult && (
+              <Button
+                onClick={submitImport}
+                disabled={importParsed.length === 0 || importLoading || !!importError}
+              >
+                {importLoading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                Import {importParsed.length > 0 ? `${importParsed.length} Row${importParsed.length !== 1 ? "s" : ""}` : ""}
+              </Button>
+            )}
+            {importResult && importResult.rejected.length > 0 && (
+              <Button variant="outline" onClick={resetImportDialog}>
+                Import Another File
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
