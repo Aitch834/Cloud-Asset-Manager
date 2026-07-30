@@ -1014,8 +1014,11 @@ function printAdditionsReport(
 
   const tableRows = rows.map(row => {
     const avgDose = parseFloat(String(row.avg_dose ?? 0));
+    const wineColour = String(row.wine_colour ?? "");
+    // Use the per-colour organic limit when the colour is known; fall back to 90 (most conservative)
+    const organicLimit = parseInt(ORGANIC_MAX_SO2[wineColour] ?? "90", 10);
     const warnConv  = row.category === "so2"          && avgDose > 200;
-    const warnOrg   = row.category === "so2"          && !warnConv && avgDose > 90;
+    const warnOrg   = row.category === "so2"          && !warnConv && avgDose > organicLimit;
     const warnAsc   = row.category === "ascorbic_acid" && avgDose > 250;
     const rowStyle  = warnConv ? 'style="background:#fee2e2"'
                     : (warnOrg || warnAsc) ? 'style="background:#fef3c7"' : "";
@@ -1024,12 +1027,15 @@ function printAdditionsReport(
     const unitEsc = escHtml(row.unit ?? "mg/kg");
     let limitCell = "";
     if (warnConv)      limitCell = `<span style="color:#b91c1c;font-weight:600">⚠ Avg exceeds conv. max (200 ${unitEsc})</span>`;
-    else if (warnOrg)  limitCell = `<span style="color:#92400e">⚠ Avg exceeds organic limit (90 ${unitEsc})</span>`;
+    else if (warnOrg)  limitCell = `<span style="color:#92400e">⚠ Avg exceeds organic limit (${organicLimit} ${unitEsc})</span>`;
     else if (warnAsc)  limitCell = `<span style="color:#b91c1c;font-weight:600">⚠ Avg exceeds max (250 mg/L)</span>`;
-    else if (row.category === "so2")          limitCell = `Conv. max 200 ${unitEsc} · Organic 90`;
+    else if (row.category === "so2")          limitCell = `Conv. max 200 ${unitEsc} · Organic ${organicLimit}`;
     else if (row.category === "ascorbic_acid") limitCell = "Max 250 mg/L";
 
     const vintageCell = showVintage ? `<td>${escHtml(row.vintage_year ?? "—")}</td>` : "";
+    const colourBadge = wineColour
+      ? `<span style="display:inline-block;padding:1px 6px;border-radius:9999px;font-size:10px;font-weight:600;background:#f3e8ff;color:#6b21a8">${escHtml(wineColour)}</span>`
+      : `<span style="color:#9ca3af">—</span>`;
     const src = String(row.source ?? "pressing");
     const sourceLabel = SOURCE_LABELS[src] ?? src;
     const sourceBadgeStyle = src === "pressing"
@@ -1041,6 +1047,7 @@ function printAdditionsReport(
     return `<tr ${rowStyle}>
       <td style="font-weight:500">${escHtml(row.additive_name)}</td>
       ${vintageCell}
+      <td>${colourBadge}</td>
       <td>${sourceBadge}</td>
       <td style="text-align:right">${escHtml(row.batch_count)}</td>
       <td style="text-align:right;font-family:monospace">${parseFloat(String(row.total_dose ?? 0)).toFixed(1)}</td>
@@ -1090,6 +1097,7 @@ function printAdditionsReport(
   <thead><tr>
     <th>Additive</th>
     ${vintageHeader}
+    <th>Wine Colour</th>
     <th>Stage</th>
     <th style="text-align:right">Records</th>
     <th style="text-align:right">Total dose</th>
@@ -1103,7 +1111,7 @@ function printAdditionsReport(
 </table>
 <p class="legend">
   <span style="color:#b91c1c">⚠ Red = average dose exceeds conventional maximum</span>
-  <span style="color:#92400e">⚠ Amber = average dose exceeds organic limit</span>
+  <span style="color:#92400e">⚠ Amber = average dose exceeds organic limit (per-colour: Red 100 · White/Rosé/Orange 150 · Sparkling 185 mg/kg)</span>
   <span>Source: EU Reg 2019/934 (UK-retained law)</span>
   <span>SO₂ units vary by stage: pressing mg/kg · fermentation mg/L · cellar g</span>
 </p>

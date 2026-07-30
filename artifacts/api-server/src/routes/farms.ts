@@ -36628,6 +36628,7 @@ router.get("/farms/:farmId/winery-pressing/additions-summary", requireAuth, requ
   const rows = await db.execute(sql`
     SELECT
       p.vintage_year,
+      p.wine_colour,
       a.additive_name,
       a.category,
       a.unit,
@@ -36640,12 +36641,13 @@ router.get("/farms/:farmId/winery-pressing/additions-summary", requireAuth, requ
     FROM winery_pressing_additions a
     JOIN winery_pressing_records p ON p.id = a.pressing_record_id
     WHERE p.farm_id = ${farmId}
-    GROUP BY p.vintage_year, a.additive_name, a.category, a.unit
+    GROUP BY p.vintage_year, p.wine_colour, a.additive_name, a.category, a.unit
 
     UNION ALL
 
     SELECT
       f.vintage_year,
+      f.wine_colour,
       'SO₂ at fermentation'::text                AS additive_name,
       'so2'::text                                 AS category,
       'mg/L'::text                                AS unit,
@@ -36658,12 +36660,13 @@ router.get("/farms/:farmId/winery-pressing/additions-summary", requireAuth, requ
     FROM winery_fermentation_records f
     WHERE f.farm_id = ${farmId}
       AND f.so2_at_fermentation_mg_l IS NOT NULL
-    GROUP BY f.vintage_year
+    GROUP BY f.vintage_year, f.wine_colour
 
     UNION ALL
 
     SELECT
       o.vintage_year,
+      p2.wine_colour,
       'SO₂ (cellar sulfiting)'::text             AS additive_name,
       'so2'::text                                 AS category,
       'g'::text                                   AS unit,
@@ -36674,10 +36677,16 @@ router.get("/farms/:farmId/winery-pressing/additions-summary", requireAuth, requ
       ROUND(MAX(o.so2_quantity_g)::numeric, 3)   AS max_dose,
       ROUND(AVG(o.so2_quantity_g)::numeric, 3)   AS avg_dose
     FROM winery_cellar_ops o
+    LEFT JOIN LATERAL (
+      SELECT wine_colour
+      FROM winery_pressing_records
+      WHERE farm_id = o.farm_id AND batch_ref = o.batch_ref
+      LIMIT 1
+    ) p2 ON true
     WHERE o.farm_id = ${farmId}
       AND o.op_type = 'sulfiting'
       AND o.so2_quantity_g IS NOT NULL
-    GROUP BY o.vintage_year
+    GROUP BY o.vintage_year, p2.wine_colour
 
     ORDER BY vintage_year DESC NULLS LAST, source, category, additive_name
   `);
