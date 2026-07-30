@@ -36696,7 +36696,10 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
            a.additive_name, a.category, a.dose::text AS dose, a.unit, a.notes,
            a.pressing_record_id,
            p.operator_name,
-           p.settling_vessel AS vessel_ref
+           p.settling_vessel AS vessel_ref,
+           NULL::numeric AS volume_moved_litres,
+           NULL::numeric AS vessel_capacity_litres,
+           NULL::numeric AS so2_quantity_g
     FROM winery_pressing_additions a
     JOIN winery_pressing_records p ON p.id = a.pressing_record_id
     WHERE p.farm_id = ${farmId}
@@ -36712,7 +36715,10 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
            f.notes,
            NULL::integer AS pressing_record_id,
            f.operator_name,
-           v.vessel_ref
+           v.vessel_ref,
+           NULL::numeric AS volume_moved_litres,
+           NULL::numeric AS vessel_capacity_litres,
+           NULL::numeric AS so2_quantity_g
     FROM winery_fermentation_records f
     LEFT JOIN winery_vessels v ON v.id = f.vessel_id
     WHERE f.farm_id = ${farmId}
@@ -36733,7 +36739,10 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
              WHEN fv.vessel_ref IS NOT NULL AND tv.vessel_ref IS NOT NULL
                THEN fv.vessel_ref || ' → ' || tv.vessel_ref
              ELSE COALESCE(fv.vessel_ref, tv.vessel_ref)
-           END AS vessel_ref
+           END AS vessel_ref,
+           o.volume_moved_litres,
+           fv.capacity_litres AS vessel_capacity_litres,
+           o.so2_quantity_g
     FROM winery_cellar_ops o
     LEFT JOIN winery_vessels fv ON fv.id = o.from_vessel_id
     LEFT JOIN winery_vessels tv ON tv.id = o.to_vessel_id

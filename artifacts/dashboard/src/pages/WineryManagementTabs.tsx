@@ -2227,6 +2227,25 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     { key: "category", label: "Category" },
     { key: "dose", label: "Dose" },
     { key: "unit", label: "Unit" },
+    { key: "dose_rate_mg_l", label: "Dose Rate (mg/L)", fmt: (r: Record<string, unknown>) => {
+      // Only compute for cellar sulfiting rows with so2_quantity_g
+      if (r.source !== "cellar" || r.so2_quantity_g == null) return "";
+      const g = parseFloat(String(r.so2_quantity_g));
+      if (isNaN(g)) return "";
+      const capacity = r.vessel_capacity_litres != null ? parseFloat(String(r.vessel_capacity_litres)) : NaN;
+      if (!isNaN(capacity) && capacity > 0) return ((g * 1000) / capacity).toFixed(1);
+      const moved = r.volume_moved_litres != null ? parseFloat(String(r.volume_moved_litres)) : NaN;
+      if (!isNaN(moved) && moved > 0) return ((g * 1000) / moved).toFixed(1);
+      return "";
+    }},
+    { key: "volume_basis", label: "Volume basis", fmt: (r: Record<string, unknown>) => {
+      if (r.source !== "cellar" || r.so2_quantity_g == null) return "";
+      const capacity = r.vessel_capacity_litres != null ? parseFloat(String(r.vessel_capacity_litres)) : NaN;
+      if (!isNaN(capacity) && capacity > 0) return "Vessel capacity";
+      const moved = r.volume_moved_litres != null ? parseFloat(String(r.volume_moved_litres)) : NaN;
+      if (!isNaN(moved) && moved > 0) return "Volume moved";
+      return "";
+    }},
     { key: "notes", label: "Notes" },
   ];
 
