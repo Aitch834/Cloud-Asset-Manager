@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { sumCellarSo2 } from "@/lib/so2-summary";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf, Search } from "lucide-react";
@@ -534,6 +535,196 @@ function TrailSection({ icon: Icon, title, count, children }: { icon: React.Elem
   );
 }
 
+// ─── SO₂ Summary helpers ──────────────────────────────────────────────────────
+interface So2Summary {
+  pressSo2MgKg: number;
+  pressSo2MgL: number;
+  hasPressingSo2: boolean;
+  fermSo2Total: number;
+  hasFermSo2: boolean;
+  cellarSo2TotalG: number;
+  cellarSo2MgL: number | null;
+  hasCellarSo2: boolean;
+  latestTestTotal: number | null;
+  latestTestDate: string | null;
+  wineColour: string | null;
+  isOrganic: boolean;
+  conventionalLimit: number;
+  organicLimit: number;
+  activeLimit: number;
+  runningEstimate: number;
+  hasAny: boolean;
+}
+
+function computeSo2Summary(pressing: Record<string, unknown>, data: BatchTrailData): So2Summary {
+  // 1. Press SO₂ additions
+  const pressSo2Items = data.pressAdditions.filter(a => String(a.category) === "so2");
+  const pressSo2MgKg = pressSo2Items.filter(a => String(a.unit) === "mg/kg").reduce((s, a) => s + parseFloat(String(a.dose ?? 0)), 0);
+  const pressSo2MgL  = pressSo2Items.filter(a => String(a.unit) === "mg/L").reduce((s, a) => s + parseFloat(String(a.dose ?? 0)), 0);
+  const hasPressingSo2 = pressSo2Items.length > 0;
+
+  // 2. Fermentation SO₂ (sum across all linked fermentation records)
+  const fermVals = data.fermentation.filter(r => r.so2_at_fermentation_mg_l != null).map(r => parseFloat(String(r.so2_at_fermentation_mg_l)));
+  const fermSo2Total = fermVals.reduce((s, v) => s + v, 0);
+  const hasFermSo2 = fermVals.length > 0;
+
+  // 3. Cellar sulfiting ops
+  const sulfitingOps = data.cellarOps.filter(r => String(r.op_type) === "sulfiting" && r.so2_quantity_g != null);
+  // sumCellarSo2: per-operation dose rates are summed independently (not aggregate grams / aggregate vol)
+  const { totalG: cellarSo2TotalG, cumulativeMgL: cellarSo2MgL } = sumCellarSo2(sulfitingOps);
+  const hasCellarSo2 = sulfitingOps.length > 0;
+
+  // 4. Latest SO₂ test total (most recent by date)
+  const testsWithTotal = [...data.so2Tests].filter(r => r.total_so2_mg_l != null).sort((a, b) =>
+    new Date(String(b.test_date)).getTime() - new Date(String(a.test_date)).getTime()
+  );
+  const latestTest = testsWithTotal[0] ?? null;
+  const latestTestTotal = latestTest ? parseFloat(String(latestTest.total_so2_mg_l)) : null;
+  const latestTestDate = latestTest ? String(latestTest.test_date) : null;
+
+  // 5. Wine colour: fermentation → bottling → pressing record
+  const wineColour = (
+    (data.fermentation.find(r => r.wine_colour) as Record<string, unknown> | undefined)?.wine_colour ??
+    (data.bottling.find(r => r.wine_colour) as Record<string, unknown> | undefined)?.wine_colour ??
+    pressing.wine_colour ??
+    null
+  );
+  const colourStr = wineColour ? String(wineColour) : "White";
+
+  // 6. Organic flag
+  const isOrganic = pressing.is_organic === true || pressing.is_organic === "true" || pressing.is_organic === 1;
+
+  // 7. Limits
+  const conventionalLimit = parseInt(CONVENTIONAL_MAX_SO2[colourStr] ?? "200", 10);
+  const organicLimit = parseInt(ORGANIC_MAX_SO2[colourStr] ?? "150", 10);
+  const activeLimit = isOrganic ? organicLimit : conventionalLimit;
+
+  // 8. Running estimate: press (mg/kg ≈ mg/L, density ≈ 1) + ferm + cellar estimate
+  const pressEquiv = pressSo2MgKg + pressSo2MgL;
+  const runningEstimate = pressEquiv + fermSo2Total + (cellarSo2MgL ?? 0);
+
+  return {
+    pressSo2MgKg, pressSo2MgL, hasPressingSo2,
+    fermSo2Total, hasFermSo2,
+    cellarSo2TotalG, cellarSo2MgL, hasCellarSo2,
+    latestTestTotal, latestTestDate,
+    wineColour: wineColour ? String(wineColour) : null,
+    isOrganic, conventionalLimit, organicLimit, activeLimit,
+    runningEstimate,
+    hasAny: hasPressingSo2 || hasFermSo2 || hasCellarSo2 || latestTest !== null,
+  };
+}
+
+function So2SummaryBlock({ summary }: { summary: So2Summary }) {
+  if (!summary.hasAny) return null;
+
+  // Compliance indicator against the most authoritative figure (test total > running estimate)
+  const complianceValue = summary.latestTestTotal ?? summary.runningEstimate;
+  const pct = summary.activeLimit > 0 ? (complianceValue / summary.activeLimit) * 100 : 0;
+  const indicatorColor = complianceValue > summary.activeLimit
+    ? "bg-red-50 border-red-200"
+    : pct >= 75
+    ? "bg-amber-50 border-amber-200"
+    : "bg-green-50 border-green-200";
+  const badgeColor = complianceValue > summary.activeLimit
+    ? "bg-red-100 text-red-800"
+    : pct >= 75
+    ? "bg-amber-100 text-amber-800"
+    : "bg-green-100 text-green-800";
+  const statusText = complianceValue > summary.activeLimit
+    ? "Exceeds limit"
+    : pct >= 75
+    ? "Approaching limit"
+    : "Within limit";
+  const StatusIcon = complianceValue > summary.activeLimit ? XCircle : pct >= 75 ? AlertTriangle : CheckCircle2;
+
+  return (
+    <div className={`rounded-lg border px-4 py-3 space-y-2 ${indicatorColor}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+          <Gauge className="h-3.5 w-3.5" />SO₂ Compliance Summary
+        </span>
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${badgeColor}`}>
+          <StatusIcon className="w-3 h-3" />{statusText}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+        {/* Press SO₂ */}
+        <div className="bg-white/60 rounded p-2 space-y-0.5">
+          <p className="text-muted-foreground font-medium">At pressing</p>
+          {summary.hasPressingSo2 ? (
+            <p className="font-mono font-semibold text-sm">
+              {summary.pressSo2MgKg > 0 && `${summary.pressSo2MgKg.toFixed(1)} mg/kg`}
+              {summary.pressSo2MgKg > 0 && summary.pressSo2MgL > 0 && " + "}
+              {summary.pressSo2MgL > 0 && `${summary.pressSo2MgL.toFixed(1)} mg/L`}
+            </p>
+          ) : <p className="text-muted-foreground">—</p>}
+        </div>
+
+        {/* Fermentation SO₂ */}
+        <div className="bg-white/60 rounded p-2 space-y-0.5">
+          <p className="text-muted-foreground font-medium">At fermentation</p>
+          {summary.hasFermSo2
+            ? <p className="font-mono font-semibold text-sm">{summary.fermSo2Total.toFixed(1)} mg/L</p>
+            : <p className="text-muted-foreground">—</p>}
+        </div>
+
+        {/* Cellar sulfiting */}
+        <div className="bg-white/60 rounded p-2 space-y-0.5">
+          <p className="text-muted-foreground font-medium">Cellar sulfiting</p>
+          {summary.hasCellarSo2 ? (
+            <div>
+              <p className="font-mono font-semibold text-sm">{summary.cellarSo2TotalG.toFixed(1)} g total</p>
+              {summary.cellarSo2MgL != null && (
+                <p className="text-muted-foreground text-xs">≈ {summary.cellarSo2MgL.toFixed(1)} mg/L</p>
+              )}
+            </div>
+          ) : <p className="text-muted-foreground">—</p>}
+        </div>
+
+        {/* SO₂ test total */}
+        <div className="bg-white/60 rounded p-2 space-y-0.5">
+          <p className="text-muted-foreground font-medium">
+            {summary.latestTestTotal != null ? "Latest test total" : "Additions estimate"}
+          </p>
+          <p className="font-mono font-semibold text-sm">
+            {summary.latestTestTotal != null
+              ? `${summary.latestTestTotal.toFixed(1)} mg/L`
+              : `~${summary.runningEstimate.toFixed(1)} mg/L`}
+          </p>
+          {summary.latestTestDate && (
+            <p className="text-muted-foreground text-xs">{fmtDate(summary.latestTestDate)}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Limit bar */}
+      <div className="space-y-1">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>
+            {summary.wineColour ? `${summary.wineColour} wine · ` : ""}
+            {summary.isOrganic ? "Organic" : "Conventional"} limit: {summary.activeLimit} mg/L
+          </span>
+          <span className="font-mono">{Math.min(pct, 150).toFixed(0)}%</span>
+        </div>
+        <div className="w-full bg-white/60 rounded-full h-2 overflow-hidden">
+          <div
+            className={`h-2 rounded-full transition-all ${complianceValue > summary.activeLimit ? "bg-red-500" : pct >= 75 ? "bg-amber-400" : "bg-green-500"}`}
+            style={{ width: `${Math.min(pct, 100)}%` }}
+          />
+        </div>
+        {summary.latestTestTotal == null && (summary.hasPressingSo2 || summary.hasFermSo2 || summary.hasCellarSo2) && (
+          <p className="text-xs text-muted-foreground italic">
+            * Estimate from addition records. Run an SO₂ test to confirm the true total.
+            {summary.cellarSo2MgL != null ? " Cellar figure uses volume moved as an approximation." : ""}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: number; pressing: Record<string, unknown>; farmName: string; onClose: () => void }) {
   const batchRef = pressing.batch_ref != null && String(pressing.batch_ref).trim() !== "" ? String(pressing.batch_ref).trim() : null;
   const vintageYear = pressing.vintage_year != null ? String(pressing.vintage_year) : null;
@@ -585,6 +776,9 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
 
         {data && (
           <div className="space-y-5 text-sm">
+
+            {/* SO₂ cumulative summary */}
+            <So2SummaryBlock summary={computeSo2Summary(pressing, data)} />
 
             {/* Press Additions at pressing */}
             {data.pressAdditions.length > 0 && (
@@ -852,6 +1046,64 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
   const sectionHtml = (title: string, rows: string) =>
     rows ? `<div class="section"><h2>${escHtml(title)}</h2><table>${rows}</table></div>` : "";
 
+  // ── SO₂ compliance summary (computed client-side, same logic as the dialog) ──
+  const s2 = computeSo2Summary(pressing, data);
+  const compValue = s2.latestTestTotal ?? s2.runningEstimate;
+  const pctOfLimit = s2.activeLimit > 0 ? (compValue / s2.activeLimit) * 100 : 0;
+  const so2StatusColor = compValue > s2.activeLimit ? "#b91c1c" : pctOfLimit >= 75 ? "#92400e" : "#166534";
+  const so2BgColor     = compValue > s2.activeLimit ? "#fee2e2" : pctOfLimit >= 75 ? "#fef3c7" : "#dcfce7";
+  const so2StatusText  = compValue > s2.activeLimit ? "⚠ Exceeds limit" : pctOfLimit >= 75 ? "⚠ Approaching limit" : "✓ Within limit";
+  const barPct = Math.min(pctOfLimit, 100).toFixed(0);
+  const barColor = compValue > s2.activeLimit ? "#ef4444" : pctOfLimit >= 75 ? "#f59e0b" : "#22c55e";
+
+  const so2SummaryHtml = s2.hasAny ? `
+<div class="section">
+  <h2>SO₂ Compliance Summary</h2>
+  <div style="background:${so2BgColor};border-radius:6px;padding:10px 12px;margin-bottom:4px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span style="font-size:11px;font-weight:600;color:#374151">Cumulative SO₂ additions vs. legal ceiling</span>
+      <span style="font-size:11px;font-weight:700;color:${so2StatusColor}">${so2StatusText}</span>
+    </div>
+    <table style="width:100%;border-collapse:collapse">
+      <tr>
+        <th style="background:rgba(255,255,255,0.6);padding:5px 8px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #e5e7eb">Stage</th>
+        <th style="background:rgba(255,255,255,0.6);padding:5px 8px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #e5e7eb;text-align:right">Amount</th>
+        <th style="background:rgba(255,255,255,0.6);padding:5px 8px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #e5e7eb">Notes</th>
+      </tr>
+      <tr>
+        <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">SO₂ at pressing</td>
+        <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;text-align:right;font-family:monospace">${s2.hasPressingSo2 ? [s2.pressSo2MgKg > 0 ? `${s2.pressSo2MgKg.toFixed(1)} mg/kg` : "", s2.pressSo2MgL > 0 ? `${s2.pressSo2MgL.toFixed(1)} mg/L` : ""].filter(Boolean).join(" + ") : "—"}</td>
+        <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">From press additions</td>
+      </tr>
+      <tr>
+        <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">SO₂ at fermentation</td>
+        <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;text-align:right;font-family:monospace">${s2.hasFermSo2 ? `${s2.fermSo2Total.toFixed(1)} mg/L` : "—"}</td>
+        <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">Sum across fermentation records</td>
+      </tr>
+      <tr>
+        <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">Cellar sulfiting</td>
+        <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;text-align:right;font-family:monospace">${s2.hasCellarSo2 ? `${s2.cellarSo2TotalG.toFixed(1)} g${s2.cellarSo2MgL != null ? ` (≈ ${s2.cellarSo2MgL.toFixed(1)} mg/L)` : ""}` : "—"}</td>
+        <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">${s2.hasCellarSo2 && s2.cellarSo2MgL != null ? "Estimate using volume moved" : s2.hasCellarSo2 ? "Volume not recorded — no mg/L estimate" : "No sulfiting operations"}</td>
+      </tr>
+      <tr style="font-weight:700">
+        <td style="padding:5px 8px">${s2.latestTestTotal != null ? "Latest SO₂ test total" : "Running additions estimate"}</td>
+        <td style="padding:5px 8px;text-align:right;font-family:monospace;color:${so2StatusColor}">${s2.latestTestTotal != null ? `${s2.latestTestTotal.toFixed(1)} mg/L` : `~${s2.runningEstimate.toFixed(1)} mg/L`}${s2.latestTestDate ? ` (${fmtDate(s2.latestTestDate)})` : ""}</td>
+        <td style="padding:5px 8px;color:#6b7280">${s2.isOrganic ? "Organic" : "Conventional"} limit: ${s2.activeLimit} mg/L (${s2.wineColour ?? "wine"})</td>
+      </tr>
+    </table>
+    <div style="margin-top:8px">
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#6b7280;margin-bottom:2px">
+        <span>${s2.wineColour ?? ""} · ${s2.isOrganic ? "Organic" : "Conventional"} ceiling: ${s2.activeLimit} mg/L${s2.isOrganic ? ` · Conv. ceiling: ${s2.conventionalLimit} mg/L` : ""}</span>
+        <span>${barPct}% of limit</span>
+      </div>
+      <div style="height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden">
+        <div style="height:6px;width:${barPct}%;background:${barColor};border-radius:3px"></div>
+      </div>
+    </div>
+    ${s2.latestTestTotal == null ? `<p style="font-size:10px;color:#6b7280;font-style:italic;margin-top:6px">* Estimate from addition records only. Run a laboratory SO₂ test to confirm.</p>` : ""}
+  </div>
+</div>` : "";
+
   // Pressing summary
   const pressingRows = `<tr class="header-row"><th>Press Date</th><th>Batch Ref</th><th>Vintage</th><th>Press Type</th><th>Grapes (kg)</th><th>Juice (L)</th><th>Brix °</th><th>pH</th><th>Organic</th></tr>
 <tr>
@@ -983,6 +1235,7 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
   <span>Printed: ${escHtml(printedOn)}</span>
 </p>
 
+${so2SummaryHtml}
 ${sectionHtml("1. Pressing record", pressingRows)}
 ${addRows ? sectionHtml("2. Pressing additives", addHeader + addRows) : ""}
 ${fermRows ? sectionHtml("3. Fermentation", fermHeader + fermRows) : ""}
