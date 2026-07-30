@@ -2322,6 +2322,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
     // Auto-fill batch ref and vintage year when linking a pressing record
     if (!form.batchRef && match.batch_ref) sf("batchRef", String(match.batch_ref));
     if (!form.vintageYear && match.vintage_year) sf("vintageYear", String(match.vintage_year));
+    if (!form.wineColour && match.wine_colour) sf("wineColour", String(match.wine_colour));
     // Inherit organic status from pressing record (user can override manually)
     setIsOrganicForm(!!(match.is_organic === true || match.is_organic === "true"));
     // Fetch pressing additions and pre-fill SO₂ if the field is currently empty
