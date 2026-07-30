@@ -3716,6 +3716,14 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     { key: "closure_type", label: "Closure Type" },
     { key: "free_so2_mg_l", label: "Free SO₂ (mg/L)" },
     { key: "total_so2_mg_l", label: "Total SO₂ (mg/L)" },
+    { key: "so2_compliant", label: "SO₂ Compliant", fmt: (r: Record<string, unknown>) => {
+      const colour = String(r.wine_colour ?? "");
+      const isOrg = r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
+      const total = r.total_so2_mg_l != null ? parseFloat(String(r.total_so2_mg_l)) : null;
+      const ceiling = colour ? (isOrg ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour]) : undefined;
+      if (total == null || !ceiling) return "";
+      return total <= parseFloat(ceiling) ? "Yes" : "No";
+    }},
     { key: "certified_organic", label: "Certified Organic", fmt: (r: Record<string, unknown>) => r.certified_organic ? "Yes" : "No" },
     { key: "notes", label: "Notes" },
   ];
@@ -3754,6 +3762,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
               <th className="text-left p-3 font-medium">Closure</th>
               <th className="text-right p-3 font-medium">Free SO₂</th>
               <th className="text-right p-3 font-medium">Total SO₂</th>
+              <th className="text-left p-3 font-medium">SO₂ Status</th>
               <th className="p-3"></th>
             </tr></thead>
             <tbody className="divide-y">
@@ -3773,6 +3782,14 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                   <td className="p-3 text-muted-foreground text-xs">{fmt(r.closure_type)}</td>
                   <td className="p-3 text-right">{r.free_so2_mg_l ? `${fmtNum(r.free_so2_mg_l, 0)} mg/L` : "—"}</td>
                   <td className="p-3 text-right">{r.total_so2_mg_l ? `${fmtNum(r.total_so2_mg_l, 0)} mg/L` : "—"}</td>
+                  <td className="p-3">{(() => {
+                    const colour = String(r.wine_colour ?? "");
+                    const isOrg = r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
+                    const total = r.total_so2_mg_l != null ? parseFloat(String(r.total_so2_mg_l)) : null;
+                    const ceiling = colour ? (isOrg ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour]) : undefined;
+                    if (total == null || !ceiling) return <span className="text-muted-foreground text-xs">—</span>;
+                    return <So2Badge compliant={total <= parseFloat(ceiling)} />;
+                  })()}</td>
                   <td className="p-3 text-right whitespace-nowrap">
                     <Button variant="ghost" size="icon" className={`h-7 w-7 ${r.batch_ref ? "text-blue-600" : "text-muted-foreground"}`} title={r.batch_ref ? `View batch trail for ${String(r.batch_ref)}` : "No batch reference — showing full vintage trail"} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
