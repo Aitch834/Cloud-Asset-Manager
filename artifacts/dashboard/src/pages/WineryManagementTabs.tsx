@@ -4620,7 +4620,22 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
               <ViewField label="Cork Grade" value={fmt(view.cork_grade)} />
               <ViewField label="Label Batch" value={fmt(view.label_batch)} />
               <ViewField label="Free SO₂" value={view.free_so2_mg_l ? `${fmtNum(view.free_so2_mg_l, 0)} mg/L` : "—"} />
-              <ViewField label="Total SO₂" value={view.total_so2_mg_l ? `${fmtNum(view.total_so2_mg_l, 0)} mg/L` : "—"} />
+              <ViewField label="Total SO₂" value={(() => {
+                const totalSo2 = view.total_so2_mg_l != null ? parseFloat(String(view.total_so2_mg_l)) : null;
+                const wc = view.wine_colour ? String(view.wine_colour) : null;
+                if (totalSo2 == null || !wc) return view.total_so2_mg_l ? `${fmtNum(view.total_so2_mg_l, 0)} mg/L` : "—";
+                const isOrg = view.is_organic === true || view.is_organic === "true" || view.is_organic === 1;
+                const ceiling = isOrg ? ORGANIC_MAX_SO2[wc] : CONVENTIONAL_MAX_SO2[wc];
+                if (!ceiling) return `${fmtNum(view.total_so2_mg_l, 0)} mg/L`;
+                const compliant = totalSo2 <= parseFloat(ceiling);
+                return (
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-mono">{totalSo2.toFixed(0)} mg/L</span>
+                    <So2Badge compliant={compliant} />
+                    <span className="text-muted-foreground text-xs">(max {ceiling} mg/L{isOrg ? " organic" : ""})</span>
+                  </span>
+                );
+              })()} />
               <ViewField label="Actual ABV" value={view.actual_abv_pct ? `${fmtNum(view.actual_abv_pct, 2)} %` : "—"} />
               <ViewField label="Residual Sugar" value={view.residual_sugar_gl ? `${fmtNum(view.residual_sugar_gl, 1)} g/L` : "—"} />
               <ViewField label="pH" value={fmtNum(view.ph, 2)} />
