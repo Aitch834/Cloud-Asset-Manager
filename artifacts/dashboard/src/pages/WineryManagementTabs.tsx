@@ -3149,14 +3149,27 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
 
   const cellarPressingRefs = pressingRecords
     .filter(r => r.batch_ref)
-    .map(r => ({ batchRef: String(r.batch_ref), vintageYear: String(r.vintage_year ?? "") }))
+    .map(r => ({ batchRef: String(r.batch_ref), vintageYear: String(r.vintage_year ?? ""), wineColour: String(r.wine_colour ?? ""), isOrganic: !!(r.is_organic === true || r.is_organic === "true" || r.is_organic === 1) }))
     .sort((a, b) => b.batchRef.localeCompare(a.batchRef));
 
   const handleCellarBatchRefChange = (val: string) => {
     sf("batchRef", val);
     const match = cellarPressingRefs.find(p => p.batchRef === val);
-    if (match && !form.vintageYear) sf("vintageYear", match.vintageYear);
+    if (match) {
+      if (!form.vintageYear) sf("vintageYear", match.vintageYear);
+      if (!form.wineColour && match.wineColour) sf("wineColour", match.wineColour);
+      sf("_batchIsOrganic", match.isOrganic ? "true" : "false");
+    } else {
+      sf("_batchIsOrganic", "");
+    }
   };
+
+  // Organic SO₂ hint for cellar sulfiting form
+  const cellarBatchIsOrganic = form._batchIsOrganic === "true";
+  const cellarWineColour = form.wineColour ?? "";
+  const cellarOrgLimit = cellarBatchIsOrganic && cellarWineColour ? ORGANIC_MAX_SO2[cellarWineColour] : null;
+  const cellarFreeSo2After = form.freeSo2AfterMgL ? parseFloat(form.freeSo2AfterMgL) : null;
+  const cellarSo2OverOrganic = cellarOrgLimit != null && cellarFreeSo2After != null && cellarFreeSo2After > parseFloat(cellarOrgLimit);
 
   const opType = form.opType ?? "";
   const isRacking = opType === "racking";
@@ -3359,6 +3372,18 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                   <div><Label>Free SO₂ Before (mg/L)</Label><Input type="number" step="0.1" value={form.freeSo2BeforeMgL ?? ""} onChange={e => sf("freeSo2BeforeMgL", e.target.value)} /></div>
                   <div><Label>Free SO₂ After (mg/L)</Label><Input type="number" step="0.1" value={form.freeSo2AfterMgL ?? ""} onChange={e => sf("freeSo2AfterMgL", e.target.value)} /></div>
                 </div>
+                {cellarBatchIsOrganic && cellarOrgLimit && (
+                  <div className={`rounded-md border px-3 py-2 text-sm flex items-start gap-2 ${cellarSo2OverOrganic ? "bg-amber-50 border-amber-300 text-amber-800" : "bg-green-50 border-green-200 text-green-800"}`}>
+                    {cellarSo2OverOrganic ? <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" /> : <Leaf className="w-4 h-4 mt-0.5 shrink-0 text-green-600" />}
+                    <span>
+                      <strong>Organic batch</strong> — {cellarWineColour} ceiling: <strong>{cellarOrgLimit} mg/L</strong> free SO₂.
+                      {cellarSo2OverOrganic && cellarFreeSo2After != null && (
+                        <> The entered post-addition value ({cellarFreeSo2After.toFixed(1)} mg/L) exceeds the organic limit. Review before saving.</>
+                      )}
+                      {!cellarSo2OverOrganic && <> This addition is within the organic limit.</>}
+                    </span>
+                  </div>
+                )}
               </>
             )}
             {isFining && (
