@@ -1248,7 +1248,14 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
 
   // Bottling
   const bottlingRows = data.bottling.map(r => {
-    const organic = r.certified_organic === true || r.certified_organic === "true";
+    const isOrg = r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
+    const colour = String(r.wine_colour ?? "");
+    const ceiling = colour ? parseFloat(isOrg ? (ORGANIC_MAX_SO2[colour] ?? "") : (CONVENTIONAL_MAX_SO2[colour] ?? "")) : NaN;
+    const totalSo2 = r.total_so2_mg_l != null ? parseFloat(String(r.total_so2_mg_l)) : null;
+    const hasCompliance = totalSo2 != null && !isNaN(ceiling);
+    const exceeds = hasCompliance && totalSo2! > ceiling;
+    const complianceStyle = exceeds ? ' style="color:#b91c1c;font-weight:600"' : ' style="color:#166534"';
+    const complianceText = hasCompliance ? (exceeds ? "⚠ Exceeds limit" : "✓ Compliant") : "—";
     return `<tr>
     <td>${escHtml(fmtDate(r.bottling_date))}</td>
     <td style="font-family:monospace">${escHtml(r.lot_code)}</td>
@@ -1256,13 +1263,16 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
     <td style="text-align:right">${r.volume_bottled_litres != null ? parseFloat(String(r.volume_bottled_litres)).toFixed(1) : "—"}</td>
     <td style="text-align:right">${r.bottles_produced != null ? String(r.bottles_produced) : "—"}</td>
     <td style="text-align:right;font-family:monospace">${r.free_so2_mg_l != null ? parseFloat(String(r.free_so2_mg_l)).toFixed(1) : "—"}</td>
+    <td style="text-align:right;font-family:monospace">${totalSo2 != null ? totalSo2.toFixed(1) : "—"}</td>
+    <td style="text-align:right">${!isNaN(ceiling) ? `${ceiling.toFixed(0)} mg/L` : "—"}</td>
+    <td${hasCompliance ? complianceStyle : ""}>${complianceText}</td>
     <td style="text-align:right">${r.actual_abv_pct != null ? `${parseFloat(String(r.actual_abv_pct)).toFixed(1)}%` : "—"}</td>
     <td>${escHtml(r.closure_type)}</td>
-    <td>${organic ? "Yes" : "No"}</td>
+    <td>${isOrg ? "Yes — organic" : "No — conventional"}</td>
   </tr>`;
   }).join("");
 
-  const bottlingHeader = `<tr class="header-row"><th>Date</th><th>Lot Code</th><th>Colour</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">Bottles</th><th style="text-align:right">Free SO₂ (mg/L)</th><th style="text-align:right">ABV</th><th>Closure</th><th>Organic</th></tr>`;
+  const bottlingHeader = `<tr class="header-row"><th>Date</th><th>Lot Code</th><th>Colour</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">Bottles</th><th style="text-align:right">Free SO₂ (mg/L)</th><th style="text-align:right">Total SO₂ (mg/L)</th><th style="text-align:right">SO₂ ceiling</th><th>Compliance</th><th style="text-align:right">ABV</th><th>Closure</th><th>Organic limits</th></tr>`;
 
   const html = `<!DOCTYPE html>
 <html lang="en">
