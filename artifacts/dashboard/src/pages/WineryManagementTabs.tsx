@@ -4030,6 +4030,29 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
               {!!view.so2_quantity_g && <ViewField label="SO₂ Added" value={`${fmtNum(view.so2_quantity_g, 2)} g`} />}
               {!!view.free_so2_before_mg_l && <ViewField label="Free SO₂ Before" value={`${fmtNum(view.free_so2_before_mg_l, 0)} mg/L`} />}
               {!!view.free_so2_after_mg_l && <ViewField label="Free SO₂ After" value={`${fmtNum(view.free_so2_after_mg_l, 0)} mg/L`} />}
+              {(() => {
+                if (String(view.op_type) !== "sulfiting") return null;
+                const viewWineColour = String(view.wine_colour ?? "");
+                const viewPressing = view.batch_ref ? cellarPressingRefs.find(p => p.batchRef === String(view.batch_ref)) : null;
+                const viewIsOrganic = !!(viewPressing?.isOrganic);
+                const viewOrgLimit = viewIsOrganic && viewWineColour ? ORGANIC_MAX_SO2[viewWineColour] : null;
+                if (!viewOrgLimit || !view.free_so2_after_mg_l) return null;
+                const viewFreeSo2 = parseFloat(String(view.free_so2_after_mg_l));
+                const viewOverLimit = !isNaN(viewFreeSo2) && viewFreeSo2 > parseFloat(viewOrgLimit);
+                return (
+                  <div className={`col-span-2 flex items-start gap-2 rounded-md px-3 py-2 text-xs ${viewOverLimit ? "bg-red-50 border border-red-200 text-red-800" : "bg-green-50 border border-green-200 text-green-800"}`}>
+                    {viewOverLimit
+                      ? <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                      : <Leaf className="w-3.5 h-3.5 mt-0.5 shrink-0" />}
+                    <span>
+                      <strong>Organic {viewWineColour} limit: {viewOrgLimit} mg/L</strong> —{" "}
+                      {viewOverLimit
+                        ? <>Recorded free SO₂ ({fmtNum(view.free_so2_after_mg_l, 0)} mg/L) <strong>exceeds</strong> the organic ceiling.</>
+                        : <>Recorded free SO₂ ({fmtNum(view.free_so2_after_mg_l, 0)} mg/L) is within the organic ceiling.</>}
+                    </span>
+                  </div>
+                );
+              })()}
               {!!view.fining_agent && <ViewField label="Fining Agent" value={fmt(view.fining_agent)} />}
               {!!view.fining_dose && <ViewField label="Fining Dose" value={fmt(view.fining_dose)} />}
               {!!view.contact_time_hours && <ViewField label="Contact Time" value={`${view.contact_time_hours} hours`} />}
