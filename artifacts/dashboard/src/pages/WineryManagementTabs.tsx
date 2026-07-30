@@ -3640,6 +3640,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
     { key: "vintage_year", label: "Vintage" },
     { key: "op_date", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.op_date) },
     { key: "op_type", label: "Operation Type" },
+    { key: "wine_colour", label: "Wine Colour" },
     { key: "volume_l", label: "Volume (L)" },
     { key: "product_used", label: "Product Used" },
     { key: "quantity_used", label: "Quantity Used" },
