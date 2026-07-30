@@ -1221,6 +1221,28 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
                         {!!r.closure_type && <span>{String(r.closure_type)}</span>}
                         {r.actual_abv_pct != null && <span>ABV: {fmtNum(r.actual_abv_pct, 1)}%</span>}
                         {r.free_so2_mg_l != null && <span>Free SO₂: {fmtNum(r.free_so2_mg_l, 1)} mg/L</span>}
+                        {r.total_so2_mg_l != null && <span className="font-medium text-foreground">Total SO₂: {fmtNum(r.total_so2_mg_l, 1)} mg/L</span>}
+                        {(() => {
+                          const rowColour = r.wine_colour ? String(r.wine_colour) : null;
+                          if (!rowColour) return null;
+                          const rowOrganic = r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
+                          const ceiling = rowOrganic
+                            ? (ORGANIC_MAX_SO2[rowColour] ?? null)
+                            : (CONVENTIONAL_MAX_SO2[rowColour] ?? null);
+                          if (!ceiling) return null;
+                          const ceilingNum = parseInt(ceiling, 10);
+                          return (
+                            <>
+                              <span>Ceiling: {ceilingNum} mg/L{rowOrganic ? " (organic)" : ""}</span>
+                              {r.total_so2_mg_l != null && (() => {
+                                const totalVal = parseFloat(String(r.total_so2_mg_l));
+                                return totalVal <= ceilingNum
+                                  ? <span className="inline-flex items-center gap-0.5 text-green-700 font-medium"><CheckCircle2 className="w-3 h-3" />Compliant</span>
+                                  : <span className="inline-flex items-center gap-0.5 text-red-700 font-medium"><XCircle className="w-3 h-3" />Exceeds limit</span>;
+                              })()}
+                            </>
+                          );
+                        })()}
                         {r.ph != null && <span className="text-blue-700 font-medium">pH: {fmtNum(r.ph, 2)}</span>}
                         {r.titratable_acidity_gl != null && <span className="text-blue-700">TA: {fmtNum(r.titratable_acidity_gl, 1)} g/L</span>}
                       </div>
