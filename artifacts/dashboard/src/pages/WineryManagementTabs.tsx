@@ -3709,7 +3709,9 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     setForm(f => {
       const next: Record<string, string | boolean> = { ...f, batchRef: val };
       if (pressMatch && !f.vintageYear) next.vintageYear = pressMatch.vintageYear;
-      if (pressMatch && !f.wineColour && pressMatch.wineColour) next.wineColour = pressMatch.wineColour;
+      // Wine colour: prefer fermentation record (more downstream), fall back to pressing
+      const inheritedWineColour = (fermMatch && fermMatch.wine_colour) ? String(fermMatch.wine_colour) : (pressMatch?.wineColour ?? "");
+      if (!f.wineColour && inheritedWineColour) next.wineColour = inheritedWineColour;
       if (organicSource) next.isOrganic = inheritedOrganic ? "true" : "false";
       let filled = false;
       if (latestTest) {
