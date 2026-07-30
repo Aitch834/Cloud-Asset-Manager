@@ -4102,6 +4102,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [nonCompliantOnly, setNonCompliantOnly] = useState(false);
   const [so2FromTest, setSo2FromTest] = useState(false);
   const [phTaFromAnalysis, setPhTaFromAnalysis] = useState<"fermentation" | "pressing" | null>(null);
   const [organicAutoSource, setOrganicAutoSource] = useState<"fermentation" | "pressing" | null>(null);
@@ -4349,6 +4350,18 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   if (!years.includes(String(new Date().getFullYear()))) years.unshift(String(new Date().getFullYear()));
   const filtered = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
 
+  const isBottlingRowNonCompliant = (r: Record<string, unknown>): boolean => {
+    const colour = String(r.wine_colour ?? "");
+    const isOrg = r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
+    const total = r.total_so2_mg_l != null && r.total_so2_mg_l !== "" ? parseFloat(String(r.total_so2_mg_l)) : null;
+    const ceiling = colour ? (isOrg ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour]) : undefined;
+    if (total == null || !ceiling) return false;
+    return total > parseFloat(ceiling);
+  };
+
+  const nonCompliantCount = filtered.filter(isBottlingRowNonCompliant).length;
+  const displayRows = nonCompliantOnly ? filtered.filter(isBottlingRowNonCompliant) : filtered;
+
   const bottlingCsvCols = [
     { key: "vintage_year", label: "Vintage" },
     { key: "bottling_date", label: "Bottling Date", fmt: (r: Record<string, unknown>) => fmtDate(r.bottling_date) },
@@ -4384,18 +4397,42 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
         </div>
         <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Bottling Run</Button>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-muted-foreground">Vintage:</span>
-        <Select value={yearFilter} onValueChange={setYearFilter}>
+        <Select value={yearFilter} onValueChange={v => { setYearFilter(v); setNonCompliantOnly(false); }}>
           <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
         </Select>
+        {nonCompliantCount > 0 && (
+          <Button
+            size="sm"
+            variant={nonCompliantOnly ? "destructive" : "outline"}
+            className={nonCompliantOnly ? "h-8 text-xs" : "h-8 text-xs border-red-300 text-red-700 hover:bg-red-50"}
+            onClick={() => setNonCompliantOnly(v => !v)}
+          >
+            <XCircle className="w-3.5 h-3.5 mr-1" />
+            {nonCompliantOnly ? "Show all runs" : "Non-compliant only"}
+          </Button>
+        )}
         <Button size="sm" variant="outline" className="ml-auto" onClick={() => exportCSV(filtered, "bottling-records.csv", bottlingCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <Button size="sm" variant="outline" onClick={() => { resetImportDialog(); setImportOpen(true); }}><Upload className="w-3.5 h-3.5 mr-1" />Import CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} run{filtered.length !== 1 ? "s" : ""}</span>
       </div>
+      {!crud.isLoading && nonCompliantCount > 0 && (
+        <div className="flex items-start gap-2.5 rounded-md border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-800">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-red-600" />
+          <span>
+            <strong>{nonCompliantCount} run{nonCompliantCount !== 1 ? "s" : ""}</strong> exceed{nonCompliantCount === 1 ? "s" : ""} the applicable SO₂ limit
+            {yearFilter !== "all" ? ` in ${yearFilter}` : ""}.{" "}
+            {!nonCompliantOnly && (
+              <button className="underline font-medium" onClick={() => setNonCompliantOnly(true)}>Show non-compliant only</button>
+            )}
+          </span>
+        </div>
+      )}
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         : filtered.length === 0 ? <EmptyState icon={Wine} title="No bottling records yet" sub="Add a record for each bottling run." />
+        : displayRows.length === 0 ? <EmptyState icon={CheckCircle2} title="No non-compliant runs" sub="All bottling runs in this vintage are within the SO₂ limit." />
         : (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
@@ -4413,7 +4450,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
               <th className="p-3"></th>
             </tr></thead>
             <tbody className="divide-y">
-              {filtered.map(r => (
+              {displayRows.map(r => (
                 <tr key={String(r.id)} className="hover:bg-muted/20">
                   <td className="p-3 whitespace-nowrap">{fmtDate(r.bottling_date)}</td>
                   <td className="p-3 font-mono font-semibold text-xs">{fmt(r.lot_code)}</td>
