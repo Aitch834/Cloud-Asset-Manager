@@ -41,3 +41,4 @@
 - [EIDCymru + ScotEID integration scaffold](eidcymru-scoteid-scaffold.md) — Wales/Scotland livestock submission adapters; sandbox-first; tables in lisMigrations.ts; routes appended to farms.ts; Movements.tsx tabs gated on farmData.country
 - [lib/db rebuild command](lib-db-rebuild.md) — correct command after schema changes: `cd lib/db && npx tsc --build tsconfig.json`; not `pnpm --filter @workspace/db run build` (no build script exists)
 - [Record unknown && JSX TypeScript error](record-unknown-jsx.md) — `{record.field && <JSX />}` when record is `Record<string,unknown>` yields `unknown`, not ReactNode; fix with `{!!record.field && <JSX />}`
+- [Dashboard build OOM](dashboard-build-oom.md) — ~1 GB free RAM; Rollup OOMs at chunk rendering; mitigations in place; long-term fix = split WineryManagementTabs.tsx + LivestockPage.tsx (500 KB+)

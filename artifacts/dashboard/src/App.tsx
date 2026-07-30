@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, Suspense } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
@@ -8,117 +8,122 @@ import { ClerkProvider, SignIn, SignUp, useClerk, useAuth } from "@clerk/react";
 
 import "@/lib/fetch-patch";
 
+// Static imports for framework-level pages (always needed)
 import Login from "@/pages/Login";
 import SelectContext from "@/pages/SelectContext";
-import OnboardingPage from "@/pages/OnboardingPage";
-import Dashboard from "@/pages/Dashboard";
-import FieldsPage from "@/pages/Fields";
-import CropTrialsPage from "@/pages/CropTrialsPage";
-import EquipmentPage from "@/pages/Equipment";
-import ModulePage from "@/pages/ModulePage";
-import MovementsPage from "@/pages/Movements";
-import LivestockPageFull from "@/pages/LivestockPage";
-import SuppliersStockPage from "@/pages/SuppliersStock";
-import FinancialPage from "@/pages/FinancialPage";
-import HarvestPage from "@/pages/HarvestPage";
-import SprayPage from "@/pages/SprayPage";
-import NMPPage from "@/pages/NMPPage";
-import NVZPage from "@/pages/NVZPage";
-import DocumentsPageCustom from "@/pages/DocumentsPage";
-import HelpCentre from "@/pages/HelpCentre";
-import SupportPage from "@/pages/SupportPage";
-import HarvestDashboard from "@/pages/HarvestDashboard";
-import LivestockHealthDashboard from "@/pages/LivestockHealthDashboard";
-import NVZDashboard from "@/pages/NVZDashboard";
-import SoilDashboard from "@/pages/SoilDashboard";
-import FleetDashboard from "@/pages/FleetDashboard";
-import BusinessReportsPage from "@/pages/BusinessReportsPage";
-import FieldOperationsPage from "@/pages/FieldOperationsPage";
-import FieldInspectionsPage from "@/pages/FieldInspectionsPage";
-import FarmSettingsPage from "@/pages/FarmSettings";
-import LookupListsPage from "@/pages/LookupListsPage";
-import AppSettingsPage from "@/pages/SettingsPage";
-import StaffPage from "@/pages/Staff";
-import DepartmentsPage from "@/pages/DepartmentsPage";
-import StaffTrainingPage from "@/pages/StaffTrainingPage";
-import LabourPage from "@/pages/LabourPage";
 import NotFound from "@/pages/not-found";
-import SoilTestsPage from "@/pages/SoilTestsPage";
-import BiosecurityPage from "@/pages/BiosecurityPage";
-import MedicinePageDedicated from "@/pages/MedicinePage";
-import BiofuelPage from "@/pages/BiofuelPage";
-import DataApiPage from "@/pages/DataApiPage";
-import ReportBuilderPage from "@/pages/ReportBuilderPage";
-import InspectionsPageFull from "@/pages/InspectionsPageFull";
-import WeatherPageFull from "@/pages/WeatherPageFull";
-import HaulagePageFull from "@/pages/HaulagePageFull";
-import CropStockPage from "@/pages/CropStockPage";
-import SeedStorePage from "@/pages/SeedStorePage";
-import StrawManagementPage from "@/pages/StrawManagementPage";
-import EnvironmentalPageFull from "@/pages/EnvironmentalPageFull";
-import StorageLocationsPage from "@/pages/StorageLocationsPage";
-import AccountSettings from "@/pages/AccountSettings";
-import AdvisorsAccessPage from "@/pages/AdvisorsAccessPage";
-import InspectionViewPage from "@/pages/InspectionViewPage";
-import RiskAssessmentsPage from "@/pages/RiskAssessmentsPage";
-import WasteDisposalPage from "@/pages/WasteDisposalPage";
-import ContractorsPage from "@/pages/ContractorsPage";
+
+// Lazy-loaded page imports — each becomes a separate async chunk,
+// dramatically reducing Rollup's peak memory during the production build.
+const OnboardingPage = React.lazy(() => import("@/pages/OnboardingPage"));
+const Dashboard = React.lazy(() => import("@/pages/Dashboard"));
+const FieldsPage = React.lazy(() => import("@/pages/Fields"));
+const CropTrialsPage = React.lazy(() => import("@/pages/CropTrialsPage"));
+const EquipmentPage = React.lazy(() => import("@/pages/Equipment"));
+const ModulePage = React.lazy(() => import("@/pages/ModulePage"));
+const MovementsPage = React.lazy(() => import("@/pages/Movements"));
+const LivestockPageFull = React.lazy(() => import("@/pages/LivestockPage"));
+const SuppliersStockPage = React.lazy(() => import("@/pages/SuppliersStock"));
+const FinancialPage = React.lazy(() => import("@/pages/FinancialPage"));
+const HarvestPage = React.lazy(() => import("@/pages/HarvestPage"));
+const SprayPage = React.lazy(() => import("@/pages/SprayPage"));
+const NMPPage = React.lazy(() => import("@/pages/NMPPage"));
+const NVZPage = React.lazy(() => import("@/pages/NVZPage"));
+const DocumentsPageCustom = React.lazy(() => import("@/pages/DocumentsPage"));
+const HelpCentre = React.lazy(() => import("@/pages/HelpCentre"));
+const SupportPage = React.lazy(() => import("@/pages/SupportPage"));
+const HarvestDashboard = React.lazy(() => import("@/pages/HarvestDashboard"));
+const LivestockHealthDashboard = React.lazy(() => import("@/pages/LivestockHealthDashboard"));
+const NVZDashboard = React.lazy(() => import("@/pages/NVZDashboard"));
+const SoilDashboard = React.lazy(() => import("@/pages/SoilDashboard"));
+const FleetDashboard = React.lazy(() => import("@/pages/FleetDashboard"));
+const BusinessReportsPage = React.lazy(() => import("@/pages/BusinessReportsPage"));
+const FieldOperationsPage = React.lazy(() => import("@/pages/FieldOperationsPage"));
+const FieldInspectionsPage = React.lazy(() => import("@/pages/FieldInspectionsPage"));
+const FarmSettingsPage = React.lazy(() => import("@/pages/FarmSettings"));
+const LookupListsPage = React.lazy(() => import("@/pages/LookupListsPage"));
+const AppSettingsPage = React.lazy(() => import("@/pages/SettingsPage"));
+const StaffPage = React.lazy(() => import("@/pages/Staff"));
+const DepartmentsPage = React.lazy(() => import("@/pages/DepartmentsPage"));
+const StaffTrainingPage = React.lazy(() => import("@/pages/StaffTrainingPage"));
+const LabourPage = React.lazy(() => import("@/pages/LabourPage"));
+const SoilTestsPage = React.lazy(() => import("@/pages/SoilTestsPage"));
+const BiosecurityPage = React.lazy(() => import("@/pages/BiosecurityPage"));
+const MedicinePageDedicated = React.lazy(() => import("@/pages/MedicinePage"));
+const BiofuelPage = React.lazy(() => import("@/pages/BiofuelPage"));
+const DataApiPage = React.lazy(() => import("@/pages/DataApiPage"));
+const ReportBuilderPage = React.lazy(() => import("@/pages/ReportBuilderPage"));
+const InspectionsPageFull = React.lazy(() => import("@/pages/InspectionsPageFull"));
+const WeatherPageFull = React.lazy(() => import("@/pages/WeatherPageFull"));
+const HaulagePageFull = React.lazy(() => import("@/pages/HaulagePageFull"));
+const CropStockPage = React.lazy(() => import("@/pages/CropStockPage"));
+const SeedStorePage = React.lazy(() => import("@/pages/SeedStorePage"));
+const StrawManagementPage = React.lazy(() => import("@/pages/StrawManagementPage"));
+const EnvironmentalPageFull = React.lazy(() => import("@/pages/EnvironmentalPageFull"));
+const StorageLocationsPage = React.lazy(() => import("@/pages/StorageLocationsPage"));
+const AccountSettings = React.lazy(() => import("@/pages/AccountSettings"));
+const AdvisorsAccessPage = React.lazy(() => import("@/pages/AdvisorsAccessPage"));
+const InspectionViewPage = React.lazy(() => import("@/pages/InspectionViewPage"));
+const RiskAssessmentsPage = React.lazy(() => import("@/pages/RiskAssessmentsPage"));
+const WasteDisposalPage = React.lazy(() => import("@/pages/WasteDisposalPage"));
+const ContractorsPage = React.lazy(() => import("@/pages/ContractorsPage"));
 const FlyTippingPage = React.lazy(() => import("@/pages/FlyTippingPage"));
-import EncampmentPage from "@/pages/EncampmentPage";
-import AccidentBookPage from "@/pages/AccidentBookPage";
-import FarmLocationsPage from "@/pages/FarmLocationsPage";
-import FarmMapPage from "@/pages/FarmMapPage";
-import ResourceMapPage from "@/pages/ResourceMapPage";
-import DairyRestockPage from "@/pages/DairyRestockPage";
-import WeekAheadPage from "@/pages/WeekAheadPage";
-import TaskBoardPage from "@/pages/TaskBoardPage";
-import ResourcesPage from "@/pages/ResourcesPage";
-import HerdHealthRegisterPage from "@/pages/HerdHealthRegisterPage";
-import DairyPage from "@/pages/DairyPage";
-import WorkshopPage from "@/pages/WorkshopPage";
-import PigProductionPage from "@/pages/PigProductionPage";
-import PoultryProductionPage from "@/pages/PoultryProductionPage";
-import SheepProductionPage from "@/pages/SheepProductionPage";
-import GoatProductionPage from "@/pages/GoatProductionPage";
-import VenisonProductionPage from "@/pages/VenisonProductionPage";
-import OrganicVenisonPage from "@/pages/OrganicVenisonPage";
-import BeefProductionPage from "@/pages/BeefProductionPage";
-import ViticulturePage from "@/pages/ViticulturePage";
-import FreshProducePage from "@/pages/FreshProducePage";
-import CarbonPage from "@/pages/CarbonPage";
-import DiversificationPage from "@/pages/DiversificationPage";
-import WaterIrrigationPage from "@/pages/WaterIrrigationPage";
-import InsurancePage from "@/pages/InsurancePage";
-import FarmServicesPage from "@/pages/FarmServicesPage";
-import GrantsPage from "@/pages/GrantsPage";
-import SFIPage from "@/pages/SFIPage";
-import FuelEnergyPage from "@/pages/FuelEnergyPage";
-import FeedManagementPage from "@/pages/FeedManagementPage";
-import SalesTradingPage from "@/pages/SalesTradingPage";
-import TradeHistory from "@/pages/TradeHistory";
-import OrganicPage from "@/pages/OrganicPage";
-import OrganicLivestockPage from "@/pages/OrganicLivestockPage";
-import OrganicDairyPage from "@/pages/OrganicDairyPage";
-import SheepDairyPage from "@/pages/SheepDairyPage";
-import OrganicSheepDairyPage from "@/pages/OrganicSheepDairyPage";
-import GoatDairyPage from "@/pages/GoatDairyPage";
-import OrganicGoatDairyPage from "@/pages/OrganicGoatDairyPage";
-import OrganicFreshProducePage from "@/pages/OrganicFreshProducePage";
-import OrganicViticulturePage from "@/pages/OrganicViticulturePage";
-import OrganicArablePage from "@/pages/OrganicArablePage";
-import CompliancePage from "@/pages/CompliancePage";
-import VetLedgerPage from "@/pages/VetLedgerPage";
-import SeasonReportsPage from "@/pages/SeasonReportsPage";
-import MultiFarmGroupPage from "@/pages/MultiFarmGroupPage";
-import TBTestingPage from "@/pages/TBTestingPage";
-import EquinePage from "@/pages/EquinePage";
-import AMRReportPage from "@/pages/AMRReportPage";
-import LambingRecordsPage from "@/pages/LambingRecordsPage";
-import PoultryNCPPage from "@/pages/PoultryNCPPage";
-import AHWRPage from "@/pages/AHWRPage";
-import BeekeepingPage from "@/pages/BeekeepingPage";
-import OrganicPoultryPage from "@/pages/OrganicPoultryPage";
-import SMSAlertsPage from "@/pages/SMSAlertsPage";
+const EncampmentPage = React.lazy(() => import("@/pages/EncampmentPage"));
+const AccidentBookPage = React.lazy(() => import("@/pages/AccidentBookPage"));
+const FarmLocationsPage = React.lazy(() => import("@/pages/FarmLocationsPage"));
+const FarmMapPage = React.lazy(() => import("@/pages/FarmMapPage"));
+const ResourceMapPage = React.lazy(() => import("@/pages/ResourceMapPage"));
+const DairyRestockPage = React.lazy(() => import("@/pages/DairyRestockPage"));
+const WeekAheadPage = React.lazy(() => import("@/pages/WeekAheadPage"));
+const TaskBoardPage = React.lazy(() => import("@/pages/TaskBoardPage"));
+const ResourcesPage = React.lazy(() => import("@/pages/ResourcesPage"));
+const HerdHealthRegisterPage = React.lazy(() => import("@/pages/HerdHealthRegisterPage"));
+const DairyPage = React.lazy(() => import("@/pages/DairyPage"));
+const WorkshopPage = React.lazy(() => import("@/pages/WorkshopPage"));
+const PigProductionPage = React.lazy(() => import("@/pages/PigProductionPage"));
+const PoultryProductionPage = React.lazy(() => import("@/pages/PoultryProductionPage"));
+const SheepProductionPage = React.lazy(() => import("@/pages/SheepProductionPage"));
+const GoatProductionPage = React.lazy(() => import("@/pages/GoatProductionPage"));
+const VenisonProductionPage = React.lazy(() => import("@/pages/VenisonProductionPage"));
+const OrganicVenisonPage = React.lazy(() => import("@/pages/OrganicVenisonPage"));
+const BeefProductionPage = React.lazy(() => import("@/pages/BeefProductionPage"));
+const ViticulturePage = React.lazy(() => import("@/pages/ViticulturePage"));
+const FreshProducePage = React.lazy(() => import("@/pages/FreshProducePage"));
+const CarbonPage = React.lazy(() => import("@/pages/CarbonPage"));
+const DiversificationPage = React.lazy(() => import("@/pages/DiversificationPage"));
+const WaterIrrigationPage = React.lazy(() => import("@/pages/WaterIrrigationPage"));
+const InsurancePage = React.lazy(() => import("@/pages/InsurancePage"));
+const FarmServicesPage = React.lazy(() => import("@/pages/FarmServicesPage"));
+const GrantsPage = React.lazy(() => import("@/pages/GrantsPage"));
+const SFIPage = React.lazy(() => import("@/pages/SFIPage"));
+const FuelEnergyPage = React.lazy(() => import("@/pages/FuelEnergyPage"));
+const FeedManagementPage = React.lazy(() => import("@/pages/FeedManagementPage"));
+const SalesTradingPage = React.lazy(() => import("@/pages/SalesTradingPage"));
+const TradeHistory = React.lazy(() => import("@/pages/TradeHistory"));
+const OrganicPage = React.lazy(() => import("@/pages/OrganicPage"));
+const OrganicLivestockPage = React.lazy(() => import("@/pages/OrganicLivestockPage"));
+const OrganicDairyPage = React.lazy(() => import("@/pages/OrganicDairyPage"));
+const SheepDairyPage = React.lazy(() => import("@/pages/SheepDairyPage"));
+const OrganicSheepDairyPage = React.lazy(() => import("@/pages/OrganicSheepDairyPage"));
+const GoatDairyPage = React.lazy(() => import("@/pages/GoatDairyPage"));
+const OrganicGoatDairyPage = React.lazy(() => import("@/pages/OrganicGoatDairyPage"));
+const OrganicFreshProducePage = React.lazy(() => import("@/pages/OrganicFreshProducePage"));
+const OrganicViticulturePage = React.lazy(() => import("@/pages/OrganicViticulturePage"));
+const OrganicArablePage = React.lazy(() => import("@/pages/OrganicArablePage"));
+const CompliancePage = React.lazy(() => import("@/pages/CompliancePage"));
+const VetLedgerPage = React.lazy(() => import("@/pages/VetLedgerPage"));
+const SeasonReportsPage = React.lazy(() => import("@/pages/SeasonReportsPage"));
+const MultiFarmGroupPage = React.lazy(() => import("@/pages/MultiFarmGroupPage"));
+const TBTestingPage = React.lazy(() => import("@/pages/TBTestingPage"));
+const EquinePage = React.lazy(() => import("@/pages/EquinePage"));
+const AMRReportPage = React.lazy(() => import("@/pages/AMRReportPage"));
+const LambingRecordsPage = React.lazy(() => import("@/pages/LambingRecordsPage"));
+const PoultryNCPPage = React.lazy(() => import("@/pages/PoultryNCPPage"));
+const AHWRPage = React.lazy(() => import("@/pages/AHWRPage"));
+const BeekeepingPage = React.lazy(() => import("@/pages/BeekeepingPage"));
+const OrganicPoultryPage = React.lazy(() => import("@/pages/OrganicPoultryPage"));
+const SMSAlertsPage = React.lazy(() => import("@/pages/SMSAlertsPage"));
+
 import { NavHistoryProvider } from "@/context/NavHistoryContext";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -141,6 +146,12 @@ const queryClient = new QueryClient({
   },
 });
 
+const PageFallback = () => (
+  <div className="min-h-screen flex items-center justify-center">
+    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+  </div>
+);
+
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
   const qc = useQueryClient();
@@ -159,8 +170,6 @@ function ClerkQueryClientCacheInvalidator() {
 }
 
 function SignInPage() {
-  // To update login providers, app branding, or OAuth settings use the Auth
-  // pane in the workspace toolbar. More information can be found in the Replit docs.
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <SignIn
@@ -174,8 +183,6 @@ function SignInPage() {
 }
 
 function SignUpPage() {
-  // To update login providers, app branding, or OAuth settings use the Auth
-  // pane in the workspace toolbar. More information can be found in the Replit docs.
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <SignUp
@@ -220,90 +227,6 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-
-function SoilPage() {
-  return <SoilTestsPage />;
-}
-
-function InspectionsPage() {
-  return <InspectionsPageFull />;
-}
-
-function RisksPage() {
-  return <RiskAssessmentsPage />;
-}
-
-function WastePage() {
-  return <WasteDisposalPage />;
-}
-
-function FlyTippingPageWrapper() {
-  const { farmId } = useAppStore();
-  return (
-    <React.Suspense fallback={<div style={{ padding: 40, color: "#9ca3af" }}>Loading…</div>}>
-      <FlyTippingPage farmId={farmId} />
-    </React.Suspense>
-  );
-}
-
-function CompliancePageWrapper() {
-  return <CompliancePage />;
-}
-
-function VisitorsPage() {
-  return <BiosecurityPage defaultTab="visitors" />;
-}
-
-function PestControlPage() {
-  return <BiosecurityPage defaultTab="pest-control" />;
-}
-
-function CleaningPage() {
-  return <BiosecurityPage defaultTab="cleaning" />;
-}
-
-function LivestockPage() {
-  return <LivestockPageFull />;
-}
-
-
-function MedicinePage() {
-  return <MedicinePageDedicated />;
-}
-
-function TrainingPage() {
-  return <StaffTrainingPage />;
-}
-
-function StockPage() {
-  return <SuppliersStockPage />;
-}
-
-
-function EnvironmentalPage() {
-  return <EnvironmentalPageFull />;
-}
-
-function HaulagePage() {
-  return <HaulagePageFull />;
-}
-
-function WeatherPage() {
-  return <WeatherPageFull />;
-}
-
-function CoshhPage() {
-  return <BiosecurityPage defaultTab="coshh" />;
-}
-
-function HelpPage() {
-  return <HelpCentre />;
-}
-
-function SettingsPage() {
-  return <AppSettingsPage />;
-}
-
 function RouteErrorBoundary({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   return (
@@ -313,9 +236,10 @@ function RouteErrorBoundary({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ProtectedContent() {
+function AppRoutes() {
+  const { farmId } = useAppStore();
   return (
-    <AuthGate>
+    <Suspense fallback={<PageFallback />}>
       <Switch>
         <Route path="/select" component={SelectContext} />
         <Route path="/onboard" component={OnboardingPage} />
@@ -332,28 +256,28 @@ function ProtectedContent() {
         <Route path="/sprays" component={SprayPage} />
         <Route path="/nmp" component={NMPPage} />
         <Route path="/nvz" component={NVZPage} />
-        <Route path="/soil" component={SoilPage} />
-        <Route path="/inspections" component={InspectionsPage} />
-        <Route path="/risks" component={RisksPage} />
-        <Route path="/waste" component={WastePage} />
-        <Route path="/fly-tipping" component={FlyTippingPageWrapper} />
+        <Route path="/soil" component={SoilTestsPage} />
+        <Route path="/inspections" component={InspectionsPageFull} />
+        <Route path="/risks" component={RiskAssessmentsPage} />
+        <Route path="/waste" component={WasteDisposalPage} />
+        <Route path="/fly-tipping" component={() => <FlyTippingPage farmId={farmId} />} />
         <Route path="/encampments" component={EncampmentPage} />
         <Route path="/accident-book" component={AccidentBookPage} />
         <Route path="/contractors" component={ContractorsPage} />
-        <Route path="/visitors" component={VisitorsPage} />
-        <Route path="/pest-control" component={PestControlPage} />
-        <Route path="/cleaning" component={CleaningPage} />
-        <Route path="/coshh" component={CoshhPage} />
+        <Route path="/visitors" component={() => <BiosecurityPage defaultTab="visitors" />} />
+        <Route path="/pest-control" component={() => <BiosecurityPage defaultTab="pest-control" />} />
+        <Route path="/cleaning" component={() => <BiosecurityPage defaultTab="cleaning" />} />
+        <Route path="/coshh" component={() => <BiosecurityPage defaultTab="coshh" />} />
         <Route path="/farm-locations" component={FarmLocationsPage} />
         <Route path="/farm-map" component={FarmMapPage} />
         <Route path="/resource-map" component={ResourceMapPage} />
         <Route path="/dairy-restock" component={DairyRestockPage} />
-        <Route path="/livestock" component={LivestockPage} />
+        <Route path="/livestock" component={LivestockPageFull} />
         <Route path="/movements" component={MovementsPage} />
-        <Route path="/medicine" component={MedicinePage} />
-        <Route path="/training" component={TrainingPage} />
-        <Route path="/labour" component={() => <React.Suspense fallback={null}><LabourPage /></React.Suspense>} />
-        <Route path="/stock" component={StockPage} />
+        <Route path="/medicine" component={MedicinePageDedicated} />
+        <Route path="/training" component={StaffTrainingPage} />
+        <Route path="/labour" component={LabourPage} />
+        <Route path="/stock" component={SuppliersStockPage} />
         <Route path="/financial" component={FinancialPage} />
         <Route path="/sales-trading" component={SalesTradingPage} />
         <Route path="/trade-history" component={TradeHistory} />
@@ -361,13 +285,13 @@ function ProtectedContent() {
         <Route path="/season-reports" component={SeasonReportsPage} />
         <Route path="/field-operations" component={FieldOperationsPage} />
         <Route path="/field-inspections" component={FieldInspectionsPage} />
-        <Route path="/environmental" component={EnvironmentalPage} />
-        <Route path="/haulage" component={HaulagePage} />
+        <Route path="/environmental" component={EnvironmentalPageFull} />
+        <Route path="/haulage" component={HaulagePageFull} />
         <Route path="/crop-stock" component={CropStockPage} />
         <Route path="/seed-store" component={SeedStorePage} />
         <Route path="/documents" component={DocumentsPageCustom} />
-        <Route path="/weather" component={WeatherPage} />
-        <Route path="/help" component={HelpPage} />
+        <Route path="/weather" component={WeatherPageFull} />
+        <Route path="/help" component={HelpCentre} />
         <Route path="/support" component={SupportPage} />
         <Route path="/harvest-dashboard" component={HarvestDashboard} />
         <Route path="/livestock-health" component={LivestockHealthDashboard} />
@@ -381,7 +305,7 @@ function ProtectedContent() {
         <Route path="/settings/access" component={AdvisorsAccessPage} />
         <Route path="/settings/farm" component={FarmSettingsPage} />
         <Route path="/settings/lookups" component={LookupListsPage} />
-        <Route path="/settings" component={SettingsPage} />
+        <Route path="/settings" component={AppSettingsPage} />
         <Route path="/account" component={AccountSettings} />
         <Route path="/dairy" component={DairyPage} />
         <Route path="/workshop" component={WorkshopPage} />
@@ -417,7 +341,7 @@ function ProtectedContent() {
         <Route path="/organic-fresh-produce" component={OrganicFreshProducePage} />
         <Route path="/organic-viticulture" component={OrganicViticulturePage} />
         <Route path="/organic-arable" component={OrganicArablePage} />
-        <Route path="/compliance" component={CompliancePageWrapper} />
+        <Route path="/compliance" component={CompliancePage} />
         <Route path="/group-overview" component={MultiFarmGroupPage} />
         <Route path="/tb-tests" component={TBTestingPage} />
         <Route path="/equine" component={EquinePage} />
@@ -430,6 +354,14 @@ function ProtectedContent() {
         <Route path="/sms-alerts" component={SMSAlertsPage} />
         <Route component={NotFound} />
       </Switch>
+    </Suspense>
+  );
+}
+
+function ProtectedContent() {
+  return (
+    <AuthGate>
+      <AppRoutes />
     </AuthGate>
   );
 }
@@ -437,13 +369,15 @@ function ProtectedContent() {
 function Router() {
   return (
     <RouteErrorBoundary>
-      <Switch>
-        <Route path="/" component={HomeRedirect} />
-        <Route path="/sign-in/*?" component={SignInPage} />
-        <Route path="/sign-up/*?" component={SignUpPage} />
-        <Route path="/inspect/:token" component={InspectionViewPage} />
-        <Route component={ProtectedContent} />
-      </Switch>
+      <Suspense fallback={<PageFallback />}>
+        <Switch>
+          <Route path="/" component={HomeRedirect} />
+          <Route path="/sign-in/*?" component={SignInPage} />
+          <Route path="/sign-up/*?" component={SignUpPage} />
+          <Route path="/inspect/:token" component={InspectionViewPage} />
+          <Route component={ProtectedContent} />
+        </Switch>
+      </Suspense>
     </RouteErrorBoundary>
   );
 }
@@ -451,124 +385,15 @@ function Router() {
 function DevBypassContent() {
   return (
     <RouteErrorBoundary>
-      <Switch>
-        <Route path="/" component={() => <Redirect to="/select" />} />
-        <Route path="/sign-in/*?" component={() => <Redirect to="/select" />} />
-        <Route path="/sign-up/*?" component={() => <Redirect to="/select" />} />
-        <Route path="/inspect/:token" component={InspectionViewPage} />
-        <Route path="/select" component={SelectContext} />
-        <Route path="/onboard" component={OnboardingPage} />
-        <Route path="/dashboard" component={Dashboard} />
-        <Route path="/week-ahead" component={WeekAheadPage} />
-        <Route path="/task-board" component={TaskBoardPage} />
-        <Route path="/resources" component={ResourcesPage} />
-        <Route path="/fields" component={FieldsPage} />
-        <Route path="/crop-trials" component={CropTrialsPage} />
-        <Route path="/straw-management" component={StrawManagementPage} />
-        <Route path="/harvest" component={HarvestPage} />
-        <Route path="/storage-locations" component={StorageLocationsPage} />
-        <Route path="/equipment" component={EquipmentPage} />
-        <Route path="/sprays" component={SprayPage} />
-        <Route path="/nmp" component={NMPPage} />
-        <Route path="/nvz" component={NVZPage} />
-        <Route path="/soil" component={SoilPage} />
-        <Route path="/inspections" component={InspectionsPage} />
-        <Route path="/risks" component={RisksPage} />
-        <Route path="/waste" component={WastePage} />
-        <Route path="/fly-tipping" component={FlyTippingPageWrapper} />
-        <Route path="/encampments" component={EncampmentPage} />
-        <Route path="/accident-book" component={AccidentBookPage} />
-        <Route path="/contractors" component={ContractorsPage} />
-        <Route path="/visitors" component={VisitorsPage} />
-        <Route path="/pest-control" component={PestControlPage} />
-        <Route path="/cleaning" component={CleaningPage} />
-        <Route path="/coshh" component={CoshhPage} />
-        <Route path="/farm-locations" component={FarmLocationsPage} />
-        <Route path="/farm-map" component={FarmMapPage} />
-        <Route path="/resource-map" component={ResourceMapPage} />
-        <Route path="/dairy-restock" component={DairyRestockPage} />
-        <Route path="/livestock" component={LivestockPage} />
-        <Route path="/movements" component={MovementsPage} />
-        <Route path="/medicine" component={MedicinePage} />
-        <Route path="/training" component={TrainingPage} />
-        <Route path="/labour" component={() => <React.Suspense fallback={null}><LabourPage /></React.Suspense>} />
-        <Route path="/stock" component={StockPage} />
-        <Route path="/financial" component={FinancialPage} />
-        <Route path="/sales-trading" component={SalesTradingPage} />
-        <Route path="/trade-history" component={TradeHistory} />
-        <Route path="/business-reports" component={BusinessReportsPage} />
-        <Route path="/season-reports" component={SeasonReportsPage} />
-        <Route path="/field-operations" component={FieldOperationsPage} />
-        <Route path="/field-inspections" component={FieldInspectionsPage} />
-        <Route path="/environmental" component={EnvironmentalPage} />
-        <Route path="/haulage" component={HaulagePage} />
-        <Route path="/crop-stock" component={CropStockPage} />
-        <Route path="/seed-store" component={SeedStorePage} />
-        <Route path="/documents" component={DocumentsPageCustom} />
-        <Route path="/weather" component={WeatherPage} />
-        <Route path="/help" component={HelpPage} />
-        <Route path="/support" component={SupportPage} />
-        <Route path="/harvest-dashboard" component={HarvestDashboard} />
-        <Route path="/livestock-health" component={LivestockHealthDashboard} />
-        <Route path="/herd-health-register" component={HerdHealthRegisterPage} />
-        <Route path="/vet-ledger" component={VetLedgerPage} />
-        <Route path="/nvz-dashboard" component={NVZDashboard} />
-        <Route path="/soil-dashboard" component={SoilDashboard} />
-        <Route path="/fleet-dashboard" component={FleetDashboard} />
-        <Route path="/staff" component={StaffPage} />
-        <Route path="/departments" component={DepartmentsPage} />
-        <Route path="/settings/access" component={AdvisorsAccessPage} />
-        <Route path="/settings/farm" component={FarmSettingsPage} />
-        <Route path="/settings/lookups" component={LookupListsPage} />
-        <Route path="/settings" component={SettingsPage} />
-        <Route path="/account" component={AccountSettings} />
-        <Route path="/dairy" component={DairyPage} />
-        <Route path="/workshop" component={WorkshopPage} />
-        <Route path="/biofuel" component={BiofuelPage} />
-        <Route path="/data-api" component={DataApiPage} />
-        <Route path="/report-builder" component={ReportBuilderPage} />
-        <Route path="/pig-production" component={PigProductionPage} />
-        <Route path="/poultry-production" component={PoultryProductionPage} />
-        <Route path="/sheep-production" component={SheepProductionPage} />
-        <Route path="/goat-production" component={GoatProductionPage} />
-        <Route path="/venison-production" component={VenisonProductionPage} />
-        <Route path="/organic-venison" component={OrganicVenisonPage} />
-        <Route path="/beef-production" component={BeefProductionPage} />
-        <Route path="/viticulture" component={ViticulturePage} />
-        <Route path="/horticulture"><Redirect to="/fresh-produce" /></Route>
-        <Route path="/fresh-produce" component={FreshProducePage} />
-        <Route path="/carbon" component={CarbonPage} />
-        <Route path="/diversification" component={DiversificationPage} />
-        <Route path="/water-irrigation" component={WaterIrrigationPage} />
-        <Route path="/insurance" component={InsurancePage} />
-        <Route path="/farm-services" component={FarmServicesPage} />
-        <Route path="/grants" component={GrantsPage} />
-        <Route path="/sfi" component={SFIPage} />
-        <Route path="/fuel-energy" component={FuelEnergyPage} />
-        <Route path="/feed" component={FeedManagementPage} />
-        <Route path="/organic" component={OrganicPage} />
-        <Route path="/organic-livestock" component={OrganicLivestockPage} />
-        <Route path="/organic-dairy" component={OrganicDairyPage} />
-        <Route path="/sheep-dairy" component={SheepDairyPage} />
-        <Route path="/organic-sheep-dairy" component={OrganicSheepDairyPage} />
-        <Route path="/goat-dairy" component={GoatDairyPage} />
-        <Route path="/organic-goat-dairy" component={OrganicGoatDairyPage} />
-        <Route path="/organic-fresh-produce" component={OrganicFreshProducePage} />
-        <Route path="/organic-viticulture" component={OrganicViticulturePage} />
-        <Route path="/organic-arable" component={OrganicArablePage} />
-        <Route path="/compliance" component={CompliancePageWrapper} />
-        <Route path="/group-overview" component={MultiFarmGroupPage} />
-        <Route path="/tb-tests" component={TBTestingPage} />
-        <Route path="/equine" component={EquinePage} />
-        <Route path="/amr-report" component={AMRReportPage} />
-        <Route path="/lambing" component={LambingRecordsPage} />
-        <Route path="/poultry-ncp" component={PoultryNCPPage} />
-        <Route path="/ahwr" component={AHWRPage} />
-        <Route path="/beekeeping" component={BeekeepingPage} />
-        <Route path="/organic-poultry" component={OrganicPoultryPage} />
-        <Route path="/sms-alerts" component={SMSAlertsPage} />
-        <Route component={NotFound} />
-      </Switch>
+      <Suspense fallback={<PageFallback />}>
+        <Switch>
+          <Route path="/" component={() => <Redirect to="/select" />} />
+          <Route path="/sign-in/*?" component={() => <Redirect to="/select" />} />
+          <Route path="/sign-up/*?" component={() => <Redirect to="/select" />} />
+          <Route path="/inspect/:token" component={InspectionViewPage} />
+          <Route component={AppRoutes} />
+        </Switch>
+      </Suspense>
     </RouteErrorBoundary>
   );
 }
@@ -577,9 +402,6 @@ function ClerkProviderWrapper() {
   const [, setLocation] = useLocation();
   const isDevBypass = import.meta.env.VITE_DEV_BYPASS_AUTH === "true";
 
-  // In dev-bypass mode skip ClerkProvider entirely — Clerk's async session
-  // checks (fired ~20 s after init) throw an empty error object that crashes
-  // the ErrorBoundary even though no Clerk auth is needed in bypass mode.
   if (isDevBypass) {
     return (
       <QueryClientProvider client={queryClient}>
