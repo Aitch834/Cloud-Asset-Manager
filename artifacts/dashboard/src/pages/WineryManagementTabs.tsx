@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { sumCellarSo2 } from "@/lib/so2-summary";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf, Search, Upload, PenLine } from "lucide-react";
+import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf, Search, Upload, PenLine, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1930,6 +1930,8 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [pressingSearch, setPressingSearch] = useState("");
+  const [pressingSortCol, setPressingSortCol] = useState<"date" | "batch_ref">("date");
+  const [pressingSortDir, setPressingSortDir] = useState<"asc" | "desc">("desc");
   const [pressTypeOther, setPressTypeOther] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsForm, setSettingsForm] = useState<Record<string, string>>({});
@@ -2107,13 +2109,33 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
   if (!years.includes(String(new Date().getFullYear()))) years.unshift(String(new Date().getFullYear()));
   const filteredByYear = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
-  const filtered = pressingSearch.trim() === ""
+  const filteredBySearch = pressingSearch.trim() === ""
     ? filteredByYear
     : filteredByYear.filter(r => {
         const q = pressingSearch.trim().toLowerCase();
         return String(r.batch_ref ?? "").toLowerCase().includes(q)
           || String(r.press_date ?? "").toLowerCase().includes(q);
       });
+  const togglePressSort = (col: "date" | "batch_ref") => {
+    if (pressingSortCol === col) {
+      setPressingSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setPressingSortCol(col);
+      setPressingSortDir(col === "date" ? "desc" : "asc");
+    }
+  };
+  const filtered = [...filteredBySearch].sort((a, b) => {
+    let av = "", bv = "";
+    if (pressingSortCol === "date") {
+      av = String(a.press_date ?? "");
+      bv = String(b.press_date ?? "");
+    } else {
+      av = String(a.batch_ref ?? "");
+      bv = String(b.batch_ref ?? "");
+    }
+    const cmp = av.localeCompare(bv);
+    return pressingSortDir === "asc" ? cmp : -cmp;
+  });
 
   // ── Additions Report derived data ────────────────────────────────────────────
   const filteredSummary = yearFilter === "all" ? additionsSummary : additionsSummary.filter(r => String(r.vintage_year) === yearFilter);
@@ -2256,8 +2278,22 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
             <thead className="bg-muted/40"><tr>
-              <th className="text-left p-3 font-medium">Date</th>
-              <th className="text-left p-3 font-medium">Batch</th>
+              <th className="text-left p-3 font-medium">
+                <button className="flex items-center gap-1 hover:text-foreground text-left group" onClick={() => togglePressSort("date")}>
+                  Date
+                  {pressingSortCol === "date"
+                    ? pressingSortDir === "asc" ? <ArrowUp className="w-3.5 h-3.5 text-primary" /> : <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                    : <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground" />}
+                </button>
+              </th>
+              <th className="text-left p-3 font-medium">
+                <button className="flex items-center gap-1 hover:text-foreground text-left group" onClick={() => togglePressSort("batch_ref")}>
+                  Batch
+                  {pressingSortCol === "batch_ref"
+                    ? pressingSortDir === "asc" ? <ArrowUp className="w-3.5 h-3.5 text-primary" /> : <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                    : <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground" />}
+                </button>
+              </th>
               <th className="text-left p-3 font-medium">Press Type</th>
               <th className="text-right p-3 font-medium">Pressed (kg)</th>
               <th className="text-right p-3 font-medium">Juice (L)</th>
