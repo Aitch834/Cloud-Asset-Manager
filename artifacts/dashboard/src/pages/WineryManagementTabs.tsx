@@ -3893,6 +3893,32 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
 
   const CSV_IMPORT_HEADERS = ["Bottling Date", "Vintage", "Batch Ref", "Lot Code", "Wine Colour", "Organic (Yes/No)", "Volume Bottled (L)", "Bottle Size (ml)", "Bottles", "Cases", "Closure Type", "Free SO2 (mg/L)", "Total SO2 (mg/L)", "Notes"];
 
+  const downloadBottlingTemplate = () => {
+    const exampleRow = [
+      "2024-09-15",   // Bottling Date (YYYY-MM-DD)
+      "2023",         // Vintage
+      "BATCH-001",    // Batch Ref
+      "LOT-2023-001", // Lot Code
+      "White",        // Wine Colour (Red, White, Rosé, Sparkling, Orange, Other)
+      "No",           // Organic (Yes/No)
+      "500",          // Volume Bottled (L)
+      "750",          // Bottle Size (ml)
+      "666",          // Bottles
+      "55",           // Cases
+      "Screw cap (Stelvin)", // Closure Type
+      "35",           // Free SO2 (mg/L)
+      "120",          // Total SO2 (mg/L)
+      "Example row — delete before importing", // Notes
+    ];
+    const header = CSV_IMPORT_HEADERS.map(h => `"${h}"`).join(",");
+    const example = exampleRow.map(v => `"${v.replace(/"/g, '""')}"`).join(",");
+    const blob = new Blob([header + "\n" + example + "\n"], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "bottling-import-template.csv";
+    a.click();
+  };
+
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     setImportError(null);
     setImportResult(null);
@@ -4418,9 +4444,18 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
           {!importResult && (
             <div className="space-y-4">
               <div className="rounded-md border border-dashed p-4 bg-muted/30 text-xs text-muted-foreground space-y-1">
-                <p className="font-medium text-foreground">Expected CSV columns (header row required):</p>
+                <div className="flex items-start justify-between gap-3">
+                  <p className="font-medium text-foreground">Expected CSV columns (header row required):</p>
+                  <button
+                    type="button"
+                    onClick={downloadBottlingTemplate}
+                    className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                  >
+                    <FileDown className="w-3 h-3" />Download template
+                  </button>
+                </div>
                 <p className="font-mono">{CSV_IMPORT_HEADERS.join(", ")}</p>
-                <p className="mt-1">Exports from this register use a compatible format and can be re-imported directly.</p>
+                <p className="mt-1">Exports from this register use a compatible format and can be re-imported directly. The template includes an example row showing the expected formats — delete it before importing.</p>
               </div>
               <div>
                 <Label>Select CSV file</Label>
