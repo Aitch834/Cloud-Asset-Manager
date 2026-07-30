@@ -2152,7 +2152,9 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
                   <td className="p-3 font-mono text-xs">{fmt(r.batch_ref)}</td>
                   <td className="p-3">
                     {r.wine_colour ? <span className="text-xs bg-purple-100 text-purple-700 rounded px-1.5 py-0.5">{String(r.wine_colour)}</span> : "—"}
-                    {(r.is_organic === true || r.is_organic === "true") && <span className="ml-1 text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5">Organic</span>}
+                    {(r.is_organic === true || r.is_organic === "true" || r.is_organic === 1) && (
+                      <span className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 font-sans"><Leaf className="w-3 h-3" />Organic</span>
+                    )}
                   </td>
                   <td className="p-3 font-mono text-xs">{fmt(r.vessel_ref ?? vessels.find(v => v.id === r.vessel_id)?.vessel_ref)}</td>
                   <td className="p-3 whitespace-nowrap">{fmtDate(r.start_date)}</td>
