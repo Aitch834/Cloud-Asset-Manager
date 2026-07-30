@@ -509,7 +509,9 @@ function useWineryBatchSettings(farmId: number) {
 
 // ─── Batch Trail Dialog ───────────────────────────────────────────────────────
 interface BatchTrailData {
-  batchRef: string;
+  batchRef: string | null;
+  vintageYear: number | null;
+  scope: "batchRef" | "vintageYear";
   fermentation: Record<string, unknown>[];
   cellarOps: Record<string, unknown>[];
   so2Tests: Record<string, unknown>[];
@@ -531,19 +533,27 @@ function TrailSection({ icon: Icon, title, count, children }: { icon: React.Elem
 }
 
 function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: number; pressing: Record<string, unknown>; farmName: string; onClose: () => void }) {
-  const batchRef = String(pressing.batch_ref ?? "");
+  const batchRef = pressing.batch_ref != null && String(pressing.batch_ref).trim() !== "" ? String(pressing.batch_ref).trim() : null;
+  const vintageYear = pressing.vintage_year != null ? String(pressing.vintage_year) : null;
+  const hasQuery = !!(batchRef || vintageYear);
+
+  const queryUrl = batchRef
+    ? api(`farms/${farmId}/winery-pressing/batch-trail?batchRef=${encodeURIComponent(batchRef)}`)
+    : api(`farms/${farmId}/winery-pressing/batch-trail?vintageYear=${encodeURIComponent(vintageYear ?? "")}`);
+
   const { data, isLoading, isError } = useQuery<BatchTrailData>({
-    queryKey: ["winery-batch-trail", farmId, batchRef],
+    queryKey: ["winery-batch-trail", farmId, batchRef ?? `vintage:${vintageYear}`],
     queryFn: async () => {
-      const r = await fetch(api(`farms/${farmId}/winery-pressing/batch-trail?batchRef=${encodeURIComponent(batchRef)}`), { credentials: "include" });
+      const r = await fetch(queryUrl, { credentials: "include" });
       if (!r.ok) throw new Error("Failed to load batch trail");
       return r.json();
     },
-    enabled: !!batchRef,
+    enabled: hasQuery,
     staleTime: 30_000,
   });
 
   const totalLinked = (data?.fermentation.length ?? 0) + (data?.cellarOps.length ?? 0) + (data?.so2Tests.length ?? 0) + (data?.bottling.length ?? 0);
+  const isVintageScoped = data?.scope === "vintageYear";
 
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
@@ -551,15 +561,25 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <GitBranch className="h-4 w-4 text-blue-600" />
-            Batch Trail — {batchRef || "—"}
+            Batch Trail — {batchRef ?? (vintageYear ? `Vintage ${vintageYear}` : "—")}
           </DialogTitle>
           <DialogDescription>
-            All records linked to this pressing batch{pressing.vintage_year ? ` (Vintage ${String(pressing.vintage_year)})` : ""}. Press date: {fmtDate(pressing.press_date)}.
+            {isVintageScoped
+              ? `Showing all winery records for Vintage ${vintageYear} — no batch reference is set on this pressing record. Press date: ${fmtDate(pressing.press_date)}.`
+              : `All records linked to this pressing batch${pressing.vintage_year ? ` (Vintage ${String(pressing.vintage_year)})` : ""}. Press date: ${fmtDate(pressing.press_date)}.`}
           </DialogDescription>
         </DialogHeader>
 
+        {!hasQuery && <p className="text-sm text-muted-foreground py-4">No batch reference or vintage year available for this pressing record.</p>}
         {isLoading && <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}
         {isError && <p className="text-sm text-red-600 py-4">Failed to load batch trail. Please try again.</p>}
+
+        {isVintageScoped && data && (
+          <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span>This pressing record has no batch reference. Results show all winery records for Vintage {vintageYear} — they may span multiple batches.</span>
+          </div>
+        )}
 
         {data && (
           <div className="space-y-5 text-sm">
