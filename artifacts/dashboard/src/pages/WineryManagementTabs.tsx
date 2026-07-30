@@ -3336,6 +3336,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [so2FromTest, setSo2FromTest] = useState(false);
+  const [phTaFromAnalysis, setPhTaFromAnalysis] = useState(false);
   const [organicAutoSource, setOrganicAutoSource] = useState<"fermentation" | "pressing" | null>(null);
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   const [lotCodeError, setLotCodeError] = useState<string | null>(null);
@@ -3394,6 +3395,10 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
           .filter(t => String(t.batch_ref ?? "") === val && (t.test_stage === "pre-bottling" || t.test_stage === "at-bottling"))
           .sort((a, b) => String(b.test_date ?? "").localeCompare(String(a.test_date ?? "")))[0] ?? null
       : null;
+    // Find the pressing record for this batch to source pH and TA
+    const pressingRecord = val
+      ? pressingRecords.find(p => String(p.batch_ref ?? "") === val) ?? null
+      : null;
     setOrganicAutoSource(organicSource);
     setForm(f => {
       const next: Record<string, string | boolean> = { ...f, batchRef: val };
@@ -3406,6 +3411,13 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
         if (!f.totalSo2MgL && latestTest.total_so2_mg_l != null) { next.totalSo2MgL = String(latestTest.total_so2_mg_l); filled = true; }
       }
       if (filled) setSo2FromTest(true);
+      // Pre-fill pH and TA from the pressing record's juice analysis
+      let phTaFilled = false;
+      if (pressingRecord) {
+        if (!f.ph && pressingRecord.juice_ph != null) { next.ph = String(pressingRecord.juice_ph); phTaFilled = true; }
+        if (!f.titratableAcidityGl && pressingRecord.juice_ta_gl != null) { next.titratableAcidityGl = String(pressingRecord.juice_ta_gl); phTaFilled = true; }
+      }
+      if (phTaFilled) setPhTaFromAnalysis(true);
       return next;
     });
   };
@@ -3416,7 +3428,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const autoBottles = volL > 0 && sizeMl > 0 ? Math.floor((volL * 1000) / sizeMl) : null;
   const autoCases = autoBottles != null ? Math.floor(autoBottles / 12) : null;
 
-  const openAdd = () => { setEditing(null); setForm({ bottlingDate: today, vintageYear: String(new Date().getFullYear()), isOrganic: "false", certifiedOrganic: "false", bottleSizeMl: "750" }); setSo2FromTest(false); setOrganicAutoSource(null); setLotCodeError(null); setOpen(true); };
+  const openAdd = () => { setEditing(null); setForm({ bottlingDate: today, vintageYear: String(new Date().getFullYear()), isOrganic: "false", certifiedOrganic: "false", bottleSizeMl: "750" }); setSo2FromTest(false); setPhTaFromAnalysis(false); setOrganicAutoSource(null); setLotCodeError(null); setOpen(true); };
   const openEdit = (r: Record<string, unknown>) => {
     setEditing(r.id as number);
     const raw = Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]));
@@ -3425,6 +3437,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     if (raw.certifiedOrganic === undefined || raw.certifiedOrganic === "") raw.certifiedOrganic = raw.certified_organic ?? "false";
     setForm(raw);
     setSo2FromTest(false);
+    setPhTaFromAnalysis(false);
     setOrganicAutoSource(null);
     setLotCodeError(null);
     setOpen(true);
@@ -3646,7 +3659,13 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
             {so2FromTest && (
               <p className="text-xs text-blue-600 flex items-center gap-1 -mt-1">
                 <FlaskConical className="h-3 w-3 shrink-0" />
-                Pre-filled from the most recent SO₂ test for this batch — edit to override
+                SO₂ pre-filled from the most recent SO₂ test for this batch — edit to override
+              </p>
+            )}
+            {phTaFromAnalysis && (
+              <p className="text-xs text-blue-600 flex items-center gap-1 -mt-1">
+                <FlaskConical className="h-3 w-3 shrink-0" />
+                pH / TA pre-filled from the pressing juice analysis for this batch — edit to override
               </p>
             )}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -3654,8 +3673,8 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
               <div><Label>Total SO₂ (mg/L)</Label><Input type="number" step="0.1" value={String(form.totalSo2MgL ?? "")} onChange={e => { setSo2FromTest(false); sf("totalSo2MgL", e.target.value); }} /></div>
               <div><Label>Actual ABV %</Label><Input type="number" step="0.01" value={String(form.actualAbvPct ?? "")} onChange={e => sf("actualAbvPct", e.target.value)} /></div>
               <div><Label>Residual Sugar (g/L)</Label><Input type="number" step="0.1" value={String(form.residualSugarGl ?? "")} onChange={e => sf("residualSugarGl", e.target.value)} /></div>
-              <div><Label>pH</Label><Input type="number" step="0.01" value={String(form.ph ?? "")} onChange={e => sf("ph", e.target.value)} /></div>
-              <div><Label>TA (g/L)</Label><Input type="number" step="0.1" value={String(form.titratableAcidityGl ?? "")} onChange={e => sf("titratableAcidityGl", e.target.value)} /></div>
+              <div><Label>pH</Label><Input type="number" step="0.01" value={String(form.ph ?? "")} onChange={e => { setPhTaFromAnalysis(false); sf("ph", e.target.value); }} /></div>
+              <div><Label>TA (g/L)</Label><Input type="number" step="0.1" value={String(form.titratableAcidityGl ?? "")} onChange={e => { setPhTaFromAnalysis(false); sf("titratableAcidityGl", e.target.value); }} /></div>
             </div>
             <div className="flex items-center gap-3 rounded-md border px-3 py-2">
               <Checkbox id="cert-org-chk" checked={form.certifiedOrganic === "true" || form.certifiedOrganic === true} onCheckedChange={v => sf("certifiedOrganic", v ? "true" : "false")} />
