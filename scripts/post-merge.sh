@@ -8,15 +8,11 @@ pnpm install --frozen-lockfile
 cd lib/db && npx tsc --build tsconfig.json
 cd ../..
 
-# Rebuild the dashboard static bundle (it serves from dist/)
-# NODE_OPTIONS needed — Vite chunk rendering is memory-intensive on this large bundle.
-# If the build is killed by OOM (exit 137), restore the last committed dist so the
-# dashboard stays functional with slightly stale content rather than being broken.
-echo "Building dashboard..."
-if NODE_OPTIONS=--max-old-space-size=4096 PORT=3000 BASE_PATH=/dashboard/ pnpm --filter @workspace/dashboard run build; then
-  echo "Dashboard build succeeded."
-else
-  BUILD_EXIT=$?
-  echo "Dashboard build failed (exit $BUILD_EXIT) — restoring committed dist as fallback."
-  git checkout HEAD -- artifacts/dashboard/dist/ || true
-fi
+# Restore the dashboard's committed dist so it stays functional.
+# We do NOT attempt a production build here — the build needs ~5 GB of RAM
+# but only ~1 GB is available while all other services are running, causing
+# the OOM killer to terminate the entire runner process before any fallback
+# can execute.  The dashboard serves the last committed dist (slightly stale
+# after source-only task merges) until someone manually triggers a rebuild
+# by restarting the dashboard workflow on a container with more free memory.
+git checkout HEAD -- artifacts/dashboard/dist/ || true
