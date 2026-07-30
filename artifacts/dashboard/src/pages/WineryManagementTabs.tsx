@@ -911,6 +911,50 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
             {/* SO₂ cumulative summary */}
             <So2SummaryBlock summary={computeSo2Summary(pressing, data)} />
 
+            {/* pH & TA analytical history */}
+            {(() => {
+              const pressPh = pressing.juice_ph != null ? parseFloat(String(pressing.juice_ph)) : null;
+              const pressTa = pressing.juice_ta_gl != null ? parseFloat(String(pressing.juice_ta_gl)) : null;
+              // Latest fermentation end readings (most recent end_date or last in array)
+              const fermWithPh = [...data.fermentation].filter(r => r.end_ph != null || r.end_ta_gl != null)
+                .sort((a, b) => (a.end_date && b.end_date ? new Date(String(b.end_date)).getTime() - new Date(String(a.end_date)).getTime() : 0));
+              const fermRecord = fermWithPh[0] ?? null;
+              const fermPh = fermRecord?.end_ph != null ? parseFloat(String(fermRecord.end_ph)) : null;
+              const fermTa = fermRecord?.end_ta_gl != null ? parseFloat(String(fermRecord.end_ta_gl)) : null;
+              // Latest bottling pH/TA
+              const bottlingWithPh = [...data.bottling].filter(r => r.ph != null || r.titratable_acidity_gl != null)
+                .sort((a, b) => (a.bottling_date && b.bottling_date ? new Date(String(b.bottling_date)).getTime() - new Date(String(a.bottling_date)).getTime() : 0));
+              const bottlingRecord = bottlingWithPh[0] ?? null;
+              const bottPh = bottlingRecord?.ph != null ? parseFloat(String(bottlingRecord.ph)) : null;
+              const bottTa = bottlingRecord?.titratable_acidity_gl != null ? parseFloat(String(bottlingRecord.titratable_acidity_gl)) : null;
+              const hasAny = pressPh != null || pressTa != null || fermPh != null || fermTa != null || bottPh != null || bottTa != null;
+              if (!hasAny) return null;
+              return (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 space-y-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                    <FlaskConical className="h-3.5 w-3.5" />pH &amp; TA Analytical History
+                  </span>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="bg-white/60 rounded p-2 space-y-1">
+                      <p className="text-muted-foreground font-medium">At pressing (juice)</p>
+                      {pressPh != null ? <p className="font-mono font-semibold">pH {pressPh.toFixed(2)}</p> : <p className="text-muted-foreground">pH —</p>}
+                      {pressTa != null ? <p className="font-mono text-muted-foreground">TA {pressTa.toFixed(1)} g/L</p> : <p className="text-muted-foreground">TA —</p>}
+                    </div>
+                    <div className="bg-white/60 rounded p-2 space-y-1">
+                      <p className="text-muted-foreground font-medium">Post-fermentation</p>
+                      {fermPh != null ? <p className="font-mono font-semibold">pH {fermPh.toFixed(2)}</p> : <p className="text-muted-foreground">pH —</p>}
+                      {fermTa != null ? <p className="font-mono text-muted-foreground">TA {fermTa.toFixed(1)} g/L</p> : <p className="text-muted-foreground">TA —</p>}
+                    </div>
+                    <div className="bg-white/60 rounded p-2 space-y-1">
+                      <p className="text-muted-foreground font-medium">At bottling</p>
+                      {bottPh != null ? <p className="font-mono font-semibold">pH {bottPh.toFixed(2)}</p> : <p className="text-muted-foreground">pH —</p>}
+                      {bottTa != null ? <p className="font-mono text-muted-foreground">TA {bottTa.toFixed(1)} g/L</p> : <p className="text-muted-foreground">TA —</p>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Press Additions at pressing */}
             {data.pressAdditions.length > 0 && (
               <div>
@@ -956,6 +1000,8 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
                         {!!r.inoculation_date && <span>Inoculated: {fmtDate(r.inoculation_date)}</span>}
                         {r.volume_litres != null && <span>{fmtNum(r.volume_litres, 0)} L</span>}
                         {r.so2_at_fermentation_mg_l != null && <span>SO₂: {fmtNum(r.so2_at_fermentation_mg_l, 1)} mg/L</span>}
+                        {r.end_ph != null && <span className="text-blue-700 font-medium">End pH: {fmtNum(r.end_ph, 2)}</span>}
+                        {r.end_ta_gl != null && <span className="text-blue-700">End TA: {fmtNum(r.end_ta_gl, 1)} g/L</span>}
                       </div>
                       {!!r.notes && <p className="text-xs text-muted-foreground italic">{String(r.notes)}</p>}
                     </div>
@@ -1051,6 +1097,8 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
                         {!!r.closure_type && <span>{String(r.closure_type)}</span>}
                         {r.actual_abv_pct != null && <span>ABV: {fmtNum(r.actual_abv_pct, 1)}%</span>}
                         {r.free_so2_mg_l != null && <span>Free SO₂: {fmtNum(r.free_so2_mg_l, 1)} mg/L</span>}
+                        {r.ph != null && <span className="text-blue-700 font-medium">pH: {fmtNum(r.ph, 2)}</span>}
+                        {r.titratable_acidity_gl != null && <span className="text-blue-700">TA: {fmtNum(r.titratable_acidity_gl, 1)} g/L</span>}
                       </div>
                       {!!r.source_vessel_ref && <p className="text-xs text-muted-foreground">Source vessel: {String(r.source_vessel_ref)}</p>}
                       {!!r.notes && <p className="text-xs text-muted-foreground italic">{String(r.notes)}</p>}
@@ -1087,7 +1135,22 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
   const rows: string[][] = [];
 
   // Header
-  rows.push(["Stage", "Date", "Type / Additive", "Detail", "SO₂ / Dose", "Unit", "Vessel", "Operator", "Notes"]);
+  rows.push(["Stage", "Date", "Type / Additive", "Detail", "SO₂ / Dose", "Unit", "pH", "TA (g/L)", "Vessel", "Operator", "Notes"]);
+
+  // Pressing — summary row with juice analytics
+  rows.push([
+    "Pressing — Juice",
+    fmtDate(pressing.press_date),
+    String(pressing.press_type ?? ""),
+    pressing.juice_brix != null ? `Brix: ${fmtNum(pressing.juice_brix, 1)}` : "",
+    "",
+    "",
+    pressing.juice_ph != null ? fmtNum(pressing.juice_ph, 2) : "",
+    pressing.juice_ta_gl != null ? fmtNum(pressing.juice_ta_gl, 1) : "",
+    "",
+    String(pressing.operator_name ?? ""),
+    String(pressing.notes ?? ""),
+  ]);
 
   // Pressing additives
   for (const a of data.pressAdditions) {
@@ -1098,6 +1161,8 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
       String(a.category ?? ""),
       a.dose != null ? fmtNum(a.dose, 2) : "",
       String(a.unit ?? ""),
+      "",
+      "",
       "",
       String(pressing.operator_name ?? ""),
       String(a.notes ?? ""),
@@ -1113,6 +1178,8 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
       r.yeast_strain ? `Yeast: ${String(r.yeast_strain)}` : "",
       r.so2_at_fermentation_mg_l != null ? fmtNum(r.so2_at_fermentation_mg_l, 1) : "",
       r.so2_at_fermentation_mg_l != null ? "mg/L" : "",
+      r.end_ph != null ? fmtNum(r.end_ph, 2) : "",
+      r.end_ta_gl != null ? fmtNum(r.end_ta_gl, 1) : "",
       String(r.vessel_ref ?? ""),
       String(r.operator_name ?? ""),
       String(r.notes ?? ""),
@@ -1130,6 +1197,8 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
       r.fining_agent ? `Fining: ${String(r.fining_agent)}` : "",
       soDetails,
       soUnit,
+      "",
+      "",
       [r.from_vessel_ref, r.to_vessel_ref].filter(Boolean).join(" → "),
       String(r.operator_name ?? ""),
       String(r.notes ?? ""),
@@ -1145,6 +1214,8 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
       r.so2_compliant === true || r.so2_compliant === "true" ? "Compliant" : r.so2_compliant === false || r.so2_compliant === "false" ? "Exceeds Limit" : "",
       r.free_so2_mg_l != null ? fmtNum(r.free_so2_mg_l, 1) : "",
       "mg/L (free)",
+      "",
+      "",
       String(r.vessel_ref ?? ""),
       String(r.operator_name ?? ""),
       String(r.notes ?? ""),
@@ -1160,6 +1231,8 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
       r.bottles_produced != null ? `${String(r.bottles_produced)} bottles` : "",
       r.free_so2_mg_l != null ? fmtNum(r.free_so2_mg_l, 1) : "",
       r.free_so2_mg_l != null ? "mg/L (free SO₂)" : "",
+      r.ph != null ? fmtNum(r.ph, 2) : "",
+      r.titratable_acidity_gl != null ? fmtNum(r.titratable_acidity_gl, 1) : "",
       String(r.source_vessel_ref ?? ""),
       String(r.operator_name ?? ""),
       String(r.notes ?? ""),
@@ -1244,7 +1317,7 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
 
   // Pressing summary
   const pressingNotes = pressing.notes ? String(pressing.notes) : "";
-  const pressingRows = `<tr class="header-row"><th>Press Date</th><th>Batch Ref</th><th>Vintage</th><th>Press Type</th><th>Grapes (kg)</th><th>Juice (L)</th><th>Brix °</th><th>pH</th><th>Organic</th><th>Operator</th><th>Settling Method</th><th>Juice Turbidity</th></tr>
+  const pressingRows = `<tr class="header-row"><th>Press Date</th><th>Batch Ref</th><th>Vintage</th><th>Press Type</th><th>Grapes (kg)</th><th>Juice (L)</th><th>Brix °</th><th>Juice pH</th><th>Juice TA (g/L)</th><th>Organic</th><th>Operator</th><th>Settling Method</th><th>Juice Turbidity</th></tr>
 <tr>
   <td>${escHtml(pressDate)}</td>
   <td style="font-family:monospace;font-weight:600">${escHtml(batchRef)}</td>
@@ -1254,6 +1327,7 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
   <td style="text-align:right">${pressing.total_juice_litres != null ? parseFloat(String(pressing.total_juice_litres)).toFixed(1) : "—"}</td>
   <td style="text-align:right">${pressing.juice_brix != null ? parseFloat(String(pressing.juice_brix)).toFixed(1) : "—"}</td>
   <td style="text-align:right">${pressing.juice_ph != null ? parseFloat(String(pressing.juice_ph)).toFixed(2) : "—"}</td>
+  <td style="text-align:right">${pressing.juice_ta_gl != null ? parseFloat(String(pressing.juice_ta_gl)).toFixed(1) : "—"}</td>
   <td>${(pressing.is_organic === true || pressing.is_organic === "true" || pressing.is_organic === 1) ? "Yes" : "No"}</td>
   <td>${escHtml(pressing.operator_name ?? "—")}</td>
   <td>${escHtml(pressing.settling_method ?? "—")}</td>
@@ -1283,10 +1357,12 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
     <td>${escHtml(r.yeast_strain)}</td>
     <td style="text-align:right">${r.volume_litres != null ? parseFloat(String(r.volume_litres)).toFixed(0) : "—"}</td>
     <td style="text-align:right;font-family:monospace">${r.so2_at_fermentation_mg_l != null ? `${parseFloat(String(r.so2_at_fermentation_mg_l)).toFixed(1)} mg/L` : "—"}</td>
+    <td style="text-align:right;font-family:monospace">${r.end_ph != null ? parseFloat(String(r.end_ph)).toFixed(2) : "—"}</td>
+    <td style="text-align:right;font-family:monospace">${r.end_ta_gl != null ? parseFloat(String(r.end_ta_gl)).toFixed(1) : "—"}</td>
     <td>${escHtml(r.operator_name)}</td>
   </tr>`).join("");
 
-  const fermHeader = `<tr class="header-row"><th>Period</th><th>Colour</th><th>Vessel</th><th>Type</th><th>Yeast</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">SO₂ @ ferm.</th><th>Operator</th></tr>`;
+  const fermHeader = `<tr class="header-row"><th>Period</th><th>Colour</th><th>Vessel</th><th>Type</th><th>Yeast</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">SO₂ @ ferm.</th><th style="text-align:right">End pH</th><th style="text-align:right">End TA (g/L)</th><th>Operator</th></tr>`;
 
   // Cellar ops
   const cellarRows = data.cellarOps.map(r => {
@@ -1346,13 +1422,15 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
     <td style="text-align:right;font-family:monospace">${totalSo2 != null ? totalSo2.toFixed(1) : "—"}</td>
     <td style="text-align:right">${!isNaN(ceiling) ? `${ceiling.toFixed(0)} mg/L` : "—"}</td>
     <td${hasCompliance ? complianceStyle : ""}>${complianceText}</td>
+    <td style="text-align:right;font-family:monospace">${r.ph != null ? parseFloat(String(r.ph)).toFixed(2) : "—"}</td>
+    <td style="text-align:right;font-family:monospace">${r.titratable_acidity_gl != null ? parseFloat(String(r.titratable_acidity_gl)).toFixed(1) : "—"}</td>
     <td style="text-align:right">${r.actual_abv_pct != null ? `${parseFloat(String(r.actual_abv_pct)).toFixed(1)}%` : "—"}</td>
     <td>${escHtml(r.closure_type)}</td>
     <td>${isOrg ? "Yes — organic" : "No — conventional"}</td>
   </tr>`;
   }).join("");
 
-  const bottlingHeader = `<tr class="header-row"><th>Date</th><th>Lot Code</th><th>Colour</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">Bottles</th><th style="text-align:right">Free SO₂ (mg/L)</th><th style="text-align:right">Total SO₂ (mg/L)</th><th style="text-align:right">SO₂ ceiling</th><th>Compliance</th><th style="text-align:right">ABV</th><th>Closure</th><th>Organic limits</th></tr>`;
+  const bottlingHeader = `<tr class="header-row"><th>Date</th><th>Lot Code</th><th>Colour</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">Bottles</th><th style="text-align:right">Free SO₂ (mg/L)</th><th style="text-align:right">Total SO₂ (mg/L)</th><th style="text-align:right">SO₂ ceiling</th><th>Compliance</th><th style="text-align:right">pH</th><th style="text-align:right">TA (g/L)</th><th style="text-align:right">ABV</th><th>Closure</th><th>Organic limits</th></tr>`;
 
   const html = `<!DOCTYPE html>
 <html lang="en">
