@@ -50,6 +50,7 @@ import {
   BottlingRecordsTab,
   So2TestingTab,
   EquipmentRegisterTab,
+  BatchTrailQuickSearch,
 } from "@/pages/WineryManagementTabs";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -1756,6 +1757,11 @@ export default function OrganicViticulturePage() {
           ))}
         </TabBar>
 
+        {tab.startsWith("winery-") && (
+          <div className="flex items-center justify-end py-1">
+            <BatchTrailQuickSearch farmId={farmId} />
+          </div>
+        )}
         <Card className="p-6">
           {tab === "block-conversion" && <BlockConversionTab farmId={farmId} />}
           {tab === "input-log" && <InputLogTab farmId={farmId} blocks={vineyardBlocks} />}

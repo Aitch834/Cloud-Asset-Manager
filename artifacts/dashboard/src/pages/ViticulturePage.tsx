@@ -23,6 +23,7 @@ import {
   BottlingRecordsTab,
   So2TestingTab,
   EquipmentRegisterTab,
+  BatchTrailQuickSearch,
 } from "@/pages/WineryManagementTabs";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
@@ -5431,6 +5432,11 @@ export default function ViticulturePage() {
             </TabButton>
           ))}
         </TabBar>
+        {tab.startsWith("winery-") && (
+          <div className="flex items-center justify-end py-1">
+            <BatchTrailQuickSearch farmId={selectedFarmId} />
+          </div>
+        )}
         <div className="bg-muted/30 rounded-xl p-4">
           {tab === "overview" && <OverviewTab farmId={selectedFarmId} />}
           {tab === "vine-register" && <VineRegisterTab farmId={selectedFarmId} blocks={blocks.data} />}

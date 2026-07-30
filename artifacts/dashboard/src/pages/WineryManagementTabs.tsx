@@ -510,6 +510,60 @@ function useWineryBatchSettings(farmId: number) {
   return { data: q.data, isLoading: q.isLoading, save };
 }
 
+// ─── Batch Trail Quick Search ─────────────────────────────────────────────────
+/**
+ * A standalone "Find batch" bar that can be placed in any winery-tab header.
+ * Typing or pasting a batch ref and pressing Enter (or clicking the button)
+ * opens BatchTrailDialog directly — no need to locate the pressing record row.
+ */
+export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
+  const [value, setValue] = useState("");
+  const [activeRef, setActiveRef] = useState<string | null>(null);
+  const { data: farmsData } = useQuery<{ records?: Record<string, unknown>[] }>({
+    queryKey: ["farms-list"],
+    queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
+    staleTime: 300_000,
+  });
+  const farmName: string =
+    (Array.isArray(farmsData?.records)
+      ? (farmsData.records.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)
+          ?.name as string | undefined
+      : undefined) ?? `Farm ${farmId}`;
+
+  const open = () => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    setActiveRef(trimmed);
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="relative">
+        <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+        <Input
+          className="pl-8 h-8 w-56 text-sm"
+          placeholder="Find batch by ref…"
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") open(); }}
+        />
+      </div>
+      <Button variant="outline" size="sm" className="h-8" onClick={open} disabled={!value.trim()}>
+        <GitBranch className="h-3.5 w-3.5 mr-1" />
+        Open trail
+      </Button>
+      {activeRef && (
+        <BatchTrailDialog
+          farmId={farmId}
+          pressing={{ batch_ref: activeRef, vintage_year: null }}
+          farmName={farmName}
+          onClose={() => { setActiveRef(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Batch Trail Dialog ───────────────────────────────────────────────────────
 interface BatchTrailData {
   batchRef: string | null;
