@@ -2070,6 +2070,10 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     { key: "press_date", label: "Press Date", fmt: (r: Record<string, unknown>) => fmtDate(r.press_date) },
     { key: "batch_ref", label: "Batch Ref" },
     { key: "is_organic", label: "Certified Organic", fmt: (r: Record<string, unknown>) => (r.is_organic === true || r.is_organic === "true" || r.is_organic === 1) ? "Yes" : "No" },
+    { key: "operator_name", label: "Operator" },
+    { key: "settling_method", label: "Settling Method" },
+    { key: "juice_turbidity", label: "Juice Turbidity" },
+    { key: "notes", label: "Notes" },
     { key: "press_type", label: "Press Type" },
     { key: "grapes_pressed_kg", label: "Grapes Pressed (kg)" },
     { key: "free_run_litres", label: "Free Run (L)" },
@@ -2080,11 +2084,8 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     { key: "juice_ph", label: "pH" },
     { key: "juice_ta_gl", label: "TA (g/L)" },
     { key: "juice_analysis_source", label: "Analysis Source" },
-    { key: "settling_method", label: "Settling Method" },
     { key: "settling_vessel", label: "Settling Vessel" },
-    { key: "operator_name", label: "Operator" },
     { key: "additions_at_press", label: "Additions (legacy text)" },
-    { key: "notes", label: "Notes" },
     { key: "structured_additions", label: "Structured Additions", fmt: (r: Record<string, unknown>) => {
       const rows = allAdditions.filter((a: Record<string, unknown>) => a.pressing_record_id === r.id);
       if (!rows.length) return "";
