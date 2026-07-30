@@ -4765,6 +4765,15 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
   if (!years.includes(String(new Date().getFullYear()))) years.unshift(String(new Date().getFullYear()));
   const filtered = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
+
+  // Rows where batch_ref is missing and max_permitted_mg_l is an organic ceiling value
+  const ORGANIC_LIMIT_NUMBERS = new Set(Object.values(ORGANIC_MAX_SO2).map(v => parseFloat(v)));
+  const unverifiedLimitCount = filtered.filter(r => {
+    if (r.batch_ref) return false;
+    const maxVal = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : null;
+    return maxVal != null && ORGANIC_LIMIT_NUMBERS.has(maxVal);
+  }).length;
+
   const so2CsvCols = [
     { key: "vintage_year", label: "Vintage" },
     { key: "test_date", label: "Test Date", fmt: (r: Record<string, unknown>) => fmtDate(r.test_date) },
@@ -4829,6 +4838,14 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
           </ResponsiveContainer>
         </div>
       )}
+      {unverifiedLimitCount > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-500" />
+          <span>
+            <strong>{unverifiedLimitCount} test{unverifiedLimitCount !== 1 ? "s" : ""}</strong> {unverifiedLimitCount !== 1 ? "have" : "has"} no batch reference and {unverifiedLimitCount !== 1 ? "carry" : "carries"} an organic SO₂ ceiling — the limit may be incorrect if the wine is conventional. Review the flagged rows below.
+          </span>
+        </div>
+      )}
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         : filtered.length === 0 ? <EmptyState icon={FlaskConical} title="No SO₂ tests logged" sub="Record each SO₂ analysis here — at pressing, post-racking, and pre-bottling." />
         : (
@@ -4847,10 +4864,26 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
               <th className="p-3"></th>
             </tr></thead>
             <tbody className="divide-y">
-              {filtered.map(r => (
-                <tr key={String(r.id)} className="hover:bg-muted/20">
+              {filtered.map(r => {
+                const batchMissing = !r.batch_ref;
+                const maxVal = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : null;
+                const isUnverifiedLimit = batchMissing && maxVal != null && ORGANIC_LIMIT_NUMBERS.has(maxVal);
+                return (
+                <tr key={String(r.id)} className={`hover:bg-muted/20${isUnverifiedLimit ? " bg-amber-50/40" : ""}`}>
                   <td className="p-3 whitespace-nowrap">{fmtDate(r.test_date)}</td>
-                  <td className="p-3 font-mono text-xs">{fmt(r.batch_ref)}</td>
+                  <td className="p-3 font-mono text-xs">
+                    <span className="inline-flex items-center gap-1">
+                      {fmt(r.batch_ref)}
+                      {isUnverifiedLimit && (
+                        <span
+                          title="Batch reference missing — verify SO₂ limit is correct for this wine's organic status"
+                          className="inline-flex items-center text-amber-500 cursor-help"
+                        >
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                        </span>
+                      )}
+                    </span>
+                  </td>
                   <td className="p-3 font-mono text-xs">{fmt(r.vessel_ref ?? vessels.find(v => v.id === r.vessel_id)?.vessel_ref)}</td>
                   <td className="p-3 text-xs">{SO2_TEST_STAGE_LABELS[String(r.test_stage)] ?? fmt(r.test_stage)}</td>
                   <td className="p-3 text-xs text-muted-foreground">{fmt(r.test_method)}</td>
@@ -4865,7 +4898,8 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
                   </td>
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </div>
