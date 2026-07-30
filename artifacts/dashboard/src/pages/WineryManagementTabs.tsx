@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Settings2, RefreshCw, GitBranch } from "lucide-react";
+import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Settings2, RefreshCw, GitBranch, Leaf } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1109,7 +1109,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
               {filtered.map(r => (
                 <tr key={String(r.id)} className="hover:bg-muted/20">
                   <td className="p-3 whitespace-nowrap">{fmtDate(r.press_date)}</td>
-                  <td className="p-3 font-mono text-xs">{fmt(r.batch_ref)}</td>
+                  <td className="p-3 font-mono text-xs">
+                    {fmt(r.batch_ref)}
+                    {(r.is_organic === true || r.is_organic === "true" || r.is_organic === 1) && (
+                      <span className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 font-sans"><Leaf className="w-3 h-3" />Organic</span>
+                    )}
+                  </td>
                   <td className="p-3 text-muted-foreground">{fmt(r.press_type)}</td>
                   <td className="p-3 text-right">{fmtNum(r.grapes_pressed_kg, 0)}</td>
                   <td className="p-3 text-right">{fmtNum(r.total_juice_litres, 1)}</td>
@@ -2341,7 +2346,12 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                 return (
                   <tr key={String(r.id)} className="hover:bg-muted/20">
                     <td className="p-3 whitespace-nowrap">{fmtDate(r.op_date)}</td>
-                    <td className="p-3 font-mono text-xs">{fmt(r.batch_ref)}</td>
+                    <td className="p-3 font-mono text-xs">
+                    {fmt(r.batch_ref)}
+                    {(r.is_organic === true || r.is_organic === "true" || r.is_organic === 1) && (
+                      <span className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 font-sans"><Leaf className="w-3 h-3" />Organic</span>
+                    )}
+                  </td>
                     <td className="p-3"><span className="text-xs bg-blue-50 text-blue-700 rounded px-1.5 py-0.5">{CELLAR_OP_LABELS[String(r.op_type)] ?? fmt(r.op_type)}</span></td>
                     <td className="p-3 font-mono text-xs">{fmt(r.from_vessel_ref ?? vRef(r.from_vessel_id))}</td>
                     <td className="p-3 font-mono text-xs">{fmt(r.to_vessel_ref ?? vRef(r.to_vessel_id))}</td>
