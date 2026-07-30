@@ -530,7 +530,7 @@ function TrailSection({ icon: Icon, title, count, children }: { icon: React.Elem
   );
 }
 
-function BatchTrailDialog({ farmId, pressing, onClose }: { farmId: number; pressing: Record<string, unknown>; onClose: () => void }) {
+function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: number; pressing: Record<string, unknown>; farmName: string; onClose: () => void }) {
   const batchRef = String(pressing.batch_ref ?? "");
   const { data, isLoading, isError } = useQuery<BatchTrailData>({
     queryKey: ["winery-batch-trail", farmId, batchRef],
@@ -706,12 +706,275 @@ function BatchTrailDialog({ farmId, pressing, onClose }: { farmId: number; press
           </div>
         )}
 
-        <DialogFooter>
+        <DialogFooter className="flex-wrap gap-2">
+          {data && (
+            <>
+              <Button variant="outline" size="sm" onClick={() => exportBatchTrailCsv(pressing, data)}>
+                <FileDown className="w-3.5 h-3.5 mr-1" />Export CSV
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => printBatchTrail(pressing, data, farmName)}>
+                <FileDown className="w-3.5 h-3.5 mr-1" />Print / PDF
+              </Button>
+            </>
+          )}
           <Button variant="outline" onClick={onClose}>Close</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
+}
+
+// ─── Batch Trail — CSV export ─────────────────────────────────────────────────
+function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrailData) {
+  const batchRef = String(pressing.batch_ref ?? "");
+  const rows: string[][] = [];
+
+  // Header
+  rows.push(["Stage", "Date", "Type / Additive", "Detail", "SO₂ / Dose", "Unit", "Vessel", "Operator", "Notes"]);
+
+  // Pressing additives
+  for (const a of data.pressAdditions) {
+    rows.push([
+      "Pressing — Additive",
+      fmtDate(pressing.press_date),
+      String(a.additive_name ?? ""),
+      String(a.category ?? ""),
+      a.dose != null ? fmtNum(a.dose, 2) : "",
+      String(a.unit ?? ""),
+      "",
+      String(pressing.operator_name ?? ""),
+      String(a.notes ?? ""),
+    ]);
+  }
+
+  // Fermentation
+  for (const r of data.fermentation) {
+    rows.push([
+      "Fermentation",
+      r.start_date ? fmtDate(r.start_date) : "",
+      String(r.fermentation_type ?? ""),
+      r.yeast_strain ? `Yeast: ${String(r.yeast_strain)}` : "",
+      r.so2_at_fermentation_mg_l != null ? fmtNum(r.so2_at_fermentation_mg_l, 1) : "",
+      r.so2_at_fermentation_mg_l != null ? "mg/L" : "",
+      String(r.vessel_ref ?? ""),
+      String(r.operator_name ?? ""),
+      String(r.notes ?? ""),
+    ]);
+  }
+
+  // Cellar ops
+  for (const r of data.cellarOps) {
+    const soDetails = r.so2_quantity_g != null ? fmtNum(r.so2_quantity_g, 1) : (r.free_so2_after_mg_l != null ? fmtNum(r.free_so2_after_mg_l, 1) : "");
+    const soUnit = r.so2_quantity_g != null ? "g" : (r.free_so2_after_mg_l != null ? "mg/L (after)" : "");
+    rows.push([
+      "Cellar Operation",
+      fmtDate(r.op_date),
+      CELLAR_OP_LABELS[String(r.op_type)] ?? String(r.op_type ?? ""),
+      r.fining_agent ? `Fining: ${String(r.fining_agent)}` : "",
+      soDetails,
+      soUnit,
+      [r.from_vessel_ref, r.to_vessel_ref].filter(Boolean).join(" → "),
+      String(r.operator_name ?? ""),
+      String(r.notes ?? ""),
+    ]);
+  }
+
+  // SO₂ tests
+  for (const r of data.so2Tests) {
+    rows.push([
+      "SO₂ Test",
+      fmtDate(r.test_date),
+      SO2_TEST_STAGE_LABELS[String(r.test_stage)] ?? String(r.test_stage ?? ""),
+      r.so2_compliant === true || r.so2_compliant === "true" ? "Compliant" : r.so2_compliant === false || r.so2_compliant === "false" ? "Exceeds Limit" : "",
+      r.free_so2_mg_l != null ? fmtNum(r.free_so2_mg_l, 1) : "",
+      "mg/L (free)",
+      String(r.vessel_ref ?? ""),
+      String(r.operator_name ?? ""),
+      String(r.notes ?? ""),
+    ]);
+  }
+
+  // Bottling
+  for (const r of data.bottling) {
+    rows.push([
+      "Bottling",
+      fmtDate(r.bottling_date),
+      r.lot_code ? `Lot: ${String(r.lot_code)}` : "",
+      r.bottles_produced != null ? `${String(r.bottles_produced)} bottles` : "",
+      r.free_so2_mg_l != null ? fmtNum(r.free_so2_mg_l, 1) : "",
+      r.free_so2_mg_l != null ? "mg/L (free SO₂)" : "",
+      String(r.source_vessel_ref ?? ""),
+      String(r.operator_name ?? ""),
+      String(r.notes ?? ""),
+    ]);
+  }
+
+  const csv = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `batch-trail-${batchRef || "unknown"}.csv`;
+  a.click();
+}
+
+// ─── Batch Trail — Print report ───────────────────────────────────────────────
+function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData, farmName: string) {
+  const batchRef = String(pressing.batch_ref ?? "");
+  const printedOn = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const vintage = pressing.vintage_year ? String(pressing.vintage_year) : null;
+  const pressDate = pressing.press_date ? fmtDate(pressing.press_date) : "—";
+
+  const sectionHtml = (title: string, rows: string) =>
+    rows ? `<div class="section"><h2>${escHtml(title)}</h2><table>${rows}</table></div>` : "";
+
+  // Pressing summary
+  const pressingRows = `<tr class="header-row"><th>Press Date</th><th>Batch Ref</th><th>Vintage</th><th>Press Type</th><th>Grapes (kg)</th><th>Juice (L)</th><th>Brix °</th><th>pH</th><th>Organic</th></tr>
+<tr>
+  <td>${escHtml(pressDate)}</td>
+  <td style="font-family:monospace;font-weight:600">${escHtml(batchRef)}</td>
+  <td>${escHtml(vintage ?? "—")}</td>
+  <td>${escHtml(pressing.press_type ?? "—")}</td>
+  <td style="text-align:right">${pressing.grapes_pressed_kg != null ? parseFloat(String(pressing.grapes_pressed_kg)).toFixed(0) : "—"}</td>
+  <td style="text-align:right">${pressing.total_juice_litres != null ? parseFloat(String(pressing.total_juice_litres)).toFixed(1) : "—"}</td>
+  <td style="text-align:right">${pressing.juice_brix != null ? parseFloat(String(pressing.juice_brix)).toFixed(1) : "—"}</td>
+  <td style="text-align:right">${pressing.juice_ph != null ? parseFloat(String(pressing.juice_ph)).toFixed(2) : "—"}</td>
+  <td>${(pressing.is_organic === true || pressing.is_organic === "true" || pressing.is_organic === 1) ? "Yes" : "No"}</td>
+</tr>`;
+
+  // Press additives
+  const addRows = data.pressAdditions.map(a => `<tr>
+    <td>${escHtml(a.additive_name)}</td>
+    <td>${escHtml(ADDITIVE_CATEGORY_LABELS[String(a.category)] ?? a.category)}</td>
+    <td style="text-align:right;font-family:monospace">${a.dose != null ? parseFloat(String(a.dose)).toFixed(2) : "—"}</td>
+    <td>${escHtml(a.unit)}</td>
+    <td>${escHtml(a.notes)}</td>
+  </tr>`).join("");
+
+  const addHeader = `<tr class="header-row"><th>Additive</th><th>Category</th><th style="text-align:right">Dose</th><th>Unit</th><th>Notes</th></tr>`;
+
+  // Fermentation
+  const fermRows = data.fermentation.map(r => `<tr>
+    <td>${escHtml(r.start_date ? fmtDate(r.start_date) : "—")}${r.end_date ? ` → ${escHtml(fmtDate(r.end_date))}` : ""}</td>
+    <td>${escHtml(r.wine_colour)}</td>
+    <td>${escHtml(r.vessel_ref)}</td>
+    <td>${escHtml(r.fermentation_type)}</td>
+    <td>${escHtml(r.yeast_strain)}</td>
+    <td style="text-align:right">${r.volume_litres != null ? parseFloat(String(r.volume_litres)).toFixed(0) : "—"}</td>
+    <td style="text-align:right;font-family:monospace">${r.so2_at_fermentation_mg_l != null ? `${parseFloat(String(r.so2_at_fermentation_mg_l)).toFixed(1)} mg/L` : "—"}</td>
+    <td>${escHtml(r.operator_name)}</td>
+  </tr>`).join("");
+
+  const fermHeader = `<tr class="header-row"><th>Period</th><th>Colour</th><th>Vessel</th><th>Type</th><th>Yeast</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">SO₂ @ ferm.</th><th>Operator</th></tr>`;
+
+  // Cellar ops
+  const cellarRows = data.cellarOps.map(r => {
+    const isSulfiting = String(r.op_type) === "sulfiting";
+    const so2Detail = r.so2_quantity_g != null
+      ? `${parseFloat(String(r.so2_quantity_g)).toFixed(1)} g${r.free_so2_before_mg_l != null ? ` (${parseFloat(String(r.free_so2_before_mg_l)).toFixed(1)} → ${r.free_so2_after_mg_l != null ? parseFloat(String(r.free_so2_after_mg_l)).toFixed(1) : "?"} mg/L)` : ""}`
+      : "—";
+    return `<tr${isSulfiting ? ' style="background:#fefce8"' : ""}>
+    <td>${escHtml(fmtDate(r.op_date))}</td>
+    <td>${escHtml(CELLAR_OP_LABELS[String(r.op_type)] ?? r.op_type)}</td>
+    <td>${[r.from_vessel_ref, r.to_vessel_ref].filter(Boolean).map(escHtml).join(" → ")}</td>
+    <td style="text-align:right">${r.volume_moved_litres != null ? parseFloat(String(r.volume_moved_litres)).toFixed(1) : "—"}</td>
+    <td style="font-family:monospace">${isSulfiting ? so2Detail : "—"}</td>
+    <td>${escHtml(r.fining_agent)}</td>
+    <td>${escHtml(r.operator_name)}</td>
+  </tr>`;
+  }).join("");
+
+  const cellarHeader = `<tr class="header-row"><th>Date</th><th>Operation</th><th>Vessel(s)</th><th style="text-align:right">Volume (L)</th><th>SO₂ detail</th><th>Fining agent</th><th>Operator</th></tr>`;
+
+  // SO₂ tests
+  const so2Rows = data.so2Tests.map(r => {
+    const compliant = r.so2_compliant === true || r.so2_compliant === "true" || r.so2_compliant === 1;
+    const nonCompliant = r.so2_compliant === false || r.so2_compliant === "false" || r.so2_compliant === 0;
+    const complianceStyle = nonCompliant ? ' style="color:#b91c1c;font-weight:600"' : (compliant ? ' style="color:#166534"' : "");
+    return `<tr>
+    <td>${escHtml(fmtDate(r.test_date))}</td>
+    <td>${escHtml(SO2_TEST_STAGE_LABELS[String(r.test_stage)] ?? r.test_stage)}</td>
+    <td>${escHtml(r.vessel_ref)}</td>
+    <td style="text-align:right;font-family:monospace">${r.free_so2_mg_l != null ? parseFloat(String(r.free_so2_mg_l)).toFixed(1) : "—"}</td>
+    <td style="text-align:right;font-family:monospace">${r.total_so2_mg_l != null ? parseFloat(String(r.total_so2_mg_l)).toFixed(1) : "—"}</td>
+    <td style="text-align:right">${r.max_permitted_mg_l != null ? parseFloat(String(r.max_permitted_mg_l)).toFixed(0) : "—"}</td>
+    <td${complianceStyle}>${nonCompliant ? "⚠ Exceeds limit" : compliant ? "✓ Compliant" : "—"}</td>
+    <td>${escHtml(r.test_method)}</td>
+  </tr>`;
+  }).join("");
+
+  const so2Header = `<tr class="header-row"><th>Date</th><th>Stage</th><th>Vessel</th><th style="text-align:right">Free SO₂ (mg/L)</th><th style="text-align:right">Total SO₂ (mg/L)</th><th style="text-align:right">Max permitted</th><th>Compliance</th><th>Method</th></tr>`;
+
+  // Bottling
+  const bottlingRows = data.bottling.map(r => {
+    const organic = r.certified_organic === true || r.certified_organic === "true";
+    return `<tr>
+    <td>${escHtml(fmtDate(r.bottling_date))}</td>
+    <td style="font-family:monospace">${escHtml(r.lot_code)}</td>
+    <td>${escHtml(r.wine_colour)}</td>
+    <td style="text-align:right">${r.volume_bottled_litres != null ? parseFloat(String(r.volume_bottled_litres)).toFixed(1) : "—"}</td>
+    <td style="text-align:right">${r.bottles_produced != null ? String(r.bottles_produced) : "—"}</td>
+    <td style="text-align:right;font-family:monospace">${r.free_so2_mg_l != null ? parseFloat(String(r.free_so2_mg_l)).toFixed(1) : "—"}</td>
+    <td style="text-align:right">${r.actual_abv_pct != null ? `${parseFloat(String(r.actual_abv_pct)).toFixed(1)}%` : "—"}</td>
+    <td>${escHtml(r.closure_type)}</td>
+    <td>${organic ? "Yes" : "No"}</td>
+  </tr>`;
+  }).join("");
+
+  const bottlingHeader = `<tr class="header-row"><th>Date</th><th>Lot Code</th><th>Colour</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">Bottles</th><th style="text-align:right">Free SO₂ (mg/L)</th><th style="text-align:right">ABV</th><th>Closure</th><th>Organic</th></tr>`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Batch Trail — ${escHtml(batchRef)} — ${escHtml(farmName)}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #111; padding: 20px 28px; }
+  h1 { font-size: 17px; font-weight: 700; margin-bottom: 2px; }
+  .meta { color: #6b7280; font-size: 10px; margin-bottom: 14px; }
+  .meta span { margin-right: 14px; }
+  .section { margin-bottom: 20px; }
+  h2 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+       color: #374151; border-bottom: 2px solid #d1d5db; padding-bottom: 4px; margin-bottom: 6px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #f3f4f6; text-align: left; padding: 5px 7px; font-size: 10px; font-weight: 600;
+       text-transform: uppercase; letter-spacing: 0.03em; }
+  td { padding: 5px 7px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+  tr.header-row th { border-bottom: 1px solid #d1d5db; }
+  tr:last-child td { border-bottom: none; }
+  .footer { margin-top: 20px; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 8px; }
+  @media print {
+    body { padding: 0; }
+    @page { margin: 16mm 14mm; }
+  }
+</style>
+</head>
+<body>
+<h1>Batch Trail Report</h1>
+<p class="meta">
+  <span><strong>${escHtml(farmName)}</strong></span>
+  <span>Batch ref: <strong>${escHtml(batchRef)}</strong></span>
+  ${vintage ? `<span>Vintage: <strong>${escHtml(vintage)}</strong></span>` : ""}
+  <span>Printed: ${escHtml(printedOn)}</span>
+</p>
+
+${sectionHtml("1. Pressing record", pressingRows)}
+${addRows ? sectionHtml("2. Pressing additives", addHeader + addRows) : ""}
+${fermRows ? sectionHtml("3. Fermentation", fermHeader + fermRows) : ""}
+${cellarRows ? sectionHtml("4. Cellar operations", cellarHeader + cellarRows) : ""}
+${so2Rows ? sectionHtml("5. SO₂ tests", so2Header + so2Rows) : ""}
+${bottlingRows ? sectionHtml("6. Bottling runs", bottlingHeader + bottlingRows) : ""}
+
+<p class="footer">Generated by BDE Farm Trac · ${escHtml(printedOn)} · Batch: ${escHtml(batchRef)}</p>
+</body>
+</html>`;
+
+  const w = window.open("", "_blank");
+  if (!w) return;
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 400);
 }
 
 // ─── Additions Report — Print helper ─────────────────────────────────────────
@@ -1139,6 +1402,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
         <BatchTrailDialog
           farmId={farmId}
           pressing={trailRecord}
+          farmName={farmName}
           onClose={() => setTrailRecord(null)}
         />
       )}
