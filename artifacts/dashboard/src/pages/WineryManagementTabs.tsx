@@ -958,7 +958,7 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
               const hasDetails = pressing.press_type || pressing.grapes_pressed_kg || pressing.press_wine_litres ||
                 pressing.juice_brix || pressing.juice_ph || pressing.juice_ta_gl ||
                 pressing.operator_name || pressing.settling_method || pressing.juice_turbidity;
-              if (!hasDetails && !pressing.notes) return null;
+              if (!hasDetails) return null;
               return (
                 <div className="rounded-lg border bg-muted/20 px-4 py-3 space-y-3">
                   <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
@@ -1022,12 +1022,6 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
                       )}
                     </div>
                   )}
-                  {!!pressing.notes && (
-                    <div className="border-t pt-2 text-xs">
-                      <span className="font-semibold uppercase tracking-wide text-muted-foreground" style={{ fontSize: "10px" }}>Pressing notes</span>
-                      <p className="mt-0.5 text-foreground whitespace-pre-wrap">{String(pressing.notes)}</p>
-                    </div>
-                  )}
                 </div>
               );
             })()}
@@ -1080,19 +1074,26 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
             })()}
 
             {/* Press Additions at pressing */}
-            {data.pressAdditions.length > 0 && (
+            {(data.pressAdditions.length > 0 || !!pressing.notes) && (
               <div>
                 <SectionLabel>Pressing Additives</SectionLabel>
-                <div className="rounded border divide-y mt-2">
-                  {data.pressAdditions.map((a, i) => (
-                    <div key={i} className="flex items-center gap-3 px-3 py-2">
-                      <Beaker className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <span className="font-medium">{fmt(a.additive_name)}</span>
-                      <span className="text-muted-foreground text-xs">{a.dose != null ? `${fmtNum(a.dose, 2)} ${fmt(a.unit)}` : "—"}</span>
-                      {!!a.notes && <span className="text-muted-foreground text-xs ml-auto truncate max-w-[160px]">{String(a.notes)}</span>}
-                    </div>
-                  ))}
-                </div>
+                {data.pressAdditions.length > 0 && (
+                  <div className="rounded border divide-y mt-2">
+                    {data.pressAdditions.map((a, i) => (
+                      <div key={i} className="px-3 py-2 space-y-0.5">
+                        <div className="flex items-center gap-3">
+                          <Beaker className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="font-medium">{fmt(a.additive_name)}</span>
+                          <span className="text-muted-foreground text-xs">{a.dose != null ? `${fmtNum(a.dose, 2)} ${fmt(a.unit)}` : "—"}</span>
+                        </div>
+                        {!!a.notes && <p className="text-xs text-muted-foreground italic pl-6">{String(a.notes)}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!!pressing.notes && (
+                  <p className="text-xs text-muted-foreground italic mt-2">{String(pressing.notes)}</p>
+                )}
               </div>
             )}
 
