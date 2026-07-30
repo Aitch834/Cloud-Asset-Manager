@@ -1710,6 +1710,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     { key: "vintage_year", label: "Vintage" },
     { key: "additive_name", label: "Additive" },
     { key: "category", label: "Category" },
+    { key: "wine_colour", label: "Wine Colour" },
     { key: "source", label: "Stage", fmt: (r: Record<string, unknown>) => SOURCE_LABELS[String(r.source ?? "pressing")] ?? String(r.source ?? "pressing") },
     { key: "unit", label: "Unit" },
     { key: "batch_count", label: "Records" },
@@ -1951,6 +1952,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                 <thead className="bg-muted/40"><tr>
                   <th className="text-left p-2.5 font-medium">Additive</th>
                   {yearFilter === "all" && <th className="text-left p-2.5 font-medium">Vintage</th>}
+                  <th className="text-left p-2.5 font-medium">Wine Colour</th>
                   <th className="text-left p-2.5 font-medium">Stage</th>
                   <th className="text-right p-2.5 font-medium">Records</th>
                   <th className="text-right p-2.5 font-medium">Total dose</th>
@@ -1963,8 +1965,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                 <tbody className="divide-y">
                   {searchFilteredSummary.map((row, i) => {
                     const avgDose = parseFloat(String(row.avg_dose ?? 0));
+                    const wineColour = String(row.wine_colour ?? "");
+                    const organicSo2Limit = row.category === "so2"
+                      ? parseFloat(ORGANIC_MAX_SO2[wineColour] ?? "90")
+                      : 0;
                     const warnConventional = row.category === "so2" && avgDose > 200;
-                    const warnOrganic = row.category === "so2" && !warnConventional && avgDose > 90;
+                    const warnOrganic = row.category === "so2" && !warnConventional && avgDose > organicSo2Limit;
                     const warnAscorbic = row.category === "ascorbic_acid" && avgDose > 250;
                     const hasWarn = warnConventional || warnOrganic || warnAscorbic;
                     const src = String(row.source ?? "pressing");
@@ -1978,6 +1984,11 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                         <td className="p-2.5 font-medium">{String(row.additive_name)}</td>
                         {yearFilter === "all" && <td className="p-2.5 text-muted-foreground">{String(row.vintage_year ?? "—")}</td>}
                         <td className="p-2.5">
+                          {wineColour
+                            ? <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">{wineColour}</span>
+                            : <span className="text-muted-foreground text-xs">—</span>}
+                        </td>
+                        <td className="p-2.5">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${stageBadgeClass}`}>
                             {SOURCE_LABELS[src] ?? src}
                           </span>
@@ -1990,9 +2001,9 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                         <td className="p-2.5 text-muted-foreground text-xs">{String(row.unit ?? "—")}</td>
                         <td className="p-2.5 text-xs">
                           {warnConventional && <span className="text-red-700 font-medium flex items-center gap-1"><AlertTriangle className="h-3 w-3 shrink-0" />Avg exceeds conv. max (200 {String(row.unit ?? "mg/kg")})</span>}
-                          {warnOrganic && <span className="text-amber-700 flex items-center gap-1"><AlertTriangle className="h-3 w-3 shrink-0" />Avg exceeds organic limit (90 {String(row.unit ?? "mg/kg")})</span>}
+                          {warnOrganic && <span className="text-amber-700 flex items-center gap-1"><AlertTriangle className="h-3 w-3 shrink-0" />Avg exceeds organic limit ({organicSo2Limit} {String(row.unit ?? "mg/kg")})</span>}
                           {warnAscorbic && <span className="text-red-700 font-medium flex items-center gap-1"><AlertTriangle className="h-3 w-3 shrink-0" />Avg exceeds max (250 mg/L)</span>}
-                          {!hasWarn && row.category === "so2" && <span className="text-muted-foreground">Conv. max 200 {String(row.unit ?? "mg/kg")}</span>}
+                          {!hasWarn && row.category === "so2" && <span className="text-muted-foreground">{wineColour ? `Organic max ${organicSo2Limit} · conv. max 200 ${String(row.unit ?? "mg/kg")}` : `Conv. max 200 ${String(row.unit ?? "mg/kg")}`}</span>}
                           {!hasWarn && row.category === "ascorbic_acid" && <span className="text-muted-foreground">Max 250 mg/L</span>}
                         </td>
                       </tr>
