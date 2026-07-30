@@ -54,5 +54,11 @@ export async function runWineryMigrations(): Promise<void> {
   // read-only in the fermentation view (nullable; existing rows are unlinked)
   await db.execute(sql`ALTER TABLE winery_fermentation_records ADD COLUMN IF NOT EXISTS pressing_record_id integer REFERENCES winery_pressing_records(id)`);
 
+  // Organic flag on fermentation records — inherited from pressing, drives SO₂ limit enforcement
+  await db.execute(sql`ALTER TABLE winery_fermentation_records ADD COLUMN IF NOT EXISTS is_organic boolean NOT NULL DEFAULT false`);
+
+  // Organic flag on bottling records — inherited from fermentation/pressing, drives pre-bottling SO₂ ceiling
+  await db.execute(sql`ALTER TABLE winery_bottling_records ADD COLUMN IF NOT EXISTS is_organic boolean NOT NULL DEFAULT false`);
+
   console.log("[WINERY-MIGRATE] Done.");
 }

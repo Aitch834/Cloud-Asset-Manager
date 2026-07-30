@@ -619,6 +619,7 @@ export const wineryBottlingRecordsTable = pgTable("winery_bottling_records", {
   residualSugarGl: numeric("residual_sugar_gl", { precision: 6, scale: 2 }),
   ph: numeric("ph", { precision: 4, scale: 2 }),
   titratableAcidityGl: numeric("titratable_acidity_gl", { precision: 5, scale: 2 }),
+  isOrganic: boolean("is_organic").default(false),
   certifiedOrganic: boolean("certified_organic").default(false),
   certifierRef: text("certifier_ref"),
   operatorName: text("operator_name"),

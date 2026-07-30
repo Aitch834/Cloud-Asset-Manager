@@ -36760,7 +36760,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
         SELECT b.id, b.bottling_date, b.batch_ref, b.vintage_year, b.wine_colour,
                b.lot_code, b.volume_bottled_litres, b.bottle_size_ml, b.bottles_produced,
                b.cases_produced, b.closure_type, b.free_so2_mg_l, b.total_so2_mg_l,
-               b.actual_abv_pct, b.certified_organic, b.operator_name, b.notes,
+               b.actual_abv_pct, b.is_organic, b.certified_organic, b.operator_name, b.notes,
                v.vessel_ref AS source_vessel_ref
         FROM winery_bottling_records b
         LEFT JOIN winery_vessels v ON v.id = b.source_vessel_id
@@ -36813,7 +36813,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
         SELECT b.id, b.bottling_date, b.batch_ref, b.vintage_year, b.wine_colour,
                b.lot_code, b.volume_bottled_litres, b.bottle_size_ml, b.bottles_produced,
                b.cases_produced, b.closure_type, b.free_so2_mg_l, b.total_so2_mg_l,
-               b.actual_abv_pct, b.certified_organic, b.operator_name, b.notes,
+               b.actual_abv_pct, b.is_organic, b.certified_organic, b.operator_name, b.notes,
                v.vessel_ref AS source_vessel_ref
         FROM winery_bottling_records b
         LEFT JOIN winery_vessels v ON v.id = b.source_vessel_id
@@ -37127,7 +37127,7 @@ router.post("/farms/:farmId/winery-bottling", requireAuth, requireTenant, requir
       return;
     }
   }
-  const r = await db.execute(sql`INSERT INTO winery_bottling_records (farm_id,bottling_date,vintage_year,batch_ref,lot_code,wine_colour,source_vessel_id,volume_bottled_litres,bottle_size_ml,bottles_produced,cases_produced,closure_type,cork_grade,label_batch,free_so2_mg_l,total_so2_mg_l,actual_abv_pct,residual_sugar_gl,ph,titratable_acidity_gl,certified_organic,certifier_ref,operator_name,notes) VALUES (${farmId},${n(b.bottlingDate)},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.lotCode)},${n(b.wineColour)},${ni(b.sourceVesselId)},${nf(b.volumeBottledLitres)},${ni(b.bottleSizeMl)},${ni(b.bottlesProduced)},${ni(b.casesProduced)},${n(b.closureType)},${n(b.corkGrade)},${n(b.labelBatch)},${nf(b.freeSo2MgL)},${nf(b.totalSo2MgL)},${nf(b.actualAbvPct)},${nf(b.residualSugarGl)},${nf(b.ph)},${nf(b.titratableAcidityGl)},${nb(b.certifiedOrganic) ?? false},${n(b.certifierRef)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
+  const r = await db.execute(sql`INSERT INTO winery_bottling_records (farm_id,bottling_date,vintage_year,batch_ref,lot_code,wine_colour,source_vessel_id,volume_bottled_litres,bottle_size_ml,bottles_produced,cases_produced,closure_type,cork_grade,label_batch,free_so2_mg_l,total_so2_mg_l,actual_abv_pct,residual_sugar_gl,ph,titratable_acidity_gl,is_organic,certified_organic,certifier_ref,operator_name,notes) VALUES (${farmId},${n(b.bottlingDate)},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.lotCode)},${n(b.wineColour)},${ni(b.sourceVesselId)},${nf(b.volumeBottledLitres)},${ni(b.bottleSizeMl)},${ni(b.bottlesProduced)},${ni(b.casesProduced)},${n(b.closureType)},${n(b.corkGrade)},${n(b.labelBatch)},${nf(b.freeSo2MgL)},${nf(b.totalSo2MgL)},${nf(b.actualAbvPct)},${nf(b.residualSugarGl)},${nf(b.ph)},${nf(b.titratableAcidityGl)},${nb(b.isOrganic) ?? false},${nb(b.certifiedOrganic) ?? false},${n(b.certifierRef)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
   res.status(201).json({ record: r.rows[0] });
 });
 router.put("/farms/:farmId/winery-bottling/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -37142,7 +37142,7 @@ router.put("/farms/:farmId/winery-bottling/:id", requireAuth, requireTenant, req
       return;
     }
   }
-  const r = await db.execute(sql`UPDATE winery_bottling_records SET bottling_date=${n(b.bottlingDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},lot_code=${n(b.lotCode)},wine_colour=${n(b.wineColour)},source_vessel_id=${ni(b.sourceVesselId)},volume_bottled_litres=${nf(b.volumeBottledLitres)},bottle_size_ml=${ni(b.bottleSizeMl)},bottles_produced=${ni(b.bottlesProduced)},cases_produced=${ni(b.casesProduced)},closure_type=${n(b.closureType)},cork_grade=${n(b.corkGrade)},label_batch=${n(b.labelBatch)},free_so2_mg_l=${nf(b.freeSo2MgL)},total_so2_mg_l=${nf(b.totalSo2MgL)},actual_abv_pct=${nf(b.actualAbvPct)},residual_sugar_gl=${nf(b.residualSugarGl)},ph=${nf(b.ph)},titratable_acidity_gl=${nf(b.titratableAcidityGl)},certified_organic=${nb(b.certifiedOrganic) ?? false},certifier_ref=${n(b.certifierRef)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${recordId} AND farm_id=${farmId} RETURNING *`);
+  const r = await db.execute(sql`UPDATE winery_bottling_records SET bottling_date=${n(b.bottlingDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},lot_code=${n(b.lotCode)},wine_colour=${n(b.wineColour)},source_vessel_id=${ni(b.sourceVesselId)},volume_bottled_litres=${nf(b.volumeBottledLitres)},bottle_size_ml=${ni(b.bottleSizeMl)},bottles_produced=${ni(b.bottlesProduced)},cases_produced=${ni(b.casesProduced)},closure_type=${n(b.closureType)},cork_grade=${n(b.corkGrade)},label_batch=${n(b.labelBatch)},free_so2_mg_l=${nf(b.freeSo2MgL)},total_so2_mg_l=${nf(b.totalSo2MgL)},actual_abv_pct=${nf(b.actualAbvPct)},residual_sugar_gl=${nf(b.residualSugarGl)},ph=${nf(b.ph)},titratable_acidity_gl=${nf(b.titratableAcidityGl)},is_organic=${nb(b.isOrganic) ?? false},certified_organic=${nb(b.certifiedOrganic) ?? false},certifier_ref=${n(b.certifierRef)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${recordId} AND farm_id=${farmId} RETURNING *`);
   res.json({ record: r.rows[0] });
 });
 router.delete("/farms/:farmId/winery-bottling/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {

@@ -702,8 +702,11 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
                           <span className="font-medium">{fmtDate(r.bottling_date)}</span>
                           {!!r.lot_code && <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">Lot: {String(r.lot_code)}</span>}
                           {!!r.wine_colour && <Badge variant="outline" className="text-xs">{String(r.wine_colour)}</Badge>}
+                          {(r.is_organic === true || r.is_organic === "true") && (
+                            <Badge className="text-xs bg-green-100 text-green-800 border-0 inline-flex items-center gap-0.5"><Leaf className="w-3 h-3" />Organic limits</Badge>
+                          )}
                           {(r.certified_organic === true || r.certified_organic === "true") && (
-                            <Badge className="text-xs bg-green-100 text-green-800 border-0">Organic</Badge>
+                            <Badge className="text-xs bg-green-100 text-green-800 border-0">Certified organic</Badge>
                           )}
                         </div>
                         {!!r.operator_name && <span className="text-xs text-muted-foreground shrink-0">{String(r.operator_name)}</span>}
@@ -3001,6 +3004,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [so2FromTest, setSo2FromTest] = useState(false);
+  const [organicAutoSource, setOrganicAutoSource] = useState<"fermentation" | "pressing" | null>(null);
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   const [lotCodeError, setLotCodeError] = useState<string | null>(null);
   const { data: farmsDataBottling } = useQuery<{ records?: Record<string, unknown>[] }>({
@@ -3025,23 +3029,45 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     staleTime: 30_000,
   });
 
+  // Fermentation records for organic-status lookup when a batch ref is selected
+  const { data: fermentationRecords = [] } = useQuery<Record<string, unknown>[]>({
+    queryKey: ["winery-fermentation", farmId],
+    queryFn: async () => {
+      const r = await fetch(api(`farms/${farmId}/winery-fermentation`), { credentials: "include" });
+      const d = await r.json();
+      return d.records ?? [];
+    },
+    enabled: !!farmId,
+    staleTime: 60_000,
+  });
+
   const bottlingPressingRefs = pressingRecords
     .filter(r => r.batch_ref)
-    .map(r => ({ batchRef: String(r.batch_ref), vintageYear: String(r.vintage_year ?? ""), wineColour: String(r.wine_colour ?? "") }))
+    .map(r => ({ batchRef: String(r.batch_ref), vintageYear: String(r.vintage_year ?? ""), wineColour: String(r.wine_colour ?? ""), isOrganic: !!(r.is_organic === true || r.is_organic === "true" || r.is_organic === 1) }))
     .sort((a, b) => b.batchRef.localeCompare(a.batchRef));
 
   const handleBottlingBatchRefChange = (val: string) => {
     const pressMatch = bottlingPressingRefs.find(p => p.batchRef === val);
+    // Organic: prefer fermentation record for this batch ref, fall back to pressing
+    const fermMatch = val
+      ? fermentationRecords.find(f => String(f.batch_ref ?? "") === val)
+      : null;
+    const inheritedOrganic = fermMatch != null
+      ? (fermMatch.is_organic === true || fermMatch.is_organic === "true" || fermMatch.is_organic === 1)
+      : (pressMatch?.isOrganic ?? false);
+    const organicSource: "fermentation" | "pressing" | null = fermMatch != null ? "fermentation" : (pressMatch ? "pressing" : null);
     // Find most recent pre-bottling or at-bottling SO₂ test for this batch
     const latestTest = val
       ? so2TestRecords
           .filter(t => String(t.batch_ref ?? "") === val && (t.test_stage === "pre-bottling" || t.test_stage === "at-bottling"))
           .sort((a, b) => String(b.test_date ?? "").localeCompare(String(a.test_date ?? "")))[0] ?? null
       : null;
+    setOrganicAutoSource(organicSource);
     setForm(f => {
       const next: Record<string, string | boolean> = { ...f, batchRef: val };
       if (pressMatch && !f.vintageYear) next.vintageYear = pressMatch.vintageYear;
       if (pressMatch && !f.wineColour && pressMatch.wineColour) next.wineColour = pressMatch.wineColour;
+      if (organicSource) next.isOrganic = inheritedOrganic ? "true" : "false";
       let filled = false;
       if (latestTest) {
         if (!f.freeSo2MgL && latestTest.free_so2_mg_l != null) { next.freeSo2MgL = String(latestTest.free_so2_mg_l); filled = true; }
@@ -3058,8 +3084,19 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const autoBottles = volL > 0 && sizeMl > 0 ? Math.floor((volL * 1000) / sizeMl) : null;
   const autoCases = autoBottles != null ? Math.floor(autoBottles / 12) : null;
 
-  const openAdd = () => { setEditing(null); setForm({ bottlingDate: today, vintageYear: String(new Date().getFullYear()), certifiedOrganic: "false", bottleSizeMl: "750" }); setSo2FromTest(false); setLotCodeError(null); setOpen(true); };
-  const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setSo2FromTest(false); setLotCodeError(null); setOpen(true); };
+  const openAdd = () => { setEditing(null); setForm({ bottlingDate: today, vintageYear: String(new Date().getFullYear()), isOrganic: "false", certifiedOrganic: "false", bottleSizeMl: "750" }); setSo2FromTest(false); setOrganicAutoSource(null); setLotCodeError(null); setOpen(true); };
+  const openEdit = (r: Record<string, unknown>) => {
+    setEditing(r.id as number);
+    const raw = Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]));
+    // API returns snake_case; normalize organic boolean fields to camelCase so form checkboxes read them correctly
+    if (raw.isOrganic === undefined || raw.isOrganic === "") raw.isOrganic = raw.is_organic ?? "false";
+    if (raw.certifiedOrganic === undefined || raw.certifiedOrganic === "") raw.certifiedOrganic = raw.certified_organic ?? "false";
+    setForm(raw);
+    setSo2FromTest(false);
+    setOrganicAutoSource(null);
+    setLotCodeError(null);
+    setOpen(true);
+  };
   const save = async () => {
     const payload = {
       ...form,
@@ -3087,15 +3124,18 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const bottlingCsvCols = [
     { key: "vintage_year", label: "Vintage" },
     { key: "bottling_date", label: "Bottling Date", fmt: (r: Record<string, unknown>) => fmtDate(r.bottling_date) },
+    { key: "batch_ref", label: "Batch Ref" },
     { key: "lot_code", label: "Lot Code" },
-    { key: "wine_name", label: "Wine Name" },
+    { key: "wine_colour", label: "Wine Colour" },
+    { key: "is_organic", label: "Organic SO₂ Limits", fmt: (r: Record<string, unknown>) => (r.is_organic === true || r.is_organic === "true") ? "Yes" : "No" },
     { key: "volume_bottled_litres", label: "Volume Bottled (L)" },
     { key: "bottle_size_ml", label: "Bottle Size (ml)" },
     { key: "bottles_produced", label: "Bottles" },
     { key: "cases_produced", label: "Cases" },
     { key: "closure_type", label: "Closure Type" },
+    { key: "free_so2_mg_l", label: "Free SO₂ (mg/L)" },
+    { key: "total_so2_mg_l", label: "Total SO₂ (mg/L)" },
     { key: "certified_organic", label: "Certified Organic", fmt: (r: Record<string, unknown>) => r.certified_organic ? "Yes" : "No" },
-    { key: "pre_bottling_so2_mg_l", label: "Pre-Bottling SO₂ (mg/L)" },
     { key: "notes", label: "Notes" },
   ];
 
@@ -3140,7 +3180,12 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                   <td className="p-3 whitespace-nowrap">{fmtDate(r.bottling_date)}</td>
                   <td className="p-3 font-mono font-semibold text-xs">{fmt(r.lot_code)}</td>
                   <td className="p-3 font-mono text-xs">{fmt(r.batch_ref)}</td>
-                  <td className="p-3">{r.wine_colour ? <span className="text-xs bg-purple-100 text-purple-700 rounded px-1.5 py-0.5">{String(r.wine_colour)}</span> : "—"}</td>
+                  <td className="p-3">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {r.wine_colour ? <span className="text-xs bg-purple-100 text-purple-700 rounded px-1.5 py-0.5">{String(r.wine_colour)}</span> : <span className="text-muted-foreground">—</span>}
+                      {(r.is_organic === true || r.is_organic === "true") && <span className="inline-flex items-center gap-0.5 text-xs bg-green-100 text-green-800 rounded px-1.5 py-0.5"><Leaf className="w-3 h-3" />Organic</span>}
+                    </div>
+                  </td>
                   <td className="p-3 text-right">{fmtNum(r.volume_bottled_litres, 0)}</td>
                   <td className="p-3 text-right">{fmt(r.bottles_produced)}</td>
                   <td className="p-3 text-muted-foreground text-xs">{fmt(r.closure_type)}</td>
@@ -3239,6 +3284,32 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
               <div><Label>Cork Grade</Label><Input value={String(form.corkGrade ?? "")} onChange={e => sf("corkGrade", e.target.value)} placeholder="e.g. 1+1, Grade 1, Technical" /></div>
               <div><Label>Label Batch</Label><Input value={String(form.labelBatch ?? "")} onChange={e => sf("labelBatch", e.target.value)} placeholder="e.g. Label-v3" /></div>
             </div>
+            <SectionLabel>Organic SO₂ limits</SectionLabel>
+            <div className="rounded-md border px-3 py-2.5 space-y-2">
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  id="is-organic-chk"
+                  checked={form.isOrganic === "true" || form.isOrganic === true}
+                  onCheckedChange={v => { sf("isOrganic", v ? "true" : "false"); setOrganicAutoSource(null); }}
+                />
+                <Label htmlFor="is-organic-chk" className="cursor-pointer">Apply organic SO₂ limits to this batch</Label>
+              </div>
+              {organicAutoSource && (
+                <p className="text-xs text-green-700 flex items-center gap-1">
+                  <Leaf className="h-3 w-3 shrink-0" />
+                  Inherited from {organicAutoSource} record — override with the checkbox above
+                </p>
+              )}
+              {(form.isOrganic === "true" || form.isOrganic === true) && form.wineColour && ORGANIC_MAX_SO2[String(form.wineColour)] && (
+                <p className="text-xs text-green-700 flex items-center gap-1">
+                  <Leaf className="h-3 w-3 shrink-0" />
+                  Organic ceiling for {String(form.wineColour)}: <strong>{ORGANIC_MAX_SO2[String(form.wineColour)]} mg/L</strong> total SO₂
+                  {form.totalSo2MgL && parseFloat(String(form.totalSo2MgL)) > parseFloat(ORGANIC_MAX_SO2[String(form.wineColour)]) && (
+                    <span className="ml-1 text-red-600 font-medium">⚠ Entered value exceeds this limit</span>
+                  )}
+                </p>
+              )}
+            </div>
             <SectionLabel>Pre-bottling analysis</SectionLabel>
             {so2FromTest && (
               <p className="text-xs text-blue-600 flex items-center gap-1 -mt-1">
@@ -3296,6 +3367,9 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
               <ViewField label="Residual Sugar" value={view.residual_sugar_gl ? `${fmtNum(view.residual_sugar_gl, 1)} g/L` : "—"} />
               <ViewField label="pH" value={fmtNum(view.ph, 2)} />
               <ViewField label="TA" value={view.titratable_acidity_gl ? `${fmtNum(view.titratable_acidity_gl, 1)} g/L` : "—"} />
+              <ViewField label="Organic SO₂ Limits" value={(view.is_organic === true || view.is_organic === "true")
+                ? <span className="inline-flex items-center gap-1 text-green-700 font-medium"><Leaf className="w-3.5 h-3.5" />Organic limits apply{view.wine_colour && ORGANIC_MAX_SO2[String(view.wine_colour)] ? ` (max ${ORGANIC_MAX_SO2[String(view.wine_colour)]} mg/L)` : ""}</span>
+                : "No — conventional limits"} />
               <ViewField label="Certified Organic" value={view.certified_organic ? <span className="text-green-700 font-medium">Yes — {fmt(view.certifier_ref)}</span> : "No"} />
               <ViewField label="Operator" value={fmt(view.operator_name)} />
               {!!view.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>}
