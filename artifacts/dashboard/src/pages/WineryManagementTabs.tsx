@@ -2850,13 +2850,14 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
 
   const bottlingPressingRefs = pressingRecords
     .filter(r => r.batch_ref)
-    .map(r => ({ batchRef: String(r.batch_ref), vintageYear: String(r.vintage_year ?? "") }))
+    .map(r => ({ batchRef: String(r.batch_ref), vintageYear: String(r.vintage_year ?? ""), wineColour: String(r.wine_colour ?? "") }))
     .sort((a, b) => b.batchRef.localeCompare(a.batchRef));
 
   const handleBottlingBatchRefChange = (val: string) => {
     sf("batchRef", val);
     const match = bottlingPressingRefs.find(p => p.batchRef === val);
     if (match && !form.vintageYear) sf("vintageYear", match.vintageYear);
+    if (match && !form.wineColour && match.wineColour) sf("wineColour", match.wineColour);
   };
 
   // Auto-calculate bottles from volume and size
@@ -3123,13 +3124,14 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
 
   const so2PressingRefs = pressingRecords
     .filter(r => r.batch_ref)
-    .map(r => ({ batchRef: String(r.batch_ref), vintageYear: String(r.vintage_year ?? "") }))
+    .map(r => ({ batchRef: String(r.batch_ref), vintageYear: String(r.vintage_year ?? ""), wineColour: String(r.wine_colour ?? "") }))
     .sort((a, b) => b.batchRef.localeCompare(a.batchRef));
 
   const handleSo2BatchRefChange = (val: string) => {
     sf("batchRef", val);
     const match = so2PressingRefs.find(p => p.batchRef === val);
     if (match && !form.vintageYear) sf("vintageYear", match.vintageYear);
+    if (match && !form.wineColour && match.wineColour) handleColourChange(match.wineColour);
   };
 
   const isLab = form.testMethod === "Third-party laboratory";
