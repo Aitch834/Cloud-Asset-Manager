@@ -515,10 +515,14 @@ function useWineryBatchSettings(farmId: number) {
  * A standalone "Find batch" bar that can be placed in any winery-tab header.
  * Typing or pasting a batch ref and pressing Enter (or clicking the button)
  * opens BatchTrailDialog directly — no need to locate the pressing record row.
+ * A typeahead dropdown lists matching batch refs from pressing + fermentation data.
  */
 export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
   const [value, setValue] = useState("");
   const [activeRef, setActiveRef] = useState<string | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
   const { data: farmsData } = useQuery<{ records?: Record<string, unknown>[] }>({
     queryKey: ["farms-list"],
     queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
@@ -530,25 +534,91 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
           ?.name as string | undefined
       : undefined) ?? `Farm ${farmId}`;
 
-  const open = () => {
+  // Reuse cached pressing data already fetched by the pressing tab
+  const { data: pressingData } = usePressing(farmId);
+
+  // Reuse cached fermentation data (same queryKey used by the fermentation tab)
+  const { data: fermentationData } = useQuery<Record<string, unknown>[]>({
+    queryKey: ["winery-fermentation", farmId],
+    queryFn: async () => {
+      const r = await fetch(api(`farms/${farmId}/winery-fermentation`), { credentials: "include" });
+      const d = await r.json();
+      return (d.records ?? []) as Record<string, unknown>[];
+    },
+    enabled: !!farmId,
+    staleTime: 60_000,
+  });
+
+  // Build sorted, deduplicated list of all known batch refs
+  const allBatchRefs = useMemo(() => {
+    const refs = new Set<string>();
+    for (const r of pressingData ?? []) {
+      if (r.batch_ref) refs.add(String(r.batch_ref));
+    }
+    for (const r of fermentationData ?? []) {
+      if (r.batch_ref) refs.add(String(r.batch_ref));
+    }
+    return Array.from(refs).sort();
+  }, [pressingData, fermentationData]);
+
+  // Case-insensitive partial-match suggestions, capped at 10
+  const suggestions = useMemo(() => {
     const trimmed = value.trim();
+    if (!trimmed) return [];
+    const lower = trimmed.toLowerCase();
+    return allBatchRefs.filter(ref => ref.toLowerCase().includes(lower)).slice(0, 10);
+  }, [allBatchRefs, value]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const openTrail = (ref?: string) => {
+    const trimmed = (ref ?? value).trim();
     if (!trimmed) return;
+    setValue(trimmed);
+    setDropdownOpen(false);
     setActiveRef(trimmed);
   };
 
   return (
     <div className="flex items-center gap-2">
-      <div className="relative">
+      <div className="relative" ref={containerRef}>
         <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
         <Input
           className="pl-8 h-8 w-56 text-sm"
           placeholder="Find batch by ref…"
           value={value}
-          onChange={e => setValue(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter") open(); }}
+          onChange={e => { setValue(e.target.value); setDropdownOpen(true); }}
+          onFocus={() => { if (value.trim()) setDropdownOpen(true); }}
+          onKeyDown={e => {
+            if (e.key === "Enter") openTrail();
+            if (e.key === "Escape") setDropdownOpen(false);
+          }}
         />
+        {dropdownOpen && suggestions.length > 0 && (
+          <div className="absolute z-50 mt-1 w-full min-w-max rounded-md border bg-popover shadow-md overflow-hidden">
+            {suggestions.map(ref => (
+              <button
+                key={ref}
+                className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                // onMouseDown prevents input blur before click registers
+                onMouseDown={e => { e.preventDefault(); openTrail(ref); }}
+              >
+                {ref}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-      <Button variant="outline" size="sm" className="h-8" onClick={open} disabled={!value.trim()}>
+      <Button variant="outline" size="sm" className="h-8" onClick={() => openTrail()} disabled={!value.trim()}>
         <GitBranch className="h-3.5 w-3.5 mr-1" />
         Open trail
       </Button>
@@ -557,7 +627,7 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
           farmId={farmId}
           pressing={{ batch_ref: activeRef, vintage_year: null }}
           farmName={farmName}
-          onClose={() => { setActiveRef(null); }}
+          onClose={() => { setActiveRef(null); setValue(""); }}
         />
       )}
     </div>
