@@ -523,7 +523,9 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
   const [value, setValue] = useState("");
   const [activeRef, setActiveRef] = useState<string | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const { data: farmsData } = useQuery<{ records?: Record<string, unknown>[] }>({
     queryKey: ["farms-list"],
@@ -582,11 +584,24 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Reset highlight whenever the suggestion list changes
+  useEffect(() => {
+    setHighlightedIndex(-1);
+  }, [suggestions]);
+
+  // Scroll highlighted item into view
+  useEffect(() => {
+    if (highlightedIndex < 0 || !listRef.current) return;
+    const item = listRef.current.children[highlightedIndex] as HTMLElement | undefined;
+    item?.scrollIntoView({ block: "nearest" });
+  }, [highlightedIndex]);
+
   const openTrail = (ref?: string) => {
     const trimmed = (ref ?? value).trim();
     if (!trimmed) return;
     setValue(trimmed);
     setDropdownOpen(false);
+    setHighlightedIndex(-1);
     setActiveRef(trimmed);
   };
 
@@ -601,18 +616,34 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
           onChange={e => { setValue(e.target.value); setDropdownOpen(true); }}
           onFocus={() => { if (value.trim()) setDropdownOpen(true); }}
           onKeyDown={e => {
-            if (e.key === "Enter") openTrail();
-            if (e.key === "Escape") setDropdownOpen(false);
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              if (!dropdownOpen && suggestions.length > 0) setDropdownOpen(true);
+              setHighlightedIndex(i => Math.min(i + 1, suggestions.length - 1));
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setHighlightedIndex(i => Math.max(i - 1, -1));
+            } else if (e.key === "Enter") {
+              if (highlightedIndex >= 0 && suggestions[highlightedIndex]) {
+                openTrail(suggestions[highlightedIndex]);
+              } else {
+                openTrail();
+              }
+            } else if (e.key === "Escape") {
+              setDropdownOpen(false);
+              setHighlightedIndex(-1);
+            }
           }}
         />
         {dropdownOpen && suggestions.length > 0 && (
-          <div className="absolute z-50 mt-1 w-full min-w-max rounded-md border bg-popover shadow-md overflow-hidden">
-            {suggestions.map(ref => (
+          <div ref={listRef} className="absolute z-50 mt-1 w-full min-w-max rounded-md border bg-popover shadow-md overflow-y-auto max-h-60">
+            {suggestions.map((ref, idx) => (
               <button
                 key={ref}
-                className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground${idx === highlightedIndex ? " bg-accent text-accent-foreground" : ""}`}
                 // onMouseDown prevents input blur before click registers
                 onMouseDown={e => { e.preventDefault(); openTrail(ref); }}
+                onMouseEnter={() => setHighlightedIndex(idx)}
               >
                 {ref}
               </button>
