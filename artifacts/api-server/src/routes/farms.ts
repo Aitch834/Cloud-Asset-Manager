@@ -36697,12 +36697,44 @@ router.get("/farms/:farmId/winery-pressing/additions-summary", requireAuth, requ
 router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.execute(sql`
-    SELECT a.pressing_record_id, p.vintage_year, p.batch_ref,
-           a.additive_name, a.category, a.dose, a.unit, a.notes
+    SELECT 'pressing' AS source,
+           p.vintage_year, p.batch_ref, p.press_date AS record_date,
+           a.additive_name, a.category, a.dose::text AS dose, a.unit, a.notes,
+           a.pressing_record_id
     FROM winery_pressing_additions a
     JOIN winery_pressing_records p ON p.id = a.pressing_record_id
     WHERE p.farm_id = ${farmId}
-    ORDER BY p.vintage_year DESC, p.press_date DESC, a.id ASC
+
+    UNION ALL
+
+    SELECT 'fermentation' AS source,
+           f.vintage_year, f.batch_ref, f.start_date AS record_date,
+           'SO₂ / Potassium metabisulphite (KMS)' AS additive_name,
+           'so2' AS category,
+           f.so2_at_fermentation_mg_l::text AS dose,
+           'mg/L' AS unit,
+           f.notes,
+           NULL::integer AS pressing_record_id
+    FROM winery_fermentation_records f
+    WHERE f.farm_id = ${farmId}
+      AND f.so2_at_fermentation_mg_l IS NOT NULL
+
+    UNION ALL
+
+    SELECT 'cellar' AS source,
+           o.vintage_year, o.batch_ref, o.op_date AS record_date,
+           'SO₂ / Potassium metabisulphite (KMS)' AS additive_name,
+           'so2' AS category,
+           o.so2_quantity_g::text AS dose,
+           'g' AS unit,
+           o.notes,
+           NULL::integer AS pressing_record_id
+    FROM winery_cellar_ops o
+    WHERE o.farm_id = ${farmId}
+      AND o.op_type = 'sulfiting'
+      AND o.so2_quantity_g IS NOT NULL
+
+    ORDER BY vintage_year DESC NULLS LAST, record_date DESC NULLS LAST
   `);
   res.json({ additions: rows.rows });
 });

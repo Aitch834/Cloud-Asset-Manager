@@ -1719,6 +1719,22 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     { key: "max_dose", label: "Max Dose" },
   ];
 
+  const transactionLogCsvCols = [
+    { key: "source", label: "Source", fmt: (r: Record<string, unknown>) => SOURCE_LABELS[String(r.source ?? "pressing")] ?? String(r.source ?? "pressing") },
+    { key: "vintage_year", label: "Vintage" },
+    { key: "batch_ref", label: "Batch Ref" },
+    { key: "record_date", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.record_date) },
+    { key: "additive_name", label: "Additive" },
+    { key: "category", label: "Category" },
+    { key: "dose", label: "Dose" },
+    { key: "unit", label: "Unit" },
+    { key: "notes", label: "Notes" },
+  ];
+
+  const filteredTransactionLog = (yearFilter === "all"
+    ? allAdditions
+    : allAdditions.filter((r: Record<string, unknown>) => String(r.vintage_year) === yearFilter));
+
   const pressCsvCols = [
     { key: "vintage_year", label: "Vintage" },
     { key: "press_date", label: "Press Date", fmt: (r: Record<string, unknown>) => fmtDate(r.press_date) },
@@ -1833,7 +1849,8 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             </div>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={() => printAdditionsReport(searchFilteredSummary, farmName, yearFilter === "all" ? "All vintages" : yearFilter)} disabled={!searchFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
-              <Button size="sm" variant="outline" onClick={() => exportCSV(searchFilteredSummary, `pressing-additions-report-${yearFilter}.csv`, summaryCsvCols)} disabled={!searchFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+              <Button size="sm" variant="outline" onClick={() => exportCSV(searchFilteredSummary, `pressing-additions-report-${yearFilter}.csv`, summaryCsvCols)} disabled={!searchFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export Summary CSV</Button>
+              <Button size="sm" variant="outline" onClick={() => exportCSV(filteredTransactionLog, `so2-transaction-log-${yearFilter}.csv`, transactionLogCsvCols)} disabled={!filteredTransactionLog.length} title="Export every individual SO₂ and additive record from pressing, fermentation, and cellar as a flat transaction log"><FileDown className="w-3.5 h-3.5 mr-1" />Transaction Log CSV</Button>
             </div>
           </div>
 
