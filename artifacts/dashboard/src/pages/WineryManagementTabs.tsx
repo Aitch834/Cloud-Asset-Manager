@@ -3882,7 +3882,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                     return <So2Badge compliant={total <= parseFloat(ceiling)} />;
                   })()}</td>
                   <td className="p-3 text-right whitespace-nowrap">
-                    <Button variant="ghost" size="icon" className={`h-7 w-7 ${r.batch_ref ? "text-blue-600" : "text-muted-foreground"}`} title={r.batch_ref ? `View batch trail for ${String(r.batch_ref)}` : "No batch reference — showing full vintage trail"} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" className={`h-7 w-7 ${r.batch_ref ? "text-blue-600" : "text-muted-foreground"}`} title={r.batch_ref ? `View batch trail for ${String(r.batch_ref)}` : "No batch reference — batch trail unavailable"} disabled={!r.batch_ref} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
