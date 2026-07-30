@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Settings2, RefreshCw, GitBranch, Leaf } from "lucide-react";
+import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -733,7 +733,7 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
                 <FileDown className="w-3.5 h-3.5 mr-1" />Export CSV
               </Button>
               <Button variant="outline" size="sm" onClick={() => printBatchTrail(pressing, data, farmName)}>
-                <FileDown className="w-3.5 h-3.5 mr-1" />Print / PDF
+                <Printer className="w-3.5 h-3.5 mr-1" />Print / Export PDF
               </Button>
             </>
           )}
