@@ -3189,6 +3189,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
             <thead className="bg-muted/40"><tr>
               <th className="text-left p-3 font-medium">Date</th>
               <th className="text-left p-3 font-medium">Batch</th>
+              <th className="text-left p-3 font-medium">Colour</th>
               <th className="text-left p-3 font-medium">Operation</th>
               <th className="text-left p-3 font-medium">From</th>
               <th className="text-left p-3 font-medium">To</th>
@@ -3208,6 +3209,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                       <span className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 font-sans"><Leaf className="w-3 h-3" />Organic</span>
                     )}
                   </td>
+                    <td className="p-3 text-xs text-muted-foreground">{r.wine_colour ? fmt(r.wine_colour) : "—"}</td>
                     <td className="p-3"><span className="text-xs bg-blue-50 text-blue-700 rounded px-1.5 py-0.5">{CELLAR_OP_LABELS[String(r.op_type)] ?? fmt(r.op_type)}</span></td>
                     <td className="p-3 font-mono text-xs">{fmt(r.from_vessel_ref ?? vRef(r.from_vessel_id))}</td>
                     <td className="p-3 font-mono text-xs">{fmt(r.to_vessel_ref ?? vRef(r.to_vessel_id))}</td>
@@ -3241,6 +3243,16 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                 </Select>
               </div>
               <div><Label>Vintage Year</Label><Input type="number" value={form.vintageYear ?? ""} onChange={e => sf("vintageYear", e.target.value)} /></div>
+              <div>
+                <Label>Wine Colour</Label>
+                <Select value={form.wineColour ?? ""} onValueChange={v => sf("wineColour", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select colour" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">— Not specified —</SelectItem>
+                    {WINE_COLOUR_OPTIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
               <div>
                 <Label>Batch Reference</Label>
                 <Input
@@ -3352,6 +3364,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
               <ViewField label="Operation" value={CELLAR_OP_LABELS[String(view.op_type)] ?? fmt(view.op_type)} />
               <ViewField label="Vintage Year" value={fmt(view.vintage_year)} />
               <ViewField label="Batch Ref" value={fmt(view.batch_ref)} />
+              {!!view.wine_colour && <ViewField label="Wine Colour" value={fmt(view.wine_colour)} />}
               <ViewField label="From Vessel" value={fmt(view.from_vessel_ref ?? vRef(view.from_vessel_id))} />
               <ViewField label="To Vessel" value={fmt(view.to_vessel_ref ?? vRef(view.to_vessel_id))} />
               {!!view.volume_moved_litres && <ViewField label="Volume" value={`${fmtNum(view.volume_moved_litres, 1)} L`} />}

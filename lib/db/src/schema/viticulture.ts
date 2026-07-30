@@ -559,6 +559,7 @@ export const wineryCellarOpsTable = pgTable("winery_cellar_ops", {
   filterPoreUm: numeric("filter_pore_um", { precision: 5, scale: 2 }),
   clarityBefore: text("clarity_before"),
   clarityAfter: text("clarity_after"),
+  wineColour: text("wine_colour"),
   operatorName: text("operator_name"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

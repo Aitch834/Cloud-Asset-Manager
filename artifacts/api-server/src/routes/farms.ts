@@ -36666,7 +36666,7 @@ router.get("/farms/:farmId/winery-pressing/additions-summary", requireAuth, requ
 
     SELECT
       o.vintage_year,
-      p2.wine_colour,
+      o.wine_colour,
       'SO₂ (cellar sulfiting)'::text             AS additive_name,
       'so2'::text                                 AS category,
       'g'::text                                   AS unit,
@@ -36677,16 +36677,10 @@ router.get("/farms/:farmId/winery-pressing/additions-summary", requireAuth, requ
       ROUND(MAX(o.so2_quantity_g)::numeric, 3)   AS max_dose,
       ROUND(AVG(o.so2_quantity_g)::numeric, 3)   AS avg_dose
     FROM winery_cellar_ops o
-    LEFT JOIN LATERAL (
-      SELECT wine_colour
-      FROM winery_pressing_records
-      WHERE farm_id = o.farm_id AND batch_ref = o.batch_ref
-      LIMIT 1
-    ) p2 ON true
     WHERE o.farm_id = ${farmId}
       AND o.op_type = 'sulfiting'
       AND o.so2_quantity_g IS NOT NULL
-    GROUP BY o.vintage_year, p2.wine_colour
+    GROUP BY o.vintage_year, o.wine_colour
 
     ORDER BY vintage_year DESC NULLS LAST, source, category, additive_name
   `);
@@ -37127,13 +37121,13 @@ router.post("/farms/:farmId/winery-cellar-ops", requireAuth, requireTenant, requ
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const b = sanitiseBody(req.body);
   if (!b.opType) { res.status(400).json({ error: "op_type required" }); return; }
-  const r = await db.execute(sql`INSERT INTO winery_cellar_ops (farm_id,op_date,vintage_year,batch_ref,op_type,from_vessel_id,to_vessel_id,volume_moved_litres,lees_depth_cm,top_up_volume_litres,top_up_source,so2_product,so2_quantity_g,free_so2_before_mg_l,free_so2_after_mg_l,fining_agent,fining_dose,contact_time_hours,filter_type,filter_pore_um,clarity_before,clarity_after,operator_name,notes) VALUES (${farmId},${n(b.opDate)},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.opType)},${ni(b.fromVesselId)},${ni(b.toVesselId)},${nf(b.volumeMovedLitres)},${nf(b.leesDepthCm)},${nf(b.topUpVolumeLitres)},${n(b.topUpSource)},${n(b.so2Product)},${nf(b.so2QuantityG)},${nf(b.freeSo2BeforeMgL)},${nf(b.freeSo2AfterMgL)},${n(b.finingAgent)},${n(b.finingDose)},${ni(b.contactTimeHours)},${n(b.filterType)},${nf(b.filterPoreUm)},${n(b.clarityBefore)},${n(b.clarityAfter)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
+  const r = await db.execute(sql`INSERT INTO winery_cellar_ops (farm_id,op_date,vintage_year,batch_ref,op_type,wine_colour,from_vessel_id,to_vessel_id,volume_moved_litres,lees_depth_cm,top_up_volume_litres,top_up_source,so2_product,so2_quantity_g,free_so2_before_mg_l,free_so2_after_mg_l,fining_agent,fining_dose,contact_time_hours,filter_type,filter_pore_um,clarity_before,clarity_after,operator_name,notes) VALUES (${farmId},${n(b.opDate)},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.opType)},${n(b.wineColour)},${ni(b.fromVesselId)},${ni(b.toVesselId)},${nf(b.volumeMovedLitres)},${nf(b.leesDepthCm)},${nf(b.topUpVolumeLitres)},${n(b.topUpSource)},${n(b.so2Product)},${nf(b.so2QuantityG)},${nf(b.freeSo2BeforeMgL)},${nf(b.freeSo2AfterMgL)},${n(b.finingAgent)},${n(b.finingDose)},${ni(b.contactTimeHours)},${n(b.filterType)},${nf(b.filterPoreUm)},${n(b.clarityBefore)},${n(b.clarityAfter)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
   res.status(201).json({ record: r.rows[0] });
 });
 router.put("/farms/:farmId/winery-cellar-ops/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const b = sanitiseBody(req.body);
-  const r = await db.execute(sql`UPDATE winery_cellar_ops SET op_date=${n(b.opDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},op_type=${n(b.opType)},from_vessel_id=${ni(b.fromVesselId)},to_vessel_id=${ni(b.toVesselId)},volume_moved_litres=${nf(b.volumeMovedLitres)},lees_depth_cm=${nf(b.leesDepthCm)},top_up_volume_litres=${nf(b.topUpVolumeLitres)},top_up_source=${n(b.topUpSource)},so2_product=${n(b.so2Product)},so2_quantity_g=${nf(b.so2QuantityG)},free_so2_before_mg_l=${nf(b.freeSo2BeforeMgL)},free_so2_after_mg_l=${nf(b.freeSo2AfterMgL)},fining_agent=${n(b.finingAgent)},fining_dose=${n(b.finingDose)},contact_time_hours=${ni(b.contactTimeHours)},filter_type=${n(b.filterType)},filter_pore_um=${nf(b.filterPoreUm)},clarity_before=${n(b.clarityBefore)},clarity_after=${n(b.clarityAfter)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
+  const r = await db.execute(sql`UPDATE winery_cellar_ops SET op_date=${n(b.opDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},op_type=${n(b.opType)},wine_colour=${n(b.wineColour)},from_vessel_id=${ni(b.fromVesselId)},to_vessel_id=${ni(b.toVesselId)},volume_moved_litres=${nf(b.volumeMovedLitres)},lees_depth_cm=${nf(b.leesDepthCm)},top_up_volume_litres=${nf(b.topUpVolumeLitres)},top_up_source=${n(b.topUpSource)},so2_product=${n(b.so2Product)},so2_quantity_g=${nf(b.so2QuantityG)},free_so2_before_mg_l=${nf(b.freeSo2BeforeMgL)},free_so2_after_mg_l=${nf(b.freeSo2AfterMgL)},fining_agent=${n(b.finingAgent)},fining_dose=${n(b.finingDose)},contact_time_hours=${ni(b.contactTimeHours)},filter_type=${n(b.filterType)},filter_pore_um=${nf(b.filterPoreUm)},clarity_before=${n(b.clarityBefore)},clarity_after=${n(b.clarityAfter)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
   res.json({ record: r.rows[0] });
 });
 router.delete("/farms/:farmId/winery-cellar-ops/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
