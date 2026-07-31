@@ -2709,8 +2709,10 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [pressingSearch, setPressingSearch] = useState("");
   const pressingSortKey = `pressing-sort-${farmId}`;
-  const [pressingSortCol, setPressingSortColRaw] = useState<"date" | "batch_ref">(() => {
-    try { const v = localStorage.getItem(`pressing-sort-${farmId}-col`); return v === "batch_ref" ? "batch_ref" : "date"; } catch { return "date"; }
+  const PRESSING_SORT_COLS = ["date", "batch_ref", "grapes_pressed_kg", "total_juice_litres"] as const;
+  type PressingSort = typeof PRESSING_SORT_COLS[number];
+  const [pressingSortCol, setPressingSortColRaw] = useState<PressingSort>(() => {
+    try { const v = localStorage.getItem(`pressing-sort-${farmId}-col`); return (PRESSING_SORT_COLS as readonly string[]).includes(v ?? "") ? v as PressingSort : "date"; } catch { return "date"; }
   });
   const [pressingSortDir, setPressingSortDirRaw] = useState<"asc" | "desc">(() => {
     try { const v = localStorage.getItem(`pressing-sort-${farmId}-dir`); return v === "asc" ? "asc" : "desc"; } catch { return "desc"; }
@@ -2719,12 +2721,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   useEffect(() => {
     try {
       const col = localStorage.getItem(`${pressingSortKey}-col`);
-      setPressingSortColRaw(col === "batch_ref" ? "batch_ref" : "date");
+      setPressingSortColRaw((PRESSING_SORT_COLS as readonly string[]).includes(col ?? "") ? col as PressingSort : "date");
       const dir = localStorage.getItem(`${pressingSortKey}-dir`);
       setPressingSortDirRaw(dir === "asc" ? "asc" : "desc");
     } catch { /**/ }
   }, [pressingSortKey]);
-  const setPressingSortCol = (col: "date" | "batch_ref") => { try { localStorage.setItem(`${pressingSortKey}-col`, col); } catch { /**/ } setPressingSortColRaw(col); };
+  const setPressingSortCol = (col: PressingSort) => { try { localStorage.setItem(`${pressingSortKey}-col`, col); } catch { /**/ } setPressingSortColRaw(col); };
   const setPressingSortDir = (dir: "asc" | "desc") => { try { localStorage.setItem(`${pressingSortKey}-dir`, dir); } catch { /**/ } setPressingSortDirRaw(dir); };
   const [pressTypeOther, setPressTypeOther] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -2912,24 +2914,32 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
         return String(r.batch_ref ?? "").toLowerCase().includes(q)
           || String(r.press_date ?? "").toLowerCase().includes(q);
       });
-  const togglePressSort = (col: "date" | "batch_ref") => {
+  const togglePressSort = (col: PressingSort) => {
     if (pressingSortCol === col) {
       setPressingSortDir(pressingSortDir === "asc" ? "desc" : "asc");
     } else {
       setPressingSortCol(col);
-      setPressingSortDir(col === "date" ? "desc" : "asc");
+      // Numeric columns default desc (largest first); text columns default to their natural direction
+      setPressingSortDir(col === "grapes_pressed_kg" || col === "total_juice_litres" ? "desc" : col === "date" ? "desc" : "asc");
     }
   };
   const filtered = [...filteredBySearch].sort((a, b) => {
-    let av = "", bv = "";
-    if (pressingSortCol === "date") {
-      av = String(a.press_date ?? "");
-      bv = String(b.press_date ?? "");
+    let cmp = 0;
+    if (pressingSortCol === "grapes_pressed_kg" || pressingSortCol === "total_juice_litres") {
+      const an = parseFloat(String(a[pressingSortCol] ?? ""));
+      const bn = parseFloat(String(b[pressingSortCol] ?? ""));
+      const aNull = isNaN(an), bNull = isNaN(bn);
+      // Keep missing values last regardless of sort direction — negate only the
+      // numeric comparison, never the null-sentinel values.
+      if (aNull && bNull) return 0;
+      if (aNull) return 1;   // nulls always last
+      if (bNull) return -1;  // nulls always last
+      cmp = an - bn;
     } else {
-      av = String(a.batch_ref ?? "");
-      bv = String(b.batch_ref ?? "");
+      const av = pressingSortCol === "date" ? String(a.press_date ?? "") : String(a.batch_ref ?? "");
+      const bv = pressingSortCol === "date" ? String(b.press_date ?? "") : String(b.batch_ref ?? "");
+      cmp = av.localeCompare(bv);
     }
-    const cmp = av.localeCompare(bv);
     return pressingSortDir === "asc" ? cmp : -cmp;
   });
 
@@ -3138,8 +3148,22 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                 </button>
               </th>
               <th className="text-left p-3 font-medium">Press Type</th>
-              <th className="text-right p-3 font-medium">Pressed (kg)</th>
-              <th className="text-right p-3 font-medium">Juice (L)</th>
+              <th className="text-right p-3 font-medium">
+                <button className="flex items-center gap-1 hover:text-foreground ml-auto group" onClick={() => togglePressSort("grapes_pressed_kg")}>
+                  Pressed (kg)
+                  {pressingSortCol === "grapes_pressed_kg"
+                    ? pressingSortDir === "asc" ? <ArrowUp className="w-3.5 h-3.5 text-primary" /> : <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                    : <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground" />}
+                </button>
+              </th>
+              <th className="text-right p-3 font-medium">
+                <button className="flex items-center gap-1 hover:text-foreground ml-auto group" onClick={() => togglePressSort("total_juice_litres")}>
+                  Juice (L)
+                  {pressingSortCol === "total_juice_litres"
+                    ? pressingSortDir === "asc" ? <ArrowUp className="w-3.5 h-3.5 text-primary" /> : <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                    : <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground" />}
+                </button>
+              </th>
               <th className="text-right p-3 font-medium">L/kg</th>
               <th className="text-right p-3 font-medium">Brix °</th>
               <th className="text-right p-3 font-medium">pH</th>
