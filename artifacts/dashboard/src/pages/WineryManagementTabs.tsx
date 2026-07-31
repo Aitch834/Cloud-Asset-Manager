@@ -2984,6 +2984,14 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
       <Dialog open={open} onOpenChange={o => !o && setOpen(false)}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing !== null ? "Edit" : "Add"} Press Record</DialogTitle></DialogHeader>
+          {editing !== null && form.audit_signature && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <ShieldCheck className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
+              <span>
+                <strong>This record has been signed off.</strong> Saving changes to the press data will not affect the existing audit signature — the sign-off remains intact.
+              </span>
+            </div>
+          )}
           <div className="space-y-4">
             <SectionLabel>Session</SectionLabel>
             <div className="grid grid-cols-2 gap-3">

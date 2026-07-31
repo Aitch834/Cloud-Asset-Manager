@@ -36906,6 +36906,9 @@ router.put("/farms/:farmId/winery-pressing/:id", requireAuth, requireTenant, req
     }
   }
   try {
+    // NOTE: audit_signature, audit_signed_at, audit_signer_name, audit_signer_role are intentionally
+    // excluded from this SET clause so that editing a pressing record never clears an existing
+    // audit sign-off.  Those columns are only written via the dedicated PUT /sign-off route.
     const r = await db.execute(sql`UPDATE winery_pressing_records SET press_date=${n(b.pressDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${batchRef},press_type=${n(b.pressType)},grapes_pressed_kg=${nf(b.grapesPressedKg)},free_run_litres=${nf(b.freeRunLitres)},press_wine_litres=${nf(b.pressWineLitres)},total_juice_litres=${nf(b.totalJuiceLitres)},press_efficiency_l_per_kg=${nf(b.pressEfficiencyLPerKg)},juice_brix=${nf(b.juiceBrix)},juice_ph=${nf(b.juicePh)},juice_ta_gl=${nf(b.juiceTaGl)},juice_turbidity=${n(b.juiceTurbidity)},free_run_separated=${nb(b.freeRunSeparated) ?? true},additions_at_press=${n(b.additionsAtPress)},settling_method=${n(b.settlingMethod)},settling_vessel=${n(b.settlingVessel)},settling_hours=${ni(b.settlingHours)},juice_analysis_source=${n(b.juiceAnalysisSource)},is_organic=${nb(b.isOrganic) ?? false},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${recordId} AND farm_id=${farmId} RETURNING *`);
     res.json({ record: r.rows[0] });
   } catch (err: unknown) {
