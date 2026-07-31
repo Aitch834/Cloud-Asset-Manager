@@ -3002,6 +3002,22 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     if (vinA !== vinB) return vinA.localeCompare(vinB);
     return String(a.wine_colour ?? "").localeCompare(String(b.wine_colour ?? ""));
   });
+  // Detect mixed SO₂ units in the currently-visible summary rows so the on-screen
+  // table can show a banner before the user reaches the export step.
+  const summaryMixedUnitVintages = (() => {
+    const byVintage = new Map<string, Set<string>>();
+    searchFilteredSummary.filter(r => r.category === "so2").forEach(r => {
+      const v = String(r.vintage_year ?? "?");
+      const u = String(r.unit ?? "");
+      if (!byVintage.has(v)) byVintage.set(v, new Set());
+      byVintage.get(v)!.add(u);
+    });
+    return Array.from(byVintage.entries())
+      .filter(([, units]) => units.size > 1)
+      .map(([v]) => v)
+      .sort();
+  })();
+
   const showSo2Chart = categoryFilter.size === 0 || categoryFilter.has("so2");
   const so2ByVintage = new Map<string, number>();
   additionsSummary.filter(r => r.category === "so2").forEach(r => {
@@ -3444,6 +3460,15 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             <p className="text-sm text-muted-foreground text-center py-6">No rows match the current filters. Try a different additive name or clear the category filter.</p>
           ) : (
             <>
+            {summaryMixedUnitVintages.length > 0 && (
+              <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500 mt-0.5" />
+                <span>
+                  <strong>Mixed SO₂ units detected — {summaryMixedUnitVintages.length === 1 ? `vintage ${summaryMixedUnitVintages[0]}` : `vintages ${summaryMixedUnitVintages.join(", ")}`}.</strong>{" "}
+                  This table contains SO₂ / KMS records measured in both <strong>mg/kg</strong> (at pressing) and <strong>mg/L</strong> (post-fermentation / cellar). The Total Dose column combines different units and <strong>cannot be compared or summed</strong> across rows. Check the Unit column to interpret each figure individually.
+                </span>
+              </div>
+            )}
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
                 <thead className="bg-muted/40"><tr>
