@@ -2466,21 +2466,30 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
       </ul>
     </div>` : ""}
 
+    ${data.pressAdditions.length > 0 ? `
+    <!-- Press additives — grouped inside this pressing record -->
+    <div style="border-top:1px solid #e5e7eb;padding-top:8px;margin-top:4px">
+      <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:5px">Press Additives (${data.pressAdditions.length})</p>
+      <table style="width:100%;border-collapse:collapse;margin-left:0">
+        <tr style="background:#f9fafb">
+          <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #d1d5db;text-align:left">Additive</th>
+          <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #d1d5db;text-align:left">Category</th>
+          <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #d1d5db;text-align:right">Dose</th>
+          <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #d1d5db;text-align:left">Unit</th>
+          <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #d1d5db;text-align:left">Notes</th>
+        </tr>
+        ${data.pressAdditions.map(a => `<tr>
+          <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;font-weight:500">${escHtml(a.additive_name)}</td>
+          <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;color:#6b7280">${escHtml(ADDITIVE_CATEGORY_LABELS[String(a.category)] ?? a.category)}</td>
+          <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;text-align:right;font-family:monospace">${a.dose != null ? parseFloat(String(a.dose)).toFixed(2) : "—"}</td>
+          <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px">${escHtml(a.unit)}</td>
+          <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;color:#6b7280;font-style:italic">${escHtml(a.notes)}</td>
+        </tr>`).join("")}
+      </table>
+    </div>` : ""}
+
   </div>
 </div>`;
-
-  // Press additives
-  const addBatchRef = escHtml(pressing.batch_ref);
-  const addRows = data.pressAdditions.map(a => `<tr>
-    <td>${addBatchRef || "—"}</td>
-    <td>${escHtml(a.additive_name)}</td>
-    <td>${escHtml(ADDITIVE_CATEGORY_LABELS[String(a.category)] ?? a.category)}</td>
-    <td style="text-align:right;font-family:monospace">${a.dose != null ? parseFloat(String(a.dose)).toFixed(2) : "—"}</td>
-    <td>${escHtml(a.unit)}</td>
-    <td>${escHtml(a.notes)}</td>
-  </tr>`).join("");
-
-  const addHeader = `<tr class="header-row"><th>Batch Ref</th><th>Additive</th><th>Category</th><th style="text-align:right">Dose</th><th>Unit</th><th>Notes</th></tr>`;
 
   // Fermentation
   const fermRows = data.fermentation.map(r => `<tr>
@@ -2629,11 +2638,10 @@ ${vintageScopeNote}
 ${so2SummaryHtml}
 ${phTaHistoryHtml}
 ${pressingBlockHtml}
-${addRows ? sectionHtml("2. Pressing additives", addHeader + addRows) : ""}
-${fermRows ? sectionHtml("3. Fermentation", fermHeader + fermRows) : ""}
-${cellarRows ? sectionHtml("4. Cellar operations", cellarHeader + cellarRows) : ""}
-${so2Rows ? sectionHtml("5. SO₂ tests", so2Header + so2Rows) : ""}
-${bottlingRows ? sectionHtml("6. Bottling runs", bottlingHeader + bottlingRows) : ""}
+${fermRows ? sectionHtml("2. Fermentation", fermHeader + fermRows) : ""}
+${cellarRows ? sectionHtml("3. Cellar operations", cellarHeader + cellarRows) : ""}
+${so2Rows ? sectionHtml("4. SO₂ tests", so2Header + so2Rows) : ""}
+${bottlingRows ? sectionHtml("5. Bottling runs", bottlingHeader + bottlingRows) : ""}
 
 <div class="signoff">
   <div style="margin-top:28px;border-top:2px solid #374151;padding-top:16px">
