@@ -4710,6 +4710,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
     .filter(r => opFilter === "all" || String(r.op_type) === opFilter);
   const cellarCsvCols = [
     { key: "vintage_year", label: "Vintage" },
+    { key: "batch_ref", label: "Batch Ref" },
     { key: "op_date", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.op_date) },
     { key: "op_type", label: "Operation Type" },
     { key: "wine_colour", label: "Wine Colour" },
