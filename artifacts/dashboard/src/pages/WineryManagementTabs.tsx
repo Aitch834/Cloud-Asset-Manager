@@ -2719,6 +2719,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [showReport, setShowReport] = useState(false);
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
+  const [colourFilter, setColourFilter] = useState<string | null>(null);
   const [nameSearch, setNameSearch] = useState("");
   const [summarySort, setSummarySort] = useState<{ col: "additive" | "vintage" | "total_dose"; dir: "asc" | "desc" }>({ col: "additive", dir: "asc" });
   const [txLogBatchFilter, setTxLogBatchFilter] = useState("");
@@ -2923,9 +2924,14 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const categoryFilteredSummary = categoryFilter.size === 0
     ? filteredSummary
     : filteredSummary.filter(r => categoryFilter.has(String(r.category ?? "other")));
-  const searchFilteredSummaryUnsorted = nameSearch.trim() === ""
+  // Wine colour filter
+  const availableColours = Array.from(new Set(filteredSummary.map(r => String(r.wine_colour ?? "")).filter(Boolean))).sort();
+  const colourFilteredSummary = colourFilter === null
     ? categoryFilteredSummary
-    : categoryFilteredSummary.filter(r =>
+    : categoryFilteredSummary.filter(r => String(r.wine_colour ?? "") === colourFilter);
+  const searchFilteredSummaryUnsorted = nameSearch.trim() === ""
+    ? colourFilteredSummary
+    : colourFilteredSummary.filter(r =>
         String(r.additive_name ?? "").toLowerCase().includes(nameSearch.trim().toLowerCase())
       );
   // Sort the summary table by the user-selected column (default: additive → vintage → colour)
@@ -3275,9 +3281,38 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                     </button>
                   );
                 })}
-                {categoryFilter.size > 0 && (
+                {(categoryFilter.size > 0 || colourFilter !== null) && (
                   <button
-                    onClick={() => setCategoryFilter(new Set())}
+                    onClick={() => { setCategoryFilter(new Set()); setColourFilter(null); }}
+                    className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                  >
+                    Clear
+                  </button>
+                )}
+              </>
+            )}
+            {availableColours.length > 1 && (
+              <>
+                <span className="text-xs text-muted-foreground shrink-0">Colour:</span>
+                {availableColours.map(colour => {
+                  const active = colourFilter === colour;
+                  return (
+                    <button
+                      key={colour}
+                      onClick={() => setColourFilter(active ? null : colour)}
+                      className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                        active
+                          ? "bg-purple-600 text-white border-purple-600"
+                          : "bg-background text-muted-foreground border-border hover:border-purple-400 hover:text-purple-700"
+                      }`}
+                    >
+                      {colour}
+                    </button>
+                  );
+                })}
+                {colourFilter !== null && categoryFilter.size === 0 && (
+                  <button
+                    onClick={() => setColourFilter(null)}
                     className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
                   >
                     Clear
