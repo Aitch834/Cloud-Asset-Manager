@@ -3531,6 +3531,13 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     txLogBatchFilter.trim() === "" || String(r.batch_ref ?? "").toLowerCase().includes(txLogBatchFilter.trim().toLowerCase())
   );
 
+  // Exact-match pressing record for the sign-off badge
+  const txLogExactMatch = txLogBatchFilter.trim()
+    ? (crud.data.find((r: Record<string, unknown>) =>
+        String(r.batch_ref ?? "").toLowerCase() === txLogBatchFilter.trim().toLowerCase()
+      ) ?? null)
+    : null;
+
   const pressCsvCols = [
     { key: "vintage_year", label: "Vintage" },
     { key: "press_date", label: "Press Date", fmt: (r: Record<string, unknown>) => fmtDate(r.press_date) },
@@ -3819,6 +3826,21 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             </div>
             {txLogBatchFilter.trim() && (
               <button onClick={() => setTxLogBatchFilter("")} className="text-xs text-muted-foreground hover:text-foreground underline shrink-0">Clear</button>
+            )}
+            {txLogExactMatch && (
+              txLogExactMatch.audit_signature
+                ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200 shrink-0">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Signed — {txLogExactMatch.audit_signer_name ? String(txLogExactMatch.audit_signer_name) : ""}
+                    {txLogExactMatch.audit_signed_at ? `, ${new Date(String(txLogExactMatch.audit_signed_at)).toLocaleDateString("en-GB")}` : ""}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
+                    <AlertTriangle className="w-3 h-3" />
+                    Not yet signed
+                  </span>
+                )
             )}
             <span className="text-xs text-muted-foreground ml-auto">{filteredTransactionLog.length} row{filteredTransactionLog.length !== 1 ? "s" : ""} in export</span>
           </div>
