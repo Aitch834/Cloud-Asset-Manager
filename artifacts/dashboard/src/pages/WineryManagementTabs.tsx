@@ -1771,7 +1771,7 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
     pressing.juice_ta_gl != null ? fmtNum(pressing.juice_ta_gl, 1) : "",
     "",
     String(pressing.operator_name ?? ""),
-    String(pressing.notes ?? ""),
+    "",
   ]);
 
   // Pressing additives
@@ -1789,6 +1789,24 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
       "",
       String(pressing.operator_name ?? ""),
       String(a.notes ?? ""),
+    ]);
+  }
+
+  // Pressing notes — dedicated row, only when non-empty (mirrors on-screen view)
+  if (pressing.notes) {
+    rows.push([
+      "Pressing — Notes",
+      pressingBatchRef,
+      fmtDate(pressing.press_date),
+      "",
+      String(pressing.notes),
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
     ]);
   }
 
