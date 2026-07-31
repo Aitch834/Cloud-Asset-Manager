@@ -3636,6 +3636,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                     <th className="text-left p-2.5 font-medium">Additive</th>
                     <th className="text-right p-2.5 font-medium">Dose</th>
                     <th className="text-left p-2.5 font-medium">Unit</th>
+                    <th className="text-right p-2.5 font-medium whitespace-nowrap">Dose Rate</th>
                     <th className="text-left p-2.5 font-medium">Operator</th>
                   </tr></thead>
                   <tbody className="divide-y">
@@ -3647,6 +3648,27 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                         ? "bg-blue-100 text-blue-800"
                         : "bg-emerald-100 text-emerald-800";
                       const rowColour = row.wine_colour ? String(row.wine_colour) : null;
+
+                      // Dose rate calculation — cellar sulfiting rows only
+                      let txDoseRateMgL: number | null = null;
+                      let txVolumeBasis: "vessel" | "volume_moved" | null = null;
+                      if (src === "cellar" && row.so2_quantity_g != null) {
+                        const g = parseFloat(String(row.so2_quantity_g));
+                        if (!isNaN(g)) {
+                          const capacity = row.vessel_capacity_litres != null ? parseFloat(String(row.vessel_capacity_litres)) : NaN;
+                          if (!isNaN(capacity) && capacity > 0) {
+                            txDoseRateMgL = (g * 1000) / capacity;
+                            txVolumeBasis = "vessel";
+                          } else {
+                            const moved = row.volume_moved_litres != null ? parseFloat(String(row.volume_moved_litres)) : NaN;
+                            if (!isNaN(moved) && moved > 0) {
+                              txDoseRateMgL = (g * 1000) / moved;
+                              txVolumeBasis = "volume_moved";
+                            }
+                          }
+                        }
+                      }
+
                       return (
                         <tr key={i} className="hover:bg-muted/20">
                           <td className="p-2.5 whitespace-nowrap">{fmtDate(row.record_date)}</td>
@@ -3665,6 +3687,27 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                           <td className="p-2.5">{fmt(row.additive_name)}</td>
                           <td className="p-2.5 text-right font-mono">{row.dose != null && row.dose !== "" ? parseFloat(String(row.dose)).toFixed(2) : "—"}</td>
                           <td className="p-2.5 text-xs text-muted-foreground">{fmt(row.unit)}</td>
+                          <td className="p-2.5 text-right">
+                            {txDoseRateMgL != null ? (
+                              <span
+                                title={txVolumeBasis === "vessel" ? "Estimated from vessel capacity" : "Estimated from volume moved"}
+                                className="inline-flex items-center gap-1 cursor-default"
+                              >
+                                <span className="font-mono text-xs">{txDoseRateMgL.toFixed(1)}</span>
+                                <span className="text-muted-foreground text-xs">mg/L</span>
+                                <span
+                                  title={txVolumeBasis === "vessel" ? "Based on vessel capacity" : "Based on volume moved (no vessel capacity recorded)"}
+                                  className={`inline-flex items-center px-1 py-0.5 rounded text-[10px] font-medium leading-none cursor-default ${txVolumeBasis === "vessel" ? "bg-sky-100 text-sky-700" : "bg-amber-100 text-amber-700"}`}
+                                >
+                                  {txVolumeBasis === "vessel" ? "cap" : "vol"}
+                                </span>
+                              </span>
+                            ) : src === "cellar" && row.so2_quantity_g != null ? (
+                              <span title="No vessel capacity or volume moved recorded" className="text-muted-foreground text-xs cursor-default">—</span>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">—</span>
+                            )}
+                          </td>
                           <td className="p-2.5 text-muted-foreground text-xs">{fmt(row.operator_name)}</td>
                         </tr>
                       );
