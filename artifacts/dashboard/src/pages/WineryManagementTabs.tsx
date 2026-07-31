@@ -3636,6 +3636,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                 </button>
               </th>
               <th className="text-left p-3 font-medium">Notes</th>
+              <th className="text-left p-3 font-medium">Sign-off</th>
               <th className="p-3"></th>
             </tr></thead>
             <tbody className="divide-y">
@@ -3657,6 +3658,19 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                   <td className="p-3 text-left text-muted-foreground">{fmt(r.juice_turbidity)}</td>
                   <td className="p-3 text-left text-muted-foreground max-w-[14rem]">
                     {r.notes ? <span className="truncate block" title={String(r.notes)}>{String(r.notes)}</span> : <span className="text-muted-foreground/50">—</span>}
+                  </td>
+                  <td className="p-3 whitespace-nowrap">
+                    {r.audit_signature
+                      ? (
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 cursor-default"
+                          title={r.audit_signer_name ? `Signed by ${String(r.audit_signer_name)}${r.audit_signer_role ? ` (${String(r.audit_signer_role)})` : ""}${r.audit_signed_at ? ` on ${new Date(String(r.audit_signed_at)).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}` : ""}` : "Signed"}
+                        >
+                          <ShieldCheck className="w-3 h-3" />Signed
+                        </span>
+                      )
+                      : <span className="text-xs text-muted-foreground/60">Unsigned</span>
+                    }
                   </td>
                   <td className="p-3 text-right whitespace-nowrap">
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title={r.batch_ref ? `View batch trail for ${String(r.batch_ref)}` : "No batch reference — batch trail unavailable"} disabled={!r.batch_ref} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>
