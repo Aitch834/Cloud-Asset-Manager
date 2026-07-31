@@ -6052,6 +6052,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
     .sort((a, b) => b.batchRef.localeCompare(a.batchRef));
 
   const [isSo2BatchOrganic, setIsSo2BatchOrganic] = useState(false);
+  const [so2WineColourAutoFilled, setSo2WineColourAutoFilled] = useState(false);
 
   const handleSo2BatchRefChange = (val: string) => {
     sf("batchRef", val);
@@ -6064,7 +6065,11 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
       // Either way, re-run the ceiling auto-fill so maxPermittedMgL reflects the correct
       // organic/conventional limit for this batch even when colour was set before the batch ref.
       const colour = form.wineColour || match.wineColour;
-      if (colour) handleColourChangeWithOrganic(colour, organic);
+      if (colour) {
+        handleColourChangeWithOrganic(colour, organic);
+        // Mark auto-fill only when colour came from pressing (operator hadn't set it yet)
+        if (!form.wineColour && match.wineColour) setSo2WineColourAutoFilled(true);
+      }
     }
   };
 
@@ -6089,11 +6094,15 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
     }));
   };
 
-  const handleColourChange = (colour: string) => handleColourChangeWithOrganic(colour, isSo2BatchOrganic);
+  const handleColourChange = (colour: string) => {
+    setSo2WineColourAutoFilled(false);
+    handleColourChangeWithOrganic(colour, isSo2BatchOrganic);
+  };
 
-  const openAdd = () => { setEditing(null); setIsSo2BatchOrganic(false); setForm({ testDate: today, vintageYear: String(new Date().getFullYear()), testMethod: "On-site — Ripper titration", testStage: "pre-bottling" }); setOpen(true); };
+  const openAdd = () => { setEditing(null); setIsSo2BatchOrganic(false); setSo2WineColourAutoFilled(false); setForm({ testDate: today, vintageYear: String(new Date().getFullYear()), testMethod: "On-site — Ripper titration", testStage: "pre-bottling" }); setOpen(true); };
   const openEdit = (r: Record<string, unknown>) => {
     setEditing(r.id as number);
+    setSo2WineColourAutoFilled(false);
     setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
     // Determine organic status from linked pressing batch (if any)
     const batchRef = String(r.batch_ref ?? "");
@@ -6279,7 +6288,12 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
                 </datalist>
               </div>
               <div>
-                <Label>Wine Colour</Label>
+                <div className="flex items-center justify-between mb-1">
+                  <Label>Wine Colour</Label>
+                  {so2WineColourAutoFilled && !!form.wineColour && (
+                    <span className="text-xs text-blue-600">auto from pressing</span>
+                  )}
+                </div>
                 <Select value={form.wineColour ?? ""} onValueChange={handleColourChange}>
                   <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>{WINE_COLOUR_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
