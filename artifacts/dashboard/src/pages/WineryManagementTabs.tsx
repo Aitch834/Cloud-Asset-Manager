@@ -3146,7 +3146,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [pressingSearch, setPressingSearch] = useState("");
   const pressingSortKey = `pressing-sort-${farmId}`;
-  const PRESSING_SORT_COLS = ["date", "batch_ref", "grapes_pressed_kg", "total_juice_litres"] as const;
+  const PRESSING_SORT_COLS = ["date", "batch_ref", "grapes_pressed_kg", "total_juice_litres", "juice_turbidity"] as const;
   type PressingSort = typeof PRESSING_SORT_COLS[number];
   const [pressingSortCol, setPressingSortColRaw] = useState<PressingSort>(() => {
     try { const v = localStorage.getItem(`pressing-sort-${farmId}-col`); return (PRESSING_SORT_COLS as readonly string[]).includes(v ?? "") ? v as PressingSort : "date"; } catch { return "date"; }
@@ -3360,6 +3360,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
       setPressingSortDir(col === "grapes_pressed_kg" || col === "total_juice_litres" ? "desc" : col === "date" ? "desc" : "asc");
     }
   };
+  const TURBIDITY_ORDER: Record<string, number> = { "Clear": 0, "Slightly turbid": 1, "Turbid": 2 };
   const filtered = [...filteredBySearch].sort((a, b) => {
     let cmp = 0;
     if (pressingSortCol === "grapes_pressed_kg" || pressingSortCol === "total_juice_litres") {
@@ -3372,6 +3373,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
       if (aNull) return 1;   // nulls always last
       if (bNull) return -1;  // nulls always last
       cmp = an - bn;
+    } else if (pressingSortCol === "juice_turbidity") {
+      const av = String(a.juice_turbidity ?? "");
+      const bv = String(b.juice_turbidity ?? "");
+      const aIdx = av in TURBIDITY_ORDER ? TURBIDITY_ORDER[av] : 99;
+      const bIdx = bv in TURBIDITY_ORDER ? TURBIDITY_ORDER[bv] : 99;
+      cmp = aIdx - bIdx;
     } else {
       const av = pressingSortCol === "date" ? String(a.press_date ?? "") : String(a.batch_ref ?? "");
       const bv = pressingSortCol === "date" ? String(b.press_date ?? "") : String(b.batch_ref ?? "");
@@ -3620,7 +3627,14 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
               <th className="text-right p-3 font-medium">L/kg</th>
               <th className="text-right p-3 font-medium">Brix °</th>
               <th className="text-right p-3 font-medium">pH</th>
-              <th className="text-left p-3 font-medium">Turbidity</th>
+              <th className="text-left p-3 font-medium">
+                <button className="flex items-center gap-1 hover:text-foreground text-left group" onClick={() => togglePressSort("juice_turbidity")}>
+                  Turbidity
+                  {pressingSortCol === "juice_turbidity"
+                    ? pressingSortDir === "asc" ? <ArrowUp className="w-3.5 h-3.5 text-primary" /> : <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                    : <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground" />}
+                </button>
+              </th>
               <th className="text-left p-3 font-medium">Notes</th>
               <th className="p-3"></th>
             </tr></thead>
