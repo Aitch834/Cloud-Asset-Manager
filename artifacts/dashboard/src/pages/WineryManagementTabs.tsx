@@ -3183,6 +3183,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [nameSearch, setNameSearch] = useState("");
   const [summarySort, setSummarySort] = useState<{ col: "additive" | "vintage" | "total_dose"; dir: "asc" | "desc" }>({ col: "additive", dir: "asc" });
   const [txLogBatchFilter, setTxLogBatchFilter] = useState("");
+  const [signedConfirmRecord, setSignedConfirmRecord] = useState<Record<string, unknown> | null>(null);
   const { data: additionsSummary = [] } = useAdditionsSummary(farmId);
   const { data: allAdditions = [] } = useAllPressAdditions(farmId);
   const sf = (k: string, v: string | boolean) => {
@@ -3264,11 +3265,18 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     setBatchRefError(null);
     setOpen(true);
   };
-  const openEdit = (r: Record<string, unknown>) => {
+  const doOpenEdit = (r: Record<string, unknown>) => {
     setEditing(r.id as number);
     setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
     setPressTypeOther(!!r.press_type && !KNOWN_PRESS_TYPES.includes(String(r.press_type)));
     setOpen(true);
+  };
+  const openEdit = (r: Record<string, unknown>) => {
+    if (r.audit_signature) {
+      setSignedConfirmRecord(r);
+    } else {
+      doOpenEdit(r);
+    }
   };
   const save = async () => {
     setBatchRefError(null);
@@ -3689,6 +3697,26 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
           </table>
         </div>
       )}
+
+      {/* ── Signed-record edit confirmation ──────────────────────────────────── */}
+      <Dialog open={!!signedConfirmRecord} onOpenChange={o => { if (!o) setSignedConfirmRecord(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-amber-500" />
+              Signed Record
+            </DialogTitle>
+            <DialogDescription>
+              This pressing record has been signed off. Editing it will not remove the existing signature, but the record will reflect your changes.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Edit anyway?</p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setSignedConfirmRecord(null)}>Cancel</Button>
+            <Button onClick={() => { const r = signedConfirmRecord!; setSignedConfirmRecord(null); doOpenEdit(r); }}>Edit</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Batch Trail Dialog ────────────────────────────────────────────────── */}
       {trailRecord && (
