@@ -655,7 +655,7 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
           <DialogHeader>
             <DialogTitle>Import Harvest Reception Records from CSV</DialogTitle>
             <DialogDescription>
-              Upload a CSV file to bulk-create intake records. Rows missing required fields (Reception Date, Vintage Year) will be reported and skipped. Other rows will be imported.
+              Upload a CSV file to bulk-create intake records. Rows missing required fields (Reception Date, Vintage Year) or with an invalid date format will be reported and skipped. Other rows will be imported.
             </DialogDescription>
           </DialogHeader>
 
