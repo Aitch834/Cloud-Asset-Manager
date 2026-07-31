@@ -403,6 +403,8 @@ export const wineryPressingRecordsTable = pgTable("winery_pressing_records", {
   notes: text("notes"),
   auditSignature: text("audit_signature"),
   auditSignedAt: timestamp("audit_signed_at", { withTimezone: true }),
+  auditSignerName: text("audit_signer_name"),
+  auditSignerRole: text("audit_signer_role"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -928,20 +928,32 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
   const [sigOpen, setSigOpen] = useState(false);
   const [localSignature, setLocalSignature] = useState<string | null>(null);
   const [localSignedAt, setLocalSignedAt] = useState<string | null>(null);
+  const [localSignerName, setLocalSignerName] = useState<string | null>(null);
+  const [localSignerRole, setLocalSignerRole] = useState<string | null>(null);
+  const [signerName, setSignerName] = useState("");
+  const [signerRole, setSignerRole] = useState("");
   const sigRef = useRef<SignatureCanvas | null>(null);
   const qc = useQueryClient();
   const { toast } = useToast();
 
   const currentSig = localSignature ?? (pressing.audit_signature ? String(pressing.audit_signature) : null);
   const currentSignedAt = localSignedAt ?? (pressing.audit_signed_at ? String(pressing.audit_signed_at) : null);
+  const currentSignerName = localSignerName ?? (pressing.audit_signer_name ? String(pressing.audit_signer_name) : null);
+  const currentSignerRole = localSignerRole ?? (pressing.audit_signer_role ? String(pressing.audit_signer_role) : null);
+
+  const openSignDialog = () => {
+    setSignerName(currentSignerName ?? "");
+    setSignerRole(currentSignerRole ?? "");
+    setSigOpen(true);
+  };
 
   const signOffMutation = useMutation({
-    mutationFn: async (signatureDataUrl: string) => {
+    mutationFn: async ({ signatureDataUrl, name, role }: { signatureDataUrl: string; name: string; role: string }) => {
       const r = await fetch(api(`farms/${farmId}/winery-pressing/${pressing.id}/sign-off`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ auditSignature: signatureDataUrl }),
+        body: JSON.stringify({ auditSignature: signatureDataUrl, auditSignerName: name || null, auditSignerRole: role || null }),
       });
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Sign-off failed"); }
       return r.json();
@@ -949,6 +961,8 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
     onSuccess: (result) => {
       setLocalSignature(result.record.audit_signature);
       setLocalSignedAt(result.record.audit_signed_at);
+      setLocalSignerName(result.record.audit_signer_name ?? null);
+      setLocalSignerRole(result.record.audit_signer_role ?? null);
       qc.invalidateQueries({ queryKey: ["winery-pressing", farmId] });
       setSigOpen(false);
       toast({ title: "Batch trail signed off", description: "Signature saved successfully." });
@@ -964,7 +978,7 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
       return;
     }
     const dataUrl = sigRef.current.getTrimmedCanvas().toDataURL("image/png");
-    signOffMutation.mutate(dataUrl);
+    signOffMutation.mutate({ signatureDataUrl: dataUrl, name: signerName, role: signerRole });
   };
 
   const totalLinked = (data?.fermentation.length ?? 0) + (data?.cellarOps.length ?? 0) + (data?.so2Tests.length ?? 0) + (data?.bottling.length ?? 0);
@@ -1367,9 +1381,14 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
               </span>
               <div className="flex items-start gap-3 flex-wrap">
                 <img src={currentSig} alt="Audit signature" className="border rounded bg-white max-h-16" />
-                <div className="text-xs text-muted-foreground self-center">
-                  Signed: {currentSignedAt ? new Date(currentSignedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
-                  <Button variant="ghost" size="sm" className="ml-2 h-6 text-xs" onClick={() => setSigOpen(true)}>Re-sign</Button>
+                <div className="text-xs text-muted-foreground self-center space-y-0.5">
+                  {currentSignerName && (
+                    <p className="font-medium text-foreground text-sm">
+                      {currentSignerName}{currentSignerRole ? <span className="text-muted-foreground font-normal"> — {currentSignerRole}</span> : ""}
+                    </p>
+                  )}
+                  <p>Signed: {currentSignedAt ? new Date(currentSignedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}</p>
+                  <Button variant="ghost" size="sm" className="ml-0 h-6 text-xs px-0" onClick={openSignDialog}>Re-sign</Button>
                 </div>
               </div>
             </div>
@@ -1384,10 +1403,10 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
               <Button variant="outline" size="sm" onClick={() => exportBatchTrailCsv(pressing, data)}>
                 <FileDown className="w-3.5 h-3.5 mr-1" />Export CSV
               </Button>
-              <Button variant="outline" size="sm" onClick={() => printBatchTrail(pressing, data, farmName, currentSig)}>
+              <Button variant="outline" size="sm" onClick={() => printBatchTrail(pressing, data, farmName, currentSig, { name: currentSignerName, role: currentSignerRole, signedAt: currentSignedAt })}>
                 <Printer className="w-3.5 h-3.5 mr-1" />Print / Export PDF
               </Button>
-              <Button size="sm" variant={currentSig ? "outline" : "default"} onClick={() => setSigOpen(true)}>
+              <Button size="sm" variant={currentSig ? "outline" : "default"} onClick={openSignDialog}>
                 <PenLine className="w-3.5 h-3.5 mr-1" />{currentSig ? "Re-sign" : "Sign Off"}
               </Button>
             </>
@@ -1402,9 +1421,23 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2"><PenLine className="h-4 w-4" />Sign Off Batch Trail</DialogTitle>
-              <DialogDescription>Draw your signature below using a finger, stylus, or mouse. This will be saved against the pressing record and embedded in any PDF exported afterward.</DialogDescription>
+              <DialogDescription>Complete the fields below and draw your signature. These details will be saved against the pressing record and embedded in any PDF exported afterward.</DialogDescription>
             </DialogHeader>
-            <div className="border rounded-lg overflow-hidden bg-white touch-none" style={{ height: 200 }}>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Auditor Name</Label>
+                <Input value={signerName} onChange={e => setSignerName(e.target.value)} placeholder="Full name" className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-xs">Role</Label>
+                <Input value={signerRole} onChange={e => setSignerRole(e.target.value)} placeholder="e.g. Certification Inspector" className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-xs">Date</Label>
+                <Input type="date" value={today} readOnly className="mt-1 bg-muted/40 text-muted-foreground" />
+              </div>
+            </div>
+            <div className="border rounded-lg overflow-hidden bg-white touch-none" style={{ height: 180 }}>
               <SignatureCanvas
                 ref={sigRef}
                 canvasProps={{ style: { width: "100%", height: "100%" }, className: "signature-pad" }}
@@ -1566,7 +1599,7 @@ function sanitiseSignatureForHtml(sig: string | null | undefined): string | null
   return sig;
 }
 
-function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData, farmName: string, auditSig?: string | null) {
+function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData, farmName: string, auditSig?: string | null, signerInfo?: { name: string | null; role: string | null; signedAt: string | null }) {
   const batchRef = String(pressing.batch_ref ?? "");
   const printedOn = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   const vintage = pressing.vintage_year ? String(pressing.vintage_year) : null;
@@ -1932,11 +1965,11 @@ ${bottlingRows ? sectionHtml("6. Bottling runs", bottlingHeader + bottlingRows) 
         <p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#374151;margin-bottom:18px">Reviewed by (auditor)</p>
         ${safeSig ? `<div style="margin-bottom:6px"><img src="${safeSig}" alt="Audit signature" style="max-height:56px;border:1px solid #d1d5db;border-radius:4px;background:#fff;display:block" /></div>` : `<div style="border-bottom:1px solid #374151;height:28px;margin-bottom:3px"></div>`}
         <p style="font-size:9px;color:#6b7280">Signature${safeSig ? ` — signed digitally` : ""}</p>
-        <div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>
+        ${signerInfo?.name ? `<div style="padding:4px 0 2px;font-size:11px;font-weight:600;color:#111827">${escHtml(signerInfo.name)}</div>` : `<div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>`}
         <p style="font-size:9px;color:#6b7280">Name</p>
-        <div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>
+        ${signerInfo?.role ? `<div style="padding:4px 0 2px;font-size:11px;color:#374151">${escHtml(signerInfo.role)}</div>` : `<div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>`}
         <p style="font-size:9px;color:#6b7280">Role</p>
-        <div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>
+        ${signerInfo?.signedAt ? `<div style="padding:4px 0 2px;font-size:11px;color:#374151">${escHtml(new Date(signerInfo.signedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }))}</div>` : `<div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>`}
         <p style="font-size:9px;color:#6b7280">Date</p>
       </div>
     </div>

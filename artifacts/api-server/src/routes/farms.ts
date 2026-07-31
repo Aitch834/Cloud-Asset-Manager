@@ -36942,8 +36942,10 @@ router.put("/farms/:farmId/winery-pressing/:id/sign-off", requireAuth, requireTe
     res.status(400).json({ error: "auditSignature must be a valid PNG data URL (max 450 KB)" });
     return;
   }
+  const signerName = n(b.auditSignerName) ?? null;
+  const signerRole = n(b.auditSignerRole) ?? null;
   const now = new Date();
-  const r = await db.execute(sql`UPDATE winery_pressing_records SET audit_signature=${signature}, audit_signed_at=${now} WHERE id=${recordId} AND farm_id=${farmId} RETURNING id, audit_signature, audit_signed_at`);
+  const r = await db.execute(sql`UPDATE winery_pressing_records SET audit_signature=${signature}, audit_signed_at=${now}, audit_signer_name=${signerName}, audit_signer_role=${signerRole} WHERE id=${recordId} AND farm_id=${farmId} RETURNING id, audit_signature, audit_signed_at, audit_signer_name, audit_signer_role`);
   if (r.rows.length === 0) {
     res.status(404).json({ error: "Record not found" });
     return;
