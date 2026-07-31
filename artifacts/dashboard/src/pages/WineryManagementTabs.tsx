@@ -1908,6 +1908,7 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
 
   // ── SO₂ compliance summary (computed client-side, same logic as the dialog) ──
   const s2 = computeSo2Summary(pressing, data);
+  // compValue: most authoritative figure — drives the overall status badge and progress bar
   const compValue = s2.latestTestTotal ?? s2.runningEstimate;
   const pctOfLimit = s2.activeLimit > 0 ? (compValue / s2.activeLimit) * 100 : 0;
   const so2StatusColor = compValue > s2.activeLimit ? "#b91c1c" : pctOfLimit >= 75 ? "#92400e" : "#166534";
@@ -1915,6 +1916,11 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
   const so2StatusText  = compValue > s2.activeLimit ? "⚠ Exceeds limit" : pctOfLimit >= 75 ? "⚠ Approaching limit" : "✓ Within limit";
   const barPct = Math.min(pctOfLimit, 100).toFixed(0);
   const barColor = compValue > s2.activeLimit ? "#ef4444" : pctOfLimit >= 75 ? "#f59e0b" : "#22c55e";
+  // estimateXxx: values based purely on the additions estimate — used for the cumulative row so that
+  // the percentage and colour always reflect the running total regardless of test results.
+  const estimatePct = s2.activeLimit > 0 ? (s2.runningEstimate / s2.activeLimit) * 100 : 0;
+  const estimateBarPct = Math.min(estimatePct, 100).toFixed(0);
+  const estimateColor = s2.runningEstimate > s2.activeLimit ? "#b91c1c" : estimatePct >= 75 ? "#92400e" : "#166534";
 
   // ── pH & TA Analytical History (three-stage summary matching the on-screen panel) ──
   const pressPh  = pressing.juice_ph  != null ? parseFloat(String(pressing.juice_ph))  : null;
@@ -1986,11 +1992,16 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
         <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;text-align:right;font-family:monospace">${s2.hasCellarSo2 ? `${s2.cellarSo2TotalG.toFixed(1)} g${s2.cellarSo2MgL != null ? ` (≈ ${s2.cellarSo2MgL.toFixed(1)} mg/L)` : ""}` : "—"}</td>
         <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">${s2.hasCellarSo2 && s2.cellarSo2MgL != null && s2.cellarVolumeSource === "vessel" ? "Estimate using vessel capacity" : s2.hasCellarSo2 && s2.cellarSo2MgL != null && s2.cellarVolumeSource === "mixed" ? "Estimate: vessel capacity where available, volume moved otherwise" : s2.hasCellarSo2 && s2.cellarSo2MgL != null ? "Estimate using volume moved" : s2.hasCellarSo2 ? "Volume not recorded — no mg/L estimate" : "No sulfiting operations"}</td>
       </tr>
-      <tr style="font-weight:700">
-        <td style="padding:5px 8px">${s2.latestTestTotal != null ? "Latest SO₂ test total" : "Running additions estimate"}</td>
-        <td style="padding:5px 8px;text-align:right;font-family:monospace;color:${so2StatusColor}">${s2.latestTestTotal != null ? `${s2.latestTestTotal.toFixed(1)} mg/L` : `~${s2.runningEstimate.toFixed(1)} mg/L`}${s2.latestTestDate ? ` (${fmtDate(s2.latestTestDate)})` : ""}</td>
-        <td style="padding:5px 8px;color:#6b7280">${s2.isOrganic ? "Organic" : "Conventional"} limit: ${s2.activeLimit} mg/L (${s2.wineColour ?? "wine"})</td>
+      <tr style="font-weight:700;background:rgba(255,255,255,0.5)">
+        <td style="padding:5px 8px;border-bottom:1px solid #e5e7eb">Cumulative additions (mg/L)</td>
+        <td style="padding:5px 8px;border-bottom:1px solid #e5e7eb;text-align:right;font-family:monospace;color:${estimateColor}">~${s2.runningEstimate.toFixed(1)} mg/L of ${s2.activeLimit} mg/L</td>
+        <td style="padding:5px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">${estimateBarPct}% of ${s2.isOrganic ? "organic" : "conventional"} ceiling${s2.isOrganic ? ` · Conv. ceiling: ${s2.conventionalLimit} mg/L` : ""}</td>
       </tr>
+      ${s2.latestTestTotal != null ? `<tr style="font-weight:700">
+        <td style="padding:5px 8px">Latest SO₂ test (confirmed)</td>
+        <td style="padding:5px 8px;text-align:right;font-family:monospace;color:${so2StatusColor}">${s2.latestTestTotal.toFixed(1)} mg/L${s2.latestTestDate ? ` (${fmtDate(s2.latestTestDate)})` : ""}</td>
+        <td style="padding:5px 8px;color:#6b7280">Confirmed measurement — use in preference to estimate above</td>
+      </tr>` : ""}
     </table>
     <div style="margin-top:8px">
       <div style="display:flex;justify-content:space-between;font-size:10px;color:#6b7280;margin-bottom:2px">
