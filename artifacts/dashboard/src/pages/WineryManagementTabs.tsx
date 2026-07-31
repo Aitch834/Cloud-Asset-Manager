@@ -1425,8 +1425,10 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
   const [localSignedAt, setLocalSignedAt] = useState<string | null>(null);
   const [localSignerName, setLocalSignerName] = useState<string | null>(null);
   const [localSignerRole, setLocalSignerRole] = useState<string | null>(null);
+  const [localSignerDate, setLocalSignerDate] = useState<string | null>(null);
   const [signerName, setSignerName] = useState("");
   const [signerRole, setSignerRole] = useState("");
+  const [signerDate, setSignerDate] = useState(today);
   const sigRef = useRef<SignatureCanvas | null>(null);
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -1435,20 +1437,22 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
   const currentSignedAt = localSignedAt ?? (pressing.audit_signed_at ? String(pressing.audit_signed_at) : null);
   const currentSignerName = localSignerName ?? (pressing.audit_signer_name ? String(pressing.audit_signer_name) : null);
   const currentSignerRole = localSignerRole ?? (pressing.audit_signer_role ? String(pressing.audit_signer_role) : null);
+  const currentSignerDate = localSignerDate ?? (pressing.audit_signer_date ? String(pressing.audit_signer_date) : null);
 
   const openSignDialog = () => {
     setSignerName(currentSignerName ?? "");
     setSignerRole(currentSignerRole ?? "");
+    setSignerDate(currentSignerDate ?? today);
     setSigOpen(true);
   };
 
   const signOffMutation = useMutation({
-    mutationFn: async ({ signatureDataUrl, name, role }: { signatureDataUrl: string; name: string; role: string }) => {
+    mutationFn: async ({ signatureDataUrl, name, role, date }: { signatureDataUrl: string; name: string; role: string; date: string }) => {
       const r = await fetch(api(`farms/${farmId}/winery-pressing/${pressing.id}/sign-off`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ auditSignature: signatureDataUrl, auditSignerName: name || null, auditSignerRole: role || null }),
+        body: JSON.stringify({ auditSignature: signatureDataUrl, auditSignerName: name || null, auditSignerRole: role || null, auditSignerDate: date || null }),
       });
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Sign-off failed"); }
       return r.json();
@@ -1458,6 +1462,7 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
       setLocalSignedAt(result.record.audit_signed_at);
       setLocalSignerName(result.record.audit_signer_name ?? null);
       setLocalSignerRole(result.record.audit_signer_role ?? null);
+      setLocalSignerDate(result.record.audit_signer_date ?? null);
       qc.invalidateQueries({ queryKey: ["winery-pressing", farmId] });
       setSigOpen(false);
       toast({ title: "Batch trail signed off", description: "Signature saved successfully." });
@@ -1473,7 +1478,7 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
       return;
     }
     const dataUrl = sigRef.current.getTrimmedCanvas().toDataURL("image/png");
-    signOffMutation.mutate({ signatureDataUrl: dataUrl, name: signerName, role: signerRole });
+    signOffMutation.mutate({ signatureDataUrl: dataUrl, name: signerName, role: signerRole, date: signerDate });
   };
 
   // ── Vintage comparison chart state ──────────────────────────────────────────
@@ -1990,7 +1995,7 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
               <Button variant="outline" size="sm" onClick={() => exportBatchTrailCsv(pressing, data, farmName)}>
                 <FileDown className="w-3.5 h-3.5 mr-1" />Export CSV
               </Button>
-              <Button variant="outline" size="sm" onClick={() => { void printBatchTrail(farmId, pressing, data, farmName, currentSig, { name: currentSignerName, role: currentSignerRole, signedAt: currentSignedAt }); }}>
+              <Button variant="outline" size="sm" onClick={() => { void printBatchTrail(farmId, pressing, data, farmName, currentSig, { name: currentSignerName, role: currentSignerRole, signedAt: currentSignedAt, signerDate: currentSignerDate }); }}>
                 <Printer className="w-3.5 h-3.5 mr-1" />Print / Export PDF
               </Button>
               <Button size="sm" variant={currentSig ? "outline" : "default"} onClick={openSignDialog}>
@@ -2021,7 +2026,7 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
               </div>
               <div>
                 <Label className="text-xs">Date</Label>
-                <Input type="date" value={today} readOnly className="mt-1 bg-muted/40 text-muted-foreground" />
+                <Input type="date" value={signerDate} onChange={e => setSignerDate(e.target.value)} className="mt-1" />
               </div>
             </div>
             <div className="border rounded-lg overflow-hidden bg-white touch-none" style={{ height: 180 }}>
@@ -2246,7 +2251,7 @@ function sanitiseSignatureForHtml(sig: string | null | undefined): string | null
   return sig;
 }
 
-async function printBatchTrail(farmId: number, pressing: Record<string, unknown>, data: BatchTrailData, farmName: string, auditSig?: string | null, signerInfo?: { name: string | null; role: string | null; signedAt: string | null }) {
+async function printBatchTrail(farmId: number, pressing: Record<string, unknown>, data: BatchTrailData, farmName: string, auditSig?: string | null, signerInfo?: { name: string | null; role: string | null; signedAt: string | null; signerDate?: string | null }) {
   // Fetch attachments for the pressing record (best-effort — PDF still prints if this fails)
   let pressAttachments: { fileName: string; uploadedAt: string }[] = [];
   const pressId = pressing.id != null ? Number(pressing.id) : null;
@@ -2664,7 +2669,7 @@ ${bottlingRows ? sectionHtml("5. Bottling runs", bottlingHeader + bottlingRows) 
         <p style="font-size:9px;color:#6b7280">Name</p>
         ${signerInfo?.role ? `<div style="padding:4px 0 2px;font-size:11px;color:#374151">${escHtml(signerInfo.role)}</div>` : `<div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>`}
         <p style="font-size:9px;color:#6b7280">Role</p>
-        ${signerInfo?.signedAt ? `<div style="padding:4px 0 2px;font-size:11px;color:#374151">${escHtml(new Date(signerInfo.signedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }))}</div>` : `<div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>`}
+        ${(signerInfo?.signerDate || signerInfo?.signedAt) ? `<div style="padding:4px 0 2px;font-size:11px;color:#374151">${escHtml(signerInfo.signerDate ? new Date(signerInfo.signerDate + "T12:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }) : new Date(signerInfo.signedAt!).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }))}</div>` : `<div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>`}
         <p style="font-size:9px;color:#6b7280">Date</p>
       </div>
     </div>
@@ -3011,7 +3016,7 @@ function printSo2TransactionLog(
   farmName: string,
   scopeLabel: string,
   auditSig?: string | null,
-  signerInfo?: { name: string | null; role: string | null; signedAt: string | null },
+  signerInfo?: { name: string | null; role: string | null; signedAt: string | null; signerDate?: string | null },
 ) {
   const printedOn = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   const safeSig = sanitiseSignatureForHtml(auditSig);
@@ -3103,7 +3108,7 @@ function printSo2TransactionLog(
         <p style="font-size:9px;color:#6b7280">Name</p>
         ${signerInfo?.role ? `<div style="padding:4px 0 2px;font-size:11px;color:#374151">${escHtml(signerInfo.role)}</div>` : `<div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>`}
         <p style="font-size:9px;color:#6b7280">Role</p>
-        ${signerInfo?.signedAt ? `<div style="padding:4px 0 2px;font-size:11px;color:#374151">${escHtml(new Date(signerInfo.signedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }))}</div>` : `<div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>`}
+        ${(signerInfo?.signerDate || signerInfo?.signedAt) ? `<div style="padding:4px 0 2px;font-size:11px;color:#374151">${escHtml(signerInfo.signerDate ? new Date(signerInfo.signerDate + "T12:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }) : new Date(signerInfo.signedAt!).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }))}</div>` : `<div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>`}
         <p style="font-size:9px;color:#6b7280">Date</p>
       </div>
     </div>
@@ -3739,6 +3744,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                   name: matchingPress.audit_signer_name ? String(matchingPress.audit_signer_name) : null,
                   role: matchingPress.audit_signer_role ? String(matchingPress.audit_signer_role) : null,
                   signedAt: matchingPress.audit_signed_at ? String(matchingPress.audit_signed_at) : null,
+                  signerDate: matchingPress.audit_signer_date ? String(matchingPress.audit_signer_date) : null,
                 } : undefined;
                 printSo2TransactionLog(filteredTransactionLog, farmName, scope, sig, signerInfo);
               }} disabled={!filteredTransactionLog.length} title="Print the SO₂ transaction log as a PDF — embeds the batch's digital signature if one exists"><Printer className="w-3.5 h-3.5 mr-1" />Transaction Log PDF</Button>

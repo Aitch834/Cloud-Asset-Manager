@@ -8,9 +8,10 @@ try {
   await client.query(`
     ALTER TABLE winery_pressing_records
       ADD COLUMN IF NOT EXISTS audit_signer_name text,
-      ADD COLUMN IF NOT EXISTS audit_signer_role text;
+      ADD COLUMN IF NOT EXISTS audit_signer_role text,
+      ADD COLUMN IF NOT EXISTS audit_signer_date date;
   `);
-  console.log("Migration complete — audit_signer_name and audit_signer_role added to winery_pressing_records.");
+  console.log("Migration complete — audit_signer_name, audit_signer_role, and audit_signer_date added to winery_pressing_records.");
 } finally {
   await client.end();
 }

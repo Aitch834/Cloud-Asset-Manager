@@ -405,6 +405,7 @@ export const wineryPressingRecordsTable = pgTable("winery_pressing_records", {
   auditSignedAt: timestamp("audit_signed_at", { withTimezone: true }),
   auditSignerName: text("audit_signer_name"),
   auditSignerRole: text("audit_signer_role"),
+  auditSignerDate: date("audit_signer_date"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

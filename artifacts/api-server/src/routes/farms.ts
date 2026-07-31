@@ -37096,8 +37096,12 @@ router.put("/farms/:farmId/winery-pressing/:id/sign-off", requireAuth, requireTe
   }
   const signerName = n(b.auditSignerName) ?? null;
   const signerRole = n(b.auditSignerRole) ?? null;
+  const signerDateRaw = n(b.auditSignerDate) ?? null;
+  // Validate date format — must be YYYY-MM-DD or null
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const signerDate = signerDateRaw && DATE_RE.test(signerDateRaw) ? signerDateRaw : null;
   const now = new Date();
-  const r = await db.execute(sql`UPDATE winery_pressing_records SET audit_signature=${signature}, audit_signed_at=${now}, audit_signer_name=${signerName}, audit_signer_role=${signerRole} WHERE id=${recordId} AND farm_id=${farmId} RETURNING id, audit_signature, audit_signed_at, audit_signer_name, audit_signer_role`);
+  const r = await db.execute(sql`UPDATE winery_pressing_records SET audit_signature=${signature}, audit_signed_at=${now}, audit_signer_name=${signerName}, audit_signer_role=${signerRole}, audit_signer_date=${signerDate} WHERE id=${recordId} AND farm_id=${farmId} RETURNING id, audit_signature, audit_signed_at, audit_signer_name, audit_signer_role, audit_signer_date`);
   if (r.rows.length === 0) {
     res.status(404).json({ error: "Record not found" });
     return;
