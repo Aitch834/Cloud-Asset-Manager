@@ -2708,8 +2708,24 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [pressingSearch, setPressingSearch] = useState("");
-  const [pressingSortCol, setPressingSortCol] = useState<"date" | "batch_ref">("date");
-  const [pressingSortDir, setPressingSortDir] = useState<"asc" | "desc">("desc");
+  const pressingSortKey = `pressing-sort-${farmId}`;
+  const [pressingSortCol, setPressingSortColRaw] = useState<"date" | "batch_ref">(() => {
+    try { const v = localStorage.getItem(`pressing-sort-${farmId}-col`); return v === "batch_ref" ? "batch_ref" : "date"; } catch { return "date"; }
+  });
+  const [pressingSortDir, setPressingSortDirRaw] = useState<"asc" | "desc">(() => {
+    try { const v = localStorage.getItem(`pressing-sort-${farmId}-dir`); return v === "asc" ? "asc" : "desc"; } catch { return "desc"; }
+  });
+  // Re-sync when farmId changes (component may stay mounted across farm switches)
+  useEffect(() => {
+    try {
+      const col = localStorage.getItem(`${pressingSortKey}-col`);
+      setPressingSortColRaw(col === "batch_ref" ? "batch_ref" : "date");
+      const dir = localStorage.getItem(`${pressingSortKey}-dir`);
+      setPressingSortDirRaw(dir === "asc" ? "asc" : "desc");
+    } catch { /**/ }
+  }, [pressingSortKey]);
+  const setPressingSortCol = (col: "date" | "batch_ref") => { try { localStorage.setItem(`${pressingSortKey}-col`, col); } catch { /**/ } setPressingSortColRaw(col); };
+  const setPressingSortDir = (dir: "asc" | "desc") => { try { localStorage.setItem(`${pressingSortKey}-dir`, dir); } catch { /**/ } setPressingSortDirRaw(dir); };
   const [pressTypeOther, setPressTypeOther] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsForm, setSettingsForm] = useState<Record<string, string>>({});
@@ -2898,7 +2914,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
       });
   const togglePressSort = (col: "date" | "batch_ref") => {
     if (pressingSortCol === col) {
-      setPressingSortDir(d => d === "asc" ? "desc" : "asc");
+      setPressingSortDir(pressingSortDir === "asc" ? "desc" : "asc");
     } else {
       setPressingSortCol(col);
       setPressingSortDir(col === "date" ? "desc" : "asc");
