@@ -343,6 +343,7 @@ function DataTable({ cols, rows, onEdit, onDelete, onView }: {
 
 function useCrud<T extends Record<string, unknown>>(farmId: number, endpoint: string, key: string) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const q = useQuery<T[]>({
     queryKey: [key, farmId],
     queryFn: async () => {
@@ -356,20 +357,28 @@ function useCrud<T extends Record<string, unknown>>(farmId: number, endpoint: st
   const add = useMutation({
     mutationFn: async (body: Partial<T>) => {
       const r = await fetch(api(`farms/${farmId}/${endpoint}`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+      if (!r.ok) throw new Error("Save failed");
       return r.json();
     },
     onSuccess: invalidate,
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const edit = useMutation({
     mutationFn: async ({ id, ...body }: Partial<T> & { id: number }) => {
       const r = await fetch(api(`farms/${farmId}/${endpoint}/${id}`), { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+      if (!r.ok) throw new Error("Save failed");
       return r.json();
     },
     onSuccess: invalidate,
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const remove = useMutation({
-    mutationFn: async (id: number) => { await fetch(api(`farms/${farmId}/${endpoint}/${id}`), { method: "DELETE", credentials: "include" }); },
+    mutationFn: async (id: number) => {
+      const r = await fetch(api(`farms/${farmId}/${endpoint}/${id}`), { method: "DELETE", credentials: "include" });
+      if (!r.ok) throw new Error("Delete failed");
+    },
     onSuccess: invalidate,
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
   return { data: q.data ?? [], isLoading: q.isLoading, add, edit, remove };
 }
@@ -849,6 +858,7 @@ function PlantingFormFields({ form, sf }: { form: Block; sf: (k: string, v: unkn
 export function BlocksTab({ farmId }: { farmId: number }) {
   const { data, isLoading, add, edit, remove } = useCrud<Block>(farmId, "vineyard-blocks", "vineyard-blocks");
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["vineyard-blocks", farmId] });
 
   // Main add/edit dialog
@@ -878,9 +888,11 @@ export function BlocksTab({ farmId }: { farmId: number }) {
         method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
         body: JSON.stringify({ status: "active" }),
       });
+      if (!r.ok) throw new Error("Reactivation failed");
       return r.json();
     },
     onSuccess: invalidate,
+    onError: () => toast({ title: "Reactivation failed", variant: "destructive" }),
   });
 
   // Retire mutation
@@ -891,9 +903,11 @@ export function BlocksTab({ farmId }: { farmId: number }) {
         method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
         body: JSON.stringify({ status, ...body }),
       });
+      if (!r.ok) throw new Error("Save failed");
       return r.json();
     },
     onSuccess: () => { invalidate(); setRetireOpen(false); setRetirePlanting(null); setRetireForm({}); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   // Replant mutation
@@ -903,9 +917,11 @@ export function BlocksTab({ farmId }: { farmId: number }) {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
         body: JSON.stringify({ currentPlantingId, deactivationType: "replanting", ...body }),
       });
+      if (!r.ok) throw new Error("Replant failed");
       return r.json();
     },
     onSuccess: () => { invalidate(); setReplantOpen(false); setReplantBlock(null); setReplantForm({}); },
+    onError: () => toast({ title: "Replant failed", variant: "destructive" }),
   });
 
   const openAdd = () => { setForm({}); setCurrent(null); setOpen(true); };
@@ -2314,7 +2330,7 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: number) => fetch(`/api/farms/${farmId}/organic-viticulture/wine-production/${id}`, { method: "DELETE", credentials: "include" }),
+    mutationFn: async (id: number) => { const r = await fetch(`/api/farms/${farmId}/organic-viticulture/wine-production/${id}`, { method: "DELETE", credentials: "include" }); if (!r.ok) throw new Error("Delete failed"); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-vit-wine", farmId] }); setDeleting(null); toast({ title: "Deleted" }); },
     onError: () => toast({ title: "Error deleting record", variant: "destructive" }),
   });
@@ -4451,7 +4467,7 @@ export function WineryStockTab({ farmId }: { farmId: number }) {
   });
 
   const itemDelete = useMutation({
-    mutationFn: (item: WineryItem) => fetch(`/api/farms/${farmId}/winery-stock/${item.id}`, { method: "DELETE", credentials: "include" }),
+    mutationFn: async (item: WineryItem) => { const r = await fetch(`/api/farms/${farmId}/winery-stock/${item.id}`, { method: "DELETE", credentials: "include" }); if (!r.ok) throw new Error("Delete failed"); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["winery-stock", farmId] }); setDeletingItem(null); toast({ title: "Item deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -4466,7 +4482,7 @@ export function WineryStockTab({ farmId }: { farmId: number }) {
   });
 
   const movDelete = useMutation({
-    mutationFn: ({ movId, itemId }: { movId: number; itemId: number }) => fetch(`/api/farms/${farmId}/winery-stock/${itemId}/movements/${movId}`, { method: "DELETE", credentials: "include" }),
+    mutationFn: async ({ movId, itemId }: { movId: number; itemId: number }) => { const r = await fetch(`/api/farms/${farmId}/winery-stock/${itemId}/movements/${movId}`, { method: "DELETE", credentials: "include" }); if (!r.ok) throw new Error("Delete failed"); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["winery-stock", farmId] }); qc.invalidateQueries({ queryKey: ["winery-stock-movements", farmId] }); setDeletingMov(null); toast({ title: "Movement deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });

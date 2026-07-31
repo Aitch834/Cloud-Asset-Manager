@@ -248,7 +248,7 @@ function BlockConversionTab({ farmId }: { farmId: number }) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: number) => fetch(`/api/farms/${farmId}/organic-viticulture/block-status/${id}`, { method: "DELETE" }),
+    mutationFn: async (id: number) => { const r = await fetch(`/api/farms/${farmId}/organic-viticulture/block-status/${id}`, { method: "DELETE" }); if (!r.ok) throw new Error("Delete failed"); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-vit-block-status", farmId] }); setDeleting(null); toast({ title: "Deleted" }); },
     onError: () => toast({ title: "Error deleting record", variant: "destructive" }),
   });
@@ -484,7 +484,7 @@ function InputLogTab({ farmId, blocks }: { farmId: number; blocks: Record<string
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: number) => fetch(`/api/farms/${farmId}/organic-viticulture/input-log/${id}`, { method: "DELETE" }),
+    mutationFn: async (id: number) => { const r = await fetch(`/api/farms/${farmId}/organic-viticulture/input-log/${id}`, { method: "DELETE" }); if (!r.ok) throw new Error("Delete failed"); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-vit-input-log", farmId] }); setDeleting(null); toast({ title: "Deleted" }); },
     onError: () => toast({ title: "Error deleting record", variant: "destructive" }),
   });
@@ -753,7 +753,7 @@ function CopperRegisterTab({ farmId, blocks }: { farmId: number; blocks: Record<
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: number) => fetch(`/api/farms/${farmId}/organic-viticulture/copper-log/${id}`, { method: "DELETE" }),
+    mutationFn: async (id: number) => { const r = await fetch(`/api/farms/${farmId}/organic-viticulture/copper-log/${id}`, { method: "DELETE" }); if (!r.ok) throw new Error("Delete failed"); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-vit-copper-log", farmId] }); setDeleting(null); toast({ title: "Deleted" }); },
     onError: () => toast({ title: "Error deleting record", variant: "destructive" }),
   });
@@ -1109,7 +1109,7 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: number) => fetch(`/api/farms/${farmId}/organic-viticulture/input-derogations/${id}`, { method: "DELETE" }),
+    mutationFn: async (id: number) => { const r = await fetch(`/api/farms/${farmId}/organic-viticulture/input-derogations/${id}`, { method: "DELETE" }); if (!r.ok) throw new Error("Delete failed"); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-vit-derogations", farmId] }); setDeleting(null); if (expandedId === deleting?.id) setExpandedId(null); toast({ title: "Deleted" }); },
     onError: () => toast({ title: "Error deleting record", variant: "destructive" }),
   });
@@ -1130,7 +1130,7 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
   });
 
   const deleteCorr = useMutation({
-    mutationFn: async (id: number) => fetch(`/api/farms/${farmId}/organic-viticulture/input-derogation-correspondence/${id}`, { method: "DELETE" }),
+    mutationFn: async (id: number) => { const r = await fetch(`/api/farms/${farmId}/organic-viticulture/input-derogation-correspondence/${id}`, { method: "DELETE" }); if (!r.ok) throw new Error("Delete failed"); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-vit-derog-corr", farmId, expandedId] }); setDeletingCorr(null); toast({ title: "Deleted" }); },
     onError: () => toast({ title: "Error deleting correspondence", variant: "destructive" }),
   });
@@ -1558,7 +1558,7 @@ function CertificatesTab({ farmId }: { farmId: number }) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: number) => fetch(`/api/farms/${farmId}/organic-viticulture/certificates/${id}`, { method: "DELETE" }),
+    mutationFn: async (id: number) => { const r = await fetch(`/api/farms/${farmId}/organic-viticulture/certificates/${id}`, { method: "DELETE" }); if (!r.ok) throw new Error("Delete failed"); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-vit-certs", farmId] }); setDeleting(null); toast({ title: "Deleted" }); },
     onError: () => toast({ title: "Error deleting record", variant: "destructive" }),
   });
