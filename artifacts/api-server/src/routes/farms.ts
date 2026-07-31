@@ -37288,6 +37288,21 @@ router.post("/farms/:farmId/winery-bottling/bulk", requireAuth, requireTenant, r
       continue;
     }
 
+    // ── Date-format validation (strict YYYY-MM-DD) ──
+    const bottlingDateStr = n(raw.bottlingDate) as string;
+    const dateFormatOk = /^\d{4}-\d{2}-\d{2}$/.test(bottlingDateStr);
+    let bottlingDateValid = false;
+    if (dateFormatOk) {
+      const [y, mo, d] = bottlingDateStr.split("-").map(Number);
+      // getDate() on the last day of mo is the number of days in that month (handles leap years)
+      const daysInMonth = new Date(y, mo, 0).getDate();
+      bottlingDateValid = y >= 1 && mo >= 1 && mo <= 12 && d >= 1 && d <= daysInMonth;
+    }
+    if (!bottlingDateValid) {
+      rejected.push({ row: rowNum, lotCode: lotCode ?? "", reason: `Row ${rowNum}: Bottling Date is not a valid date.` });
+      continue;
+    }
+
     // ── Lot-code uniqueness check ──
     if (lotCode) {
       if (seenInBatch.has(lotCode)) {
