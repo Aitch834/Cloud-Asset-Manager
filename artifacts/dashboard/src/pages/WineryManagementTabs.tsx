@@ -2833,8 +2833,9 @@ ${mixedUnitsNotice}<table>
 }
 
 // ─── Pressing Report — Print helper ──────────────────────────────────────────
-function printPressingReport(rows: Record<string, unknown>[], farmName: string, vintageLabel: string, allAdditions: Record<string, unknown>[] = []) {
+function printPressingReport(rows: Record<string, unknown>[], farmName: string, vintageLabel: string, allAdditions: Record<string, unknown>[] = [], auditSig?: string | null) {
   const printedOn = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const safeSig = sanitiseSignatureForHtml(auditSig);
   const COL_COUNT = 16;
 
   const tableRows = rows.map(r => {
@@ -2944,8 +2945,8 @@ function printPressingReport(rows: Record<string, unknown>[], farmName: string, 
       </div>
       <div>
         <p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#374151;margin-bottom:18px">Reviewed by (auditor)</p>
-        <div style="border-bottom:1px solid #374151;height:28px;margin-bottom:3px"></div>
-        <p style="font-size:9px;color:#6b7280">Signature</p>
+        ${safeSig ? `<div style="margin-bottom:6px"><img src="${safeSig}" alt="Audit signature" style="max-height:56px;border:1px solid #d1d5db;border-radius:4px;background:#fff;display:block" /></div>` : `<div style="border-bottom:1px solid #374151;height:28px;margin-bottom:3px"></div>`}
+        <p style="font-size:9px;color:#6b7280">Signature${safeSig ? ` — signed digitally` : ""}</p>
         <div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>
         <p style="font-size:9px;color:#6b7280">Name</p>
         <div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>
@@ -3538,7 +3539,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             if (batchCtx) setTxLogBatchFilter(batchCtx);
           }
         }}><Beaker className="w-3.5 h-3.5 mr-1" />Additions Report</Button>
-        <Button size="sm" variant="outline" onClick={() => printPressingReport(filtered, farmName, yearFilter === "all" ? "All vintages" : yearFilter, allAdditions)} disabled={!filtered.length}><Printer className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
+        <Button size="sm" variant="outline" onClick={() => printPressingReport(filtered, farmName, yearFilter === "all" ? "All vintages" : yearFilter, allAdditions, filtered.length === 1 ? (filtered[0].audit_signature ? String(filtered[0].audit_signature) : null) : null)} disabled={!filtered.length}><Printer className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
         <Button size="sm" variant="outline" onClick={() => exportCSV(filtered, "pressing-records.csv", pressCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
       </div>
