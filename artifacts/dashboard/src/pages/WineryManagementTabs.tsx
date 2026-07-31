@@ -4831,6 +4831,16 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const crud = useCrud(farmId, "winery-cellar-ops", "winery-cellar-ops");
   const { data: vessels = [] } = useVessels(farmId);
   const { data: pressingRecords = [] } = usePressing(farmId);
+  const { data: cellarFermentationRecords = [] } = useQuery<Record<string, unknown>[]>({
+    queryKey: ["winery-fermentation", farmId],
+    queryFn: async () => {
+      const r = await fetch(api(`farms/${farmId}/winery-fermentation`), { credentials: "include" });
+      const d = await r.json();
+      return d.records ?? [];
+    },
+    enabled: !!farmId,
+    staleTime: 60_000,
+  });
   const { staffNames, isLoading: staffLoading } = useStaff(farmId);
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -4841,6 +4851,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [opFilter, setOpFilter] = useState("all");
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
+  const [cellarWineColourFromFermentation, setCellarWineColourFromFermentation] = useState(false);
   const { data: farmsDataCellar } = useQuery<{ records?: Record<string, unknown>[] }>({
     queryKey: ["farms-list"],
     queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
@@ -4858,11 +4869,27 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
 
   const handleCellarBatchRefChange = (val: string) => {
     sf("batchRef", val);
-    const match = cellarPressingRefs.find(p => p.batchRef === val);
-    if (match) {
-      if (!form.vintageYear) sf("vintageYear", match.vintageYear);
-      if (!form.wineColour && match.wineColour) sf("wineColour", match.wineColour);
-      sf("_batchIsOrganic", match.isOrganic ? "true" : "false");
+    // Always reset the badge — recompute from scratch for this new batch ref
+    setCellarWineColourFromFermentation(false);
+    const pressMatch = cellarPressingRefs.find(p => p.batchRef === val);
+    const fermMatch = val
+      ? cellarFermentationRecords.find(f => String(f.batch_ref ?? "") === val)
+      : null;
+    if (pressMatch || fermMatch) {
+      if (!form.vintageYear && pressMatch?.vintageYear) sf("vintageYear", pressMatch.vintageYear);
+      // Prefer fermentation colour (more downstream); fall back to pressing
+      const fermColour = fermMatch && fermMatch.wine_colour ? String(fermMatch.wine_colour) : "";
+      const pressColour = pressMatch?.wineColour ?? "";
+      const inheritedColour = fermColour || pressColour;
+      if (!form.wineColour && inheritedColour) {
+        sf("wineColour", inheritedColour);
+        // Badge only when colour actually came from the fermentation record
+        if (fermColour) setCellarWineColourFromFermentation(true);
+      }
+      const isOrganic = fermMatch != null
+        ? (fermMatch.is_organic === true || fermMatch.is_organic === "true" || fermMatch.is_organic === 1)
+        : (pressMatch?.isOrganic ?? false);
+      sf("_batchIsOrganic", isOrganic ? "true" : "false");
     } else {
       sf("_batchIsOrganic", "");
     }
@@ -4926,7 +4953,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const isFiltering = opType === "filtering";
   const vRef = (id: unknown) => vessels.find(v => String(v.id) === String(id))?.vessel_ref ?? id;
 
-  const openAdd = () => { setEditing(null); setForm({ opDate: today, vintageYear: String(new Date().getFullYear()) }); setOpen(true); };
+  const openAdd = () => { setEditing(null); setForm({ opDate: today, vintageYear: String(new Date().getFullYear()) }); setCellarWineColourFromFermentation(false); setOpen(true); };
   const openEdit = (r: Record<string, unknown>) => {
     setEditing(r.id as number);
     const base = Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]));
@@ -4939,6 +4966,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
       base.volumeMovedLitres = String(r.volume_moved_litres);
     }
     setForm(base);
+    setCellarWineColourFromFermentation(false);
     setOpen(true);
   };
   const save = async () => {
@@ -5105,8 +5133,15 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
               </div>
               <div><Label>Vintage Year</Label><Input type="number" value={form.vintageYear ?? ""} onChange={e => sf("vintageYear", e.target.value)} /></div>
               <div>
-                <Label>Wine Colour</Label>
-                <Select value={form.wineColour ?? ""} onValueChange={v => sf("wineColour", v)}>
+                <div className="flex items-center gap-2 mb-1">
+                  <Label>Wine Colour</Label>
+                  {cellarWineColourFromFermentation && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                      from fermentation
+                    </span>
+                  )}
+                </div>
+                <Select value={form.wineColour ?? ""} onValueChange={v => { setCellarWineColourFromFermentation(false); sf("wineColour", v); }}>
                   <SelectTrigger><SelectValue placeholder="Select colour" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">— Not specified —</SelectItem>
@@ -5122,15 +5157,21 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                   onChange={e => handleCellarBatchRefChange(e.target.value)}
                   placeholder="e.g. LOT-2024-001"
                 />
-                {cellarPressingRefs.length > 0 && (
-                  <datalist id="cellar-pressing-refs">
-                    {cellarPressingRefs.map(p => (
-                      <option key={p.batchRef} value={p.batchRef} label={p.vintageYear ? `Vintage ${p.vintageYear}` : undefined} />
-                    ))}
-                  </datalist>
-                )}
-                {cellarPressingRefs.length > 0 && (
-                  <p className="text-xs text-muted-foreground mt-1">Select a pressing batch ref to link, or type a custom reference.</p>
+                {(cellarPressingRefs.length > 0 || cellarFermentationRecords.length > 0) && (() => {
+                  const allRefs = Array.from(new Map([
+                    ...cellarPressingRefs.map(p => [p.batchRef, { batchRef: p.batchRef, label: p.vintageYear ? `Vintage ${p.vintageYear}` : "" }] as [string, { batchRef: string; label: string }]),
+                    ...cellarFermentationRecords.filter(f => f.batch_ref).map(f => [String(f.batch_ref), { batchRef: String(f.batch_ref), label: f.vintage_year ? `Vintage ${String(f.vintage_year)}` : "" }] as [string, { batchRef: string; label: string }]),
+                  ]).values()).sort((a, b) => b.batchRef.localeCompare(a.batchRef));
+                  return (
+                    <datalist id="cellar-pressing-refs">
+                      {allRefs.map(r => (
+                        <option key={r.batchRef} value={r.batchRef} label={r.label || undefined} />
+                      ))}
+                    </datalist>
+                  );
+                })()}
+                {(cellarPressingRefs.length > 0 || cellarFermentationRecords.length > 0) && (
+                  <p className="text-xs text-muted-foreground mt-1">Select a batch ref to link, or type a custom reference.</p>
                 )}
               </div>
               <div>
