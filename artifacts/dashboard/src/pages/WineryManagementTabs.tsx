@@ -3065,7 +3065,14 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             onChange={e => setPressingSearch(e.target.value)}
           />
         </div>
-        <Button size="sm" variant={showReport ? "default" : "outline"} className="ml-auto" onClick={() => setShowReport(v => !v)}><Beaker className="w-3.5 h-3.5 mr-1" />Additions Report</Button>
+        <Button size="sm" variant={showReport ? "default" : "outline"} className="ml-auto" onClick={() => {
+          const opening = !showReport;
+          setShowReport(v => !v);
+          if (opening && !txLogBatchFilter.trim()) {
+            const batchCtx = trailRecord?.batch_ref ? String(trailRecord.batch_ref) : pressingSearch.trim();
+            if (batchCtx) setTxLogBatchFilter(batchCtx);
+          }
+        }}><Beaker className="w-3.5 h-3.5 mr-1" />Additions Report</Button>
         <Button size="sm" variant="outline" onClick={() => printPressingReport(filtered, farmName, yearFilter === "all" ? "All vintages" : yearFilter)} disabled={!filtered.length}><Printer className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
         <Button size="sm" variant="outline" onClick={() => exportCSV(filtered, "pressing-records.csv", pressCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
