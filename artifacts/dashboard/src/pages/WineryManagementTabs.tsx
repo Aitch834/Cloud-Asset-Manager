@@ -1096,6 +1096,13 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
               const bottTa = bottlingRecord?.titratable_acidity_gl != null ? parseFloat(String(bottlingRecord.titratable_acidity_gl)) : null;
               const hasAny = pressPh != null || pressTa != null || fermPh != null || fermTa != null || bottPh != null || bottTa != null;
               if (!hasAny) return null;
+              // Build trend chart data — only include stages where at least one value is present
+              const trendStages = [
+                { stage: "Pressing", ph: pressPh, ta: pressTa },
+                { stage: "Post-ferm.", ph: fermPh, ta: fermTa },
+                { stage: "Bottling", ph: bottPh, ta: bottTa },
+              ].filter(s => s.ph != null || s.ta != null);
+              const showTrend = trendStages.length >= 2;
               return (
                 <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 space-y-2">
                   <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
@@ -1118,6 +1125,48 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
                       {bottTa != null ? <p className="font-mono text-muted-foreground">TA {bottTa.toFixed(1)} g/L</p> : <p className="text-muted-foreground">TA —</p>}
                     </div>
                   </div>
+                  {showTrend && (
+                    <div className="bg-white/70 rounded p-2">
+                      <p className="text-xs text-muted-foreground mb-1">Acidity drift</p>
+                      <ResponsiveContainer width="100%" height={120}>
+                        <LineChart data={trendStages} margin={{ top: 4, right: 28, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                          <XAxis dataKey="stage" tick={{ fontSize: 10 }} tickLine={false} />
+                          <YAxis
+                            yAxisId="ph"
+                            orientation="left"
+                            tick={{ fontSize: 10 }}
+                            tickLine={false}
+                            axisLine={false}
+                            tickFormatter={(v: number) => v.toFixed(2)}
+                            domain={["auto", "auto"]}
+                            width={36}
+                            label={{ value: "pH", position: "insideLeft", offset: 4, style: { fontSize: 9, fill: "#6366f1" } }}
+                          />
+                          <YAxis
+                            yAxisId="ta"
+                            orientation="right"
+                            tick={{ fontSize: 10 }}
+                            tickLine={false}
+                            axisLine={false}
+                            tickFormatter={(v: number) => v.toFixed(1)}
+                            domain={["auto", "auto"]}
+                            width={36}
+                            label={{ value: "TA g/L", position: "insideRight", offset: 4, style: { fontSize: 9, fill: "#0ea5e9" } }}
+                          />
+                          <Tooltip
+                            contentStyle={{ fontSize: 11 }}
+                            formatter={(value: number, name: string) =>
+                              name === "pH" ? [value.toFixed(2), "pH"] : [value.toFixed(1) + " g/L", "TA"]
+                            }
+                          />
+                          <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
+                          <Line yAxisId="ph" type="monotone" dataKey="ph" name="pH" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                          <Line yAxisId="ta" type="monotone" dataKey="ta" name="TA (g/L)" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 3 }} connectNulls strokeDasharray="4 2" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
                 </div>
               );
             })()}
