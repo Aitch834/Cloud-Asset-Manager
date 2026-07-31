@@ -129,6 +129,7 @@ import {
   encampmentPhotosTable,
   accidentBookTable,
   accidentBookPhotosTable,
+  farmIncidentsTable,
   inspectionRecordsTable,
   nonconformanceRecordsTable,
   correctiveActionsTable,
@@ -8172,6 +8173,99 @@ router.delete("/farms/:farmId/encampments/:recordId/photos/:photoId", requireAut
   const photoId = parseInt(req.params.photoId as string);
   if (!photoId) { res.status(400).json({ error: "Invalid photo ID" }); return; }
   await db.delete(encampmentPhotosTable).where(and(eq(encampmentPhotosTable.id, photoId), eq(encampmentPhotosTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Farm Incidents ──────────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/incidents", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(farmIncidentsTable).where(eq(farmIncidentsTable.farmId, farmId)).orderBy(desc(farmIncidentsTable.dateDiscovered));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/incidents", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { dateDiscovered, dateOccurred, incidentType, fieldId, locationDescription, description,
+    estimatedLossValue, areaQuantityAffected, policeAttended, policeRefNumber, fireAttended, fireRefNumber,
+    eaAttended, eaRefNumber, crimeReference, status, insurancePolicyId, insuranceClaimRef,
+    insuranceClaimDate, settlementAmount, settlementDate, insurerContact, notes } = req.body;
+  if (!dateDiscovered || !incidentType || !locationDescription || !description) {
+    res.status(400).json({ error: "dateDiscovered, incidentType, locationDescription and description are required" }); return;
+  }
+  // Validate that fieldId belongs to this farm
+  const resolvedFieldId = fieldId ? Number(fieldId) : null;
+  if (resolvedFieldId) {
+    const [field] = await db.select({ id: fieldsTable.id }).from(fieldsTable).where(and(eq(fieldsTable.id, resolvedFieldId), eq(fieldsTable.farmId, farmId))).limit(1);
+    if (!field) { res.status(400).json({ error: "Invalid fieldId — field does not belong to this farm" }); return; }
+  }
+  // Validate that insurancePolicyId belongs to this farm
+  const resolvedPolicyId = insurancePolicyId ? Number(insurancePolicyId) : null;
+  if (resolvedPolicyId) {
+    const [policy] = await db.select({ id: farmInsuranceTable.id }).from(farmInsuranceTable).where(and(eq(farmInsuranceTable.id, resolvedPolicyId), eq(farmInsuranceTable.farmId, farmId))).limit(1);
+    if (!policy) { res.status(400).json({ error: "Invalid insurancePolicyId — policy does not belong to this farm" }); return; }
+  }
+  const [record] = await db.insert(farmIncidentsTable).values({
+    farmId, dateDiscovered, dateOccurred: dateOccurred || null, incidentType,
+    fieldId: resolvedFieldId, locationDescription, description,
+    estimatedLossValue: estimatedLossValue || null, areaQuantityAffected: areaQuantityAffected || null,
+    policeAttended: !!policeAttended, policeRefNumber: policeRefNumber || null,
+    fireAttended: !!fireAttended, fireRefNumber: fireRefNumber || null,
+    eaAttended: !!eaAttended, eaRefNumber: eaRefNumber || null,
+    crimeReference: crimeReference || null, status: status || "reported",
+    insurancePolicyId: resolvedPolicyId,
+    insuranceClaimRef: insuranceClaimRef || null, insuranceClaimDate: insuranceClaimDate || null,
+    settlementAmount: settlementAmount || null, settlementDate: settlementDate || null,
+    insurerContact: insurerContact || null, notes: notes || null,
+  }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/incidents/:recordId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { dateDiscovered, dateOccurred, incidentType, fieldId, locationDescription, description,
+    estimatedLossValue, areaQuantityAffected, policeAttended, policeRefNumber, fireAttended, fireRefNumber,
+    eaAttended, eaRefNumber, crimeReference, status, insurancePolicyId, insuranceClaimRef,
+    insuranceClaimDate, settlementAmount, settlementDate, insurerContact, notes } = req.body;
+  // Validate that fieldId belongs to this farm
+  const resolvedFieldId = fieldId ? Number(fieldId) : null;
+  if (resolvedFieldId) {
+    const [field] = await db.select({ id: fieldsTable.id }).from(fieldsTable).where(and(eq(fieldsTable.id, resolvedFieldId), eq(fieldsTable.farmId, farmId))).limit(1);
+    if (!field) { res.status(400).json({ error: "Invalid fieldId — field does not belong to this farm" }); return; }
+  }
+  // Validate that insurancePolicyId belongs to this farm
+  const resolvedPolicyId = insurancePolicyId ? Number(insurancePolicyId) : null;
+  if (resolvedPolicyId) {
+    const [policy] = await db.select({ id: farmInsuranceTable.id }).from(farmInsuranceTable).where(and(eq(farmInsuranceTable.id, resolvedPolicyId), eq(farmInsuranceTable.farmId, farmId))).limit(1);
+    if (!policy) { res.status(400).json({ error: "Invalid insurancePolicyId — policy does not belong to this farm" }); return; }
+  }
+  const [record] = await db.update(farmIncidentsTable).set({
+    dateDiscovered, dateOccurred: dateOccurred || null, incidentType,
+    fieldId: resolvedFieldId, locationDescription, description,
+    estimatedLossValue: estimatedLossValue || null, areaQuantityAffected: areaQuantityAffected || null,
+    policeAttended: !!policeAttended, policeRefNumber: policeRefNumber || null,
+    fireAttended: !!fireAttended, fireRefNumber: fireRefNumber || null,
+    eaAttended: !!eaAttended, eaRefNumber: eaRefNumber || null,
+    crimeReference: crimeReference || null, status: status || "reported",
+    insurancePolicyId: resolvedPolicyId,
+    insuranceClaimRef: insuranceClaimRef || null, insuranceClaimDate: insuranceClaimDate || null,
+    settlementAmount: settlementAmount || null, settlementDate: settlementDate || null,
+    insurerContact: insurerContact || null, notes: notes || null,
+  }).where(and(eq(farmIncidentsTable.id, recordId), eq(farmIncidentsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/incidents/:recordId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(farmIncidentsTable).where(and(eq(farmIncidentsTable.id, recordId), eq(farmIncidentsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

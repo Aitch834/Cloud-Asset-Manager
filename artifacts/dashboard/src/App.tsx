@@ -69,6 +69,7 @@ const WasteDisposalPage = React.lazy(() => import("@/pages/WasteDisposalPage"));
 const ContractorsPage = React.lazy(() => import("@/pages/ContractorsPage"));
 const FlyTippingPage = React.lazy(() => import("@/pages/FlyTippingPage"));
 const EncampmentPage = React.lazy(() => import("@/pages/EncampmentPage"));
+const FarmIncidentsPage = React.lazy(() => import("@/pages/FarmIncidentsPage"));
 const AccidentBookPage = React.lazy(() => import("@/pages/AccidentBookPage"));
 const FarmLocationsPage = React.lazy(() => import("@/pages/FarmLocationsPage"));
 const FarmMapPage = React.lazy(() => import("@/pages/FarmMapPage"));
@@ -262,6 +263,7 @@ function AppRoutes() {
         <Route path="/waste" component={WasteDisposalPage} />
         <Route path="/fly-tipping" component={() => <FlyTippingPage farmId={farmId} />} />
         <Route path="/encampments" component={EncampmentPage} />
+        <Route path="/farm-incidents" component={FarmIncidentsPage} />
         <Route path="/accident-book" component={AccidentBookPage} />
         <Route path="/contractors" component={ContractorsPage} />
         <Route path="/visitors" component={() => <BiosecurityPage defaultTab="visitors" />} />
