@@ -1684,27 +1684,72 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
   </div>
 </div>` : "";
 
-  // Pressing summary
+  // Pressing summary — expanded block layout matching the on-screen "Pressing Record" card
   const pressingNotes = pressing.notes ? String(pressing.notes) : "";
-  const pressingRows = `<tr class="header-row"><th>Press Date</th><th>Batch Ref</th><th>Vintage</th><th>Press Type</th><th>Grapes (kg)</th><th>Juice (L)</th><th>Brix °</th><th>Juice pH</th><th>Juice TA (g/L)</th><th>Organic</th><th>Operator</th><th>Settling Method</th><th>Juice Turbidity</th></tr>
-<tr>
-  <td>${escHtml(pressDate)}</td>
-  <td style="font-family:monospace;font-weight:600">${escHtml(batchRef)}</td>
-  <td>${escHtml(vintage ?? "—")}</td>
-  <td>${escHtml(pressing.press_type ?? "—")}</td>
-  <td style="text-align:right">${pressing.grapes_pressed_kg != null ? parseFloat(String(pressing.grapes_pressed_kg)).toFixed(0) : "—"}</td>
-  <td style="text-align:right">${pressing.total_juice_litres != null ? parseFloat(String(pressing.total_juice_litres)).toFixed(1) : "—"}</td>
-  <td style="text-align:right">${pressing.juice_brix != null ? parseFloat(String(pressing.juice_brix)).toFixed(1) : "—"}</td>
-  <td style="text-align:right">${pressing.juice_ph != null ? parseFloat(String(pressing.juice_ph)).toFixed(2) : "—"}</td>
-  <td style="text-align:right">${pressing.juice_ta_gl != null ? parseFloat(String(pressing.juice_ta_gl)).toFixed(1) : "—"}</td>
-  <td>${(pressing.is_organic === true || pressing.is_organic === "true" || pressing.is_organic === 1) ? "Yes" : "No"}</td>
-  <td>${escHtml(pressing.operator_name ?? "—")}</td>
-  <td>${escHtml(pressing.settling_method ?? "—")}</td>
-  <td>${escHtml(pressing.juice_turbidity ?? "—")}</td>
-</tr>${pressingNotes ? `
-<tr>
-  <td colspan="12" style="background:#f9fafb;padding:6px 7px;font-size:10px;color:#374151"><span style="font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Pressing notes: </span>${escHtml(pressingNotes)}</td>
-</tr>` : ""}`;
+  const isOrganicPress = pressing.is_organic === true || pressing.is_organic === "true" || pressing.is_organic === 1;
+
+  // Helper: renders a single labelled field cell (label above, value below)
+  const pField = (label: string, value: string) =>
+    `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:4px;padding:7px 10px">
+      <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:2px">${escHtml(label)}</p>
+      <p style="font-size:11px;font-weight:500;color:#111">${escHtml(value)}</p>
+    </div>`;
+
+  const pressingBlockHtml = `
+<div class="section">
+  <h2>1. Pressing Record</h2>
+  <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px">
+
+    <!-- Identity row -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:6px">
+      ${pField("Press Date", pressDate)}
+      ${pField("Batch Ref", batchRef || "—")}
+      ${pField("Vintage", vintage ?? "—")}
+      ${pField("Organic", isOrganicPress ? "Yes — organic limits" : "No — conventional")}
+    </div>
+
+    <!-- Process row -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:6px">
+      ${pField("Press Type", String(pressing.press_type ?? "—"))}
+      ${pField("Operator", String(pressing.operator_name ?? "—"))}
+      ${pField("Free Run Separated", (pressing.free_run_separated === true || pressing.free_run_separated === "true" || pressing.free_run_separated === 1) ? "Yes" : "No")}
+      ${pField("Juice Turbidity", String(pressing.juice_turbidity ?? "—"))}
+    </div>
+
+    <!-- Yield row -->
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:6px">
+      ${pField("Grapes Pressed (kg)", pressing.grapes_pressed_kg != null && pressing.grapes_pressed_kg !== "" ? parseFloat(String(pressing.grapes_pressed_kg)).toFixed(0) : "—")}
+      ${pField("Free Run (L)", pressing.free_run_litres != null && pressing.free_run_litres !== "" ? parseFloat(String(pressing.free_run_litres)).toFixed(1) : "—")}
+      ${pField("Press Wine (L)", pressing.press_wine_litres != null && pressing.press_wine_litres !== "" ? parseFloat(String(pressing.press_wine_litres)).toFixed(1) : "—")}
+      ${pField("Total Juice (L)", pressing.total_juice_litres != null && pressing.total_juice_litres !== "" ? parseFloat(String(pressing.total_juice_litres)).toFixed(1) : "—")}
+      ${pField("Press Efficiency (L/kg)", pressing.press_efficiency_l_per_kg != null && pressing.press_efficiency_l_per_kg !== "" ? parseFloat(String(pressing.press_efficiency_l_per_kg)).toFixed(3) : "—")}
+    </div>
+
+    <!-- Juice analysis row -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:6px">
+      ${pField("Brix °", pressing.juice_brix != null && pressing.juice_brix !== "" ? parseFloat(String(pressing.juice_brix)).toFixed(1) : "—")}
+      ${pField("Juice pH", pressing.juice_ph != null && pressing.juice_ph !== "" ? parseFloat(String(pressing.juice_ph)).toFixed(2) : "—")}
+      ${pField("Juice TA (g/L)", pressing.juice_ta_gl != null && pressing.juice_ta_gl !== "" ? parseFloat(String(pressing.juice_ta_gl)).toFixed(1) : "—")}
+      ${pField("Analysis Source", String(pressing.juice_analysis_source ?? "—"))}
+    </div>
+
+    <!-- Settling row -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px${pressingNotes ? ";margin-bottom:8px" : ""}">
+      ${pField("Settling Method", String(pressing.settling_method ?? "—"))}
+      ${pField("Settling Vessel", String(pressing.settling_vessel ?? "—"))}
+      ${pField("Settling Time (hrs)", pressing.settling_hours != null && pressing.settling_hours !== "" ? String(pressing.settling_hours) : "—")}
+      <div></div>
+    </div>
+
+    ${pressingNotes ? `
+    <!-- Notes -->
+    <div style="border-top:1px solid #e5e7eb;padding-top:8px">
+      <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:3px">Pressing Notes</p>
+      <p style="font-size:11px;color:#374151;font-style:italic">${escHtml(pressingNotes)}</p>
+    </div>` : ""}
+
+  </div>
+</div>`;
 
   // Press additives
   const addRows = data.pressAdditions.map(a => `<tr>
@@ -1863,7 +1908,7 @@ ${vintageScopeNote}
 
 ${so2SummaryHtml}
 ${phTaHistoryHtml}
-${sectionHtml("1. Pressing record", pressingRows)}
+${pressingBlockHtml}
 ${addRows ? sectionHtml("2. Pressing additives", addHeader + addRows) : ""}
 ${fermRows ? sectionHtml("3. Fermentation", fermHeader + fermRows) : ""}
 ${cellarRows ? sectionHtml("4. Cellar operations", cellarHeader + cellarRows) : ""}
