@@ -3238,7 +3238,29 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             </div>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={() => printAdditionsReport(searchFilteredSummary, farmName, yearFilter === "all" ? "All vintages" : yearFilter)} disabled={!searchFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
-              <Button size="sm" variant="outline" onClick={() => exportCSV(searchFilteredSummary, `pressing-additions-report-${yearFilter}.csv`, summaryCsvCols)} disabled={!searchFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export Summary CSV</Button>
+              <Button size="sm" variant="outline" onClick={() => {
+                const summaryUnitsByVintage = new Map<string, Set<string>>();
+                searchFilteredSummary.filter(r => r.category === "so2").forEach(r => {
+                  const v = String(r.vintage_year ?? "?");
+                  const u = String(r.unit ?? "");
+                  if (!summaryUnitsByVintage.has(v)) summaryUnitsByVintage.set(v, new Set());
+                  summaryUnitsByVintage.get(v)!.add(u);
+                });
+                const mixedUnitVintages = Array.from(summaryUnitsByVintage.entries())
+                  .filter(([, units]) => units.size > 1)
+                  .map(([v]) => v)
+                  .sort();
+                const prefixLines: string[] = [];
+                if (mixedUnitVintages.length > 0) {
+                  const vintageList = mixedUnitVintages.length === 1
+                    ? `vintage ${mixedUnitVintages[0]}`
+                    : `vintages ${mixedUnitVintages.join(", ")}`;
+                  prefixLines.push(
+                    `"WARNING: Mixed SO2 units detected — ${vintageList}","This export contains SO2 / KMS records measured in both mg/kg (at pressing) and mg/L (post-fermentation / cellar). The Total Dose column combines different units and CANNOT be compared or summed. Use the Unit column to interpret each row individually."`,
+                  );
+                }
+                exportCSV(searchFilteredSummary, `pressing-additions-report-${yearFilter}.csv`, summaryCsvCols, prefixLines);
+              }} disabled={!searchFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export Summary CSV</Button>
               <Button size="sm" variant="outline" onClick={() => {
                 const batchTrim = txLogBatchFilter.trim();
                 const scope = batchTrim || (yearFilter === "all" ? "All vintages" : yearFilter);
