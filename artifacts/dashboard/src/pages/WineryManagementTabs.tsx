@@ -2169,7 +2169,7 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
     <td style="text-align:right">${r.bottles_produced != null ? String(r.bottles_produced) : "—"}</td>
     <td style="text-align:right;font-family:monospace">${r.free_so2_mg_l != null ? parseFloat(String(r.free_so2_mg_l)).toFixed(1) : "—"}</td>
     <td style="text-align:right;font-family:monospace">${totalSo2 != null ? totalSo2.toFixed(1) : "—"}</td>
-    <td style="text-align:right">${!isNaN(ceiling) ? `${ceiling.toFixed(0)} mg/L` : "—"}</td>
+    <td style="text-align:right">${!isNaN(ceiling) ? `${ceiling.toFixed(0)} mg/L ${isOrg ? "organic" : "conventional"}` : "—"}</td>
     <td${hasCompliance ? complianceStyle : ""}>${complianceText}</td>
     <td style="text-align:right;font-family:monospace">${r.ph != null ? parseFloat(String(r.ph)).toFixed(2) : "—"}</td>
     <td style="text-align:right;font-family:monospace">${r.titratable_acidity_gl != null ? parseFloat(String(r.titratable_acidity_gl)).toFixed(1) : "—"}</td>
