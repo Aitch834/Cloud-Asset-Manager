@@ -68,6 +68,15 @@ export async function runWineryMigrations(): Promise<void> {
     WHERE lot_code IS NOT NULL
   `);
 
+  // Unique batch refs per farm on fermentation records — mirrors the same guard already in place
+  // on pressing records. NULL allowed (batch_ref is optional), but two non-NULL values with the
+  // same (farm_id, batch_ref) are rejected at the DB level regardless of which code path writes them.
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_winery_fermentation_records_farm_batch_ref
+    ON winery_fermentation_records (farm_id, batch_ref)
+    WHERE batch_ref IS NOT NULL
+  `);
+
   // ─── One-off data fix: correct SO₂ limits for pre-existing conventional-batch test records ───
   //
   // Before the organic flag was introduced, max_permitted_mg_l was always set to the organic
