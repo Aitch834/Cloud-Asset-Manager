@@ -6451,6 +6451,24 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
               <ViewField label="Total SO₂" value={view.total_so2_mg_l ? `${fmtNum(view.total_so2_mg_l, 0)} mg/L` : "—"} />
               <ViewField label="Max Permitted" value={view.max_permitted_mg_l ? `${fmtNum(view.max_permitted_mg_l, 0)} mg/L` : "—"} />
               <ViewField label="Compliance" value={<So2Badge compliant={view.so2_compliant} />} />
+              {(() => {
+                const wc = view.wine_colour ? String(view.wine_colour) : null;
+                if (!wc || !ORGANIC_MAX_SO2[wc]) return null;
+                const batchRef = view.batch_ref ? String(view.batch_ref) : null;
+                const matchedPressing = batchRef ? so2PressingRefs.find(p => p.batchRef === batchRef) : null;
+                if (!matchedPressing?.isOrganic) return null;
+                const orgCeiling = parseFloat(ORGANIC_MAX_SO2[wc]);
+                const totalSo2 = view.total_so2_mg_l != null && view.total_so2_mg_l !== "" ? parseFloat(String(view.total_so2_mg_l)) : null;
+                const pass = totalSo2 != null ? totalSo2 <= orgCeiling : null;
+                return (
+                  <div className="col-span-2 flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm">
+                    <Leaf className="w-4 h-4 text-green-700 shrink-0" />
+                    <span className="text-green-800 font-medium">Organic batch — ceiling {orgCeiling} mg/L total SO₂</span>
+                    {pass === true && <span className="inline-flex items-center gap-1 ml-auto px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"><CheckCircle2 className="w-3 h-3" />Pass</span>}
+                    {pass === false && <span className="inline-flex items-center gap-1 ml-auto px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800"><AlertTriangle className="w-3 h-3" />Exceeds organic limit</span>}
+                  </div>
+                );
+              })()}
               {!!view.action_taken && <div className="col-span-2"><ViewField label="Action Taken" value={fmt(view.action_taken)} /></div>}
               <ViewField label="Operator" value={fmt(view.operator_name)} />
               {!!view.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>}
