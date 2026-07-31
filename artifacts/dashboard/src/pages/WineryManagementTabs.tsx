@@ -3331,6 +3331,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
           ) : searchFilteredSummary.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">No rows match the current filters. Try a different additive name or clear the category filter.</p>
           ) : (
+            <>
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
                 <thead className="bg-muted/40"><tr>
@@ -3431,6 +3432,25 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                 </tbody>
               </table>
             </div>
+
+            {/* ── SO₂ colour-limit legend ──────────────────────────────────────── */}
+            {searchFilteredSummary.some(r => r.category === "so2") && (
+              <div className="mt-3 rounded-md border border-muted bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
+                <p className="font-semibold text-foreground/80 mb-1.5 uppercase tracking-wide">SO₂ total limits (mg/kg)</p>
+                <div className="flex flex-wrap gap-x-6 gap-y-1">
+                  <div>
+                    <span className="font-semibold text-green-700">🌿 Organic</span>
+                    <span className="ml-1.5">Red <strong className="text-foreground">100</strong> · White / Rosé / Orange <strong className="text-foreground">150</strong> · Sparkling <strong className="text-foreground">185</strong></span>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-foreground/70">Conventional</span>
+                    <span className="ml-1.5">Red <strong className="text-foreground">150</strong> · White / Rosé / Orange <strong className="text-foreground">200</strong> · Sparkling <strong className="text-foreground">235</strong></span>
+                  </div>
+                </div>
+                <p className="mt-1 text-muted-foreground/70">UK-retained Reg 2019/934 (organic) · Reg 1308/2013 Annex VIII Part B (conventional). Limits are for <em>total</em> SO₂ across the wine's life.</p>
+              </div>
+            )}
+            </>
           )}
 
           {/* ── Transaction Log individual rows ────────────────────────────────── */}
