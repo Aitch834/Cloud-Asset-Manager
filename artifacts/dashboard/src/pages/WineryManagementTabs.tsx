@@ -1799,11 +1799,28 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
 
   const bottlingHeader = `<tr class="header-row"><th>Date</th><th>Lot Code</th><th>Colour</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">Bottles</th><th style="text-align:right">Free SO₂ (mg/L)</th><th style="text-align:right">Total SO₂ (mg/L)</th><th style="text-align:right">SO₂ ceiling</th><th>Compliance</th><th style="text-align:right">pH</th><th style="text-align:right">TA (g/L)</th><th style="text-align:right">ABV</th><th>Closure</th><th>Organic limits</th>${isVintageScoped ? "<th>Batch Ref</th>" : ""}</tr>`;
 
+  const docTitle = isVintageScoped && vintage
+    ? `Full Vintage Trail — Vintage ${escHtml(vintage)} — ${escHtml(farmName)}`
+    : `Batch Trail — ${escHtml(batchRef)} — ${escHtml(farmName)}`;
+
+  const coverTitle = isVintageScoped && vintage
+    ? `Full Vintage Trail — Vintage ${escHtml(vintage)}`
+    : "Batch Trail Report";
+
+  const vintageScopeNote = isVintageScoped && vintage ? `
+<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:9px 13px;margin-bottom:14px;display:flex;align-items:flex-start;gap:8px">
+  <span style="font-size:15px;line-height:1">ℹ️</span>
+  <div>
+    <p style="font-size:11px;font-weight:700;color:#1e40af;margin-bottom:2px">Full-vintage view — Vintage ${escHtml(vintage)}</p>
+    <p style="font-size:10px;color:#374151">This document covers <strong>all winery records for the entire ${escHtml(vintage)} vintage</strong>, not a single batch. All pressing records, fermentation runs, cellar operations, SO₂ tests, and bottling runs for this vintage year are included. Batch references are shown on each row where available.</p>
+  </div>
+</div>` : "";
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Batch Trail — ${escHtml(batchRef)} — ${escHtml(farmName)}</title>
+<title>${docTitle}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #111; padding: 20px 28px; }
@@ -1829,14 +1846,14 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
 </style>
 </head>
 <body>
-<h1>Batch Trail Report</h1>
+<h1>${coverTitle}</h1>
 <p class="meta">
   <span><strong>${escHtml(farmName)}</strong></span>
-  <span>Batch ref: <strong>${escHtml(batchRef)}</strong></span>
-  ${vintage ? `<span>Vintage: <strong>${escHtml(vintage)}</strong></span>` : ""}
+  ${isVintageScoped && vintage ? `<span>Vintage: <strong>${escHtml(vintage)}</strong></span>` : `<span>Batch ref: <strong>${escHtml(batchRef)}</strong></span>${vintage ? `<span>Vintage: <strong>${escHtml(vintage)}</strong></span>` : ""}`}
   ${(pressing.is_organic === true || pressing.is_organic === "true" || pressing.is_organic === 1) ? `<span style="color:#166534;font-weight:600">🌿 Organic batch — reduced SO₂ ceilings apply</span>` : ""}
   <span>Printed: ${escHtml(printedOn)}</span>
 </p>
+${vintageScopeNote}
 
 ${so2SummaryHtml}
 ${phTaHistoryHtml}
