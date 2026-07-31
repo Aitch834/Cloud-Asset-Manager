@@ -1987,7 +1987,7 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
         <DialogFooter className="flex-wrap gap-2">
           {data && (
             <>
-              <Button variant="outline" size="sm" onClick={() => exportBatchTrailCsv(pressing, data)}>
+              <Button variant="outline" size="sm" onClick={() => exportBatchTrailCsv(pressing, data, farmName)}>
                 <FileDown className="w-3.5 h-3.5 mr-1" />Export CSV
               </Button>
               <Button variant="outline" size="sm" onClick={() => printBatchTrail(pressing, data, farmName, currentSig, { name: currentSignerName, role: currentSignerRole, signedAt: currentSignedAt })}>
@@ -2048,8 +2048,10 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
 }
 
 // ─── Batch Trail — CSV export ─────────────────────────────────────────────────
-function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrailData) {
+function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrailData, farmName: string) {
   const batchRef = String(pressing.batch_ref ?? "");
+  const isVintageScoped = data.scope === "vintageYear";
+  const vintageYear = data.vintageYear ? String(data.vintageYear) : (pressing.vintage_year ? String(pressing.vintage_year) : null);
   const rows: string[][] = [];
 
   // Header
@@ -2218,11 +2220,16 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
     }
   }
 
+  const prefixLine = isVintageScoped && vintageYear
+    ? `"Full Vintage Trail — Vintage ${vintageYear} — ${farmName.replace(/"/g, '""')}"`
+    : null;
   const csv = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
+  const blob = new Blob([prefixLine ? prefixLine + "\n" + csv : csv], { type: "text/csv" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `batch-trail-${batchRef || "unknown"}.csv`;
+  a.download = isVintageScoped && vintageYear
+    ? `vintage-trail-${vintageYear}.csv`
+    : `batch-trail-${batchRef || "unknown"}.csv`;
   a.click();
 }
 
