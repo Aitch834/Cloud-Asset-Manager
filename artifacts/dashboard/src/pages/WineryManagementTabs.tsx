@@ -2873,7 +2873,7 @@ ${mixedUnitsNotice}<table>
 }
 
 // ─── Pressing Report — Print helper ──────────────────────────────────────────
-function printPressingReport(rows: Record<string, unknown>[], farmName: string, vintageLabel: string, allAdditions: Record<string, unknown>[] = [], auditSig?: string | null) {
+function printPressingReport(rows: Record<string, unknown>[], farmName: string, vintageLabel: string, allAdditions: Record<string, unknown>[] = [], auditSig?: string | null, signerInfo?: { name: string | null; role: string | null; signedAt: string | null; signerDate?: string | null }) {
   const printedOn = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   const safeSig = sanitiseSignatureForHtml(auditSig);
   const COL_COUNT = 16;
@@ -2987,11 +2987,11 @@ function printPressingReport(rows: Record<string, unknown>[], farmName: string, 
         <p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#374151;margin-bottom:18px">Reviewed by (auditor)</p>
         ${safeSig ? `<div style="margin-bottom:6px"><img src="${safeSig}" alt="Audit signature" style="max-height:56px;border:1px solid #d1d5db;border-radius:4px;background:#fff;display:block" /></div>` : `<div style="border-bottom:1px solid #374151;height:28px;margin-bottom:3px"></div>`}
         <p style="font-size:9px;color:#6b7280">Signature${safeSig ? ` — signed digitally` : ""}</p>
-        <div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>
+        ${signerInfo?.name ? `<div style="padding:4px 0 2px;font-size:11px;font-weight:600;color:#111827">${escHtml(signerInfo.name)}</div>` : `<div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>`}
         <p style="font-size:9px;color:#6b7280">Name</p>
-        <div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>
+        ${signerInfo?.role ? `<div style="padding:4px 0 2px;font-size:11px;color:#374151">${escHtml(signerInfo.role)}</div>` : `<div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>`}
         <p style="font-size:9px;color:#6b7280">Role</p>
-        <div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>
+        ${(signerInfo?.signerDate || signerInfo?.signedAt) ? `<div style="padding:4px 0 2px;font-size:11px;color:#374151">${escHtml(signerInfo.signerDate ? new Date(signerInfo.signerDate + "T12:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }) : new Date(signerInfo.signedAt!).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }))}</div>` : `<div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>`}
         <p style="font-size:9px;color:#6b7280">Date</p>
       </div>
     </div>
@@ -3601,7 +3601,25 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             if (batchCtx) setTxLogBatchFilter(batchCtx);
           }
         }}><Beaker className="w-3.5 h-3.5 mr-1" />Additions Report</Button>
-        <Button size="sm" variant="outline" onClick={() => printPressingReport(filtered, farmName, yearFilter === "all" ? "All vintages" : yearFilter, allAdditions, filtered.length === 1 ? (filtered[0].audit_signature ? String(filtered[0].audit_signature) : null) : null)} disabled={!filtered.length}><Printer className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
+        <Button size="sm" variant="outline" onClick={() => {
+          const vintageLabel = yearFilter === "all" ? "All vintages" : yearFilter;
+          // Embed the digital signature only when scoped to a single vintage and all visible
+          // records are signed by the same person. Multi-vintage or mixed-signer prints fall
+          // back to blank sign-off lines so the PDF cannot be misconstrued as a signed audit
+          // that spans a broader scope than the signer intended.
+          const isSingleVintage = yearFilter !== "all";
+          const allSigned = isSingleVintage && filtered.length > 0 && filtered.every(r => r.audit_signature != null && r.audit_signature !== "");
+          const firstSigner = allSigned ? String(filtered[0].audit_signer_name ?? "") : "";
+          const uniformSigner = allSigned && filtered.every(r => String(r.audit_signer_name ?? "") === firstSigner);
+          const sharedSig = uniformSigner ? (filtered[0].audit_signature ? String(filtered[0].audit_signature) : null) : null;
+          const sharedSignerInfo = uniformSigner && sharedSig ? {
+            name: filtered[0].audit_signer_name ? String(filtered[0].audit_signer_name) : null,
+            role: filtered[0].audit_signer_role ? String(filtered[0].audit_signer_role) : null,
+            signedAt: filtered[0].audit_signed_at ? String(filtered[0].audit_signed_at) : null,
+            signerDate: filtered[0].audit_signer_date ? String(filtered[0].audit_signer_date) : null,
+          } : undefined;
+          printPressingReport(filtered, farmName, vintageLabel, allAdditions, sharedSig, sharedSignerInfo);
+        }} disabled={!filtered.length}><Printer className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
         <Button size="sm" variant="outline" onClick={() => exportCSV(filtered, "pressing-records.csv", pressCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
       </div>
