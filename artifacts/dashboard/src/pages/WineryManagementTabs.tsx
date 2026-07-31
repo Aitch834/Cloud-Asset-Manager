@@ -843,29 +843,57 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
 
   // Build sorted, deduplicated list of all known batch refs carrying their vintage year.
   // Pressing is the authoritative source for vintage year; fermentation fills in any gaps.
+  // Sorted by most recent activity date (pressing_date / fermentation_start_date) so
+  // commonly-used batches surface first.
   const allBatchRefs = useMemo(() => {
-    const map = new Map<string, string | null>();
-    // Pressing first — preferred source for vintage year
+    const map = new Map<string, { vintageYear: string | null; latestDate: string | null }>();
+    // Helper: keep the more-recent of two ISO date strings (or nulls)
+    const laterDate = (a: string | null, b: string | null): string | null => {
+      if (!a) return b;
+      if (!b) return a;
+      return a >= b ? a : b;
+    };
+    // Pressing — preferred source for vintage year; use press_date as activity date
     for (const r of pressingData ?? []) {
       if (r.batch_ref) {
         const ref = String(r.batch_ref);
-        if (!map.has(ref)) {
-          map.set(ref, r.vintage_year != null ? String(r.vintage_year) : null);
+        const date = r.press_date != null ? String(r.press_date).slice(0, 10) : null;
+        const existing = map.get(ref);
+        if (existing) {
+          existing.latestDate = laterDate(existing.latestDate, date);
+        } else {
+          map.set(ref, {
+            vintageYear: r.vintage_year != null ? String(r.vintage_year) : null,
+            latestDate: date,
+          });
         }
       }
     }
-    // Fermentation — only adds refs not already seen from pressing
+    // Fermentation — use start_date as activity date
     for (const r of fermentationData ?? []) {
       if (r.batch_ref) {
         const ref = String(r.batch_ref);
-        if (!map.has(ref)) {
-          map.set(ref, r.vintage_year != null ? String(r.vintage_year) : null);
+        const date = r.start_date != null ? String(r.start_date).slice(0, 10) : null;
+        const existing = map.get(ref);
+        if (existing) {
+          existing.latestDate = laterDate(existing.latestDate, date);
+        } else {
+          map.set(ref, {
+            vintageYear: r.vintage_year != null ? String(r.vintage_year) : null,
+            latestDate: date,
+          });
         }
       }
     }
     return Array.from(map.entries())
-      .map(([ref, vintageYear]) => ({ ref, vintageYear }))
-      .sort((a, b) => a.ref.localeCompare(b.ref));
+      .map(([ref, { vintageYear, latestDate }]) => ({ ref, vintageYear, latestDate }))
+      // Most recent first; fall back to alphabetical when dates are equal or both null
+      .sort((a, b) => {
+        if (a.latestDate && b.latestDate) return b.latestDate.localeCompare(a.latestDate);
+        if (a.latestDate) return -1;
+        if (b.latestDate) return 1;
+        return a.ref.localeCompare(b.ref);
+      });
   }, [pressingData, fermentationData]);
 
   // Case-insensitive partial-match suggestions, capped at 10
