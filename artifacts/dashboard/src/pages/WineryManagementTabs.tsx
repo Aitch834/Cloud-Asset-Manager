@@ -5399,7 +5399,55 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
               </div>
               {importResult.rejected.length > 0 && (
                 <div className="rounded-md bg-red-50 border border-red-200 p-3 space-y-1.5">
-                  <p className="text-xs font-semibold text-red-800 flex items-center gap-1"><XCircle className="w-3.5 h-3.5" />Skipped rows:</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-red-800 flex items-center gap-1"><XCircle className="w-3.5 h-3.5" />Skipped rows:</p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-xs px-2 border-red-300 text-red-700 hover:bg-red-100"
+                      onClick={() => {
+                        // Alias map mirrors submitImport so snake_case and legacy headers round-trip correctly
+                        const FIELD_ALIASES: Record<string, string[]> = {
+                          "Bottling Date":     ["Bottling Date", "bottling_date"],
+                          "Vintage":           ["Vintage", "vintage_year"],
+                          "Batch Ref":         ["Batch Ref", "batch_ref"],
+                          "Lot Code":          ["Lot Code", "lot_code"],
+                          "Wine Colour":       ["Wine Colour", "wine_colour"],
+                          "Organic (Yes/No)":  ["Organic (Yes/No)", "Organic SO₂ Limits", "is_organic"],
+                          "Volume Bottled (L)":["Volume Bottled (L)", "volume_bottled_litres"],
+                          "Bottle Size (ml)":  ["Bottle Size (ml)", "bottle_size_ml"],
+                          "Bottles":           ["Bottles", "bottles_produced"],
+                          "Cases":             ["Cases", "cases_produced"],
+                          "Closure Type":      ["Closure Type", "closure_type"],
+                          "Free SO2 (mg/L)":   ["Free SO2 (mg/L)", "free_so2_mg_l"],
+                          "Total SO2 (mg/L)":  ["Total SO2 (mg/L)", "total_so2_mg_l"],
+                          "Notes":             ["Notes", "notes"],
+                        };
+                        const resolveField = (row: Record<string, string>, canonical: string) => {
+                          for (const alias of FIELD_ALIASES[canonical] ?? [canonical]) {
+                            if (row[alias] != null && row[alias] !== "") return row[alias];
+                          }
+                          return "";
+                        };
+                        const skippedRows = importResult.rejected
+                          .map(r => importParsed[r.row - 1])
+                          .filter(Boolean);
+                        const header = CSV_IMPORT_HEADERS.map(h => `"${h}"`).join(",");
+                        const body = skippedRows.map(row =>
+                          CSV_IMPORT_HEADERS.map(h => `"${resolveField(row, h).replace(/"/g, '""')}"`).join(",")
+                        ).join("\n");
+                        const blob = new Blob([header + "\n" + body + "\n"], { type: "text/csv" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = "bottling-skipped-rows.csv";
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                    >
+                      <FileDown className="w-3 h-3 mr-1" />Download skipped rows as CSV
+                    </Button>
+                  </div>
                   <div className="max-h-40 overflow-y-auto space-y-1">
                     {importResult.rejected.map((r, i) => (
                       <div key={i} className="text-xs text-red-700 bg-red-100 rounded px-2 py-1">
