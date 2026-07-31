@@ -1016,6 +1016,170 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Vintage pH & TA Comparison Chart ────────────────────────────────────────
+function VintagePHComparisonChart({
+  data,
+  vintageYear,
+  highlightedBatch,
+  onBatchClick,
+}: {
+  data: BatchTrailData;
+  vintageYear: string | null;
+  highlightedBatch: string | null;
+  onBatchClick: (ref: string) => void;
+}) {
+  // Collect per-batch pH/TA: bottling (primary) → fermentation end (fallback)
+  const batchMap = new Map<string, { ph: number | null; ta: number | null }>();
+
+  const sortedBottling = [...data.bottling].sort((a, b) =>
+    a.bottling_date && b.bottling_date
+      ? new Date(String(b.bottling_date)).getTime() - new Date(String(a.bottling_date)).getTime()
+      : 0
+  );
+  for (const r of sortedBottling) {
+    const ref = r.batch_ref ? String(r.batch_ref).trim() : null;
+    if (!ref) continue;
+    if (!batchMap.has(ref)) batchMap.set(ref, { ph: null, ta: null });
+    const entry = batchMap.get(ref)!;
+    if (entry.ph == null && r.ph != null) entry.ph = parseFloat(String(r.ph));
+    if (entry.ta == null && r.titratable_acidity_gl != null) entry.ta = parseFloat(String(r.titratable_acidity_gl));
+  }
+
+  const sortedFerm = [...data.fermentation].sort((a, b) =>
+    a.end_date && b.end_date
+      ? new Date(String(b.end_date)).getTime() - new Date(String(a.end_date)).getTime()
+      : 0
+  );
+  for (const r of sortedFerm) {
+    const ref = r.batch_ref ? String(r.batch_ref).trim() : null;
+    if (!ref) continue;
+    if (!batchMap.has(ref)) batchMap.set(ref, { ph: null, ta: null });
+    const entry = batchMap.get(ref)!;
+    if (entry.ph == null && r.end_ph != null) entry.ph = parseFloat(String(r.end_ph));
+    if (entry.ta == null && r.end_ta_gl != null) entry.ta = parseFloat(String(r.end_ta_gl));
+  }
+
+  const chartData = Array.from(batchMap.entries())
+    .filter(([, v]) => v.ph != null || v.ta != null)
+    .map(([ref, v]) => ({ ref, label: ref, ph: v.ph, ta: v.ta }))
+    .sort((a, b) => a.ref.localeCompare(b.ref));
+
+  if (chartData.length < 2) return null;
+
+  return (
+    <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+          <FlaskConical className="h-3.5 w-3.5" />
+          Vintage {vintageYear} — pH &amp; TA Comparison
+        </span>
+        <span className="text-xs text-muted-foreground">
+          {chartData.length} batches · click a bar to highlight
+        </span>
+      </div>
+      <div className="bg-white/70 rounded p-2">
+        <ResponsiveContainer width="100%" height={170}>
+          <BarChart
+            data={chartData}
+            margin={{ top: 4, right: 42, left: 0, bottom: 0 }}
+            onClick={(payload) => {
+              const ref = payload?.activePayload?.[0]?.payload?.ref as string | undefined;
+              if (ref) onBatchClick(ref);
+            }}
+            style={{ cursor: "pointer" }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 10 }}
+              tickLine={false}
+              interval={0}
+              height={28}
+            />
+            <YAxis
+              yAxisId="ph"
+              orientation="left"
+              tick={{ fontSize: 10 }}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={(v: number) => v.toFixed(2)}
+              domain={["auto", "auto"]}
+              width={40}
+              label={{ value: "pH", angle: -90, position: "insideLeft", style: { fontSize: 9, fill: "#6366f1" } }}
+            />
+            <YAxis
+              yAxisId="ta"
+              orientation="right"
+              tick={{ fontSize: 10 }}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={(v: number) => v.toFixed(1)}
+              domain={["auto", "auto"]}
+              width={42}
+              label={{ value: "TA g/L", angle: 90, position: "insideRight", style: { fontSize: 9, fill: "#0ea5e9" } }}
+            />
+            <Tooltip
+              contentStyle={{ fontSize: 11 }}
+              formatter={(value: number, name: string) =>
+                name === "pH" ? [value.toFixed(2), "pH"] : [value.toFixed(1) + " g/L", "TA"]
+              }
+              labelFormatter={(label: string) => `Batch: ${label}`}
+            />
+            <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
+            <Bar
+              yAxisId="ph"
+              dataKey="ph"
+              name="pH"
+              radius={[3, 3, 0, 0]}
+              maxBarSize={28}
+              fill="#6366f1"
+            >
+              {chartData.map((entry) => (
+                <rect
+                  key={entry.ref}
+                  fill={entry.ref === highlightedBatch ? "#4338ca" : "#6366f1"}
+                  opacity={highlightedBatch && entry.ref !== highlightedBatch ? 0.5 : 1}
+                />
+              ))}
+            </Bar>
+            <Bar
+              yAxisId="ta"
+              dataKey="ta"
+              name="TA (g/L)"
+              radius={[3, 3, 0, 0]}
+              maxBarSize={28}
+              fill="#0ea5e9"
+            >
+              {chartData.map((entry) => (
+                <rect
+                  key={entry.ref}
+                  fill={entry.ref === highlightedBatch ? "#0369a1" : "#0ea5e9"}
+                  opacity={highlightedBatch && entry.ref !== highlightedBatch ? 0.5 : 1}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      {highlightedBatch ? (
+        <p className="text-xs text-indigo-700">
+          Showing: <span className="font-mono font-semibold">{highlightedBatch}</span> — matching records are highlighted below.{" "}
+          <button
+            className="underline text-indigo-500 hover:text-indigo-700"
+            onClick={() => onBatchClick(highlightedBatch)}
+          >
+            Clear
+          </button>
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          pH and TA at bottling (or latest available stage per batch). Click a batch bar to scroll to its records.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ─── Batch Trail Dialog ───────────────────────────────────────────────────────
 interface BatchTrailData {
   batchRef: string | null;
@@ -1312,6 +1476,24 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
     signOffMutation.mutate({ signatureDataUrl: dataUrl, name: signerName, role: signerRole });
   };
 
+  // ── Vintage comparison chart state ──────────────────────────────────────────
+  const [highlightedBatch, setHighlightedBatch] = useState<string | null>(null);
+  const batchRowRefs = useRef<Map<string, HTMLElement>>(new Map());
+
+  const handleBatchHighlight = (ref: string) => {
+    setHighlightedBatch(prev => {
+      const next = prev === ref ? null : ref;
+      if (next) {
+        // Scroll to the first row with this batch_ref after state update
+        setTimeout(() => {
+          const el = batchRowRefs.current.get(next);
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }, 50);
+      }
+      return next;
+    });
+  };
+
   const totalLinked = (data?.fermentation.length ?? 0) + (data?.cellarOps.length ?? 0) + (data?.so2Tests.length ?? 0) + (data?.bottling.length ?? 0);
   const isVintageScoped = data?.scope === "vintageYear";
 
@@ -1342,6 +1524,15 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
             <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             <span>This pressing record has no batch reference. Results show all winery records for Vintage {vintageYear} — they may span multiple batches.</span>
           </div>
+        )}
+
+        {isVintageScoped && data && (
+          <VintagePHComparisonChart
+            data={data}
+            vintageYear={vintageYear}
+            highlightedBatch={highlightedBatch}
+            onBatchClick={handleBatchHighlight}
+          />
         )}
 
         {data && (
@@ -1596,8 +1787,15 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
             {data.fermentation.length > 0 && (
               <TrailSection icon={FlaskConical} title="Fermentation" count={data.fermentation.length}>
                 <div className="rounded border divide-y">
-                  {data.fermentation.map(r => (
-                    <div key={String(r.id)} className="px-3 py-2.5 space-y-1">
+                  {data.fermentation.map(r => {
+                    const rowRef = r.batch_ref ? String(r.batch_ref).trim() : null;
+                    const isHighlighted = !!(rowRef && highlightedBatch && rowRef === highlightedBatch);
+                    return (
+                    <div
+                      key={String(r.id)}
+                      className={`px-3 py-2.5 space-y-1 transition-colors${isHighlighted ? " bg-indigo-50 ring-1 ring-indigo-300" : ""}`}
+                      ref={el => { if (el && rowRef && !batchRowRefs.current.has(rowRef)) batchRowRefs.current.set(rowRef, el); }}
+                    >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium">{r.start_date ? fmtDate(r.start_date) : "—"}{r.end_date ? ` → ${fmtDate(r.end_date)}` : ""}</span>
@@ -1621,7 +1819,8 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
                       </div>
                       {!!r.notes && <p className="text-xs text-muted-foreground italic">{String(r.notes)}</p>}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </TrailSection>
             )}
@@ -1688,8 +1887,15 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
             {data.bottling.length > 0 && (
               <TrailSection icon={Package} title="Bottling Runs" count={data.bottling.length}>
                 <div className="rounded border divide-y">
-                  {data.bottling.map(r => (
-                    <div key={String(r.id)} className="px-3 py-2.5 space-y-1">
+                  {data.bottling.map(r => {
+                    const rowRef = r.batch_ref ? String(r.batch_ref).trim() : null;
+                    const isHighlighted = !!(rowRef && highlightedBatch && rowRef === highlightedBatch);
+                    return (
+                    <div
+                      key={String(r.id)}
+                      className={`px-3 py-2.5 space-y-1 transition-colors${isHighlighted ? " bg-indigo-50 ring-1 ring-indigo-300" : ""}`}
+                      ref={el => { if (el && rowRef && !batchRowRefs.current.has(rowRef)) batchRowRefs.current.set(rowRef, el); }}
+                    >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium">{fmtDate(r.bottling_date)}</span>
@@ -1741,7 +1947,8 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
                       {!!r.source_vessel_ref && <p className="text-xs text-muted-foreground">Source vessel: {String(r.source_vessel_ref)}</p>}
                       {!!r.notes && <p className="text-xs text-muted-foreground italic">{String(r.notes)}</p>}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </TrailSection>
             )}

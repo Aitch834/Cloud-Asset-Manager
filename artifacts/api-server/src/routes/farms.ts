@@ -36927,7 +36927,8 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
       db.execute(sql`
         SELECT f.id, f.start_date, f.end_date, f.batch_ref, f.vintage_year, f.wine_colour,
                f.fermentation_type, f.yeast_strain, f.inoculation_date, f.volume_litres,
-               f.so2_at_fermentation_mg_l, f.operator_name, f.notes,
+               f.so2_at_fermentation_mg_l, f.end_ph, f.end_ta_gl, f.is_organic,
+               f.operator_name, f.notes,
                v.vessel_ref
         FROM winery_fermentation_records f
         LEFT JOIN winery_vessels v ON v.id = f.vessel_id
@@ -36961,7 +36962,8 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
         SELECT b.id, b.bottling_date, b.batch_ref, b.vintage_year, b.wine_colour,
                b.lot_code, b.volume_bottled_litres, b.bottle_size_ml, b.bottles_produced,
                b.cases_produced, b.closure_type, b.free_so2_mg_l, b.total_so2_mg_l,
-               b.actual_abv_pct, b.is_organic, b.certified_organic, b.operator_name, b.notes,
+               b.actual_abv_pct, b.is_organic, b.certified_organic, b.ph, b.titratable_acidity_gl,
+               b.operator_name, b.notes,
                v.vessel_ref AS source_vessel_ref
         FROM winery_bottling_records b
         LEFT JOIN winery_vessels v ON v.id = b.source_vessel_id
@@ -36982,7 +36984,8 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
       db.execute(sql`
         SELECT f.id, f.start_date, f.end_date, f.batch_ref, f.vintage_year, f.wine_colour,
                f.fermentation_type, f.yeast_strain, f.inoculation_date, f.volume_litres,
-               f.so2_at_fermentation_mg_l, f.operator_name, f.notes,
+               f.so2_at_fermentation_mg_l, f.end_ph, f.end_ta_gl, f.is_organic,
+               f.operator_name, f.notes,
                v.vessel_ref
         FROM winery_fermentation_records f
         LEFT JOIN winery_vessels v ON v.id = f.vessel_id
@@ -37016,7 +37019,8 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
         SELECT b.id, b.bottling_date, b.batch_ref, b.vintage_year, b.wine_colour,
                b.lot_code, b.volume_bottled_litres, b.bottle_size_ml, b.bottles_produced,
                b.cases_produced, b.closure_type, b.free_so2_mg_l, b.total_so2_mg_l,
-               b.actual_abv_pct, b.is_organic, b.certified_organic, b.operator_name, b.notes,
+               b.actual_abv_pct, b.is_organic, b.certified_organic, b.ph, b.titratable_acidity_gl,
+               b.operator_name, b.notes,
                v.vessel_ref AS source_vessel_ref
         FROM winery_bottling_records b
         LEFT JOIN winery_vessels v ON v.id = b.source_vessel_id
