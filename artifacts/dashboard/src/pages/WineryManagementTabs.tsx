@@ -243,9 +243,29 @@ const ADDITIVE_CATEGORY_LABELS: Record<string, string> = {
 };
 interface AdditionRow { tempId: number; id?: number; additiveName: string; category: string; dose: string; unit: string; notes: string }
 
+// ─── Harvest Reception CSV import headers ──────────────────────────────────────
+const HARVEST_IMPORT_HEADERS = [
+  "Reception Date",
+  "Vintage Year",
+  "Variety",
+  "Source Type",
+  "Grower Name",
+  "Gross Weight (kg)",
+  "Tare Weight (kg)",
+  "Net Weight (kg)",
+  "Brix",
+  "pH",
+  "TA (g/L)",
+  "Temp (°C)",
+  "Grape Condition",
+  "Accepted (Yes/No)",
+  "Notes",
+];
+
 // ─── Harvest Reception Tab ─────────────────────────────────────────────────────
 export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
   const crud = useCrud(farmId, "winery-reception", "winery-reception");
+  const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
@@ -254,6 +274,138 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const sf = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
+
+  // ── Import state ────────────────────────────────────────────────────────────
+  const [importOpen, setImportOpen] = useState(false);
+  const [importParsed, setImportParsed] = useState<Record<string, string>[]>([]);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState<{ insertedCount: number; rejectedCount: number; rejected: { row: number; reason: string }[] } | null>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
+
+  const downloadHarvestTemplate = () => {
+    const exampleRow = [
+      "2024-09-15",         // Reception Date (YYYY-MM-DD)
+      "2024",               // Vintage Year
+      "Bacchus",            // Variety
+      "Own vineyard",       // Source Type (Own vineyard, Contract grower, Purchased grapes)
+      "",                   // Grower Name (if contract grower)
+      "5200",               // Gross Weight (kg)
+      "1800",               // Tare Weight (kg)
+      "3400",               // Net Weight (kg)
+      "19.5",               // Brix
+      "3.45",               // pH
+      "7.2",                // TA (g/L)
+      "14",                 // Temp (°C)
+      "Good",               // Grape Condition (Excellent, Good, Fair, Poor)
+      "Yes",                // Accepted (Yes/No)
+      "Example row — delete before importing", // Notes
+    ];
+    const header = HARVEST_IMPORT_HEADERS.map(h => `"${h}"`).join(",");
+    const example = exampleRow.map(v => `"${v.replace(/"/g, '""')}"`).join(",");
+    const blob = new Blob([header + "\n" + example + "\n"], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "harvest-reception-import-template.csv";
+    a.click();
+  };
+
+  const handleHarvestImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setImportError(null);
+    setImportResult(null);
+    setImportParsed([]);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) { setImportError("CSV must have a header row and at least one data row."); return; }
+      // Proper character-by-character CSV parser (handles quoted fields with commas/newlines)
+      const parseCsvRow = (line: string): string[] => {
+        const cells: string[] = [];
+        let i = 0;
+        while (i <= line.length) {
+          if (i === line.length) { cells.push(""); break; }
+          if (line[i] === '"') {
+            let val = ""; i++;
+            while (i < line.length) {
+              if (line[i] === '"') {
+                if (line[i + 1] === '"') { val += '"'; i += 2; }
+                else { i++; break; }
+              } else { val += line[i++]; }
+            }
+            cells.push(val.trim());
+            if (i < line.length && line[i] === ',') i++;
+          } else {
+            const end = line.indexOf(',', i);
+            if (end === -1) { cells.push(line.slice(i).trim()); break; }
+            cells.push(line.slice(i, end).trim());
+            i = end + 1;
+          }
+        }
+        return cells;
+      };
+      const headers = parseCsvRow(lines[0]);
+      const rows: Record<string, string>[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cells = parseCsvRow(lines[i]);
+        const row: Record<string, string> = {};
+        headers.forEach((h, idx) => { row[h] = cells[idx] ?? ""; });
+        rows.push(row);
+      }
+      if (rows.length > 500) { setImportError("Maximum 500 rows per import."); return; }
+      setImportParsed(rows);
+    };
+    reader.readAsText(file);
+  };
+
+  const submitHarvestImport = async () => {
+    if (!importParsed.length) return;
+    setImportLoading(true);
+    setImportError(null);
+    try {
+      const records = importParsed.map(row => ({
+        receptionDate: row["Reception Date"] || row["reception_date"] || undefined,
+        vintageYear: row["Vintage Year"] || row["vintage_year"] || undefined,
+        variety: row["Variety"] || row["variety"] || undefined,
+        sourceType: row["Source Type"] || row["source_type"] || undefined,
+        growerName: row["Grower Name"] || row["grower_name"] || undefined,
+        grossWeightKg: row["Gross Weight (kg)"] || row["gross_weight_kg"] || undefined,
+        tareWeightKg: row["Tare Weight (kg)"] || row["tare_weight_kg"] || undefined,
+        netWeightKg: row["Net Weight (kg)"] || row["net_weight_kg"] || undefined,
+        brix: row["Brix"] || row["brix"] || undefined,
+        ph: row["pH"] || row["ph"] || undefined,
+        titratableAcidityGl: row["TA (g/L)"] || row["titratable_acidity_gl"] || undefined,
+        intakeTemperatureC: row["Temp (°C)"] || row["intake_temperature_c"] || undefined,
+        grapeCondition: row["Grape Condition"] || row["grape_condition"] || undefined,
+        accepted: (row["Accepted (Yes/No)"] || row["accepted"] || "yes").toLowerCase() === "no" ? "false" : "true",
+        notes: row["Notes"] || row["notes"] || undefined,
+      }));
+      const r = await fetch(api(`farms/${farmId}/winery-reception/bulk`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ records }),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Import failed"); }
+      const result = await r.json();
+      setImportResult(result);
+      if (result.insertedCount > 0) qc.invalidateQueries({ queryKey: ["winery-reception", farmId] });
+    } catch (err) {
+      setImportError((err as Error).message || "Import failed");
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const resetHarvestImportDialog = () => {
+    setImportParsed([]);
+    setImportError(null);
+    setImportResult(null);
+    setImportLoading(false);
+    if (importFileRef.current) importFileRef.current.value = "";
+  };
 
   const grossKg = parseFloat(String(form.grossWeightKg || "0"));
   const tareKg = parseFloat(String(form.tareWeightKg || "0"));
@@ -308,6 +460,7 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
           <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
         </Select>
         <Button size="sm" variant="outline" className="ml-auto" onClick={() => exportCSV(filtered, "harvest-reception.csv", harvestCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+        <Button size="sm" variant="outline" onClick={() => { resetHarvestImportDialog(); setImportOpen(true); }}><Upload className="w-3.5 h-3.5 mr-1" />Import CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
       </div>
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
@@ -477,6 +630,126 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
             <Button variant="destructive" onClick={async () => { try { await crud.remove.mutateAsync(Number(deleting!.id)); toast({ title: "Deleted" }); } catch (err) { toast({ title: "Delete failed", description: (err as Error).message || "An unexpected error occurred.", variant: "destructive" }); } setDeleting(null); }}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* CSV Import Dialog */}
+      <Dialog open={importOpen} onOpenChange={o => { if (!o) { setImportOpen(false); resetHarvestImportDialog(); } }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Import Harvest Reception Records from CSV</DialogTitle>
+            <DialogDescription>
+              Upload a CSV file to bulk-create intake records. Rows missing required fields (Reception Date, Vintage Year) will be reported and skipped. Other rows will be imported.
+            </DialogDescription>
+          </DialogHeader>
+
+          {!importResult && (
+            <div className="space-y-4">
+              <div className="rounded-md border border-dashed p-4 bg-muted/30 text-xs text-muted-foreground space-y-1">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="font-medium text-foreground">Expected CSV columns (header row required):</p>
+                  <button
+                    type="button"
+                    onClick={downloadHarvestTemplate}
+                    className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                  >
+                    <FileDown className="w-3 h-3" />Download template
+                  </button>
+                </div>
+                <p className="font-mono">{HARVEST_IMPORT_HEADERS.join(", ")}</p>
+                <p className="mt-1">The template includes an example row showing the expected formats — delete it before importing real data.</p>
+              </div>
+              <div>
+                <Label>Select CSV file</Label>
+                <input
+                  ref={importFileRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={handleHarvestImportFile}
+                  className="mt-1 block w-full text-sm file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
+                />
+              </div>
+              {importError && (
+                <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>{importError}</span>
+                </div>
+              )}
+              {importParsed.length > 0 && !importError && (
+                <div className="rounded-md bg-blue-50 border border-blue-200 p-3 text-sm text-blue-800">
+                  <p className="font-medium">{importParsed.length} row{importParsed.length !== 1 ? "s" : ""} parsed from file.</p>
+                  <div className="mt-2 max-h-32 overflow-y-auto rounded border border-blue-200 bg-white">
+                    <table className="w-full text-xs">
+                      <thead><tr className="bg-blue-50 border-b border-blue-200">
+                        <th className="p-1.5 text-left">Reception Date</th>
+                        <th className="p-1.5 text-left">Vintage</th>
+                        <th className="p-1.5 text-left">Variety</th>
+                        <th className="p-1.5 text-left">Net Weight (kg)</th>
+                        <th className="p-1.5 text-left">Accepted</th>
+                      </tr></thead>
+                      <tbody>
+                        {importParsed.slice(0, 10).map((row, i) => (
+                          <tr key={i} className="border-b border-blue-100">
+                            <td className="p-1.5">{row["Reception Date"] || "—"}</td>
+                            <td className="p-1.5">{row["Vintage Year"] || "—"}</td>
+                            <td className="p-1.5">{row["Variety"] || "—"}</td>
+                            <td className="p-1.5">{row["Net Weight (kg)"] || "—"}</td>
+                            <td className="p-1.5">{row["Accepted (Yes/No)"] || "—"}</td>
+                          </tr>
+                        ))}
+                        {importParsed.length > 10 && (
+                          <tr><td colSpan={5} className="p-1.5 text-center text-muted-foreground">… and {importParsed.length - 10} more rows</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {importResult && (
+            <div className="space-y-3">
+              <div className={`rounded-md p-3 border flex items-start gap-2 ${importResult.insertedCount > 0 ? "bg-green-50 border-green-200 text-green-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}>
+                {importResult.insertedCount > 0 ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" /> : <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />}
+                <div>
+                  <p className="font-medium">
+                    {importResult.insertedCount} record{importResult.insertedCount !== 1 ? "s" : ""} imported successfully.
+                    {importResult.rejectedCount > 0 && ` ${importResult.rejectedCount} row${importResult.rejectedCount !== 1 ? "s" : ""} skipped — see details below.`}
+                  </p>
+                </div>
+              </div>
+              {importResult.rejected.length > 0 && (
+                <div className="rounded-md border bg-muted/20 p-3 space-y-1 max-h-48 overflow-y-auto">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Skipped rows</p>
+                  {importResult.rejected.map((r, i) => (
+                    <div key={i} className="text-xs text-red-700 flex items-start gap-1.5">
+                      <XCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                      <span>{r.reason}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setImportOpen(false); resetHarvestImportDialog(); }}>
+              {importResult ? "Close" : "Cancel"}
+            </Button>
+            {!importResult && (
+              <Button
+                onClick={submitHarvestImport}
+                disabled={importParsed.length === 0 || importLoading || !!importError}
+              >
+                {importLoading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                Import {importParsed.length > 0 ? `${importParsed.length} Row${importParsed.length !== 1 ? "s" : ""}` : ""}
+              </Button>
+            )}
+            {importResult && (
+              <Button variant="outline" onClick={resetHarvestImportDialog}>Import Another File</Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

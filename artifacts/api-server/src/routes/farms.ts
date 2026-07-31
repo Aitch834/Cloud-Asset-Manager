@@ -36545,6 +36545,63 @@ router.delete("/farms/:farmId/winery-reception/:id", requireAuth, requireTenant,
   res.json({ success: true });
 });
 
+router.post("/farms/:farmId/winery-reception/bulk", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { records } = req.body as { records?: unknown[] };
+  if (!Array.isArray(records) || records.length === 0) {
+    res.status(400).json({ error: "No records provided." });
+    return;
+  }
+  if (records.length > 500) {
+    res.status(400).json({ error: "Maximum 500 records per import." });
+    return;
+  }
+
+  const rejected: { row: number; reason: string }[] = [];
+  const toInsert: Record<string, unknown>[] = [];
+
+  for (let i = 0; i < records.length; i++) {
+    // Read raw strings BEFORE sanitiseBody (which converts ISO date strings to Date objects)
+    const record = records[i] as Record<string, unknown>;
+    const rawDateStr = (typeof record.receptionDate === "string" ? record.receptionDate : "").trim();
+    const rawVintage = record.vintageYear;
+    const rowNum = i + 1;
+
+    const missingFields: string[] = [];
+    if (!rawDateStr) missingFields.push("Reception Date");
+    if (rawVintage == null || rawVintage === "") missingFields.push("Vintage Year");
+    if (missingFields.length > 0) {
+      rejected.push({ row: rowNum, reason: `Row ${rowNum}: ${missingFields.join(", ")} ${missingFields.length === 1 ? "is" : "are"} required.` });
+      continue;
+    }
+    const dateFormatOk = /^\d{4}-\d{2}-\d{2}$/.test(rawDateStr);
+    let dateValid = false;
+    if (dateFormatOk) {
+      const [y, mo, d] = rawDateStr.split("-").map(Number);
+      const daysInMonth = new Date(y, mo, 0).getDate();
+      dateValid = y >= 1 && mo >= 1 && mo <= 12 && d >= 1 && d <= daysInMonth;
+    }
+    if (!dateValid) {
+      rejected.push({ row: rowNum, reason: `Row ${rowNum}: Reception Date "${rawDateStr}" is not a valid YYYY-MM-DD date.` });
+      continue;
+    }
+    const raw = sanitiseBody(record);
+    toInsert.push(raw);
+  }
+
+  const inserted: unknown[] = [];
+  for (const b of toInsert) {
+    try {
+      const r = await db.execute(sql`INSERT INTO winery_reception_records (farm_id,reception_date,vintage_year,variety,source_type,grower_name,vehicle_reg,driver_name,gross_weight_kg,tare_weight_kg,net_weight_kg,intake_temperature_c,brix,ph,titratable_acidity_gl,potential_alcohol,grape_condition,botrytis_pct,mog_pct,holding_bin,inspector_name,accepted,rejection_reason,notes) VALUES (${farmId},${n(b.receptionDate)},${ni(b.vintageYear)},${n(b.variety)},${n(b.sourceType)},${n(b.growerName)},${n(b.vehicleReg)},${n(b.driverName)},${nf(b.grossWeightKg)},${nf(b.tareWeightKg)},${nf(b.netWeightKg)},${nf(b.intakeTemperatureC)},${nf(b.brix)},${nf(b.ph)},${nf(b.titratableAcidityGl)},${nf(b.potentialAlcohol)},${n(b.grapeCondition)},${nf(b.botrytisPct)},${nf(b.mogPct)},${n(b.holdingBin)},${n(b.inspectorName)},${nb(b.accepted) ?? true},${n(b.rejectionReason)},${n(b.notes)}) RETURNING id`);
+      inserted.push(r.rows[0]);
+    } catch (err: unknown) {
+      rejected.push({ row: toInsert.indexOf(b) + 1, reason: `Row ${toInsert.indexOf(b) + 1}: Database error — ${(err as Error).message ?? "unknown error"}` });
+    }
+  }
+
+  res.status(201).json({ insertedCount: inserted.length, rejectedCount: rejected.length, rejected });
+});
+
 // ── Pressing Records ───────────────────────────────────────────────────────────
 // ── Winery Batch Settings ──────────────────────────────────────────────────────
 // Helper: build the next batch ref string from settings (does NOT increment)
