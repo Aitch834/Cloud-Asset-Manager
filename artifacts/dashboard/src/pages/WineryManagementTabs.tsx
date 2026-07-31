@@ -916,6 +916,12 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
           className="pl-8 h-8 w-56 text-sm"
           placeholder="Find batch by ref…"
           value={value}
+          role="combobox"
+          aria-label="Batch reference search"
+          aria-autocomplete="list"
+          aria-expanded={dropdownOpen && suggestions.length > 0}
+          aria-controls="batch-ref-listbox"
+          aria-activedescendant={dropdownOpen && highlightedIndex >= 0 ? `batch-ref-option-${highlightedIndex}` : undefined}
           onChange={e => { setValue(e.target.value); setDropdownOpen(true); }}
           onFocus={() => { if (value.trim()) setDropdownOpen(true); }}
           onKeyDown={e => {
@@ -939,10 +945,19 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
           }}
         />
         {dropdownOpen && suggestions.length > 0 && (
-          <div ref={listRef} className="absolute z-50 mt-1 w-full min-w-max rounded-md border bg-popover shadow-md overflow-y-auto max-h-60">
+          <div
+            ref={listRef}
+            id="batch-ref-listbox"
+            role="listbox"
+            aria-label="Batch reference suggestions"
+            className="absolute z-50 mt-1 w-full min-w-max rounded-md border bg-popover shadow-md overflow-y-auto max-h-60"
+          >
             {suggestions.map((s, idx) => (
               <button
                 key={s.ref}
+                id={`batch-ref-option-${idx}`}
+                role="option"
+                aria-selected={idx === highlightedIndex}
                 className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground flex items-center gap-2${idx === highlightedIndex ? " bg-accent text-accent-foreground" : ""}`}
                 // onMouseDown prevents input blur before click registers
                 onMouseDown={e => { e.preventDefault(); openTrail(s.ref); }}
