@@ -3105,6 +3105,8 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
     { key: "max_temp_c", label: "Max Temp (°C)" },
     { key: "min_temp_c", label: "Min Temp (°C)" },
     { key: "so2_at_fermentation_mg_l", label: "SO₂ at Fermentation (mg/L)" },
+    { key: "end_ph", label: "End pH", fmt: (r: Record<string, unknown>) => r.end_ph != null ? fmtNum(r.end_ph, 2) : "" },
+    { key: "end_ta_gl", label: "End TA (g/L)", fmt: (r: Record<string, unknown>) => r.end_ta_gl != null ? fmtNum(r.end_ta_gl, 1) : "" },
     { key: "operator_name", label: "Operator" },
     { key: "notes", label: "Notes" },
   ];
@@ -3169,6 +3171,8 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
               <th className="text-left p-3 font-medium">Type</th>
               <th className="text-right p-3 font-medium">Start Brix</th>
               <th className="text-right p-3 font-medium">End Brix</th>
+              <th className="text-right p-3 font-medium">End pH</th>
+              <th className="text-right p-3 font-medium">End TA (g/L)</th>
               <th className="text-left p-3 font-medium">Status</th>
               <th className="p-3"></th>
             </tr></thead>
@@ -3188,6 +3192,8 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
                   <td className="p-3 text-muted-foreground text-xs">{r.fermentation_type ? String(r.fermentation_type).split(" ")[0] : "—"}</td>
                   <td className="p-3 text-right">{fmtNum(r.start_brix, 1)}</td>
                   <td className="p-3 text-right">{fmtNum(r.end_brix, 1)}</td>
+                  <td className="p-3 text-right">{r.end_ph != null ? fmtNum(r.end_ph, 2) : "—"}</td>
+                  <td className="p-3 text-right">{r.end_ta_gl != null ? fmtNum(r.end_ta_gl, 1) : "—"}</td>
                   <td className="p-3">{fermentStatus(r)}</td>
                   <td className="p-3 text-right whitespace-nowrap">
                     {!!r.batch_ref && <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title={`View batch trail for ${String(r.batch_ref)}`} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>}
