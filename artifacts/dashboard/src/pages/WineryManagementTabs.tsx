@@ -3228,6 +3228,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
               <th className="text-right p-3 font-medium">Brix °</th>
               <th className="text-right p-3 font-medium">pH</th>
               <th className="text-left p-3 font-medium">Turbidity</th>
+              <th className="text-left p-3 font-medium">Notes</th>
               <th className="p-3"></th>
             </tr></thead>
             <tbody className="divide-y">
@@ -3239,9 +3240,6 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                     {(r.is_organic === true || r.is_organic === "true" || r.is_organic === 1) && (
                       <span className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 font-sans"><Leaf className="w-3 h-3" />Organic</span>
                     )}
-                    {!!r.notes && (
-                      <p className="text-muted-foreground font-sans font-normal mt-0.5 max-w-[18rem] truncate" title={String(r.notes)}>{String(r.notes)}</p>
-                    )}
                   </td>
                   <td className="p-3 text-muted-foreground">{fmt(r.press_type)}</td>
                   <td className="p-3 text-right">{fmtNum(r.grapes_pressed_kg, 0)}</td>
@@ -3250,6 +3248,9 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                   <td className="p-3 text-right">{fmtNum(r.juice_brix, 1)}</td>
                   <td className="p-3 text-right">{fmtNum(r.juice_ph, 2)}</td>
                   <td className="p-3 text-left text-muted-foreground">{fmt(r.juice_turbidity)}</td>
+                  <td className="p-3 text-left text-muted-foreground max-w-[14rem]">
+                    {r.notes ? <span className="truncate block" title={String(r.notes)}>{String(r.notes)}</span> : <span className="text-muted-foreground/50">—</span>}
+                  </td>
                   <td className="p-3 text-right whitespace-nowrap">
                     {!!r.batch_ref && <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title={`View batch trail for ${String(r.batch_ref)}`} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>}
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
