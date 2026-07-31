@@ -129,5 +129,28 @@ export async function runWineryMigrations(): Promise<void> {
   await db.execute(sql`ALTER TABLE winery_fermentation_records ADD COLUMN IF NOT EXISTS end_ph NUMERIC(4,2)`);
   await db.execute(sql`ALTER TABLE winery_fermentation_records ADD COLUMN IF NOT EXISTS end_ta_gl NUMERIC(6,2)`);
 
+  // Ensure the so2_from_pressing flag column exists before the backfill runs.
+  await db.execute(sql`ALTER TABLE winery_fermentation_records ADD COLUMN IF NOT EXISTS so2_from_pressing boolean NOT NULL DEFAULT false`);
+
+  // SO₂-from-pressing backfill — runs after winery schema is guaranteed to exist.
+  // Sets so2_from_pressing = true for fermentation records whose SO₂ value was
+  // auto-filled from a linked pressing batch before the flag existed.
+  // Idempotent: only touches rows where so2_from_pressing is currently false.
+  const backfillResult = await db.execute(sql`
+    UPDATE winery_fermentation_records f
+    SET so2_from_pressing = true
+    FROM winery_pressing_additions a
+    WHERE f.pressing_record_id IS NOT NULL
+      AND f.so2_from_pressing = false
+      AND a.pressing_record_id = f.pressing_record_id
+      AND a.category = 'so2'
+      AND f.so2_at_fermentation_mg_l IS NOT NULL
+      AND f.so2_at_fermentation_mg_l::numeric = a.dose::numeric
+  `);
+  const backfillCount = (backfillResult as unknown as { rowCount?: number }).rowCount ?? 0;
+  if (backfillCount > 0) {
+    console.log(`[WINERY-MIGRATE] SO₂ backfill: updated ${backfillCount} fermentation record(s) with so2_from_pressing = true`);
+  }
+
   console.log("[WINERY-MIGRATE] Done.");
 }
