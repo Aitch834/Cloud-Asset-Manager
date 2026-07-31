@@ -3946,7 +3946,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                     </td>
                     <td className="p-3 text-muted-foreground">{fmt(r.operator_name)}</td>
                     <td className="p-3 text-right whitespace-nowrap">
-                      {!!r.batch_ref && <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title={`View batch trail for ${String(r.batch_ref)}`} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>}
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title={r.batch_ref ? `View batch trail for ${String(r.batch_ref)}` : "No batch reference — batch trail unavailable"} disabled={!r.batch_ref} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
@@ -5181,7 +5181,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
                   <td className="p-3 text-right text-muted-foreground">{r.max_permitted_mg_l ? `${fmtNum(r.max_permitted_mg_l, 0)}` : "—"}</td>
                   <td className="p-3"><So2Badge compliant={r.so2_compliant} /></td>
                   <td className="p-3 text-right whitespace-nowrap">
-                    {!!r.batch_ref && <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title={`View batch trail for ${String(r.batch_ref)}`} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>}
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title={r.batch_ref ? `View batch trail for ${String(r.batch_ref)}` : "No batch reference — batch trail unavailable"} disabled={!r.batch_ref} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
