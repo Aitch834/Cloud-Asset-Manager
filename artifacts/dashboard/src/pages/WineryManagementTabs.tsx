@@ -5531,13 +5531,22 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     { key: "closure_type", label: "Closure Type" },
     { key: "free_so2_mg_l", label: "Free SO₂ (mg/L)" },
     { key: "total_so2_mg_l", label: "Total SO₂ (mg/L)" },
-    { key: "so2_compliant", label: "SO₂ Compliant", fmt: (r: Record<string, unknown>) => {
+    { key: "so2_ceiling", label: "SO₂ ceiling (mg/L)", fmt: (r: Record<string, unknown>) => {
+      const colour = String(r.wine_colour ?? "");
+      if (!colour) return "";
+      const isOrg = r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
+      return (isOrg ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour]) ?? "";
+    }},
+    { key: "so2_compliant", label: "Compliance", fmt: (r: Record<string, unknown>) => {
       const colour = String(r.wine_colour ?? "");
       const isOrg = r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
-      const total = r.total_so2_mg_l != null ? parseFloat(String(r.total_so2_mg_l)) : null;
+      const rawTotal = r.total_so2_mg_l;
+      if (rawTotal == null || rawTotal === "") return "";
+      const total = parseFloat(String(rawTotal));
+      if (isNaN(total)) return "";
       const ceiling = colour ? (isOrg ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour]) : undefined;
-      if (total == null || !ceiling) return "";
-      return total <= parseFloat(ceiling) ? "Yes" : "No";
+      if (!ceiling) return "";
+      return total <= parseFloat(ceiling) ? "Compliant" : "Exceeds";
     }},
     { key: "certified_organic", label: "Certified Organic", fmt: (r: Record<string, unknown>) => r.certified_organic ? "Yes" : "No" },
     { key: "notes", label: "Notes" },
