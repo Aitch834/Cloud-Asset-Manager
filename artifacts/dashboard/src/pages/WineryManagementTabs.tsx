@@ -1990,7 +1990,7 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
               <Button variant="outline" size="sm" onClick={() => exportBatchTrailCsv(pressing, data, farmName)}>
                 <FileDown className="w-3.5 h-3.5 mr-1" />Export CSV
               </Button>
-              <Button variant="outline" size="sm" onClick={() => printBatchTrail(pressing, data, farmName, currentSig, { name: currentSignerName, role: currentSignerRole, signedAt: currentSignedAt })}>
+              <Button variant="outline" size="sm" onClick={() => { void printBatchTrail(farmId, pressing, data, farmName, currentSig, { name: currentSignerName, role: currentSignerRole, signedAt: currentSignedAt }); }}>
                 <Printer className="w-3.5 h-3.5 mr-1" />Print / Export PDF
               </Button>
               <Button size="sm" variant={currentSig ? "outline" : "default"} onClick={openSignDialog}>
@@ -2246,7 +2246,21 @@ function sanitiseSignatureForHtml(sig: string | null | undefined): string | null
   return sig;
 }
 
-function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData, farmName: string, auditSig?: string | null, signerInfo?: { name: string | null; role: string | null; signedAt: string | null }) {
+async function printBatchTrail(farmId: number, pressing: Record<string, unknown>, data: BatchTrailData, farmName: string, auditSig?: string | null, signerInfo?: { name: string | null; role: string | null; signedAt: string | null }) {
+  // Fetch attachments for the pressing record (best-effort — PDF still prints if this fails)
+  let pressAttachments: { fileName: string; uploadedAt: string }[] = [];
+  const pressId = pressing.id != null ? Number(pressing.id) : null;
+  if (pressId) {
+    try {
+      const attRes = await fetch(api(`farms/${farmId}/record-attachments?recordType=winery-pressing&recordId=${pressId}`), { credentials: "include" });
+      if (attRes.ok) {
+        const attJson = await attRes.json();
+        pressAttachments = (Array.isArray(attJson) ? attJson : []) as { fileName: string; uploadedAt: string }[];
+      }
+    } catch {
+      // ignore — non-critical
+    }
+  }
   const batchRef = String(pressing.batch_ref ?? "");
   const printedOn = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   const vintage = pressing.vintage_year ? String(pressing.vintage_year) : null;
@@ -2434,9 +2448,22 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
 
     ${pressingNotes ? `
     <!-- Notes -->
-    <div style="border-top:1px solid #e5e7eb;padding-top:8px">
+    <div style="border-top:1px solid #e5e7eb;padding-top:8px${pressAttachments.length > 0 ? ";margin-bottom:8px" : ""}">
       <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:3px">Pressing Notes</p>
       <p style="font-size:11px;color:#374151;font-style:italic">${escHtml(pressingNotes)}</p>
+    </div>` : ""}
+
+    ${pressAttachments.length > 0 ? `
+    <!-- Attachments -->
+    <div style="border-top:1px solid #e5e7eb;padding-top:8px">
+      <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:5px">Attachments (${pressAttachments.length})</p>
+      <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:3px">
+        ${pressAttachments.map(a => `<li style="font-size:10px;color:#374151;display:flex;align-items:center;gap:6px">
+          <span style="display:inline-block;width:14px;height:14px;background:#dbeafe;border-radius:2px;flex-shrink:0;text-align:center;line-height:14px;font-size:9px;color:#1e40af">📎</span>
+          <span style="font-family:monospace">${escHtml(String(a.fileName ?? ""))}</span>
+          <span style="color:#9ca3af;font-size:9px">${a.uploadedAt ? fmtDate(a.uploadedAt) : ""}</span>
+        </li>`).join("")}
+      </ul>
     </div>` : ""}
 
   </div>
