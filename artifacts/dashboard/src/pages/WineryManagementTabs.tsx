@@ -1503,16 +1503,23 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 flex-wrap">
             <GitBranch className="h-4 w-4 text-blue-600" />
-            Batch Trail — {batchRef ?? (vintageYear ? `Vintage ${vintageYear}` : "—")}
+            {isVintageScoped && vintageYear
+              ? `Full Vintage Trail — Vintage ${vintageYear}`
+              : `Batch Trail — ${batchRef ?? (vintageYear ? `Vintage ${vintageYear}` : "—")}`}
             {(pressing.is_organic === true || pressing.is_organic === "true" || pressing.is_organic === 1) && (
               <Badge className="text-xs bg-green-100 text-green-800 border-0 inline-flex items-center gap-0.5 font-normal"><Leaf className="w-3 h-3" />Organic</Badge>
             )}
           </DialogTitle>
-          <DialogDescription>
-            {isVintageScoped
-              ? `Showing all winery records for Vintage ${vintageYear} — no batch reference is set on this pressing record. Press date: ${fmtDate(pressing.press_date)}.`
-              : `All records linked to this pressing batch${pressing.vintage_year ? ` (Vintage ${String(pressing.vintage_year)})` : ""}. Press date: ${fmtDate(pressing.press_date)}.`}
-          </DialogDescription>
+          {isVintageScoped && data ? (
+            <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 mt-1">
+              <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>This pressing record has no batch reference. Results show all winery records for Vintage {vintageYear} — they may span multiple batches.</span>
+            </div>
+          ) : (
+            <DialogDescription>
+              {`All records linked to this pressing batch${pressing.vintage_year ? ` (Vintage ${String(pressing.vintage_year)})` : ""}. Press date: ${fmtDate(pressing.press_date)}.`}
+            </DialogDescription>
+          )}
         </DialogHeader>
 
         {!hasQuery && <p className="text-sm text-muted-foreground py-4">No batch reference or vintage year available for this pressing record.</p>}
