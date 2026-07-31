@@ -1589,6 +1589,47 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
   const barPct = Math.min(pctOfLimit, 100).toFixed(0);
   const barColor = compValue > s2.activeLimit ? "#ef4444" : pctOfLimit >= 75 ? "#f59e0b" : "#22c55e";
 
+  // ── pH & TA Analytical History (three-stage summary matching the on-screen panel) ──
+  const pressPh  = pressing.juice_ph  != null ? parseFloat(String(pressing.juice_ph))  : null;
+  const pressTa  = pressing.juice_ta_gl != null ? parseFloat(String(pressing.juice_ta_gl)) : null;
+  const fermWithPh = [...data.fermentation]
+    .filter(r => r.end_ph != null || r.end_ta_gl != null)
+    .sort((a, b) => (a.end_date && b.end_date ? new Date(String(b.end_date)).getTime() - new Date(String(a.end_date)).getTime() : 0));
+  const fermPhRecord = fermWithPh[0] ?? null;
+  const fermPh = fermPhRecord?.end_ph != null ? parseFloat(String(fermPhRecord.end_ph)) : null;
+  const fermTa = fermPhRecord?.end_ta_gl != null ? parseFloat(String(fermPhRecord.end_ta_gl)) : null;
+  const bottlingWithPh = [...data.bottling]
+    .filter(r => r.ph != null || r.titratable_acidity_gl != null)
+    .sort((a, b) => (a.bottling_date && b.bottling_date ? new Date(String(b.bottling_date)).getTime() - new Date(String(a.bottling_date)).getTime() : 0));
+  const bottPhRecord = bottlingWithPh[0] ?? null;
+  const bottPh = bottPhRecord?.ph != null ? parseFloat(String(bottPhRecord.ph)) : null;
+  const bottTa = bottPhRecord?.titratable_acidity_gl != null ? parseFloat(String(bottPhRecord.titratable_acidity_gl)) : null;
+  const phTaHasAny = pressPh != null || pressTa != null || fermPh != null || fermTa != null || bottPh != null || bottTa != null;
+
+  const phTaHistoryHtml = phTaHasAny ? `
+<div class="section">
+  <h2>pH &amp; TA Analytical History</h2>
+  <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:10px 12px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+      <div style="background:rgba(255,255,255,0.7);border-radius:4px;padding:8px 10px">
+        <p style="font-size:10px;font-weight:600;color:#6b7280;margin-bottom:4px">At pressing (juice)</p>
+        <p style="font-size:12px;font-family:monospace;font-weight:700;color:#1e40af">${pressPh != null ? `pH ${pressPh.toFixed(2)}` : `<span style="color:#9ca3af">pH —</span>`}</p>
+        <p style="font-size:11px;font-family:monospace;color:#374151;margin-top:2px">${pressTa != null ? `TA ${pressTa.toFixed(1)} g/L` : `<span style="color:#9ca3af">TA —</span>`}</p>
+      </div>
+      <div style="background:rgba(255,255,255,0.7);border-radius:4px;padding:8px 10px">
+        <p style="font-size:10px;font-weight:600;color:#6b7280;margin-bottom:4px">Post-fermentation</p>
+        <p style="font-size:12px;font-family:monospace;font-weight:700;color:#1e40af">${fermPh != null ? `pH ${fermPh.toFixed(2)}` : `<span style="color:#9ca3af">pH —</span>`}</p>
+        <p style="font-size:11px;font-family:monospace;color:#374151;margin-top:2px">${fermTa != null ? `TA ${fermTa.toFixed(1)} g/L` : `<span style="color:#9ca3af">TA —</span>`}</p>
+      </div>
+      <div style="background:rgba(255,255,255,0.7);border-radius:4px;padding:8px 10px">
+        <p style="font-size:10px;font-weight:600;color:#6b7280;margin-bottom:4px">At bottling</p>
+        <p style="font-size:12px;font-family:monospace;font-weight:700;color:#1e40af">${bottPh != null ? `pH ${bottPh.toFixed(2)}` : `<span style="color:#9ca3af">pH —</span>`}</p>
+        <p style="font-size:11px;font-family:monospace;color:#374151;margin-top:2px">${bottTa != null ? `TA ${bottTa.toFixed(1)} g/L` : `<span style="color:#9ca3af">TA —</span>`}</p>
+      </div>
+    </div>
+  </div>
+</div>` : "";
+
   const so2SummaryHtml = s2.hasAny ? `
 <div class="section">
   <h2>SO₂ Compliance Summary</h2>
@@ -1798,6 +1839,7 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
 </p>
 
 ${so2SummaryHtml}
+${phTaHistoryHtml}
 ${sectionHtml("1. Pressing record", pressingRows)}
 ${addRows ? sectionHtml("2. Pressing additives", addHeader + addRows) : ""}
 ${fermRows ? sectionHtml("3. Fermentation", fermHeader + fermRows) : ""}
