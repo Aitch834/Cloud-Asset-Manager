@@ -273,6 +273,7 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [harvestSearch, setHarvestSearch] = useState("");
   const sf = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
 
   // ── Import state ────────────────────────────────────────────────────────────
@@ -427,7 +428,17 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
 
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
   if (!years.includes(String(new Date().getFullYear()))) years.unshift(String(new Date().getFullYear()));
-  const filtered = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
+  const filteredByYear = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
+  const filtered = harvestSearch.trim() === "" ? filteredByYear : filteredByYear.filter(r => {
+    const q = harvestSearch.trim().toLowerCase();
+    return (
+      String(r.grower_name ?? "").toLowerCase().includes(q) ||
+      String(r.variety ?? "").toLowerCase().includes(q) ||
+      String(r.source_type ?? "").toLowerCase().includes(q) ||
+      String(r.grape_condition ?? "").toLowerCase().includes(q) ||
+      String(r.notes ?? "").toLowerCase().includes(q)
+    );
+  });
   const harvestCsvCols = [
     { key: "vintage_year", label: "Vintage" },
     { key: "reception_date", label: "Reception Date", fmt: (r: Record<string, unknown>) => fmtDate(r.reception_date) },
@@ -453,12 +464,16 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
         </div>
         <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Log Intake</Button>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-muted-foreground">Vintage:</span>
-        <Select value={yearFilter} onValueChange={setYearFilter}>
+        <Select value={yearFilter} onValueChange={v => { setYearFilter(v); setHarvestSearch(""); }}>
           <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
         </Select>
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          <Input className="h-8 pl-7 text-xs w-52" placeholder="Search grower, variety, notes…" value={harvestSearch} onChange={e => setHarvestSearch(e.target.value)} />
+        </div>
         <Button size="sm" variant="outline" className="ml-auto" onClick={() => exportCSV(filtered, "harvest-reception.csv", harvestCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <Button size="sm" variant="outline" onClick={() => { resetHarvestImportDialog(); setImportOpen(true); }}><Upload className="w-3.5 h-3.5 mr-1" />Import CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
