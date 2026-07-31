@@ -36954,14 +36954,6 @@ router.put("/farms/:farmId/winery-pressing/:id", requireAuth, requireTenant, req
   const b = sanitiseBody(req.body);
   const recordId = parseInt(req.params.id as string);
   const batchRef = n(b.batchRef);
-  // Duplicate-ref guard: check whether the new batch_ref is already used by a *different* record
-  if (batchRef) {
-    const dup = await db.execute(sql`SELECT id FROM winery_pressing_records WHERE farm_id=${farmId} AND batch_ref=${batchRef} AND id != ${recordId} LIMIT 1`);
-    if (dup.rows.length > 0) {
-      res.status(409).json({ error: `Batch reference "${batchRef}" is already used by another pressing record. Please choose a different reference.`, code: "DUPLICATE_BATCH_REF" });
-      return;
-    }
-  }
   try {
     // NOTE: audit_signature, audit_signed_at, audit_signer_name, audit_signer_role are intentionally
     // excluded from this SET clause so that editing a pressing record never clears an existing
