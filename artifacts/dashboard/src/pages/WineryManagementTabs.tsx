@@ -3330,6 +3330,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                   <th className="text-left p-2.5 font-medium">Unit</th>
                   <th className="text-left p-2.5 font-medium">Limit reference</th>
                 </tr></thead>
+
                 <tbody className="divide-y">
                   {searchFilteredSummary.map((row, i) => {
                     const avgDose = parseFloat(String(row.avg_dose ?? 0));
@@ -3387,6 +3388,61 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* ── Transaction Log individual rows ────────────────────────────────── */}
+          {filteredTransactionLog.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground border-t pt-3 mt-1">Transaction Log — individual records</p>
+              <p className="text-xs text-muted-foreground mb-2">Every individual addition row included in the Transaction Log CSV and PDF. Wine Colour is drawn from the batch record.</p>
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/40"><tr>
+                    <th className="text-left p-2.5 font-medium whitespace-nowrap">Date</th>
+                    <th className="text-left p-2.5 font-medium whitespace-nowrap">Batch Ref</th>
+                    {yearFilter === "all" && <th className="text-left p-2.5 font-medium">Vintage</th>}
+                    <th className="text-left p-2.5 font-medium whitespace-nowrap">Wine Colour</th>
+                    <th className="text-left p-2.5 font-medium">Stage</th>
+                    <th className="text-left p-2.5 font-medium">Additive</th>
+                    <th className="text-right p-2.5 font-medium">Dose</th>
+                    <th className="text-left p-2.5 font-medium">Unit</th>
+                    <th className="text-left p-2.5 font-medium">Operator</th>
+                  </tr></thead>
+                  <tbody className="divide-y">
+                    {filteredTransactionLog.map((row: Record<string, unknown>, i: number) => {
+                      const src = String(row.source ?? "pressing");
+                      const stageBadgeClass = src === "pressing"
+                        ? "bg-violet-100 text-violet-800"
+                        : src === "fermentation"
+                        ? "bg-blue-100 text-blue-800"
+                        : "bg-emerald-100 text-emerald-800";
+                      const rowColour = row.wine_colour ? String(row.wine_colour) : null;
+                      return (
+                        <tr key={i} className="hover:bg-muted/20">
+                          <td className="p-2.5 whitespace-nowrap">{fmtDate(row.record_date)}</td>
+                          <td className="p-2.5 font-mono text-xs">{fmt(row.batch_ref)}</td>
+                          {yearFilter === "all" && <td className="p-2.5 text-muted-foreground text-xs">{fmt(row.vintage_year)}</td>}
+                          <td className="p-2.5">
+                            {rowColour
+                              ? <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">{rowColour}</span>
+                              : <span className="text-muted-foreground text-xs">—</span>}
+                          </td>
+                          <td className="p-2.5">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${stageBadgeClass}`}>
+                              {SOURCE_LABELS[src] ?? src}
+                            </span>
+                          </td>
+                          <td className="p-2.5">{fmt(row.additive_name)}</td>
+                          <td className="p-2.5 text-right font-mono">{row.dose != null && row.dose !== "" ? parseFloat(String(row.dose)).toFixed(2) : "—"}</td>
+                          <td className="p-2.5 text-xs text-muted-foreground">{fmt(row.unit)}</td>
+                          <td className="p-2.5 text-muted-foreground text-xs">{fmt(row.operator_name)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
