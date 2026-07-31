@@ -5569,7 +5569,15 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
             {nonCompliantOnly ? "Show all runs" : "Non-compliant only"}
           </Button>
         )}
-        <Button size="sm" variant="outline" className="ml-auto" onClick={() => exportCSV(filtered, "bottling-records.csv", bottlingCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+        <Button size="sm" variant="outline" className="ml-auto" onClick={() => {
+          const nonCompliantRows = filtered.filter(isBottlingRowNonCompliant);
+          const prefixLines: string[] = [];
+          if (nonCompliantRows.length > 0) {
+            const lotList = nonCompliantRows.map(r => r.lot_code ? String(r.lot_code) : "(no lot code)").join(", ");
+            prefixLines.push(`"WARNING: ${nonCompliantRows.length} run${nonCompliantRows.length !== 1 ? "s" : ""} exceed the applicable SO₂ limit: ${lotList}"`);
+          }
+          exportCSV(filtered, "bottling-records.csv", bottlingCsvCols, prefixLines.length > 0 ? prefixLines : undefined);
+        }} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <Button size="sm" variant="outline" onClick={() => { resetImportDialog(); setImportOpen(true); }}><Upload className="w-3.5 h-3.5 mr-1" />Import CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} run{filtered.length !== 1 ? "s" : ""}</span>
       </div>
