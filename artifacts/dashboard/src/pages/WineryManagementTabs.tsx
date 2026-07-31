@@ -2176,6 +2176,41 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
     ]);
   }
 
+  // ── pH & TA Analytical History summary block ────────────────────────────────
+  // Mirrors the three-stage progression shown in the printBatchTrail PDF.
+  // Same source fields: pressing juice_ph/juice_ta_gl, fermentation end_ph/end_ta_gl,
+  // bottling ph/titratable_acidity_gl. Only rows with at least one value are included.
+  const pressPh  = pressing.juice_ph  != null ? fmtNum(pressing.juice_ph,  2) : "";
+  const pressTa  = pressing.juice_ta_gl != null ? fmtNum(pressing.juice_ta_gl, 1) : "";
+  const fermPhRecord = [...data.fermentation]
+    .filter(r => r.end_ph != null || r.end_ta_gl != null)
+    .sort((a, b) => (String(b.end_date ?? b.start_date ?? "")).localeCompare(String(a.end_date ?? a.start_date ?? "")))
+    [0] ?? null;
+  const fermPh = fermPhRecord?.end_ph  != null ? fmtNum(fermPhRecord.end_ph,  2) : "";
+  const fermTa = fermPhRecord?.end_ta_gl != null ? fmtNum(fermPhRecord.end_ta_gl, 1) : "";
+  const bottPhRecord = [...data.bottling]
+    .filter(r => r.ph != null || r.titratable_acidity_gl != null)
+    .sort((a, b) => (String(b.bottling_date ?? "")).localeCompare(String(a.bottling_date ?? "")))
+    [0] ?? null;
+  const bottPh = bottPhRecord?.ph  != null ? fmtNum(bottPhRecord.ph,  2) : "";
+  const bottTa = bottPhRecord?.titratable_acidity_gl != null ? fmtNum(bottPhRecord.titratable_acidity_gl, 1) : "";
+
+  const phTaStages: Array<[string, string, string]> = [
+    ["Pressing juice",       pressPh, pressTa],
+    ["Post-fermentation",    fermPh,  fermTa],
+    ["Bottling",             bottPh,  bottTa],
+  ].filter(([, ph, ta]) => ph !== "" || ta !== "") as Array<[string, string, string]>;
+
+  if (phTaStages.length > 0) {
+    // Blank separator row
+    rows.push(["", "", "", "", "", "", "", "", "", "", "", ""]);
+    // Section heading (spans first two columns for readability)
+    rows.push(["pH & TA Analytical History", "", "", "", "", "", "", "pH", "TA (g/L)", "", "", ""]);
+    for (const [stage, ph, ta] of phTaStages) {
+      rows.push([stage, batchRef, "", "", "", "", "", ph, ta, "", "", ""]);
+    }
+  }
+
   const csv = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
   const a = document.createElement("a");
