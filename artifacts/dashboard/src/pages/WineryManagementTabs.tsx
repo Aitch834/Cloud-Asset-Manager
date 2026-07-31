@@ -2088,6 +2088,129 @@ ${mixedUnitsNotice}<table>
   setTimeout(() => w.print(), 400);
 }
 
+// ─── Pressing Report — Print helper ──────────────────────────────────────────
+function printPressingReport(rows: Record<string, unknown>[], farmName: string, vintageLabel: string) {
+  const printedOn = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+
+  const tableRows = rows.map(r => {
+    const isOrganic = r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
+    const organicBadge = isOrganic
+      ? `<span style="display:inline-block;padding:1px 5px;border-radius:9999px;font-size:9px;font-weight:600;background:#dcfce7;color:#166534;margin-left:4px">Organic</span>`
+      : "";
+    return `<tr>
+      <td style="white-space:nowrap">${escHtml(r.press_date ? new Date(r.press_date as string).toLocaleDateString("en-GB") : "—")}</td>
+      <td>${escHtml(r.vintage_year ?? "—")}</td>
+      <td style="font-family:monospace;font-size:10px">${escHtml(r.batch_ref ?? "—")}${organicBadge}</td>
+      <td>${escHtml(r.press_type ?? "—")}</td>
+      <td style="text-align:right;font-family:monospace">${r.grapes_pressed_kg != null && r.grapes_pressed_kg !== "" ? parseFloat(String(r.grapes_pressed_kg)).toFixed(0) : "—"}</td>
+      <td style="text-align:right;font-family:monospace">${r.free_run_litres != null && r.free_run_litres !== "" ? parseFloat(String(r.free_run_litres)).toFixed(1) : "—"}</td>
+      <td style="text-align:right;font-family:monospace">${r.press_wine_litres != null && r.press_wine_litres !== "" ? parseFloat(String(r.press_wine_litres)).toFixed(1) : "—"}</td>
+      <td style="text-align:right;font-family:monospace">${r.total_juice_litres != null && r.total_juice_litres !== "" ? parseFloat(String(r.total_juice_litres)).toFixed(1) : "—"}</td>
+      <td style="text-align:right;font-family:monospace">${r.press_efficiency_l_per_kg != null && r.press_efficiency_l_per_kg !== "" ? parseFloat(String(r.press_efficiency_l_per_kg)).toFixed(3) : "—"}</td>
+      <td style="text-align:right">${r.juice_brix != null && r.juice_brix !== "" ? parseFloat(String(r.juice_brix)).toFixed(1) : "—"}</td>
+      <td style="text-align:right">${r.juice_ph != null && r.juice_ph !== "" ? parseFloat(String(r.juice_ph)).toFixed(2) : "—"}</td>
+      <td style="text-align:right">${r.juice_ta_gl != null && r.juice_ta_gl !== "" ? parseFloat(String(r.juice_ta_gl)).toFixed(1) : "—"}</td>
+      <td>${escHtml(r.juice_turbidity ?? "—")}</td>
+      <td>${escHtml(r.operator_name ?? "—")}</td>
+      <td>${escHtml(r.settling_method ?? "—")}</td>
+      <td style="font-size:10px;color:#6b7280">${escHtml(r.notes ?? "")}</td>
+    </tr>`;
+  }).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Pressing Report — ${escHtml(farmName)} — ${escHtml(vintageLabel)}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #111; padding: 24px 32px; }
+  h1 { font-size: 18px; font-weight: 700; margin-bottom: 2px; }
+  .meta { color: #6b7280; font-size: 11px; margin-bottom: 18px; }
+  .meta span { margin-right: 16px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; }
+  th { background: #f3f4f6; text-align: left; padding: 6px 7px; font-size: 10px; font-weight: 600;
+       text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid #d1d5db; white-space: nowrap; }
+  td { padding: 5px 7px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .signoff { display: none; }
+  @media print {
+    body { padding: 0; }
+    @page { margin: 18mm 14mm; size: landscape; }
+    .signoff { display: block; page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<h1>Pressing Report</h1>
+<p class="meta">
+  <span><strong>${escHtml(farmName)}</strong></span>
+  <span>Vintage: <strong>${escHtml(vintageLabel)}</strong></span>
+  <span>Printed: ${escHtml(printedOn)}</span>
+  <span>${rows.length} record${rows.length !== 1 ? "s" : ""}</span>
+</p>
+<table>
+  <thead><tr>
+    <th>Date</th>
+    <th>Vintage</th>
+    <th>Batch Ref</th>
+    <th>Press Type</th>
+    <th style="text-align:right">Grapes (kg)</th>
+    <th style="text-align:right">Free Run (L)</th>
+    <th style="text-align:right">Press Wine (L)</th>
+    <th style="text-align:right">Total Juice (L)</th>
+    <th style="text-align:right">L/kg</th>
+    <th style="text-align:right">Brix °</th>
+    <th style="text-align:right">pH</th>
+    <th style="text-align:right">TA (g/L)</th>
+    <th>Turbidity</th>
+    <th>Operator</th>
+    <th>Settling</th>
+    <th>Notes</th>
+  </tr></thead>
+  <tbody>${tableRows}</tbody>
+</table>
+
+<div class="signoff">
+  <div style="margin-top:28px;border-top:2px solid #374151;padding-top:16px">
+    <p style="font-size:10px;font-style:italic;color:#374151;margin-bottom:18px">I confirm that the pressing records contained in this report are accurate to the best of my knowledge.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 40px">
+      <div>
+        <p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#374151;margin-bottom:18px">Winemaker declaration</p>
+        <div style="border-bottom:1px solid #374151;height:28px;margin-bottom:3px"></div>
+        <p style="font-size:9px;color:#6b7280">Signature</p>
+        <div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>
+        <p style="font-size:9px;color:#6b7280">Name</p>
+        <div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>
+        <p style="font-size:9px;color:#6b7280">Date</p>
+      </div>
+      <div>
+        <p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#374151;margin-bottom:18px">Reviewed by (auditor)</p>
+        <div style="border-bottom:1px solid #374151;height:28px;margin-bottom:3px"></div>
+        <p style="font-size:9px;color:#6b7280">Signature</p>
+        <div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>
+        <p style="font-size:9px;color:#6b7280">Name</p>
+        <div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>
+        <p style="font-size:9px;color:#6b7280">Role</p>
+        <div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>
+        <p style="font-size:9px;color:#6b7280">Date</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top:20px;font-size:10px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px">Generated by BDE Farm Trac · ${escHtml(printedOn)} · Vintage: ${escHtml(vintageLabel)}</p>
+</body>
+</html>`;
+
+  const w = window.open("", "_blank");
+  if (!w) return;
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 400);
+}
+
 // ─── Pressing Records Tab ─────────────────────────────────────────────────────
 export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const crud = useCrud(farmId, "winery-pressing", "winery-pressing");
@@ -2469,6 +2592,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
           />
         </div>
         <Button size="sm" variant={showReport ? "default" : "outline"} className="ml-auto" onClick={() => setShowReport(v => !v)}><Beaker className="w-3.5 h-3.5 mr-1" />Additions Report</Button>
+        <Button size="sm" variant="outline" onClick={() => printPressingReport(filtered, farmName, yearFilter === "all" ? "All vintages" : yearFilter)} disabled={!filtered.length}><Printer className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
         <Button size="sm" variant="outline" onClick={() => exportCSV(filtered, "pressing-records.csv", pressCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
       </div>
