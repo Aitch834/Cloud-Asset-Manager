@@ -2833,13 +2833,27 @@ ${mixedUnitsNotice}<table>
 }
 
 // ─── Pressing Report — Print helper ──────────────────────────────────────────
-function printPressingReport(rows: Record<string, unknown>[], farmName: string, vintageLabel: string) {
+function printPressingReport(rows: Record<string, unknown>[], farmName: string, vintageLabel: string, allAdditions: Record<string, unknown>[] = []) {
   const printedOn = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const COL_COUNT = 16;
 
   const tableRows = rows.map(r => {
     const isOrganic = r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
     const organicBadge = isOrganic
       ? `<span style="display:inline-block;padding:1px 5px;border-radius:9999px;font-size:9px;font-weight:600;background:#dcfce7;color:#166534;margin-left:4px">Organic</span>`
+      : "";
+    const additions = allAdditions.filter(a => a.pressing_record_id === r.id);
+    const additionsRow = additions.length > 0
+      ? `<tr class="additions-row">
+          <td colspan="${COL_COUNT}" style="padding:3px 7px 6px 20px;background:#f9fafb;border-bottom:1px solid #e5e7eb">
+            <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;margin-right:8px">Additives:</span>
+            ${additions.map(a =>
+              `<span style="display:inline-block;margin-right:10px;font-size:9.5px;color:#374151">
+                <strong>${escHtml(a.additive_name ?? "")}</strong>&thinsp;${escHtml(a.dose ?? "")}${escHtml(a.unit ? "\u202f" + String(a.unit) : "")}${a.notes ? `&ensp;<span style="color:#9ca3af">${escHtml(a.notes)}</span>` : ""}
+              </span>`
+            ).join("")}
+          </td>
+        </tr>`
       : "";
     return `<tr>
       <td style="white-space:nowrap">${escHtml(r.press_date ? new Date(r.press_date as string).toLocaleDateString("en-GB") : "—")}</td>
@@ -2858,7 +2872,7 @@ function printPressingReport(rows: Record<string, unknown>[], farmName: string, 
       <td>${escHtml(r.operator_name ?? "—")}</td>
       <td>${escHtml(r.settling_method ?? "—")}</td>
       <td style="font-size:10px;color:#6b7280">${escHtml(r.notes ?? "")}</td>
-    </tr>`;
+    </tr>${additionsRow}`;
   }).join("");
 
   const html = `<!DOCTYPE html>
@@ -3524,7 +3538,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             if (batchCtx) setTxLogBatchFilter(batchCtx);
           }
         }}><Beaker className="w-3.5 h-3.5 mr-1" />Additions Report</Button>
-        <Button size="sm" variant="outline" onClick={() => printPressingReport(filtered, farmName, yearFilter === "all" ? "All vintages" : yearFilter)} disabled={!filtered.length}><Printer className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
+        <Button size="sm" variant="outline" onClick={() => printPressingReport(filtered, farmName, yearFilter === "all" ? "All vintages" : yearFilter, allAdditions)} disabled={!filtered.length}><Printer className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
         <Button size="sm" variant="outline" onClick={() => exportCSV(filtered, "pressing-records.csv", pressCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
       </div>
