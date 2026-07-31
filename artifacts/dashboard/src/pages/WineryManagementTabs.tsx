@@ -2443,7 +2443,9 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
 </div>`;
 
   // Press additives
+  const addBatchRef = escHtml(pressing.batch_ref);
   const addRows = data.pressAdditions.map(a => `<tr>
+    <td>${addBatchRef || "—"}</td>
     <td>${escHtml(a.additive_name)}</td>
     <td>${escHtml(ADDITIVE_CATEGORY_LABELS[String(a.category)] ?? a.category)}</td>
     <td style="text-align:right;font-family:monospace">${a.dose != null ? parseFloat(String(a.dose)).toFixed(2) : "—"}</td>
@@ -2451,7 +2453,7 @@ function printBatchTrail(pressing: Record<string, unknown>, data: BatchTrailData
     <td>${escHtml(a.notes)}</td>
   </tr>`).join("");
 
-  const addHeader = `<tr class="header-row"><th>Additive</th><th>Category</th><th style="text-align:right">Dose</th><th>Unit</th><th>Notes</th></tr>`;
+  const addHeader = `<tr class="header-row"><th>Batch Ref</th><th>Additive</th><th>Category</th><th style="text-align:right">Dose</th><th>Unit</th><th>Notes</th></tr>`;
 
   // Fermentation
   const fermRows = data.fermentation.map(r => `<tr>
