@@ -2295,6 +2295,123 @@ function printPressingReport(rows: Record<string, unknown>[], farmName: string, 
   setTimeout(() => w.print(), 400);
 }
 
+// ─── SO₂ Transaction Log — Print helper ──────────────────────────────────────
+function printSo2TransactionLog(
+  rows: Record<string, unknown>[],
+  farmName: string,
+  scopeLabel: string,
+  auditSig?: string | null,
+  signerInfo?: { name: string | null; role: string | null; signedAt: string | null },
+) {
+  const printedOn = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const safeSig = sanitiseSignatureForHtml(auditSig);
+
+  const tableRows = rows.map(r => {
+    const src = String(r.source ?? "pressing");
+    const stageLabel = SOURCE_LABELS[src] ?? src;
+    const doseVal = r.dose != null && r.dose !== ""
+      ? `${parseFloat(String(r.dose)).toFixed(2)} ${escHtml(String(r.unit ?? ""))}`
+      : "—";
+    return `<tr>
+      <td style="white-space:nowrap">${escHtml(r.record_date ? new Date(r.record_date as string).toLocaleDateString("en-GB") : "—")}</td>
+      <td style="font-family:monospace;font-size:10px">${escHtml(r.batch_ref ?? "—")}</td>
+      <td>${escHtml(r.vintage_year ?? "—")}</td>
+      <td>${escHtml(stageLabel)}</td>
+      <td>${escHtml(r.additive_name ?? "—")}</td>
+      <td style="text-align:right;font-family:monospace">${doseVal}</td>
+      <td>${escHtml(r.operator_name ?? "—")}</td>
+      <td>${escHtml(r.vessel_ref ?? "—")}</td>
+      <td style="font-size:10px;color:#6b7280">${escHtml(r.notes ?? "")}</td>
+    </tr>`;
+  }).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SO₂ Transaction Log — ${escHtml(farmName)} — ${escHtml(scopeLabel)}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #111; padding: 24px 32px; }
+  h1 { font-size: 18px; font-weight: 700; margin-bottom: 2px; }
+  .meta { color: #6b7280; font-size: 11px; margin-bottom: 18px; }
+  .meta span { margin-right: 16px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th { background: #f3f4f6; text-align: left; padding: 7px 8px; font-size: 10px; font-weight: 600;
+       text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid #d1d5db; white-space: nowrap; }
+  td { padding: 6px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .signoff { display: none; }
+  @media print {
+    body { padding: 0; }
+    @page { margin: 18mm 14mm; size: landscape; }
+    .signoff { display: block; page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<h1>SO₂ &amp; Additive Transaction Log</h1>
+<p class="meta">
+  <span><strong>${escHtml(farmName)}</strong></span>
+  <span>Scope: <strong>${escHtml(scopeLabel)}</strong></span>
+  <span>Printed: ${escHtml(printedOn)}</span>
+  <span>${rows.length} row${rows.length !== 1 ? "s" : ""}</span>
+</p>
+<table>
+  <thead><tr>
+    <th>Date</th>
+    <th>Batch Ref</th>
+    <th>Vintage</th>
+    <th>Stage</th>
+    <th>Additive</th>
+    <th style="text-align:right">Dose</th>
+    <th>Operator</th>
+    <th>Vessel</th>
+    <th>Notes</th>
+  </tr></thead>
+  <tbody>${tableRows}</tbody>
+</table>
+
+<div class="signoff">
+  <div style="margin-top:28px;border-top:2px solid #374151;padding-top:16px">
+    <p style="font-size:10px;font-style:italic;color:#374151;margin-bottom:18px">I confirm that the SO₂ and additive records contained in this transaction log are accurate to the best of my knowledge.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 40px">
+      <div>
+        <p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#374151;margin-bottom:18px">Winemaker declaration</p>
+        <div style="border-bottom:1px solid #374151;height:28px;margin-bottom:3px"></div>
+        <p style="font-size:9px;color:#6b7280">Signature</p>
+        <div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>
+        <p style="font-size:9px;color:#6b7280">Name</p>
+        <div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>
+        <p style="font-size:9px;color:#6b7280">Date</p>
+      </div>
+      <div>
+        <p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#374151;margin-bottom:18px">Reviewed by (auditor)</p>
+        ${safeSig ? `<div style="margin-bottom:6px"><img src="${safeSig}" alt="Audit signature" style="max-height:56px;border:1px solid #d1d5db;border-radius:4px;background:#fff;display:block" /></div>` : `<div style="border-bottom:1px solid #374151;height:28px;margin-bottom:3px"></div>`}
+        <p style="font-size:9px;color:#6b7280">Signature${safeSig ? ` — signed digitally` : ""}</p>
+        ${signerInfo?.name ? `<div style="padding:4px 0 2px;font-size:11px;font-weight:600;color:#111827">${escHtml(signerInfo.name)}</div>` : `<div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>`}
+        <p style="font-size:9px;color:#6b7280">Name</p>
+        ${signerInfo?.role ? `<div style="padding:4px 0 2px;font-size:11px;color:#374151">${escHtml(signerInfo.role)}</div>` : `<div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>`}
+        <p style="font-size:9px;color:#6b7280">Role</p>
+        ${signerInfo?.signedAt ? `<div style="padding:4px 0 2px;font-size:11px;color:#374151">${escHtml(new Date(signerInfo.signedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }))}</div>` : `<div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>`}
+        <p style="font-size:9px;color:#6b7280">Date</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top:20px;font-size:10px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px">Generated by BDE Farm Trac · ${escHtml(printedOn)} · ${escHtml(scopeLabel)}</p>
+</body>
+</html>`;
+
+  const w = window.open("", "_blank");
+  if (!w) return;
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 400);
+}
+
 // ─── Pressing Records Tab ─────────────────────────────────────────────────────
 export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const crud = useCrud(farmId, "winery-pressing", "winery-pressing");
@@ -2765,6 +2882,20 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={() => printAdditionsReport(searchFilteredSummary, farmName, yearFilter === "all" ? "All vintages" : yearFilter)} disabled={!searchFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
               <Button size="sm" variant="outline" onClick={() => exportCSV(searchFilteredSummary, `pressing-additions-report-${yearFilter}.csv`, summaryCsvCols)} disabled={!searchFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export Summary CSV</Button>
+              <Button size="sm" variant="outline" onClick={() => {
+                const batchTrim = txLogBatchFilter.trim();
+                const scope = batchTrim || (yearFilter === "all" ? "All vintages" : yearFilter);
+                const matchingPress = batchTrim
+                  ? crud.data.find((r: Record<string, unknown>) => String(r.batch_ref ?? "").toLowerCase() === batchTrim.toLowerCase())
+                  : null;
+                const sig = matchingPress?.audit_signature ? String(matchingPress.audit_signature) : null;
+                const signerInfo = matchingPress ? {
+                  name: matchingPress.audit_signer_name ? String(matchingPress.audit_signer_name) : null,
+                  role: matchingPress.audit_signer_role ? String(matchingPress.audit_signer_role) : null,
+                  signedAt: matchingPress.audit_signed_at ? String(matchingPress.audit_signed_at) : null,
+                } : undefined;
+                printSo2TransactionLog(filteredTransactionLog, farmName, scope, sig, signerInfo);
+              }} disabled={!filteredTransactionLog.length} title="Print the SO₂ transaction log as a PDF — embeds the batch's digital signature if one exists"><Printer className="w-3.5 h-3.5 mr-1" />Transaction Log PDF</Button>
               <Button size="sm" variant="outline" onClick={() => {
                 const suffix = txLogBatchFilter.trim() ? txLogBatchFilter.trim().replace(/[^a-zA-Z0-9_-]/g, "_") : yearFilter;
                 // Detect mixed SO₂ units per vintage — same logic as the PDF notice
