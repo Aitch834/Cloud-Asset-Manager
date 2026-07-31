@@ -36949,7 +36949,8 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
       db.execute(sql`
         SELECT t.id, t.test_date, t.batch_ref, t.vintage_year, t.wine_colour,
                t.test_stage, t.test_method, t.free_so2_mg_l, t.total_so2_mg_l,
-               t.max_permitted_mg_l, t.so2_compliant, t.action_taken, t.operator_name, t.notes,
+               t.max_permitted_mg_l, t.so2_compliant, t.ph, t.titratable_acidity_gl,
+               t.action_taken, t.operator_name, t.notes,
                v.vessel_ref
         FROM winery_so2_tests t
         LEFT JOIN winery_vessels v ON v.id = t.vessel_id
@@ -37003,7 +37004,8 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
       db.execute(sql`
         SELECT t.id, t.test_date, t.batch_ref, t.vintage_year, t.wine_colour,
                t.test_stage, t.test_method, t.free_so2_mg_l, t.total_so2_mg_l,
-               t.max_permitted_mg_l, t.so2_compliant, t.action_taken, t.operator_name, t.notes,
+               t.max_permitted_mg_l, t.so2_compliant, t.ph, t.titratable_acidity_gl,
+               t.action_taken, t.operator_name, t.notes,
                v.vessel_ref
         FROM winery_so2_tests t
         LEFT JOIN winery_vessels v ON v.id = t.vessel_id
@@ -37314,13 +37316,13 @@ router.get("/farms/:farmId/winery-so2-tests", requireAuth, requireTenant, requir
 router.post("/farms/:farmId/winery-so2-tests", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const b = sanitiseBody(req.body);
-  const r = await db.execute(sql`INSERT INTO winery_so2_tests (farm_id,test_date,vintage_year,batch_ref,wine_colour,vessel_id,test_stage,test_method,equipment_id,lab_name,lab_ref,free_so2_mg_l,total_so2_mg_l,max_permitted_mg_l,so2_compliant,action_taken,operator_name,notes) VALUES (${farmId},${n(b.testDate)},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.wineColour)},${ni(b.vesselId)},${n(b.testStage)},${n(b.testMethod)},${ni(b.equipmentId)},${n(b.labName)},${n(b.labRef)},${nf(b.freeSo2MgL)},${nf(b.totalSo2MgL)},${nf(b.maxPermittedMgL)},${nb(b.so2Compliant)},${n(b.actionTaken)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
+  const r = await db.execute(sql`INSERT INTO winery_so2_tests (farm_id,test_date,vintage_year,batch_ref,wine_colour,vessel_id,test_stage,test_method,equipment_id,lab_name,lab_ref,free_so2_mg_l,total_so2_mg_l,max_permitted_mg_l,so2_compliant,ph,titratable_acidity_gl,action_taken,operator_name,notes) VALUES (${farmId},${n(b.testDate)},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.wineColour)},${ni(b.vesselId)},${n(b.testStage)},${n(b.testMethod)},${ni(b.equipmentId)},${n(b.labName)},${n(b.labRef)},${nf(b.freeSo2MgL)},${nf(b.totalSo2MgL)},${nf(b.maxPermittedMgL)},${nb(b.so2Compliant)},${nf(b.ph)},${nf(b.titratableAcidityGl)},${n(b.actionTaken)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
   res.status(201).json({ record: r.rows[0] });
 });
 router.put("/farms/:farmId/winery-so2-tests/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const b = sanitiseBody(req.body);
-  const r = await db.execute(sql`UPDATE winery_so2_tests SET test_date=${n(b.testDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},wine_colour=${n(b.wineColour)},vessel_id=${ni(b.vesselId)},test_stage=${n(b.testStage)},test_method=${n(b.testMethod)},equipment_id=${ni(b.equipmentId)},lab_name=${n(b.labName)},lab_ref=${n(b.labRef)},free_so2_mg_l=${nf(b.freeSo2MgL)},total_so2_mg_l=${nf(b.totalSo2MgL)},max_permitted_mg_l=${nf(b.maxPermittedMgL)},so2_compliant=${nb(b.so2Compliant)},action_taken=${n(b.actionTaken)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
+  const r = await db.execute(sql`UPDATE winery_so2_tests SET test_date=${n(b.testDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},wine_colour=${n(b.wineColour)},vessel_id=${ni(b.vesselId)},test_stage=${n(b.testStage)},test_method=${n(b.testMethod)},equipment_id=${ni(b.equipmentId)},lab_name=${n(b.labName)},lab_ref=${n(b.labRef)},free_so2_mg_l=${nf(b.freeSo2MgL)},total_so2_mg_l=${nf(b.totalSo2MgL)},max_permitted_mg_l=${nf(b.maxPermittedMgL)},so2_compliant=${nb(b.so2Compliant)},ph=${nf(b.ph)},titratable_acidity_gl=${nf(b.titratableAcidityGl)},action_taken=${n(b.actionTaken)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
   res.json({ record: r.rows[0] });
 });
 router.delete("/farms/:farmId/winery-so2-tests/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {

@@ -535,6 +535,8 @@ export const winerySo2TestsTable = pgTable("winery_so2_tests", {
   totalSo2MgL: numeric("total_so2_mg_l", { precision: 7, scale: 2 }),
   maxPermittedMgL: numeric("max_permitted_mg_l", { precision: 7, scale: 2 }),
   so2Compliant: boolean("so2_compliant"),
+  ph: numeric("ph", { precision: 5, scale: 2 }),
+  titratableAcidityGl: numeric("titratable_acidity_gl", { precision: 6, scale: 2 }),
   actionTaken: text("action_taken"),
   operatorName: text("operator_name"),
   notes: text("notes"),

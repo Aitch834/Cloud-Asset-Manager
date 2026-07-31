@@ -1445,14 +1445,56 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
               const bottlingRecord = bottlingWithPh[0] ?? null;
               const bottPh = bottlingRecord?.ph != null ? parseFloat(String(bottlingRecord.ph)) : null;
               const bottTa = bottlingRecord?.titratable_acidity_gl != null ? parseFloat(String(bottlingRecord.titratable_acidity_gl)) : null;
-              const hasAny = pressPh != null || pressTa != null || fermPh != null || fermTa != null || bottPh != null || bottTa != null;
+
+              // SO₂ test pH/TA readings — most recent per stage
+              const so2TestsByStage: Record<string, { ph: number | null; ta: number | null }> = {};
+              const sortedSo2Tests = [...data.so2Tests].sort((a, b) =>
+                new Date(String(b.test_date ?? "0")).getTime() - new Date(String(a.test_date ?? "0")).getTime()
+              );
+              for (const t of sortedSo2Tests) {
+                const stageKey = String(t.test_stage ?? "");
+                if (!stageKey || so2TestsByStage[stageKey]) continue; // keep most recent only
+                const tPh = t.ph != null ? parseFloat(String(t.ph)) : null;
+                const tTa = t.titratable_acidity_gl != null ? parseFloat(String(t.titratable_acidity_gl)) : null;
+                if (tPh == null && tTa == null) continue;
+                so2TestsByStage[stageKey] = { ph: tPh, ta: tTa };
+              }
+
+              // Stage order for the drift chart
+              const DRIFT_STAGE_ORDER = ["at-pressing", "post-fermentation", "post-racking", "pre-bottling", "at-bottling", "other"] as const;
+
+              // Base map: the three primary source stages
+              const stagePoints: Record<string, { label: string; ph: number | null; ta: number | null }> = {
+                "at-pressing":       { label: "At pressing",      ph: pressPh, ta: pressTa },
+                "post-fermentation": { label: "Post-ferm.",       ph: fermPh,  ta: fermTa },
+                "at-bottling":       { label: "Bottling",         ph: bottPh,  ta: bottTa },
+              };
+
+              // Merge SO₂ test readings: fill nulls in existing stages or add new stages
+              for (const stageKey of DRIFT_STAGE_ORDER) {
+                const test = so2TestsByStage[stageKey];
+                if (!test) continue;
+                if (stagePoints[stageKey]) {
+                  // Supplement only where primary source has no value
+                  if (stagePoints[stageKey].ph == null) stagePoints[stageKey].ph = test.ph;
+                  if (stagePoints[stageKey].ta == null)  stagePoints[stageKey].ta  = test.ta;
+                } else {
+                  // New stage from SO₂ test
+                  stagePoints[stageKey] = {
+                    label: SO2_TEST_STAGE_LABELS[stageKey] ?? stageKey,
+                    ph: test.ph,
+                    ta: test.ta,
+                  };
+                }
+              }
+
+              // Build ordered array — only stages with at least one value
+              const trendStages = DRIFT_STAGE_ORDER
+                .filter(k => stagePoints[k] && (stagePoints[k].ph != null || stagePoints[k].ta != null))
+                .map(k => ({ stage: stagePoints[k].label, ph: stagePoints[k].ph, ta: stagePoints[k].ta }));
+
+              const hasAny = trendStages.length > 0;
               if (!hasAny) return null;
-              // Build trend chart data — only include stages where at least one value is present
-              const trendStages = [
-                { stage: "Pressing", ph: pressPh, ta: pressTa },
-                { stage: "Post-ferm.", ph: fermPh, ta: fermTa },
-                { stage: "Bottling", ph: bottPh, ta: bottTa },
-              ].filter(s => s.ph != null || s.ta != null);
               const showTrend = trendStages.length >= 2;
               return (
                 <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 space-y-2">
@@ -6575,6 +6617,8 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Free SO₂ (mg/L)</Label><Input type="number" step="0.1" value={form.freeSo2MgL ?? ""} onChange={e => sf("freeSo2MgL", e.target.value)} /></div>
               <div><Label>Total SO₂ (mg/L)</Label><Input type="number" step="0.1" value={form.totalSo2MgL ?? ""} onChange={e => sf("totalSo2MgL", e.target.value)} /></div>
+              <div><Label>pH</Label><Input type="number" step="0.01" value={form.ph ?? ""} onChange={e => sf("ph", e.target.value)} placeholder="e.g. 3.45" /></div>
+              <div><Label>TA (g/L)</Label><Input type="number" step="0.1" value={form.titratableAcidityGl ?? ""} onChange={e => sf("titratableAcidityGl", e.target.value)} placeholder="e.g. 7.2" /></div>
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <Label>Max Permitted (mg/L)</Label>
@@ -6623,6 +6667,8 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
               <ViewField label="Total SO₂" value={view.total_so2_mg_l ? `${fmtNum(view.total_so2_mg_l, 0)} mg/L` : "—"} />
               <ViewField label="Max Permitted" value={view.max_permitted_mg_l ? `${fmtNum(view.max_permitted_mg_l, 0)} mg/L` : "—"} />
               <ViewField label="Compliance" value={<So2Badge compliant={view.so2_compliant} />} />
+              <ViewField label="pH" value={view.ph ? fmtNum(view.ph, 2) : "—"} />
+              <ViewField label="TA" value={view.titratable_acidity_gl ? `${fmtNum(view.titratable_acidity_gl, 1)} g/L` : "—"} />
               {(() => {
                 const wc = view.wine_colour ? String(view.wine_colour) : null;
                 if (!wc || !ORGANIC_MAX_SO2[wc]) return null;

@@ -129,6 +129,11 @@ export async function runWineryMigrations(): Promise<void> {
   await db.execute(sql`ALTER TABLE winery_fermentation_records ADD COLUMN IF NOT EXISTS end_ph NUMERIC(4,2)`);
   await db.execute(sql`ALTER TABLE winery_fermentation_records ADD COLUMN IF NOT EXISTS end_ta_gl NUMERIC(6,2)`);
 
+  // pH and TA readings on SO₂ test records — enables acidity drift chart to include
+  // post-racking, pre-bottling, and other SO₂ test stages as additional chart points.
+  await db.execute(sql`ALTER TABLE winery_so2_tests ADD COLUMN IF NOT EXISTS ph NUMERIC(5,2)`);
+  await db.execute(sql`ALTER TABLE winery_so2_tests ADD COLUMN IF NOT EXISTS titratable_acidity_gl NUMERIC(6,2)`);
+
   // Ensure the so2_from_pressing flag column exists before the backfill runs.
   await db.execute(sql`ALTER TABLE winery_fermentation_records ADD COLUMN IF NOT EXISTS so2_from_pressing boolean NOT NULL DEFAULT false`);
 
