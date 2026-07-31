@@ -4888,7 +4888,16 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
     { key: "volume_l", label: "Volume (L)" },
     { key: "product_used", label: "Product Used" },
     { key: "quantity_used", label: "Quantity Used" },
-    { key: "so2_added_mg_l", label: "SO₂ Added (mg/L)" },
+    { key: "dose_rate_mg_l", label: "Dose Rate (mg/L)", fmt: (r: Record<string, unknown>) => {
+      if (String(r.op_type) !== "sulfiting" || r.so2_quantity_g == null) return "";
+      const g = parseFloat(String(r.so2_quantity_g));
+      if (isNaN(g)) return "";
+      const capacity = r.vessel_capacity_litres != null ? parseFloat(String(r.vessel_capacity_litres)) : NaN;
+      if (!isNaN(capacity) && capacity > 0) return (g * 1000 / capacity).toFixed(1);
+      const moved = r.volume_moved_litres != null ? parseFloat(String(r.volume_moved_litres)) : NaN;
+      if (!isNaN(moved) && moved > 0) return (g * 1000 / moved).toFixed(1);
+      return "";
+    } },
     { key: "operator_name", label: "Operator" },
     { key: "notes", label: "Notes" },
   ];
