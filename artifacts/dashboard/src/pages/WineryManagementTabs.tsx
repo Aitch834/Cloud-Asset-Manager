@@ -4756,6 +4756,10 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const cellarBatchIsOrganic = form._batchIsOrganic === "true";
   const cellarWineColour = form.wineColour ?? "";
   const cellarOrgLimit = cellarBatchIsOrganic && cellarWineColour ? ORGANIC_MAX_SO2[cellarWineColour] : null;
+  // Conventional ceiling — shown as a read-only info line for all sulfiting ops when colour is known
+  const cellarConvLimit = cellarWineColour ? CONVENTIONAL_MAX_SO2[cellarWineColour] : null;
+  // Active ceiling based on whether the linked pressing batch is organic
+  const cellarActiveLimit = cellarBatchIsOrganic ? (cellarOrgLimit ?? cellarConvLimit) : cellarConvLimit;
   const cellarFreeSo2After = form.freeSo2AfterMgL ? parseFloat(form.freeSo2AfterMgL) : null;
   const cellarSo2OverOrganic = cellarOrgLimit != null && cellarFreeSo2After != null && cellarFreeSo2After > parseFloat(cellarOrgLimit);
 
@@ -5056,6 +5060,18 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                     <p className="text-xs text-muted-foreground mt-1">Required to calculate the cumulative SO₂ mg/L running total for this batch.</p>
                   </div>
                 </div>
+                {cellarWineColour && cellarActiveLimit && (
+                  <div className="rounded-md border bg-slate-50 border-slate-200 px-3 py-2 text-sm flex items-center gap-2 text-slate-700">
+                    <FlaskConical className="w-4 h-4 shrink-0 text-slate-500" />
+                    <span>
+                      <strong>{cellarBatchIsOrganic ? "Organic" : "Conventional"} SO₂ ceiling for {cellarWineColour}:</strong>{" "}
+                      <strong>{cellarActiveLimit} mg/L</strong> total SO₂
+                      {cellarBatchIsOrganic && cellarConvLimit && (
+                        <span className="text-xs text-slate-500 ml-1">(conventional limit: {cellarConvLimit} mg/L)</span>
+                      )}
+                    </span>
+                  </div>
+                )}
                 {cellarBatchIsOrganic && cellarOrgLimit && (
                   <div className={`rounded-md border px-3 py-2 text-sm flex items-start gap-2 ${cellarSo2OverOrganic ? "bg-amber-50 border-amber-300 text-amber-800" : "bg-green-50 border-green-200 text-green-800"}`}>
                     {cellarSo2OverOrganic ? <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" /> : <Leaf className="w-4 h-4 mt-0.5 shrink-0 text-green-600" />}
