@@ -1002,12 +1002,13 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
         {data && (
           <div className="space-y-5 text-sm">
 
-            {/* Pressing details */}
+            {/* Pressing details + attachments */}
             {(() => {
+              const pressId = pressing.id != null && Number(pressing.id) > 0 ? Number(pressing.id) : null;
               const hasDetails = pressing.press_type || pressing.grapes_pressed_kg || pressing.press_wine_litres ||
                 pressing.juice_brix || pressing.juice_ph || pressing.juice_ta_gl ||
                 pressing.operator_name || pressing.settling_method || pressing.juice_turbidity;
-              if (!hasDetails) return null;
+              if (!hasDetails && !pressId) return null;
               return (
                 <div className="rounded-lg border bg-muted/20 px-4 py-3 space-y-3">
                   <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
@@ -1069,6 +1070,11 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
                           <p className="font-medium font-mono">{fmtNum(pressing.juice_ta_gl, 1)}</p>
                         </div>
                       )}
+                    </div>
+                  )}
+                  {pressId !== null && (
+                    <div className={hasDetails ? "pt-2 border-t" : ""}>
+                      <RecordAttachments farmId={farmId} recordType="winery-pressing" recordId={pressId} compact />
                     </div>
                   )}
                 </div>
