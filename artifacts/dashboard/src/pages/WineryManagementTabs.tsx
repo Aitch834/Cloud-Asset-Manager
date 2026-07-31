@@ -6052,6 +6052,8 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
+  const [highlightedSo2RowId, setHighlightedSo2RowId] = useState<string | null>(null);
+  const firstFlaggedSo2RowRef = useRef<HTMLTableRowElement>(null);
   const { data: farmsDataSo2 } = useQuery<{ records?: Record<string, unknown>[] }>({
     queryKey: ["farms-list"],
     queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
@@ -6150,6 +6152,19 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
     return maxVal != null && ORGANIC_LIMIT_NUMBERS.has(maxVal);
   }).length;
 
+  const handleReviewFlaggedSo2 = () => {
+    const firstFlagged = filtered.find(r => {
+      if (r.batch_ref) return false;
+      const maxVal = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : null;
+      return maxVal != null && ORGANIC_LIMIT_NUMBERS.has(maxVal);
+    });
+    if (!firstFlagged) return;
+    const rowId = String(firstFlagged.id);
+    setHighlightedSo2RowId(rowId);
+    firstFlaggedSo2RowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => setHighlightedSo2RowId(null), 2500);
+  };
+
   const so2CsvCols = [
     { key: "vintage_year", label: "Vintage" },
     { key: "test_date", label: "Test Date", fmt: (r: Record<string, unknown>) => fmtDate(r.test_date) },
@@ -6217,9 +6232,16 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
       {unverifiedLimitCount > 0 && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-500" />
-          <span>
-            <strong>{unverifiedLimitCount} test{unverifiedLimitCount !== 1 ? "s" : ""}</strong> {unverifiedLimitCount !== 1 ? "have" : "has"} no batch reference and {unverifiedLimitCount !== 1 ? "carry" : "carries"} an organic SO₂ ceiling — the limit may be incorrect if the wine is conventional. Review the flagged rows below.
+          <span className="flex-1">
+            <strong>{unverifiedLimitCount} test{unverifiedLimitCount !== 1 ? "s" : ""}</strong> {unverifiedLimitCount !== 1 ? "have" : "has"} no batch reference and {unverifiedLimitCount !== 1 ? "carry" : "carries"} an organic SO₂ ceiling — the limit may be incorrect if the wine is conventional.
           </span>
+          <button
+            type="button"
+            onClick={handleReviewFlaggedSo2}
+            className="shrink-0 rounded px-2 py-0.5 text-xs font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+          >
+            Review
+          </button>
         </div>
       )}
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
@@ -6240,12 +6262,22 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
               <th className="p-3"></th>
             </tr></thead>
             <tbody className="divide-y">
-              {filtered.map(r => {
+              {filtered.map((r, idx) => {
                 const batchMissing = !r.batch_ref;
                 const maxVal = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : null;
                 const isUnverifiedLimit = batchMissing && maxVal != null && ORGANIC_LIMIT_NUMBERS.has(maxVal);
+                const rowId = String(r.id);
+                const isFirstFlagged = isUnverifiedLimit && !filtered.slice(0, idx).some(prev => {
+                  const prevMax = prev.max_permitted_mg_l != null && prev.max_permitted_mg_l !== "" ? parseFloat(String(prev.max_permitted_mg_l)) : null;
+                  return !prev.batch_ref && prevMax != null && ORGANIC_LIMIT_NUMBERS.has(prevMax);
+                });
+                const isHighlighted = highlightedSo2RowId === rowId;
                 return (
-                <tr key={String(r.id)} className={`hover:bg-muted/20${isUnverifiedLimit ? " bg-amber-50/40" : ""}`}>
+                <tr
+                  key={rowId}
+                  ref={isFirstFlagged ? firstFlaggedSo2RowRef : undefined}
+                  className={`transition-colors duration-700${isHighlighted ? " bg-amber-200" : isUnverifiedLimit ? " bg-amber-50/40 hover:bg-muted/20" : " hover:bg-muted/20"}`}
+                >
                   <td className="p-3 whitespace-nowrap">{fmtDate(r.test_date)}</td>
                   <td className="p-3 font-mono text-xs">
                     <span className="inline-flex items-center gap-1">
