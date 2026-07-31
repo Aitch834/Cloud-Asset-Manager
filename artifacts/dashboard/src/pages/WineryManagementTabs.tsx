@@ -2720,6 +2720,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
   const [nameSearch, setNameSearch] = useState("");
+  const [summarySort, setSummarySort] = useState<{ col: "additive" | "vintage" | "total_dose"; dir: "asc" | "desc" }>({ col: "additive", dir: "asc" });
   const [txLogBatchFilter, setTxLogBatchFilter] = useState("");
   const { data: additionsSummary = [] } = useAdditionsSummary(farmId);
   const { data: allAdditions = [] } = useAllPressAdditions(farmId);
@@ -2927,18 +2928,33 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     : categoryFilteredSummary.filter(r =>
         String(r.additive_name ?? "").toLowerCase().includes(nameSearch.trim().toLowerCase())
       );
-  // When showing all vintages, sort by additive → vintage → colour so same-additive rows are adjacent
-  const searchFilteredSummary = yearFilter === "all"
-    ? [...searchFilteredSummaryUnsorted].sort((a, b) => {
-        const nameA = String(a.additive_name ?? "");
-        const nameB = String(b.additive_name ?? "");
-        if (nameA !== nameB) return nameA.localeCompare(nameB);
-        const vinA = String(a.vintage_year ?? "");
-        const vinB = String(b.vintage_year ?? "");
-        if (vinA !== vinB) return vinA.localeCompare(vinB);
-        return String(a.wine_colour ?? "").localeCompare(String(b.wine_colour ?? ""));
-      })
-    : searchFilteredSummaryUnsorted;
+  // Sort the summary table by the user-selected column (default: additive → vintage → colour)
+  const searchFilteredSummary = [...searchFilteredSummaryUnsorted].sort((a, b) => {
+    const dir = summarySort.dir === "asc" ? 1 : -1;
+    if (summarySort.col === "total_dose") {
+      const diff = parseFloat(String(a.total_dose ?? 0)) - parseFloat(String(b.total_dose ?? 0));
+      if (diff !== 0) return diff * dir;
+      // Secondary: additive name then vintage
+      const n = String(a.additive_name ?? "").localeCompare(String(b.additive_name ?? ""));
+      if (n !== 0) return n;
+      return String(a.vintage_year ?? "").localeCompare(String(b.vintage_year ?? ""));
+    }
+    if (summarySort.col === "vintage") {
+      const vinCmp = String(a.vintage_year ?? "").localeCompare(String(b.vintage_year ?? ""));
+      if (vinCmp !== 0) return vinCmp * dir;
+      // Secondary: additive name then colour
+      const n = String(a.additive_name ?? "").localeCompare(String(b.additive_name ?? ""));
+      if (n !== 0) return n;
+      return String(a.wine_colour ?? "").localeCompare(String(b.wine_colour ?? ""));
+    }
+    // Default: additive → vintage → colour
+    const nameCmp = String(a.additive_name ?? "").localeCompare(String(b.additive_name ?? ""));
+    if (nameCmp !== 0) return nameCmp * dir;
+    const vinA = String(a.vintage_year ?? "");
+    const vinB = String(b.vintage_year ?? "");
+    if (vinA !== vinB) return vinA.localeCompare(vinB);
+    return String(a.wine_colour ?? "").localeCompare(String(b.wine_colour ?? ""));
+  });
   const showSo2Chart = categoryFilter.size === 0 || categoryFilter.has("so2");
   const so2ByVintage = new Map<string, number>();
   additionsSummary.filter(r => r.category === "so2").forEach(r => {
@@ -3318,12 +3334,38 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
                 <thead className="bg-muted/40"><tr>
-                  <th className="text-left p-2.5 font-medium">Additive</th>
-                  {yearFilter === "all" && <th className="text-left p-2.5 font-medium">Vintage</th>}
+                  <th className="text-left p-2.5 font-medium">
+                    <button
+                      className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                      onClick={() => setSummarySort(s => s.col === "additive" ? { col: "additive", dir: s.dir === "asc" ? "desc" : "asc" } : { col: "additive", dir: "asc" })}
+                    >
+                      Additive
+                      {summarySort.col === "additive" ? (summarySort.dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-40" />}
+                    </button>
+                  </th>
+                  {yearFilter === "all" && (
+                    <th className="text-left p-2.5 font-medium">
+                      <button
+                        className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                        onClick={() => setSummarySort(s => s.col === "vintage" ? { col: "vintage", dir: s.dir === "asc" ? "desc" : "asc" } : { col: "vintage", dir: "asc" })}
+                      >
+                        Vintage
+                        {summarySort.col === "vintage" ? (summarySort.dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-40" />}
+                      </button>
+                    </th>
+                  )}
                   <th className="text-left p-2.5 font-medium">Wine Colour</th>
                   <th className="text-left p-2.5 font-medium">Stage</th>
                   <th className="text-right p-2.5 font-medium">Records</th>
-                  <th className="text-right p-2.5 font-medium">Total dose</th>
+                  <th className="text-right p-2.5 font-medium">
+                    <button
+                      className="inline-flex items-center gap-1 hover:text-foreground transition-colors ml-auto"
+                      onClick={() => setSummarySort(s => s.col === "total_dose" ? { col: "total_dose", dir: s.dir === "asc" ? "desc" : "asc" } : { col: "total_dose", dir: "desc" })}
+                    >
+                      Total dose
+                      {summarySort.col === "total_dose" ? (summarySort.dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-40" />}
+                    </button>
+                  </th>
                   <th className="text-right p-2.5 font-medium">Avg / record</th>
                   <th className="text-right p-2.5 font-medium">Min</th>
                   <th className="text-right p-2.5 font-medium">Max</th>
@@ -3348,10 +3390,10 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                       : src === "fermentation"
                       ? "bg-blue-100 text-blue-800"
                       : "bg-emerald-100 text-emerald-800";
-                    // Visual grouping: suppress repeated additive name for consecutive same-additive rows
+                    // Visual grouping: suppress repeated additive name for consecutive same-additive rows (only when sorted by additive)
                     const prevName = i > 0 ? String(searchFilteredSummary[i - 1].additive_name ?? "") : null;
-                    const isGroupContinuation = yearFilter === "all" && prevName === String(row.additive_name ?? "");
-                    const isGroupStart = yearFilter === "all" && i > 0 && !isGroupContinuation;
+                    const isGroupContinuation = summarySort.col === "additive" && prevName === String(row.additive_name ?? "");
+                    const isGroupStart = summarySort.col === "additive" && i > 0 && !isGroupContinuation;
                     return (
                       <tr key={i} className={`${warnConventional ? "bg-red-50" : warnOrganic || warnAscorbic ? "bg-amber-50" : "hover:bg-muted/20"}${isGroupStart ? " border-t-2 border-t-muted" : ""}`}>
                         <td className="p-2.5 font-medium">
