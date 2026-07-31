@@ -5606,7 +5606,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
             </tr></thead>
             <tbody className="divide-y">
               {displayRows.map(r => (
-                <tr key={String(r.id)} className="hover:bg-muted/20">
+                <tr key={String(r.id)} className={isBottlingRowNonCompliant(r) ? "bg-red-50 hover:bg-red-100 border-l-4 border-l-red-400" : "hover:bg-muted/20"}>
                   <td className="p-3 whitespace-nowrap">{fmtDate(r.bottling_date)}</td>
                   <td className="p-3 font-mono font-semibold text-xs">{fmt(r.lot_code)}</td>
                   <td className="p-3 font-mono text-xs">{fmt(r.batch_ref)}</td>
