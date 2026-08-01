@@ -311,6 +311,9 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Farm Incidents Summary */}
+      {activeSubs.includes("risk-waste") && <FarmIncidentsSummary farmId={farmId} />}
+
       {/* Upcoming Key Dates */}
       <UpcomingDatesPanel farmId={farmId} />
 
@@ -347,6 +350,73 @@ export default function Dashboard() {
         </CardContent>
       </Card>
     </AppLayout>
+  );
+}
+
+const OPEN_INCIDENT_STATUSES = new Set(["reported", "under_investigation", "claim_raised"]);
+
+function FarmIncidentsSummary({ farmId }: { farmId: number }) {
+  const { data } = useQuery({
+    queryKey: ["farm-incidents", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/incidents`).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 60_000,
+  });
+
+  const records: any[] = data?.records ?? [];
+  const open = records.filter(r => OPEN_INCIDENT_STATUSES.has(r.status));
+  if (open.length === 0) return null;
+
+  const byType = new Map<string, number>();
+  for (const r of open) byType.set(r.incidentType, (byType.get(r.incidentType) ?? 0) + 1);
+  const typeBreakdown = [...byType.entries()].sort((a, b) => b[1] - a[1]);
+
+  const totalLoss = open.reduce((sum, r) => {
+    const n = parseFloat(r.estimatedLossValue ?? "");
+    return sum + (isNaN(n) ? 0 : n);
+  }, 0);
+
+  const HIGH_RISK = new Set(["Fire", "Wildfire", "Flood"]);
+
+  return (
+    <Card className="border-l-4 border-l-red-400">
+      <CardContent className="p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <ShieldAlert className="w-4 h-4 text-red-500" />
+              <span className="text-xs font-bold text-red-600 uppercase tracking-wider">Farm Incidents</span>
+            </div>
+            <h3 className="text-2xl font-bold text-foreground mb-1">
+              {open.length} open incident{open.length !== 1 ? "s" : ""}
+            </h3>
+            <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+              {typeBreakdown.map(([type, count]) => (
+                <span
+                  key={type}
+                  className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                    HIGH_RISK.has(type)
+                      ? "bg-red-50 text-red-700 border-red-200"
+                      : "bg-amber-50 text-amber-700 border-amber-200"
+                  }`}
+                >
+                  {count} {type}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-xs font-bold text-foreground/50 uppercase tracking-wider mb-1">Est. Total Losses</p>
+            <p className="text-2xl font-bold text-red-600">
+              £{totalLoss.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+            <Link href="/farm-incidents" className="mt-2 inline-flex items-center gap-1 text-xs text-primary font-medium hover:underline">
+              View incidents <ExternalLink className="w-3 h-3" />
+            </Link>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
