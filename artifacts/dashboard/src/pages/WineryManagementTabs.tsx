@@ -3583,6 +3583,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   });
   const setYearFilter = (v: string) => { try { localStorage.setItem(pressingYearFilterKey, v); } catch { /**/ } setYearFilterRaw(v); };
   const [pressingSearch, setPressingSearch] = useState("");
+  const [signedFilter, setSignedFilter] = useState<"all" | "signed" | "unsigned">("all");
   const pressingSortKey = `pressing-sort-${farmId}`;
   const PRESSING_SORT_COLS = ["date", "batch_ref", "grapes_pressed_kg", "total_juice_litres", "juice_brix", "juice_ph", "juice_turbidity"] as const;
   type PressingSort = typeof PRESSING_SORT_COLS[number];
@@ -3845,6 +3846,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
         return String(r.batch_ref ?? "").toLowerCase().includes(q)
           || String(r.press_date ?? "").toLowerCase().includes(q);
       });
+  const filteredBySigned = signedFilter === "all"
+    ? filteredBySearch
+    : filteredBySearch.filter(r => {
+        const isSigned = r.audit_signature != null && r.audit_signature !== "";
+        return signedFilter === "signed" ? isSigned : !isSigned;
+      });
   const togglePressSort = (col: PressingSort) => {
     if (pressingSortCol === col) {
       setPressingSortDir(pressingSortDir === "asc" ? "desc" : "asc");
@@ -3855,7 +3862,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     }
   };
   const TURBIDITY_ORDER: Record<string, number> = { "Clear": 0, "Slightly turbid": 1, "Turbid": 2 };
-  const filtered = [...filteredBySearch].sort((a, b) => {
+  const filtered = [...filteredBySigned].sort((a, b) => {
     let cmp = 0;
     if (pressingSortCol === "grapes_pressed_kg" || pressingSortCol === "total_juice_litres" || pressingSortCol === "juice_brix" || pressingSortCol === "juice_ph") {
       const an = parseFloat(String(a[pressingSortCol] ?? ""));
@@ -4102,6 +4109,15 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             onChange={e => setPressingSearch(e.target.value)}
           />
         </div>
+        <span className="text-xs text-muted-foreground">Sign-off:</span>
+        <Select value={signedFilter} onValueChange={v => setSignedFilter(v as "all" | "signed" | "unsigned")}>
+          <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="signed">Signed only</SelectItem>
+            <SelectItem value="unsigned">Unsigned only</SelectItem>
+          </SelectContent>
+        </Select>
         <Button size="sm" variant={showReport ? "default" : "outline"} className="ml-auto" onClick={() => {
           const opening = !showReport;
           setShowReport(v => !v);
