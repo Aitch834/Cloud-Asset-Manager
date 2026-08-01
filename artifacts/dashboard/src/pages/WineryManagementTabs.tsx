@@ -1096,8 +1096,20 @@ function VintagePHComparisonChart({
   highlightedBatch: string | null;
   onBatchClick: (ref: string) => void;
 }) {
+  const [colourFilter, setColourFilter] = useState<string>("all");
+
   // Collect per-batch pH/TA: bottling (primary) → fermentation end (fallback)
-  const batchMap = new Map<string, { ph: number | null; ta: number | null }>();
+  const batchMap = new Map<string, { ph: number | null; ta: number | null; colour: string | null }>();
+
+  // Per-batch wine colour lookup (fermentation first, then bottling)
+  const colourOf = (ref: string): string | null => {
+    for (const src of [data.fermentation, data.bottling]) {
+      for (const r of src) {
+        if (r.batch_ref && String(r.batch_ref).trim() === ref && r.wine_colour) return String(r.wine_colour);
+      }
+    }
+    return null;
+  };
 
   const sortedBottling = [...data.bottling].sort((a, b) =>
     a.bottling_date && b.bottling_date
@@ -1107,7 +1119,7 @@ function VintagePHComparisonChart({
   for (const r of sortedBottling) {
     const ref = r.batch_ref ? String(r.batch_ref).trim() : null;
     if (!ref) continue;
-    if (!batchMap.has(ref)) batchMap.set(ref, { ph: null, ta: null });
+    if (!batchMap.has(ref)) batchMap.set(ref, { ph: null, ta: null, colour: colourOf(ref) });
     const entry = batchMap.get(ref)!;
     if (entry.ph == null && r.ph != null) entry.ph = parseFloat(String(r.ph));
     if (entry.ta == null && r.titratable_acidity_gl != null) entry.ta = parseFloat(String(r.titratable_acidity_gl));
@@ -1121,18 +1133,24 @@ function VintagePHComparisonChart({
   for (const r of sortedFerm) {
     const ref = r.batch_ref ? String(r.batch_ref).trim() : null;
     if (!ref) continue;
-    if (!batchMap.has(ref)) batchMap.set(ref, { ph: null, ta: null });
+    if (!batchMap.has(ref)) batchMap.set(ref, { ph: null, ta: null, colour: colourOf(ref) });
     const entry = batchMap.get(ref)!;
     if (entry.ph == null && r.end_ph != null) entry.ph = parseFloat(String(r.end_ph));
     if (entry.ta == null && r.end_ta_gl != null) entry.ta = parseFloat(String(r.end_ta_gl));
   }
 
-  const chartData = Array.from(batchMap.entries())
+  const allChartData = Array.from(batchMap.entries())
     .filter(([, v]) => v.ph != null || v.ta != null)
-    .map(([ref, v]) => ({ ref, label: ref, ph: v.ph, ta: v.ta }))
+    .map(([ref, v]) => ({ ref, label: ref, ph: v.ph, ta: v.ta, colour: v.colour }))
     .sort((a, b) => a.ref.localeCompare(b.ref));
 
-  if (chartData.length < 2) return null;
+  const availableColours = Array.from(new Set(allChartData.map(d => d.colour).filter((c): c is string => !!c))).sort();
+  const showColourFilter = availableColours.length > 1;
+  const chartData = showColourFilter && colourFilter !== "all"
+    ? allChartData.filter(d => d.colour === colourFilter)
+    : allChartData;
+
+  if (allChartData.length < 2) return null;
 
   return (
     <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 space-y-2">
@@ -1142,9 +1160,25 @@ function VintagePHComparisonChart({
           Vintage {vintageYear} — pH &amp; TA Comparison
         </span>
         <span className="text-xs text-muted-foreground">
-          {chartData.length} batches · click a bar to highlight
+          {chartData.length} batch{chartData.length !== 1 ? "es" : ""} · click a bar to highlight
         </span>
       </div>
+      {showColourFilter && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground">Wine colour:</span>
+          <Select value={colourFilter} onValueChange={setColourFilter}>
+            <SelectTrigger className="w-32 h-7 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All colours</SelectItem>
+              {availableColours.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      {chartData.length === 0 && (
+        <p className="text-xs text-muted-foreground py-2">No batches with pH/TA data for the selected wine colour.</p>
+      )}
+      {chartData.length > 0 && (
       <div className="bg-white/70 rounded p-2">
         <ResponsiveContainer width="100%" height={170}>
           <BarChart
@@ -1229,6 +1263,7 @@ function VintagePHComparisonChart({
           </BarChart>
         </ResponsiveContainer>
       </div>
+      )}
       {highlightedBatch ? (
         <p className="text-xs text-indigo-700">
           Showing: <span className="font-mono font-semibold">{highlightedBatch}</span> — matching records are highlighted below.{" "}
