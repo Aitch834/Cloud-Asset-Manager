@@ -3089,6 +3089,7 @@ function printSo2TransactionLog(
     return `<tr>
       <td style="white-space:nowrap">${escHtml(r.record_date ? new Date(r.record_date as string).toLocaleDateString("en-GB") : "—")}</td>
       <td style="font-family:monospace;font-size:10px">${escHtml(r.batch_ref ?? "—")}</td>
+      <td>${escHtml(r.wine_colour ?? "—")}</td>
       <td>${escHtml(r.vintage_year ?? "—")}</td>
       <td>${escHtml(stageLabel)}</td>
       <td>${escHtml(r.additive_name ?? "—")}</td>
@@ -3135,6 +3136,7 @@ function printSo2TransactionLog(
   <thead><tr>
     <th>Date</th>
     <th>Batch Ref</th>
+    <th>Wine Colour</th>
     <th>Vintage</th>
     <th>Stage</th>
     <th>Additive</th>
