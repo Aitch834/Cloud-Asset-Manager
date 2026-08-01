@@ -6861,6 +6861,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [so2Search, setSo2Search] = useState("");
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   const [highlightedSo2RowId, setHighlightedSo2RowId] = useState<string | null>(null);
   const firstFlaggedSo2RowRef = useRef<HTMLTableRowElement>(null);
@@ -6952,7 +6953,17 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
 
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
   if (!years.includes(String(new Date().getFullYear()))) years.unshift(String(new Date().getFullYear()));
-  const filtered = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
+  const filteredByYearSo2 = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
+  const filtered = so2Search.trim() === "" ? filteredByYearSo2 : filteredByYearSo2.filter(r => {
+    const q = so2Search.trim().toLowerCase();
+    return (
+      String(r.batch_ref ?? "").toLowerCase().includes(q) ||
+      String(r.wine_name ?? "").toLowerCase().includes(q) ||
+      String(r.wine_colour ?? "").toLowerCase().includes(q) ||
+      String(r.test_stage ?? "").toLowerCase().includes(q) ||
+      (SO2_TEST_STAGE_LABELS[String(r.test_stage ?? "")] ?? "").toLowerCase().includes(q)
+    );
+  });
 
   // Rows where batch_ref is missing and max_permitted_mg_l is an organic ceiling value
   const ORGANIC_LIMIT_NUMBERS = new Set(Object.values(ORGANIC_MAX_SO2).map(v => parseFloat(v)));
@@ -7013,12 +7024,16 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
         <p><strong>Conventional limits (Reg 1308/2013):</strong> Red 150 mg/L · White/Rosé 200 mg/L · Sparkling 235 mg/L</p>
         <p>These are <em>total</em> SO₂ limits. The max permitted field auto-fills from the linked batch's organic status — edit it to override.</p>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-muted-foreground">Vintage:</span>
-        <Select value={yearFilter} onValueChange={setYearFilter}>
+        <Select value={yearFilter} onValueChange={v => { setYearFilter(v); setSo2Search(""); }}>
           <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
         </Select>
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          <Input className="h-8 pl-7 text-xs w-52" placeholder="Search batch, colour, stage…" value={so2Search} onChange={e => setSo2Search(e.target.value)} />
+        </div>
         <Button size="sm" variant="outline" className="ml-auto" onClick={() => exportCSV(filtered, "so2-testing.csv", so2CsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} test{filtered.length !== 1 ? "s" : ""}</span>
       </div>
