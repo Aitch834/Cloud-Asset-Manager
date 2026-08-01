@@ -4194,6 +4194,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                     <th className="text-left p-2.5 font-medium">Unit</th>
                     <th className="text-right p-2.5 font-medium whitespace-nowrap">Dose Rate</th>
                     <th className="text-left p-2.5 font-medium">Operator</th>
+                    <th className="text-left p-2.5 font-medium">Vessel</th>
                   </tr></thead>
                   <tbody className="divide-y">
                     {filteredTransactionLog.map((row: Record<string, unknown>, i: number) => {
@@ -4265,6 +4266,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                             )}
                           </td>
                           <td className="p-2.5 text-muted-foreground text-xs">{fmt(row.operator_name)}</td>
+                          <td className="p-2.5 text-muted-foreground text-xs">{fmt(row.vessel_ref)}</td>
                         </tr>
                       );
                     })}
