@@ -151,6 +151,22 @@ function useStaff(farmId: number) {
   };
 }
 
+// Persist a tab's vintage year filter in localStorage, scoped to the farm.
+// Same pattern as PressingRecordsTab's `pressing-year-filter-${farmId}` key:
+// lazy initializer, wrapped setter, and a farmId re-sync effect (the component
+// may stay mounted across farm switches).
+function usePersistedYearFilter(prefix: string, farmId: number): [string, (v: string) => void] {
+  const storageKey = `${prefix}-year-filter-${farmId}`;
+  const [yearFilter, setYearFilterRaw] = useState(() => {
+    try { return localStorage.getItem(storageKey) ?? String(new Date().getFullYear()); } catch { return String(new Date().getFullYear()); }
+  });
+  useEffect(() => {
+    try { setYearFilterRaw(localStorage.getItem(storageKey) ?? String(new Date().getFullYear())); } catch { /**/ }
+  }, [storageKey]);
+  const setYearFilter = (v: string) => { try { localStorage.setItem(storageKey, v); } catch { /**/ } setYearFilterRaw(v); };
+  return [yearFilter, setYearFilter];
+}
+
 function ViewField({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
@@ -390,7 +406,7 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
   const [view, setView] = useState<Record<string, unknown> | null>(null);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
-  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [yearFilter, setYearFilter] = usePersistedYearFilter("harvest", farmId);
   const [harvestSearch, setHarvestSearch] = useState("");
   const sf = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
 
@@ -5369,7 +5385,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [isOrganicForm, setIsOrganicForm] = useState(false);
-  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [yearFilter, setYearFilter] = usePersistedYearFilter("fermentation", farmId);
   const [fermSearch, setFermSearch] = useState("");
   const [so2FromPressing, setSo2FromPressing] = useState(false);
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
@@ -6111,7 +6127,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const [view, setView] = useState<Record<string, unknown> | null>(null);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [yearFilter, setYearFilter] = usePersistedYearFilter("cellar-ops", farmId);
   const [opFilter, setOpFilter] = useState("all");
   const [cellarSearch, setCellarSearch] = useState("");
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
@@ -6774,7 +6790,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const [view, setView] = useState<Record<string, unknown> | null>(null);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
-  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [yearFilter, setYearFilter] = usePersistedYearFilter("bottling", farmId);
   const [nonCompliantOnly, setNonCompliantOnly] = useState(false);
   const [so2FromTest, setSo2FromTest] = useState(false);
   const [phTaFromAnalysis, setPhTaFromAnalysis] = useState<"fermentation" | "pressing" | null>(null);
@@ -7625,7 +7641,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
   const [view, setView] = useState<Record<string, unknown> | null>(null);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [yearFilter, setYearFilter] = usePersistedYearFilter("so2-testing", farmId);
   const [so2Search, setSo2Search] = useState("");
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   const [highlightedSo2RowId, setHighlightedSo2RowId] = useState<string | null>(null);
