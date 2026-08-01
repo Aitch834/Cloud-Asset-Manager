@@ -18,6 +18,7 @@
 - [LIS Beta Sandbox test data](lis-test-data.md) — 2 users, 14 CPHs, herds/tags for sheep/goat/deer; passwords in attached_assets/testData_1781087138915.json
 - [LIS sync import — DB write](lis-sync-import.md) — movements upserted into livestock_movements on sync; dedup via lis_movement_ref; flexible field extractors; lisMigrations.ts runs on startup
 - [LIS OAuth HMAC state — no DB nonce](lis-oauth-hmac.md) — OAuth state is HMAC-SHA256 signed (not DB-stored); use createHmac/timingSafeEqual from "crypto" import, NOT global crypto
+- [Dashboard serves stale dist](dashboard-serves-stale-dist.md) — dashboard dev workflow serves pre-built dist, only builds if missing; must rebuild + restart after any source change
 - [Dashboard local build — PORT+BASE_PATH required](dashboard-local-build.md) — dashboard vite build needs both PORT and BASE_PATH: PORT=3000 BASE_PATH=/dashboard/ pnpm --filter @workspace/dashboard run build
 - [Enterprise reports — medicine cost gap](enterprise-reports-medicine.md) — livestockMedicineRecordsTable has NO unitCostPence and NO species field; medicine costs unqueryable; note as "add via Financial"
 - [Help article TITLES/CONTENT index-drift risk](help-articles-title-content-drift.md) — positional array pairing in defaultHelpArticles.ts silently mispairs title/content on any mid-array insert; verify by h2-vs-title match, and DB seed only inserts missing slugs (never overwrites)
