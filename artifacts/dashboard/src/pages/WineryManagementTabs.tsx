@@ -3222,7 +3222,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const setYearFilter = (v: string) => { try { localStorage.setItem(pressingYearFilterKey, v); } catch { /**/ } setYearFilterRaw(v); };
   const [pressingSearch, setPressingSearch] = useState("");
   const pressingSortKey = `pressing-sort-${farmId}`;
-  const PRESSING_SORT_COLS = ["date", "batch_ref", "grapes_pressed_kg", "total_juice_litres", "juice_turbidity"] as const;
+  const PRESSING_SORT_COLS = ["date", "batch_ref", "grapes_pressed_kg", "total_juice_litres", "juice_brix", "juice_ph", "juice_turbidity"] as const;
   type PressingSort = typeof PRESSING_SORT_COLS[number];
   const [pressingSortCol, setPressingSortColRaw] = useState<PressingSort>(() => {
     try { const v = localStorage.getItem(`pressing-sort-${farmId}-col`); return (PRESSING_SORT_COLS as readonly string[]).includes(v ?? "") ? v as PressingSort : "date"; } catch { return "date"; }
@@ -3460,22 +3460,23 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     } else {
       setPressingSortCol(col);
       // Numeric columns default desc (largest first); text columns default to their natural direction
-      setPressingSortDir(col === "grapes_pressed_kg" || col === "total_juice_litres" ? "desc" : col === "date" ? "desc" : "asc");
+      setPressingSortDir(col === "grapes_pressed_kg" || col === "total_juice_litres" || col === "juice_brix" || col === "juice_ph" ? "desc" : col === "date" ? "desc" : "asc");
     }
   };
   const TURBIDITY_ORDER: Record<string, number> = { "Clear": 0, "Slightly turbid": 1, "Turbid": 2 };
   const filtered = [...filteredBySearch].sort((a, b) => {
     let cmp = 0;
-    if (pressingSortCol === "grapes_pressed_kg" || pressingSortCol === "total_juice_litres") {
+    if (pressingSortCol === "grapes_pressed_kg" || pressingSortCol === "total_juice_litres" || pressingSortCol === "juice_brix" || pressingSortCol === "juice_ph") {
       const an = parseFloat(String(a[pressingSortCol] ?? ""));
       const bn = parseFloat(String(b[pressingSortCol] ?? ""));
       const aNull = isNaN(an), bNull = isNaN(bn);
-      // Keep missing values last regardless of sort direction — negate only the
-      // numeric comparison, never the null-sentinel values.
+      // Keep missing values last regardless of sort direction. These returns
+      // exit the comparator immediately and are NEVER negated below.
       if (aNull && bNull) return 0;
       if (aNull) return 1;   // nulls always last
       if (bNull) return -1;  // nulls always last
-      cmp = an - bn;
+      // Direction applied here directly — only when both values are numeric.
+      return pressingSortDir === "asc" ? an - bn : bn - an;
     } else if (pressingSortCol === "juice_turbidity") {
       const av = String(a.juice_turbidity ?? "");
       const bv = String(b.juice_turbidity ?? "");
@@ -3760,8 +3761,22 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                 </button>
               </th>
               <th className="text-right p-3 font-medium">L/kg</th>
-              <th className="text-right p-3 font-medium">Brix °</th>
-              <th className="text-right p-3 font-medium">pH</th>
+              <th className="text-right p-3 font-medium">
+                <button className="flex items-center gap-1 hover:text-foreground ml-auto group" onClick={() => togglePressSort("juice_brix")}>
+                  Brix °
+                  {pressingSortCol === "juice_brix"
+                    ? pressingSortDir === "asc" ? <ArrowUp className="w-3.5 h-3.5 text-primary" /> : <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                    : <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground" />}
+                </button>
+              </th>
+              <th className="text-right p-3 font-medium">
+                <button className="flex items-center gap-1 hover:text-foreground ml-auto group" onClick={() => togglePressSort("juice_ph")}>
+                  pH
+                  {pressingSortCol === "juice_ph"
+                    ? pressingSortDir === "asc" ? <ArrowUp className="w-3.5 h-3.5 text-primary" /> : <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                    : <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground" />}
+                </button>
+              </th>
               <th className="text-left p-3 font-medium">
                 <button className="flex items-center gap-1 hover:text-foreground text-left group" onClick={() => togglePressSort("juice_turbidity")}>
                   Turbidity
