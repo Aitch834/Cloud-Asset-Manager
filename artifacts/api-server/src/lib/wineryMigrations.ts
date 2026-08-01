@@ -157,5 +157,14 @@ export async function runWineryMigrations(): Promise<void> {
     console.log(`[WINERY-MIGRATE] SO₂ backfill: updated ${backfillCount} fermentation record(s) with so2_from_pressing = true`);
   }
 
+  // Unique batch refs per farm on cellar ops — mirrors the same guard already in place on
+  // pressing and fermentation records. NULL allowed (batch_ref is optional), but two non-NULL
+  // values with the same (farm_id, batch_ref) are rejected at the DB level.
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS winery_cellar_ops_farm_batch_ref_unique
+    ON winery_cellar_ops (farm_id, batch_ref)
+    WHERE batch_ref IS NOT NULL
+  `);
+
   console.log("[WINERY-MIGRATE] Done.");
 }
