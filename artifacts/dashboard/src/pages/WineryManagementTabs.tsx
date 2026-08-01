@@ -2884,6 +2884,12 @@ ${mixedUnitsNotice}<table>
   </tr></thead>
   <tbody>${tableRows}</tbody>
 </table>
+${rows.some(r => r.category === "so2") ? `<div style="margin-top:12px;padding:8px 12px;border:1px solid #e5e7eb;background:#f9fafb;border-radius:6px;font-size:10px;color:#6b7280;page-break-inside:avoid">
+  <p style="font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#374151;margin-bottom:4px">SO₂ total limits (mg/L total SO₂)</p>
+  <p style="margin-bottom:2px"><strong style="color:#15803d">🌿 Organic</strong> &nbsp; Red <strong style="color:#111">100</strong> · White / Rosé / Orange <strong style="color:#111">150</strong> · Sparkling <strong style="color:#111">185</strong></p>
+  <p style="margin-bottom:2px"><strong style="color:#374151">Conventional</strong> &nbsp; Red <strong style="color:#111">150</strong> · White / Rosé / Orange <strong style="color:#111">200</strong> · Sparkling <strong style="color:#111">235</strong></p>
+  <p style="color:#9ca3af">UK-retained Reg 2019/934 (organic) · Reg 1308/2013 Annex VIII Part B (conventional). Limits are for <em>total</em> SO₂ across the wine's life (mg/L). Individual doses above are recorded in stage-specific units — pressing mg/kg · fermentation mg/L · cellar g — see each row's Unit column.</p>
+</div>` : ""}
 <p class="legend">
   <span style="color:#b91c1c">⚠ Red = average dose exceeds conventional maximum</span>
   <span style="color:#92400e">⚠ Amber = average dose exceeds organic limit (per-colour: Red 100 · White/Rosé/Orange 150 · Sparkling 185 mg/kg)</span>
