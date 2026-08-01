@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Flame, Plus, Printer, Download, ChevronDown, ChevronUp, Trash2, Pencil, Eye,
-  AlertTriangle, ShieldCheck, ClipboardList
+  AlertTriangle, ShieldCheck, ClipboardList, Camera
 } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -722,6 +722,21 @@ export default function FarmIncidentsPage() {
                       {statusBadge(inc.status)}
                       <span style={{ fontSize: "0.8rem", color: "#6b7280" }}>{fmt(inc.dateDiscovered)}</span>
                       {fieldLabel && <span style={{ fontSize: "0.8rem", color: "#6b7280" }}>· {fieldLabel}</span>}
+                      {(inc.photos ?? []).length > 0 ? (
+                        <span title={`${inc.photos.length} evidence photo${inc.photos.length === 1 ? "" : "s"} attached`} style={{
+                          display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 9999,
+                          fontSize: "0.72rem", fontWeight: 700, background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe",
+                        }}>
+                          <Camera style={{ width: 12, height: 12 }} />{inc.photos.length}
+                        </span>
+                      ) : ["Fire", "Theft", "Criminal Damage"].includes(inc.incidentType) ? (
+                        <span title="No photo evidence attached — insurers usually require photos for this incident type" style={{
+                          display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 9999,
+                          fontSize: "0.72rem", fontWeight: 600, background: "#fffbeb", color: "#b45309", border: "1px dashed #fcd34d",
+                        }}>
+                          <Camera style={{ width: 12, height: 12 }} />no photos
+                        </span>
+                      ) : null}
                     </div>
                     <div style={{ fontSize: "0.875rem", color: "#374151", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {inc.locationDescription}
