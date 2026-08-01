@@ -11,8 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Flame, Plus, Printer, Download, ChevronDown, ChevronUp, Trash2, Pencil, Eye,
-  AlertTriangle, ShieldCheck
+  AlertTriangle, ShieldCheck, ClipboardList
 } from "lucide-react";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { useAppStore } from "@/hooks/use-app-store";
 import { printProReport } from "@/lib/print-report";
 import { PhotoPanel } from "@/pages/fly-tipping/PhotoPanel";
@@ -174,6 +175,7 @@ export default function FarmIncidentsPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [raiseTaskFor, setRaiseTaskFor] = useState<Incident | null>(null);
   const [form, setForm] = useState<Omit<Incident, "id"|"farmId"|"createdAt"|"photos">>(emptyForm());
 
   // ── Queries ──
@@ -630,6 +632,9 @@ export default function FarmIncidentsPage() {
             <Button variant="outline" size="sm" onClick={() => handlePrintIncident(viewInc)}>
               <Printer style={{ width: 14, height: 14, marginRight: 6 }} /> Print Report
             </Button>
+            <Button variant="outline" size="sm" onClick={() => { setViewId(null); setRaiseTaskFor(viewInc); }}>
+              <ClipboardList style={{ width: 14, height: 14, marginRight: 6 }} /> Raise Task
+            </Button>
             <Button size="sm" onClick={() => { setViewId(null); openEdit(viewInc); }}>
               <Pencil style={{ width: 14, height: 14, marginRight: 6 }} /> Edit
             </Button>
@@ -734,6 +739,9 @@ export default function FarmIncidentsPage() {
                     </Button>
                     <Button variant="ghost" size="sm" onClick={e => { e.stopPropagation(); handlePrintIncident(inc); }}>
                       <Printer style={{ width: 14, height: 14 }} />
+                    </Button>
+                    <Button variant="ghost" size="sm" title="Raise Task" onClick={e => { e.stopPropagation(); setRaiseTaskFor(inc); }}>
+                      <ClipboardList style={{ width: 14, height: 14, color: "#f59e0b" }} />
                     </Button>
                     <Button variant="ghost" size="sm" onClick={e => { e.stopPropagation(); setDeleteId(inc.id); }}>
                       <Trash2 style={{ width: 14, height: 14, color: "#dc2626" }} />
@@ -840,6 +848,17 @@ export default function FarmIncidentsPage() {
 
       {/* View dialog */}
       {renderViewDialog()}
+
+      {/* Raise Task dialog */}
+      <RaiseTaskDialog
+        farmId={farmId!}
+        open={!!raiseTaskFor}
+        onClose={() => setRaiseTaskFor(null)}
+        defaultTitle={raiseTaskFor ? `Incident Follow-up — ${raiseTaskFor.incidentType} (${fmt(raiseTaskFor.dateDiscovered)})` : ""}
+        defaultDescription={raiseTaskFor ? `Incident #${raiseTaskFor.id}: ${raiseTaskFor.incidentType} discovered ${fmt(raiseTaskFor.dateDiscovered)} at ${raiseTaskFor.locationDescription}. Status: ${STATUSES.find(s => s.value === raiseTaskFor.status)?.label ?? raiseTaskFor.status}.` : ""}
+        allowEditTitle
+        module="incidents"
+      />
 
       {/* Delete confirm */}
       <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
