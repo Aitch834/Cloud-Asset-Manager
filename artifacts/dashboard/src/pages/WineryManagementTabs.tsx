@@ -3335,6 +3335,17 @@ function printPressingReport(rows: Record<string, unknown>[], farmName: string, 
           </td>
         </tr>`
       : "";
+    const editHistory = Array.isArray(r.edit_history) ? (r.edit_history as Record<string, unknown>[]) : [];
+    const editHistoryRow = editHistory.length > 0
+      ? `<tr class="additions-row">
+          <td colspan="${COL_COUNT}" style="padding:3px 7px 6px 20px;background:#fffbeb;border-bottom:1px solid #e5e7eb">
+            <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#b45309;margin-right:8px">Edited after sign-off:</span>
+            ${editHistory.map(h =>
+              `<span style="display:inline-block;margin-right:10px;font-size:9.5px;color:#92400e">${escHtml(String(h.note ?? ""))}</span>`
+            ).join("")}
+          </td>
+        </tr>`
+      : "";
     return `<tr>
       <td style="white-space:nowrap">${escHtml(r.press_date ? new Date(r.press_date as string).toLocaleDateString("en-GB") : "—")}</td>
       <td>${escHtml(r.vintage_year ?? "—")}</td>
@@ -3352,7 +3363,7 @@ function printPressingReport(rows: Record<string, unknown>[], farmName: string, 
       <td>${escHtml(r.operator_name ?? "—")}</td>
       <td>${escHtml(r.settling_method ?? "—")}</td>
       <td style="font-size:10px;color:#6b7280">${escHtml(r.notes ?? "")}</td>
-    </tr>${additionsRow}`;
+    </tr>${additionsRow}${editHistoryRow}`;
   }).join("");
 
   const html = `<!DOCTYPE html>
@@ -4899,7 +4910,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
               <ShieldCheck className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
               <span>
-                <strong>This record has been signed off.</strong> Saving changes to the press data will not affect the existing audit signature — the sign-off remains intact.
+                <strong>This record has been signed off.</strong> The sign-off remains intact, but any change you save will be permanently recorded in the record's edit history for audit purposes.
               </span>
             </div>
           )}
@@ -5164,6 +5175,19 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
               <ViewField label="Settling Time" value={view.settling_hours ? `${view.settling_hours} hours` : "—"} />
             </div>
             {!!view.notes && <p className="text-xs text-muted-foreground mt-2 border-t pt-2 whitespace-pre-wrap">{String(view.notes)}</p>}
+            {Array.isArray(view.edit_history) && (view.edit_history as Record<string, unknown>[]).length > 0 && (
+              <div className="border-t pt-2 mt-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 flex items-center gap-1"><AlertTriangle className="h-3 w-3" />Edited After Sign-Off</p>
+                <ul className="mt-1 space-y-0.5">
+                  {(view.edit_history as Record<string, unknown>[]).map((h, i) => (
+                    <li key={i} className="text-xs text-muted-foreground">
+                      {String(h.note ?? "")}
+                      {h.editedAt ? <span className="text-[10px] text-muted-foreground/70"> ({new Date(String(h.editedAt)).toLocaleString("en-GB")})</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {typeof view.id === "number" && <div className="border-t pt-3 mt-1"><RecordAttachments farmId={farmId} recordType="winery-pressing" recordId={view.id} /></div>}
             <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
           </DialogContent>

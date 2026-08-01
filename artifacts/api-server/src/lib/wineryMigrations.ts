@@ -50,6 +50,17 @@ export async function runWineryMigrations(): Promise<void> {
   // Certified organic flag on pressing records — drives automatic SO₂ limit enforcement
   await db.execute(sql`ALTER TABLE winery_pressing_records ADD COLUMN IF NOT EXISTS is_organic boolean NOT NULL DEFAULT false`);
 
+  // Audit sign-off columns — written by PUT /winery-pressing/:id/sign-off
+  await db.execute(sql`ALTER TABLE winery_pressing_records ADD COLUMN IF NOT EXISTS audit_signature text`);
+  await db.execute(sql`ALTER TABLE winery_pressing_records ADD COLUMN IF NOT EXISTS audit_signed_at timestamptz`);
+  await db.execute(sql`ALTER TABLE winery_pressing_records ADD COLUMN IF NOT EXISTS audit_signer_name text`);
+  await db.execute(sql`ALTER TABLE winery_pressing_records ADD COLUMN IF NOT EXISTS audit_signer_role text`);
+  await db.execute(sql`ALTER TABLE winery_pressing_records ADD COLUMN IF NOT EXISTS audit_signer_date date`);
+
+  // Post-sign-off edit history — jsonb array of { note, editedAt, operator } entries appended
+  // whenever a record that already carries an audit_signature is edited via PUT.
+  await db.execute(sql`ALTER TABLE winery_pressing_records ADD COLUMN IF NOT EXISTS edit_history jsonb NOT NULL DEFAULT '[]'::jsonb`);
+
   // FK from fermentation records to pressing records — allows pressing additions to be shown
   // read-only in the fermentation view (nullable; existing rows are unlinked)
   await db.execute(sql`ALTER TABLE winery_fermentation_records ADD COLUMN IF NOT EXISTS pressing_record_id integer REFERENCES winery_pressing_records(id)`);

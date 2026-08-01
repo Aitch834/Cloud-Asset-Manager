@@ -36644,6 +36644,46 @@ const n = (v: unknown) => (v != null && v !== "" ? String(v) : null);
 const ni = (v: unknown) => (v != null && v !== "" ? parseInt(String(v), 10) : null);
 const nf = (v: unknown) => (v != null && v !== "" ? parseFloat(String(v)) : null);
 const nb = (v: unknown) => v === "true" || v === true || v === "1" || v === 1 ? true : v === "false" || v === false || v === "0" || v === 0 ? false : null;
+// Date normaliser for `date` columns: sanitiseBody converts ISO strings to Date objects, and
+// String(date) yields "Thu Jul 02 2026 … (Coordinated Universal Time)" which Postgres rejects.
+// Returns a plain YYYY-MM-DD string (or null).
+const nd = (v: unknown): string | null => {
+  if (v == null || v === "") return null;
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v.toISOString().slice(0, 10);
+  const s = String(v);
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : s;
+};
+
+/**
+ * Resolves the server-authenticated editor identity for audit-trail entries.
+ * Uses req.userId (set by auth middleware) resolved to a display name from the
+ * users table — never caller-supplied body fields, which would let an
+ * authorized user attribute a post-sign-off edit to someone else.
+ */
+async function resolveAuditEditor(req: Request): Promise<{ userId: string; displayName: string }> {
+  const userId = req.userId ?? "unknown-user";
+  try {
+    const r = await db.execute(sql`SELECT first_name, last_name, email FROM users WHERE id = ${userId}`);
+    const row = r.rows[0] as { first_name?: string | null; last_name?: string | null; email?: string | null } | undefined;
+    if (row) {
+      const name = [row.first_name, row.last_name].filter(Boolean).join(" ").trim();
+      return { userId, displayName: name || row.email || userId };
+    }
+  } catch { /* fall back to the raw id */ }
+  return { userId, displayName: userId };
+}
+
+/** Builds the jsonb edit_history entry (as a JSON string) for post-sign-off edits. */
+function buildAuditEditEntry(editor: { userId: string; displayName: string }, action: string): string {
+  const editedAt = new Date().toISOString();
+  return JSON.stringify([{
+    note: `${action} after sign-off by ${editor.displayName} on ${editedAt.slice(0, 10)}`,
+    editedAt,
+    operator: editor.displayName,
+    userId: editor.userId,
+  }]);
+}
 
 // ── Harvest Reception ──────────────────────────────────────────────────────────
 router.get("/farms/:farmId/winery-reception", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
@@ -36791,7 +36831,7 @@ router.post("/farms/:farmId/winery-pressing", requireAuth, requireTenant, requir
     batchRef = buildBatchRef(s.prefix, s.year_format, s.padding_digits, s.issued_seq);
   }
   try {
-    const r = await db.execute(sql`INSERT INTO winery_pressing_records (farm_id,press_date,vintage_year,batch_ref,press_type,grapes_pressed_kg,free_run_litres,press_wine_litres,total_juice_litres,press_efficiency_l_per_kg,juice_brix,juice_ph,juice_ta_gl,juice_turbidity,free_run_separated,additions_at_press,settling_method,settling_vessel,settling_hours,juice_analysis_source,is_organic,operator_name,notes) VALUES (${farmId},${n(b.pressDate)},${ni(b.vintageYear)},${batchRef},${n(b.pressType)},${nf(b.grapesPressedKg)},${nf(b.freeRunLitres)},${nf(b.pressWineLitres)},${nf(b.totalJuiceLitres)},${nf(b.pressEfficiencyLPerKg)},${nf(b.juiceBrix)},${nf(b.juicePh)},${nf(b.juiceTaGl)},${n(b.juiceTurbidity)},${nb(b.freeRunSeparated) ?? true},${n(b.additionsAtPress)},${n(b.settlingMethod)},${n(b.settlingVessel)},${ni(b.settlingHours)},${n(b.juiceAnalysisSource)},${nb(b.isOrganic) ?? false},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
+    const r = await db.execute(sql`INSERT INTO winery_pressing_records (farm_id,press_date,vintage_year,batch_ref,press_type,grapes_pressed_kg,free_run_litres,press_wine_litres,total_juice_litres,press_efficiency_l_per_kg,juice_brix,juice_ph,juice_ta_gl,juice_turbidity,free_run_separated,additions_at_press,settling_method,settling_vessel,settling_hours,juice_analysis_source,is_organic,operator_name,notes) VALUES (${farmId},${nd(b.pressDate)},${ni(b.vintageYear)},${batchRef},${n(b.pressType)},${nf(b.grapesPressedKg)},${nf(b.freeRunLitres)},${nf(b.pressWineLitres)},${nf(b.totalJuiceLitres)},${nf(b.pressEfficiencyLPerKg)},${nf(b.juiceBrix)},${nf(b.juicePh)},${nf(b.juiceTaGl)},${n(b.juiceTurbidity)},${nb(b.freeRunSeparated) ?? true},${n(b.additionsAtPress)},${n(b.settlingMethod)},${n(b.settlingVessel)},${ni(b.settlingHours)},${n(b.juiceAnalysisSource)},${nb(b.isOrganic) ?? false},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
     res.status(201).json({ record: r.rows[0] });
   } catch (err: unknown) {
     // PostgreSQL unique-constraint violation — (farm_id, batch_ref) index
@@ -37091,7 +37131,13 @@ router.put("/farms/:farmId/winery-pressing/:id", requireAuth, requireTenant, req
     // NOTE: audit_signature, audit_signed_at, audit_signer_name, audit_signer_role are intentionally
     // excluded from this SET clause so that editing a pressing record never clears an existing
     // audit sign-off.  Those columns are only written via the dedicated PUT /sign-off route.
-    const r = await db.execute(sql`UPDATE winery_pressing_records SET press_date=${n(b.pressDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${batchRef},press_type=${n(b.pressType)},grapes_pressed_kg=${nf(b.grapesPressedKg)},free_run_litres=${nf(b.freeRunLitres)},press_wine_litres=${nf(b.pressWineLitres)},total_juice_litres=${nf(b.totalJuiceLitres)},press_efficiency_l_per_kg=${nf(b.pressEfficiencyLPerKg)},juice_brix=${nf(b.juiceBrix)},juice_ph=${nf(b.juicePh)},juice_ta_gl=${nf(b.juiceTaGl)},juice_turbidity=${n(b.juiceTurbidity)},free_run_separated=${nb(b.freeRunSeparated) ?? true},additions_at_press=${n(b.additionsAtPress)},settling_method=${n(b.settlingMethod)},settling_vessel=${n(b.settlingVessel)},settling_hours=${ni(b.settlingHours)},juice_analysis_source=${n(b.juiceAnalysisSource)},is_organic=${nb(b.isOrganic) ?? false},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${recordId} AND farm_id=${farmId} RETURNING *`);
+    // Post-sign-off audit trail: if the record already carries an audit_signature, atomically
+    // append a timestamped entry to edit_history in the same UPDATE so no edit to a signed
+    // record can ever go unrecorded.
+    // Attribution comes from the authenticated identity, never the request body —
+    // operator_name remains ordinary record data but cannot forge the audit entry.
+    const editEntry = buildAuditEditEntry(await resolveAuditEditor(req), "Edited");
+    const r = await db.execute(sql`UPDATE winery_pressing_records SET edit_history=CASE WHEN audit_signature IS NOT NULL THEN COALESCE(edit_history,'[]'::jsonb) || ${editEntry}::jsonb ELSE COALESCE(edit_history,'[]'::jsonb) END,press_date=${nd(b.pressDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${batchRef},press_type=${n(b.pressType)},grapes_pressed_kg=${nf(b.grapesPressedKg)},free_run_litres=${nf(b.freeRunLitres)},press_wine_litres=${nf(b.pressWineLitres)},total_juice_litres=${nf(b.totalJuiceLitres)},press_efficiency_l_per_kg=${nf(b.pressEfficiencyLPerKg)},juice_brix=${nf(b.juiceBrix)},juice_ph=${nf(b.juicePh)},juice_ta_gl=${nf(b.juiceTaGl)},juice_turbidity=${n(b.juiceTurbidity)},free_run_separated=${nb(b.freeRunSeparated) ?? true},additions_at_press=${n(b.additionsAtPress)},settling_method=${n(b.settlingMethod)},settling_vessel=${n(b.settlingVessel)},settling_hours=${ni(b.settlingHours)},juice_analysis_source=${n(b.juiceAnalysisSource)},is_organic=${nb(b.isOrganic) ?? false},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${recordId} AND farm_id=${farmId} RETURNING *`);
     res.json({ record: r.rows[0] });
   } catch (err: unknown) {
     // PostgreSQL unique-constraint violation — (farm_id, batch_ref) index
@@ -37099,12 +37145,22 @@ router.put("/farms/:farmId/winery-pressing/:id", requireAuth, requireTenant, req
       res.status(409).json({ error: `Batch reference "${batchRef}" is already used by another pressing record. Please choose a different reference.`, code: "DUPLICATE_BATCH_REF" });
       return;
     }
+    const cause = (err as { cause?: { message?: string; code?: string } }).cause;
+    console.error("[WINERY-PRESSING PUT] update failed:", (err as Error).message?.slice(0, 200), "| cause:", cause?.message, "| code:", cause?.code);
     throw err;
   }
 });
 router.delete("/farms/:farmId/winery-pressing/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  await db.execute(sql`DELETE FROM winery_pressing_records WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId}`);
+  const recordId = parseInt(req.params.id as string);
+  // Signed records are tamper-evident audit documents — deleting one would erase the
+  // signature and its edit history with no trace, so block it outright.
+  const signed = await db.execute(sql`SELECT audit_signature FROM winery_pressing_records WHERE id=${recordId} AND farm_id=${farmId}`);
+  if (signed.rows.length && (signed.rows[0] as { audit_signature: string | null }).audit_signature) {
+    res.status(409).json({ error: "This pressing record has been signed off and cannot be deleted. Signed records form part of the audit trail.", code: "SIGNED_RECORD_LOCKED" });
+    return;
+  }
+  await db.execute(sql`DELETE FROM winery_pressing_records WHERE id=${recordId} AND farm_id=${farmId}`);
   res.json({ success: true });
 });
 
@@ -37178,8 +37234,9 @@ const WINERY_ORGANIC_MAX: Record<string, Record<string, number>> = {
 router.put("/farms/:farmId/winery-pressing/:pressingId/additions/batch", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const pressingId = parseInt(req.params.pressingId as string);
-  const check = await db.execute(sql`SELECT id, is_organic FROM winery_pressing_records WHERE id = ${pressingId} AND farm_id = ${farmId}`);
+  const check = await db.execute(sql`SELECT id, is_organic, audit_signature FROM winery_pressing_records WHERE id = ${pressingId} AND farm_id = ${farmId}`);
   if (!check.rows.length) { res.status(404).json({ error: "Pressing record not found" }); return; }
+  const pressingIsSigned = !!(check.rows[0] as { audit_signature: string | null }).audit_signature;
   const pressingIsOrganic = !!(check.rows[0] as { is_organic: boolean }).is_organic;
   const additions: Array<Record<string, unknown>> = Array.isArray(req.body?.additions) ? req.body.additions : [];
 
@@ -37223,6 +37280,13 @@ router.put("/farms/:farmId/winery-pressing/:pressingId/additions/batch", require
     const b = sanitiseBody(a);
     if (!b.additiveName) continue;
     await db.execute(sql`INSERT INTO winery_pressing_additions (farm_id, pressing_record_id, additive_name, category, product_brand, dose, unit, is_organic, notes) VALUES (${farmId}, ${pressingId}, ${n(b.additiveName)}, ${n(b.category)}, ${n(b.productBrand)}, ${nf(b.dose)}, ${n(b.unit)}, ${nb(b.isOrganic) ?? false}, ${n(b.notes)})`);
+  }
+  // Post-sign-off audit trail: replacing additions materially alters signed pressing data,
+  // so record it on the parent's edit_history within the same request transaction
+  // (farmRlsMiddleware wraps the request in BEGIN/COMMIT — rolled back together on error).
+  if (pressingIsSigned) {
+    const entry = buildAuditEditEntry(await resolveAuditEditor(req), "Additions changed");
+    await db.execute(sql`UPDATE winery_pressing_records SET edit_history = COALESCE(edit_history,'[]'::jsonb) || ${entry}::jsonb WHERE id = ${pressingId} AND farm_id = ${farmId}`);
   }
   const rows = await db.execute(sql`SELECT * FROM winery_pressing_additions WHERE pressing_record_id = ${pressingId} ORDER BY id ASC`);
   res.json({ additions: rows.rows });
