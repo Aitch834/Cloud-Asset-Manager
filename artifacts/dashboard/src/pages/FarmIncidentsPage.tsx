@@ -299,7 +299,7 @@ export default function FarmIncidentsPage() {
     const header = ["Date Discovered","Date Occurred","Incident Type","Location","Description",
       "Estimated Loss (£)","Area/Quantity Affected","Police Attended","Police Ref",
       "Fire Service Attended","Fire Ref","EA Attended","EA Ref","Crime Reference",
-      "Status","Insurance Policy ID","Claim Ref","Claim Date","Settlement Amount","Settlement Date","Insurer Contact","Notes"];
+      "Status","Insurance Policy ID","Claim Ref","Claim Date","Settlement Amount","Settlement Date","Insurer Contact","Notes","Photo Evidence"];
     const rows = filtered.map(i => [
       i.dateDiscovered, i.dateOccurred ?? "", i.incidentType, i.locationDescription, i.description,
       i.estimatedLossValue ?? "", i.areaQuantityAffected ?? "",
@@ -309,6 +309,7 @@ export default function FarmIncidentsPage() {
       i.crimeReference ?? "", STATUSES.find(s => s.value === i.status)?.label ?? i.status,
       i.insurancePolicyId?.toString() ?? "", i.insuranceClaimRef ?? "", i.insuranceClaimDate ?? "",
       i.settlementAmount ?? "", i.settlementDate ?? "", i.insurerContact ?? "", i.notes ?? "",
+      (i.photos ?? []).map(p => p.fileName ?? p.objectPath.split("/").pop() ?? "Photo").join("; "),
     ].map(v => `"${String(v).replace(/"/g, '""')}"`));
     const csv = [header.map(h => `"${h}"`).join(","), ...rows.map(r => r.join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
