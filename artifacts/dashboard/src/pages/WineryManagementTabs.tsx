@@ -3598,6 +3598,17 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     return convMax !== undefined && doseVal > convMax;
   });
 
+  // Count of additive entries per pressing record, for the row badge
+  const additionCounts = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const a of allAdditions) {
+      const id = Number(a.pressing_record_id);
+      if (!Number.isFinite(id)) continue;
+      m.set(id, (m.get(id) ?? 0) + 1);
+    }
+    return m;
+  }, [allAdditions]);
+
   // Pressing records where any recorded additive exceeds its applicable ceiling
   // (organic limit for organic batches, conventional max otherwise). Purely cosmetic row highlight.
   const nonCompliantPressingIds = useMemo(() => {
@@ -4100,6 +4111,14 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                     {fmt(r.batch_ref)}
                     {(r.is_organic === true || r.is_organic === "true" || r.is_organic === 1) && (
                       <span className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 font-sans"><Leaf className="w-3 h-3" />Organic</span>
+                    )}
+                    {(additionCounts.get(Number(r.id)) ?? 0) > 0 && (
+                      <span
+                        className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 font-sans whitespace-nowrap cursor-default"
+                        title={`${additionCounts.get(Number(r.id))} chemical addition${additionCounts.get(Number(r.id)) === 1 ? "" : "s"} recorded for this pressing session`}
+                      >
+                        {additionCounts.get(Number(r.id))} addition{additionCounts.get(Number(r.id)) === 1 ? "" : "s"}
+                      </span>
                     )}
                   </td>
                   <td className="p-3 text-muted-foreground">{fmt(r.press_type)}</td>
