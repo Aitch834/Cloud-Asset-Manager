@@ -1728,6 +1728,26 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
             {(pressing.is_organic === true || pressing.is_organic === "true" || pressing.is_organic === 1) && (
               <Badge className="text-xs bg-green-100 text-green-800 border-0 inline-flex items-center gap-0.5 font-normal"><Leaf className="w-3 h-3" />Organic</Badge>
             )}
+            {currentSig ? (
+              <Badge className="text-xs bg-green-100 text-green-800 border-0 inline-flex items-center gap-1 font-normal">
+                <CheckCircle2 className="w-3 h-3" />
+                {(() => {
+                  let dateStr = "";
+                  if (currentSignerDate) {
+                    const m = currentSignerDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                    const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(currentSignerDate);
+                    if (!isNaN(d.getTime())) dateStr = fmtDDMonYYYY(d);
+                  } else if (currentSignedAt) {
+                    const d = new Date(currentSignedAt);
+                    if (!isNaN(d.getTime())) dateStr = fmtDDMonYYYY(d);
+                  }
+                  const parts = [currentSignerName, dateStr].filter(Boolean).join(", ");
+                  return parts ? `Signed — ${parts}` : "Signed";
+                })()}
+              </Badge>
+            ) : (
+              <Badge className="text-xs bg-amber-100 text-amber-800 border-0 font-normal">Not yet signed</Badge>
+            )}
           </DialogTitle>
           {isVintageScoped ? (
             <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 mt-1">
