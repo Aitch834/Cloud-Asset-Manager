@@ -2438,6 +2438,66 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
     .map(k => pdfStagePoints[k]);
   const phTaHasAny = pdfTrendStages.length > 0;
 
+  // ── Vintage pH & TA Comparison (vintage scope only — mirrors the on-screen chart) ──
+  // Per-batch pH/TA: bottling (primary, most recent) → fermentation end (fallback)
+  let vintageComparisonHtml = "";
+  if (isVintageScoped) {
+    const cmpMap = new Map<string, { ph: number | null; ta: number | null; source: string | null }>();
+    const cmpBottling = [...data.bottling].sort((a, b) =>
+      a.bottling_date && b.bottling_date
+        ? new Date(String(b.bottling_date)).getTime() - new Date(String(a.bottling_date)).getTime()
+        : 0
+    );
+    for (const r of cmpBottling) {
+      const ref = r.batch_ref ? String(r.batch_ref).trim() : null;
+      if (!ref) continue;
+      if (!cmpMap.has(ref)) cmpMap.set(ref, { ph: null, ta: null, source: null });
+      const entry = cmpMap.get(ref)!;
+      if (entry.ph == null && r.ph != null) { entry.ph = parseFloat(String(r.ph)); entry.source = "Bottling"; }
+      if (entry.ta == null && r.titratable_acidity_gl != null) { entry.ta = parseFloat(String(r.titratable_acidity_gl)); entry.source = entry.source ?? "Bottling"; }
+    }
+    const cmpFerm = [...data.fermentation].sort((a, b) =>
+      a.end_date && b.end_date
+        ? new Date(String(b.end_date)).getTime() - new Date(String(a.end_date)).getTime()
+        : 0
+    );
+    for (const r of cmpFerm) {
+      const ref = r.batch_ref ? String(r.batch_ref).trim() : null;
+      if (!ref) continue;
+      if (!cmpMap.has(ref)) cmpMap.set(ref, { ph: null, ta: null, source: null });
+      const entry = cmpMap.get(ref)!;
+      if (entry.ph == null && r.end_ph != null) { entry.ph = parseFloat(String(r.end_ph)); entry.source = entry.source ?? "Fermentation end"; }
+      if (entry.ta == null && r.end_ta_gl != null) { entry.ta = parseFloat(String(r.end_ta_gl)); entry.source = entry.source ?? "Fermentation end"; }
+    }
+    const cmpRows = Array.from(cmpMap.entries())
+      .filter(([, v]) => v.ph != null || v.ta != null)
+      .map(([ref, v]) => ({ ref, ...v }))
+      .sort((a, b) => a.ref.localeCompare(b.ref));
+    if (cmpRows.length > 0) {
+      vintageComparisonHtml = `
+<div class="section">
+  <h2>Vintage pH &amp; TA Comparison</h2>
+  <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;padding:10px 12px">
+    <p style="font-size:10px;color:#6b7280;margin-bottom:6px">Per-batch pH and TA across the vintage — bottling values where available, otherwise fermentation-end values. ${cmpRows.length} batch${cmpRows.length !== 1 ? "es" : ""}.</p>
+    <table style="width:100%;border-collapse:collapse">
+      <tr>
+        <th style="background:rgba(255,255,255,0.6);padding:5px 8px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #c7d2fe">Batch Ref</th>
+        <th style="background:rgba(255,255,255,0.6);padding:5px 8px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #c7d2fe;text-align:right">pH</th>
+        <th style="background:rgba(255,255,255,0.6);padding:5px 8px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #c7d2fe;text-align:right">TA (g/L)</th>
+        <th style="background:rgba(255,255,255,0.6);padding:5px 8px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #c7d2fe">Stage</th>
+      </tr>
+      ${cmpRows.map(r => `<tr>
+        <td style="padding:4px 8px;border-bottom:1px solid #e0e7ff;font-family:monospace">${escHtml(r.ref)}</td>
+        <td style="padding:4px 8px;border-bottom:1px solid #e0e7ff;text-align:right;font-family:monospace">${r.ph != null ? r.ph.toFixed(2) : "—"}</td>
+        <td style="padding:4px 8px;border-bottom:1px solid #e0e7ff;text-align:right;font-family:monospace">${r.ta != null ? r.ta.toFixed(1) : "—"}</td>
+        <td style="padding:4px 8px;border-bottom:1px solid #e0e7ff;color:#6b7280">${escHtml(r.source ?? "—")}</td>
+      </tr>`).join("")}
+    </table>
+  </div>
+</div>`;
+    }
+  }
+
   const phTaHistoryHtml = phTaHasAny ? `
 <div class="section">
   <h2>pH &amp; TA Analytical History</h2>
@@ -2778,7 +2838,7 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
   <span>Printed: ${escHtml(printedOn)}</span>
 </p>
 ${vintageScopeNote}
-
+${vintageComparisonHtml}
 ${so2SummaryHtml}
 ${phTaHistoryHtml}
 ${pressingBlockHtml}
