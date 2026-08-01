@@ -3861,17 +3861,47 @@ router.post("/farms/:farmId/soil-sensors/:probeId/readings/bulk", requireAuth, r
   const { rows } = req.body as { rows: Array<{ readingAt: string; depthCm?: number; moisturePercent?: string; temperatureCelsius?: string; ecUsPerCm?: string; notes?: string }> };
   if (!Array.isArray(rows) || rows.length === 0) { res.status(400).json({ error: "rows array is required" }); return; }
   if (rows.length > 5000) { res.status(400).json({ error: "Maximum 5000 rows per import" }); return; }
-  const values = rows.map(r => ({
-    probeId, farmId, readingAt: new Date(r.readingAt),
-    depthCm: r.depthCm ?? null,
-    moisturePercent: r.moisturePercent || null,
-    temperatureCelsius: r.temperatureCelsius || null,
-    ecUsPerCm: r.ecUsPerCm || null,
-    entryMethod: "csv" as const,
-    notes: r.notes || null,
-  }));
-  const inserted = await db.insert(soilSensorReadingsTable).values(values).returning({ id: soilSensorReadingsTable.id });
-  res.status(201).json({ inserted: inserted.length });
+
+  const rejected: { row: number; reason: string }[] = [];
+  const values: Array<Record<string, unknown>> = [];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const rowNum = i + 1;
+    const rawDateStr = (typeof r.readingAt === "string" ? r.readingAt : "").trim();
+    if (!rawDateStr) {
+      rejected.push({ row: rowNum, reason: `Row ${rowNum}: Reading At is required.` });
+      continue;
+    }
+    // Accept "YYYY-MM-DD" optionally followed by a time part ("T" or space, HH:MM or HH:MM:SS)
+    const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(rawDateStr);
+    let dateValid = false;
+    if (m) {
+      const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+      const daysInMonth = new Date(y, mo, 0).getDate();
+      dateValid = y >= 1 && mo >= 1 && mo <= 12 && d >= 1 && d <= daysInMonth;
+      if (dateValid && m[4] !== undefined) {
+        const hh = Number(m[4]), mi = Number(m[5]), ss = m[6] !== undefined ? Number(m[6]) : 0;
+        dateValid = hh <= 23 && mi <= 59 && ss <= 59;
+      }
+    }
+    if (!dateValid) {
+      rejected.push({ row: rowNum, reason: `Row ${rowNum}: Reading At "${rawDateStr}" is not a valid date — use YYYY-MM-DD or YYYY-MM-DD HH:MM.` });
+      continue;
+    }
+    values.push({
+      probeId, farmId, readingAt: new Date(rawDateStr),
+      depthCm: r.depthCm ?? null,
+      moisturePercent: r.moisturePercent || null,
+      temperatureCelsius: r.temperatureCelsius || null,
+      ecUsPerCm: r.ecUsPerCm || null,
+      entryMethod: "csv" as const,
+      notes: r.notes || null,
+    });
+  }
+  const inserted = values.length > 0
+    ? await db.insert(soilSensorReadingsTable).values(values as any).returning({ id: soilSensorReadingsTable.id })
+    : [];
+  res.status(201).json({ inserted: inserted.length, rejectedCount: rejected.length, rejected });
 });
 
 router.delete("/farms/:farmId/soil-sensors/:probeId/readings/:readingId", requireAuth, requireTenant, requireModuleByKey("soil-management", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -21978,8 +22008,27 @@ router.post("/farms/:farmId/carbon-emissions/bulk", requireAuth, requireTenant, 
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const { records } = req.body as { records: Record<string, unknown>[] };
   if (!Array.isArray(records) || records.length === 0) { res.status(400).json({ error: "No records provided" }); return; }
-  const inserted = await db.insert(carbonEmissionsRecordsTable).values(records.map(r => ({ ...r, farmId })) as any).returning();
-  res.json({ created: inserted.length });
+  const rejected: { row: number; reason: string }[] = [];
+  const toInsert: Record<string, unknown>[] = [];
+  for (let i = 0; i < records.length; i++) {
+    const r = records[i];
+    const rowNum = i + 1;
+    const rawYear = r.emissionYear;
+    if (rawYear == null || rawYear === "") {
+      rejected.push({ row: rowNum, reason: `Row ${rowNum}: Emission Year is required.` });
+      continue;
+    }
+    const yearNum = Number(rawYear);
+    if (!/^\d{4}$/.test(String(rawYear).trim()) || !Number.isInteger(yearNum) || yearNum < 1900 || yearNum > 2200) {
+      rejected.push({ row: rowNum, reason: `Row ${rowNum}: Emission Year "${String(rawYear)}" is not a valid 4-digit year.` });
+      continue;
+    }
+    toInsert.push({ ...r, emissionYear: yearNum, farmId });
+  }
+  const inserted = toInsert.length > 0
+    ? await db.insert(carbonEmissionsRecordsTable).values(toInsert as any).returning()
+    : [];
+  res.json({ created: inserted.length, rejectedCount: rejected.length, rejected });
 });
 
 router.put("/farms/:farmId/carbon-emissions/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -22114,8 +22163,27 @@ router.post("/farms/:farmId/carbon-sequestration/bulk", requireAuth, requireTena
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const { records } = req.body as { records: Record<string, unknown>[] };
   if (!Array.isArray(records) || records.length === 0) { res.status(400).json({ error: "No records provided" }); return; }
-  const inserted = await db.insert(carbonSequestrationTable).values(records.map(r => ({ ...r, farmId })) as any).returning();
-  res.json({ created: inserted.length });
+  const rejected: { row: number; reason: string }[] = [];
+  const toInsert: Record<string, unknown>[] = [];
+  for (let i = 0; i < records.length; i++) {
+    const r = records[i];
+    const rowNum = i + 1;
+    const rawYear = r.sequestrationYear;
+    if (rawYear == null || rawYear === "") {
+      rejected.push({ row: rowNum, reason: `Row ${rowNum}: Sequestration Year is required.` });
+      continue;
+    }
+    const yearNum = Number(rawYear);
+    if (!/^\d{4}$/.test(String(rawYear).trim()) || !Number.isInteger(yearNum) || yearNum < 1900 || yearNum > 2200) {
+      rejected.push({ row: rowNum, reason: `Row ${rowNum}: Sequestration Year "${String(rawYear)}" is not a valid 4-digit year.` });
+      continue;
+    }
+    toInsert.push({ ...r, sequestrationYear: yearNum, farmId });
+  }
+  const inserted = toInsert.length > 0
+    ? await db.insert(carbonSequestrationTable).values(toInsert as any).returning()
+    : [];
+  res.json({ created: inserted.length, rejectedCount: rejected.length, rejected });
 });
 
 router.put("/farms/:farmId/carbon-sequestration/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
