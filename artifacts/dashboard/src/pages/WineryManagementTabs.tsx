@@ -3547,15 +3547,19 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   })();
 
   const showSo2Chart = categoryFilter.size === 0 || categoryFilter.has("so2");
+  // Scope the chart to the active wine colour filter so the graph matches the table below it
+  const so2ChartSourceRows = additionsSummary.filter(r =>
+    r.category === "so2" && (colourFilter === null || String(r.wine_colour ?? "") === colourFilter)
+  );
   const so2ByVintage = new Map<string, number>();
-  additionsSummary.filter(r => r.category === "so2").forEach(r => {
+  so2ChartSourceRows.forEach(r => {
     const v = String(r.vintage_year ?? "?");
     so2ByVintage.set(v, (so2ByVintage.get(v) ?? 0) + parseFloat(String(r.total_dose ?? 0)));
   });
   const so2ChartData = Array.from(so2ByVintage.entries()).map(([vintage, total]) => ({ vintage, total })).sort((a, b) => a.vintage.localeCompare(b.vintage));
   // Detect mixed units across SO₂ rows — if any vintage combines mg/kg and mg/L the totals are meaningless
   const so2UnitsByVintage = new Map<string, Set<string>>();
-  additionsSummary.filter(r => r.category === "so2").forEach(r => {
+  so2ChartSourceRows.forEach(r => {
     const v = String(r.vintage_year ?? "?");
     const u = String(r.unit ?? "");
     if (!so2UnitsByVintage.has(v)) so2UnitsByVintage.set(v, new Set());
