@@ -4123,9 +4123,11 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
       if (!rows.length) return "";
       return rows.map((a: Record<string, unknown>) => `${String(a.additive_name)}: ${String(a.dose ?? "")}${a.unit ? ` ${String(a.unit)}` : ""}${a.notes ? ` (${String(a.notes)})` : ""}`).join("; ");
     }},
-    { key: "audit_signer_name", label: "Audit Signer Name" },
-    { key: "audit_signer_role", label: "Audit Signer Role" },
-    { key: "audit_signer_date", label: "Audit Signer Date", fmt: (r: Record<string, unknown>) => {
+    // Sign-off columns — mirror the on-screen Sign-off badge (signed = audit_signature present)
+    { key: "audit_signature", label: "Signed", fmt: (r: Record<string, unknown>) => (r.audit_signature != null && r.audit_signature !== "") ? "Yes" : "No" },
+    { key: "audit_signer_name", label: "Signer Name" },
+    { key: "audit_signer_role", label: "Signer Role" },
+    { key: "audit_signer_date", label: "Signed At", fmt: (r: Record<string, unknown>) => {
       // Prefer the auditor-declared declaration date; fall back to the digital signature timestamp.
       if (r.audit_signer_date) {
         const s = String(r.audit_signer_date);
