@@ -407,9 +407,48 @@ function FarmIncidentsSummary({ farmId }: { farmId: number }) {
           </div>
           <div className="text-right">
             <p className="text-xs font-bold text-foreground/50 uppercase tracking-wider mb-1">Est. Total Losses</p>
-            <p className="text-2xl font-bold text-red-600">
-              £{totalLoss.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </p>
+            <HoverCard openDelay={150} closeDelay={100}>
+              <HoverCardTrigger asChild>
+                <p className="text-2xl font-bold text-red-600 cursor-help select-none">
+                  £{totalLoss.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+              </HoverCardTrigger>
+              <HoverCardContent side="bottom" align="end" className="w-96 p-0 overflow-hidden">
+                <div className="px-4 py-3 border-b border-border bg-muted/40">
+                  <p className="text-xs font-bold uppercase tracking-wide text-red-700">Open incidents in this total</p>
+                </div>
+                <ul className="divide-y divide-border max-h-72 overflow-y-auto">
+                  {open.map((r: any) => {
+                    const loss = parseFloat(r.estimatedLossValue ?? "");
+                    return (
+                      <li key={r.id}>
+                        <Link href="/farm-incidents" className="px-4 py-2.5 flex items-start justify-between gap-3 hover:bg-black/[0.03] transition-colors">
+                          <span className="flex items-start gap-2.5 min-w-0">
+                            <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 bg-red-500" />
+                            <span className="min-w-0">
+                              <span className="block text-xs font-semibold text-red-900 truncate">{r.incidentType}</span>
+                              <span className="block text-[11px] text-foreground/50">
+                                {r.dateDiscovered ? new Date(r.dateDiscovered).toLocaleDateString("en-GB") : "Date unknown"}
+                              </span>
+                            </span>
+                          </span>
+                          <span className="text-xs font-bold text-red-600 whitespace-nowrap flex-shrink-0">
+                            {isNaN(loss)
+                              ? "—"
+                              : `£${loss.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className="px-4 py-2.5 border-t border-border bg-muted/20">
+                  <Link href="/farm-incidents" className="text-xs text-primary font-medium inline-flex items-center gap-1 hover:underline">
+                    View all incidents <ExternalLink className="w-3 h-3" />
+                  </Link>
+                </div>
+              </HoverCardContent>
+            </HoverCard>
             <Link href="/farm-incidents" className="mt-2 inline-flex items-center gap-1 text-xs text-primary font-medium hover:underline">
               View incidents <ExternalLink className="w-3 h-3" />
             </Link>
