@@ -3152,8 +3152,11 @@ function printAdditionsReport(
   rows: Record<string, unknown>[],
   farmName: string,
   vintageLabel: string,
+  auditSig?: string | null,
+  signerInfo?: { name: string | null; role: string | null; signedAt: string | null; signerDate?: string | null },
 ) {
   const printedOn = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const safeSig = sanitiseSignatureForHtml(auditSig);
   const showVintage = rows.length > 0 && rows.some((r, i) => i > 0 && r.vintage_year !== rows[0].vintage_year);
 
   // Detect mixed SO₂ units per vintage — totals are meaningless when mg/kg and mg/L are combined
@@ -3306,13 +3309,13 @@ ${rows.some(r => r.category === "so2") ? `<div style="margin-top:12px;padding:8p
       </div>
       <div>
         <p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#374151;margin-bottom:18px">Reviewed by (auditor)</p>
-        <div style="border-bottom:1px solid #374151;height:28px;margin-bottom:3px"></div>
-        <p style="font-size:9px;color:#6b7280">Signature</p>
-        <div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>
+        ${safeSig ? `<div style="margin-bottom:6px"><img src="${safeSig}" alt="Audit signature" style="max-height:56px;border:1px solid #d1d5db;border-radius:4px;background:#fff;display:block" /></div>` : `<div style="border-bottom:1px solid #374151;height:28px;margin-bottom:3px"></div>`}
+        <p style="font-size:9px;color:#6b7280">Signature${safeSig ? ` — signed digitally` : ""}</p>
+        ${signerInfo?.name ? `<div style="padding:4px 0 2px;font-size:11px;font-weight:600;color:#111827">${escHtml(signerInfo.name)}</div>` : `<div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>`}
         <p style="font-size:9px;color:#6b7280">Name</p>
-        <div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>
+        ${signerInfo?.role ? `<div style="padding:4px 0 2px;font-size:11px;color:#374151">${escHtml(signerInfo.role)}</div>` : `<div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>`}
         <p style="font-size:9px;color:#6b7280">Role</p>
-        <div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>
+        ${(signerInfo?.signerDate || signerInfo?.signedAt) ? `<div style="padding:4px 0 2px;font-size:11px;color:#374151">${escHtml(signerInfo.signerDate ? new Date(signerInfo.signerDate + "T12:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }) : new Date(signerInfo.signedAt!).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }))}</div>` : `<div style="border-bottom:1px solid #374151;height:22px;margin-top:14px;margin-bottom:3px"></div>`}
         <p style="font-size:9px;color:#6b7280">Date</p>
       </div>
     </div>
@@ -4425,7 +4428,34 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
               <Button size="sm" variant="outline" onClick={() => {
                 const vintagePart = yearFilter === "all" ? "All vintages" : yearFilter;
                 const scopeLabel = colourFilter !== null ? `${vintagePart} · ${colourFilter} wine` : vintagePart;
-                printAdditionsReport(searchFilteredSummary, farmName, scopeLabel);
+                // Embed the digital signature only when every printed row provably derives
+                // from records the signature attests to: the report must be scoped to a
+                // single vintage, every visible summary row must come from the pressing
+                // stage (fermentation/cellar additions are not covered by pressing
+                // sign-offs), and every pressing record in that vintage must be signed by
+                // the same person. Narrowing filters (search/colour/category) only subset
+                // that signed scope, so they remain safe; anything broader falls back to
+                // blank sign-off lines — mirrors the other winery PDFs.
+                let signedPress: Record<string, unknown> | null = null;
+                if (yearFilter !== "all" && searchFilteredSummary.length > 0) {
+                  const allRowsPressing = searchFilteredSummary.every(r =>
+                    String(r.source ?? "pressing") === "pressing" && String(r.vintage_year ?? "") === yearFilter);
+                  if (allRowsPressing) {
+                    const vintagePressings = crud.data.filter((r: Record<string, unknown>) => String(r.vintage_year ?? "") === yearFilter);
+                    const allSigned = vintagePressings.length > 0 && vintagePressings.every((r: Record<string, unknown>) => r.audit_signature != null && r.audit_signature !== "");
+                    const firstSigner = allSigned ? String(vintagePressings[0].audit_signer_name ?? "") : "";
+                    const uniformSigner = allSigned && vintagePressings.every((r: Record<string, unknown>) => String(r.audit_signer_name ?? "") === firstSigner);
+                    if (uniformSigner) signedPress = vintagePressings[0];
+                  }
+                }
+                const addSig = signedPress?.audit_signature ? String(signedPress.audit_signature) : null;
+                const addSignerInfo = signedPress && addSig ? {
+                  name: signedPress.audit_signer_name ? String(signedPress.audit_signer_name) : null,
+                  role: signedPress.audit_signer_role ? String(signedPress.audit_signer_role) : null,
+                  signedAt: signedPress.audit_signed_at ? String(signedPress.audit_signed_at) : null,
+                  signerDate: signedPress.audit_signer_date ? String(signedPress.audit_signer_date) : null,
+                } : undefined;
+                printAdditionsReport(searchFilteredSummary, farmName, scopeLabel, addSig, addSignerInfo);
               }} disabled={!searchFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
               <Button size="sm" variant="outline" onClick={() => {
                 const summaryUnitsByVintage = new Map<string, Set<string>>();
