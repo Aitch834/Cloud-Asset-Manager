@@ -2119,7 +2119,7 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
   const rows: string[][] = [];
 
   // Header
-  rows.push(["Stage", "Batch Ref", "Date", "Type / Additive", "Detail", "SO₂ / Dose", "Unit", "pH", "TA (g/L)", "Vessel", "Operator", "Notes"]);
+  rows.push(["Stage", "Batch Ref", "Date", "Type / Additive", "Detail", "SO₂ / Dose", "Unit", "SO₂ Ceiling (mg/L)", "SO₂ Compliance", "pH", "TA (g/L)", "Vessel", "Operator", "Notes"]);
 
   const pressingBatchRef = String(pressing.batch_ref ?? "");
 
@@ -2130,6 +2130,8 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
     fmtDate(pressing.press_date),
     String(pressing.press_type ?? ""),
     pressing.juice_brix != null ? `Brix: ${fmtNum(pressing.juice_brix, 1)}` : "",
+    "",
+    "",
     "",
     "",
     pressing.juice_ph != null ? fmtNum(pressing.juice_ph, 2) : "",
@@ -2149,6 +2151,8 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
       String(a.category ?? ""),
       a.dose != null ? fmtNum(a.dose, 2) : "",
       String(a.unit ?? ""),
+      "",
+      "",
       "",
       "",
       "",
@@ -2172,6 +2176,8 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
       "",
       "",
       "",
+      "",
+      "",
     ]);
   }
 
@@ -2185,6 +2191,8 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
       r.yeast_strain ? `Yeast: ${String(r.yeast_strain)}` : "",
       r.so2_at_fermentation_mg_l != null ? fmtNum(r.so2_at_fermentation_mg_l, 1) : "",
       r.so2_at_fermentation_mg_l != null ? "mg/L" : "",
+      "",
+      "",
       r.end_ph != null ? fmtNum(r.end_ph, 2) : "",
       r.end_ta_gl != null ? fmtNum(r.end_ta_gl, 1) : "",
       String(r.vessel_ref ?? ""),
@@ -2207,6 +2215,8 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
       soUnit,
       "",
       "",
+      "",
+      "",
       [r.from_vessel_ref, r.to_vessel_ref].filter(Boolean).join(" → "),
       String(r.operator_name ?? ""),
       String(r.notes ?? ""),
@@ -2225,14 +2235,21 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
       "mg/L (free)",
       "",
       "",
+      "",
+      "",
       String(r.vessel_ref ?? ""),
       String(r.operator_name ?? ""),
       String(r.notes ?? ""),
     ]);
   }
 
-  // Bottling
+  // Bottling — includes SO₂ ceiling and compliance verdict, matching the PDF logic
   for (const r of data.bottling) {
+    const isOrg = r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
+    const colour = String(r.wine_colour ?? "");
+    const ceiling = colour ? parseFloat(isOrg ? (ORGANIC_MAX_SO2[colour] ?? "") : (CONVENTIONAL_MAX_SO2[colour] ?? "")) : NaN;
+    const totalSo2 = r.total_so2_mg_l != null ? parseFloat(String(r.total_so2_mg_l)) : null;
+    const hasCompliance = totalSo2 != null && !isNaN(ceiling);
     rows.push([
       "Bottling",
       String(r.batch_ref ?? ""),
@@ -2241,6 +2258,8 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
       r.bottles_produced != null ? `${String(r.bottles_produced)} bottles` : "",
       r.free_so2_mg_l != null ? fmtNum(r.free_so2_mg_l, 1) : "",
       r.free_so2_mg_l != null ? "mg/L (free SO₂)" : "",
+      !isNaN(ceiling) ? `${ceiling.toFixed(0)} (${isOrg ? "organic" : "conventional"})` : "",
+      hasCompliance ? (totalSo2! > ceiling ? "Exceeds Limit" : "Compliant") : "",
       r.ph != null ? fmtNum(r.ph, 2) : "",
       r.titratable_acidity_gl != null ? fmtNum(r.titratable_acidity_gl, 1) : "",
       String(r.source_vessel_ref ?? ""),
@@ -2276,11 +2295,11 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
 
   if (phTaStages.length > 0) {
     // Blank separator row
-    rows.push(["", "", "", "", "", "", "", "", "", "", "", ""]);
+    rows.push(["", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
     // Section heading (spans first two columns for readability)
-    rows.push(["pH & TA Analytical History", "", "", "", "", "", "", "pH", "TA (g/L)", "", "", ""]);
+    rows.push(["pH & TA Analytical History", "", "", "", "", "", "", "", "", "pH", "TA (g/L)", "", "", ""]);
     for (const [stage, ph, ta] of phTaStages) {
-      rows.push([stage, batchRef, "", "", "", "", "", ph, ta, "", "", ""]);
+      rows.push([stage, batchRef, "", "", "", "", "", "", "", ph, ta, "", "", ""]);
     }
   }
 
