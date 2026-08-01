@@ -14,6 +14,7 @@ import {
   AlertTriangle, ShieldCheck, ClipboardList, Camera
 } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
+import { Link } from "wouter";
 import { useAppStore } from "@/hooks/use-app-store";
 import { printProReport } from "@/lib/print-report";
 import { PhotoPanel } from "@/pages/fly-tipping/PhotoPanel";
@@ -52,6 +53,64 @@ interface Incident {
   notes: string | null;
   createdAt: string;
   photos: IncidentPhoto[];
+}
+
+interface TaskAssignment {
+  id: number;
+  title: string;
+  description: string | null;
+  status: string;
+  dueDate: string | null;
+  module: string | null;
+}
+
+const TASK_STATUS_STYLES: Record<string, { label: string; bg: string; color: string; border: string }> = {
+  pending:     { label: "Pending",     bg: "#fffbeb", color: "#b45309", border: "#fcd34d" },
+  in_progress: { label: "In Progress", bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
+  completed:   { label: "Completed",   bg: "#f0fdf4", color: "#16a34a", border: "#bbf7d0" },
+  cancelled:   { label: "Cancelled",   bg: "#f3f4f6", color: "#6b7280", border: "#d1d5db" },
+};
+
+function taskStatusBadge(status: string) {
+  const s = TASK_STATUS_STYLES[status] ?? TASK_STATUS_STYLES.pending;
+  return (
+    <span style={{
+      display: "inline-block", padding: "1px 8px", borderRadius: 9999, fontSize: "0.68rem", fontWeight: 700,
+      background: s.bg, color: s.color, border: `1px solid ${s.border}`, flexShrink: 0,
+    }}>{s.label}</span>
+  );
+}
+
+/** Compact list of tasks raised for an incident, each linking to the Task Board. */
+function IncidentTaskList({ tasks }: { tasks: TaskAssignment[] }) {
+  if (tasks.length === 0) return null;
+  const open = tasks.filter(t => t.status !== "completed" && t.status !== "cancelled").length;
+  return (
+    <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "12px 14px" }}>
+      <div style={{ fontWeight: 600, fontSize: "0.8rem", color: "#92400e", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+        <ClipboardList style={{ width: 14, height: 14 }} />
+        Raised Tasks ({tasks.length}){open > 0 ? ` — ${open} open` : ""}
+      </div>
+      <div style={{ display: "grid", gap: 6 }}>
+        {tasks.map(t => (
+          <Link key={t.id} href="/task-board" onClick={e => e.stopPropagation()}
+            style={{
+              display: "flex", alignItems: "center", gap: 8, textDecoration: "none",
+              background: "#fff", border: "1px solid #f3e8c0", borderRadius: 6, padding: "6px 10px",
+            }}
+            title="Open the Task Board">
+            <span style={{
+              flex: 1, minWidth: 0, fontSize: "0.82rem", fontWeight: 600, color: "#1f2937",
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              textDecoration: t.status === "completed" ? "line-through" : "none",
+            }}>{t.title}</span>
+            {t.dueDate && <span style={{ fontSize: "0.72rem", color: "#6b7280", flexShrink: 0 }}>Due {fmt(t.dueDate)}</span>}
+            {taskStatusBadge(t.status)}
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 const isImagePhoto = (p: IncidentPhoto) => /\.(jpe?g|png|gif|webp|bmp|heic|heif)$/i.test(p.fileName ?? p.objectPath);
@@ -201,6 +260,25 @@ export default function FarmIncidentsPage() {
   });
   const allPolicies = policiesData?.records ?? [];
   const validPolicies = allPolicies.filter(p => !p.supersededByRenewal);
+
+  const { data: tasksData } = useQuery<{ records: TaskAssignment[] }>({
+    queryKey: ["task-assignments", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/task-assignments`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
+  // Map incidentId → tasks whose description references "Incident #<id>:"
+  const incidentTasks = React.useMemo(() => {
+    const map = new Map<number, TaskAssignment[]>();
+    for (const t of (tasksData?.records ?? [])) {
+      const m = /Incident #(\d+)\b/.exec(t.description ?? "");
+      if (!m) continue;
+      const id = Number(m[1]);
+      if (!map.has(id)) map.set(id, []);
+      map.get(id)!.push(t);
+    }
+    return map;
+  }, [tasksData]);
 
   // ── Mutations ──
 
@@ -623,6 +701,8 @@ export default function FarmIncidentsPage() {
 
             {viewInc.notes && viewField("Notes", viewInc.notes)}
 
+            <IncidentTaskList tasks={incidentTasks.get(viewInc.id) ?? []} />
+
             <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #f3f4f6" }}>
               <PhotoPanel incidentId={viewInc.id} farmId={farmId!} photos={viewInc.photos ?? []}
                 resource="incidents" queryKey={["farm-incidents", farmId!]} />
@@ -738,6 +818,21 @@ export default function FarmIncidentsPage() {
                           <Camera style={{ width: 12, height: 12 }} />no photos
                         </span>
                       ) : null}
+                      {(incidentTasks.get(inc.id) ?? []).length > 0 && (() => {
+                        const ts = incidentTasks.get(inc.id)!;
+                        const open = ts.filter(t => t.status !== "completed" && t.status !== "cancelled").length;
+                        return (
+                          <span title={`${ts.length} task${ts.length === 1 ? "" : "s"} raised — ${open} open`} style={{
+                            display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 9999,
+                            fontSize: "0.72rem", fontWeight: 700,
+                            background: open > 0 ? "#fffbeb" : "#f0fdf4",
+                            color: open > 0 ? "#b45309" : "#16a34a",
+                            border: `1px solid ${open > 0 ? "#fcd34d" : "#bbf7d0"}`,
+                          }}>
+                            <ClipboardList style={{ width: 12, height: 12 }} />{open > 0 ? `${open} open` : "tasks done"}
+                          </span>
+                        );
+                      })()}
                     </div>
                     <div style={{ fontSize: "0.875rem", color: "#374151", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {inc.locationDescription}
@@ -790,6 +885,11 @@ export default function FarmIncidentsPage() {
                       <div style={{ marginTop: 6, fontSize: "0.875rem", color: "#374151" }}>
                         <span style={{ fontWeight: 600, color: "#6b7280", fontSize: "0.75rem" }}>NOTES: </span>
                         {inc.notes}
+                      </div>
+                    )}
+                    {(incidentTasks.get(inc.id) ?? []).length > 0 && (
+                      <div style={{ marginTop: 10 }}>
+                        <IncidentTaskList tasks={incidentTasks.get(inc.id)!} />
                       </div>
                     )}
                     {(inc.photos ?? []).length > 0 && (
