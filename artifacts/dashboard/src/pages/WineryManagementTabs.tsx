@@ -6009,21 +6009,33 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                 const viewPressing = view.batch_ref ? cellarPressingRefs.find(p => p.batchRef === String(view.batch_ref)) : null;
                 const viewIsOrganic = !!(viewPressing?.isOrganic);
                 const viewOrgLimit = viewIsOrganic && viewWineColour ? ORGANIC_MAX_SO2[viewWineColour] : null;
-                if (!viewOrgLimit || !view.free_so2_after_mg_l) return null;
-                const viewFreeSo2 = parseFloat(String(view.free_so2_after_mg_l));
-                const viewOverLimit = !isNaN(viewFreeSo2) && viewFreeSo2 > parseFloat(viewOrgLimit);
+                const viewConvLimit = viewWineColour ? CONVENTIONAL_MAX_SO2[viewWineColour] : null;
+                const viewActiveLimit = viewIsOrganic ? (viewOrgLimit ?? viewConvLimit) : viewConvLimit;
+                if (!viewActiveLimit) return null;
+                const viewFreeSo2 = view.free_so2_after_mg_l != null && view.free_so2_after_mg_l !== "" ? parseFloat(String(view.free_so2_after_mg_l)) : NaN;
+                const viewOverLimit = !isNaN(viewFreeSo2) && viewFreeSo2 > parseFloat(viewActiveLimit);
                 return (
-                  <div className={`col-span-2 flex items-start gap-2 rounded-md px-3 py-2 text-xs ${viewOverLimit ? "bg-red-50 border border-red-200 text-red-800" : "bg-green-50 border border-green-200 text-green-800"}`}>
-                    {viewOverLimit
-                      ? <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                      : <Leaf className="w-3.5 h-3.5 mt-0.5 shrink-0" />}
-                    <span>
-                      <strong>Organic {viewWineColour} limit: {viewOrgLimit} mg/L</strong> —{" "}
-                      {viewOverLimit
-                        ? <>Recorded free SO₂ ({fmtNum(view.free_so2_after_mg_l, 0)} mg/L) <strong>exceeds</strong> the organic ceiling.</>
-                        : <>Recorded free SO₂ ({fmtNum(view.free_so2_after_mg_l, 0)} mg/L) is within the organic ceiling.</>}
-                    </span>
-                  </div>
+                  <>
+                    <div className="col-span-2 rounded-md border bg-slate-50 border-slate-200 px-3 py-2 text-xs flex items-center gap-2 text-slate-700">
+                      <FlaskConical className="w-3.5 h-3.5 shrink-0 text-slate-500" />
+                      <span>
+                        <strong>{viewIsOrganic ? "Organic" : "Conventional"} SO₂ ceiling for {viewWineColour}:</strong>{" "}
+                        <strong>{viewActiveLimit} mg/L</strong> total SO₂
+                        {viewIsOrganic && viewConvLimit && (
+                          <span className="text-slate-500 ml-1">(conventional limit: {viewConvLimit} mg/L)</span>
+                        )}
+                      </span>
+                    </div>
+                    {viewOverLimit && (
+                      <div className="col-span-2 flex items-start gap-2 rounded-md px-3 py-2 text-xs bg-red-50 border border-red-200 text-red-800">
+                        <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                        <span>
+                          <strong>{viewIsOrganic ? "Organic" : "Conventional"} {viewWineColour} limit: {viewActiveLimit} mg/L total SO₂</strong> —{" "}
+                          Recorded free SO₂ ({fmtNum(view.free_so2_after_mg_l, 0)} mg/L) already <strong>exceeds</strong> the {viewIsOrganic ? "organic" : "conventional"} total-SO₂ ceiling (total SO₂ is at least the free SO₂).
+                        </span>
+                      </div>
+                    )}
+                  </>
                 );
               })()}
               {!!view.fining_agent && <ViewField label="Fining Agent" value={fmt(view.fining_agent)} />}
