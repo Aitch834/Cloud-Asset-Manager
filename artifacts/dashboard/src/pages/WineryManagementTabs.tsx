@@ -3386,6 +3386,24 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     return convMax !== undefined && doseVal > convMax;
   });
 
+  // Pressing records where any recorded additive exceeds its applicable ceiling
+  // (organic limit for organic batches, conventional max otherwise). Purely cosmetic row highlight.
+  const nonCompliantPressingIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const a of allAdditions) {
+      const def = PERMITTED_ADDITIVES.find(x => x.name === String(a.additive_name));
+      if (!def) continue;
+      const unit = String(a.unit ?? "");
+      const doseVal = parseFloat(String(a.dose));
+      if (!unit || isNaN(doseVal)) continue;
+      const rec = crud.data.find(r => r.id === a.pressing_record_id);
+      const isOrg = rec ? (rec.is_organic === true || rec.is_organic === "true" || rec.is_organic === 1) : false;
+      const limit = isOrg ? (def.organicMaxPerUnit?.[unit] ?? def.maxPerUnit?.[unit]) : def.maxPerUnit?.[unit];
+      if (limit !== undefined && doseVal > limit) ids.add(a.pressing_record_id as number);
+    }
+    return ids;
+  }, [allAdditions, crud.data]);
+
   // Instruments that could be used for juice analysis
   const analysisEquipmentList = equipment.filter(e =>
     ["refractometer", "ph-meter", "hydrometer", "ripper-burette", "enzymatic-analyser", "ao-apparatus"].includes(String(e.equipment_type))
@@ -3849,7 +3867,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             </tr></thead>
             <tbody className="divide-y">
               {filtered.map(r => (
-                <tr key={String(r.id)} className="hover:bg-muted/20">
+                <tr key={String(r.id)} className={nonCompliantPressingIds.has(r.id as number) ? "bg-red-50 hover:bg-red-100 border-l-4 border-l-red-400" : "hover:bg-muted/20"}>
                   <td className="p-3 whitespace-nowrap">{fmtDate(r.press_date)}</td>
                   <td className="p-3 font-mono text-xs">
                     {fmt(r.batch_ref)}
