@@ -3242,19 +3242,19 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
   const [colourFilter, setColourFilter] = useState<string | null>(null);
   const [nameSearch, setNameSearch] = useState("");
-  const [summarySort, setSummarySortState] = useState<{ col: "additive" | "vintage" | "total_dose"; dir: "asc" | "desc" }>(() => {
+  const [summarySort, setSummarySortState] = useState<{ col: "additive" | "vintage" | "total_dose" | "avg_dose" | "batch_count"; dir: "asc" | "desc" }>(() => {
     try {
       const saved = localStorage.getItem("winery-additions-summary-sort");
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (["additive", "vintage", "total_dose"].includes(parsed?.col) && ["asc", "desc"].includes(parsed?.dir)) {
+        if (["additive", "vintage", "total_dose", "avg_dose", "batch_count"].includes(parsed?.col) && ["asc", "desc"].includes(parsed?.dir)) {
           return { col: parsed.col, dir: parsed.dir };
         }
       }
     } catch { /* ignore corrupt saved value */ }
     return { col: "additive", dir: "asc" };
   });
-  const setSummarySort = (updater: React.SetStateAction<{ col: "additive" | "vintage" | "total_dose"; dir: "asc" | "desc" }>) => {
+  const setSummarySort = (updater: React.SetStateAction<{ col: "additive" | "vintage" | "total_dose" | "avg_dose" | "batch_count"; dir: "asc" | "desc" }>) => {
     setSummarySortState(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       try { localStorage.setItem("winery-additions-summary-sort", JSON.stringify(next)); } catch { /* storage unavailable */ }
@@ -3499,8 +3499,9 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   // Sort the summary table by the user-selected column (default: additive → vintage → colour)
   const searchFilteredSummary = [...searchFilteredSummaryUnsorted].sort((a, b) => {
     const dir = summarySort.dir === "asc" ? 1 : -1;
-    if (summarySort.col === "total_dose") {
-      const diff = parseFloat(String(a.total_dose ?? 0)) - parseFloat(String(b.total_dose ?? 0));
+    if (summarySort.col === "total_dose" || summarySort.col === "avg_dose" || summarySort.col === "batch_count") {
+      const key = summarySort.col;
+      const diff = parseFloat(String(a[key] ?? 0)) - parseFloat(String(b[key] ?? 0));
       if (diff !== 0) return diff * dir;
       // Secondary: additive name then vintage
       const n = String(a.additive_name ?? "").localeCompare(String(b.additive_name ?? ""));
@@ -4100,7 +4101,15 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                   )}
                   <th className="text-left p-2.5 font-medium">Wine Colour</th>
                   <th className="text-left p-2.5 font-medium">Stage</th>
-                  <th className="text-right p-2.5 font-medium">Records</th>
+                  <th className="text-right p-2.5 font-medium">
+                    <button
+                      className="inline-flex items-center gap-1 hover:text-foreground transition-colors ml-auto"
+                      onClick={() => setSummarySort(s => s.col === "batch_count" ? { col: "batch_count", dir: s.dir === "asc" ? "desc" : "asc" } : { col: "batch_count", dir: "desc" })}
+                    >
+                      Records
+                      {summarySort.col === "batch_count" ? (summarySort.dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-40" />}
+                    </button>
+                  </th>
                   <th className="text-right p-2.5 font-medium">
                     <button
                       className="inline-flex items-center gap-1 hover:text-foreground transition-colors ml-auto"
@@ -4110,7 +4119,15 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                       {summarySort.col === "total_dose" ? (summarySort.dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-40" />}
                     </button>
                   </th>
-                  <th className="text-right p-2.5 font-medium">Avg / record</th>
+                  <th className="text-right p-2.5 font-medium">
+                    <button
+                      className="inline-flex items-center gap-1 hover:text-foreground transition-colors ml-auto"
+                      onClick={() => setSummarySort(s => s.col === "avg_dose" ? { col: "avg_dose", dir: s.dir === "asc" ? "desc" : "asc" } : { col: "avg_dose", dir: "desc" })}
+                    >
+                      Avg / record
+                      {summarySort.col === "avg_dose" ? (summarySort.dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 opacity-40" />}
+                    </button>
+                  </th>
                   <th className="text-right p-2.5 font-medium">Min</th>
                   <th className="text-right p-2.5 font-medium">Max</th>
                   <th className="text-left p-2.5 font-medium">Unit</th>
