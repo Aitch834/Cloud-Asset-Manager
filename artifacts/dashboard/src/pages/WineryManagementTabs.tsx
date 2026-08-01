@@ -2440,6 +2440,17 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
         <td style="padding:5px 8px;color:#6b7280">Confirmed measurement — use in preference to estimate above</td>
       </tr>` : ""}
     </table>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <div style="flex:1;background:${s2.isOrganic ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.4)"};border:${s2.isOrganic ? "2px solid #166534" : "1px solid #e5e7eb"};border-radius:6px;padding:6px 10px">
+        <div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Organic ceiling${s2.isOrganic ? ` <span style="color:#166534">· ACTIVE LIMIT</span>` : ""}</div>
+        <div style="font-size:13px;font-weight:700;font-family:monospace;color:${s2.isOrganic ? "#166534" : "#374151"}">${s2.organicLimit} mg/L</div>
+      </div>
+      <div style="flex:1;background:${!s2.isOrganic ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.4)"};border:${!s2.isOrganic ? "2px solid #166534" : "1px solid #e5e7eb"};border-radius:6px;padding:6px 10px">
+        <div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280">Conventional ceiling${!s2.isOrganic ? ` <span style="color:#166534">· ACTIVE LIMIT</span>` : ""}</div>
+        <div style="font-size:13px;font-weight:700;font-family:monospace;color:${!s2.isOrganic ? "#166534" : "#374151"}">${s2.conventionalLimit} mg/L</div>
+      </div>
+    </div>
+    <div style="font-size:9px;color:#6b7280;margin-top:3px">${s2.isOrganic ? `Organic batch — organic ceiling applies. Conventional ceiling shown for comparison (${(s2.conventionalLimit - s2.organicLimit).toFixed(0)} mg/L higher).` : `Conventional batch — conventional ceiling applies. Organic ceiling shown for comparison (${(s2.conventionalLimit - s2.organicLimit).toFixed(0)} mg/L lower).`}</div>
     <div style="margin-top:8px">
       <div style="display:flex;justify-content:space-between;font-size:10px;color:#6b7280;margin-bottom:2px">
         <span>${s2.wineColour ?? ""} · ${s2.isOrganic ? "Organic" : "Conventional"} ceiling: ${s2.activeLimit} mg/L${s2.isOrganic ? ` · Conv. ceiling: ${s2.conventionalLimit} mg/L` : ""}</span>
