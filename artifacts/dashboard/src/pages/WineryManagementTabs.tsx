@@ -4712,6 +4712,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [isOrganicForm, setIsOrganicForm] = useState(false);
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [fermSearch, setFermSearch] = useState("");
   const [so2FromPressing, setSo2FromPressing] = useState(false);
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   const { data: farmsDataFerm } = useQuery<{ records?: Record<string, unknown>[] }>({
@@ -4784,7 +4785,15 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
 
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
   if (!years.includes(String(new Date().getFullYear()))) years.unshift(String(new Date().getFullYear()));
-  const filtered = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
+  const filteredByYear = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
+  const filtered = fermSearch.trim() === "" ? filteredByYear : filteredByYear.filter(r => {
+    const q = fermSearch.trim().toLowerCase();
+    const vesselRef = r.vessel_ref ?? vessels.find(v => v.id === r.vessel_id)?.vessel_ref;
+    return String(r.batch_ref ?? "").toLowerCase().includes(q)
+      || String(r.variety ?? "").toLowerCase().includes(q)
+      || String(vesselRef ?? "").toLowerCase().includes(q)
+      || String(r.operator_name ?? "").toLowerCase().includes(q);
+  });
   const fermentCsvCols = [
     { key: "vintage_year", label: "Vintage" },
     { key: "batch_ref", label: "Batch Ref" },
@@ -4830,12 +4839,21 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
         </div>
         <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Fermentation</Button>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-muted-foreground">Vintage:</span>
-        <Select value={yearFilter} onValueChange={setYearFilter}>
+        <Select value={yearFilter} onValueChange={v => { setYearFilter(v); setFermSearch(""); }}>
           <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
         </Select>
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            className="h-8 text-xs pl-7 w-52"
+            placeholder="Batch, variety, vessel, operator…"
+            value={fermSearch}
+            onChange={e => setFermSearch(e.target.value)}
+          />
+        </div>
         <Button size="sm" variant="outline" className="ml-auto" onClick={() => exportCSV(filtered, "fermentation-records.csv", fermentCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} batch{filtered.length !== 1 ? "es" : ""}</span>
       </div>
@@ -5437,6 +5455,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [opFilter, setOpFilter] = useState("all");
+  const [cellarSearch, setCellarSearch] = useState("");
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   const [cellarWineColourFromFermentation, setCellarWineColourFromFermentation] = useState(false);
   const { data: farmsDataCellar } = useQuery<{ records?: Record<string, unknown>[] }>({
@@ -5579,7 +5598,14 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   if (!years.includes(String(new Date().getFullYear()))) years.unshift(String(new Date().getFullYear()));
   const filtered = crud.data
     .filter(r => yearFilter === "all" || String(r.vintage_year) === yearFilter)
-    .filter(r => opFilter === "all" || String(r.op_type) === opFilter);
+    .filter(r => opFilter === "all" || String(r.op_type) === opFilter)
+    .filter(r => {
+      const q = cellarSearch.trim().toLowerCase();
+      if (q === "") return true;
+      return String(r.batch_ref ?? "").toLowerCase().includes(q)
+        || String(r.operator_name ?? "").toLowerCase().includes(q)
+        || String(r.notes ?? "").toLowerCase().includes(q);
+    });
   const cellarCsvCols = [
     { key: "vintage_year", label: "Vintage" },
     { key: "batch_ref", label: "Batch Ref" },
@@ -5619,7 +5645,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
       </div>
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-muted-foreground">Vintage:</span>
-        <Select value={yearFilter} onValueChange={setYearFilter}>
+        <Select value={yearFilter} onValueChange={v => { setYearFilter(v); setCellarSearch(""); }}>
           <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
         </Select>
@@ -5628,6 +5654,15 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
           <SelectTrigger className="w-36 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">All types</SelectItem>{CELLAR_OP_TYPES.map(o => <SelectItem key={o} value={o}>{CELLAR_OP_LABELS[o]}</SelectItem>)}</SelectContent>
         </Select>
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            className="h-8 text-xs pl-7 w-48"
+            placeholder="Batch, operator, notes…"
+            value={cellarSearch}
+            onChange={e => setCellarSearch(e.target.value)}
+          />
+        </div>
         <Button size="sm" variant="outline" className="ml-auto" onClick={() => exportCSV(filtered, "cellar-ops.csv", cellarCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
       </div>
