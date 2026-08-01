@@ -7024,17 +7024,25 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
     return maxVal != null && ORGANIC_LIMIT_NUMBERS.has(maxVal);
   }).length;
 
+  const findFirstFlaggedSo2 = () => filtered.find(r => {
+    if (r.batch_ref) return false;
+    const maxVal = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : null;
+    return maxVal != null && ORGANIC_LIMIT_NUMBERS.has(maxVal);
+  });
+
   const handleReviewFlaggedSo2 = () => {
-    const firstFlagged = filtered.find(r => {
-      if (r.batch_ref) return false;
-      const maxVal = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : null;
-      return maxVal != null && ORGANIC_LIMIT_NUMBERS.has(maxVal);
-    });
+    const firstFlagged = findFirstFlaggedSo2();
     if (!firstFlagged) return;
     const rowId = String(firstFlagged.id);
     setHighlightedSo2RowId(rowId);
     firstFlaggedSo2RowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     setTimeout(() => setHighlightedSo2RowId(null), 2500);
+  };
+
+  const handleFixFlaggedSo2 = () => {
+    const firstFlagged = findFirstFlaggedSo2();
+    if (!firstFlagged) return;
+    openEdit(firstFlagged);
   };
 
   const so2CsvCols = [
@@ -7117,6 +7125,14 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
             className="shrink-0 rounded px-2 py-0.5 text-xs font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
           >
             Review
+          </button>
+          <button
+            type="button"
+            onClick={handleFixFlaggedSo2}
+            className="shrink-0 inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 hover:bg-amber-200 hover:text-amber-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+          >
+            <Pencil className="h-3 w-3" />
+            Fix
           </button>
         </div>
       )}
