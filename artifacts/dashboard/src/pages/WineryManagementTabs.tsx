@@ -584,6 +584,7 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
               <th className="text-right p-3 font-medium">Net Wt (kg)</th>
               <th className="text-right p-3 font-medium">Brix °</th>
               <th className="text-right p-3 font-medium">pH</th>
+              <th className="text-right p-3 font-medium">TA (g/L)</th>
               <th className="text-left p-3 font-medium">Condition</th>
               <th className="text-left p-3 font-medium">Status</th>
               <th className="p-3"></th>
@@ -597,6 +598,7 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
                   <td className="p-3 text-right font-mono">{fmtNum(r.net_weight_kg, 0)}</td>
                   <td className="p-3 text-right">{fmtNum(r.brix, 1)}</td>
                   <td className="p-3 text-right">{fmtNum(r.ph, 2)}</td>
+                  <td className="p-3 text-right">{fmtNum(r.titratable_acidity_gl, 1)}</td>
                   <td className="p-3">{fmt(r.grape_condition)}</td>
                   <td className="p-3">{r.accepted === false || r.accepted === "false" ? <span className="text-xs bg-red-100 text-red-700 rounded px-2 py-0.5">Rejected</span> : <span className="text-xs bg-green-100 text-green-700 rounded px-2 py-0.5">Accepted</span>}</td>
                   <td className="p-3 text-right whitespace-nowrap">
