@@ -37002,11 +37002,12 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
         ORDER BY b.bottling_date ASC NULLS LAST
       `),
       db.execute(sql`
-        SELECT a.additive_name, a.category, a.dose, a.unit, a.notes
+        SELECT a.additive_name, a.category, a.dose, a.unit, a.notes,
+               a.pressing_record_id, p.press_date AS pressing_press_date, p.batch_ref AS pressing_batch_ref
         FROM winery_pressing_additions a
         JOIN winery_pressing_records p ON p.id = a.pressing_record_id
         WHERE p.farm_id = ${farmId} AND p.batch_ref = ${batchRef}
-        ORDER BY a.id ASC
+        ORDER BY p.press_date ASC NULLS LAST, a.pressing_record_id ASC, a.id ASC
       `),
     ]);
   } else {
@@ -37059,11 +37060,12 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
         ORDER BY b.bottling_date ASC NULLS LAST
       `),
       db.execute(sql`
-        SELECT a.additive_name, a.category, a.dose, a.unit, a.notes
+        SELECT a.additive_name, a.category, a.dose, a.unit, a.notes,
+               a.pressing_record_id, p.press_date AS pressing_press_date, p.batch_ref AS pressing_batch_ref
         FROM winery_pressing_additions a
         JOIN winery_pressing_records p ON p.id = a.pressing_record_id
         WHERE p.farm_id = ${farmId} AND p.vintage_year = ${vintageYear}
-        ORDER BY a.id ASC
+        ORDER BY p.press_date ASC NULLS LAST, a.pressing_record_id ASC, a.id ASC
       `),
     ]);
   }

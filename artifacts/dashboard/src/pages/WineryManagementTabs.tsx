@@ -2735,6 +2735,29 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
       <p style="font-size:11px;font-weight:500;color:#111">${escHtml(value)}</p>
     </div>`;
 
+  // Group press additives by their pressing session. In vintage scope a trail
+  // can span multiple pressings — each group renders its own sub-table with the
+  // press date and batch ref, instead of one flat merged list.
+  const pressAdditiveGroups: { key: string; pressDate: string; batchRef: string | null; additions: Record<string, unknown>[] }[] = [];
+  {
+    const groupIndex = new Map<string, number>();
+    for (const a of data.pressAdditions) {
+      const key = a.pressing_record_id != null ? String(a.pressing_record_id) : "unknown";
+      let idx = groupIndex.get(key);
+      if (idx == null) {
+        idx = pressAdditiveGroups.length;
+        groupIndex.set(key, idx);
+        pressAdditiveGroups.push({
+          key,
+          pressDate: a.pressing_press_date ? fmtDate(a.pressing_press_date) : "—",
+          batchRef: a.pressing_batch_ref != null && String(a.pressing_batch_ref).trim() !== "" ? String(a.pressing_batch_ref).trim() : null,
+          additions: [],
+        });
+      }
+      pressAdditiveGroups[idx].additions.push(a);
+    }
+  }
+
   const pressingBlockHtml = `
 <div class="section">
   <h2>1. Pressing Record</h2>
@@ -2798,14 +2821,20 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
     <!-- Press additives — grouped inside this pressing record -->
     <div style="border-top:1px solid #e5e7eb;padding-top:8px;margin-top:4px">
       <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:5px">Press Additives (${data.pressAdditions.length})</p>
+      ${pressAdditiveGroups.map(g => `
+      ${isVintageScoped ? `<p style="font-size:9px;font-weight:600;color:#374151;margin:6px 0 3px;display:flex;align-items:center;gap:6px">
+        <span>Pressing — ${escHtml(g.pressDate)}</span>
+        ${g.batchRef ? `<span style="font-family:monospace;font-size:9px;background:#dbeafe;color:#1e40af;padding:1px 5px;border-radius:3px">${escHtml(g.batchRef)}</span>` : `<span style="font-size:9px;background:#f3f4f6;color:#6b7280;padding:1px 5px;border-radius:3px">No ref</span>`}
+        <span style="font-weight:400;color:#9ca3af">(${g.additions.length})</span>
+      </p>` : ""}
       <table style="width:100%;border-collapse:collapse;margin-left:0">
         <tr style="background:#f9fafb">
           ${PRESS_ADDITIVE_COLUMNS.map(col => `<th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #d1d5db;text-align:${col.align}">${escHtml(col.pdfLabel)}</th>`).join("")}
         </tr>
-        ${data.pressAdditions.map(a => `<tr>
+        ${g.additions.map(a => `<tr>
           ${PRESS_ADDITIVE_COLUMNS.map(col => `<td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;${col.pdfCellStyle ?? ""}">${escHtml(col.pdfValue(a))}</td>`).join("")}
         </tr>`).join("")}
-      </table>
+      </table>`).join("")}
     </div>` : ""}
 
     ${pressingNotes ? `
