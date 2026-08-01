@@ -3538,18 +3538,29 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   });
   // Detect mixed SO₂ units in the currently-visible summary rows so the on-screen
   // table can show a banner before the user reaches the export step.
-  const summaryMixedUnitVintages = (() => {
-    const byVintage = new Map<string, Set<string>>();
+  const { summaryMixedUnitVintages, summaryDominantUnitByVintage } = (() => {
+    // Count SO₂ unit usage per vintage (weighted by record count so the "most
+    // common" unit reflects underlying records, not just summary rows)
+    const byVintage = new Map<string, Map<string, number>>();
     searchFilteredSummary.filter(r => r.category === "so2").forEach(r => {
       const v = String(r.vintage_year ?? "?");
       const u = String(r.unit ?? "");
-      if (!byVintage.has(v)) byVintage.set(v, new Set());
-      byVintage.get(v)!.add(u);
+      const n = Math.max(1, parseInt(String(r.batch_count ?? "1"), 10) || 1);
+      if (!byVintage.has(v)) byVintage.set(v, new Map());
+      const counts = byVintage.get(v)!;
+      counts.set(u, (counts.get(u) ?? 0) + n);
     });
-    return Array.from(byVintage.entries())
-      .filter(([, units]) => units.size > 1)
-      .map(([v]) => v)
-      .sort();
+    const mixed: string[] = [];
+    const dominant = new Map<string, string>();
+    byVintage.forEach((counts, v) => {
+      if (counts.size > 1) {
+        mixed.push(v);
+        let best = ""; let bestN = -1;
+        counts.forEach((n, u) => { if (n > bestN) { bestN = n; best = u; } });
+        dominant.set(v, best);
+      }
+    });
+    return { summaryMixedUnitVintages: mixed.sort(), summaryDominantUnitByVintage: dominant };
   })();
 
   const showSo2Chart = categoryFilter.size === 0 || categoryFilter.has("so2");
@@ -4190,6 +4201,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                     const prevName = i > 0 ? String(searchFilteredSummary[i - 1].additive_name ?? "") : null;
                     const isGroupContinuation = summarySort.col === "additive" && prevName === String(row.additive_name ?? "");
                     const isGroupStart = summarySort.col === "additive" && i > 0 && !isGroupContinuation;
+                    // Per-row unit-deviation flag: SO₂ row whose unit differs from the
+                    // most common unit used for that vintage (only within mixed-unit vintages)
+                    const rowUnit = String(row.unit ?? "");
+                    const dominantUnit = row.category === "so2" ? summaryDominantUnitByVintage.get(String(row.vintage_year ?? "?")) : undefined;
+                    const unitDeviates = !!dominantUnit && rowUnit !== dominantUnit;
+                    const unitDeviationMsg = unitDeviates ? `This record uses ${rowUnit || "an unspecified unit"}; most records for this vintage use ${dominantUnit}` : undefined;
                     return (
                       <tr key={i} className={`${warnConventional ? "bg-red-50" : warnOrganic || warnAscorbic ? "bg-amber-50" : "hover:bg-muted/20"}${isGroupStart ? " border-t-2 border-t-muted" : ""}`}>
                         <td className="p-2.5 font-medium">
@@ -4213,7 +4230,20 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                         <td className="p-2.5 text-right font-mono">{avgDose.toFixed(1)}</td>
                         <td className="p-2.5 text-right font-mono">{parseFloat(String(row.min_dose ?? 0)).toFixed(1)}</td>
                         <td className="p-2.5 text-right font-mono">{parseFloat(String(row.max_dose ?? 0)).toFixed(1)}</td>
-                        <td className="p-2.5 text-muted-foreground text-xs">{String(row.unit ?? "—")}</td>
+                        <td className="p-2.5 text-xs">
+                          {unitDeviates ? (
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-300"
+                              title={unitDeviationMsg}
+                              aria-label={unitDeviationMsg}
+                            >
+                              <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
+                              {rowUnit || "—"}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">{String(row.unit ?? "—")}</span>
+                          )}
+                        </td>
                         <td className="p-2.5 text-xs">
                           {warnConventional && <span className="text-red-700 font-medium flex items-center gap-1"><AlertTriangle className="h-3 w-3 shrink-0" />Avg exceeds conv. max (200 {String(row.unit ?? "mg/kg")})</span>}
                           {warnOrganic && <span className="text-amber-700 flex items-center gap-1"><AlertTriangle className="h-3 w-3 shrink-0" />Avg exceeds organic limit ({organicSo2Limit} {String(row.unit ?? "mg/kg")})</span>}
