@@ -3242,7 +3242,25 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
   const [colourFilter, setColourFilter] = useState<string | null>(null);
   const [nameSearch, setNameSearch] = useState("");
-  const [summarySort, setSummarySort] = useState<{ col: "additive" | "vintage" | "total_dose"; dir: "asc" | "desc" }>({ col: "additive", dir: "asc" });
+  const [summarySort, setSummarySortState] = useState<{ col: "additive" | "vintage" | "total_dose"; dir: "asc" | "desc" }>(() => {
+    try {
+      const saved = localStorage.getItem("winery-additions-summary-sort");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (["additive", "vintage", "total_dose"].includes(parsed?.col) && ["asc", "desc"].includes(parsed?.dir)) {
+          return { col: parsed.col, dir: parsed.dir };
+        }
+      }
+    } catch { /* ignore corrupt saved value */ }
+    return { col: "additive", dir: "asc" };
+  });
+  const setSummarySort = (updater: React.SetStateAction<{ col: "additive" | "vintage" | "total_dose"; dir: "asc" | "desc" }>) => {
+    setSummarySortState(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      try { localStorage.setItem("winery-additions-summary-sort", JSON.stringify(next)); } catch { /* storage unavailable */ }
+      return next;
+    });
+  };
   const [txLogBatchFilter, setTxLogBatchFilter] = useState("");
   const [signedConfirmRecord, setSignedConfirmRecord] = useState<Record<string, unknown> | null>(null);
   const { data: additionsSummary = [] } = useAdditionsSummary(farmId);
