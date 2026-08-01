@@ -6075,7 +6075,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const [so2FromTest, setSo2FromTest] = useState(false);
   const [phTaFromAnalysis, setPhTaFromAnalysis] = useState<"fermentation" | "pressing" | null>(null);
   const [organicAutoSource, setOrganicAutoSource] = useState<"fermentation" | "pressing" | null>(null);
-  const [wineColourFromFermentation, setWineColourFromFermentation] = useState(false);
+  const [wineColourAutoSource, setWineColourAutoSource] = useState<"fermentation" | "pressing" | null>(null);
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   const [lotCodeError, setLotCodeError] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -6253,7 +6253,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
       const inheritedWineColour = (fermMatch && fermMatch.wine_colour) ? String(fermMatch.wine_colour) : (pressMatch?.wineColour ?? "");
       if (!f.wineColour && inheritedWineColour) {
         next.wineColour = inheritedWineColour;
-        setWineColourFromFermentation(!!(fermMatch && fermMatch.wine_colour));
+        setWineColourAutoSource(fermMatch && fermMatch.wine_colour ? "fermentation" : "pressing");
       }
       if (organicSource) next.isOrganic = inheritedOrganic ? "true" : "false";
       let filled = false;
@@ -6285,7 +6285,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const autoBottles = volL > 0 && sizeMl > 0 ? Math.floor((volL * 1000) / sizeMl) : null;
   const autoCases = autoBottles != null ? Math.floor(autoBottles / 12) : null;
 
-  const openAdd = () => { setEditing(null); setForm({ bottlingDate: today, vintageYear: String(new Date().getFullYear()), isOrganic: "false", certifiedOrganic: "false", bottleSizeMl: "750" }); setSo2FromTest(false); setPhTaFromAnalysis(null); setOrganicAutoSource(null); setWineColourFromFermentation(false); setLotCodeError(null); setOpen(true); };
+  const openAdd = () => { setEditing(null); setForm({ bottlingDate: today, vintageYear: String(new Date().getFullYear()), isOrganic: "false", certifiedOrganic: "false", bottleSizeMl: "750" }); setSo2FromTest(false); setPhTaFromAnalysis(null); setOrganicAutoSource(null); setWineColourAutoSource(null); setLotCodeError(null); setOpen(true); };
   const openEdit = (r: Record<string, unknown>) => {
     setEditing(r.id as number);
     const raw = Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]));
@@ -6296,7 +6296,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     setSo2FromTest(false);
     setPhTaFromAnalysis(null);
     setOrganicAutoSource(null);
-    setWineColourFromFermentation(false);
+    setWineColourAutoSource(null);
     setLotCodeError(null);
     setOpen(true);
   };
@@ -6513,13 +6513,11 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <Label>Wine Colour</Label>
-                  {wineColourFromFermentation && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
-                      from fermentation
-                    </span>
+                  {wineColourAutoSource && !!form.wineColour && (
+                    <span className="text-xs text-blue-600">auto from {wineColourAutoSource}</span>
                   )}
                 </div>
-                <Select value={String(form.wineColour ?? "")} onValueChange={v => { setWineColourFromFermentation(false); sf("wineColour", v); }}>
+                <Select value={String(form.wineColour ?? "")} onValueChange={v => { setWineColourAutoSource(null); sf("wineColour", v); }}>
                   <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>{WINE_COLOUR_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                 </Select>
