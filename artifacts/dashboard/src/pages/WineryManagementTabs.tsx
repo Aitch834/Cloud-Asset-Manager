@@ -2533,19 +2533,12 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
     </div>
 
     <!-- Settling row -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px${pressingNotes ? ";margin-bottom:8px" : ""}">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px${(pressAttachments.length > 0 || data.pressAdditions.length > 0 || pressingNotes) ? ";margin-bottom:8px" : ""}">
       ${pField("Settling Method", String(pressing.settling_method ?? "—"))}
       ${pField("Settling Vessel", String(pressing.settling_vessel ?? "—"))}
       ${pField("Settling Time (hrs)", pressing.settling_hours != null && pressing.settling_hours !== "" ? String(pressing.settling_hours) : "—")}
       <div></div>
     </div>
-
-    ${pressingNotes ? `
-    <!-- Notes -->
-    <div style="border-top:1px solid #e5e7eb;padding-top:8px${pressAttachments.length > 0 ? ";margin-bottom:8px" : ""}">
-      <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:3px">Pressing Notes</p>
-      <p style="font-size:11px;color:#374151;font-style:italic">${escHtml(pressingNotes)}</p>
-    </div>` : ""}
 
     ${pressAttachments.length > 0 ? `
     <!-- Attachments -->
@@ -2580,6 +2573,13 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
           <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;color:#6b7280;font-style:italic">${escHtml(a.notes)}</td>
         </tr>`).join("")}
       </table>
+    </div>` : ""}
+
+    ${pressingNotes ? `
+    <!-- Notes — shown below the additives section so print matches the CSV export -->
+    <div style="border-top:1px solid #e5e7eb;padding-top:8px;margin-top:4px">
+      <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:3px">Pressing Notes</p>
+      <p style="font-size:11px;color:#374151;font-style:italic">${escHtml(pressingNotes)}</p>
     </div>` : ""}
 
   </div>
