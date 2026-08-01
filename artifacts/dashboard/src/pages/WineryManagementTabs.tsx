@@ -1099,7 +1099,8 @@ function VintagePHComparisonChart({
   const [colourFilter, setColourFilter] = useState<string>("all");
 
   // Collect per-batch pH/TA: bottling (primary) → fermentation end (fallback)
-  const batchMap = new Map<string, { ph: number | null; ta: number | null; colour: string | null }>();
+  // Brix: fermentation start_brix (juice sugar at fermentation start)
+  const batchMap = new Map<string, { ph: number | null; ta: number | null; brix: number | null; colour: string | null }>();
 
   // Per-batch wine colour lookup (fermentation first, then bottling)
   const colourOf = (ref: string): string | null => {
@@ -1119,7 +1120,7 @@ function VintagePHComparisonChart({
   for (const r of sortedBottling) {
     const ref = r.batch_ref ? String(r.batch_ref).trim() : null;
     if (!ref) continue;
-    if (!batchMap.has(ref)) batchMap.set(ref, { ph: null, ta: null, colour: colourOf(ref) });
+    if (!batchMap.has(ref)) batchMap.set(ref, { ph: null, ta: null, brix: null, colour: colourOf(ref) });
     const entry = batchMap.get(ref)!;
     if (entry.ph == null && r.ph != null) entry.ph = parseFloat(String(r.ph));
     if (entry.ta == null && r.titratable_acidity_gl != null) entry.ta = parseFloat(String(r.titratable_acidity_gl));
@@ -1133,15 +1134,16 @@ function VintagePHComparisonChart({
   for (const r of sortedFerm) {
     const ref = r.batch_ref ? String(r.batch_ref).trim() : null;
     if (!ref) continue;
-    if (!batchMap.has(ref)) batchMap.set(ref, { ph: null, ta: null, colour: colourOf(ref) });
+    if (!batchMap.has(ref)) batchMap.set(ref, { ph: null, ta: null, brix: null, colour: colourOf(ref) });
     const entry = batchMap.get(ref)!;
     if (entry.ph == null && r.end_ph != null) entry.ph = parseFloat(String(r.end_ph));
     if (entry.ta == null && r.end_ta_gl != null) entry.ta = parseFloat(String(r.end_ta_gl));
+    if (entry.brix == null && r.start_brix != null && r.start_brix !== "") entry.brix = parseFloat(String(r.start_brix));
   }
 
   const allChartData = Array.from(batchMap.entries())
-    .filter(([, v]) => v.ph != null || v.ta != null)
-    .map(([ref, v]) => ({ ref, label: ref, ph: v.ph, ta: v.ta, colour: v.colour }))
+    .filter(([, v]) => v.ph != null || v.ta != null || v.brix != null)
+    .map(([ref, v]) => ({ ref, label: ref, ph: v.ph, ta: v.ta, brix: v.brix, colour: v.colour }))
     .sort((a, b) => a.ref.localeCompare(b.ref));
 
   const availableColours = Array.from(new Set(allChartData.map(d => d.colour).filter((c): c is string => !!c))).sort();
@@ -1157,7 +1159,7 @@ function VintagePHComparisonChart({
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
           <FlaskConical className="h-3.5 w-3.5" />
-          Vintage {vintageYear} — pH &amp; TA Comparison
+          Vintage {vintageYear} — pH, TA &amp; Brix Comparison
         </span>
         <span className="text-xs text-muted-foreground">
           {chartData.length} batch{chartData.length !== 1 ? "es" : ""} · click a bar to highlight
@@ -1176,7 +1178,7 @@ function VintagePHComparisonChart({
         </div>
       )}
       {chartData.length === 0 && (
-        <p className="text-xs text-muted-foreground py-2">No batches with pH/TA data for the selected wine colour.</p>
+        <p className="text-xs text-muted-foreground py-2">No batches with pH/TA/Brix data for the selected wine colour.</p>
       )}
       {chartData.length > 0 && (
       <div className="bg-white/70 rounded p-2">
@@ -1220,10 +1222,23 @@ function VintagePHComparisonChart({
               width={42}
               label={{ value: "TA g/L", angle: 90, position: "insideRight", style: { fontSize: 9, fill: "#0ea5e9" } }}
             />
+            <YAxis
+              yAxisId="brix"
+              orientation="right"
+              tick={{ fontSize: 10 }}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={(v: number) => v.toFixed(1)}
+              domain={["auto", "auto"]}
+              width={42}
+              label={{ value: "Brix °", angle: 90, position: "insideRight", style: { fontSize: 9, fill: "#d97706" } }}
+            />
             <Tooltip
               contentStyle={{ fontSize: 11 }}
               formatter={(value: number, name: string) =>
-                name === "pH" ? [value.toFixed(2), "pH"] : [value.toFixed(1) + " g/L", "TA"]
+                name === "pH" ? [value.toFixed(2), "pH"]
+                : name === "Brix °" ? [value.toFixed(1) + " °Bx", "Brix"]
+                : [value.toFixed(1) + " g/L", "TA"]
               }
               labelFormatter={(label: string) => `Batch: ${label}`}
             />
@@ -1260,6 +1275,22 @@ function VintagePHComparisonChart({
                 />
               ))}
             </Bar>
+            <Bar
+              yAxisId="brix"
+              dataKey="brix"
+              name="Brix °"
+              radius={[3, 3, 0, 0]}
+              maxBarSize={28}
+              fill="#f59e0b"
+            >
+              {chartData.map((entry) => (
+                <rect
+                  key={entry.ref}
+                  fill={entry.ref === highlightedBatch ? "#b45309" : "#f59e0b"}
+                  opacity={highlightedBatch && entry.ref !== highlightedBatch ? 0.5 : 1}
+                />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -1276,7 +1307,7 @@ function VintagePHComparisonChart({
         </p>
       ) : (
         <p className="text-xs text-muted-foreground">
-          pH and TA at bottling (or latest available stage per batch). Click a batch bar to scroll to its records.
+          pH and TA at bottling (or latest available stage per batch); Brix at fermentation start. Click a batch bar to scroll to its records.
         </p>
       )}
     </div>
