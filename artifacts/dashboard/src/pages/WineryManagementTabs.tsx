@@ -3139,6 +3139,17 @@ function printSo2TransactionLog(
     const doseVal = r.dose != null && r.dose !== ""
       ? `${parseFloat(String(r.dose)).toFixed(2)} ${escHtml(String(r.unit ?? ""))}`
       : "—";
+    // Dose rate (mg/L) — cellar sulfiting rows only; mirrors on-screen table and CSV export
+    let doseRateVal = "—";
+    if (r.source === "cellar" && r.so2_quantity_g != null) {
+      const g = parseFloat(String(r.so2_quantity_g));
+      if (!isNaN(g)) {
+        const capacity = r.vessel_capacity_litres != null ? parseFloat(String(r.vessel_capacity_litres)) : NaN;
+        const moved = r.volume_moved_litres != null ? parseFloat(String(r.volume_moved_litres)) : NaN;
+        if (!isNaN(capacity) && capacity > 0) doseRateVal = `${((g * 1000) / capacity).toFixed(1)}&nbsp;<span style="color:#6b7280">V</span>`;
+        else if (!isNaN(moved) && moved > 0) doseRateVal = `${((g * 1000) / moved).toFixed(1)}&nbsp;<span style="color:#6b7280">M</span>`;
+      }
+    }
     return `<tr>
       <td style="white-space:nowrap">${escHtml(r.record_date ? new Date(r.record_date as string).toLocaleDateString("en-GB") : "—")}</td>
       <td style="font-family:monospace;font-size:10px">${escHtml(r.batch_ref ?? "—")}</td>
@@ -3147,6 +3158,7 @@ function printSo2TransactionLog(
       <td>${escHtml(stageLabel)}</td>
       <td>${escHtml(r.additive_name ?? "—")}</td>
       <td style="text-align:right;font-family:monospace">${doseVal}</td>
+      <td style="text-align:right;font-family:monospace">${doseRateVal}</td>
       <td>${escHtml(r.operator_name ?? "—")}</td>
       <td>${escHtml(r.vessel_ref ?? "—")}</td>
       <td style="font-size:10px;color:#6b7280">${escHtml(r.notes ?? "")}</td>
@@ -3194,12 +3206,14 @@ function printSo2TransactionLog(
     <th>Stage</th>
     <th>Additive</th>
     <th style="text-align:right">Dose</th>
+    <th style="text-align:right">Dose Rate (mg/L)*</th>
     <th>Operator</th>
     <th>Vessel</th>
     <th>Notes</th>
   </tr></thead>
   <tbody>${tableRows}</tbody>
 </table>
+<p style="margin-top:6px;font-size:9px;color:#6b7280">* Dose Rate (mg/L) is estimated for cellar sulfiting rows only: <strong>V</strong> = based on vessel capacity, <strong>M</strong> = based on volume moved.</p>
 
 <div class="signoff">
   <div style="margin-top:28px;border-top:2px solid #374151;padding-top:16px">
