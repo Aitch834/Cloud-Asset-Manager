@@ -325,24 +325,60 @@ const PRESS_ADDITIVE_COLUMNS: PressAdditiveColumn[] = [
 // Batch-trail CSV header — the additive columns above map into these slots by name.
 const BATCH_TRAIL_CSV_HEADER = ["Stage", "Batch Ref", "Date", "Type / Additive", "Detail", "SO₂ / Dose", "Unit", "SO₂ Ceiling (mg/L)", "SO₂ Compliance", "pH", "TA (g/L)", "Vessel", "Operator", "Notes"];
 
-// ─── Harvest Reception CSV import headers ──────────────────────────────────────
-const HARVEST_IMPORT_HEADERS = [
-  "Reception Date",
-  "Vintage Year",
-  "Variety",
-  "Source Type",
-  "Grower Name",
-  "Gross Weight (kg)",
-  "Tare Weight (kg)",
-  "Net Weight (kg)",
-  "Brix",
-  "pH",
-  "TA (g/L)",
-  "Temp (°C)",
-  "Grape Condition",
-  "Accepted (Yes/No)",
-  "Notes",
+// ─── Harvest Reception columns — single source of truth ───────────────────────
+// The export CSV (harvestCsvCols), the import template headers
+// (HARVEST_IMPORT_HEADERS), the template example row, the import field aliases,
+// and the bulk-import payload mapping are ALL derived from this one list.
+// Adding or renaming a field requires only one edit here, and exports use the
+// exact import headers + re-import-safe value formats (ISO date, Yes/No), so an
+// exported CSV can always be re-imported.
+interface HarvestColumn {
+  /** CSV header used by both the export and the import template */
+  header: string;
+  /** snake_case field name from the API rows — also accepted as an import header alias */
+  dbKey: string;
+  /** camelCase key expected by the bulk-import endpoint */
+  recordKey: string;
+  /** Example value in the downloadable import template */
+  example: string;
+  /** Optional export formatter — must produce a value the import understands */
+  exportValue?: (r: Record<string, unknown>) => string;
+}
+const HARVEST_COLUMNS: HarvestColumn[] = [
+  {
+    header: "Reception Date", dbKey: "reception_date", recordKey: "receptionDate", example: "2024-09-15",
+    // ISO YYYY-MM-DD so the export can be re-imported (not locale dd/mm/yyyy)
+    exportValue: r => (r.reception_date ? String(r.reception_date).split("T")[0] : ""),
+  },
+  { header: "Vintage Year",      dbKey: "vintage_year",          recordKey: "vintageYear",        example: "2024" },
+  { header: "Variety",           dbKey: "variety",               recordKey: "variety",            example: "Bacchus" },
+  { header: "Source Type",       dbKey: "source_type",           recordKey: "sourceType",         example: "Own vineyard" },
+  { header: "Grower Name",       dbKey: "grower_name",           recordKey: "growerName",         example: "" },
+  { header: "Gross Weight (kg)", dbKey: "gross_weight_kg",       recordKey: "grossWeightKg",      example: "5200" },
+  { header: "Tare Weight (kg)",  dbKey: "tare_weight_kg",        recordKey: "tareWeightKg",       example: "1800" },
+  { header: "Net Weight (kg)",   dbKey: "net_weight_kg",         recordKey: "netWeightKg",        example: "3400" },
+  { header: "Brix",              dbKey: "brix",                  recordKey: "brix",               example: "19.5" },
+  { header: "pH",                dbKey: "ph",                    recordKey: "ph",                 example: "3.45" },
+  { header: "TA (g/L)",          dbKey: "titratable_acidity_gl", recordKey: "titratableAcidityGl", example: "7.2" },
+  { header: "Temp (°C)",         dbKey: "intake_temperature_c",  recordKey: "intakeTemperatureC", example: "14" },
+  { header: "Grape Condition",   dbKey: "grape_condition",       recordKey: "grapeCondition",     example: "Good" },
+  {
+    header: "Accepted (Yes/No)", dbKey: "accepted", recordKey: "accepted", example: "Yes",
+    exportValue: r => (String(r.accepted) === "true" ? "Yes" : "No"),
+  },
+  { header: "Notes",             dbKey: "notes",                 recordKey: "notes",              example: "Example row — delete before importing" },
 ];
+const HARVEST_IMPORT_HEADERS = HARVEST_COLUMNS.map(c => c.header);
+// Each canonical header also accepts its snake_case dbKey as an import alias
+const HARVEST_FIELD_ALIASES: Record<string, string[]> = Object.fromEntries(
+  HARVEST_COLUMNS.map(c => [c.header, [c.header, c.dbKey]]),
+);
+const resolveHarvestField = (row: Record<string, string>, canonical: string): string => {
+  for (const alias of HARVEST_FIELD_ALIASES[canonical] ?? [canonical]) {
+    if (row[alias] != null && row[alias] !== "") return row[alias];
+  }
+  return "";
+};
 
 // ─── Harvest Reception Tab ─────────────────────────────────────────────────────
 export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
@@ -367,23 +403,7 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const downloadHarvestTemplate = () => {
-    const exampleRow = [
-      "2024-09-15",         // Reception Date (YYYY-MM-DD)
-      "2024",               // Vintage Year
-      "Bacchus",            // Variety
-      "Own vineyard",       // Source Type (Own vineyard, Contract grower, Purchased grapes)
-      "",                   // Grower Name (if contract grower)
-      "5200",               // Gross Weight (kg)
-      "1800",               // Tare Weight (kg)
-      "3400",               // Net Weight (kg)
-      "19.5",               // Brix
-      "3.45",               // pH
-      "7.2",                // TA (g/L)
-      "14",                 // Temp (°C)
-      "Good",               // Grape Condition (Excellent, Good, Fair, Poor)
-      "Yes",                // Accepted (Yes/No)
-      "Example row — delete before importing", // Notes
-    ];
+    const exampleRow = HARVEST_COLUMNS.map(c => c.example);
     const header = HARVEST_IMPORT_HEADERS.map(h => `"${h}"`).join(",");
     const example = exampleRow.map(v => `"${v.replace(/"/g, '""')}"`).join(",");
     const blob = new Blob([header + "\n" + example + "\n"], { type: "text/csv" });
@@ -402,37 +422,49 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
-      const lines = text.split(/\r?\n/).filter(l => l.trim());
-      if (lines.length < 2) { setImportError("CSV must have a header row and at least one data row."); return; }
-      // Proper character-by-character CSV parser (handles quoted fields with commas/newlines)
-      const parseCsvRow = (line: string): string[] => {
-        const cells: string[] = [];
-        let i = 0;
-        while (i <= line.length) {
-          if (i === line.length) { cells.push(""); break; }
-          if (line[i] === '"') {
-            let val = ""; i++;
-            while (i < line.length) {
-              if (line[i] === '"') {
-                if (line[i + 1] === '"') { val += '"'; i += 2; }
-                else { i++; break; }
-              } else { val += line[i++]; }
-            }
-            cells.push(val.trim());
-            if (i < line.length && line[i] === ',') i++;
+      // Full-file CSV state machine: tokenizes the whole text so quoted fields
+      // may contain commas, escaped quotes ("") and embedded newlines — exports
+      // with multiline Notes round-trip cleanly through import.
+      const parseCsv = (src: string): string[][] => {
+        const records: string[][] = [];
+        let cells: string[] = [];
+        let val = "";
+        let inQuotes = false;
+        let cellStarted = false;
+        const endCell = () => { cells.push(val.trim()); val = ""; cellStarted = false; };
+        const endRecord = () => {
+          endCell();
+          // Skip records that are entirely empty (blank lines)
+          if (cells.length > 1 || cells[0] !== "") records.push(cells);
+          cells = [];
+        };
+        for (let i = 0; i < src.length; i++) {
+          const ch = src[i];
+          if (inQuotes) {
+            if (ch === '"') {
+              if (src[i + 1] === '"') { val += '"'; i++; }
+              else inQuotes = false;
+            } else val += ch;
+          } else if (ch === '"' && !cellStarted) {
+            inQuotes = true; cellStarted = true;
+          } else if (ch === ',') {
+            endCell();
+          } else if (ch === '\n' || ch === '\r') {
+            if (ch === '\r' && src[i + 1] === '\n') i++;
+            endRecord();
           } else {
-            const end = line.indexOf(',', i);
-            if (end === -1) { cells.push(line.slice(i).trim()); break; }
-            cells.push(line.slice(i, end).trim());
-            i = end + 1;
+            val += ch; cellStarted = true;
           }
         }
-        return cells;
+        if (val !== "" || cells.length > 0) endRecord();
+        return records;
       };
-      const headers = parseCsvRow(lines[0]);
+      const parsed = parseCsv(text);
+      if (parsed.length < 2) { setImportError("CSV must have a header row and at least one data row."); return; }
+      const headers = parsed[0];
       const rows: Record<string, string>[] = [];
-      for (let i = 1; i < lines.length; i++) {
-        const cells = parseCsvRow(lines[i]);
+      for (let i = 1; i < parsed.length; i++) {
+        const cells = parsed[i];
         const row: Record<string, string> = {};
         headers.forEach((h, idx) => { row[h] = cells[idx] ?? ""; });
         rows.push(row);
@@ -448,23 +480,15 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
     setImportLoading(true);
     setImportError(null);
     try {
-      const records = importParsed.map(row => ({
-        receptionDate: row["Reception Date"] || row["reception_date"] || undefined,
-        vintageYear: row["Vintage Year"] || row["vintage_year"] || undefined,
-        variety: row["Variety"] || row["variety"] || undefined,
-        sourceType: row["Source Type"] || row["source_type"] || undefined,
-        growerName: row["Grower Name"] || row["grower_name"] || undefined,
-        grossWeightKg: row["Gross Weight (kg)"] || row["gross_weight_kg"] || undefined,
-        tareWeightKg: row["Tare Weight (kg)"] || row["tare_weight_kg"] || undefined,
-        netWeightKg: row["Net Weight (kg)"] || row["net_weight_kg"] || undefined,
-        brix: row["Brix"] || row["brix"] || undefined,
-        ph: row["pH"] || row["ph"] || undefined,
-        titratableAcidityGl: row["TA (g/L)"] || row["titratable_acidity_gl"] || undefined,
-        intakeTemperatureC: row["Temp (°C)"] || row["intake_temperature_c"] || undefined,
-        grapeCondition: row["Grape Condition"] || row["grape_condition"] || undefined,
-        accepted: (row["Accepted (Yes/No)"] || row["accepted"] || "yes").toLowerCase() === "no" ? "false" : "true",
-        notes: row["Notes"] || row["notes"] || undefined,
-      }));
+      const records = importParsed.map(row => {
+        const rec: Record<string, string | undefined> = {};
+        for (const c of HARVEST_COLUMNS) {
+          const v = resolveHarvestField(row, c.header);
+          rec[c.recordKey] = v || undefined;
+        }
+        rec.accepted = (rec.accepted ?? "yes").toLowerCase() === "no" ? "false" : "true";
+        return rec;
+      });
       const r = await fetch(api(`farms/${farmId}/winery-reception/bulk`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -521,23 +545,9 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
       String(r.notes ?? "").toLowerCase().includes(q)
     );
   });
-  const harvestCsvCols = [
-    { key: "vintage_year", label: "Vintage" },
-    { key: "reception_date", label: "Reception Date", fmt: (r: Record<string, unknown>) => fmtDate(r.reception_date) },
-    { key: "grower_name", label: "Grower" },
-    { key: "variety", label: "Variety" },
-    { key: "source_type", label: "Source Type" },
-    { key: "gross_weight_kg", label: "Gross Weight (kg)" },
-    { key: "tare_weight_kg", label: "Tare (kg)" },
-    { key: "net_weight_kg", label: "Net Weight (kg)" },
-    { key: "brix", label: "Sugar (Brix)" },
-    { key: "ph", label: "pH" },
-    { key: "titratable_acidity_gl", label: "TA (g/L)" },
-    { key: "intake_temperature_c", label: "Temp (°C)" },
-    { key: "grape_condition", label: "Grape Condition" },
-    { key: "accepted", label: "Accepted", fmt: (r: Record<string, unknown>) => String(r.accepted) === "true" ? "Yes" : "No" },
-    { key: "notes", label: "Notes" },
-  ];
+  // Derived from HARVEST_COLUMNS — headers and value formats match the import
+  // template exactly, so an exported CSV can be re-imported as-is.
+  const harvestCsvCols = HARVEST_COLUMNS.map(c => ({ key: c.dbKey, label: c.header, fmt: c.exportValue }));
 
   return (
     <div className="space-y-4">
@@ -828,36 +838,12 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
                       variant="outline"
                       className="h-7 text-xs"
                       onClick={() => {
-                        // Aliases mirror the ones in submitHarvestImport so snake_case inputs resolve correctly
-                        const HARVEST_FIELD_ALIASES: Record<string, string[]> = {
-                          "Reception Date":    ["Reception Date", "reception_date"],
-                          "Vintage Year":      ["Vintage Year", "vintage_year"],
-                          "Variety":           ["Variety", "variety"],
-                          "Source Type":       ["Source Type", "source_type"],
-                          "Grower Name":       ["Grower Name", "grower_name"],
-                          "Gross Weight (kg)": ["Gross Weight (kg)", "gross_weight_kg"],
-                          "Tare Weight (kg)":  ["Tare Weight (kg)", "tare_weight_kg"],
-                          "Net Weight (kg)":   ["Net Weight (kg)", "net_weight_kg"],
-                          "Brix":              ["Brix", "brix"],
-                          "pH":                ["pH", "ph"],
-                          "TA (g/L)":          ["TA (g/L)", "titratable_acidity_gl"],
-                          "Temp (°C)":         ["Temp (°C)", "intake_temperature_c"],
-                          "Grape Condition":   ["Grape Condition", "grape_condition"],
-                          "Accepted (Yes/No)": ["Accepted (Yes/No)", "accepted"],
-                          "Notes":             ["Notes", "notes"],
-                        };
-                        const resolveField = (row: Record<string, string>, canonical: string) => {
-                          for (const alias of HARVEST_FIELD_ALIASES[canonical] ?? [canonical]) {
-                            if (row[alias] != null && row[alias] !== "") return row[alias];
-                          }
-                          return "";
-                        };
                         const skippedRows = importResult.rejected
                           .map(r => importParsed[r.row - 1])
                           .filter(Boolean);
                         const header = HARVEST_IMPORT_HEADERS.map(h => `"${h}"`).join(",");
                         const body = skippedRows.map(row =>
-                          HARVEST_IMPORT_HEADERS.map(h => `"${resolveField(row, h).replace(/"/g, '""')}"`).join(",")
+                          HARVEST_IMPORT_HEADERS.map(h => `"${resolveHarvestField(row, h).replace(/"/g, '""')}"`).join(",")
                         ).join("\n");
                         const blob = new Blob([header + "\n" + body + "\n"], { type: "text/csv" });
                         const url = URL.createObjectURL(blob);
