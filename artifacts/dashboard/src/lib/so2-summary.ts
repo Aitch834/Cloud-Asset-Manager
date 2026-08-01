@@ -28,37 +28,67 @@ export function sumCellarSo2(ops: Record<string, unknown>[]): {
   cumulativeMgL: number | null;
   volumeSource: "vessel" | "volume_moved" | "mixed" | null;
 } {
+  const detail = cellarSo2RunningTotals(ops);
+  return { totalG: detail.totalG, cumulativeMgL: detail.finalMgL, volumeSource: detail.volumeSource };
+}
+
+/**
+ * Per-operation running totals for cellar sulfiting additions, using the exact
+ * same parsing/volume-priority rules as sumCellarSo2 (which is implemented on
+ * top of this function).
+ *
+ * @returns perOp — one entry per input op, in order:
+ *   - contributed: true when the op had a valid gram value AND a usable volume,
+ *     so it advanced the mg/L running total.
+ *   - runningMgL: the cumulative mg/L total *after* this op, or null when the
+ *     op did not contribute and nothing had accumulated yet. Ops that don't
+ *     contribute but follow contributing ops carry the prior total forward —
+ *     callers typically show "—" for those (contributed === false).
+ */
+export function cellarSo2RunningTotals(ops: Record<string, unknown>[]): {
+  totalG: number;
+  finalMgL: number | null;
+  volumeSource: "vessel" | "volume_moved" | "mixed" | null;
+  perOp: { contributed: boolean; runningMgL: number | null }[];
+} {
   let totalG = 0;
   let cumulativeMgL: number | null = null;
   let usedVessel = false;
   let usedVolumeMoved = false;
+  const perOp: { contributed: boolean; runningMgL: number | null }[] = [];
 
   for (const op of ops) {
     const g = parseFloat(String(op.so2_quantity_g ?? ""));
-    if (isNaN(g)) continue;
+    if (isNaN(g)) {
+      perOp.push({ contributed: false, runningMgL: cumulativeMgL });
+      continue;
+    }
     totalG += g;
 
     // Prefer vessel capacity; fall back to volume moved
     const capacityRaw = op.vessel_capacity_litres;
     const capacity = capacityRaw != null ? parseFloat(String(capacityRaw)) : NaN;
 
-    let vol: number;
-    let sourceIsVessel: boolean;
+    let vol: number | null = null;
+    let sourceIsVessel = false;
 
     if (!isNaN(capacity) && capacity > 0) {
       vol = capacity;
       sourceIsVessel = true;
-    } else {
-      if (op.volume_moved_litres == null) continue;
+    } else if (op.volume_moved_litres != null) {
       const moved = parseFloat(String(op.volume_moved_litres));
-      if (isNaN(moved) || moved <= 0) continue;
-      vol = moved;
-      sourceIsVessel = false;
+      if (!isNaN(moved) && moved > 0) vol = moved;
+    }
+
+    if (vol == null) {
+      perOp.push({ contributed: false, runningMgL: cumulativeMgL });
+      continue;
     }
 
     cumulativeMgL = (cumulativeMgL ?? 0) + (g * 1000) / vol;
     if (sourceIsVessel) usedVessel = true;
     else usedVolumeMoved = true;
+    perOp.push({ contributed: true, runningMgL: cumulativeMgL });
   }
 
   let volumeSource: "vessel" | "volume_moved" | "mixed" | null = null;
@@ -66,5 +96,5 @@ export function sumCellarSo2(ops: Record<string, unknown>[]): {
   else if (usedVessel) volumeSource = "vessel";
   else if (usedVolumeMoved) volumeSource = "volume_moved";
 
-  return { totalG, cumulativeMgL, volumeSource };
+  return { totalG, finalMgL: cumulativeMgL, volumeSource, perOp };
 }

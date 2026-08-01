@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { sumCellarSo2 } from "@/lib/so2-summary";
+import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf, Search, Upload, PenLine, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
@@ -2572,9 +2572,19 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
 
   const fermHeader = `<tr class="header-row"><th>Period</th><th>Colour</th><th>Vessel</th><th>Type</th><th>Yeast</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">SO₂ @ ferm.</th><th style="text-align:right">End pH</th><th style="text-align:right">End TA (g/L)</th><th>Operator</th><th>Batch Ref</th></tr>`;
 
-  // Cellar ops
+  // Cellar ops — compute per-op running SO₂ totals in chronological order so the
+  // "Running total" column shows how the cumulative estimate built up event-by-event.
+  const cellarOpsChrono = [...data.cellarOps].sort((a, b) => String(a.op_date ?? "").localeCompare(String(b.op_date ?? "")));
+  const { perOp: cellarPerOp } = cellarSo2RunningTotals(cellarOpsChrono);
+  const runningByOp = new Map<Record<string, unknown>, { contributed: boolean; runningMgL: number | null }>();
+  cellarOpsChrono.forEach((op, i) => runningByOp.set(op, cellarPerOp[i]));
+
   const cellarRows = data.cellarOps.map(r => {
     const isSulfiting = String(r.op_type) === "sulfiting";
+    const running = runningByOp.get(r);
+    const runningCell = isSulfiting && running?.contributed && running.runningMgL != null
+      ? `≈ ${running.runningMgL.toFixed(1)} mg/L`
+      : "—";
     const so2Detail = r.so2_quantity_g != null
       ? `${parseFloat(String(r.so2_quantity_g)).toFixed(1)} g${r.free_so2_before_mg_l != null ? ` (${parseFloat(String(r.free_so2_before_mg_l)).toFixed(1)} → ${r.free_so2_after_mg_l != null ? parseFloat(String(r.free_so2_after_mg_l)).toFixed(1) : "?"} mg/L)` : ""}`
       : "—";
@@ -2584,13 +2594,14 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
     <td>${[r.from_vessel_ref, r.to_vessel_ref].filter(Boolean).map(escHtml).join(" → ")}</td>
     <td style="text-align:right">${r.volume_moved_litres != null ? parseFloat(String(r.volume_moved_litres)).toFixed(1) : "—"}</td>
     <td style="font-family:monospace">${isSulfiting ? so2Detail : "—"}</td>
+    <td style="text-align:right;font-family:monospace">${runningCell}</td>
     <td>${escHtml(r.fining_agent)}</td>
     <td>${escHtml(r.operator_name)}</td>
     <td>${batchRefBadge(r as Record<string, unknown>)}</td>
   </tr>`;
   }).join("");
 
-  const cellarHeader = `<tr class="header-row"><th>Date</th><th>Operation</th><th>Vessel(s)</th><th style="text-align:right">Volume (L)</th><th>SO₂ detail</th><th>Fining agent</th><th>Operator</th><th>Batch Ref</th></tr>`;
+  const cellarHeader = `<tr class="header-row"><th>Date</th><th>Operation</th><th>Vessel(s)</th><th style="text-align:right">Volume (L)</th><th>SO₂ detail</th><th style="text-align:right">Running total after this op (cumulative mg/L)</th><th>Fining agent</th><th>Operator</th><th>Batch Ref</th></tr>`;
 
   // SO₂ tests
   const SO2_ORGANIC_LIMIT_NUMBERS = new Set(Object.values(ORGANIC_MAX_SO2).map(v => parseFloat(v)));

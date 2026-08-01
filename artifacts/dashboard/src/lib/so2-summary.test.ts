@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sumCellarSo2 } from "./so2-summary";
+import { sumCellarSo2, cellarSo2RunningTotals } from "./so2-summary";
 
 describe("sumCellarSo2", () => {
   it("returns zero totalG and null cumulativeMgL when no ops", () => {
@@ -145,5 +145,53 @@ describe("sumCellarSo2", () => {
     expect(totalG).toBeCloseTo(25);
     expect(cumulativeMgL).toBeCloseTo(25); // 25*1000/1000
     expect(volumeSource).toBe("vessel");
+  });
+});
+
+describe("cellarSo2RunningTotals", () => {
+  it("returns per-op cumulative totals in order", () => {
+    const { perOp, finalMgL } = cellarSo2RunningTotals([
+      { so2_quantity_g: 10, volume_moved_litres: 100 }, // +100 → 100
+      { so2_quantity_g: 5, volume_moved_litres: 100 },  // +50 → 150
+    ]);
+    expect(perOp[0]).toEqual({ contributed: true, runningMgL: expect.closeTo(100) });
+    expect(perOp[1]).toEqual({ contributed: true, runningMgL: expect.closeTo(150) });
+    expect(finalMgL).toBeCloseTo(150);
+  });
+
+  it("marks ops without usable volume as non-contributing and carries the prior total", () => {
+    const { perOp, totalG } = cellarSo2RunningTotals([
+      { so2_quantity_g: 10, volume_moved_litres: 100 }, // 100
+      { so2_quantity_g: 7 },                            // no volume — non-contributing
+      { so2_quantity_g: 5, volume_moved_litres: 100 },  // 150
+    ]);
+    expect(perOp[1].contributed).toBe(false);
+    expect(perOp[1].runningMgL).toBeCloseTo(100);
+    expect(perOp[2].runningMgL).toBeCloseTo(150);
+    expect(totalG).toBeCloseTo(22); // grams still counted even without volume
+  });
+
+  it("returns null running totals when nothing has accumulated", () => {
+    const { perOp, finalMgL } = cellarSo2RunningTotals([
+      { so2_quantity_g: "bad" },
+      { op_type: "racking" },
+    ]);
+    expect(perOp).toEqual([
+      { contributed: false, runningMgL: null },
+      { contributed: false, runningMgL: null },
+    ]);
+    expect(finalMgL).toBeNull();
+  });
+
+  it("stays consistent with sumCellarSo2's final figures", () => {
+    const ops = [
+      { so2_quantity_g: "25", volume_moved_litres: "500", vessel_capacity_litres: "1000" },
+      { so2_quantity_g: 10, volume_moved_litres: 100 },
+    ];
+    const sum = sumCellarSo2(ops);
+    const detail = cellarSo2RunningTotals(ops);
+    expect(detail.finalMgL).toBeCloseTo(sum.cumulativeMgL as number);
+    expect(detail.totalG).toBeCloseTo(sum.totalG);
+    expect(detail.volumeSource).toBe("mixed");
   });
 });
