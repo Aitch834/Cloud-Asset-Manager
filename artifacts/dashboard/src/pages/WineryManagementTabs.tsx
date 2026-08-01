@@ -5581,6 +5581,9 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   const [cellarWineColourFromFermentation, setCellarWineColourFromFermentation] = useState(false);
   const [cellarWineColourFromPressing, setCellarWineColourFromPressing] = useState(false);
+  // True once the operator has manually changed the wine colour in the open form —
+  // suppresses re-derivation of the colour-source badges until the form is reopened.
+  const [cellarColourTouched, setCellarColourTouched] = useState(false);
   const { data: farmsDataCellar } = useQuery<{ records?: Record<string, unknown>[] }>({
     queryKey: ["farms-list"],
     queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
@@ -5688,7 +5691,31 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const isFiltering = opType === "filtering";
   const vRef = (id: unknown) => vessels.find(v => String(v.id) === String(id))?.vessel_ref ?? id;
 
-  const openAdd = () => { setEditing(null); setForm({ opDate: today, vintageYear: String(new Date().getFullYear()) }); setCellarWineColourFromFermentation(false); setCellarWineColourFromPressing(false); setOpen(true); };
+  // Re-derive the colour-source badges while editing an existing record: the
+  // fermentation/pressing source queries resolve asynchronously, so this must
+  // re-run when they land, not just once in openEdit. Skipped once the operator
+  // manually changes the colour (cellarColourTouched).
+  useEffect(() => {
+    if (!open || editing === null || cellarColourTouched) return;
+    const storedColour = form.wineColour ?? "";
+    const bRef = form.batchRef ?? "";
+    const fermMatch = bRef ? cellarFermentationRecords.find(f => String(f.batch_ref ?? "") === bRef) : undefined;
+    const fermColour = fermMatch && fermMatch.wine_colour ? String(fermMatch.wine_colour) : "";
+    const pressColour = bRef ? (cellarPressingRefs.find(p => p.batchRef === bRef)?.wineColour ?? "") : "";
+    if (storedColour && fermColour && storedColour === fermColour) {
+      setCellarWineColourFromFermentation(true);
+      setCellarWineColourFromPressing(false);
+    } else if (storedColour && pressColour && storedColour === pressColour) {
+      setCellarWineColourFromFermentation(false);
+      setCellarWineColourFromPressing(true);
+    } else {
+      setCellarWineColourFromFermentation(false);
+      setCellarWineColourFromPressing(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editing, cellarColourTouched, form.wineColour, form.batchRef, cellarFermentationRecords, pressingRecords]);
+
+  const openAdd = () => { setEditing(null); setForm({ opDate: today, vintageYear: String(new Date().getFullYear()) }); setCellarColourTouched(false); setCellarWineColourFromFermentation(false); setCellarWineColourFromPressing(false); setOpen(true); };
   const openEdit = (r: Record<string, unknown>) => {
     setEditing(r.id as number);
     const base = Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]));
@@ -5701,6 +5728,9 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
       base.volumeMovedLitres = String(r.volume_moved_litres);
     }
     setForm(base);
+    // Badge derivation happens in the effect below so it re-runs once the
+    // fermentation/pressing source queries resolve (they load asynchronously).
+    setCellarColourTouched(false);
     setCellarWineColourFromFermentation(false);
     setCellarWineColourFromPressing(false);
     setOpen(true);
@@ -5931,7 +5961,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                     <span className="text-xs text-blue-600">auto from pressing</span>
                   )}
                 </div>
-                <Select value={form.wineColour ?? ""} onValueChange={v => { setCellarWineColourFromFermentation(false); setCellarWineColourFromPressing(false); sf("wineColour", v); }}>
+                <Select value={form.wineColour ?? ""} onValueChange={v => { setCellarColourTouched(true); setCellarWineColourFromFermentation(false); setCellarWineColourFromPressing(false); sf("wineColour", v); }}>
                   <SelectTrigger><SelectValue placeholder="Select colour" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">— Not specified —</SelectItem>
