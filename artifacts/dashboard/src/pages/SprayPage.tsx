@@ -767,20 +767,20 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
   });
 
   const createMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/spray-applications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(buildPayload(body)) }),
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/spray-applications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(buildPayload(body)) }).then(r => { if (!r.ok) throw new Error(`Save failed (${r.status})`); return r; }),
     onSuccess: () => { toast({ title: "Application recorded" }); onRefresh(); closeForm(); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: any }) =>
-      fetch(`/api/farms/${farmId}/spray-applications/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(buildPayload(body)) }),
+      fetch(`/api/farms/${farmId}/spray-applications/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(buildPayload(body)) }).then(r => { if (!r.ok) throw new Error(`Update failed (${r.status})`); return r; }),
     onSuccess: () => { toast({ title: "Application updated" }); onRefresh(); closeForm(); },
     onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/spray-applications/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/spray-applications/${id}`, { method: "DELETE" }).then(r => { if (!r.ok) throw new Error(`Delete failed (${r.status})`); return r; }),
     onSuccess: () => { toast({ title: "Record deleted" }); onRefresh(); setDeleteId(null); },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });

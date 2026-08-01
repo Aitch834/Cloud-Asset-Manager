@@ -48,4 +48,5 @@
 - [Clerk e2e login needs DB tenant mapping](clerk-e2e-login-tenant-mapping.md) — tester's programmatic Clerk sub must be inserted into users+user_tenants; dashboard serves built dist, rebuild before e2e
 - [Recharts same-side Y axes](recharts-same-side-axes.md) — same-orientation YAxis components auto-offset side by side, no overlap; prove via SSR renderToStaticMarkup if a review disputes it
 - [Drizzle 23505 catch needs err.cause.code](drizzle-23505-err-cause.md) — drizzle wraps pg errors; `err.code` is undefined, unique-violation code is on `err.cause.code`; verify with a live duplicate request
+- [Silent mutation failures](mutation-fetch-no-ok-check.md) — bare fetch() in mutationFn never rejects on 500; ~480 dashboard write-mutations lack res.ok checks, so error toasts never fire
 - [Dashboard build OOM](dashboard-build-oom.md) — ~1 GB free RAM; Rollup OOMs at chunk rendering; mitigations in place; long-term fix = split WineryManagementTabs.tsx + LivestockPage.tsx (500 KB+)
