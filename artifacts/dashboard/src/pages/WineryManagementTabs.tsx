@@ -4510,6 +4510,14 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                     `"WARNING: Mixed SO2 units detected — ${vintageList}","This export contains SO2 / KMS records measured in both mg/kg (at pressing) and mg/L (post-fermentation / cellar). The Total Dose column combines different units and CANNOT be compared or summed. Use the Unit column to interpret each row individually."`,
                   );
                 }
+                // SO₂ colour-limit legend — mirrors the on-screen legend and printed PDF,
+                // so a downloaded CSV opened later is self-contained. Only added when
+                // the exported data actually contains SO₂ rows.
+                if (searchFilteredSummary.some(r => r.category === "so2")) {
+                  prefixLines.push(
+                    `"SO2 total limits (mg/kg) — Organic: Red 100 · White/Rosé/Orange 150 · Sparkling 185","Conventional: Red 150 · White/Rosé/Orange 200 · Sparkling 235","UK-retained Reg 2019/934 (organic) · Reg 1308/2013 Annex VIII Part B (conventional). Limits are for total SO2 across the wine's life."`,
+                  );
+                }
                 const colourSlug = colourFilter !== null ? colourFilter.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-") : "";
                 const filename = colourFilter !== null
                   ? `additions-report-${colourSlug}-${yearFilter}.csv`
