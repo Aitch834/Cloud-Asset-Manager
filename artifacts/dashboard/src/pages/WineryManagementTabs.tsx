@@ -3852,6 +3852,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
         const isSigned = r.audit_signature != null && r.audit_signature !== "";
         return signedFilter === "signed" ? isSigned : !isSigned;
       });
+  // Outstanding sign-offs across the current vintage filter (independent of
+  // search / signed-status filters, so the header count reflects the whole log)
+  const unsignedCount = useMemo(
+    () => filteredByYear.filter(r => r.audit_signature == null || r.audit_signature === "").length,
+    [filteredByYear],
+  );
   const togglePressSort = (col: PressingSort) => {
     if (pressingSortCol === col) {
       setPressingSortDir(pressingSortDir === "asc" ? "desc" : "asc");
@@ -4086,7 +4092,17 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-semibold text-sm">Pressing Records</p>
+          <p className="font-semibold text-sm flex items-center gap-2 flex-wrap">
+            Pressing Records
+            {unsignedCount > 0 && (
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800"
+                title={`${unsignedCount} pressing record${unsignedCount === 1 ? "" : "s"} in the current vintage filter ${unsignedCount === 1 ? "has" : "have"} not been signed off`}
+              >
+                <PenLine className="w-3 h-3" />{unsignedCount} unsigned
+              </span>
+            )}
+          </p>
           <p className="text-xs text-muted-foreground mt-0.5">Log each pressing session — press type, grape weight in, juice yield, analysis, and settling method. One record per pressing run.</p>
         </div>
         <div className="flex gap-2">
