@@ -141,6 +141,8 @@ export async function runWineryMigrations(): Promise<void> {
   // Sets so2_from_pressing = true for fermentation records whose SO₂ value was
   // auto-filled from a linked pressing batch before the flag existed.
   // Idempotent: only touches rows where so2_from_pressing is currently false.
+  // Note: this replaces the retired one-off script `scripts/backfill-so2-from-pressing.mjs`
+  // (deleted Aug 2026), which ran the same UPDATE manually; kept here for audit history.
   const backfillResult = await db.execute(sql`
     UPDATE winery_fermentation_records f
     SET so2_from_pressing = true
