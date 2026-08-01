@@ -3970,7 +3970,22 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
           } : undefined;
           printPressingReport(filtered, farmName, vintageLabel, allAdditions, sharedSig, sharedSignerInfo);
         }} disabled={!filtered.length}><Printer className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
-        <Button size="sm" variant="outline" onClick={() => exportCSV(filtered, "pressing-records.csv", pressCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+        <Button size="sm" variant="outline" onClick={() => {
+          // Apply the active colour filter (from the Additions Report panel) to the exported
+          // rows so the scope stated in the filename/header matches the file contents.
+          const exportRows = colourFilter
+            ? filtered.filter(r => String(r.wine_colour ?? "") === colourFilter)
+            : filtered;
+          const vintageSlug = yearFilter === "all" ? "all-vintages" : yearFilter;
+          const colourSlug = colourFilter ? `-${colourFilter.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-")}` : "";
+          const filename = `pressing-report-${vintageSlug}${colourSlug}.csv`;
+          const prefixLines = [
+            `"Pressing Report — ${farmName.replace(/"/g, '""')}"`,
+            `"Vintage: ${yearFilter === "all" ? "All vintages" : yearFilter}"`,
+            `"Colour filter: ${colourFilter ? colourFilter.replace(/"/g, '""') : "All colours"}"`,
+          ];
+          exportCSV(exportRows, filename, pressCsvCols, prefixLines);
+        }} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
       </div>
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
