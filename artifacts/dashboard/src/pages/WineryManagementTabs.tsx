@@ -3882,8 +3882,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                   <td className="p-3 text-right">{fmtNum(r.juice_brix, 1)}</td>
                   <td className="p-3 text-right">{fmtNum(r.juice_ph, 2)}</td>
                   <td className="p-3 text-left text-muted-foreground">{fmt(r.juice_turbidity)}</td>
-                  <td className="p-3 text-left text-muted-foreground max-w-[14rem]">
-                    {r.notes ? <span className="truncate block" title={String(r.notes)}>{String(r.notes)}</span> : <span className="text-muted-foreground/50">—</span>}
+                  <td className="p-3 text-left text-muted-foreground max-w-[8rem] lg:max-w-[11rem] xl:max-w-[14rem]">
+                    {r.notes ? (
+                      <span className="truncate block cursor-help underline decoration-dotted decoration-muted-foreground/40 underline-offset-2" title={String(r.notes)}>
+                        {String(r.notes).length > 120 ? `${String(r.notes).slice(0, 120)}…` : String(r.notes)}
+                      </span>
+                    ) : <span className="text-muted-foreground/50">—</span>}
                   </td>
                   <td className="p-3 whitespace-nowrap">
                     {r.audit_signature
