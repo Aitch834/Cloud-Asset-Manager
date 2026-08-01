@@ -5547,14 +5547,14 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
 
   // Cumulative SO₂ running total for the selected batch (excluding the record being edited)
   const cellarSo2PriorOps = useMemo(() => {
-    if (!form.batchRef || !cellarBatchIsOrganic) return [];
+    if (!form.batchRef) return [];
     return crud.data.filter(r =>
       String(r.op_type) === "sulfiting" &&
       String(r.batch_ref) === form.batchRef &&
       r.so2_quantity_g != null &&
       (editing === null || Number(r.id) !== editing)
     );
-  }, [crud.data, form.batchRef, cellarBatchIsOrganic, editing]);
+  }, [crud.data, form.batchRef, editing]);
   // Strip vessel_capacity_litres so sumCellarSo2 uses only the immutable operation-time
   // volume_moved_litres, not the mutable vessel-register capacity.
   const cellarSo2Prior = useMemo(() => {
@@ -5580,8 +5580,12 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
     cellarSo2Prior.cumulativeMgL != null || cellarCurrentContribMgL != null
       ? (cellarSo2Prior.cumulativeMgL ?? 0) + (cellarCurrentContribMgL ?? 0)
       : null;
+  // Ceiling the running total is judged against — organic when the linked batch is
+  // organic, otherwise the conventional (non-organic) legal ceiling for the colour.
+  const cellarCumulativeLimit = cellarBatchIsOrganic ? cellarOrgLimit : cellarConvLimit;
+  const cellarCumulativeLimitLabel = cellarBatchIsOrganic ? "organic" : "conventional";
   const showCumulativeIndicator =
-    cellarBatchIsOrganic && !!cellarOrgLimit &&
+    !!cellarCumulativeLimit &&
     (cellarSo2PriorOps.length > 0 || (cellarCurrentSo2G != null && !isNaN(cellarCurrentSo2G)));
 
   const opType = form.opType ?? "";
@@ -5916,7 +5920,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                 )}
                 {showCumulativeIndicator && (
                   <div className={`rounded-md border px-3 py-2 text-sm flex items-start gap-2 ${
-                    cellarProjectedMgL != null && cellarProjectedMgL >= parseFloat(cellarOrgLimit!)
+                    cellarProjectedMgL != null && cellarProjectedMgL >= parseFloat(cellarCumulativeLimit!)
                       ? "bg-amber-50 border-amber-300 text-amber-800"
                       : "bg-blue-50 border-blue-200 text-blue-800"
                   }`}>
@@ -5925,7 +5929,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                       <strong>Cumulative SO₂ total for this batch:</strong>{" "}
                       {cellarProjectedMgL != null
                         ? <>
-                            <strong>{cellarProjectedMgL.toFixed(1)} mg/L</strong> projected total out of <strong>{cellarOrgLimit} mg/L</strong> organic ceiling
+                            <strong>{cellarProjectedMgL.toFixed(1)} mg/L</strong> projected total out of <strong>{cellarCumulativeLimit} mg/L</strong> {cellarCumulativeLimitLabel} ceiling
                             {cellarCurrentContribMgL != null && cellarSo2Prior.cumulativeMgL != null && (
                               <span className="text-xs ml-1 opacity-80">({cellarSo2Prior.cumulativeMgL.toFixed(1)} mg/L prior + {cellarCurrentContribMgL.toFixed(1)} mg/L this addition)</span>
                             )}
