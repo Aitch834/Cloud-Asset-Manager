@@ -7112,8 +7112,14 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
       "Free SO₂": r.free_so2_mg_l ? parseFloat(String(r.free_so2_mg_l)) : null,
       "Total SO₂": r.total_so2_mg_l ? parseFloat(String(r.total_so2_mg_l)) : null,
       max: r.max_permitted_mg_l ? parseFloat(String(r.max_permitted_mg_l)) : null,
+      // Organic ceiling for this test's linked pressing batch (null when batch is conventional/unlinked)
+      "Organic ceiling": so2OrganicCeiling(r),
     }));
   const so2MaxLimit = so2ChartData.length > 0 ? Math.max(...so2ChartData.map(d => d.max ?? 0)) : 0;
+  // Organic ceiling reference — shown when any displayed test belongs to an organic pressing batch.
+  // Use the lowest applicable ceiling so the line is conservative across mixed wine colours.
+  const so2OrganicCeilings = so2ChartData.map(d => d["Organic ceiling"]).filter((v): v is number => v != null);
+  const so2OrganicLine = so2OrganicCeilings.length > 0 ? Math.min(...so2OrganicCeilings) : null;
 
   return (
     <div className="space-y-4">
@@ -7153,10 +7159,22 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
               <Tooltip contentStyle={{ fontSize: 11 }} />
               <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
               {so2MaxLimit > 0 && <ReferenceLine y={so2MaxLimit} stroke="#ef4444" strokeDasharray="4 2" label={{ value: `Limit ${so2MaxLimit}`, position: "insideTopRight", fontSize: 9, fill: "#ef4444" }} />}
+              {so2OrganicLine != null && so2OrganicLine !== so2MaxLimit && (
+                <ReferenceLine y={so2OrganicLine} stroke="#f59e0b" strokeDasharray="4 2" label={{ value: `Organic ${so2OrganicLine}`, position: "insideBottomRight", fontSize: 9, fill: "#d97706" }} />
+              )}
               <Line type="monotone" dataKey="Total SO₂" stroke="#8b5cf6" dot={{ r: 3 }} connectNulls />
               <Line type="monotone" dataKey="Free SO₂" stroke="#3b82f6" dot={{ r: 3 }} connectNulls />
+              {so2OrganicLine != null && (
+                <Line type="stepAfter" dataKey="Organic ceiling" stroke="#f59e0b" strokeDasharray="4 2" strokeWidth={1.5} dot={false} activeDot={false} connectNulls />
+              )}
             </LineChart>
           </ResponsiveContainer>
+          {so2OrganicLine != null && (
+            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+              <Leaf className="w-3 h-3 text-amber-600" />
+              Organic batches in view — the lower organic ceiling ({so2OrganicLine} mg/L{so2OrganicCeilings.some(v => v !== so2OrganicLine) ? " or colour-specific" : ""}) applies to those tests, not the conventional limit.
+            </p>
+          )}
         </div>
       )}
       {unverifiedLimitCount > 0 && (
