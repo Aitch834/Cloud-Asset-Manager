@@ -4686,7 +4686,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
           {/* SO₂ bar chart across vintages — only shown when there is data for >1 vintage */}
           {showSo2Chart && so2ChartData.length > 1 && (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">SO₂ / KMS — Total dose by vintage</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">SO₂ / KMS — Total dose by vintage{colourFilter ? ` (${colourFilter})` : ""}</p>
               <p className="text-xs text-muted-foreground mb-2">Stacked total across all pressing batches per vintage. Units may differ between records — check individual rows below.</p>
               {(() => {
                 const allFilteredOrganic = filtered.length > 0 && filtered.every(r => r.is_organic === true || r.is_organic === "true" || r.is_organic === 1);
