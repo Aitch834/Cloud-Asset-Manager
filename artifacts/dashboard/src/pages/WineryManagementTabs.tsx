@@ -5557,6 +5557,11 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
     { key: "op_date", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.op_date) },
     { key: "op_type", label: "Operation Type" },
     { key: "wine_colour", label: "Wine Colour" },
+    { key: "vessel", label: "Vessel", fmt: (r: Record<string, unknown>) => {
+      const from = r.from_vessel_ref ?? (r.from_vessel_id != null ? vRef(r.from_vessel_id) : null);
+      const to = r.to_vessel_ref ?? (r.to_vessel_id != null ? vRef(r.to_vessel_id) : null);
+      return [from, to].filter(v => v != null && v !== "").map(String).join(" → ");
+    } },
     { key: "volume_l", label: "Volume (L)" },
     { key: "product_used", label: "Product Used" },
     { key: "quantity_used", label: "Quantity Used" },
