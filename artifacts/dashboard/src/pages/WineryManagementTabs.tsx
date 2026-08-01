@@ -6555,7 +6555,12 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                     const total = r.total_so2_mg_l != null ? parseFloat(String(r.total_so2_mg_l)) : null;
                     const ceiling = colour ? (isOrg ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour]) : undefined;
                     if (total == null || !ceiling) return <span className="text-muted-foreground text-xs">—</span>;
-                    return <So2Badge compliant={total <= parseFloat(ceiling)} />;
+                    return (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <So2Badge compliant={total <= parseFloat(ceiling)} />
+                        <span className="text-xs text-muted-foreground whitespace-nowrap font-mono">{fmtNum(total, 0)} / {ceiling} mg/L</span>
+                      </div>
+                    );
                   })()}</td>
                   <td className="p-3 text-right whitespace-nowrap">
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title={r.batch_ref ? `View batch trail for ${String(r.batch_ref)}` : "No batch reference — batch trail unavailable"} disabled={!r.batch_ref} onClick={() => setTrailRecord(r)}><GitBranch className="h-4 w-4" /></Button>
