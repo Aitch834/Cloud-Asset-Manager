@@ -1634,7 +1634,9 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
   };
 
   const totalLinked = (data?.fermentation.length ?? 0) + (data?.cellarOps.length ?? 0) + (data?.so2Tests.length ?? 0) + (data?.bottling.length ?? 0);
-  const isVintageScoped = data?.scope === "vintageYear";
+  // Pre-derive likely scope so the title reads correctly even before the API responds.
+  const expectedVintageScoped = !batchRef && !!vintageYear;
+  const isVintageScoped = data ? data.scope === "vintageYear" : expectedVintageScoped;
 
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
@@ -1649,7 +1651,7 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
               <Badge className="text-xs bg-green-100 text-green-800 border-0 inline-flex items-center gap-0.5 font-normal"><Leaf className="w-3 h-3" />Organic</Badge>
             )}
           </DialogTitle>
-          {isVintageScoped && data ? (
+          {isVintageScoped ? (
             <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 mt-1">
               <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
               <span>This pressing record has no batch reference. Results show all winery records for Vintage {vintageYear} — they may span multiple batches.</span>
