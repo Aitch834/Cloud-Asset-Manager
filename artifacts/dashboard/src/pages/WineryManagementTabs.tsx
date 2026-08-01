@@ -3779,6 +3779,17 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     return pressingSortDir === "asc" ? cmp : -cmp;
   });
 
+  // Mirrors the embed decision made in the Print button's click handler: the PDF
+  // embeds the digital signature only when scoped to a single vintage and every
+  // visible record is signed by the same person. Kept in sync so the indicator
+  // never promises an embedded signature the PDF won't actually contain.
+  const willEmbedSignature = useMemo(() => {
+    if (yearFilter === "all" || filtered.length === 0) return false;
+    if (!filtered.every(r => r.audit_signature != null && r.audit_signature !== "")) return false;
+    const firstSigner = String(filtered[0].audit_signer_name ?? "");
+    return filtered.every(r => String(r.audit_signer_name ?? "") === firstSigner);
+  }, [yearFilter, filtered]);
+
   // ── Additions Report derived data ────────────────────────────────────────────
   const filteredSummary = yearFilter === "all" ? additionsSummary : additionsSummary.filter(r => String(r.vintage_year) === yearFilter);
   // Category filter: empty set = show all
@@ -4016,7 +4027,10 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             signerDate: filtered[0].audit_signer_date ? String(filtered[0].audit_signer_date) : null,
           } : undefined;
           printPressingReport(filtered, farmName, vintageLabel, allAdditions, sharedSig, sharedSignerInfo);
-        }} disabled={!filtered.length}><Printer className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
+        }} disabled={!filtered.length} title={willEmbedSignature ? "Signed — signature will be embedded" : undefined}>
+          <Printer className="w-3.5 h-3.5 mr-1" />Print / Export PDF
+          {willEmbedSignature && <ShieldCheck className="w-3.5 h-3.5 ml-1 text-green-600" aria-label="Signed — signature will be embedded" />}
+        </Button>
         <Button size="sm" variant="outline" onClick={() => {
           // Apply the active colour filter (from the Additions Report panel) to the exported
           // rows so the scope stated in the filename/header matches the file contents.
