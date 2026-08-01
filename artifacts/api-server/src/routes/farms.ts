@@ -37445,8 +37445,10 @@ router.post("/farms/:farmId/winery-fermentation", requireAuth, requireTenant, re
     const r = await db.execute(sql`INSERT INTO winery_fermentation_records (farm_id,vintage_year,batch_ref,wine_colour,vessel_id,pressing_record_id,start_date,fermentation_type,yeast_strain,inoculation_date,inoculation_temp_c,start_brix,end_brix,end_date,end_sg,residual_sugar_gl,max_temp_c,min_temp_c,nutrient_additions,so2_at_fermentation_mg_l,so2_from_pressing,end_ph,end_ta_gl,volume_litres,is_organic,operator_name,notes) VALUES (${farmId},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.wineColour)},${ni(b.vesselId)},${pressingId},${n(b.startDate)},${n(b.fermentationType)},${n(b.yeastStrain)},${n(b.inoculationDate)},${nf(b.inoculationTempC)},${nf(b.startBrix)},${nf(b.endBrix)},${n(b.endDate)},${nf(b.endSg)},${nf(b.residualSugarGl)},${nf(b.maxTempC)},${nf(b.minTempC)},${n(b.nutrientAdditions)},${nf(b.so2AtFermentationMgL)},${so2FromPressingValue},${nf(b.endPh)},${nf(b.endTaGl)},${nf(b.volumeLitres)},${isOrganicValue},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
     res.status(201).json({ record: r.rows[0] });
   } catch (err) {
-    // PostgreSQL unique-constraint violation — (farm_id, batch_ref) index
-    if (typeof err === "object" && err !== null && (err as { code?: string }).code === "23505") {
+    // PostgreSQL unique-constraint violation — (farm_id, batch_ref) index.
+    // Drizzle wraps the pg error, so also check err.cause for the code.
+    const pgCode = (err as { code?: string })?.code ?? ((err as { cause?: { code?: string } })?.cause?.code);
+    if (pgCode === "23505") {
       res.status(409).json({ error: "A fermentation batch with this reference already exists for this farm" }); return;
     }
     throw err;
@@ -37467,8 +37469,10 @@ router.put("/farms/:farmId/winery-fermentation/:id", requireAuth, requireTenant,
     const r = await db.execute(sql`UPDATE winery_fermentation_records SET vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},wine_colour=${n(b.wineColour)},vessel_id=${ni(b.vesselId)},pressing_record_id=${pressingId},start_date=${n(b.startDate)},fermentation_type=${n(b.fermentationType)},yeast_strain=${n(b.yeastStrain)},inoculation_date=${n(b.inoculationDate)},inoculation_temp_c=${nf(b.inoculationTempC)},start_brix=${nf(b.startBrix)},end_brix=${nf(b.endBrix)},end_date=${n(b.endDate)},end_sg=${nf(b.endSg)},residual_sugar_gl=${nf(b.residualSugarGl)},max_temp_c=${nf(b.maxTempC)},min_temp_c=${nf(b.minTempC)},nutrient_additions=${n(b.nutrientAdditions)},so2_at_fermentation_mg_l=${nf(b.so2AtFermentationMgL)},so2_from_pressing=${so2FromPressingPutValue},end_ph=${nf(b.endPh)},end_ta_gl=${nf(b.endTaGl)},volume_litres=${nf(b.volumeLitres)},is_organic=${isOrganicValue},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
     res.json({ record: r.rows[0] });
   } catch (err) {
-    // PostgreSQL unique-constraint violation — (farm_id, batch_ref) index
-    if (typeof err === "object" && err !== null && (err as { code?: string }).code === "23505") {
+    // PostgreSQL unique-constraint violation — (farm_id, batch_ref) index.
+    // Drizzle wraps the pg error, so also check err.cause for the code.
+    const pgCode = (err as { code?: string })?.code ?? ((err as { cause?: { code?: string } })?.cause?.code);
+    if (pgCode === "23505") {
       res.status(409).json({ error: "A fermentation batch with this reference already exists for this farm" }); return;
     }
     throw err;
