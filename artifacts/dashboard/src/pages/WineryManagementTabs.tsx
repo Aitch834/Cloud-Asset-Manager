@@ -958,7 +958,7 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
   // Case-insensitive partial-match suggestions, capped at 10
   const suggestions = useMemo(() => {
     const trimmed = value.trim();
-    if (!trimmed) return [] as { ref: string; vintageYear: string | null }[];
+    if (!trimmed) return [] as { ref: string; vintageYear: string | null; latestDate: string | null }[];
     const lower = trimmed.toLowerCase();
     return allBatchRefs.filter(s => s.ref.toLowerCase().includes(lower)).slice(0, 10);
   }, [allBatchRefs, value]);
@@ -1057,6 +1057,11 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
                 <span>{s.ref}</span>
                 {s.vintageYear && (
                   <span className="text-xs text-muted-foreground">· {s.vintageYear}</span>
+                )}
+                {s.latestDate && (
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    · last used {new Date(s.latestDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                  </span>
                 )}
               </button>
             ))}
