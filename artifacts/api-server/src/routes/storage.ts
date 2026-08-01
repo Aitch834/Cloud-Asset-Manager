@@ -6,6 +6,7 @@ import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage"
 import { requireAuth } from "../middlewares/roleMiddleware";
 import {
   farmRecordAttachmentsTable,
+  farmIncidentPhotosTable,
   farmsTable,
   userTenantsTable,
 } from "@workspace/db";
@@ -146,15 +147,25 @@ router.get("/storage/objects/*path", requireAuth, async (req: Request, res: Resp
 
   try {
     // Look up the attachment record to find which farm this file belongs to.
-    const [attachment] = await db
+    let [attachment] = await db
       .select({ farmId: farmRecordAttachmentsTable.farmId })
       .from(farmRecordAttachmentsTable)
       .where(eq(farmRecordAttachmentsTable.fileKey, objectPath))
       .limit(1);
 
     if (!attachment) {
-      // If the path isn't in farm_record_attachments, deny access.
-      // Legitimate files are always registered in the database when uploaded.
+      // Farm incident evidence photos are registered in farm_incident_photos
+      // rather than farm_record_attachments — resolve farm ownership there too.
+      [attachment] = await db
+        .select({ farmId: farmIncidentPhotosTable.farmId })
+        .from(farmIncidentPhotosTable)
+        .where(eq(farmIncidentPhotosTable.objectPath, objectPath))
+        .limit(1);
+    }
+
+    if (!attachment) {
+      // If the path isn't registered in the database, deny access.
+      // Legitimate files are always registered when uploaded.
       res.status(403).json({ error: "Forbidden" });
       return;
     }

@@ -37,4 +37,27 @@ export async function runFarmIncidentsMigrations(): Promise<void> {
       updated_at             TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS farm_incident_photos (
+      id          SERIAL PRIMARY KEY,
+      incident_id INTEGER NOT NULL REFERENCES farm_incidents(id) ON DELETE CASCADE,
+      farm_id     INTEGER NOT NULL REFERENCES farms(id),
+      object_path TEXT NOT NULL,
+      file_name   TEXT,
+      uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`ALTER TABLE farm_incident_photos ENABLE ROW LEVEL SECURITY`);
+  await db.execute(sql`ALTER TABLE farm_incident_photos FORCE ROW LEVEL SECURITY`);
+  await db.execute(sql`DROP POLICY IF EXISTS farm_incident_photos_farm_isolation ON farm_incident_photos`);
+  await db.execute(sql`
+    CREATE POLICY farm_incident_photos_farm_isolation ON farm_incident_photos
+      FOR ALL
+      USING (
+        current_setting('app.current_farm_id', true) IS NULL
+        OR current_setting('app.current_farm_id', true) = ''
+        OR farm_id = current_setting('app.current_farm_id', true)::integer
+      )
+  `);
 }

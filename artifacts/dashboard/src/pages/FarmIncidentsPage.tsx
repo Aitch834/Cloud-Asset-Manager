@@ -15,10 +15,12 @@ import {
 } from "lucide-react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { printProReport } from "@/lib/print-report";
+import { PhotoPanel } from "@/pages/fly-tipping/PhotoPanel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Field { id: number; name: string; fieldReference: string | null; }
+interface IncidentPhoto { id: number; objectPath: string; fileName: string | null; }
 interface InsurancePolicy { id: number; policyType: string; insurer: string | null; policyNumber: string | null; expiryDate: string | null; supersededByRenewal: boolean; }
 
 interface Incident {
@@ -48,7 +50,10 @@ interface Incident {
   insurerContact: string | null;
   notes: string | null;
   createdAt: string;
+  photos: IncidentPhoto[];
 }
+
+const isImagePhoto = (p: IncidentPhoto) => /\.(jpe?g|png|gif|webp|bmp|heic|heif)$/i.test(p.fileName ?? p.objectPath);
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -128,7 +133,7 @@ function viewField(label: string, value?: string | null | boolean) {
 
 // ─── Empty form ───────────────────────────────────────────────────────────────
 
-function emptyForm(): Omit<Incident, "id"|"farmId"|"createdAt"> {
+function emptyForm(): Omit<Incident, "id"|"farmId"|"createdAt"|"photos"> {
   return {
     dateDiscovered: new Date().toISOString().split("T")[0],
     dateOccurred: null,
@@ -169,7 +174,7 @@ export default function FarmIncidentsPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [form, setForm] = useState<Omit<Incident, "id"|"farmId"|"createdAt">>(emptyForm());
+  const [form, setForm] = useState<Omit<Incident, "id"|"farmId"|"createdAt"|"photos">>(emptyForm());
 
   // ── Queries ──
 
@@ -349,9 +354,19 @@ export default function FarmIncidentsPage() {
     ] as [string, string][];
 
     const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    const photos = inc.photos ?? [];
+    const imagePhotos = photos.filter(isImagePhoto);
+    const otherPhotos = photos.filter(p => !isImagePhoto(p));
+    const photosHtml = photos.length ? `
+      <div class="section-head">Evidence Photos (${photos.length})</div>
+      ${imagePhotos.length ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px">${
+        imagePhotos.map(p => `<div style="page-break-inside:avoid"><img src="/api/storage${esc(p.objectPath)}" style="max-width:220px;max-height:160px;border:1px solid #d1d5db;border-radius:4px;display:block" /><div style="font-size:6.5px;color:#555;margin-top:2px">${esc(p.fileName ?? "Photo")}</div></div>`).join("")
+      }</div>` : ""}
+      ${otherPhotos.length ? `<div style="font-size:7.5px;color:#374151">Attached files: ${otherPhotos.map(p => esc(p.fileName ?? "File")).join(", ")}</div>` : ""}
+    ` : "";
     const tableHtml = `<table><thead><tr><th>Field</th><th>Detail</th></tr></thead><tbody>${
       rows.map(([label, value]) => `<tr><td style="font-weight:600;white-space:nowrap;width:200px">${esc(label)}</td><td>${esc(value)}</td></tr>`).join("")
-    }</tbody></table>`;
+    }</tbody></table>${photosHtml}`;
     printProReport({
       title: `Farm Incident Report — ${inc.incidentType}`,
       subtitle: `Reported: ${fmt(inc.dateDiscovered)}`,
@@ -604,6 +619,11 @@ export default function FarmIncidentsPage() {
             )}
 
             {viewInc.notes && viewField("Notes", viewInc.notes)}
+
+            <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #f3f4f6" }}>
+              <PhotoPanel incidentId={viewInc.id} farmId={farmId!} photos={viewInc.photos ?? []}
+                resource="incidents" queryKey={["farm-incidents", farmId!]} />
+            </div>
           </div>
 
           <DialogFooter style={{ marginTop: 12 }}>
@@ -748,6 +768,24 @@ export default function FarmIncidentsPage() {
                         {inc.notes}
                       </div>
                     )}
+                    {(inc.photos ?? []).length > 0 && (
+                      <div style={{ marginTop: 10 }}>
+                        <span style={{ fontWeight: 600, color: "#6b7280", fontSize: "0.75rem" }}>EVIDENCE PHOTOS ({inc.photos.length})</span>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+                          {inc.photos.map(p => isImagePhoto(p) ? (
+                            <a key={p.id} href={`/api/storage${p.objectPath}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
+                              <img src={`/api/storage${p.objectPath}`} alt={p.fileName ?? "Evidence photo"}
+                                style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 6, border: "1px solid #e5e7eb", display: "block" }} />
+                            </a>
+                          ) : (
+                            <a key={p.id} href={`/api/storage${p.objectPath}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                              style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.8rem", color: "#2563eb", textDecoration: "none", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6, padding: "4px 10px" }}>
+                              {p.fileName ?? "File"}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -782,6 +820,12 @@ export default function FarmIncidentsPage() {
             <DialogTitle>Edit Incident</DialogTitle>
           </DialogHeader>
           {renderForm()}
+          {editId !== null && (
+            <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #f3f4f6", marginTop: 12 }}>
+              <PhotoPanel incidentId={editId} farmId={farmId!} photos={incidents.find(i => i.id === editId)?.photos ?? []}
+                resource="incidents" queryKey={["farm-incidents", farmId!]} />
+            </div>
+          )}
           <DialogFooter style={{ marginTop: 16 }}>
             <Button variant="outline" onClick={() => setEditId(null)}>Cancel</Button>
             <Button

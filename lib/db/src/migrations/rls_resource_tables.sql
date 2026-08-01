@@ -1269,6 +1269,17 @@ CREATE POLICY fly_tipping_photos_farm_isolation ON fly_tipping_photos
     OR farm_id = current_setting('app.current_farm_id', true)::integer
   );
 
+ALTER TABLE farm_incident_photos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE farm_incident_photos FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS farm_incident_photos_farm_isolation ON farm_incident_photos;
+CREATE POLICY farm_incident_photos_farm_isolation ON farm_incident_photos
+  FOR ALL
+  USING (
+    current_setting('app.current_farm_id', true) IS NULL
+    OR current_setting('app.current_farm_id', true) = ''
+    OR farm_id = current_setting('app.current_farm_id', true)::integer
+  );
+
 ALTER TABLE fresh_produce_intake ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fresh_produce_intake FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS fresh_produce_intake_farm_isolation ON fresh_produce_intake;

@@ -227,3 +227,12 @@ export const farmIncidentsTable = pgTable("farm_incidents", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
+
+export const farmIncidentPhotosTable = pgTable("farm_incident_photos", {
+  id: serial("id").primaryKey(),
+  incidentId: integer("incident_id").notNull().references(() => farmIncidentsTable.id, { onDelete: "cascade" }),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  objectPath: text("object_path").notNull(),
+  fileName: text("file_name"),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+});

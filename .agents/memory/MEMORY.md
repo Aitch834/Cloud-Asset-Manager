@@ -4,6 +4,7 @@
 - [IPM plan field name mismatches](ipm-field-names.md) — threshold dialog field names corrected; DB columns and API field names for IPM plans documented
 - [Organic-arable module — COMPLETE](organic-arable-complete.md) — fully built; never re-examine or re-implement any part of it
 - [lib/db rebuild after schema changes](lib-db-rebuild.md) — API uses compiled dist/ declarations; must rebuild lib/db before API typecheck after any schema edit
+- [Startup migrations required for new tables](startup-migrations-required.md) — raw SQL push only fixes dev; new tables/RLS must also be added to an api-server startup migration or deploys break
 - [Schema push — drizzle-kit hangs; use raw SQL script](schema-push-raw-sql.md) — drizzle-kit push hangs on interactive prompts; push new nullable columns with a node ESM script importing pg directly from the pnpm store path
 - [Invoice branding & business info](invoice-branding.md) — farm logo/company/VAT/bank fields in farmsTable + FarmSettings + invoice print headers
 - [Platform config key whitelist](platform-config-whitelist.md) — new config keys must be added to PLATFORM_CONFIG_DEFAULTS in admin.ts or PUT returns 400

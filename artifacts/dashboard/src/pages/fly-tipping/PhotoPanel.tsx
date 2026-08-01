@@ -5,14 +5,18 @@ import { File, Trash2, Camera, Loader2 } from "lucide-react";
 
 interface Photo { id: number; objectPath: string; fileName: string | null; }
 
-export function PhotoPanel({ incidentId, farmId, photos }: { incidentId: number; farmId: number; photos: Photo[] }) {
+export function PhotoPanel({ incidentId, farmId, photos, resource = "fly-tipping", queryKey }: {
+  incidentId: number; farmId: number; photos: Photo[];
+  resource?: string; queryKey?: (string | number)[];
+}) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
+  const invalidateKey = queryKey ?? ["fly-tipping", farmId];
 
   const deleteMut = useMutation({
-    mutationFn: (photoId: number) => fetch(`/api/farms/${farmId}/fly-tipping/${incidentId}/photos/${photoId}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["fly-tipping", farmId] }),
+    mutationFn: (photoId: number) => fetch(`/api/farms/${farmId}/${resource}/${incidentId}/photos/${photoId}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: invalidateKey }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
@@ -31,12 +35,13 @@ export function PhotoPanel({ incidentId, farmId, photos }: { incidentId: number;
       const { uploadURL, objectPath } = await urlRes.json();
       const putRes = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } });
       if (!putRes.ok) throw new Error("Upload failed");
-      await fetch(`/api/farms/${farmId}/fly-tipping/${incidentId}/photos`, {
+      const attachRes = await fetch(`/api/farms/${farmId}/${resource}/${incidentId}/photos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ objectPath, fileName: file.name }),
       });
-      qc.invalidateQueries({ queryKey: ["fly-tipping", farmId] });
+      if (!attachRes.ok) throw new Error("Failed to attach photo");
+      qc.invalidateQueries({ queryKey: invalidateKey });
       toast({ title: "Photo uploaded" });
     } catch {
       toast({ title: "Upload failed", variant: "destructive" });
