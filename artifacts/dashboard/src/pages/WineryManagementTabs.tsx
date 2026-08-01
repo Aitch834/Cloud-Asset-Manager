@@ -247,6 +247,58 @@ const ADDITIVE_CATEGORY_LABELS: Record<string, string> = {
 };
 interface AdditionRow { tempId: number; id?: number; additiveName: string; category: string; dose: string; unit: string; notes: string }
 
+// ─── Pressing additive columns — single source of truth for PDF + CSV ─────────
+// Both the batch-trail PDF (printBatchTrail "Press Additives" table) and the
+// batch-trail CSV export (exportBatchTrailCsv "Pressing — Additive" rows) render
+// their additive columns from this list. Add a new field here (and, if the CSV
+// needs a new header column, to BATCH_TRAIL_CSV_HEADER) and both outputs pick
+// it up together — they can no longer drift apart.
+interface PressAdditiveColumn {
+  /** Which batch-trail CSV header column this field fills */
+  csvColumn: string;
+  /** Header label in the printed PDF additives table */
+  pdfLabel: string;
+  align: "left" | "right";
+  csvValue: (a: Record<string, unknown>) => string;
+  /** PDF cell content (escaped by the renderer); defaults may differ from CSV (e.g. "—" vs "") */
+  pdfValue: (a: Record<string, unknown>) => string;
+  /** Extra inline styles for the PDF table cell */
+  pdfCellStyle?: string;
+}
+const PRESS_ADDITIVE_COLUMNS: PressAdditiveColumn[] = [
+  {
+    csvColumn: "Type / Additive", pdfLabel: "Additive", align: "left",
+    csvValue: a => String(a.additive_name ?? ""),
+    pdfValue: a => String(a.additive_name ?? ""),
+    pdfCellStyle: "font-weight:500",
+  },
+  {
+    csvColumn: "Detail", pdfLabel: "Category", align: "left",
+    csvValue: a => String(a.category ?? ""),
+    pdfValue: a => ADDITIVE_CATEGORY_LABELS[String(a.category)] ?? String(a.category ?? ""),
+    pdfCellStyle: "color:#6b7280",
+  },
+  {
+    csvColumn: "SO₂ / Dose", pdfLabel: "Dose", align: "right",
+    csvValue: a => (a.dose != null ? parseFloat(String(a.dose)).toFixed(2) : ""),
+    pdfValue: a => (a.dose != null ? parseFloat(String(a.dose)).toFixed(2) : "—"),
+    pdfCellStyle: "text-align:right;font-family:monospace",
+  },
+  {
+    csvColumn: "Unit", pdfLabel: "Unit", align: "left",
+    csvValue: a => String(a.unit ?? ""),
+    pdfValue: a => String(a.unit ?? ""),
+  },
+  {
+    csvColumn: "Notes", pdfLabel: "Notes", align: "left",
+    csvValue: a => String(a.notes ?? ""),
+    pdfValue: a => String(a.notes ?? ""),
+    pdfCellStyle: "color:#6b7280;font-style:italic",
+  },
+];
+// Batch-trail CSV header — the additive columns above map into these slots by name.
+const BATCH_TRAIL_CSV_HEADER = ["Stage", "Batch Ref", "Date", "Type / Additive", "Detail", "SO₂ / Dose", "Unit", "SO₂ Ceiling (mg/L)", "SO₂ Compliance", "pH", "TA (g/L)", "Vessel", "Operator", "Notes"];
+
 // ─── Harvest Reception CSV import headers ──────────────────────────────────────
 const HARVEST_IMPORT_HEADERS = [
   "Reception Date",
@@ -2196,7 +2248,7 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
   const rows: string[][] = [];
 
   // Header
-  rows.push(["Stage", "Batch Ref", "Date", "Type / Additive", "Detail", "SO₂ / Dose", "Unit", "SO₂ Ceiling (mg/L)", "SO₂ Compliance", "pH", "TA (g/L)", "Vessel", "Operator", "Notes"]);
+  rows.push([...BATCH_TRAIL_CSV_HEADER]);
 
   const pressingBatchRef = String(pressing.batch_ref ?? "");
 
@@ -2218,24 +2270,16 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
     "",
   ]);
 
-  // Pressing additives
+  // Pressing additives — additive columns come from PRESS_ADDITIVE_COLUMNS (shared with the PDF)
   for (const a of data.pressAdditions) {
-    rows.push([
-      "Pressing — Additive",
-      pressingBatchRef,
-      fmtDate(pressing.press_date),
-      String(a.additive_name ?? ""),
-      String(a.category ?? ""),
-      a.dose != null ? fmtNum(a.dose, 2) : "",
-      String(a.unit ?? ""),
-      "",
-      "",
-      "",
-      "",
-      "",
-      String(pressing.operator_name ?? ""),
-      String(a.notes ?? ""),
-    ]);
+    const cells: Record<string, string> = {
+      "Stage": "Pressing — Additive",
+      "Batch Ref": pressingBatchRef,
+      "Date": fmtDate(pressing.press_date),
+      "Operator": String(pressing.operator_name ?? ""),
+    };
+    for (const col of PRESS_ADDITIVE_COLUMNS) cells[col.csvColumn] = col.csvValue(a);
+    rows.push(BATCH_TRAIL_CSV_HEADER.map(h => cells[h] ?? ""));
   }
 
   // Pressing notes — dedicated row, only when non-empty (mirrors on-screen view)
@@ -2721,18 +2765,10 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
       <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:5px">Press Additives (${data.pressAdditions.length})</p>
       <table style="width:100%;border-collapse:collapse;margin-left:0">
         <tr style="background:#f9fafb">
-          <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #d1d5db;text-align:left">Additive</th>
-          <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #d1d5db;text-align:left">Category</th>
-          <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #d1d5db;text-align:right">Dose</th>
-          <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #d1d5db;text-align:left">Unit</th>
-          <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #d1d5db;text-align:left">Notes</th>
+          ${PRESS_ADDITIVE_COLUMNS.map(col => `<th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #d1d5db;text-align:${col.align}">${escHtml(col.pdfLabel)}</th>`).join("")}
         </tr>
         ${data.pressAdditions.map(a => `<tr>
-          <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;font-weight:500">${escHtml(a.additive_name)}</td>
-          <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;color:#6b7280">${escHtml(ADDITIVE_CATEGORY_LABELS[String(a.category)] ?? a.category)}</td>
-          <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;text-align:right;font-family:monospace">${a.dose != null ? parseFloat(String(a.dose)).toFixed(2) : "—"}</td>
-          <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px">${escHtml(a.unit)}</td>
-          <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;color:#6b7280;font-style:italic">${escHtml(a.notes)}</td>
+          ${PRESS_ADDITIVE_COLUMNS.map(col => `<td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;${col.pdfCellStyle ?? ""}">${escHtml(col.pdfValue(a))}</td>`).join("")}
         </tr>`).join("")}
       </table>
     </div>` : ""}
