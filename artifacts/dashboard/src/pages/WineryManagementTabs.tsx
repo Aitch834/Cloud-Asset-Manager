@@ -3661,8 +3661,45 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const addRowCounter = useRef(0);
   const [showReport, setShowReport] = useState(false);
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
-  const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
-  const [colourFilter, setColourFilter] = useState<string | null>(null);
+  // Category & colour filters persist across visits (localStorage), mirroring
+  // the summarySort pattern below. Corrupt or legacy stored values are ignored.
+  const [categoryFilter, setCategoryFilterState] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem("winery-additions-summary-category-filter");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const valid = parsed.filter((c): c is string => typeof c === "string" && c in ADDITIVE_CATEGORY_LABELS);
+          return new Set(valid);
+        }
+      }
+    } catch { /* ignore corrupt saved value */ }
+    return new Set();
+  });
+  const setCategoryFilter = (updater: React.SetStateAction<Set<string>>) => {
+    setCategoryFilterState(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      try { localStorage.setItem("winery-additions-summary-category-filter", JSON.stringify([...next])); } catch { /* storage unavailable */ }
+      return next;
+    });
+  };
+  const [colourFilter, setColourFilterState] = useState<string | null>(() => {
+    try {
+      const saved = localStorage.getItem("winery-additions-summary-colour-filter");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed === null || (typeof parsed === "string" && WINE_COLOUR_OPTIONS.includes(parsed))) return parsed;
+      }
+    } catch { /* ignore corrupt saved value */ }
+    return null;
+  });
+  const setColourFilter = (updater: React.SetStateAction<string | null>) => {
+    setColourFilterState(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      try { localStorage.setItem("winery-additions-summary-colour-filter", JSON.stringify(next)); } catch { /* storage unavailable */ }
+      return next;
+    });
+  };
   const [nameSearch, setNameSearch] = useState("");
   const [summarySort, setSummarySortState] = useState<{ col: "additive" | "vintage" | "total_dose" | "avg_dose" | "batch_count"; dir: "asc" | "desc" }>(() => {
     try {
