@@ -184,6 +184,32 @@ function So2Badge({ compliant }: { compliant: unknown }) {
   return <span className="text-muted-foreground text-xs">—</span>;
 }
 
+// Tooltip for the pressing table sign-off badge. Prefers the auditor-declared
+// declaration date (audit_signer_date, a date-only YYYY-MM-DD parsed as a local
+// calendar date to avoid UTC day-shift), falling back to the digital timestamp
+// (audit_signed_at). Signer name/role are included only when present.
+function fmtDDMonYYYY(d: Date) {
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+function signOffTooltip(r: Record<string, unknown>): string {
+  let dateStr = "";
+  if (r.audit_signer_date) {
+    const s = String(r.audit_signer_date);
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(s);
+    if (!isNaN(d.getTime())) dateStr = fmtDDMonYYYY(d);
+  } else if (r.audit_signed_at) {
+    const d = new Date(String(r.audit_signed_at));
+    if (!isNaN(d.getTime())) dateStr = fmtDDMonYYYY(d);
+  }
+  const name = r.audit_signer_name ? String(r.audit_signer_name) : "";
+  const role = r.audit_signer_role ? ` (${String(r.audit_signer_role)})` : "";
+  if (name && dateStr) return `Signed by ${name}${role} on ${dateStr}`;
+  if (name) return `Signed by ${name}${role}`;
+  if (dateStr) return `Signed on ${dateStr}`;
+  return "Signed";
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 const WINE_COLOUR_OPTIONS = ["Red", "White", "Rosé", "Sparkling", "Orange", "Other"];
 const ORGANIC_MAX_SO2: Record<string, string> = { "Red": "100", "White": "150", "Rosé": "150", "Sparkling": "185", "Orange": "150" };
@@ -4289,7 +4315,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                       ? (
                         <span
                           className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 cursor-default"
-                          title={r.audit_signer_name ? `Signed by ${String(r.audit_signer_name)}${r.audit_signer_role ? ` (${String(r.audit_signer_role)})` : ""}${r.audit_signed_at ? ` on ${new Date(String(r.audit_signed_at)).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}` : ""}` : "Signed"}
+                          title={signOffTooltip(r)}
                         >
                           <ShieldCheck className="w-3 h-3" />Signed
                         </span>
