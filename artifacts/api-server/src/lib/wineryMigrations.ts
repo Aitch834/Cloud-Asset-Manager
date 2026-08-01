@@ -170,6 +170,10 @@ export async function runWineryMigrations(): Promise<void> {
     console.log(`[WINERY-MIGRATE] SO₂ backfill: updated ${backfillCount} fermentation record(s) with so2_from_pressing = true`);
   }
 
+  // Wine colour on cellar ops — the POST/PUT routes read/write this column; older DBs
+  // created the table without it, which made every cellar-ops insert fail with 42703.
+  await db.execute(sql`ALTER TABLE winery_cellar_ops ADD COLUMN IF NOT EXISTS wine_colour text`);
+
   // Unique batch refs per farm on cellar ops — mirrors the same guard already in place on
   // pressing and fermentation records. NULL allowed (batch_ref is optional), but two non-NULL
   // values with the same (farm_id, batch_ref) are rejected at the DB level.

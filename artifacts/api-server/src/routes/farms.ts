@@ -36902,8 +36902,10 @@ router.post("/farms/:farmId/winery-pressing", requireAuth, requireTenant, requir
     const r = await db.execute(sql`INSERT INTO winery_pressing_records (farm_id,press_date,vintage_year,batch_ref,press_type,grapes_pressed_kg,free_run_litres,press_wine_litres,total_juice_litres,press_efficiency_l_per_kg,juice_brix,juice_ph,juice_ta_gl,juice_turbidity,free_run_separated,additions_at_press,settling_method,settling_vessel,settling_hours,juice_analysis_source,is_organic,operator_name,notes) VALUES (${farmId},${nd(b.pressDate)},${ni(b.vintageYear)},${batchRef},${n(b.pressType)},${nf(b.grapesPressedKg)},${nf(b.freeRunLitres)},${nf(b.pressWineLitres)},${nf(b.totalJuiceLitres)},${nf(b.pressEfficiencyLPerKg)},${nf(b.juiceBrix)},${nf(b.juicePh)},${nf(b.juiceTaGl)},${n(b.juiceTurbidity)},${nb(b.freeRunSeparated) ?? true},${n(b.additionsAtPress)},${n(b.settlingMethod)},${n(b.settlingVessel)},${ni(b.settlingHours)},${n(b.juiceAnalysisSource)},${nb(b.isOrganic) ?? false},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
     res.status(201).json({ record: r.rows[0] });
   } catch (err: unknown) {
-    // PostgreSQL unique-constraint violation — (farm_id, batch_ref) index
-    if (typeof err === "object" && err !== null && (err as { code?: string }).code === "23505") {
+    // PostgreSQL unique-constraint violation — (farm_id, batch_ref) index.
+    // Drizzle wraps the pg error, so also check err.cause for the code.
+    const pgCode = (err as { code?: string })?.code ?? ((err as { cause?: { code?: string } })?.cause?.code);
+    if (pgCode === "23505") {
       res.status(409).json({ error: `Batch reference "${batchRef}" is already used by another pressing record. Please choose a different reference.`, code: "DUPLICATE_BATCH_REF" });
       return;
     }
@@ -37208,8 +37210,10 @@ router.put("/farms/:farmId/winery-pressing/:id", requireAuth, requireTenant, req
     const r = await db.execute(sql`UPDATE winery_pressing_records SET edit_history=CASE WHEN audit_signature IS NOT NULL THEN COALESCE(edit_history,'[]'::jsonb) || ${editEntry}::jsonb ELSE COALESCE(edit_history,'[]'::jsonb) END,press_date=${nd(b.pressDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${batchRef},press_type=${n(b.pressType)},grapes_pressed_kg=${nf(b.grapesPressedKg)},free_run_litres=${nf(b.freeRunLitres)},press_wine_litres=${nf(b.pressWineLitres)},total_juice_litres=${nf(b.totalJuiceLitres)},press_efficiency_l_per_kg=${nf(b.pressEfficiencyLPerKg)},juice_brix=${nf(b.juiceBrix)},juice_ph=${nf(b.juicePh)},juice_ta_gl=${nf(b.juiceTaGl)},juice_turbidity=${n(b.juiceTurbidity)},free_run_separated=${nb(b.freeRunSeparated) ?? true},additions_at_press=${n(b.additionsAtPress)},settling_method=${n(b.settlingMethod)},settling_vessel=${n(b.settlingVessel)},settling_hours=${ni(b.settlingHours)},juice_analysis_source=${n(b.juiceAnalysisSource)},is_organic=${nb(b.isOrganic) ?? false},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${recordId} AND farm_id=${farmId} RETURNING *`);
     res.json({ record: r.rows[0] });
   } catch (err: unknown) {
-    // PostgreSQL unique-constraint violation — (farm_id, batch_ref) index
-    if (typeof err === "object" && err !== null && (err as { code?: string }).code === "23505") {
+    // PostgreSQL unique-constraint violation — (farm_id, batch_ref) index.
+    // Drizzle wraps the pg error, so also check err.cause for the code.
+    const pgCodePut = (err as { code?: string })?.code ?? ((err as { cause?: { code?: string } })?.cause?.code);
+    if (pgCodePut === "23505") {
       res.status(409).json({ error: `Batch reference "${batchRef}" is already used by another pressing record. Please choose a different reference.`, code: "DUPLICATE_BATCH_REF" });
       return;
     }
@@ -37449,7 +37453,7 @@ router.post("/farms/:farmId/winery-fermentation", requireAuth, requireTenant, re
     // Drizzle wraps the pg error, so also check err.cause for the code.
     const pgCode = (err as { code?: string })?.code ?? ((err as { cause?: { code?: string } })?.cause?.code);
     if (pgCode === "23505") {
-      res.status(409).json({ error: "A fermentation batch with this reference already exists for this farm" }); return;
+      res.status(409).json({ error: "A fermentation batch with this reference already exists for this farm", code: "DUPLICATE_BATCH_REF" }); return;
     }
     throw err;
   }
@@ -37473,7 +37477,7 @@ router.put("/farms/:farmId/winery-fermentation/:id", requireAuth, requireTenant,
     // Drizzle wraps the pg error, so also check err.cause for the code.
     const pgCode = (err as { code?: string })?.code ?? ((err as { cause?: { code?: string } })?.cause?.code);
     if (pgCode === "23505") {
-      res.status(409).json({ error: "A fermentation batch with this reference already exists for this farm" }); return;
+      res.status(409).json({ error: "A fermentation batch with this reference already exists for this farm", code: "DUPLICATE_BATCH_REF" }); return;
     }
     throw err;
   }
@@ -37519,10 +37523,11 @@ router.post("/farms/:farmId/winery-cellar-ops", requireAuth, requireTenant, requ
   const b = sanitiseBody(req.body);
   if (!b.opType) { res.status(400).json({ error: "op_type required" }); return; }
   try {
-    const r = await db.execute(sql`INSERT INTO winery_cellar_ops (farm_id,op_date,vintage_year,batch_ref,op_type,wine_colour,from_vessel_id,to_vessel_id,volume_moved_litres,lees_depth_cm,top_up_volume_litres,top_up_source,so2_product,so2_quantity_g,free_so2_before_mg_l,free_so2_after_mg_l,fining_agent,fining_dose,contact_time_hours,filter_type,filter_pore_um,clarity_before,clarity_after,operator_name,notes) VALUES (${farmId},${n(b.opDate)},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.opType)},${n(b.wineColour)},${ni(b.fromVesselId)},${ni(b.toVesselId)},${nf(b.volumeMovedLitres)},${nf(b.leesDepthCm)},${nf(b.topUpVolumeLitres)},${n(b.topUpSource)},${n(b.so2Product)},${nf(b.so2QuantityG)},${nf(b.freeSo2BeforeMgL)},${nf(b.freeSo2AfterMgL)},${n(b.finingAgent)},${n(b.finingDose)},${ni(b.contactTimeHours)},${n(b.filterType)},${nf(b.filterPoreUm)},${n(b.clarityBefore)},${n(b.clarityAfter)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
+    const r = await db.execute(sql`INSERT INTO winery_cellar_ops (farm_id,op_date,vintage_year,batch_ref,op_type,wine_colour,from_vessel_id,to_vessel_id,volume_moved_litres,lees_depth_cm,top_up_volume_litres,top_up_source,so2_product,so2_quantity_g,free_so2_before_mg_l,free_so2_after_mg_l,fining_agent,fining_dose,contact_time_hours,filter_type,filter_pore_um,clarity_before,clarity_after,operator_name,notes) VALUES (${farmId},${nd(b.opDate)},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.opType)},${n(b.wineColour)},${ni(b.fromVesselId)},${ni(b.toVesselId)},${nf(b.volumeMovedLitres)},${nf(b.leesDepthCm)},${nf(b.topUpVolumeLitres)},${n(b.topUpSource)},${n(b.so2Product)},${nf(b.so2QuantityG)},${nf(b.freeSo2BeforeMgL)},${nf(b.freeSo2AfterMgL)},${n(b.finingAgent)},${n(b.finingDose)},${ni(b.contactTimeHours)},${n(b.filterType)},${nf(b.filterPoreUm)},${n(b.clarityBefore)},${n(b.clarityAfter)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
     res.status(201).json({ record: r.rows[0] });
   } catch (err: any) {
-    if (err?.code === "23505") { res.status(409).json({ error: "A cellar ops record with this batch reference already exists for this farm." }); return; }
+    // Drizzle wraps the pg error, so also check err.cause for the code.
+    if ((err?.code ?? err?.cause?.code) === "23505") { res.status(409).json({ error: "A cellar ops record with this batch reference already exists for this farm.", code: "DUPLICATE_BATCH_REF" }); return; }
     throw err;
   }
 });
@@ -37530,10 +37535,11 @@ router.put("/farms/:farmId/winery-cellar-ops/:id", requireAuth, requireTenant, r
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const b = sanitiseBody(req.body);
   try {
-    const r = await db.execute(sql`UPDATE winery_cellar_ops SET op_date=${n(b.opDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},op_type=${n(b.opType)},wine_colour=${n(b.wineColour)},from_vessel_id=${ni(b.fromVesselId)},to_vessel_id=${ni(b.toVesselId)},volume_moved_litres=${nf(b.volumeMovedLitres)},lees_depth_cm=${nf(b.leesDepthCm)},top_up_volume_litres=${nf(b.topUpVolumeLitres)},top_up_source=${n(b.topUpSource)},so2_product=${n(b.so2Product)},so2_quantity_g=${nf(b.so2QuantityG)},free_so2_before_mg_l=${nf(b.freeSo2BeforeMgL)},free_so2_after_mg_l=${nf(b.freeSo2AfterMgL)},fining_agent=${n(b.finingAgent)},fining_dose=${n(b.finingDose)},contact_time_hours=${ni(b.contactTimeHours)},filter_type=${n(b.filterType)},filter_pore_um=${nf(b.filterPoreUm)},clarity_before=${n(b.clarityBefore)},clarity_after=${n(b.clarityAfter)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
+    const r = await db.execute(sql`UPDATE winery_cellar_ops SET op_date=${nd(b.opDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},op_type=${n(b.opType)},wine_colour=${n(b.wineColour)},from_vessel_id=${ni(b.fromVesselId)},to_vessel_id=${ni(b.toVesselId)},volume_moved_litres=${nf(b.volumeMovedLitres)},lees_depth_cm=${nf(b.leesDepthCm)},top_up_volume_litres=${nf(b.topUpVolumeLitres)},top_up_source=${n(b.topUpSource)},so2_product=${n(b.so2Product)},so2_quantity_g=${nf(b.so2QuantityG)},free_so2_before_mg_l=${nf(b.freeSo2BeforeMgL)},free_so2_after_mg_l=${nf(b.freeSo2AfterMgL)},fining_agent=${n(b.finingAgent)},fining_dose=${n(b.finingDose)},contact_time_hours=${ni(b.contactTimeHours)},filter_type=${n(b.filterType)},filter_pore_um=${nf(b.filterPoreUm)},clarity_before=${n(b.clarityBefore)},clarity_after=${n(b.clarityAfter)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
     res.json({ record: r.rows[0] });
   } catch (err: any) {
-    if (err?.code === "23505") { res.status(409).json({ error: "A cellar ops record with this batch reference already exists for this farm." }); return; }
+    // Drizzle wraps the pg error, so also check err.cause for the code.
+    if ((err?.code ?? err?.cause?.code) === "23505") { res.status(409).json({ error: "A cellar ops record with this batch reference already exists for this farm.", code: "DUPLICATE_BATCH_REF" }); return; }
     throw err;
   }
 });
