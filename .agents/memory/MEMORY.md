@@ -42,4 +42,6 @@
 - [EIDCymru + ScotEID integration scaffold](eidcymru-scoteid-scaffold.md) — Wales/Scotland livestock submission adapters; sandbox-first; tables in lisMigrations.ts; routes appended to farms.ts; Movements.tsx tabs gated on farmData.country
 - [lib/db rebuild command](lib-db-rebuild.md) — correct command after schema changes: `cd lib/db && npx tsc --build tsconfig.json`; not `pnpm --filter @workspace/db run build` (no build script exists)
 - [Record unknown && JSX TypeScript error](record-unknown-jsx.md) — `{record.field && <JSX />}` when record is `Record<string,unknown>` yields `unknown`, not ReactNode; fix with `{!!record.field && <JSX />}`
+- [Enter-opens-dialog ghost close](enter-opens-dialog-ghost-close.md) — Enter handlers that open a Radix dialog must preventDefault or the keystroke leaks into the dialog and instantly closes it
+- [Clerk e2e login needs DB tenant mapping](clerk-e2e-login-tenant-mapping.md) — tester's programmatic Clerk sub must be inserted into users+user_tenants; dashboard serves built dist, rebuild before e2e
 - [Dashboard build OOM](dashboard-build-oom.md) — ~1 GB free RAM; Rollup OOMs at chunk rendering; mitigations in place; long-term fix = split WineryManagementTabs.tsx + LivestockPage.tsx (500 KB+)

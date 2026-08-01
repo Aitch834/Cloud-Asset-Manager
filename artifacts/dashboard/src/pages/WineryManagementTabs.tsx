@@ -1020,6 +1020,10 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
               e.preventDefault();
               setHighlightedIndex(i => Math.max(i - 1, -1));
             } else if (e.key === "Enter") {
+              // Prevent the native Enter keystroke from leaking into the newly
+              // mounted batch trail dialog (auto-focused close button), which
+              // would immediately dismiss it.
+              e.preventDefault();
               if (highlightedIndex >= 0 && suggestions[highlightedIndex]) {
                 openTrail(suggestions[highlightedIndex].ref);
               } else {
