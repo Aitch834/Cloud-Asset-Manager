@@ -3633,7 +3633,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
       </div>
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-muted-foreground">Vintage:</span>
-        <Select value={yearFilter} onValueChange={v => { setYearFilter(v); setNameSearch(""); setPressingSearch(""); }}>
+        <Select value={yearFilter} onValueChange={v => { setYearFilter(v); setNameSearch(""); setPressingSearch(""); setTxLogBatchFilter(""); }}>
           <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
         </Select>
@@ -3652,6 +3652,8 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
           if (opening && !txLogBatchFilter.trim()) {
             const batchCtx = trailRecord?.batch_ref ? String(trailRecord.batch_ref) : pressingSearch.trim();
             if (batchCtx) setTxLogBatchFilter(batchCtx);
+          } else if (!opening) {
+            setTxLogBatchFilter("");
           }
         }}><Beaker className="w-3.5 h-3.5 mr-1" />Additions Report</Button>
         <Button size="sm" variant="outline" onClick={() => {
