@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
+import { useToast } from "@/hooks/use-toast";
 
 export interface LookupItem {
   id: number;
@@ -35,6 +36,7 @@ export function useLookupStrings(key: string, fallback: string[] = []): string[]
 export function useAddCustomLookup(key: string) {
   const farmId = useAppStore((s) => s.farmId);
   const qc = useQueryClient();
+  const { toast } = useToast();
   return useMutation({
     mutationFn: async (label: string) => {
       const res = await fetch(`/api/farms/${farmId}/lookups/${key}`, {
@@ -50,5 +52,6 @@ export function useAddCustomLookup(key: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["lookup", key] });
     },
+    onError: (err: Error) => toast({ title: err.message || "Failed to add custom value", variant: "destructive" }),
   });
 }

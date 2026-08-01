@@ -122,26 +122,29 @@ export function DairySuppliesTab({ farmId, dairyType }: { farmId: number; dairyT
   const requests: RestockRequest[] = requestsQ.data?.requests ?? [];
 
   const addDrawdown = useMutation({
-    mutationFn: (body: object) => fetch(api(`farms/${farmId}/dairy-supplies/drawdowns`), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, dairyType }) }).then(r => r.json()),
+    mutationFn: (body: object) => fetch(api(`farms/${farmId}/dairy-supplies/drawdowns`), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, dairyType }) }).then(r => { if (!r.ok) throw new Error("Request failed"); return r.json(); }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-supplies-drawdowns", farmId, dairyType] }); qc.invalidateQueries({ queryKey: ["dairy-supplies-stock", farmId] }); setDrawdownOpen(false); toast({ title: "Usage logged" }); },
     onError: () => toast({ title: "Failed to log usage", variant: "destructive" }),
   });
   const delDrawdown = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/dairy-supplies/drawdowns/${id}`), { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/dairy-supplies/drawdowns/${id}`), { method: "DELETE" }).then(r => { if (!r.ok) throw new Error("Request failed"); return r.json(); }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-supplies-drawdowns", farmId, dairyType] }); qc.invalidateQueries({ queryKey: ["dairy-supplies-stock", farmId] }); toast({ title: "Record removed" }); },
+    onError: () => toast({ title: "Failed to remove record", variant: "destructive" }),
   });
   const addRequest = useMutation({
-    mutationFn: (body: object) => fetch(api(`farms/${farmId}/dairy-supplies/restock-requests`), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, dairyType }) }).then(r => r.json()),
+    mutationFn: (body: object) => fetch(api(`farms/${farmId}/dairy-supplies/restock-requests`), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, dairyType }) }).then(r => { if (!r.ok) throw new Error("Request failed"); return r.json(); }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-restock-requests", farmId, dairyType] }); setRestockOpen(false); toast({ title: "Restock request raised" }); },
     onError: () => toast({ title: "Failed to raise request", variant: "destructive" }),
   });
   const updateRequest = useMutation({
-    mutationFn: ({ id, ...body }: { id: number; status: string; adminNotes?: string; resolvedBy?: string }) => fetch(api(`farms/${farmId}/dairy-supplies/restock-requests/${id}`), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: ({ id, ...body }: { id: number; status: string; adminNotes?: string; resolvedBy?: string }) => fetch(api(`farms/${farmId}/dairy-supplies/restock-requests/${id}`), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => { if (!r.ok) throw new Error("Request failed"); return r.json(); }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-restock-requests", farmId, dairyType] }); toast({ title: "Request updated" }); },
+    onError: () => toast({ title: "Failed to update request", variant: "destructive" }),
   });
   const delRequest = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/dairy-supplies/restock-requests/${id}`), { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/dairy-supplies/restock-requests/${id}`), { method: "DELETE" }).then(r => { if (!r.ok) throw new Error("Request failed"); return r.json(); }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-restock-requests", farmId, dairyType] }); toast({ title: "Request deleted" }); },
+    onError: () => toast({ title: "Failed to delete request", variant: "destructive" }),
   });
 
   const historyYears = useMemo(() => {

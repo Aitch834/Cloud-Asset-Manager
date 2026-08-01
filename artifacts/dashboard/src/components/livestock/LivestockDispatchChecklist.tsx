@@ -222,8 +222,9 @@ export function LivestockDispatchChecklist({ farmId, movementId, onClose }: Prop
           sex: animal.sex,
           dateOfBirth: animal.dateOfBirth,
         }]),
-      }).then(r => r.json()),
+      }).then(r => { if (!r.ok) throw new Error("Failed to add animal"); return r.json(); }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["movement-animals", farmId, movementId] }),
+    onError: () => toast({ title: "Failed to add animal", variant: "destructive" }),
   });
 
   const addAnimalManual = useMutation({
@@ -232,14 +233,17 @@ export function LivestockDispatchChecklist({ farmId, movementId, onClose }: Prop
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify([{ tagNumber: newTagNumber, species: movement?.species }]),
-      }).then(r => r.json()),
+      }).then(r => { if (!r.ok) throw new Error("Failed to add animal"); return r.json(); }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["movement-animals", farmId, movementId] }); setNewTagNumber(""); },
+    onError: () => toast({ title: "Failed to add animal", variant: "destructive" }),
   });
 
   const removeAnimal = useMutation({
     mutationFn: (rowId: number) =>
-      fetch(`/api/farms/${farmId}/livestock-movements/${movementId}/animals/${rowId}`, { method: "DELETE" }),
+      fetch(`/api/farms/${farmId}/livestock-movements/${movementId}/animals/${rowId}`, { method: "DELETE" })
+        .then(r => { if (!r.ok) throw new Error("Failed to remove animal"); return r; }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["movement-animals", farmId, movementId] }),
+    onError: () => toast({ title: "Failed to remove animal", variant: "destructive" }),
   });
 
   const handleDocUpload = async (file: File) => {

@@ -48,7 +48,7 @@ export function LabSelector({ farmId, value, labName, onChange, label = "Testing
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify(body),
-      }).then(r => r.json()),
+      }).then(r => { if (!r.ok) throw new Error("Failed to add laboratory"); return r.json(); }),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["labs", farmId] });
       if (data.record) {
@@ -58,6 +58,7 @@ export function LabSelector({ farmId, value, labName, onChange, label = "Testing
       setForm(EMPTY_LAB_FORM);
       toast({ title: "Laboratory added" });
     },
+    onError: () => toast({ title: "Failed to add laboratory", variant: "destructive" }),
   });
 
   function handleSelectChange(e: React.ChangeEvent<HTMLSelectElement>) {

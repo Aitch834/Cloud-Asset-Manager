@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react/src/custom-fetch";
+import { useToast } from "@/hooks/use-toast";
 
 export interface AppNotification {
   id: number;
@@ -37,27 +38,33 @@ export function useNotifications(farmId: number | null) {
 
 export function useMarkNotificationRead(farmId: number | null) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   return useMutation({
     mutationFn: (notifId: number) =>
       customFetch(`/api/farms/${farmId}/notifications/${notifId}/read`, { method: "PUT" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: notificationsKey(farmId ?? 0) }),
+    onError: () => toast({ title: "Failed to mark notification as read", variant: "destructive" }),
   });
 }
 
 export function useMarkAllRead(farmId: number | null) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   return useMutation({
     mutationFn: () =>
       customFetch(`/api/farms/${farmId}/notifications/read-all`, { method: "PUT" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: notificationsKey(farmId ?? 0) }),
+    onError: () => toast({ title: "Failed to mark all as read", variant: "destructive" }),
   });
 }
 
 export function useDeleteNotification(farmId: number | null) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   return useMutation({
     mutationFn: (notifId: number) =>
       customFetch(`/api/farms/${farmId}/notifications/${notifId}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: notificationsKey(farmId ?? 0) }),
+    onError: () => toast({ title: "Failed to delete notification", variant: "destructive" }),
   });
 }

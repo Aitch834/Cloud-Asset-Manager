@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
+import { useToast } from "@/hooks/use-toast";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -306,6 +307,7 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
   const { farmId } = useAppStore();
   const safeFarmId = farmId ?? 0;
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [expenseForm, setExpenseForm] = useState({ category: "", description: "", amountPounds: "", expenseDate: new Date().toISOString().slice(0, 10), notes: "" });
@@ -319,12 +321,15 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
       setShowAddExpense(false);
       setExpenseForm({ category: "", description: "", amountPounds: "", expenseDate: new Date().toISOString().slice(0, 10), notes: "" });
     },
+    onError: () => toast({ title: "Failed to add expense", variant: "destructive" }),
   });
 
   const deleteExpenseMutation = useMutation({
     mutationFn: (id: number) =>
-      fetch(`/api/farms/${safeFarmId}/field-season-expenses/${id}`, { method: "DELETE" }).then(r => r.json()),
+      fetch(`/api/farms/${safeFarmId}/field-season-expenses/${id}`, { method: "DELETE" })
+        .then(r => { if (!r.ok) throw new Error("Failed to delete expense"); return r.json(); }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crop-season-report", safeFarmId, assignmentId] }),
+    onError: () => toast({ title: "Failed to delete expense", variant: "destructive" }),
   });
 
   const handleAddExpense = () => {
