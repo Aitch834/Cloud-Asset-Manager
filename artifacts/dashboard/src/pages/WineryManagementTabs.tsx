@@ -4156,8 +4156,16 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                     `"WARNING: Mixed SO2 units detected — ${vintageList}","This export contains SO2 / KMS records measured in both mg/kg (at pressing) and mg/L (post-fermentation / cellar). The Total Dose column combines different units and CANNOT be compared or summed. Use the Unit column to interpret each row individually."`,
                   );
                 }
-                const colourSlug = colourFilter !== null ? `-${colourFilter.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-")}` : "";
-                exportCSV(searchFilteredSummary, `pressing-additions-report-${yearFilter}${colourSlug}.csv`, summaryCsvCols, prefixLines);
+                const colourSlug = colourFilter !== null ? colourFilter.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-") : "";
+                const filename = colourFilter !== null
+                  ? `additions-report-${colourSlug}-${yearFilter}.csv`
+                  : `pressing-additions-report-${yearFilter}.csv`;
+                if (colourFilter !== null) {
+                  const vintageLabel = yearFilter === "all" ? "All vintages" : `Vintage ${yearFilter}`;
+                  const headerText = `Additive Usage Report — ${colourFilter} — ${vintageLabel} — ${farmName}`;
+                  prefixLines.unshift(`"${headerText.replace(/"/g, '""')}"`);
+                }
+                exportCSV(searchFilteredSummary, filename, summaryCsvCols, prefixLines);
               }} disabled={!searchFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export Summary CSV</Button>
               <Button size="sm" variant="outline" onClick={() => {
                 const batchTrim = txLogBatchFilter.trim();
