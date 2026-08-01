@@ -2593,17 +2593,22 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
   const cellarHeader = `<tr class="header-row"><th>Date</th><th>Operation</th><th>Vessel(s)</th><th style="text-align:right">Volume (L)</th><th>SO₂ detail</th><th>Fining agent</th><th>Operator</th><th>Batch Ref</th></tr>`;
 
   // SO₂ tests
+  const SO2_ORGANIC_LIMIT_NUMBERS = new Set(Object.values(ORGANIC_MAX_SO2).map(v => parseFloat(v)));
+  let so2HasUnverifiedLimit = false;
   const so2Rows = data.so2Tests.map(r => {
     const compliant = r.so2_compliant === true || r.so2_compliant === "true" || r.so2_compliant === 1;
     const nonCompliant = r.so2_compliant === false || r.so2_compliant === "false" || r.so2_compliant === 0;
     const complianceStyle = nonCompliant ? ' style="color:#b91c1c;font-weight:600"' : (compliant ? ' style="color:#166534"' : "");
-    return `<tr>
+    const maxVal = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : null;
+    const unverifiedLimit = !r.batch_ref && maxVal != null && SO2_ORGANIC_LIMIT_NUMBERS.has(maxVal);
+    if (unverifiedLimit) so2HasUnverifiedLimit = true;
+    return `<tr${unverifiedLimit ? ' style="background:#fffbeb"' : ""}>
     <td>${escHtml(fmtDate(r.test_date))}</td>
     <td>${escHtml(SO2_TEST_STAGE_LABELS[String(r.test_stage)] ?? r.test_stage)}</td>
     <td>${escHtml(r.vessel_ref)}</td>
     <td style="text-align:right;font-family:monospace">${r.free_so2_mg_l != null ? parseFloat(String(r.free_so2_mg_l)).toFixed(1) : "—"}</td>
     <td style="text-align:right;font-family:monospace">${r.total_so2_mg_l != null ? parseFloat(String(r.total_so2_mg_l)).toFixed(1) : "—"}</td>
-    <td style="text-align:right">${r.max_permitted_mg_l != null ? parseFloat(String(r.max_permitted_mg_l)).toFixed(0) : "—"}</td>
+    <td style="text-align:right">${maxVal != null ? maxVal.toFixed(0) : "—"}${unverifiedLimit ? '<br/><span style="color:#b45309;font-size:9px;white-space:nowrap">⚠ Limit unverified — no batch ref</span>' : ""}</td>
     <td${complianceStyle}>${nonCompliant ? "⚠ Exceeds limit" : compliant ? "✓ Compliant" : "—"}</td>
     <td>${escHtml(r.test_method)}</td>
     <td>${batchRefBadge(r as Record<string, unknown>)}</td>
@@ -2705,6 +2710,7 @@ ${pressingBlockHtml}
 ${fermRows ? sectionHtml("2. Fermentation", fermHeader + fermRows) : ""}
 ${cellarRows ? sectionHtml("3. Cellar operations", cellarHeader + cellarRows) : ""}
 ${so2Rows ? sectionHtml("4. SO₂ tests", so2Header + so2Rows) : ""}
+${so2Rows && so2HasUnverifiedLimit ? `<p style="font-size:9px;color:#b45309;margin:2px 0 8px">⚠ Limit unverified — one or more SO₂ tests carry an organic ceiling but have no batch reference, so the applicable limit cannot be verified against a batch record.</p>` : ""}
 ${bottlingRows ? sectionHtml("5. Bottling runs", bottlingHeader + bottlingRows) : ""}
 
 <div class="signoff">
