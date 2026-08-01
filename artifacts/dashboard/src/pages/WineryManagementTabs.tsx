@@ -6164,6 +6164,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const [importError, setImportError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<{ insertedCount: number; rejectedCount: number; rejected: { row: number; lotCode: string; reason: string }[] } | null>(null);
   const [importLoading, setImportLoading] = useState(false);
+  const [importWarnings, setImportWarnings] = useState<string[]>([]);
   const importFileRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
 
@@ -6199,12 +6200,21 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     setImportError(null);
     setImportResult(null);
     setImportParsed([]);
+    setImportWarnings([]);
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
-      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      let lines = text.split(/\r?\n/).filter(l => l.trim());
+      // Exported CSVs may prepend WARNING lines (e.g. SO₂ non-compliance) before the header.
+      // Strip them here so round-tripped files re-import cleanly, and surface them in the preview.
+      const warnings: string[] = [];
+      while (lines.length > 0 && /^"?WARNING:/i.test(lines[0].trim())) {
+        warnings.push(lines[0].replace(/^"|"$/g, "").replace(/""/g, '"').replace(/","/g, " — ").trim());
+        lines = lines.slice(1);
+      }
+      setImportWarnings(warnings);
       if (lines.length < 2) { setImportError("CSV must have a header row and at least one data row."); return; }
       const headers = lines[0].split(",").map(h => h.replace(/^"|"$/g, "").trim());
       const rows: Record<string, string>[] = [];
@@ -6263,6 +6273,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     setImportParsed([]);
     setImportError(null);
     setImportResult(null);
+    setImportWarnings([]);
     setImportLoading(false);
     if (importFileRef.current) importFileRef.current.value = "";
   };
@@ -6824,6 +6835,16 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                 <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700 flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
                   <span>{importError}</span>
+                </div>
+              )}
+              {importWarnings.length > 0 && !importError && (
+                <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium">This file contains warning{importWarnings.length !== 1 ? "s" : ""} from a previous export:</p>
+                    {importWarnings.map((w, i) => <p key={i} className="text-xs mt-1">{w}</p>)}
+                    <p className="text-xs mt-1 text-amber-700">Warning lines are skipped on import — only data rows below the header will be imported.</p>
+                  </div>
                 </div>
               )}
               {importParsed.length > 0 && !importError && (
