@@ -7073,6 +7073,16 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
     openEdit(firstFlagged);
   };
 
+  // Organic ceiling for a test row — only when the linked pressing batch is organic (mirrors view dialog logic)
+  const so2OrganicCeiling = (r: Record<string, unknown>): number | null => {
+    const wc = r.wine_colour ? String(r.wine_colour) : null;
+    if (!wc || !ORGANIC_MAX_SO2[wc]) return null;
+    const batchRef = r.batch_ref ? String(r.batch_ref) : null;
+    const matchedPressing = batchRef ? so2PressingRefs.find(p => p.batchRef === batchRef) : null;
+    if (!matchedPressing?.isOrganic) return null;
+    return parseFloat(ORGANIC_MAX_SO2[wc]);
+  };
+
   const so2CsvCols = [
     { key: "vintage_year", label: "Vintage" },
     { key: "test_date", label: "Test Date", fmt: (r: Record<string, unknown>) => fmtDate(r.test_date) },
@@ -7083,6 +7093,14 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
     { key: "total_so2_mg_l", label: "Total SO₂ (mg/L)" },
     { key: "max_permitted_mg_l", label: "Max Permitted (mg/L)" },
     { key: "so2_compliant", label: "Compliant", fmt: (r: Record<string, unknown>) => r.so2_compliant ? "Yes" : "No" },
+    { key: "organic_ceiling_mg_l", label: "Organic Ceiling (mg/L)", fmt: (r: Record<string, unknown>) => { const c = so2OrganicCeiling(r); return c != null ? String(c) : ""; } },
+    { key: "organic_pass_fail", label: "Organic Pass/Fail", fmt: (r: Record<string, unknown>) => {
+      const c = so2OrganicCeiling(r);
+      if (c == null) return "—";
+      const total = r.total_so2_mg_l != null && r.total_so2_mg_l !== "" ? parseFloat(String(r.total_so2_mg_l)) : null;
+      if (total == null || isNaN(total)) return "—";
+      return total <= c ? "Pass" : "Fail";
+    } },
     { key: "test_method", label: "Test Method" },
     { key: "notes", label: "Notes" },
   ];
