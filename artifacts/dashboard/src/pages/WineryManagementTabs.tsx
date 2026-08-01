@@ -4112,6 +4112,20 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
       if (!rows.length) return "";
       return rows.map((a: Record<string, unknown>) => `${String(a.additive_name)}: ${String(a.dose ?? "")}${a.unit ? ` ${String(a.unit)}` : ""}${a.notes ? ` (${String(a.notes)})` : ""}`).join("; ");
     }},
+    { key: "audit_signer_name", label: "Audit Signer Name" },
+    { key: "audit_signer_role", label: "Audit Signer Role" },
+    { key: "audit_signer_date", label: "Audit Signer Date", fmt: (r: Record<string, unknown>) => {
+      // Prefer the auditor-declared declaration date; fall back to the digital signature timestamp.
+      if (r.audit_signer_date) {
+        const s = String(r.audit_signer_date);
+        const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        // Date-only values are parsed as local calendar dates to avoid UTC day-shift.
+        const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(s);
+        return isNaN(d.getTime()) ? s : d.toLocaleDateString("en-GB");
+      }
+      if (r.audit_signed_at) return fmtDate(r.audit_signed_at);
+      return "";
+    }},
   ];
 
   return (
