@@ -3854,7 +3854,11 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
               <p className="text-xs text-muted-foreground mt-0.5">Additive usage totals across pressing batches, fermentation records, and cellar sulfiting operations. SO₂ is captured at all three winemaking stages. Use the vintage filter above to scope results.</p>
             </div>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => printAdditionsReport(searchFilteredSummary, farmName, yearFilter === "all" ? "All vintages" : yearFilter)} disabled={!searchFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
+              <Button size="sm" variant="outline" onClick={() => {
+                const vintagePart = yearFilter === "all" ? "All vintages" : yearFilter;
+                const scopeLabel = colourFilter !== null ? `${vintagePart} · ${colourFilter} wine` : vintagePart;
+                printAdditionsReport(searchFilteredSummary, farmName, scopeLabel);
+              }} disabled={!searchFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
               <Button size="sm" variant="outline" onClick={() => {
                 const summaryUnitsByVintage = new Map<string, Set<string>>();
                 searchFilteredSummary.filter(r => r.category === "so2").forEach(r => {
@@ -3876,7 +3880,8 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                     `"WARNING: Mixed SO2 units detected — ${vintageList}","This export contains SO2 / KMS records measured in both mg/kg (at pressing) and mg/L (post-fermentation / cellar). The Total Dose column combines different units and CANNOT be compared or summed. Use the Unit column to interpret each row individually."`,
                   );
                 }
-                exportCSV(searchFilteredSummary, `pressing-additions-report-${yearFilter}.csv`, summaryCsvCols, prefixLines);
+                const colourSlug = colourFilter !== null ? `-${colourFilter.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-")}` : "";
+                exportCSV(searchFilteredSummary, `pressing-additions-report-${yearFilter}${colourSlug}.csv`, summaryCsvCols, prefixLines);
               }} disabled={!searchFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export Summary CSV</Button>
               <Button size="sm" variant="outline" onClick={() => {
                 const batchTrim = txLogBatchFilter.trim();
