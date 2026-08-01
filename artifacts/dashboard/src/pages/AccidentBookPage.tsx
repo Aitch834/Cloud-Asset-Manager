@@ -86,6 +86,7 @@ function AccidentPhotoPanel({ recordId, farmId, photos }: { recordId: number; fa
   const deleteMut = useMutation({
     mutationFn: (photoId: number) => fetch(`/api/farms/${farmId}/accident-book/${recordId}/photos/${photoId}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["accident-book", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const { uploadFile, isUploading, progress } = useUpload({
@@ -294,6 +295,7 @@ function AccidentStatusBadge({ status }: { status: string }) {
 
 function InvestigateDialog({ farmId, record, onClose }: { farmId: number; record: AccidentRecord; onClose: () => void }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [investigationDate, setInvestigationDate] = useState(new Date().toISOString().slice(0, 10));
   const [investigatedBy, setInvestigatedBy] = useState("");
   const [investigationNotes, setInvestigationNotes] = useState(record.investigationNotes ?? "");
@@ -313,6 +315,7 @@ function InvestigateDialog({ farmId, record, onClose }: { farmId: number; record
       }),
     }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["accident-book", farmId] }); onClose(); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   return (
@@ -362,6 +365,7 @@ function InvestigateDialog({ farmId, record, onClose }: { farmId: number; record
 
 function RecordCorrectiveActionDialog({ farmId, record, onClose }: { farmId: number; record: AccidentRecord; onClose: () => void }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [correctiveAction, setCorrectiveAction] = useState(record.correctiveAction ?? "");
   const [correctiveActionDate, setCorrectiveActionDate] = useState(new Date().toISOString().slice(0, 10));
   const [correctiveActionBy, setCorrectiveActionBy] = useState("");
@@ -377,6 +381,7 @@ function RecordCorrectiveActionDialog({ farmId, record, onClose }: { farmId: num
       }),
     }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["accident-book", farmId] }); onClose(); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   return (
@@ -408,6 +413,7 @@ function RecordCorrectiveActionDialog({ farmId, record, onClose }: { farmId: num
 
 function SignOffDialog({ farmId, record, onClose }: { farmId: number; record: AccidentRecord; onClose: () => void }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [signedOffBy, setSignedOffBy] = useState(record.signedOffBy ?? "");
   const [signOffDate, setSignOffDate] = useState(new Date().toISOString().slice(0, 10));
 
@@ -417,6 +423,7 @@ function SignOffDialog({ farmId, record, onClose }: { farmId: number; record: Ac
       body: JSON.stringify({ signedOffBy: signedOffBy || null, signOffDate: signOffDate || null, status: "closed" }),
     }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["accident-book", farmId] }); onClose(); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   return (
@@ -591,6 +598,7 @@ export default function AccidentBookPage() {
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/accident-book/${id}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Record deleted" }); invalidate(); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function handleSave() {

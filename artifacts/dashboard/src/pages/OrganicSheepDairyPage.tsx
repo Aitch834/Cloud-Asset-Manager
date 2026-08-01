@@ -235,6 +235,7 @@ function FlockConversionTab({ farmId }: { farmId: number }) {
   const remove = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-sheep-dairy/flock-conversion/${id}`), { method: "DELETE" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-sheep-flock-conv", farmId] }); toast({ title: "Record deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openNew() { setEditing(null); setForm({ status: "in-conversion", parallelProduction: false, conversionStartDate: today() }); setOpen(true); }
@@ -455,6 +456,7 @@ function OrganicCollectionsTab({ farmId }: { farmId: number }) {
   const remove = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-sheep-dairy/collections/${id}`), { method: "DELETE" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-sheep-collections", farmId] }); toast({ title: "Record deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openNew() { setEditing(null); setForm(blank); setAbrKitStockId(""); setFormTab("collection"); setOpen(true); }
@@ -805,6 +807,7 @@ function FeedNutritionTab({ farmId }: { farmId: number }) {
   const remove = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-sheep-dairy/feed/${id}`), { method: "DELETE" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-sheep-feed", farmId] }); toast({ title: "Record deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openNew() { setEditing(null); setForm({ isOrganicApproved: true, recordDate: today() }); setOpen(true); }
@@ -967,10 +970,12 @@ function MastitisTab({ farmId }: { farmId: number }) {
   const save = useMutation({
     mutationFn: (body: Partial<OrgSheepMastitisRecord>) => fetch(api(`farms/${farmId}/sheep-dairy/mastitis-records${editing ? `/${editing.id}` : ""}`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-mastitis", farmId] }); setOpen(false); toast({ title: editing ? "Record updated" : "Record added" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-dairy/mastitis-records/${id}`), { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-mastitis", farmId] }); toast({ title: "Record deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const mastiYears = useMemo(() => Array.from(new Set<string>(records.map(r => String(r.incidentDate || "").slice(0, 4)).filter(Boolean))).sort((a, b) => b.localeCompare(a)), [records]);
@@ -1132,6 +1137,7 @@ function TreatmentRegisterTab({ farmId }: { farmId: number }) {
   const remove = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-sheep-dairy/treatments/${id}`), { method: "DELETE" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-sheep-treatments", farmId] }); toast({ title: "Record deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openNew() { setEditing(null); setForm(blank); setOpen(true); }
@@ -1290,6 +1296,7 @@ function TreatmentRegisterTab({ farmId }: { farmId: number }) {
 
 function TuppingTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<TuppingRecord | null>(null);
   const [viewing, setViewing] = useState<TuppingRecord | null>(null);
@@ -1361,11 +1368,13 @@ function TuppingTab({ farmId }: { farmId: number }) {
       return tupping;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-tupping", farmId] }); qc.invalidateQueries({ queryKey: ["medicine-records", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-tupping-records/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["sheep-tupping", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));

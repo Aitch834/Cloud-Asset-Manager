@@ -95,6 +95,7 @@ function CertificationTab({ farmId }: { farmId: number }) {
   const mutDel = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-venison/certification/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-venison-cert", farmId] }); toast({ title: "Deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const open = (mode: "add" | "edit" | "view", row: Record<string, unknown> = {}) => {
@@ -250,6 +251,7 @@ function LandRegisterTab({ farmId }: { farmId: number }) {
   const mutDel = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-venison/land-register/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-venison-land", farmId] }); toast({ title: "Deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const open = (mode: "add" | "edit" | "view", row: Record<string, unknown> = {}) => {
@@ -394,6 +396,7 @@ function FeedSupplementsTab({ farmId }: { farmId: number }) {
   const mutDel = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-venison/feed-supplements/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-venison-feed", farmId] }); toast({ title: "Deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const open = (mode: "add" | "edit" | "view", row: Record<string, unknown> = {}) => {
@@ -546,14 +549,17 @@ function VensDerogCard({ farmId, c: rec, isExpanded, onToggle, qc }: {
   const saveEdit = useMutation({
     mutationFn: (body: any) => fetch(api(`farms/${farmId}/organic-venison/derogations/${rec.id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-venison-derog", farmId] }); setEditOpen(false); toast({ title: "Saved" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const saveDecision = useMutation({
     mutationFn: (body: any) => fetch(api(`farms/${farmId}/organic-venison/derogations/${rec.id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-venison-derog", farmId] }); setRecordDecisionOpen(false); toast({ title: "Decision recorded" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const delDerog = useMutation({
     mutationFn: () => fetch(api(`farms/${farmId}/organic-venison/derogations/${rec.id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-venison-derog", farmId] }); toast({ title: "Deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
   const saveCorr = useMutation({
     mutationFn: (body: any) => {
@@ -561,14 +567,17 @@ function VensDerogCard({ farmId, c: rec, isExpanded, onToggle, qc }: {
       return fetch(url, { method: editCorr ? "PUT" : "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["vens-derog-corr", rec.id] }); setCorrOpen(false); setEditCorr(null); toast({ title: "Saved" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const delCorr = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-venison/derogation-correspondence/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["vens-derog-corr", rec.id] }); toast({ title: "Deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
   const delDoc = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-venison/derogation-documents/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["vens-derog-docs", rec.id] }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const cfg = VENS_STATUS_CFG[rec.status] ?? VENS_STATUS_CFG.pending;

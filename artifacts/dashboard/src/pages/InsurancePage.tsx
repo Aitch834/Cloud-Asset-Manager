@@ -863,6 +863,7 @@ export default function InsurancePage() {
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/insurance/${id}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Policy removed" }); onRefresh(); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const activeRecords = records.filter(r => !r.supersededByRenewal);

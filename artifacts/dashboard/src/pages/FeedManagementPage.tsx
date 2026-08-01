@@ -212,6 +212,7 @@ export default function FeedManagementPage() {
   const deleteFpoMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/feed-purchase-orders/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { invalidate(); toast({ title: "Order removed" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
   const receiveFpoMut = useMutation({
     mutationFn: ({ id, date }: { id: number; date: string }) =>
@@ -221,6 +222,7 @@ export default function FeedManagementPage() {
         body: JSON.stringify({ status: "received", actualDeliveryDate: date }),
       }).then(r => r.json()),
     onSuccess: () => { invalidate(); setReceiveId(null); toast({ title: "Order marked as received — remember to log the delivery receipt in the Delivery Records tab." }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const [traceBinId, setTraceBinId] = useState<number | null>(null);
@@ -295,6 +297,7 @@ export default function FeedManagementPage() {
   const delDeliveryMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/feed-deliveries/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { invalidate(); toast({ title: "Delivery removed" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   // Stock dialog
@@ -346,6 +349,7 @@ export default function FeedManagementPage() {
   const delStockMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/feed-stock/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { invalidate(); toast({ title: "Bin removed" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   // Deep-link: ?bin=BINID — highlight and scroll to the specific bin card
@@ -1760,10 +1764,12 @@ function MedicatedFeedTab({ farmId }: { farmId: number }) {
       }).then(r => r.json());
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["medicated-feed", farmId] }); setOpen(false); toast({ title: "Record saved" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/medicated-feed/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["medicated-feed", farmId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const openAdd = () => { setEditItem(null); setForm({ ...emptyForm }); setOpen(true); };

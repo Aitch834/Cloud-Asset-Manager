@@ -109,6 +109,7 @@ function PhotoPanel({ incidentId, farmId, photos }: { incidentId: number; farmId
   const deleteMut = useMutation({
     mutationFn: (photoId: number) => fetch(`/api/farms/${farmId}/encampments/${incidentId}/photos/${photoId}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["encampments", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const { uploadFile, isUploading, progress } = useUpload({
@@ -286,16 +287,19 @@ export default function EncampmentPage() {
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/encampments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["encampments", farmId] }); setAddOpen(false); toast({ title: "Encampment logged" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/encampments/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["encampments", farmId] }); setEditItem(null); toast({ title: "Record updated" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/encampments/${id}`, { method: "DELETE" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["encampments", farmId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function handleSave() {

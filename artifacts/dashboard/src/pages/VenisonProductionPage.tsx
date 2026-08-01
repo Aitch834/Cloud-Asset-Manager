@@ -169,6 +169,7 @@ function CullRecordsTab({ farmId }: { farmId: number }) {
   const mutDel = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/venison-cull-records/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["venison-cull", farmId] }); toast({ title: "Deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const open = (mode: "add" | "edit" | "view", row: Record<string, unknown> = {}) => { setDlg({ open: true, mode, row }); setForm(row); };
@@ -404,6 +405,7 @@ function CarcassSalesTab({ farmId }: { farmId: number }) {
   const mutDel = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/venison-carcass-sales/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["venison-sales", farmId] }); toast({ title: "Deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const open = (mode: "add" | "edit" | "view", row: Record<string, unknown> = {}) => { setDlg({ open: true, mode, row }); setForm(row); };
@@ -596,6 +598,7 @@ function HerdMonitoringTab({ farmId }: { farmId: number }) {
   const mutDel = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/venison-herd-monitoring/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["venison-monitoring", farmId] }); toast({ title: "Deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const open = (mode: "add" | "edit" | "view", row: Record<string, unknown> = {}) => { setDlg({ open: true, mode, row }); setForm(row); };
@@ -768,6 +771,7 @@ function HealthRecordsTab({ farmId }: { farmId: number }) {
   const mutDel = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/venison-health-records/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["venison-health", farmId] }); toast({ title: "Deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const open = (mode: "add" | "edit" | "view", row: Record<string, unknown> = {}) => { setDlg({ open: true, mode, row }); setForm(row); };
@@ -957,6 +961,7 @@ function FirearmsRegisterTab({ farmId }: { farmId: number }) {
   const mutDel = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/venison-firearms-register/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["venison-firearms", farmId] }); toast({ title: "Deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const open = (mode: "add" | "edit" | "view", row: Record<string, unknown> = {}) => {

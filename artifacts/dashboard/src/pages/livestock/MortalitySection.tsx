@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -173,6 +174,7 @@ function ArrangeDisposalDialog({ farmId, record, contractors, onClose }: {
   farmId: number; record: MortalityRecord; contractors: FallenStockContractor[]; onClose: () => void;
 }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const base = `/api/farms/${farmId}/mortality-records`;
   const [contractorId, setContractorId] = useState(record.contractorId ? String(record.contractorId) : "");
   const [disposalOperator, setDisposalOperator] = useState(record.disposalOperator ?? "");
@@ -198,6 +200,7 @@ function ArrangeDisposalDialog({ farmId, record, contractors, onClose }: {
       }),
     }).then(r => { if (!r.ok) throw new Error("Failed"); }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); onClose(); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   return (
@@ -275,6 +278,7 @@ function LogCollectionDialog({ farmId, record, onClose }: {
   farmId: number; record: MortalityRecord; onClose: () => void;
 }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const base = `/api/farms/${farmId}/mortality-records`;
   const [disposalRef, setDisposalRef] = useState(record.disposalRef ?? "");
 
@@ -284,6 +288,7 @@ function LogCollectionDialog({ farmId, record, onClose }: {
       body: JSON.stringify({ disposalRef: disposalRef || null, status: "disposed" }),
     }).then(r => { if (!r.ok) throw new Error("Failed"); }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); onClose(); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const contractorLabel = record.contractorName || record.disposalOperator || "Contractor";
@@ -331,6 +336,7 @@ function CloseRecordDialog({ farmId, record, vetOptions, onClose }: {
   onClose: () => void;
 }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const base = `/api/farms/${farmId}/mortality-records`;
   const [veterinaryAttended, setVeterinaryAttended] = useState(record.veterinaryAttended);
   const [vetName, setVetName] = useState(record.vetName ?? "");
@@ -354,6 +360,7 @@ function CloseRecordDialog({ farmId, record, vetOptions, onClose }: {
       }),
     }).then(r => { if (!r.ok) throw new Error("Failed"); }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); onClose(); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   return (
@@ -468,6 +475,7 @@ const EMPTY_FULL = {
 
 export function MortalitySection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const base = `/api/farms/${farmId}/mortality-records`;
 
   const { data, isLoading } = useQuery<{ records: MortalityRecord[] }>({
@@ -564,14 +572,17 @@ export function MortalitySection({ farmId }: { farmId: number }) {
   const createMut = useMutation({
     mutationFn: (body: typeof EMPTY_FULL) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); qc.invalidateQueries({ queryKey: ["animals", farmId] }); qc.invalidateQueries({ queryKey: ["notifications", farmId] }); setShowFullEdit(false); setFullForm(EMPTY_FULL); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateMut = useMutation({
     mutationFn: (body: typeof EMPTY_FULL & { id: number }) => fetch(`${base}/${body.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); qc.invalidateQueries({ queryKey: ["notifications", farmId] }); setEditRecord(null); setShowFullEdit(false); setFullForm(EMPTY_FULL); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function handleFullSubmit(e: React.FormEvent) {

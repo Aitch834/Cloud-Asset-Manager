@@ -74,6 +74,7 @@ function ReadingsTab({ farmId }: { farmId: number }) {
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/weather-readings/${id}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const fetchWeatherFromApi = useCallback(async () => {
@@ -324,6 +325,7 @@ function VehicleReadingsTab({ farmId }: { farmId: number }) {
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/vehicle-weather-readings/${id}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const handleEquipmentSelect = (val: string) => {
@@ -621,6 +623,7 @@ function DevicesTab({ farmId }: { farmId: number }) {
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/vehicle-weather-devices/${id}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Device removed" }); invalidate(); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const openEdit = (r: any) => {

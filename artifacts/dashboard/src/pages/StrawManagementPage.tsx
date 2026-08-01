@@ -3047,6 +3047,7 @@ export default function StrawManagementPage() {
 // ─── Fusarium Test Kit Stock Section ─────────────────────────────────────────
 function FusariumKitStockSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [form, setForm] = useState<Record<string, any>>({});
@@ -3067,11 +3068,13 @@ function FusariumKitStockSection({ farmId }: { farmId: number }) {
       return fetch(url, { method: editingItem ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json());
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["straw-fusarium-kit-stock", farmId] }); setOpen(false); setEditingItem(null); setForm({}); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const del = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/straw/fusarium-test-kit-stock/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["straw-fusarium-kit-stock", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openAdd() { setEditingItem(null); setForm({ quantityPurchased: 0, quantityUsed: 0, lowStockThreshold: 5 }); setOpen(true); }

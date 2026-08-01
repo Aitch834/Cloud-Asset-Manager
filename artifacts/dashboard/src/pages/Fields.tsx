@@ -826,6 +826,7 @@ const EMPTY_SEED = {
 
 function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: FieldRecord[] }) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [cropYear, setCropYear] = useState<number>(() => currentCropYear());
   const { data: membersData } = useFarmMembers(farmId);
@@ -858,6 +859,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
       return res.json();
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["seed-drilling", farmId] }); setShowForm(false); setFormData(EMPTY_SEED); setAreaWarning(null); setPendingBody(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const updateMutation = useMutation({
@@ -867,11 +869,13 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
       return res.json();
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["seed-drilling", farmId] }); setEditingRecord(null); setShowForm(false); setFormData(EMPTY_SEED); setAreaWarning(null); setPendingBody(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => { await fetch(`${baseUrl}/${id}`, { method: "DELETE" }); },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["seed-drilling", farmId] }); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const records: SeedRecord[] = data?.records ?? [];
@@ -1509,6 +1513,7 @@ function SeasonRainfallBadge({ lat, lng, startDate, endDate }: {
 export default function FieldsPage() {
   const { farmId } = useAppStore();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [tab, setTab] = useState<"fields" | "crops" | "seed" | "tenure" | "rotation" | "map" | "grassland">("fields");
   const [search, setSearch] = useState("");
   const [isAddFieldOpen, setIsAddFieldOpen] = useState(false);
@@ -1701,16 +1706,19 @@ export default function FieldsPage() {
     mutationFn: (data: Partial<LandUseRecord> & { fieldId: number; year: number; landUse: string }) =>
       fetch(`/api/farms/${safeFarmId}/field-season-land-use`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(r => r.json()),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["field-season-land-use", safeFarmId] }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateLandUseMut = useMutation({
     mutationFn: ({ id, ...data }: Partial<LandUseRecord> & { id: number }) =>
       fetch(`/api/farms/${safeFarmId}/field-season-land-use/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(r => r.json()),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["field-season-land-use", safeFarmId] }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteLandUseMut = useMutation({
     mutationFn: (id: number) =>
       fetch(`/api/farms/${safeFarmId}/field-season-land-use/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["field-season-land-use", safeFarmId] }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const { uploadFile, isUploading: isUploadingTenureDoc } = useUpload();

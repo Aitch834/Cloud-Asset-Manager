@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
+import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { Redirect } from "wouter";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -112,6 +113,7 @@ function FlocksTab({ farmId }: { farmId: number }) {
 // ─── MOVEMENTS TAB ─────────────────────────────────────────────────────────────
 function MovementsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
@@ -126,11 +128,13 @@ function MovementsTab({ farmId }: { farmId: number }) {
       return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-movements", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-movements/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-movements", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openAdd() { setEditing(null); setForm({}); setOpen(true); }
@@ -230,6 +234,7 @@ function MovementsTab({ farmId }: { farmId: number }) {
 // ─── FCI DOCUMENTS TAB ─────────────────────────────────────────────────────────
 function FciDocumentsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
@@ -243,11 +248,13 @@ function FciDocumentsTab({ farmId }: { farmId: number }) {
       return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-fci", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-fci-documents/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-fci", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openAdd() { setEditing(null); setForm({ withdrawalPeriodClear: true, signedByFarmer: true }); setOpen(true); }
@@ -403,6 +410,7 @@ function PigFeedDeliveriesView({ farmId }: { farmId: number }) {
 // ─── PIG PEN CONSUMPTION RECORDS ──────────────────────────────────────────────
 function PigPenConsumptionView({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
@@ -451,10 +459,12 @@ function PigPenConsumptionView({ farmId }: { farmId: number }) {
       return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(payload) });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-feed-consumption", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-feed-consumption/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-feed-consumption", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openAdd() { setEditing(null); setForm({}); setOpen(true); }
@@ -633,6 +643,7 @@ function FeedRecordsTab({ farmId }: { farmId: number }) {
 // ─── VET ASSESSMENTS TAB ───────────────────────────────────────────────────────
 function VetAssessmentsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
@@ -649,11 +660,13 @@ function VetAssessmentsTab({ farmId }: { farmId: number }) {
       return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-vet", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-vet-assessments/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-vet", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openAdd() { setEditing(null); setForm({}); setOpen(true); }
@@ -756,6 +769,7 @@ function VetAssessmentsTab({ farmId }: { farmId: number }) {
 // ─── STOCKMANSHIP CHECKS TAB ───────────────────────────────────────────────────
 function StockmanshipChecksTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
@@ -786,11 +800,13 @@ function StockmanshipChecksTab({ farmId }: { farmId: number }) {
       return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-stockmanship", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-stockmanship-checks/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-stockmanship", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const defaults = { waterSystemOk: true, feedSystemOk: true, ventilationOk: true, temperatureOk: true, lightingOk: true, beddingOk: true };
@@ -879,6 +895,7 @@ function StockmanshipChecksTab({ farmId }: { farmId: number }) {
 
 function TailBitingRisksTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
@@ -908,8 +925,9 @@ function TailBitingRisksTab({ farmId }: { farmId: number }) {
       return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-tail-biting", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-tail-biting-risks/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-tail-biting", farmId] }) });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-tail-biting-risks/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-tail-biting", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   const defaults = { tailLengthAdequate: true, stockingDensityOk: true, enrichmentProvided: true, feedingSystemOk: true, healthStatusOk: true, currentBiting: false, tailsDockedAtBirth: false };
   function openAdd() { setEditing(null); setForm({ ...defaults }); setOpen(true); }
   function openEdit(r: Record<string, unknown>) { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : v as string | boolean]))); setOpen(true); }
@@ -1063,6 +1081,7 @@ function FarrowingEaseBadge({ v }: { v?: string | null }) {
 
 function FarrowingRecordsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const todayStr = new Date().toISOString().slice(0, 10);
   const EMPTY: Partial<FarrowingRecord> = {
     totalBornAlive: 0, totalBornDead: 0, totalMummified: 0,
@@ -1104,10 +1123,12 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
       return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-farrowing", farmId] }); closeDialog(); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-farrowing-records/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-farrowing", farmId] }); setConfirmDelete(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function closeDialog() { setOpen(false); setEditing(null); setForm(EMPTY); setShowManualVet(false); }
@@ -1694,6 +1715,7 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
 
 function PigRedTractorChecklistTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
@@ -1703,8 +1725,8 @@ function PigRedTractorChecklistTab({ farmId }: { farmId: number }) {
   const [rtcYearFilter, setRtcYearFilter] = useState("all");
   const rtcYears = useMemo(() => Array.from(new Set((allRtcRecords as Record<string,unknown>[]).map(r => String(r.assessmentDate || "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allRtcRecords]);
   const records = useMemo(() => rtcYearFilter === "all" ? allRtcRecords as Record<string,unknown>[] : (allRtcRecords as Record<string,unknown>[]).filter(r => String(r.assessmentDate || "").startsWith(rtcYearFilter)), [allRtcRecords, rtcYearFilter]);
-  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/pig-red-tractor-checklists/${editing.id}`) : api(`farms/${farmId}/pig-red-tractor-checklists`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-rt-checklist", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-red-tractor-checklists/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-rt-checklist", farmId] }) });
+  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/pig-red-tractor-checklists/${editing.id}`) : api(`farms/${farmId}/pig-red-tractor-checklists`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-rt-checklist", farmId] }); setOpen(false); setForm({}); setEditing(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-red-tractor-checklists/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-rt-checklist", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
 
   const BoolField = ({ label, field }: { label: string; field: string }) => (
     <div className="flex items-center gap-2">
@@ -1891,6 +1913,7 @@ function WithdrawalBadge({ endDate }: { endDate: string | null | undefined }) {
 
 function MedicineRegisterTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
@@ -1912,11 +1935,13 @@ function MedicineRegisterTab({ farmId }: { farmId: number }) {
       return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-medicine-treatments", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-medicine-treatments/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-medicine-treatments", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const EMPTY_FORM: Record<string, string | boolean> = {
@@ -2281,6 +2306,7 @@ function OverviewTab({ farmId, onGoto }: { farmId: number; onGoto: (tab: string)
 // ─── Kill Records Tab ──────────────────────────────────────────────────────────
 function KillRecordsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const { data: allKillRecords = [], isLoading } = useQuery<Record<string, unknown>[]>({
     queryKey: ["pig-kill-records", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/pig-kill-records`), { credentials: "include" }).then(r => r.json()).then((d: unknown) => {
@@ -2314,10 +2340,12 @@ function KillRecordsTab({ farmId }: { farmId: number }) {
       method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b),
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-kill-records", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-kill-records/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-kill-records", farmId] }); setConfirmDelete(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const totalDeadweight = (records as Record<string, unknown>[]).reduce((s, r) => s + parseFloat(String(r.totalDeadweightKg ?? "0") || "0"), 0);
@@ -2728,6 +2756,7 @@ const SALM_CATEGORIES = [1, 2, 3, 4, 5];
 
 function SalmonellaMonitoringTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
@@ -2759,6 +2788,7 @@ function SalmonellaMonitoringTab({ farmId }: { farmId: number }) {
       return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-salmonella-monitoring", farmId] }); setOpen(false); setForm({ sampleType: "meat_juice_elisa", actionRequired: false }); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   function printSalmonella() {
@@ -2926,6 +2956,7 @@ const PIG_ADMIN_ROUTES = ["Intramuscular", "Subcutaneous", "Intradermal", "Intra
 
 function PigVaccinationTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({ vaccinationCategory: "PRRS", vetPrescribed: false });
@@ -2948,6 +2979,7 @@ function PigVaccinationTab({ farmId }: { farmId: number }) {
       return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-vaccination-records", farmId] }); setOpen(false); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   async function del(id: number) {
@@ -3118,6 +3150,7 @@ const HERD_STATUS_COLOURS: Record<string, string> = {
 
 function PigDiseaseMonitoringTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({ monitoringType: "PRRS" });
@@ -3138,6 +3171,7 @@ function PigDiseaseMonitoringTab({ farmId }: { farmId: number }) {
       return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-disease-monitoring", farmId] }); setOpen(false); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   async function del(id: number) {

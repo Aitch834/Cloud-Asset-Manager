@@ -584,6 +584,7 @@ function ProbePanel({ probe, farmId, fields }: { probe: SoilSensorProbe; farmId:
       if (!res.ok) throw new Error("Delete failed");
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["soil-readings", probe.id] }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const readings = data?.records ?? [];
@@ -959,6 +960,7 @@ export function SoilSensorsTab({ farmId }: { farmId: number }) {
       qc.invalidateQueries({ queryKey: ["soil-sensors", farmId] });
       toast({ title: "Probe removed" });
     },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const toggleExpand = (id: number) =>

@@ -288,6 +288,7 @@ export default function GrantsPage() {
       toast({ title: "Grant removed" });
       setDeleting(null);
     },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openAdd() {

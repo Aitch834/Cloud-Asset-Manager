@@ -1457,6 +1457,7 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/environmental-management-events/${id}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openAdd() { setForm(emptyForm()); setAddOpen(true); }
@@ -2052,6 +2053,7 @@ function SFIActionsTab({ farmId, openId }: { farmId: number; openId?: number | n
       await fetch(`/api/farms/${farmId}/sfi-agreements/${id}`, { method: "DELETE", credentials: "include" });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sfi-agreements", farmId] }); qc.invalidateQueries({ queryKey: ["sfi-actions", farmId] }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const rows = agreements as Record<string, unknown>[];
@@ -2844,6 +2846,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
       setInspForm({});
       setEditingInsp(null);
       toast({ title: wasEditing ? "Inspection updated" : "Inspection recorded" });
+
       const hasLeaks = variables.leaksOrDamageFound === "true";
       const hasDeficiencies = !!variables.deficiencies?.trim();
       const hasActions = !!variables.actionsRequired?.trim();

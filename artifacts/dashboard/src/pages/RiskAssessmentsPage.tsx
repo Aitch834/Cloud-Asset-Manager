@@ -227,6 +227,7 @@ function RiskAssessmentTab({ farmId, openId }: { farmId: number; openId?: number
   const deleteMutation = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/risk-assessments/${id}`, { method: "DELETE" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["risk-assessments", farmId] }); setDeleteId(null); toast({ title: "Assessment deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openAdd() { setEditing(null); setForm({ ...EMPTY, assessmentDate: new Date().toISOString().slice(0, 10) }); setShowTemplates(false); setDialogOpen(true); }
@@ -958,6 +959,7 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/workshop/pat-equipment/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pat-equipment", farmId] }); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const createTestMut = useMutation({
@@ -992,6 +994,7 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
       qc.invalidateQueries({ queryKey: ["pat-equipment", farmId] });
       setDeleteTestId(null);
     },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openEdit(r: PatEquipment) {
@@ -1560,6 +1563,7 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] }); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const createServiceMut = useMutation({
@@ -1594,6 +1598,7 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
       qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] });
       setDeleteServiceId(null);
     },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openEdit(r: FireExtinguisher) {

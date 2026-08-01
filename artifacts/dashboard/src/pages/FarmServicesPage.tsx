@@ -1153,6 +1153,7 @@ function GrainIntakeTab({ farmId, customers }: { farmId: number; customers: Farm
     mutationFn: ({ intakeId, mvId }: { intakeId: number; mvId: number }) =>
       fetch(`/api/farms/${farmId}/grain-intakes/${intakeId}/movements/${mvId}`, { method: "DELETE", credentials: "include" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-movements", farmId, expandedId] }); toast({ title: "Movement deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openAdd() { setEdit(null); setForm(emptyForm()); setOpen(true); }
@@ -1630,6 +1631,7 @@ function WorkOrdersTab({ farmId, customers, onRaiseInvoice }: { farmId: number; 
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/task-assignments/${id}`, { method: "DELETE", credentials: "include" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["work-orders", farmId] }); toast({ title: "Work order deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openCreate() { setEditWo(null); setWoForm(emptyWoForm()); setDialogOpen(true); }
@@ -2068,11 +2070,13 @@ function InvoicesTab({ farmId, customers, prefill }: { farmId: number; customers
     mutationFn: ({ id, paymentDate }: { id: number; paymentDate: string }) =>
       fetch(`/api/farms/${farmId}/service-invoices/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ status: "paid", paymentDate }) }).then((r) => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["service-invoices", farmId] }); toast({ title: "Marked as paid" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/service-invoices/${id}`, { method: "DELETE", credentials: "include" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["service-invoices", farmId] }); toast({ title: "Invoice deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function addLine() { setLines((l) => [...l, { description: "", quantity: "", unit: "tonnes", unitPricePence: "", lineTotalPence: 0 }]); }
@@ -2608,6 +2612,7 @@ function HireBookingDialog({
       toast({ title: isEdit ? "Booking updated" : "Booking created" });
       onClose();
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   function handleSave() {
@@ -2833,6 +2838,7 @@ function ConditionCheckForm({
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data),
       }).then((r) => r.json()),
     onSuccess: () => { toast({ title: `${logType === "hire_out" ? "Pre-hire" : "Return"} check saved` }); onSaved(); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   function handleSave() {
     mut.mutate({
@@ -2894,6 +2900,7 @@ function FuelIssueForm({
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data),
       }).then((r) => r.json()),
     onSuccess: () => { toast({ title: "Fuel issue logged" }); onSaved(); setForm({ issueDate: today, litres: "", pricePerLitrePence: "", billedToCustomer: true, issuedBy: "", notes: "" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   function handleSave() {
     if (!form.litres || parseFloat(form.litres) <= 0) { toast({ title: "Enter litres issued", variant: "destructive" }); return; }
@@ -2991,6 +2998,7 @@ function BookingDetailPanel({
       toast({ title: `Booking status updated to ${HIRE_STATUSES.find((s) => s.value === status)?.label || status}` });
       if (triggerPlanner) setPlannerPrompt(true);
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   async function addToPlanner(b: HireBooking) {
@@ -3031,12 +3039,14 @@ function BookingDetailPanel({
     mutationFn: (condId: number) =>
       fetch(`/api/farms/${farmId}/equipment-hire/${bookingId}/conditions/${condId}`, { method: "DELETE", credentials: "include" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hire-booking-detail", farmId, bookingId] }); toast({ title: "Condition log removed" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const deleteFuelMut = useMutation({
     mutationFn: (fuelId: number) =>
       fetch(`/api/farms/${farmId}/equipment-hire/${bookingId}/fuel/${fuelId}`, { method: "DELETE", credentials: "include" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hire-booking-detail", farmId, bookingId] }); toast({ title: "Fuel issue removed" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const updateCostMut = useMutation({
@@ -3046,6 +3056,7 @@ function BookingDetailPanel({
         body: JSON.stringify({ totalHireCostPence }),
       }).then((r) => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hire-booking-detail", farmId, bookingId] }); toast({ title: "Hire cost updated" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const [costInput, setCostInput] = useState("");
@@ -3434,6 +3445,7 @@ function EquipmentHireTab({
   const cancelMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/equipment-hire/${id}`, { method: "DELETE", credentials: "include" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["equipment-hire", farmId] }); toast({ title: "Booking cancelled" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const bookings = bookingsQ.data?.records ?? [];

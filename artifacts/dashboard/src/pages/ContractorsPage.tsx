@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAppStore } from "@/hooks/use-app-store";
 import { Button } from "@/components/ui/button";
@@ -195,6 +196,7 @@ function RamsUploadWidget({ documentUrl, documentName, onChange }: {
 // ─── Expanded card section ───────────────────────────────────────────────────
 function ExpandedContractorSection({ contractor, farmId }: { contractor: Contractor; farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const base = `/api/farms/${farmId}/contractors/${contractor.id}`;
 
   const [activeTab, setActiveTab] = useState<"contacts" | "rams">("contacts");
@@ -208,14 +210,17 @@ function ExpandedContractorSection({ contractor, farmId }: { contractor: Contrac
   const addContactMut = useMutation({
     mutationFn: (b: typeof EMPTY_CONTACT) => fetch(`${base}/contacts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] }); setShowContactForm(false); setContactForm({ ...EMPTY_CONTACT }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateContactMut = useMutation({
     mutationFn: (b: typeof EMPTY_CONTACT & { id: number }) => fetch(`${base}/contacts/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] }); setEditingContact(null); setShowContactForm(false); setContactForm({ ...EMPTY_CONTACT }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteContactMut = useMutation({
     mutationFn: (id: number) => fetch(`${base}/contacts/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   // ── RAMS ──
@@ -240,18 +245,22 @@ function ExpandedContractorSection({ contractor, farmId }: { contractor: Contrac
   const addRamsMut = useMutation({
     mutationFn: (b: typeof EMPTY_RAMS) => fetch(`${base}/rams`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] }); setShowRamsForm(false); setRamsForm({ ...EMPTY_RAMS }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateRamsMut = useMutation({
     mutationFn: (b: typeof EMPTY_RAMS & { id: number }) => fetch(`${base}/rams/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] }); setEditingRams(null); setShowRamsForm(false); setRamsForm({ ...EMPTY_RAMS }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteRamsMut = useMutation({
     mutationFn: (id: number) => fetch(`${base}/rams/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
   const markReviewedMut = useMutation({
     mutationFn: (ramsId: number) => fetch(`${base}/rams/${ramsId}/review`, { method: "PATCH" }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["contractors-hs", farmId] }),
+    onError: () => toast({ title: "Update failed", variant: "destructive" }),
   });
   const raiseTaskMut = useMutation({
     mutationFn: ({ ramsId, body }: { ramsId: number; body: object }) =>
@@ -261,6 +270,7 @@ function ExpandedContractorSection({ contractor, farmId }: { contractor: Contrac
       setAssignDialog(null);
       setAssignMemberId(""); setAssignDueDate(""); setAssignNote("");
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const { contacts, rams } = contractor;
@@ -491,6 +501,7 @@ function ExpandedContractorSection({ contractor, farmId }: { contractor: Contrac
 export default function ContractorsPage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
+  const { toast } = useToast();
   if (!farmId) return <Redirect href="/select" />;
 
   const base = `/api/farms/${farmId}/contractors`;
@@ -527,14 +538,17 @@ export default function ContractorsPage() {
   const createMut = useMutation({
     mutationFn: (b: typeof EMPTY_FORM) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
     onSuccess: (d) => { invalidate(); setShowForm(false); setForm({ ...EMPTY_FORM }); if (d.contractor) setExpandedId(d.contractor.id); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateMut = useMutation({
     mutationFn: (b: typeof EMPTY_FORM & { id: number }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
     onSuccess: () => { invalidate(); setShowForm(false); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deactivateMut = useMutation({
     mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { invalidate(); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openEdit(c: Contractor) {

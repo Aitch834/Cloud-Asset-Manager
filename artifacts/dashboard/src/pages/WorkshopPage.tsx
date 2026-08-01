@@ -148,6 +148,7 @@ const EMPTY_JOB = { jobType: "repair", title: "", priority: "medium", status: "o
 
 function JobDocumentsSection({ farmId, jobId }: { farmId: number; jobId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadedBy, setUploadedBy] = useState("");
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -160,6 +161,7 @@ function JobDocumentsSection({ farmId, jobId }: { farmId: number; jobId: number 
   const deleteDoc = useMutation({
     mutationFn: (docId: number) => fetch(api(`farms/${farmId}/workshop/jobs/${jobId}/documents/${docId}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["job-docs", jobId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const saveDocMeta = useMutation({
@@ -169,6 +171,7 @@ function JobDocumentsSection({ farmId, jobId }: { farmId: number; jobId: number 
       qc.invalidateQueries({ queryKey: ["job-docs", jobId] });
       if (fileInputRef.current) fileInputRef.current.value = "";
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const { uploadFile, isUploading, progress } = useUpload({
@@ -371,6 +374,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
       qc.invalidateQueries({ queryKey: ["job-issued-parts", editing?.id] });
       setIssuePartId(""); setIssueQty(""); setIssueBy("");
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const addLabourEntry = useMutation({
@@ -381,6 +385,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
       qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] });
       setNewLabourEntry({ date: new Date().toISOString().slice(0, 10), description: "", chargeUnits: "" });
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const deleteLabourEntry = useMutation({
@@ -389,6 +394,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
       qc.invalidateQueries({ queryKey: ["job-labour-entries", editing?.id] });
       qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] });
     },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const saveWorkshopSettings = useMutation({
@@ -399,6 +405,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
       setSettingsOpen(false);
       toast({ title: "Workshop settings saved" });
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const save = useMutation({
@@ -420,11 +427,13 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
       }
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] }); setOpen(false); setEditing(null); setForm(EMPTY_JOB); setPendingLabourEntries([]); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/jobs/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openAdd() { setEditing(null); setForm(EMPTY_JOB); setOpen(true); setManualParts([]); setNewPart({ name: "", qty: "", cost: "" }); setPendingLabourEntries([]); setNewLabourEntry({ date: new Date().toISOString().slice(0, 10), description: "", chargeUnits: "" }); }
@@ -1593,6 +1602,7 @@ interface GoodsReturn {
 
 function GoodsReturnsView({ farmId, parts, staffNames, membersLoading }: { farmId: number; parts: Part[]; staffNames: string[]; membersLoading: boolean }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState("all");
   const [newOpen, setNewOpen] = useState(false);
   const [editReturn, setEditReturn] = useState<GoodsReturn | null>(null);
@@ -1620,16 +1630,19 @@ function GoodsReturnsView({ farmId, parts, staffNames, membersLoading }: { farmI
       setNewOpen(false);
       setForm({ stockItemId: "", stockItemName: "", supplierId: "", quantity: "", unit: "", unitCostPence: "", returnReasonCode: "faulty", returnReason: "", raisedBy: "", originalDeliveryRef: "", notes: "" });
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const updateReturn = useMutation({
     mutationFn: ({ id, body }: { id: number; body: Record<string, string | null> }) => fetch(api(`farms/${farmId}/workshop/returns/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-returns", farmId] }); setEditReturn(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const deleteReturn = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/returns/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["workshop-returns", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function setF(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
@@ -1971,6 +1984,7 @@ function printStocktakeReport(session: { stocktakeDate: string; notes?: string |
 
 function LocationManager({ farmId, onClose }: { farmId: number; onClose: () => void }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const inv = () => { qc.invalidateQueries({ queryKey: ["workshop-rows-lm", farmId] }); qc.invalidateQueries({ queryKey: ["workshop-rows", farmId] }); };
 
   const [rowForm, setRowForm] = useState({ name: "", description: "" });
@@ -1989,17 +2003,17 @@ function LocationManager({ farmId, onClose }: { farmId: number; onClose: () => v
   const lmRows = data?.rows ?? [];
   const unassignedBays = data?.unassignedBays ?? [];
 
-  const createRow = useMutation({ mutationFn: (b: { name: string; description: string }) => fetch(api(`farms/${farmId}/workshop/rows`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { inv(); setRowForm({ name: "", description: "" }); } });
-  const updateRow = useMutation({ mutationFn: ({ id, ...b }: { id: number; name: string; description: string }) => fetch(api(`farms/${farmId}/workshop/rows/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { inv(); setEditingRow(null); } });
-  const deleteRow = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/rows/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()), onSuccess: inv });
+  const createRow = useMutation({ mutationFn: (b: { name: string; description: string }) => fetch(api(`farms/${farmId}/workshop/rows`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { inv(); setRowForm({ name: "", description: "" }); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
+  const updateRow = useMutation({ mutationFn: ({ id, ...b }: { id: number; name: string; description: string }) => fetch(api(`farms/${farmId}/workshop/rows/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { inv(); setEditingRow(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
+  const deleteRow = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/rows/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()), onSuccess: inv, onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
 
-  const createBay = useMutation({ mutationFn: (b: { name: string; description: string; rowId?: number }) => fetch(api(`farms/${farmId}/workshop/bays`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: (_d: unknown, vars: { name: string; description: string; rowId?: number }) => { inv(); const k = vars.rowId ? `r-${vars.rowId}` : "unassigned"; setBayFormByRow(f => ({ ...f, [k]: { name: "", description: "" } })); } });
-  const updateBay = useMutation({ mutationFn: ({ id, ...b }: { id: number; name: string; description: string; rowId?: number }) => fetch(api(`farms/${farmId}/workshop/bays/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { inv(); setEditingBay(null); } });
-  const deleteBay = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/bays/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()), onSuccess: inv });
+  const createBay = useMutation({ mutationFn: (b: { name: string; description: string; rowId?: number }) => fetch(api(`farms/${farmId}/workshop/bays`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: (_d: unknown, vars: { name: string; description: string; rowId?: number }) => { inv(); const k = vars.rowId ? `r-${vars.rowId}` : "unassigned"; setBayFormByRow(f => ({ ...f, [k]: { name: "", description: "" } })); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
+  const updateBay = useMutation({ mutationFn: ({ id, ...b }: { id: number; name: string; description: string; rowId?: number }) => fetch(api(`farms/${farmId}/workshop/bays/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { inv(); setEditingBay(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
+  const deleteBay = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/bays/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()), onSuccess: inv, onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
 
-  const createShelf = useMutation({ mutationFn: ({ bayId, name, capacity }: { bayId: number; name: string; capacity: string }) => fetch(api(`farms/${farmId}/workshop/bays/${bayId}/shelves`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, capacity: capacity || null }) }).then(r => r.json()), onSuccess: (_d: unknown, vars: { bayId: number; name: string; capacity: string }) => { inv(); setShelfFormByBay(f => ({ ...f, [vars.bayId]: { name: "", capacity: "" } })); } });
-  const updateShelf = useMutation({ mutationFn: ({ id, ...b }: { id: number; name: string; capacity: string }) => fetch(api(`farms/${farmId}/workshop/shelves/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { inv(); setEditingShelf(null); } });
-  const deleteShelf = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/shelves/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()), onSuccess: inv });
+  const createShelf = useMutation({ mutationFn: ({ bayId, name, capacity }: { bayId: number; name: string; capacity: string }) => fetch(api(`farms/${farmId}/workshop/bays/${bayId}/shelves`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, capacity: capacity || null }) }).then(r => r.json()), onSuccess: (_d: unknown, vars: { bayId: number; name: string; capacity: string }) => { inv(); setShelfFormByBay(f => ({ ...f, [vars.bayId]: { name: "", capacity: "" } })); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
+  const updateShelf = useMutation({ mutationFn: ({ id, ...b }: { id: number; name: string; capacity: string }) => fetch(api(`farms/${farmId}/workshop/shelves/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { inv(); setEditingShelf(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
+  const deleteShelf = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/shelves/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()), onSuccess: inv, onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
 
   function toggleRow(key: string) { setExpandedRows(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; }); }
   function toggleBay(id: number) { setExpandedBays(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; }); }
@@ -2218,6 +2232,7 @@ function PartPanel({ farmId, part, onClose, onEdit }: {
   onEdit: (p: Part) => void;
 }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadedBy, setUploadedBy] = useState("");
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -2237,6 +2252,7 @@ function PartPanel({ farmId, part, onClose, onEdit }: {
   const deleteDoc = useMutation({
     mutationFn: (docId: number) => fetch(api(`farms/${farmId}/workshop/parts/${part.id}/documents/${docId}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["part-docs", part.id] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const saveDocMeta = useMutation({
@@ -2246,6 +2262,7 @@ function PartPanel({ farmId, part, onClose, onEdit }: {
       qc.invalidateQueries({ queryKey: ["part-docs", part.id] });
       if (fileInputRef.current) fileInputRef.current.value = "";
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const { uploadFile, isUploading, progress } = useUpload({
@@ -2471,6 +2488,7 @@ function PartPanel({ farmId, part, onClose, onEdit }: {
 
 function PartsStoreTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
   const staffNames = (membersData?.members ?? []).map((m: any) => memberFullName(m));
 
@@ -2515,21 +2533,25 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
       return fetch(url, { method: editing ? "PUT" : "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(r => r.json());
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-parts", farmId] }); setAddOpen(false); setEditing(null); setForm(EMPTY_PART); setFormBayId(""); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const deletePart = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/parts/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-parts", farmId] }); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const receive = useMutation({
     mutationFn: (body: Record<string, string>) => fetch(api(`farms/${farmId}/workshop/parts/receive`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stockItemId: receivePart?.id, quantity: body.qty, supplierId: body.supplierId || null, unitCostPence: body.unitCostPence || null, invoiceReference: body.invoiceRef, deliveryDate: body.date, notes: body.notes, performedBy: body.performedBy }) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-parts", farmId] }); qc.invalidateQueries({ queryKey: ["workshop-parts-movements", farmId] }); setReceiveOpen(false); setReceiveForm({ qty: "", unitCostPence: "", supplierId: "", invoiceRef: "", date: new Date().toISOString().slice(0, 10), notes: "", performedBy: "" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const useParts = useMutation({
     mutationFn: (body: Record<string, string>) => fetch(api(`farms/${farmId}/workshop/parts/use`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stockItemId: usePart?.id, quantity: body.qty, jobId: body.jobId || null, performedBy: body.performedBy, notes: body.notes }) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-parts", farmId] }); qc.invalidateQueries({ queryKey: ["workshop-parts-movements", farmId] }); qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] }); setUseOpen(false); setUseForm({ qty: "", jobId: "", performedBy: "", notes: "" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const lowStock = parts.filter(p => p.reorderLevel && parseFloat(p.currentQuantity) <= parseFloat(p.reorderLevel));
@@ -3684,6 +3706,7 @@ function ConfirmDialogWorkshop({ open, title, message, onConfirm, onCancel, conf
 
 function WorkshopStocktakeView({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [activeId, setActiveId] = useState<number | null>(null);
   const [localCounts, setLocalCounts] = useState<Record<number, string>>({});
   const [newOpen, setNewOpen] = useState(false);
@@ -3717,12 +3740,14 @@ function WorkshopStocktakeView({ farmId }: { farmId: number }) {
       setLocalCounts({});
       setActiveId(data.id);
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const updateItemMut = useMutation({
     mutationFn: ({ sessionId, itemId, countedQty }: { sessionId: number; itemId: number; countedQty: string | null }) =>
       fetch(api(`farms/${farmId}/workshop/stocktakes/${sessionId}/items/${itemId}`), { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ countedQty }) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-stocktake-detail", farmId, activeId] }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const completeMut = useMutation({
@@ -3732,11 +3757,13 @@ function WorkshopStocktakeView({ farmId }: { farmId: number }) {
       qc.invalidateQueries({ queryKey: ["workshop-stocktake-detail", farmId, activeId] });
       qc.invalidateQueries({ queryKey: ["workshop-parts", farmId] });
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/stocktakes/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-stocktakes", farmId] }); setActiveId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });

@@ -282,6 +282,7 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
       if (vars.action === "update") { toast({ title: "Incident updated" }); setAddOpen(false); setEditItem(null); }
       if (vars.action === "delete") { toast({ title: "Incident deleted" }); setDeleteId(null); }
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   function handleSave() {
     const body = { ...form, wasteTypes: form.wasteTypes };

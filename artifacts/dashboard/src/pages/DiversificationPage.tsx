@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2, Eye, Loader2, LayoutList, ShoppingBag, ClipboardCheck, PawPrint, Zap, PoundSterling, Crosshair, TrendingUp, PackagePlus, ChevronDown, ChevronRight, AlertTriangle, Package, Printer } from "lucide-react";
 import { openPrintWindow } from "@/lib/print-report";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -70,12 +71,13 @@ function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: stri
 
 function useCrud(farmId: number, endpoint: string, key: string) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, unknown>>({});
   const { data = [], isLoading } = useQuery({ queryKey: [key, farmId], queryFn: () => fetch(api(`farms/${farmId}/${endpoint}`), { credentials: "include" }).then(r => r.json()) });
-  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/${endpoint}/${editing.id}`) : api(`farms/${farmId}/${endpoint}`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: [key, farmId] }); setOpen(false); setForm({}); setEditing(null); } });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/${endpoint}/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: [key, farmId] }) });
+  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/${endpoint}/${editing.id}`) : api(`farms/${farmId}/${endpoint}`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: [key, farmId] }); setOpen(false); setForm({}); setEditing(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/${endpoint}/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: [key, farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   function openAdd(def: Record<string, unknown> = {}) { setEditing(null); setForm(def); setOpen(true); }
   function openEdit(r: Record<string, unknown>) { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""]))); setOpen(true); }
   return { data, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit };
@@ -155,6 +157,7 @@ type Session = { id: number; saleDate: string; notes?: string; totalNet: string;
 function FarmShopTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [shopTab, setShopTab] = useState<"products" | "sales" | "history" | "suppliers" | "purchases" | "stocktakes">("products");
 
   type ConfirmState = { open: boolean; title: string; message: string; onConfirm: () => void; confirmLabel?: string; variant?: "default" | "destructive" };
@@ -173,10 +176,12 @@ function FarmShopTab({ farmId }: { farmId: number }) {
   const saveProd = useMutation({
     mutationFn: (b: Record<string, unknown>) => fetch(prodEditing ? api(`farms/${farmId}/farm-shop-products/${prodEditing.id}`) : api(`farms/${farmId}/farm-shop-products`), { method: prodEditing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["shop-products", farmId] }); setProdOpen(false); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const delProd = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/farm-shop-products/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["shop-products", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   // ── Stock adjustment state ──────────────────────────────────────────────────
@@ -186,6 +191,7 @@ function FarmShopTab({ farmId }: { farmId: number }) {
     mutationFn: ({ id, adjustment }: { id: number; adjustment: number }) =>
       fetch(api(`farms/${farmId}/shop-products/${id}/adjust-stock`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ adjustment }) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["shop-products", farmId] }); setStockTarget(null); setStockQty(""); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   // ── Sales session state ─────────────────────────────────────────────────────
@@ -236,11 +242,13 @@ function FarmShopTab({ farmId }: { farmId: number }) {
       setSaleNotes("");
       setShopTab("history");
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const delSession = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/shop-sales/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["shop-sales", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   // ── Suppliers state ──────────────────────────────────────────────────────────
@@ -254,11 +262,13 @@ function FarmShopTab({ farmId }: { farmId: number }) {
   const saveSupp = useMutation({
     mutationFn: (b: Record<string, unknown>) => fetch(suppEditing ? api(`farms/${farmId}/shop-suppliers/${suppEditing.id}`) : api(`farms/${farmId}/shop-suppliers`), { method: suppEditing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["shop-suppliers", farmId] }); setSuppOpen(false); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const toggleSuppActive = useMutation({
     mutationFn: ({ id, active }: { id: number; active: boolean }) =>
       fetch(api(`farms/${farmId}/shop-suppliers/${id}/${active ? "reactivate" : "deactivate"}`), { method: "PATCH", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["shop-suppliers", farmId] }),
+    onError: () => toast({ title: "Update failed", variant: "destructive" }),
   });
 
   // ── Purchases state ──────────────────────────────────────────────────────────
@@ -273,10 +283,12 @@ function FarmShopTab({ farmId }: { farmId: number }) {
   const savePurch = useMutation({
     mutationFn: (b: Record<string, unknown>) => fetch(purchEditing ? api(`farms/${farmId}/shop-purchases/${purchEditing.id}`) : api(`farms/${farmId}/shop-purchases`), { method: purchEditing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["shop-purchases", farmId] }); qc.invalidateQueries({ queryKey: ["shop-products", farmId] }); setPurchOpen(false); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const delPurch = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/shop-purchases/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["shop-purchases", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   // ── Stocktakes state ────────────────────────────────────────────────────────
@@ -306,11 +318,13 @@ function FarmShopTab({ farmId }: { farmId: number }) {
       setLocalCounts({});
       setActiveStocktakeId(data.id);
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateStocktakeItemMut = useMutation({
     mutationFn: ({ sessionId, itemId, countedQty }: { sessionId: number; itemId: number; countedQty: string | null }) =>
       fetch(api(`farms/${farmId}/farm-shop/stocktakes/${sessionId}/items/${itemId}`), { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ countedQty }) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["shop-stocktake-detail", farmId, activeStocktakeId] }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const completeStocktakeMut = useMutation({
     mutationFn: (sessionId: number) =>
@@ -320,10 +334,12 @@ function FarmShopTab({ farmId }: { farmId: number }) {
       qc.invalidateQueries({ queryKey: ["shop-stocktake-detail", farmId, activeStocktakeId] });
       qc.invalidateQueries({ queryKey: ["shop-products", farmId] });
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteStocktakeMut = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/farm-shop/stocktakes/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["shop-stocktakes", farmId] }); setActiveStocktakeId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const activeProducts = (products as Record<string, unknown>[]).filter(p => p.active !== false);
@@ -1422,6 +1438,7 @@ const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Se
 function IncomeTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const qc = useQueryClient();
+  const { toast } = useToast();
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState<number | null>(null);
   const [selectedType, setSelectedType] = useState<string | null>(null);
@@ -1445,11 +1462,13 @@ function IncomeTab({ farmId }: { farmId: number }) {
       { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
     ),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["div-income", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/diversification-income/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["div-income", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openAdd() { setEditing(null); setForm({ vatRate: "exempt", incomeDate: new Date().toISOString().slice(0, 10) }); setOpen(true); }

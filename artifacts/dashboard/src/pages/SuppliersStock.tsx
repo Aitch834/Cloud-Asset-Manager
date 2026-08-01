@@ -1729,11 +1729,13 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
   const deactivateMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/suppliers/${id}/deactivate`, { method: "PATCH" }),
     onSuccess: () => { toast({ title: "Contact deactivated — all historic records preserved" }); onRefresh(); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const reactivateMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/suppliers/${id}/reactivate`, { method: "PATCH" }),
     onSuccess: () => { toast({ title: "Contact reactivated" }); onRefresh(); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const allSuppliers = (suppliers ?? []);
@@ -1995,6 +1997,7 @@ function ConfirmDialogStock({ open, title, message, onConfirm, onCancel, confirm
 
 function StocktakeTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [activeId, setActiveId] = useState<number | null>(null);
   const [localCounts, setLocalCounts] = useState<Record<number, string>>({});
   const [newOpen, setNewOpen] = useState(false);
@@ -2028,12 +2031,14 @@ function StocktakeTab({ farmId }: { farmId: number }) {
       setLocalCounts({});
       setActiveId(data.id);
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const updateItemMut = useMutation({
     mutationFn: ({ sessionId, itemId, body }: { sessionId: number; itemId: number; body: Record<string, unknown> }) =>
       fetch(`/api/farms/${farmId}/stocktakes/${sessionId}/items/${itemId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["stocktake-detail", farmId, activeId] }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const completeMut = useMutation({
@@ -2043,11 +2048,13 @@ function StocktakeTab({ farmId }: { farmId: number }) {
       qc.invalidateQueries({ queryKey: ["stocktake-detail", farmId, activeId] });
       qc.invalidateQueries({ queryKey: ["stock-levels", farmId] });
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/stocktakes/${id}`, { method: "DELETE", credentials: "include" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["stocktakes", farmId] }); setActiveId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });

@@ -266,6 +266,7 @@ export default function BiofuelPage() {
   const deleteCertMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/biofuel/certification/${id}`, { method: "DELETE" }),
     onSuccess: () => { invalidate(); toast({ title: "Certification deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const fieldMut = useMutation({
@@ -282,6 +283,7 @@ export default function BiofuelPage() {
   const deleteFieldMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/biofuel/field-declarations/${id}`, { method: "DELETE" }),
     onSuccess: () => { invalidate(); toast({ title: "Declaration deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const deliveryMut = useMutation({
@@ -298,6 +300,7 @@ export default function BiofuelPage() {
   const deleteDeliveryMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/biofuel/deliveries/${id}`, { method: "DELETE" }),
     onSuccess: () => { invalidate(); toast({ title: "Delivery deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const buyerMut = useMutation({
@@ -314,11 +317,13 @@ export default function BiofuelPage() {
   const deactivateBuyerMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/biofuel/buyers/${id}/deactivate`, { method: "PATCH" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["biofuel-buyers", farmId] }); toast({ title: "Buyer marked inactive — all historic records preserved" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const reactivateBuyerMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/biofuel/buyers/${id}/reactivate`, { method: "PATCH" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["biofuel-buyers", farmId] }); toast({ title: "Buyer reactivated" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const handleDeclarationDownload = async (delivery: Delivery) => {

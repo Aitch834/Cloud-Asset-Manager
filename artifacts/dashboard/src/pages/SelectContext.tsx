@@ -86,6 +86,7 @@ export default function SelectContext() {
       if (!res.ok) throw new Error("Failed to create farm");
       return res.json() as Promise<{ farm: { id: number; name: string } }>;
     },
+    onError: () => toast({ title: "Failed to create farm", variant: "destructive" }),
   });
 
   // If tenant and farm are already persisted from a previous visit, skip selection entirely.

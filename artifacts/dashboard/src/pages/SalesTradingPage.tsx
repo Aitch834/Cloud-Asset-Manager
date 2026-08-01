@@ -166,6 +166,7 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
   const delMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/grain-sales/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-sales", farmId] }); setDeleteId(null); toast({ title: "Deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -620,6 +621,7 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
   const dwDelMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/livestock-deadweight-sales/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["dw-sales", farmId] }); setDeleteDWId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const martMut = useMutation({
@@ -632,6 +634,7 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
   const martDelMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/livestock-mart-sales/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mart-sales", farmId] }); setDeleteMartId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const submitDW = (e: React.FormEvent) => {
@@ -1219,6 +1222,7 @@ function MilkSalesTab({ farmId }: { farmId: number }) {
   const delMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/milk-statements/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["milk-statements", farmId] }); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1464,6 +1468,7 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
   const batchDelMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/poultry-batch-settlements/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["poultry-batch-settlements", farmId] }); setDeleteBatchId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
   const eggMut = useMutation({
     mutationFn: (body: any) => editingEgg
@@ -1475,6 +1480,7 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
   const eggDelMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/egg-sales/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["egg-sales", farmId] }); setDeleteEggId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const submitBatch = (e: React.FormEvent) => {
@@ -1870,6 +1876,7 @@ function PigSalesTab({ farmId }: { farmId: number }) {
   const delMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/pig-kill-records/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-kill-records", farmId] }); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -2123,6 +2130,7 @@ function DirectSalesTab({ farmId }: { farmId: number }) {
   const delMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/direct-sales/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["direct-sales", farmId] }); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -2691,6 +2699,7 @@ function GrainContractsTab({ farmId }: { farmId: number }) {
   const delMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/crop-contracts/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["crop-contracts", farmId] }); setDeleteId(null); toast({ title: "Contract deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const isPool = form.contractType === "pool";
@@ -3170,6 +3179,7 @@ function SettlementNotesTab({ farmId }: { farmId: number }) {
       }).then(r => r.json());
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["livestock-settlement-notes", farmId] }); setOpen(false); toast({ title: "Settlement note saved" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const grSaveMut = useMutation({
     mutationFn: (data: any) => {
@@ -3180,14 +3190,17 @@ function SettlementNotesTab({ farmId }: { farmId: number }) {
       }).then(r => r.json());
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-settlement-notes", farmId] }); setOpen(false); toast({ title: "Settlement note saved" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const lsDelMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/livestock-settlement-notes/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["livestock-settlement-notes", farmId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
   const grDelMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/grain-settlement-notes/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-settlement-notes", farmId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const fmtD = (d: string) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";

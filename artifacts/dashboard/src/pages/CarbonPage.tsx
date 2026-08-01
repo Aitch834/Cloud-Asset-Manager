@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { Eye, Plus, Pencil, Trash2, Loader2, BarChart3, Flame, Trees, Zap, FileBarChart, SunMedium, Sprout, Upload, Sparkles, Printer } from "lucide-react";
 import { printProReport } from "@/lib/print-report";
 import { FctImportDialog } from "@/components/FctImportDialog";
@@ -101,6 +102,7 @@ type PrefillAudit = { scope1: number; scope2: number; scope3: number; total: num
 
 function AuditsTab({ farmId, prefillAudit, onPrefillUsed }: { farmId: number; prefillAudit?: PrefillAudit | null; onPrefillUsed?: () => void }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
@@ -152,10 +154,12 @@ function AuditsTab({ farmId, prefillAudit, onPrefillUsed }: { farmId: number; pr
       { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
     ),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["carbon-audits", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/carbon-audits/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["carbon-audits", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const isInternal = form.auditorType === "Internal staff member";
@@ -877,6 +881,7 @@ function GenerateDialog({ farmId, onDone }: { farmId: number; onDone: () => void
 
 function EmissionsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
@@ -890,10 +895,12 @@ function EmissionsTab({ farmId }: { farmId: number }) {
   const save = useMutation({
     mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/carbon-emissions`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["carbon-emissions", farmId] }); setOpen(false); setForm({}); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/carbon-emissions/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["carbon-emissions", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const { data: farmRec } = useQuery<Record<string, unknown>>({
@@ -1392,6 +1399,7 @@ function GenerateSeqDialog({ farmId, onDone }: { farmId: number; onDone: () => v
 
 function SequestrationTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
@@ -1408,10 +1416,12 @@ function SequestrationTab({ farmId }: { farmId: number }) {
       { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
     ),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["carbon-seq", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/carbon-sequestration/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["carbon-seq", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const { data: farmRec } = useQuery<Record<string, unknown>>({
@@ -1695,6 +1705,7 @@ type ContractorSupplier = { id: number; name: string; category?: string | null; 
 
 function ReductionActionsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
@@ -1721,10 +1732,12 @@ function ReductionActionsTab({ farmId }: { farmId: number }) {
       { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
     ),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["carbon-actions", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/carbon-reduction-actions/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["carbon-actions", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const [filterStatus, setFilterStatus] = useState("all");
@@ -2202,6 +2215,7 @@ const srStatusLabel = (v: unknown) =>
 
 function ReportsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
@@ -2217,10 +2231,12 @@ function ReportsTab({ farmId }: { farmId: number }) {
       { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
     ),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sustainability-reports", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/sustainability-reports/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["sustainability-reports", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const { data: reportSuppliers = [] } = useQuery<ContractorSupplier[]>({
@@ -2603,6 +2619,7 @@ const UK_GRID_KG_CO2E_PER_KWH = 0.207;
 
 function RenewableEnergyTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
@@ -2626,10 +2643,12 @@ function RenewableEnergyTab({ farmId }: { farmId: number }) {
   const save = useMutation({
     mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/renewable-energy-production/${editing.id}`) : api(`farms/${farmId}/renewable-energy-production`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["renewable-energy", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/renewable-energy-production/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["renewable-energy", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const doSync = async (force = false) => {
@@ -2871,6 +2890,7 @@ const BNG_LEGAL_TYPES = ["Section 106", "Conservation Covenant", "Management Agr
 
 function BngTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
@@ -2886,10 +2906,12 @@ function BngTab({ farmId }: { farmId: number }) {
       { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
     ),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["bng", farmId] }); setOpen(false); setForm({}); setEditing(null); setAssessorSupplierId(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/biodiversity-net-gain/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["bng", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const isMonitoring = form.recordType !== "baseline";

@@ -190,6 +190,7 @@ function ImportPanel({ farmId, onImported }: { farmId: number; onImported: () =>
       onImported();
       toast({ title: `${count} resource${count !== 1 ? "s" : ""} imported` });
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   if (dismissed || isLoading) return null;
@@ -1394,6 +1395,7 @@ export default function ResourcesPage() {
   const archiveMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/resources/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["resources", farmId] }); toast({ title: "Resource archived" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const restoreMut = useMutation({
@@ -1403,6 +1405,7 @@ export default function ResourcesPage() {
       body: JSON.stringify({ isActive: true }),
     }).then(r => r.json()),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["resources", farmId] }); toast({ title: "Resource restored" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const resources = data?.resources ?? [];
@@ -1488,6 +1491,7 @@ function ResourcesTabSimple({ farmId, resources, isLoading, showArchived, setSho
       body: JSON.stringify(body),
     }).then(r => r.json()),
     onSuccess: () => { onInvalidate(); setShowForm(false); toast({ title: "Resource added" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const updateMut = useMutation({
@@ -1497,6 +1501,7 @@ function ResourcesTabSimple({ farmId, resources, isLoading, showArchived, setSho
       body: JSON.stringify(body),
     }).then(r => r.json()),
     onSuccess: () => { onInvalidate(); setEditingResource(null); toast({ title: "Resource updated" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const q = resSearch.trim().toLowerCase();

@@ -98,6 +98,7 @@ function AssignmentCard({ a, farmId, autoExpand, forceOpen }: { a: Assignment; f
       queryClient.invalidateQueries({ queryKey: ["task-assignments", farmId] });
       toast({ title: "Assignment updated" });
     },
+    onError: () => toast({ title: "Update failed", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
@@ -107,6 +108,7 @@ function AssignmentCard({ a, farmId, autoExpand, forceOpen }: { a: Assignment; f
       queryClient.invalidateQueries({ queryKey: ["task-assignments", farmId] });
       toast({ title: "Assignment removed" });
     },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   return (

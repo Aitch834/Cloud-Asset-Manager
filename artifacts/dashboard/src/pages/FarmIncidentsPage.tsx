@@ -209,6 +209,7 @@ export default function FarmIncidentsPage() {
     }).then(r => r.json()),
     ...mutOpts,
     onSuccess: () => { mutOpts.onSuccess(); setAddOpen(false); setForm(emptyForm()); toast({ title: "Incident recorded" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const updateMut = useMutation({
@@ -219,6 +220,7 @@ export default function FarmIncidentsPage() {
     }).then(r => r.json()),
     ...mutOpts,
     onSuccess: () => { mutOpts.onSuccess(); setEditId(null); toast({ title: "Incident updated" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
@@ -227,6 +229,7 @@ export default function FarmIncidentsPage() {
     }).then(r => r.json()),
     ...mutOpts,
     onSuccess: () => { mutOpts.onSuccess(); setDeleteId(null); toast({ title: "Incident deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   // ── Helpers ──

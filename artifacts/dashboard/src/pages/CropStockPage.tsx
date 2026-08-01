@@ -994,6 +994,7 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
   const deleteLevelMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/crop-stock-levels/${id}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Deleted" }); qc.invalidateQueries({ queryKey: ["crop-stock-levels", farmId] }); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const harvestMut = useMutation({

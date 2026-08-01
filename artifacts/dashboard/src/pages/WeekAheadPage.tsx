@@ -352,11 +352,13 @@ function ResourceAssignSection({
         body: JSON.stringify(body),
       }).then(r => r.json()),
     onSuccess: () => { onRefresh(); setShowPicker(false); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const removeAllocMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/task-resource-allocations/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => onRefresh(),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const allocations = task.allocations ?? [];
@@ -856,6 +858,7 @@ function GanttView({
         body: JSON.stringify(body),
       }).then(r => r.json()),
     onSuccess: () => onAssigned(),
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const conflictedTaskIds = useMemo(() => {
@@ -1194,6 +1197,7 @@ function AddReminderPanel({ farmId, days, onClose }: { farmId: number; days: 7 |
       queryClient.invalidateQueries({ queryKey: ["week-ahead", farmId, days] });
       onClose();
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1395,6 +1399,7 @@ export default function WeekAheadPage() {
       return fetch(`/api/farms/${farmId}/planner-events/${numId}`, { method: "DELETE" }).then(r => r.json());
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["week-ahead", farmId, days] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   // Synthesise TaskItems from organic cert key dates

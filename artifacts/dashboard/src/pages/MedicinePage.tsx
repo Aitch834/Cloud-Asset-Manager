@@ -992,15 +992,18 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
     mutationFn: (body: Record<string, unknown>) =>
       fetch(`/api/farms/${farmId}/medicine-records`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["medicine-records", farmId] }); closeForm(); toast({ title: "Medicine record saved" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateM = useMutation({
     mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
       fetch(`/api/farms/${farmId}/medicine-records/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["medicine-records", farmId] }); closeForm(); toast({ title: "Record updated" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteM = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/medicine-records/${id}`, { method: "DELETE", credentials: "include" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["medicine-records", farmId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function closeForm() {

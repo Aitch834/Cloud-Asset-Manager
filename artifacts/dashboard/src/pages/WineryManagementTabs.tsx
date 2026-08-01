@@ -36,6 +36,7 @@ function exportCSV(rows: Record<string, unknown>[], filename: string, cols: { ke
 
 function useCrud<T extends Record<string, unknown>>(farmId: number, endpoint: string, key: string) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const q = useQuery<T[]>({
     queryKey: [key, farmId],
     queryFn: async () => {
@@ -53,6 +54,7 @@ function useCrud<T extends Record<string, unknown>>(farmId: number, endpoint: st
       return r.json();
     },
     onSuccess: invalidate,
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const edit = useMutation({
     mutationFn: async ({ id, ...body }: Partial<T> & { id: number }) => {
@@ -61,10 +63,12 @@ function useCrud<T extends Record<string, unknown>>(farmId: number, endpoint: st
       return r.json();
     },
     onSuccess: invalidate,
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const remove = useMutation({
     mutationFn: async (id: number) => { const r = await fetch(api(`farms/${farmId}/${endpoint}/${id}`), { method: "DELETE", credentials: "include" }); if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Delete failed"); } },
     onSuccess: invalidate,
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
   return { data: q.data ?? [], isLoading: q.isLoading, add, edit, remove };
 }
@@ -828,6 +832,7 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
 // ─── Winery Batch Settings hook ───────────────────────────────────────────────
 function useWineryBatchSettings(farmId: number) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const q = useQuery<{ settings: Record<string, unknown>; nextRef: string }>({
     queryKey: ["winery-batch-settings", farmId],
     queryFn: async () => {
@@ -849,6 +854,7 @@ function useWineryBatchSettings(farmId: number) {
       return r.json();
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["winery-batch-settings", farmId] }),
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   return { data: q.data, isLoading: q.isLoading, save };
 }

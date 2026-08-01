@@ -888,6 +888,7 @@ function GrantsTab({ farmId }: { farmId: number }) {
 
 function AttachmentPanel({ farmId, purchaseId }: { farmId: number; purchaseId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [uploading, setUploading] = useState(false);
   const attQ = useQuery({
     queryKey: ["record-attachments", farmId, "livestock-purchase", purchaseId],
@@ -898,6 +899,7 @@ function AttachmentPanel({ farmId, purchaseId }: { farmId: number; purchaseId: n
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/record-attachments/${id}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["record-attachments", farmId, "livestock-purchase", purchaseId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; e.target.value = "";
@@ -1003,12 +1005,13 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["livestock-purchases", farmId] });
 
-  const createMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/livestock-purchases`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()) });
+  const createMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/livestock-purchases`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onError: () => toast({ title: "Save failed", variant: "destructive" }) });
   const updateMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/livestock-purchases/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Invoice updated" }); invalidate(); setAddOpen(false); setEditRecord(null); setForm(EMPTY); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
-  const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`/api/farms/${farmId}/livestock-purchases/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); } });
+  const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`/api/farms/${farmId}/livestock-purchases/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); }, onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   const markPaidMut = useMutation({
     mutationFn: (b: { id: number; paidDate: string; paymentMethod: string; paymentReference: string }) => fetch(`/api/farms/${farmId}/livestock-purchases/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paymentStatus: "paid", paidDate: b.paidDate, paymentMethod: b.paymentMethod, paymentReference: b.paymentReference }) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Marked as paid" }); invalidate(); setMarkPaidId(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const sCfg = (s: string) => PURCHASE_STATUS_CONFIG[s] ?? { label: s, bg: "#f3f4f6", color: "#374151" };

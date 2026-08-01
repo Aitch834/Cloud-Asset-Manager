@@ -234,6 +234,7 @@ function BcmsCredentialsCard({ farmId, bcmsHoldingNumber }: { farmId: number; bc
   const deleteMut = useMutation({
     mutationFn: () => fetch(`/api/farms/${farmId}/bcms-credentials`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Credentials removed" }); credsQ.refetch(); setUsername(""); setPassword(""); setHolding(bcmsHoldingNumber ?? ""); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const statusBadge = () => {

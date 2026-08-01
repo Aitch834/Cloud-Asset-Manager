@@ -319,6 +319,7 @@ export default function FieldOperationsPage() {
       setConfirmDelete(null);
       toast({ title: "Operation deleted" });
     },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const typeDef = form.operationType ? getTypeDef(form.operationType) : null;

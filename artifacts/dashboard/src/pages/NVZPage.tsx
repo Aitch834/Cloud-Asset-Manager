@@ -486,27 +486,33 @@ export default function NVZPage() {
   const raCreateMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/nvz-risk-assessments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, fieldIds: JSON.stringify(raFieldIds) }) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Risk assessment saved" }); qc.invalidateQueries({ queryKey: ["nvz-risk-assessments", farmId] }); setRaAddOpen(false); setRaForm({ ...emptyRaForm }); setRaFieldIds([]); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const raUpdateMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/nvz-risk-assessments/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, fieldIds: JSON.stringify(raFieldIds) }) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Risk assessment updated" }); qc.invalidateQueries({ queryKey: ["nvz-risk-assessments", farmId] }); setRaEditItem(null); setRaFieldIds([]); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const raDeleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/nvz-risk-assessments/${id}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Risk assessment deleted" }); qc.invalidateQueries({ queryKey: ["nvz-risk-assessments", farmId] }); setRaDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const contactCreateMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/contacts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Contact saved" }); qc.invalidateQueries({ queryKey: ["farm-contacts", farmId] }); setContactAddOpen(false); setContactForm({ ...emptyContactForm }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const contactUpdateMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/contacts/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Contact updated" }); qc.invalidateQueries({ queryKey: ["farm-contacts", farmId] }); setContactEditItem(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const contactDeleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/contacts/${id}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Contact removed" }); qc.invalidateQueries({ queryKey: ["farm-contacts", farmId] }); setContactDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const applications: NvzApplication[] = appsQ.data?.records ?? [];

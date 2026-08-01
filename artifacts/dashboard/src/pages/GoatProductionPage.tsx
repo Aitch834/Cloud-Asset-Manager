@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState, useMemo, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2, Loader2, Eye, Scale, Bug, ClipboardList, AlertTriangle, Printer, BarChart3, Paperclip } from "lucide-react";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from "recharts";
@@ -162,6 +163,7 @@ function HerdsTab({ farmId }: { farmId: number }) {
 // ─── MATING TAB ───────────────────────────────────────────────────────────────
 function MatingTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
@@ -171,8 +173,9 @@ function MatingTab({ farmId }: { farmId: number }) {
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/goat-mating-records/${editing.id}`) : api(`farms/${farmId}/goat-mating-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-mating", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-mating-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["goat-mating", farmId] }) });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-mating-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["goat-mating", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
   function openAdd() { setEditing(null); setForm({ progesteroneSpongeUsed: "false", matingMethod: "natural" }); setOpen(true); }
   function openEdit(r: Record<string, unknown>) { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }
@@ -284,6 +287,7 @@ function MatingTab({ farmId }: { farmId: number }) {
 // ─── SCANNING TAB ─────────────────────────────────────────────────────────────
 function ScanningTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
@@ -293,8 +297,9 @@ function ScanningTab({ farmId }: { farmId: number }) {
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/goat-scanning-records/${editing.id}`) : api(`farms/${farmId}/goat-scanning-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-scanning", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-scanning-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["goat-scanning", farmId] }) });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-scanning-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["goat-scanning", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
   const years = useMemo(() => Array.from(new Set((rows as Record<string, unknown>[]).map(r => String(r.scanDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [rows]);
   const filtered = useMemo(() => yearFilter === "all" ? rows as Record<string, unknown>[] : (rows as Record<string, unknown>[]).filter(r => String(r.scanDate ?? "").startsWith(yearFilter)), [rows, yearFilter]);
@@ -382,6 +387,7 @@ function ScanningTab({ farmId }: { farmId: number }) {
 // ─── WEIGH-IN TAB ─────────────────────────────────────────────────────────────
 function WeighTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
@@ -392,8 +398,9 @@ function WeighTab({ farmId }: { farmId: number }) {
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/goat-weigh-records/${editing.id}`) : api(`farms/${farmId}/goat-weigh-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-weigh", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-weigh-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["goat-weigh", farmId] }) });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-weigh-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["goat-weigh", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
   const years = useMemo(() => Array.from(new Set((rows as Record<string, unknown>[]).map(r => String(r.weighDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [rows]);
   const filtered = useMemo(() => yearFilter === "all" ? rows as Record<string, unknown>[] : (rows as Record<string, unknown>[]).filter(r => String(r.weighDate ?? "").startsWith(yearFilter)), [rows, yearFilter]);
@@ -505,6 +512,7 @@ function WeighTab({ farmId }: { farmId: number }) {
 // ─── CULL / DRAFT / MARKET TAB ────────────────────────────────────────────────
 function CullTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
@@ -514,8 +522,9 @@ function CullTab({ farmId }: { farmId: number }) {
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/goat-cull-records/${editing.id}`) : api(`farms/${farmId}/goat-cull-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-cull", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-cull-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["goat-cull", farmId] }) });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-cull-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["goat-cull", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
   const years = useMemo(() => Array.from(new Set((rows as Record<string, unknown>[]).map(r => String(r.cullDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [rows]);
   const filtered = useMemo(() => yearFilter === "all" ? rows as Record<string, unknown>[] : (rows as Record<string, unknown>[]).filter(r => String(r.cullDate ?? "").startsWith(yearFilter)), [rows, yearFilter]);
@@ -665,6 +674,7 @@ function CullTab({ farmId }: { farmId: number }) {
 // ─── HEALTH / VACCINATION TAB ─────────────────────────────────────────────────
 function HealthTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [subTab, setSubTab] = useState<"vaccinations" | "disease">("vaccinations");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
@@ -674,10 +684,10 @@ function HealthTab({ farmId }: { farmId: number }) {
   const [diseaseYearFilter, setDiseaseYearFilter] = useState("all");
   const { data: vaccRows = [], isLoading: vLoading } = useQuery({ queryKey: ["goat-vacc", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-vaccination-programmes`), { credentials: "include" }).then(r => r.json()) });
   const { data: diseaseRows = [], isLoading: dLoading } = useQuery({ queryKey: ["goat-disease", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-disease-monitoring`), { credentials: "include" }).then(r => r.json()) });
-  const saveVacc = useMutation({ mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/goat-vaccination-programmes/${editing.id}`) : api(`farms/${farmId}/goat-vaccination-programmes`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); }, onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-vacc", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
-  const saveDisease = useMutation({ mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/goat-disease-monitoring/${editing.id}`) : api(`farms/${farmId}/goat-disease-monitoring`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); }, onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-disease", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
-  const delVacc = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-vaccination-programmes/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["goat-vacc", farmId] }) });
-  const delDisease = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-disease-monitoring/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["goat-disease", farmId] }) });
+  const saveVacc = useMutation({ mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/goat-vaccination-programmes/${editing.id}`) : api(`farms/${farmId}/goat-vaccination-programmes`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); }, onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-vacc", farmId] }); setOpen(false); setForm({}); setEditing(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
+  const saveDisease = useMutation({ mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/goat-disease-monitoring/${editing.id}`) : api(`farms/${farmId}/goat-disease-monitoring`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); }, onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-disease", farmId] }); setOpen(false); setForm({}); setEditing(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
+  const delVacc = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-vaccination-programmes/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["goat-vacc", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
+  const delDisease = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-disease-monitoring/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["goat-disease", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
   const vaccYears = useMemo(() => Array.from(new Set((vaccRows as Record<string, unknown>[]).map(r => String(r.vaccinationDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [vaccRows]);
   const filteredVacc = useMemo(() => vaccYearFilter === "all" ? vaccRows as Record<string, unknown>[] : (vaccRows as Record<string, unknown>[]).filter(r => String(r.vaccinationDate ?? "").startsWith(vaccYearFilter)), [vaccRows, vaccYearFilter]);

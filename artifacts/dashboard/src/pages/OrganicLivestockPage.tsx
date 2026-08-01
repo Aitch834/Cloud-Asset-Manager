@@ -2102,11 +2102,13 @@ function FeedDerogationTab({ farmId }: { farmId: number }) {
       return fetch(url, { method: body.id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-derogations", farmId] }); setDialogOpen(false); toast({ title: "Derogation case saved" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const deleteCase = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic-livestock/feed-derogations/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-derogations", farmId] }); if (expandedId === deleteCase.variables) setExpandedId(null); toast({ title: "Case deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const saveCorr = useMutation({
@@ -2117,18 +2119,21 @@ function FeedDerogationTab({ farmId }: { farmId: number }) {
       return fetch(url, { method: body.id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-derogation-corr", expandedId] }); setCorrDialogOpen(false); setEditCorr(null); toast({ title: "Correspondence saved" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const deleteCorr = useMutation({
     mutationFn: ({ derogationId, corrId }: { derogationId: number; corrId: number }) =>
       fetch(`/api/farms/${farmId}/organic-livestock/feed-derogations/${derogationId}/correspondence/${corrId}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["feed-derogation-corr", expandedId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const deleteDoc = useMutation({
     mutationFn: ({ derogationId, docId }: { derogationId: number; docId: number }) =>
       fetch(`/api/farms/${farmId}/organic-livestock/feed-derogations/${derogationId}/documents/${docId}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["feed-derogation-docs", expandedId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   // ─── Helpers
@@ -2642,11 +2647,13 @@ function KiddingSection({ farmId }: { farmId: number }) {
       return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json());
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ol-kidding-records", farmId] }); closeDialog(); toast({ title: editing ? "Record updated" : "Kidding record added" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const del = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic-livestock/kidding-records/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ol-kidding-records", farmId] }); setConfirmDelete(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function closeDialog() { setOpen(false); setEditing(null); setForm(BLANK); }
@@ -2983,10 +2990,12 @@ function OrgVetPrescriptionsSection({ farmId }: { farmId: number }) {
       return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["vet-prescriptions", farmId] }); setOpen(false); toast({ title: editing ? "Updated" : "Saved" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const del = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/vet-prescriptions/${id}`, { method: "DELETE", credentials: "include" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["vet-prescriptions", farmId] }); setDeletePending(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function handleSave() {
@@ -3316,14 +3325,17 @@ function OrgSheepDippingSection({ farmId }: { farmId: number }) {
   const createMut = useMutation({
     mutationFn: (b: typeof EMPTY_ORG_DIP & { notes: string | null }) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dipping", farmId] }); setShowForm(false); setForm({ ...EMPTY_ORG_DIP }); toast({ title: "Dipping record saved" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateMut = useMutation({
     mutationFn: (b: typeof EMPTY_ORG_DIP & { id: number; notes: string | null }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dipping", farmId] }); setShowForm(false); setEditing(null); toast({ title: "Updated" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dipping", farmId] }); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function handleSave() {

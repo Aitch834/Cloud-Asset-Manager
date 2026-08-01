@@ -420,14 +420,17 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/training`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Training record added" }); qc.invalidateQueries({ queryKey: ["training-records", farmId] }); setAddOpen(false); setForm({ ...empty }); setCourseSearch(""); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/training/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Training record updated" }); qc.invalidateQueries({ queryKey: ["training-records", farmId] }); setEditItem(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/training/${id}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Record deleted" }); qc.invalidateQueries({ queryKey: ["training-records", farmId] }); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openEdit(r: TrainingRecord) {
@@ -709,10 +712,12 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
 
 function CertDocPanel({ certId, farmId, documentPath, documentName }: { certId: number; farmId: number; documentPath: string | null; documentName: string | null }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
 
   const removeMut = useMutation({
     mutationFn: () => fetch(`/api/farms/${farmId}/certificates/${certId}/document`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["staff-certificates", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const { uploadFile, isUploading, progress } = useUpload({
@@ -804,14 +809,17 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/certificates`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Certificate added" }); qc.invalidateQueries({ queryKey: ["staff-certificates", farmId] }); setAddOpen(false); setForm({ ...empty }); setRenewMode(false); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/certificates/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Certificate updated" }); qc.invalidateQueries({ queryKey: ["staff-certificates", farmId] }); setEditItem(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/certificates/${id}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Certificate deleted" }); qc.invalidateQueries({ queryKey: ["staff-certificates", farmId] }); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const [renewMode, setRenewMode] = useState(false);
@@ -1140,6 +1148,7 @@ interface RtwDocument { id: number; rtwId: number; farmId: number; fileName: str
 
 function RtwDocsPanel({ rtwId, farmId }: { rtwId: number; farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
 
   const { data, isLoading } = useQuery<{ documents: RtwDocument[] }>({
     queryKey: ["rtw-docs", rtwId],
@@ -1149,6 +1158,7 @@ function RtwDocsPanel({ rtwId, farmId }: { rtwId: number; farmId: number }) {
   const deleteMut = useMutation({
     mutationFn: (docId: number) => fetch(`/api/farms/${farmId}/right-to-work/${rtwId}/documents/${docId}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["rtw-docs", rtwId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const { uploadFile, isUploading, progress } = useUpload({
@@ -1235,14 +1245,17 @@ function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { f
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/right-to-work`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "RTW check recorded" }); qc.invalidateQueries({ queryKey: ["staff-rtw", farmId] }); setAddOpen(false); setForm({ ...emptyForm }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/right-to-work/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "RTW record updated" }); qc.invalidateQueries({ queryKey: ["staff-rtw", farmId] }); setEditItem(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/right-to-work/${id}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Record deleted" }); qc.invalidateQueries({ queryKey: ["staff-rtw", farmId] }); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openEdit(r: RtwRecord) {
@@ -1937,14 +1950,17 @@ function CoursesTab({ farmId }: { farmId: number }) {
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/training-courses`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Course added" }); qc.invalidateQueries({ queryKey: ["training-courses", farmId] }); setAddOpen(false); setForm({ ...emptyForm }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/training-courses/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Course updated" }); qc.invalidateQueries({ queryKey: ["training-courses", farmId] }); setEditItem(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/training-courses/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Course removed" }); qc.invalidateQueries({ queryKey: ["training-courses", farmId] }); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function handleSubmit(isEdit: boolean) {

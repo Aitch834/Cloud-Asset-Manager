@@ -13,6 +13,7 @@ export function PhotoPanel({ incidentId, farmId, photos }: { incidentId: number;
   const deleteMut = useMutation({
     mutationFn: (photoId: number) => fetch(`/api/farms/${farmId}/fly-tipping/${incidentId}/photos/${photoId}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["fly-tipping", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {

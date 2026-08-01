@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -71,6 +72,7 @@ const EMPTY_FORM = {
 export default function FarmLocationsPage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
+  const { toast } = useToast();
 
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("");
@@ -116,6 +118,7 @@ export default function FarmLocationsPage() {
       qc.invalidateQueries({ queryKey: ["farm-locations", farmId] });
       closeDialog();
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const updateMut = useMutation({
@@ -137,6 +140,7 @@ export default function FarmLocationsPage() {
       qc.invalidateQueries({ queryKey: ["farm-locations", farmId] });
       closeDialog();
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
@@ -146,6 +150,7 @@ export default function FarmLocationsPage() {
       qc.invalidateQueries({ queryKey: ["farm-locations", farmId] });
       setDeleteId(null);
     },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openAdd() {

@@ -161,6 +161,7 @@ function SubmissionStatusPanel({ farmId, weekStart, onSelectStaff }: { farmId: n
       body: JSON.stringify({ timesheetReminderTime: reminderTime }),
     }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Reminder time saved" }); qc.invalidateQueries({ queryKey: ["labour-settings", farmId] }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -356,14 +357,17 @@ function TimesheetsTab({ farmId, staffNames, staffMembers }: { farmId: number; s
   const addMut = useMutation({
     mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/timesheets`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Entry saved" }); qc.invalidateQueries({ queryKey: ["labour-timesheets", farmId] }); qc.invalidateQueries({ queryKey: ["labour-submission-status", farmId] }); setAddOpen(false); setEditItem(null); setForm(emptyForm()); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const editMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: object }) => fetch(`/api/farms/${farmId}/labour/timesheets/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Entry updated" }); qc.invalidateQueries({ queryKey: ["labour-timesheets", farmId] }); qc.invalidateQueries({ queryKey: ["labour-submission-status", farmId] }); setEditItem(null); setAddOpen(false); setForm(emptyForm()); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const delMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/labour/timesheets/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Entry deleted" }); qc.invalidateQueries({ queryKey: ["labour-timesheets", farmId] }); qc.invalidateQueries({ queryKey: ["labour-submission-status", farmId] }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const openEdit = (e: TimesheetEntry) => {
@@ -912,6 +916,7 @@ function RotaTab({ farmId, staffNames, staffMembers }: { farmId: number; staffNa
       qc.invalidateQueries({ queryKey: ["labour-absences", farmId] });
       setPendingHolidayLog(null);
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const logAttMut = useMutation({
@@ -927,6 +932,7 @@ function RotaTab({ farmId, staffNames, staffMembers }: { farmId: number; staffNa
         setPendingHolidayLog({ staffName: v.staffName, date: v.date });
       }
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const q = useQuery<{ rota: RotaEntry[] }>({
@@ -1385,14 +1391,17 @@ function AbsenceTab({ farmId, staffNames, onPendingCount, staffMembers }: { farm
   const addMut = useMutation({
     mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/absences`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Absence recorded" }); qc.invalidateQueries({ queryKey: ["labour-absences", farmId] }); setAddOpen(false); setEditItem(null); setForm(emptyForm()); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const editMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: object }) => fetch(`/api/farms/${farmId}/labour/absences/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Absence updated" }); qc.invalidateQueries({ queryKey: ["labour-absences", farmId] }); setAddOpen(false); setEditItem(null); setForm(emptyForm()); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const delMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/labour/absences/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Deleted" }); qc.invalidateQueries({ queryKey: ["labour-absences", farmId] }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
   const approveMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: object }) =>
@@ -1404,14 +1413,17 @@ function AbsenceTab({ farmId, staffNames, onPendingCount, staffMembers }: { farm
       setApprovalTarget(null);
       void vars;
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const addEntMut = useMutation({
     mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/entitlements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Entitlement set" }); qc.invalidateQueries({ queryKey: ["labour-entitlements", farmId] }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const editEntMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: object }) => fetch(`/api/farms/${farmId}/labour/entitlements/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Entitlement updated" }); qc.invalidateQueries({ queryKey: ["labour-entitlements", farmId] }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const openEdit = (a: Absence) => {
@@ -2218,6 +2230,7 @@ function ActualAttendanceTab({ farmId, staffNames, staffMembers }: { farmId: num
       qc.invalidateQueries({ queryKey: ["labour-actual-attendance", farmId] });
       qc.invalidateQueries({ queryKey: ["labour-actual-attendance-year", farmId] });
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const getStatus  = (name: string) => localStatus[name]  ?? attMap.get(name)?.actualStatus ?? "";
@@ -2498,14 +2511,17 @@ function PaySummaryTab({ farmId, staffNames, staffMembers }: { farmId: number; s
   const addRateMut = useMutation({
     mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/rates`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Rate saved" }); qc.invalidateQueries({ queryKey: ["labour-rates", farmId] }); setRateOpen(false); setEditRate(null); setRateForm(emptyRate()); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const editRateMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: object }) => fetch(`/api/farms/${farmId}/labour/rates/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Rate updated" }); qc.invalidateQueries({ queryKey: ["labour-rates", farmId] }); setRateOpen(false); setEditRate(null); setRateForm(emptyRate()); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const delRateMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/labour/rates/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Rate deleted" }); qc.invalidateQueries({ queryKey: ["labour-rates", farmId] }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const entries = tsQ.data?.entries ?? [];
@@ -2976,11 +2992,13 @@ function StaffHoursCrossRefTab({ farmId, staffNames }: { farmId: number; staffNa
       return fetch(`/api/farms/${farmId}/labour/crossref-annotations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["labour-crossref-annotations", farmId] }); toast({ title: "Annotation saved" }); setAnnotating(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const delAnnot = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/labour/crossref-annotations/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["labour-crossref-annotations", farmId] }); toast({ title: "Annotation removed" }); setAnnotating(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const annotMap = useMemo(() => {

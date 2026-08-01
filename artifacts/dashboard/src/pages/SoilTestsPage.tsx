@@ -24,6 +24,7 @@ import {
   Users, Building2, UserCheck, History,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
@@ -185,6 +186,7 @@ function SoilFieldHistoryDialog({ field, tests, onClose }: { field: { id: number
 
 function RegisterTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -246,6 +248,7 @@ function RegisterTab({ farmId }: { farmId: number }) {
       resetSamplerState();
       if (data?.record?.id) setExpanded(prev => new Set([...prev, data.record.id]));
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateTest = useMutation({
     mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
@@ -256,6 +259,7 @@ function RegisterTab({ farmId }: { farmId: number }) {
       setSampleLat(""); setSampleLng(""); setSampleLocationDesc("");
       resetSamplerState();
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteTest = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/soil-tests/${id}`, { method: "DELETE" }),
@@ -264,21 +268,25 @@ function RegisterTab({ farmId }: { farmId: number }) {
       setDeleteTestId(null);
       setExpanded(prev => { const next = new Set(prev); next.delete(id); return next; });
     },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) =>
       fetch(`/api/farms/${farmId}/soil-tests/${id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["soil-tests", farmId] }); },
+    onError: () => toast({ title: "Update failed", variant: "destructive" }),
   });
   const addResult = useMutation({
     mutationFn: ({ testId, body }: { testId: number; body: Record<string, unknown> }) =>
       fetch(`/api/farms/${farmId}/soil-tests/${testId}/results`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: (_, vars) => { qc.invalidateQueries({ queryKey: ["soil-test-detail", farmId, vars.testId] }); setAddResultFor(null); setResultForm(EMPTY_RESULT); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteResult = useMutation({
     mutationFn: ({ testId, resultId }: { testId: number; resultId: number }) =>
       fetch(`/api/farms/${farmId}/soil-tests/${testId}/results/${resultId}`, { method: "DELETE" }),
     onSuccess: (_, vars) => { qc.invalidateQueries({ queryKey: ["soil-test-detail", farmId, vars.testId] }); setDeleteResultInfo(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const filtered = allTests.filter(t => {

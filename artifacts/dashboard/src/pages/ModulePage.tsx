@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { printProReport } from "@/lib/print-report";
+import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -52,6 +53,7 @@ function formatValue(val: unknown): string {
 
 export default function ModulePage({ title, apiPath, columns, formFields, responseKey, scope = "farm" }: ModulePageProps) {
   const { farmId } = useAppStore();
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState<Record<string, unknown> | null>(null);
@@ -120,6 +122,7 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
       setShowForm(false);
       setFormData({});
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const updateMutation = useMutation({
@@ -137,6 +140,7 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
       setEditingRecord(null);
       setFormData({});
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
@@ -149,6 +153,7 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
       queryClient.invalidateQueries({ queryKey: ["farm-module", farmId, apiPath] });
       setDeleteConfirmId(null);
     },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const rKey = responseKey || "records";

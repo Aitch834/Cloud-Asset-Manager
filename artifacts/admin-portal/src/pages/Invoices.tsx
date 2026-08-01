@@ -1,5 +1,6 @@
 import { useState, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { api, type Invoice, type Tenant } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
 import { FileText, Plus, Printer, CheckCircle, Send, XCircle, ChevronDown, AlertCircle, Clock, Loader2, Trash2, Mail, Users, PenLine } from "lucide-react";
@@ -935,6 +936,7 @@ function MarkPaidDialog({ invoice, onClose, onDone }: { invoice: Invoice; onClos
 export default function Invoices() {
   const secret = getSecret()!;
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState("all");
   const [showGenerate, setShowGenerate] = useState(false);
   const [showAdHoc, setShowAdHoc] = useState(false);
@@ -975,6 +977,7 @@ export default function Invoices() {
       qc.invalidateQueries({ queryKey: ["admin-invoices"] });
       qc.invalidateQueries({ queryKey: ["admin-invoices-all-drafts"] });
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteMut = useMutation({
     mutationFn: (id: number) => api.deleteInvoice(id, secret),
@@ -982,6 +985,7 @@ export default function Invoices() {
       qc.invalidateQueries({ queryKey: ["admin-invoices"] });
       qc.invalidateQueries({ queryKey: ["admin-invoices-all-drafts"] });
     },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
   const emailMut = useMutation({
     mutationFn: (id: number) => api.emailInvoice(id, secret),
@@ -989,6 +993,7 @@ export default function Invoices() {
       qc.invalidateQueries({ queryKey: ["admin-invoices"] });
       qc.invalidateQueries({ queryKey: ["admin-invoices-all-drafts"] });
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const invoices = invoicesData?.invoices ?? [];

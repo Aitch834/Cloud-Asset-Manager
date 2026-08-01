@@ -555,6 +555,7 @@ export default function SeedStorePage() {
       setReceivePoId(null);
       t({ title: "Order marked as received — log the seed batch (GRN) in the Stock tab." });
     },
+    onError: () => _mut.current.toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const cancelPoMut = useMutation({
@@ -571,6 +572,7 @@ export default function SeedStorePage() {
       invalidate();
       t({ title: "Order cancelled" });
     },
+    onError: () => _mut.current.toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const segMut = useMutation({

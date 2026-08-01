@@ -243,6 +243,7 @@ function DispatchesTab({ farmId }: { farmId: number }) {
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/haulage/${id}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const confirmMut = useMutation({
@@ -796,6 +797,7 @@ function TransfersTab({ farmId }: { farmId: number }) {
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/haulage/${id}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const confirmMut = useMutation({
@@ -1298,6 +1300,7 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
     mutationFn: ({ id, status }: { id: number; status: string }) =>
       fetch(`/api/farms/${farmId}/dispatch-plans/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["dispatch-plans", farmId] }),
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const plans: any[] = plansQ.data ?? [];

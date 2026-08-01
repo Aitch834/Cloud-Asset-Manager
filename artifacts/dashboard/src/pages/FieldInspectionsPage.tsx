@@ -116,6 +116,7 @@ function InspectionPhotoPanel({ recordId, farmId, photos }: { recordId: number; 
   const deleteMut = useMutation({
     mutationFn: (photoId: number) => fetch(`/api/farms/${farmId}/field-inspections/${recordId}/photos/${photoId}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["field-inspections", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const { uploadFile, isUploading, progress } = useUpload({

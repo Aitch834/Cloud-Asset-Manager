@@ -534,6 +534,7 @@ function FieldsTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const deleteM = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic/fields/${id}`, { method: "DELETE" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["organic-fields", farmId] }); setDeleteId(null); toast({ title: "Field removed" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openEdit(r: FieldStatus) {
@@ -788,6 +789,7 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
   const deleteM = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic/inspections/${id}`, { method: "DELETE" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["organic-inspections", farmId] }); setDeleteId(null); toast({ title: "Inspection deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openEdit(r: InspectionRecord) {
@@ -1318,6 +1320,7 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
   const deleteM = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic/inputs/${id}`, { method: "DELETE" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["organic-inputs", farmId] }); setDeleteId(null); toast({ title: "Input deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openEdit(r: OrganicInput) {

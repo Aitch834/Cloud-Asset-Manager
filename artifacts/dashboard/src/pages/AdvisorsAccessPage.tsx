@@ -196,6 +196,7 @@ export default function AdvisorsAccessPage() {
       if (data.record?.token) copyLink(data.record.token, toast);
       else toast({ title: "Advisor added" });
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const createSession = useMutation({
@@ -210,16 +211,19 @@ export default function AdvisorsAccessPage() {
       if (data.record?.token) copyLink(data.record.token, toast);
       else toast({ title: "Session created" });
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const revokeAdvisor = useMutation({
     mutationFn: async (id: number) => fetch(`/api/farms/${farmId}/advisors/${id}`, { method: "DELETE" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["advisors", farmId] }); toast({ title: "Advisor access revoked" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const revokeSession = useMutation({
     mutationFn: async (id: number) => fetch(`/api/farms/${farmId}/inspection-sessions/${id}`, { method: "DELETE" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["inspection-sessions", farmId] }); toast({ title: "Inspection session revoked" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   if (!farmId) return <Redirect to="/select" />;

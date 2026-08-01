@@ -697,6 +697,7 @@ export default function ReportBuilderPage() {
       setDeleteConfirmId(null);
       toast({ title: "Report deleted" });
     },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const goToList = () => { setView("list"); setStep(0); setConfig({ datasource: "", columns: [], filters: [] }); setRunResult(null); setReportName(""); setReportDesc(""); setEditingId(null); };

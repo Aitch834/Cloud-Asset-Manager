@@ -109,6 +109,7 @@ function MyTickets({ farmId }: { farmId: number }) {
   const [selected, setSelected] = useState<SupportTicket | null>(null);
   const [replyText, setReplyText] = useState("");
   const qc = useQueryClient();
+  const { toast } = useToast();
 
   const ticketsQ = useQuery<{ tickets: SupportTicket[] }>({
     queryKey: ["support-tickets", farmId],
@@ -131,6 +132,7 @@ function MyTickets({ farmId }: { farmId: number }) {
       qc.invalidateQueries({ queryKey: ["support-ticket", farmId, selected?.id] });
       qc.invalidateQueries({ queryKey: ["support-tickets", farmId] });
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const tickets = ticketsQ.data?.tickets ?? [];

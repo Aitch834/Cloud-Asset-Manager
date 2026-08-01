@@ -164,6 +164,7 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
       method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
     }).then(r => r.json()),
     onSuccess: (_, status) => { toast({ title: `Status updated to ${STATUS_MAP[status]?.label ?? status}` }); invalidate(); setStatusPickerOpen(false); },
+    onError: () => toast({ title: "Update failed", variant: "destructive" }),
   });
 
   const [plotForm, setPlotForm] = useState({ plotNumber: "", treatmentLabel: "", isControl: false, areaHa: "", locationDescription: "", replicationBlock: "", latitude: "", longitude: "" });
@@ -184,16 +185,19 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
   const addCommMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/crop-trials/${trial.id}/communications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Communication logged" }); qc.invalidateQueries({ queryKey: ["trial-comms", trial.id] }); setAddCommOpen(false); setCommForm({ commDate: new Date().toISOString().slice(0, 10), commType: "email", direction: "inbound", subject: "", summary: "" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteCommMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/crop-trials/${trial.id}/communications/${id}`, { method: "DELETE" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["trial-comms", trial.id] }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const EMPTY_PLOT_FORM = { plotNumber: "", treatmentLabel: "", isControl: false, areaHa: "", locationDescription: "", replicationBlock: "", latitude: "", longitude: "" };
   const addPlotMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/crop-trials/${trial.id}/plots`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Plot added" }); invalidate(); setAddPlotOpen(false); setPlotForm({ ...EMPTY_PLOT_FORM }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   async function captureGPS() {
@@ -274,18 +278,22 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
   const deletePlotMut = useMutation({
     mutationFn: (plotId: number) => fetch(`/api/farms/${farmId}/crop-trials/${trial.id}/plots/${plotId}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Plot deleted" }); invalidate(); setDeletePlotId(null); setSelectedPlot(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
   const addTreatmentMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/crop-trials/${trial.id}/plots/${selectedPlot!.id}/treatments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Treatment recorded" }); invalidate(); setAddTreatmentOpen(false); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const addObsMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/crop-trials/${trial.id}/plots/${selectedPlot!.id}/observations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Observation saved" }); invalidate(); setAddObsOpen(false); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const addYieldMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/crop-trials/${trial.id}/plots/${selectedPlot!.id}/yields`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Yield data saved" }); invalidate(); setAddYieldOpen(false); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   function computeYieldTha() {
@@ -823,14 +831,17 @@ export default function CropTrialsPage() {
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/crop-trials`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Trial created" }); qc.invalidateQueries({ queryKey: ["crop-trials", farmId] }); setAddOpen(false); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/crop-trials/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Trial updated" }); qc.invalidateQueries({ queryKey: ["crop-trials", farmId] }); setAddOpen(false); setEditItem(null); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/crop-trials/${id}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Trial deleted" }); qc.invalidateQueries({ queryKey: ["crop-trials", farmId] }); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function handleSave() {

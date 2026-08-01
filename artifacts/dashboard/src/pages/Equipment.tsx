@@ -340,11 +340,13 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
     mutationFn: (body: Record<string, unknown>) =>
       fetch(`/api/farms/${farmId}/equipment-defect-reports`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["equipment-defects", farmId] }); setFormOpen(false); setForm(emptyDefectForm); toast({ title: "Defect report created" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const patchM = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) =>
       fetch(`/api/farms/${farmId}/equipment-defect-reports/${id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ status }) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["equipment-defects", farmId] }); setUpdatingId(null); toast({ title: "Status updated" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const openCount = allDefects.filter(d => d.status === "open").length;

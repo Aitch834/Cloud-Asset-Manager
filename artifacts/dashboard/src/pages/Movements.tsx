@@ -384,6 +384,7 @@ function BcmsStatusBadge({ movement }: { movement: Movement }) {
 
 function AttachmentsPanel({ movementId, farmId }: { movementId: number; farmId: number }) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [uploadTitle, setUploadTitle] = useState("");
   const [uploadNotes, setUploadNotes] = useState("");
 
@@ -401,6 +402,7 @@ function AttachmentsPanel({ movementId, farmId }: { movementId: number; farmId: 
       await fetch(`/api/farms/${farmId}/movements/${movementId}/attachments/${docId}`, { method: "DELETE" });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["movement-attachments", movementId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const { uploadFile, isUploading, progress } = useUpload({
@@ -705,6 +707,7 @@ const EMPTY_MORTALITY = {
 
 function MortalitySection({ farmId }: { farmId: number }) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [viewRecord, setViewRecord] = useState<MortalityRecord | null>(null);
@@ -730,6 +733,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
       return res.json();
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["mortality-records", farmId] }); setShowForm(false); setFormData(EMPTY_MORTALITY); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const updateMutation = useMutation({
@@ -739,11 +743,13 @@ function MortalitySection({ farmId }: { farmId: number }) {
       return res.json();
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["mortality-records", farmId] }); setEditingRecord(null); setShowForm(false); setFormData(EMPTY_MORTALITY); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => { await fetch(`${baseUrl}/${id}`, { method: "DELETE" }); },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["mortality-records", farmId] }); setDeleteId(null); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const records: MortalityRecord[] = data?.records ?? [];
@@ -1246,6 +1252,7 @@ export default function Movements() {
       setIncomingAnimalBreed("");
       setIncomingAnimalSex("");
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const updateMutation = useMutation({
@@ -1268,6 +1275,7 @@ export default function Movements() {
       setIncomingAnimalBreed("");
       setIncomingAnimalSex("");
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
@@ -1279,6 +1287,7 @@ export default function Movements() {
       queryClient.invalidateQueries({ queryKey: ["movements", farmId] });
       setDeleteConfirmId(null);
     },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const { data: submissionsData, refetch: refetchSubmissions } = useQuery({

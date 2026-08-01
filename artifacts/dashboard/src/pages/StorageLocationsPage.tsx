@@ -1259,10 +1259,12 @@ function GrainDryingTab({ farmId, locationId }: { farmId: number; locationId: nu
       }).then(r => r.json());
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-drying", farmId, locationId] }); setOpen(false); toast({ title: "Drying record saved" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/grain-drying/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-drying", farmId, locationId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const openAdd = () => { setEditItem(null); setForm({ ...emptyForm, operatorName: myName }); setOpen(true); };
@@ -1413,10 +1415,12 @@ function GrainConditioningTab({ farmId, locationId }: { farmId: number; location
       }).then(r => r.json());
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-conditioning", farmId, locationId] }); setOpen(false); toast({ title: "Conditioning record saved" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/grain-conditioning/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-conditioning", farmId, locationId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const openAdd = () => { setEditItem(null); setForm({ ...emptyForm, operatorName: myName }); setOpen(true); };

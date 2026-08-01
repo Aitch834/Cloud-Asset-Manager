@@ -231,11 +231,13 @@ function SyntheticHistoryPanel({
       method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body),
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["synth-history", blockStatusId] }); setAddMode("none"); setManualForm({ ...EMPTY_SYNTH }); setSelectedSprayId(""); toast({ title: "Entry added" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const removePersisted = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp-synthetic-history/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["synth-history", blockStatusId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const productTypeLabel = (t: string | null) => {
@@ -547,11 +549,13 @@ function BlockStatusTab({ farmId, farmName }: { farmId: number; farmName: string
       qc.invalidateQueries({ queryKey: ["ofp-block-status", farmId] });
       setOpen(false); setEditing(null); setForm({}); setPendingHistory([]); toast({ title: "Saved" });
     },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp-block-status/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ofp-block-status", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const openAdd = () => { setEditing(null); setForm({ status: "in-conversion" }); setPendingHistory([]); setOpen(true); };
@@ -823,6 +827,7 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp-input-log/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ofp-input-log", farmId] }); toast({ title: "Input deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function openEdit(r: Record<string, unknown>) {
@@ -1193,11 +1198,13 @@ function CertificatesTab({ farmId, farmName }: { farmId: number; farmName: strin
       { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
     ),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ofp-certificates", farmId] }); setOpen(false); setEditing(null); setForm({}); toast({ title: "Saved" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp-certificates/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ofp-certificates", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const openEdit = (r: Record<string, unknown>) => {
@@ -1372,11 +1379,13 @@ function BuyerDeclarationsTab({ farmId, farmName }: { farmId: number; farmName: 
       { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
     ),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ofp-buyer-decls", farmId] }); setOpen(false); setEditing(null); setForm({}); toast({ title: "Saved" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const del = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp-buyer-declarations/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ofp-buyer-decls", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const openEdit = (r: Record<string, unknown>) => {
@@ -1715,6 +1724,7 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
   const deleteCase = useMutation({
     mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp/input-derogations/${id}`), { method: "DELETE", credentials: "include" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ofp-input-derogations", farmId] }); toast({ title: "Case deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const saveCorresp = useMutation({

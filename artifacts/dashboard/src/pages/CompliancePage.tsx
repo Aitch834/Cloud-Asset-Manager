@@ -595,16 +595,19 @@ export default function CompliancePage() {
     mutationFn: (body: Record<string, unknown>) =>
       fetch(`/api/farms/${farmId}/feed-stock-targets`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-stock-targets", farmId] }); toast({ title: "Species target added" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateTargetM = useMutation({
     mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
       fetch(`/api/farms/${farmId}/feed-stock-targets/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-stock-targets", farmId] }); toast({ title: "Target updated" }); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteTargetM = useMutation({
     mutationFn: (id: number) =>
       fetch(`/api/farms/${farmId}/feed-stock-targets/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-stock-targets", farmId] }); toast({ title: "Target removed" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const farmDetail = farmQ.data?.record ?? farmQ.data?.farm ?? null;
@@ -674,6 +677,7 @@ export default function CompliancePage() {
   const delDiseaseMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/disease-incidents/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { invalidate(); toast({ title: "Record deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   // ── Mutations: feed recalls
@@ -690,6 +694,7 @@ export default function CompliancePage() {
   const delRecallMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/feed-recalls/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { invalidate(); toast({ title: "Recall record deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   function parseJsonIds(raw: unknown): number[] {
