@@ -1738,13 +1738,35 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
         {data && (
           <div className="space-y-5 text-sm">
 
-            {/* Pressing details + attachments */}
+            {/* Pressing details + attachments + additives (grouped per pressing, mirroring the PDF) */}
             {(() => {
               const pressId = pressing.id != null && Number(pressing.id) > 0 ? Number(pressing.id) : null;
               const hasDetails = pressing.press_type || pressing.grapes_pressed_kg || pressing.press_wine_litres ||
                 pressing.juice_brix || pressing.juice_ph || pressing.juice_ta_gl ||
                 pressing.operator_name || pressing.settling_method || pressing.juice_turbidity;
-              if (!hasDetails && !pressId) return null;
+              // Group additives by their pressing session — in vintage scope a
+              // trail can span multiple pressings, so each pressing renders its
+              // own indented sub-list with press date + batch ref.
+              const additiveGroups: { key: string; pressDate: string; batchRef: string | null; additions: Record<string, unknown>[] }[] = [];
+              {
+                const groupIndex = new Map<string, number>();
+                for (const a of data.pressAdditions) {
+                  const key = a.pressing_record_id != null ? String(a.pressing_record_id) : "unknown";
+                  let idx = groupIndex.get(key);
+                  if (idx == null) {
+                    idx = additiveGroups.length;
+                    groupIndex.set(key, idx);
+                    additiveGroups.push({
+                      key,
+                      pressDate: a.pressing_press_date ? fmtDate(a.pressing_press_date) : "—",
+                      batchRef: a.pressing_batch_ref != null && String(a.pressing_batch_ref).trim() !== "" ? String(a.pressing_batch_ref).trim() : null,
+                      additions: [],
+                    });
+                  }
+                  additiveGroups[idx].additions.push(a);
+                }
+              }
+              if (!hasDetails && !pressId && additiveGroups.length === 0 && !pressing.notes) return null;
               return (
                 <div className="rounded-lg border bg-muted/20 px-4 py-3 space-y-3">
                   <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
@@ -1811,6 +1833,47 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
                   {pressId !== null && (
                     <div className={hasDetails ? "pt-2 border-t" : ""}>
                       <RecordAttachments farmId={farmId} recordType="winery-pressing" recordId={pressId} compact />
+                    </div>
+                  )}
+                  {additiveGroups.length > 0 && (
+                    <div className="pt-2 border-t space-y-2">
+                      <p className="text-muted-foreground uppercase tracking-wide font-semibold" style={{ fontSize: "10px" }}>
+                        Press Additives ({data.pressAdditions.length})
+                      </p>
+                      {additiveGroups.map(g => (
+                        <div key={g.key} className="pl-4">
+                          {isVintageScoped && (
+                            <p className="text-xs font-medium text-muted-foreground flex items-center gap-2 mb-1">
+                              <span>Pressing — {g.pressDate}</span>
+                              {g.batchRef ? (
+                                <span className="font-mono text-blue-800 bg-blue-100 rounded px-1.5 py-0.5" style={{ fontSize: "10px" }}>{g.batchRef}</span>
+                              ) : (
+                                <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5" style={{ fontSize: "10px" }}>No ref</span>
+                              )}
+                              <span className="font-normal text-muted-foreground/70">({g.additions.length})</span>
+                            </p>
+                          )}
+                          <div className="rounded border divide-y bg-background">
+                            {g.additions.map((a, i) => (
+                              <div key={i} className="px-3 py-2 space-y-0.5">
+                                <div className="flex items-center gap-3 text-xs">
+                                  <Beaker className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                  <span className="font-medium">{fmt(a.additive_name)}</span>
+                                  <span className="text-muted-foreground">{ADDITIVE_CATEGORY_LABELS[String(a.category)] ?? fmt(a.category)}</span>
+                                  <span className="text-muted-foreground font-mono ml-auto">{a.dose != null ? `${fmtNum(a.dose, 2)} ${fmt(a.unit)}` : "—"}</span>
+                                </div>
+                                {!!a.notes && <p className="text-xs text-muted-foreground italic pl-6">{String(a.notes)}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!!pressing.notes && (
+                    <div className="pt-2 border-t">
+                      <p className="text-muted-foreground uppercase tracking-wide font-semibold" style={{ fontSize: "10px" }}>Pressing Notes</p>
+                      <p className="text-xs text-muted-foreground italic mt-1">{String(pressing.notes)}</p>
                     </div>
                   )}
                 </div>
@@ -1954,30 +2017,6 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
                 </div>
               );
             })()}
-
-            {/* Press Additions at pressing */}
-            {(data.pressAdditions.length > 0 || !!pressing.notes) && (
-              <div>
-                <SectionLabel>Pressing Additives</SectionLabel>
-                {data.pressAdditions.length > 0 && (
-                  <div className="rounded border divide-y mt-2">
-                    {data.pressAdditions.map((a, i) => (
-                      <div key={i} className="px-3 py-2 space-y-0.5">
-                        <div className="flex items-center gap-3">
-                          <Beaker className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          <span className="font-medium">{fmt(a.additive_name)}</span>
-                          <span className="text-muted-foreground text-xs">{a.dose != null ? `${fmtNum(a.dose, 2)} ${fmt(a.unit)}` : "—"}</span>
-                        </div>
-                        {!!a.notes && <p className="text-xs text-muted-foreground italic pl-6">{String(a.notes)}</p>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {!!pressing.notes && (
-                  <p className="text-xs text-muted-foreground italic mt-2">{String(pressing.notes)}</p>
-                )}
-              </div>
-            )}
 
             {totalLinked === 0 && !isLoading && (
               <EmptyState icon={GitBranch} title="No linked records yet" sub="Fermentation, cellar ops, SO₂ tests, and bottling runs sharing this batch reference will appear here." />
