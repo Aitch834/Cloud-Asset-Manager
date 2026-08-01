@@ -3215,7 +3215,11 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [view, setView] = useState<Record<string, unknown> | null>(null);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
-  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const pressingYearFilterKey = `pressing-year-filter-${farmId}`;
+  const [yearFilter, setYearFilterRaw] = useState(() => {
+    try { return localStorage.getItem(`pressing-year-filter-${farmId}`) ?? String(new Date().getFullYear()); } catch { return String(new Date().getFullYear()); }
+  });
+  const setYearFilter = (v: string) => { try { localStorage.setItem(pressingYearFilterKey, v); } catch { /**/ } setYearFilterRaw(v); };
   const [pressingSearch, setPressingSearch] = useState("");
   const pressingSortKey = `pressing-sort-${farmId}`;
   const PRESSING_SORT_COLS = ["date", "batch_ref", "grapes_pressed_kg", "total_juice_litres", "juice_turbidity"] as const;
@@ -3233,8 +3237,9 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
       setPressingSortColRaw((PRESSING_SORT_COLS as readonly string[]).includes(col ?? "") ? col as PressingSort : "date");
       const dir = localStorage.getItem(`${pressingSortKey}-dir`);
       setPressingSortDirRaw(dir === "asc" ? "asc" : "desc");
+      setYearFilterRaw(localStorage.getItem(pressingYearFilterKey) ?? String(new Date().getFullYear()));
     } catch { /**/ }
-  }, [pressingSortKey]);
+  }, [pressingSortKey, pressingYearFilterKey]);
   const setPressingSortCol = (col: PressingSort) => { try { localStorage.setItem(`${pressingSortKey}-col`, col); } catch { /**/ } setPressingSortColRaw(col); };
   const setPressingSortDir = (dir: "asc" | "desc") => { try { localStorage.setItem(`${pressingSortKey}-dir`, dir); } catch { /**/ } setPressingSortDirRaw(dir); };
   const [pressTypeOther, setPressTypeOther] = useState(false);
