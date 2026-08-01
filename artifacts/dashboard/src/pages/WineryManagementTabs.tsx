@@ -2402,28 +2402,53 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
   const bottPhRecord = bottlingWithPh[0] ?? null;
   const bottPh = bottPhRecord?.ph != null ? parseFloat(String(bottPhRecord.ph)) : null;
   const bottTa = bottPhRecord?.titratable_acidity_gl != null ? parseFloat(String(bottPhRecord.titratable_acidity_gl)) : null;
-  const phTaHasAny = pressPh != null || pressTa != null || fermPh != null || fermTa != null || bottPh != null || bottTa != null;
+
+  // SO₂ test pH/TA readings — most recent per stage (mirrors the on-screen merged stage logic)
+  const so2TestsByStage: Record<string, { ph: number | null; ta: number | null }> = {};
+  const sortedSo2TestsForPhTa = [...data.so2Tests].sort((a, b) =>
+    new Date(String(b.test_date ?? "0")).getTime() - new Date(String(a.test_date ?? "0")).getTime()
+  );
+  for (const t of sortedSo2TestsForPhTa) {
+    const stageKey = String(t.test_stage ?? "");
+    if (!stageKey || so2TestsByStage[stageKey]) continue; // keep most recent only
+    const tPh = t.ph != null ? parseFloat(String(t.ph)) : null;
+    const tTa = t.titratable_acidity_gl != null ? parseFloat(String(t.titratable_acidity_gl)) : null;
+    if (tPh == null && tTa == null) continue;
+    so2TestsByStage[stageKey] = { ph: tPh, ta: tTa };
+  }
+
+  const PDF_DRIFT_STAGE_ORDER = ["at-pressing", "post-fermentation", "post-racking", "pre-bottling", "at-bottling", "other"] as const;
+  const pdfStagePoints: Record<string, { label: string; ph: number | null; ta: number | null }> = {
+    "at-pressing":       { label: "At pressing (juice)", ph: pressPh, ta: pressTa },
+    "post-fermentation": { label: "Post-fermentation",   ph: fermPh,  ta: fermTa },
+    "at-bottling":       { label: "At bottling",         ph: bottPh,  ta: bottTa },
+  };
+  for (const stageKey of PDF_DRIFT_STAGE_ORDER) {
+    const test = so2TestsByStage[stageKey];
+    if (!test) continue;
+    if (pdfStagePoints[stageKey]) {
+      if (pdfStagePoints[stageKey].ph == null) pdfStagePoints[stageKey].ph = test.ph;
+      if (pdfStagePoints[stageKey].ta == null) pdfStagePoints[stageKey].ta = test.ta;
+    } else {
+      pdfStagePoints[stageKey] = { label: SO2_TEST_STAGE_LABELS[stageKey] ?? stageKey, ph: test.ph, ta: test.ta };
+    }
+  }
+  const pdfTrendStages = PDF_DRIFT_STAGE_ORDER
+    .filter(k => pdfStagePoints[k] && (pdfStagePoints[k].ph != null || pdfStagePoints[k].ta != null))
+    .map(k => pdfStagePoints[k]);
+  const phTaHasAny = pdfTrendStages.length > 0;
 
   const phTaHistoryHtml = phTaHasAny ? `
 <div class="section">
   <h2>pH &amp; TA Analytical History</h2>
   <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:10px 12px">
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+      ${pdfTrendStages.map(s => `
       <div style="background:rgba(255,255,255,0.7);border-radius:4px;padding:8px 10px">
-        <p style="font-size:10px;font-weight:600;color:#6b7280;margin-bottom:4px">At pressing (juice)</p>
-        <p style="font-size:12px;font-family:monospace;font-weight:700;color:#1e40af">${pressPh != null ? `pH ${pressPh.toFixed(2)}` : `<span style="color:#9ca3af">pH —</span>`}</p>
-        <p style="font-size:11px;font-family:monospace;color:#374151;margin-top:2px">${pressTa != null ? `TA ${pressTa.toFixed(1)} g/L` : `<span style="color:#9ca3af">TA —</span>`}</p>
-      </div>
-      <div style="background:rgba(255,255,255,0.7);border-radius:4px;padding:8px 10px">
-        <p style="font-size:10px;font-weight:600;color:#6b7280;margin-bottom:4px">Post-fermentation</p>
-        <p style="font-size:12px;font-family:monospace;font-weight:700;color:#1e40af">${fermPh != null ? `pH ${fermPh.toFixed(2)}` : `<span style="color:#9ca3af">pH —</span>`}</p>
-        <p style="font-size:11px;font-family:monospace;color:#374151;margin-top:2px">${fermTa != null ? `TA ${fermTa.toFixed(1)} g/L` : `<span style="color:#9ca3af">TA —</span>`}</p>
-      </div>
-      <div style="background:rgba(255,255,255,0.7);border-radius:4px;padding:8px 10px">
-        <p style="font-size:10px;font-weight:600;color:#6b7280;margin-bottom:4px">At bottling</p>
-        <p style="font-size:12px;font-family:monospace;font-weight:700;color:#1e40af">${bottPh != null ? `pH ${bottPh.toFixed(2)}` : `<span style="color:#9ca3af">pH —</span>`}</p>
-        <p style="font-size:11px;font-family:monospace;color:#374151;margin-top:2px">${bottTa != null ? `TA ${bottTa.toFixed(1)} g/L` : `<span style="color:#9ca3af">TA —</span>`}</p>
-      </div>
+        <p style="font-size:10px;font-weight:600;color:#6b7280;margin-bottom:4px">${s.label}</p>
+        <p style="font-size:12px;font-family:monospace;font-weight:700;color:#1e40af">${s.ph != null ? `pH ${s.ph.toFixed(2)}` : `<span style="color:#9ca3af">pH —</span>`}</p>
+        <p style="font-size:11px;font-family:monospace;color:#374151;margin-top:2px">${s.ta != null ? `TA ${s.ta.toFixed(1)} g/L` : `<span style="color:#9ca3af">TA —</span>`}</p>
+      </div>`).join("")}
     </div>
   </div>
 </div>` : "";
