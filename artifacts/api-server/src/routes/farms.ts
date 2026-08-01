@@ -36652,7 +36652,7 @@ router.post("/farms/:farmId/winery-reception/bulk", requireAuth, requireTenant, 
   }
 
   const rejected: { row: number; reason: string }[] = [];
-  const toInsert: Record<string, unknown>[] = [];
+  const toInsert: { rowNum: number; data: Record<string, unknown> }[] = [];
 
   for (let i = 0; i < records.length; i++) {
     // Read raw strings BEFORE sanitiseBody (which converts ISO date strings to Date objects)
@@ -36680,16 +36680,16 @@ router.post("/farms/:farmId/winery-reception/bulk", requireAuth, requireTenant, 
       continue;
     }
     const raw = sanitiseBody(record);
-    toInsert.push(raw);
+    toInsert.push({ rowNum, data: raw });
   }
 
   const inserted: unknown[] = [];
-  for (const b of toInsert) {
+  for (const { rowNum, data: b } of toInsert) {
     try {
       const r = await db.execute(sql`INSERT INTO winery_reception_records (farm_id,reception_date,vintage_year,variety,source_type,grower_name,vehicle_reg,driver_name,gross_weight_kg,tare_weight_kg,net_weight_kg,intake_temperature_c,brix,ph,titratable_acidity_gl,potential_alcohol,grape_condition,botrytis_pct,mog_pct,holding_bin,inspector_name,accepted,rejection_reason,notes) VALUES (${farmId},${n(b.receptionDate)},${ni(b.vintageYear)},${n(b.variety)},${n(b.sourceType)},${n(b.growerName)},${n(b.vehicleReg)},${n(b.driverName)},${nf(b.grossWeightKg)},${nf(b.tareWeightKg)},${nf(b.netWeightKg)},${nf(b.intakeTemperatureC)},${nf(b.brix)},${nf(b.ph)},${nf(b.titratableAcidityGl)},${nf(b.potentialAlcohol)},${n(b.grapeCondition)},${nf(b.botrytisPct)},${nf(b.mogPct)},${n(b.holdingBin)},${n(b.inspectorName)},${nb(b.accepted) ?? true},${n(b.rejectionReason)},${n(b.notes)}) RETURNING id`);
       inserted.push(r.rows[0]);
     } catch (err: unknown) {
-      rejected.push({ row: toInsert.indexOf(b) + 1, reason: `Row ${toInsert.indexOf(b) + 1}: Database error — ${(err as Error).message ?? "unknown error"}` });
+      rejected.push({ row: rowNum, reason: `Row ${rowNum}: Database error — ${(err as Error).message ?? "unknown error"}` });
     }
   }
 

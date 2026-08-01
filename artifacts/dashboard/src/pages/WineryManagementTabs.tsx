@@ -736,14 +736,65 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
                 </div>
               </div>
               {importResult.rejected.length > 0 && (
-                <div className="rounded-md border bg-muted/20 p-3 space-y-1 max-h-48 overflow-y-auto">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Skipped rows</p>
-                  {importResult.rejected.map((r, i) => (
-                    <div key={i} className="text-xs text-red-700 flex items-start gap-1.5">
-                      <XCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                      <span>{r.reason}</span>
-                    </div>
-                  ))}
+                <div className="rounded-md border bg-muted/20 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Skipped rows</p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        // Aliases mirror the ones in submitHarvestImport so snake_case inputs resolve correctly
+                        const HARVEST_FIELD_ALIASES: Record<string, string[]> = {
+                          "Reception Date":    ["Reception Date", "reception_date"],
+                          "Vintage Year":      ["Vintage Year", "vintage_year"],
+                          "Variety":           ["Variety", "variety"],
+                          "Source Type":       ["Source Type", "source_type"],
+                          "Grower Name":       ["Grower Name", "grower_name"],
+                          "Gross Weight (kg)": ["Gross Weight (kg)", "gross_weight_kg"],
+                          "Tare Weight (kg)":  ["Tare Weight (kg)", "tare_weight_kg"],
+                          "Net Weight (kg)":   ["Net Weight (kg)", "net_weight_kg"],
+                          "Brix":              ["Brix", "brix"],
+                          "pH":                ["pH", "ph"],
+                          "TA (g/L)":          ["TA (g/L)", "titratable_acidity_gl"],
+                          "Temp (°C)":         ["Temp (°C)", "intake_temperature_c"],
+                          "Grape Condition":   ["Grape Condition", "grape_condition"],
+                          "Accepted (Yes/No)": ["Accepted (Yes/No)", "accepted"],
+                          "Notes":             ["Notes", "notes"],
+                        };
+                        const resolveField = (row: Record<string, string>, canonical: string) => {
+                          for (const alias of HARVEST_FIELD_ALIASES[canonical] ?? [canonical]) {
+                            if (row[alias] != null && row[alias] !== "") return row[alias];
+                          }
+                          return "";
+                        };
+                        const skippedRows = importResult.rejected
+                          .map(r => importParsed[r.row - 1])
+                          .filter(Boolean);
+                        const header = HARVEST_IMPORT_HEADERS.map(h => `"${h}"`).join(",");
+                        const body = skippedRows.map(row =>
+                          HARVEST_IMPORT_HEADERS.map(h => `"${resolveField(row, h).replace(/"/g, '""')}"`).join(",")
+                        ).join("\n");
+                        const blob = new Blob([header + "\n" + body + "\n"], { type: "text/csv" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = "harvest-reception-skipped-rows.csv";
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                    >
+                      <FileDown className="w-3 h-3 mr-1" />Download skipped rows as CSV
+                    </Button>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto space-y-1">
+                    {importResult.rejected.map((r, i) => (
+                      <div key={i} className="text-xs text-red-700 flex items-start gap-1.5">
+                        <XCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                        <span>{r.reason}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
