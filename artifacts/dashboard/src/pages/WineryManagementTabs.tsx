@@ -2180,7 +2180,7 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
         <DialogFooter className="flex-wrap gap-2">
           {data && (
             <>
-              <Button variant="outline" size="sm" onClick={() => exportBatchTrailCsv(pressing, data, farmName)}>
+              <Button variant="outline" size="sm" onClick={() => { void exportBatchTrailCsv(farmId, pressing, data, farmName); }}>
                 <FileDown className="w-3.5 h-3.5 mr-1" />Export CSV
               </Button>
               <Button variant="outline" size="sm" onClick={() => { void printBatchTrail(farmId, pressing, data, farmName, currentSig, { name: currentSignerName, role: currentSignerRole, signedAt: currentSignedAt, signerDate: currentSignerDate }); }}>
@@ -2241,7 +2241,22 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
 }
 
 // ─── Batch Trail — CSV export ─────────────────────────────────────────────────
-function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrailData, farmName: string) {
+async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unknown>, data: BatchTrailData, farmName: string) {
+  // Fetch attachments for the pressing record (best-effort — CSV still exports if this fails).
+  // Mirrors the attachments block in the printed PDF (printBatchTrail).
+  let pressAttachments: { fileName: string; uploadedAt: string }[] = [];
+  const pressId = pressing.id != null ? Number(pressing.id) : null;
+  if (pressId) {
+    try {
+      const attRes = await fetch(api(`farms/${farmId}/record-attachments?recordType=winery-pressing&recordId=${pressId}`), { credentials: "include" });
+      if (attRes.ok) {
+        const attJson = await attRes.json();
+        pressAttachments = (Array.isArray(attJson) ? attJson : []) as { fileName: string; uploadedAt: string }[];
+      }
+    } catch {
+      // ignore — non-critical
+    }
+  }
   const batchRef = String(pressing.batch_ref ?? "");
   const isVintageScoped = data.scope === "vintageYear";
   const vintageYear = data.vintageYear ? String(data.vintageYear) : (pressing.vintage_year ? String(pressing.vintage_year) : null);
@@ -2299,6 +2314,26 @@ function exportBatchTrailCsv(pressing: Record<string, unknown>, data: BatchTrail
       "",
       "",
       "",
+    ]);
+  }
+
+  // Pressing attachments — one row per file, only when attachments exist (mirrors the PDF)
+  for (const a of pressAttachments) {
+    rows.push([
+      "Pressing — Attachment",
+      pressingBatchRef,
+      a.uploadedAt ? fmtDate(a.uploadedAt) : "",
+      "Attachment",
+      String(a.fileName ?? ""),
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      a.uploadedAt ? `Uploaded ${fmtDate(a.uploadedAt)}` : "",
     ]);
   }
 
