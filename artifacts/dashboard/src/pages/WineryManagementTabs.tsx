@@ -5488,6 +5488,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const [cellarSearch, setCellarSearch] = useState("");
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   const [cellarWineColourFromFermentation, setCellarWineColourFromFermentation] = useState(false);
+  const [cellarWineColourFromPressing, setCellarWineColourFromPressing] = useState(false);
   const { data: farmsDataCellar } = useQuery<{ records?: Record<string, unknown>[] }>({
     queryKey: ["farms-list"],
     queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
@@ -5505,8 +5506,9 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
 
   const handleCellarBatchRefChange = (val: string) => {
     sf("batchRef", val);
-    // Always reset the badge — recompute from scratch for this new batch ref
+    // Always reset the badges — recompute from scratch for this new batch ref
     setCellarWineColourFromFermentation(false);
+    setCellarWineColourFromPressing(false);
     const pressMatch = cellarPressingRefs.find(p => p.batchRef === val);
     const fermMatch = val
       ? cellarFermentationRecords.find(f => String(f.batch_ref ?? "") === val)
@@ -5519,8 +5521,9 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
       const inheritedColour = fermColour || pressColour;
       if (!form.wineColour && inheritedColour) {
         sf("wineColour", inheritedColour);
-        // Badge only when colour actually came from the fermentation record
+        // Badge reflects where the colour actually came from
         if (fermColour) setCellarWineColourFromFermentation(true);
+        else if (pressColour) setCellarWineColourFromPressing(true);
       }
       const isOrganic = fermMatch != null
         ? (fermMatch.is_organic === true || fermMatch.is_organic === "true" || fermMatch.is_organic === 1)
@@ -5589,7 +5592,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const isFiltering = opType === "filtering";
   const vRef = (id: unknown) => vessels.find(v => String(v.id) === String(id))?.vessel_ref ?? id;
 
-  const openAdd = () => { setEditing(null); setForm({ opDate: today, vintageYear: String(new Date().getFullYear()) }); setCellarWineColourFromFermentation(false); setOpen(true); };
+  const openAdd = () => { setEditing(null); setForm({ opDate: today, vintageYear: String(new Date().getFullYear()) }); setCellarWineColourFromFermentation(false); setCellarWineColourFromPressing(false); setOpen(true); };
   const openEdit = (r: Record<string, unknown>) => {
     setEditing(r.id as number);
     const base = Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]));
@@ -5603,6 +5606,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
     }
     setForm(base);
     setCellarWineColourFromFermentation(false);
+    setCellarWineColourFromPressing(false);
     setOpen(true);
   };
   const save = async () => {
@@ -5797,8 +5801,11 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                       from fermentation
                     </span>
                   )}
+                  {cellarWineColourFromPressing && !!form.wineColour && (
+                    <span className="text-xs text-blue-600">auto from pressing</span>
+                  )}
                 </div>
-                <Select value={form.wineColour ?? ""} onValueChange={v => { setCellarWineColourFromFermentation(false); sf("wineColour", v); }}>
+                <Select value={form.wineColour ?? ""} onValueChange={v => { setCellarWineColourFromFermentation(false); setCellarWineColourFromPressing(false); sf("wineColour", v); }}>
                   <SelectTrigger><SelectValue placeholder="Select colour" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">— Not specified —</SelectItem>
