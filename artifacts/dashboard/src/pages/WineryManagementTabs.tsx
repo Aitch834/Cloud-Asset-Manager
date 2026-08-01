@@ -5709,6 +5709,14 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
         || String(r.operator_name ?? "").toLowerCase().includes(q)
         || String(r.notes ?? "").toLowerCase().includes(q);
     });
+  // Organic status for a cellar-ops row: derived from the linked pressing record by
+  // batch_ref (same as the view dialog / form), falling back to the row's own flag.
+  const cellarRowIsOrganic = (r: Record<string, unknown>): boolean => {
+    const pressMatch = r.batch_ref ? cellarPressingRefs.find(p => p.batchRef === String(r.batch_ref)) : null;
+    if (pressMatch) return !!pressMatch.isOrganic;
+    return r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
+  };
+
   const cellarCsvCols = [
     { key: "vintage_year", label: "Vintage" },
     { key: "batch_ref", label: "Batch Ref" },
@@ -5732,6 +5740,24 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
       const moved = r.volume_moved_litres != null ? parseFloat(String(r.volume_moved_litres)) : NaN;
       if (!isNaN(moved) && moved > 0) return (g * 1000 / moved).toFixed(1);
       return "";
+    } },
+    { key: "so2_ceiling_mg_l", label: "SO₂ ceiling (mg/L)", fmt: (r: Record<string, unknown>) => {
+      if (String(r.op_type) !== "sulfiting") return "";
+      const colour = String(r.wine_colour ?? "");
+      if (!colour) return "";
+      const isOrg = cellarRowIsOrganic(r);
+      const ceiling = isOrg ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour];
+      return ceiling ? `${ceiling} (${isOrg ? "organic" : "conventional"})` : "";
+    } },
+    { key: "so2_compliance", label: "Compliance", fmt: (r: Record<string, unknown>) => {
+      if (String(r.op_type) !== "sulfiting") return "";
+      const colour = String(r.wine_colour ?? "");
+      if (!colour) return "";
+      const isOrg = cellarRowIsOrganic(r);
+      const ceiling = parseFloat((isOrg ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour]) ?? "");
+      const freeAfter = r.free_so2_after_mg_l != null && r.free_so2_after_mg_l !== "" ? parseFloat(String(r.free_so2_after_mg_l)) : NaN;
+      if (isNaN(ceiling) || isNaN(freeAfter)) return "";
+      return freeAfter > ceiling ? "Exceeds Limit" : "Compliant";
     } },
     { key: "operator_name", label: "Operator" },
     { key: "notes", label: "Notes" },
