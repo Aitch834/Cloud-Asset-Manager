@@ -3152,6 +3152,42 @@ function escHtml(v: unknown): string {
 
 const SOURCE_LABELS: Record<string, string> = { pressing: "Pressing", fermentation: "Fermentation", cellar: "Cellar" };
 
+// Most-common SO₂ unit per vintage, weighted by record count, computed only for
+// vintages that mix units. Single source of truth for the on-screen amber unit
+// badges, the printed PDF outlier markers, and the CSV "Unit Differs" column —
+// all three use this exact map so they can never disagree.
+function computeSo2DominantUnitByVintage(rows: Record<string, unknown>[]): { mixedVintages: string[]; dominantUnitByVintage: Map<string, string> } {
+  const byVintage = new Map<string, Map<string, number>>();
+  rows.filter(r => r.category === "so2").forEach(r => {
+    const v = String(r.vintage_year ?? "?");
+    const u = String(r.unit ?? "");
+    const n = Math.max(1, parseInt(String(r.batch_count ?? "1"), 10) || 1);
+    if (!byVintage.has(v)) byVintage.set(v, new Map());
+    const counts = byVintage.get(v)!;
+    counts.set(u, (counts.get(u) ?? 0) + n);
+  });
+  const mixedVintages: string[] = [];
+  const dominantUnitByVintage = new Map<string, string>();
+  byVintage.forEach((counts, v) => {
+    if (counts.size > 1) {
+      mixedVintages.push(v);
+      let best = ""; let bestN = -1;
+      counts.forEach((n, u) => { if (n > bestN) { bestN = n; best = u; } });
+      dominantUnitByVintage.set(v, best);
+    }
+  });
+  return { mixedVintages: mixedVintages.sort(), dominantUnitByVintage };
+}
+
+// Shared unit-outlier test for a summary row (SO₂ row whose unit differs from
+// the vintage's most common unit — only defined within mixed-unit vintages).
+function so2UnitOutlierDominant(row: Record<string, unknown>, dominantUnitByVintage: Map<string, string>): string | undefined {
+  if (row.category !== "so2") return undefined;
+  const dominant = dominantUnitByVintage.get(String(row.vintage_year ?? "?"));
+  if (!dominant || String(row.unit ?? "") === dominant) return undefined;
+  return dominant;
+}
+
 function printAdditionsReport(
   rows: Record<string, unknown>[],
   farmName: string,
@@ -3176,6 +3212,9 @@ function printAdditionsReport(
     .map(([v]) => v)
     .sort();
   const hasMixedSo2Units = mixedUnitVintages.length > 0;
+  // Unit-outlier flag — same computation as the on-screen amber unit badges
+  const { dominantUnitByVintage } = computeSo2DominantUnitByVintage(rows);
+  let hasUnitOutliers = false;
   const mixedUnitsNotice = hasMixedSo2Units
     ? `<div style="margin-bottom:14px;padding:10px 14px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;display:flex;align-items:flex-start;gap:10px">
   <span style="font-size:16px;line-height:1.2">⚠</span>
@@ -3199,6 +3238,11 @@ function printAdditionsReport(
 
     // limitCell contains only trusted static text + escaped unit
     const unitEsc = escHtml(row.unit ?? "mg/kg");
+    const outlierDominant = so2UnitOutlierDominant(row, dominantUnitByVintage);
+    if (outlierDominant) hasUnitOutliers = true;
+    const unitCell = outlierDominant
+      ? `<span style="color:#92400e;font-weight:600">${unitEsc} *</span><br /><span style="color:#92400e;font-size:9px">unit differs — most records for this vintage use ${escHtml(outlierDominant)}</span>`
+      : unitEsc;
     let limitCell = "";
     if (warnConv)      limitCell = `<span style="color:#b91c1c;font-weight:600">⚠ Avg exceeds conv. max (200 ${unitEsc})</span>`;
     else if (warnOrg)  limitCell = `<span style="color:#92400e">⚠ Avg exceeds organic limit (${organicLimit} ${unitEsc})</span>`;
@@ -3228,7 +3272,7 @@ function printAdditionsReport(
       <td style="text-align:right;font-family:monospace">${avgDose.toFixed(1)}</td>
       <td style="text-align:right;font-family:monospace">${parseFloat(String(row.min_dose ?? 0)).toFixed(1)}</td>
       <td style="text-align:right;font-family:monospace">${parseFloat(String(row.max_dose ?? 0)).toFixed(1)}</td>
-      <td style="color:#6b7280;font-size:11px">${unitEsc}</td>
+      <td style="color:#6b7280;font-size:11px">${unitCell}</td>
       <td style="font-size:11px">${limitCell}</td>
     </tr>`;
   }).join("");
@@ -3296,6 +3340,7 @@ ${rows.some(r => r.category === "so2") ? `<div style="margin-top:12px;padding:8p
   <span style="color:#92400e">⚠ Amber = average dose exceeds organic limit (per-colour: Red 100 · White/Rosé/Orange 150 · Sparkling 185 mg/kg)</span>
   <span>Source: EU Reg 2019/934 (UK-retained law)</span>
   <span>SO₂ units vary by stage: pressing mg/kg · fermentation mg/L · cellar g</span>
+  ${hasUnitOutliers ? `<span style="color:#92400e">* Unit differs from the most common SO₂ unit used for that vintage</span>` : ""}
 </p>
 
 <div class="signoff">
@@ -4054,30 +4099,8 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   });
   // Detect mixed SO₂ units in the currently-visible summary rows so the on-screen
   // table can show a banner before the user reaches the export step.
-  const { summaryMixedUnitVintages, summaryDominantUnitByVintage } = (() => {
-    // Count SO₂ unit usage per vintage (weighted by record count so the "most
-    // common" unit reflects underlying records, not just summary rows)
-    const byVintage = new Map<string, Map<string, number>>();
-    searchFilteredSummary.filter(r => r.category === "so2").forEach(r => {
-      const v = String(r.vintage_year ?? "?");
-      const u = String(r.unit ?? "");
-      const n = Math.max(1, parseInt(String(r.batch_count ?? "1"), 10) || 1);
-      if (!byVintage.has(v)) byVintage.set(v, new Map());
-      const counts = byVintage.get(v)!;
-      counts.set(u, (counts.get(u) ?? 0) + n);
-    });
-    const mixed: string[] = [];
-    const dominant = new Map<string, string>();
-    byVintage.forEach((counts, v) => {
-      if (counts.size > 1) {
-        mixed.push(v);
-        let best = ""; let bestN = -1;
-        counts.forEach((n, u) => { if (n > bestN) { bestN = n; best = u; } });
-        dominant.set(v, best);
-      }
-    });
-    return { summaryMixedUnitVintages: mixed.sort(), summaryDominantUnitByVintage: dominant };
-  })();
+  const { mixedVintages: summaryMixedUnitVintages, dominantUnitByVintage: summaryDominantUnitByVintage } =
+    computeSo2DominantUnitByVintage(searchFilteredSummary);
 
   const showSo2Chart = categoryFilter.size === 0 || categoryFilter.has("so2");
   // Scope the chart to the active wine colour filter so the graph matches the table below it
@@ -4106,6 +4129,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     { key: "wine_colour", label: "Wine Colour" },
     { key: "source", label: "Stage", fmt: (r: Record<string, unknown>) => SOURCE_LABELS[String(r.source ?? "pressing")] ?? String(r.source ?? "pressing") },
     { key: "unit", label: "Unit" },
+    // Matches the on-screen amber unit badge and the PDF's "*" marker — same
+    // dominant-unit map (computeSo2DominantUnitByVintage) drives all three.
+    { key: "unit_outlier", label: "Unit Differs From Vintage", fmt: (r: Record<string, unknown>) => {
+      const dominant = so2UnitOutlierDominant(r, summaryDominantUnitByVintage);
+      return dominant ? `Yes — most records for this vintage use ${dominant}` : "";
+    }},
     { key: "batch_count", label: "Records" },
     { key: "total_dose", label: "Total Dose" },
     { key: "avg_dose", label: "Avg Dose per Record" },
