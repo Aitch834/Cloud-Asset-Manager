@@ -3732,6 +3732,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   });
   const setYearFilter = (v: string) => { try { localStorage.setItem(pressingYearFilterKey, v); } catch { /**/ } setYearFilterRaw(v); };
   const [pressingSearch, setPressingSearch] = useState("");
+  const [pressingNonCompliantOnly, setPressingNonCompliantOnly] = useState(false);
   const [signedFilter, setSignedFilter] = useState<"all" | "signed" | "unsigned">("all");
   const pressingSortKey = `pressing-sort-${farmId}`;
   const PRESSING_SORT_COLS = ["date", "batch_ref", "grapes_pressed_kg", "total_juice_litres", "press_efficiency_l_per_kg", "juice_brix", "juice_ph", "juice_turbidity"] as const;
@@ -4081,6 +4082,11 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     return pressingSortDir === "asc" ? cmp : -cmp;
   });
 
+  // Non-compliant filter (mirrors the bottling register's toggle): count reflects
+  // the current vintage/search/sign-off filters; toggle narrows the table to breaches.
+  const pressingNonCompliantCount = filtered.filter(r => nonCompliantPressingIds.has(r.id as number)).length;
+  const displayedPressings = pressingNonCompliantOnly ? filtered.filter(r => nonCompliantPressingIds.has(r.id as number)) : filtered;
+
   // Mirrors the embed decision made in the Print button's click handler: the PDF
   // embeds the digital signature only when scoped to a single vintage and every
   // visible record is signed by the same person. Kept in sync so the indicator
@@ -4320,6 +4326,17 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             <SelectItem value="unsigned">Unsigned only</SelectItem>
           </SelectContent>
         </Select>
+        {pressingNonCompliantCount > 0 && (
+          <Button
+            size="sm"
+            variant={pressingNonCompliantOnly ? "destructive" : "outline"}
+            className={pressingNonCompliantOnly ? "h-8 text-xs" : "h-8 text-xs border-red-300 text-red-700 hover:bg-red-50"}
+            onClick={() => setPressingNonCompliantOnly(v => !v)}
+          >
+            <XCircle className="w-3.5 h-3.5 mr-1" />
+            {pressingNonCompliantOnly ? "Show all records" : `Non-compliant only (${pressingNonCompliantCount})`}
+          </Button>
+        )}
         <Button size="sm" variant={showReport ? "default" : "outline"} className="ml-auto" onClick={() => {
           const opening = !showReport;
           setShowReport(v => !v);
@@ -4372,6 +4389,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
       </div>
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         : filtered.length === 0 ? <EmptyState icon={Gauge} title="No pressing records yet" sub="Add a record for each pressing run to track juice yield and composition." />
+        : displayedPressings.length === 0 ? <EmptyState icon={CheckCircle2} title="No non-compliant records" sub="All pressing records in the current filter are within their additive limits." />
         : (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
@@ -4446,7 +4464,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
               <th className="p-3"></th>
             </tr></thead>
             <tbody className="divide-y">
-              {filtered.map(r => (
+              {displayedPressings.map(r => (
                 <tr key={String(r.id)} className={nonCompliantPressingIds.has(r.id as number) ? "bg-red-50 hover:bg-red-100 border-l-4 border-l-red-400" : "hover:bg-muted/20"}>
                   <td className="p-3 whitespace-nowrap">{fmtDate(r.press_date)}</td>
                   <td className="p-3 font-mono text-xs">
