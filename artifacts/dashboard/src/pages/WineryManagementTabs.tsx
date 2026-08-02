@@ -5926,7 +5926,13 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
                               <td className="p-2 text-muted-foreground">{fmt(a.category)}</td>
                               <td className="p-2 text-right font-mono">{fmt(a.dose)}</td>
                               <td className="p-2">{fmt(a.unit)}</td>
-                              <td className="p-2 text-muted-foreground">{fmt(a.notes)}</td>
+                              <td className="p-2 text-muted-foreground max-w-[8rem] lg:max-w-[11rem] xl:max-w-[14rem]">
+                                {a.notes ? (
+                                  <span className="truncate block cursor-help underline decoration-dotted decoration-muted-foreground/40 underline-offset-2" title={String(a.notes)}>
+                                    {String(a.notes).length > 120 ? `${String(a.notes).slice(0, 120)}…` : String(a.notes)}
+                                  </span>
+                                ) : <span className="text-muted-foreground/50">—</span>}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
