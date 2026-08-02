@@ -199,6 +199,39 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground border-t pt-3 mt-1">{children}</p>;
 }
 
+// Amber warning shown inside an edit dialog when the record being edited has
+// already been signed off — same pattern as the pressing edit dialog.
+function SignedEditWarning({ signed }: { signed: unknown }) {
+  if (!signed) return null;
+  return (
+    <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+      <ShieldCheck className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
+      <span>
+        <strong>This record has been signed off.</strong> The sign-off remains intact, but any change you save will be permanently recorded in the record's edit history for audit purposes.
+      </span>
+    </div>
+  );
+}
+
+// Amber "Edited After Sign-Off" list shown in view dialogs — same pattern as the
+// pressing view dialog. Renders nothing when the record has no edit history.
+function EditHistorySection({ history }: { history: unknown }) {
+  if (!Array.isArray(history) || history.length === 0) return null;
+  return (
+    <div className="border-t pt-2 mt-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 flex items-center gap-1"><AlertTriangle className="h-3 w-3" />Edited After Sign-Off</p>
+      <ul className="mt-1 space-y-0.5">
+        {(history as Record<string, unknown>[]).map((h, i) => (
+          <li key={i} className="text-xs text-muted-foreground">
+            {String(h.note ?? "")}
+            {h.editedAt ? <span className="text-[10px] text-muted-foreground/70"> ({new Date(String(h.editedAt)).toLocaleString("en-GB")})</span> : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function EmptyState({ icon: Icon, title, sub }: { icon: React.ElementType; title: string; sub: string }) {
   return (
     <div className="border-2 border-dashed rounded-lg p-10 text-center text-muted-foreground">
@@ -3088,6 +3121,19 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
   </div>
 </div>`;
 
+  // Post-sign-off edit trail — full-width amber row under any signed record that
+  // was edited after sign-off (same pattern as the Pressing Report PDF).
+  const editHistoryPdfRow = (r: Record<string, unknown>, colCount: number) => {
+    const editHistory = Array.isArray(r.edit_history) ? (r.edit_history as Record<string, unknown>[]) : [];
+    if (editHistory.length === 0) return "";
+    return `<tr>
+      <td colspan="${colCount}" style="padding:3px 7px 6px 20px;background:#fffbeb;border-bottom:1px solid #e5e7eb">
+        <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#b45309;margin-right:8px">Edited after sign-off:</span>
+        ${editHistory.map(h => `<span style="display:inline-block;margin-right:10px;font-size:9.5px;color:#92400e">${escHtml(String(h.note ?? ""))}</span>`).join("")}
+      </td>
+    </tr>`;
+  };
+
   // Fermentation
   const fermRows = data.fermentation.map(r => `<tr>
     <td>${escHtml(r.start_date ? fmtDate(r.start_date) : "—")}${r.end_date ? ` → ${escHtml(fmtDate(r.end_date))}` : ""}</td>
@@ -3101,7 +3147,7 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
     <td style="text-align:right;font-family:monospace">${r.end_ta_gl != null ? parseFloat(String(r.end_ta_gl)).toFixed(1) : "—"}</td>
     <td>${escHtml(r.operator_name)}</td>
     <td>${batchRefBadge(r as Record<string, unknown>)}</td>
-  </tr>`).join("");
+  </tr>${editHistoryPdfRow(r as Record<string, unknown>, 11)}`).join("");
 
   const fermHeader = `<tr class="header-row"><th>Period</th><th>Colour</th><th>Vessel</th><th>Type</th><th>Yeast</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">SO₂ @ ferm.</th><th style="text-align:right">End pH</th><th style="text-align:right">End TA (g/L)</th><th>Operator</th><th>Batch Ref</th></tr>`;
 
@@ -3131,7 +3177,7 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
     <td>${escHtml(r.fining_agent)}</td>
     <td>${escHtml(r.operator_name)}</td>
     <td>${batchRefBadge(r as Record<string, unknown>)}</td>
-  </tr>`;
+  </tr>${editHistoryPdfRow(r as Record<string, unknown>, 9)}`;
   }).join("");
 
   const cellarHeader = `<tr class="header-row"><th>Date</th><th>Operation</th><th>Vessel(s)</th><th style="text-align:right">Volume (L)</th><th>SO₂ detail</th><th style="text-align:right">Running total after this op (cumulative mg/L)</th><th>Fining agent</th><th>Operator</th><th>Batch Ref</th></tr>`;
@@ -3187,7 +3233,7 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
     <td>${escHtml(r.closure_type)}</td>
     <td>${isOrg ? "Yes — organic" : "No — conventional"}</td>
     <td>${batchRefBadge(r as Record<string, unknown>)}</td>
-  </tr>`;
+  </tr>${editHistoryPdfRow(r as Record<string, unknown>, 15)}`;
   }).join("");
 
   // Per-stage attachment blocks — rendered under the stage's own table, styled
@@ -5890,6 +5936,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
       <Dialog open={open} onOpenChange={o => !o && setOpen(false)}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing !== null ? "Edit" : "Add"} Fermentation Record</DialogTitle></DialogHeader>
+          {editing !== null && <SignedEditWarning signed={form.audit_signature} />}
           <div className="space-y-4">
             <SectionLabel>Batch identity</SectionLabel>
             {sortedPressingRecords.length > 0 && (
@@ -6104,6 +6151,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
                 </div>
               );
             })()}
+            <EditHistorySection history={view.edit_history} />
             {typeof view.id === "number" && <div className="border-t pt-3 mt-1"><RecordAttachments farmId={farmId} recordType="winery-fermentation" recordId={view.id} /></div>}
             <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
           </DialogContent>
@@ -6831,6 +6879,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
       <Dialog open={open} onOpenChange={o => !o && setOpen(false)}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing !== null ? "Edit" : "Log"} Cellar Operation</DialogTitle></DialogHeader>
+          {editing !== null && <SignedEditWarning signed={form.audit_signature} />}
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Operation Date *</Label><Input type="date" max={today} value={form.opDate ?? ""} onChange={e => sf("opDate", e.target.value)} /></div>
@@ -7107,6 +7156,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
               <ViewField label="Operator" value={fmt(view.operator_name)} />
               {!!view.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>}
             </div>
+            <EditHistorySection history={view.edit_history} />
             {typeof view.id === "number" && <div className="border-t pt-3 mt-1"><RecordAttachments farmId={farmId} recordType="winery-cellar-op" recordId={view.id} /></div>}
             <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
           </DialogContent>
@@ -7617,6 +7667,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
       <Dialog open={open} onOpenChange={o => !o && setOpen(false)}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing !== null ? "Edit" : "Add"} Bottling Record</DialogTitle></DialogHeader>
+          {editing !== null && <SignedEditWarning signed={form.audit_signature} />}
           <div className="space-y-4">
             <SectionLabel>Batch identity</SectionLabel>
             <div className="grid grid-cols-2 gap-3">
@@ -7816,6 +7867,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
               <ViewField label="Operator" value={fmt(view.operator_name)} />
               {!!view.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>}
             </div>
+            <EditHistorySection history={view.edit_history} />
             {typeof view.id === "number" && <div className="border-t pt-3 mt-1"><RecordAttachments farmId={farmId} recordType="winery-bottling" recordId={view.id} /></div>}
             <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
           </DialogContent>

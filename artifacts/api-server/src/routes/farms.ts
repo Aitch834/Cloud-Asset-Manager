@@ -37069,7 +37069,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
         SELECT f.id, f.start_date, f.end_date, f.batch_ref, f.vintage_year, f.wine_colour,
                f.fermentation_type, f.yeast_strain, f.inoculation_date, f.volume_litres,
                f.so2_at_fermentation_mg_l, f.end_ph, f.end_ta_gl, f.is_organic,
-               f.operator_name, f.notes,
+               f.operator_name, f.notes, f.edit_history,
                v.vessel_ref
         FROM winery_fermentation_records f
         LEFT JOIN winery_vessels v ON v.id = f.vessel_id
@@ -37079,7 +37079,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
       db.execute(sql`
         SELECT o.id, o.op_date, o.batch_ref, o.vintage_year, o.op_type,
                o.volume_moved_litres, o.so2_quantity_g, o.free_so2_before_mg_l, o.free_so2_after_mg_l,
-               o.fining_agent, o.operator_name, o.notes,
+               o.fining_agent, o.operator_name, o.notes, o.edit_history,
                fv.vessel_ref AS from_vessel_ref, tv.vessel_ref AS to_vessel_ref,
                fv.capacity_litres AS vessel_capacity_litres
         FROM winery_cellar_ops o
@@ -37104,7 +37104,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
                b.lot_code, b.volume_bottled_litres, b.bottle_size_ml, b.bottles_produced,
                b.cases_produced, b.closure_type, b.free_so2_mg_l, b.total_so2_mg_l,
                b.actual_abv_pct, b.is_organic, b.certified_organic, b.ph, b.titratable_acidity_gl,
-               b.operator_name, b.notes,
+               b.operator_name, b.notes, b.edit_history,
                v.vessel_ref AS source_vessel_ref
         FROM winery_bottling_records b
         LEFT JOIN winery_vessels v ON v.id = b.source_vessel_id
@@ -37128,7 +37128,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
         SELECT f.id, f.start_date, f.end_date, f.batch_ref, f.vintage_year, f.wine_colour,
                f.fermentation_type, f.yeast_strain, f.inoculation_date, f.volume_litres,
                f.so2_at_fermentation_mg_l, f.end_ph, f.end_ta_gl, f.is_organic,
-               f.operator_name, f.notes,
+               f.operator_name, f.notes, f.edit_history,
                v.vessel_ref
         FROM winery_fermentation_records f
         LEFT JOIN winery_vessels v ON v.id = f.vessel_id
@@ -37138,7 +37138,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
       db.execute(sql`
         SELECT o.id, o.op_date, o.batch_ref, o.vintage_year, o.op_type,
                o.volume_moved_litres, o.so2_quantity_g, o.free_so2_before_mg_l, o.free_so2_after_mg_l,
-               o.fining_agent, o.operator_name, o.notes,
+               o.fining_agent, o.operator_name, o.notes, o.edit_history,
                fv.vessel_ref AS from_vessel_ref, tv.vessel_ref AS to_vessel_ref,
                fv.capacity_litres AS vessel_capacity_litres
         FROM winery_cellar_ops o
@@ -37163,7 +37163,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
                b.lot_code, b.volume_bottled_litres, b.bottle_size_ml, b.bottles_produced,
                b.cases_produced, b.closure_type, b.free_so2_mg_l, b.total_so2_mg_l,
                b.actual_abv_pct, b.is_organic, b.certified_organic, b.ph, b.titratable_acidity_gl,
-               b.operator_name, b.notes,
+               b.operator_name, b.notes, b.edit_history,
                v.vessel_ref AS source_vessel_ref
         FROM winery_bottling_records b
         LEFT JOIN winery_vessels v ON v.id = b.source_vessel_id
@@ -37280,6 +37280,48 @@ router.put("/farms/:farmId/winery-pressing/:id/sign-off", requireAuth, requireTe
   }
   res.json({ record: r.rows[0] });
 });
+
+// ── Sign-off routes for the other signable winery record types ──────────────────
+// Mirrors the pressing sign-off route (same PNG data-URL validation) for
+// fermentation, cellar ops and bottling records. Table names come from this
+// hardcoded whitelist only — never from request input.
+const WINERY_SIGNOFF_TYPES: { path: string; table: string }[] = [
+  { path: "winery-fermentation", table: "winery_fermentation_records" },
+  { path: "winery-cellar-ops",   table: "winery_cellar_ops" },
+  { path: "winery-bottling",     table: "winery_bottling_records" },
+];
+for (const { path, table } of WINERY_SIGNOFF_TYPES) {
+  router.put(`/farms/:farmId/${path}/:id/sign-off`, requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+    const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+    const recordId = parseInt(req.params.id as string);
+    const b = sanitiseBody(req.body);
+    const signature = n(b.auditSignature);
+    if (!signature) {
+      res.status(400).json({ error: "auditSignature is required" });
+      return;
+    }
+    // Strict validation: must be a PNG data URL using only safe base64 characters
+    // (prevents stored XSS — see the pressing sign-off route for details).
+    const DATA_URL_RE = /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/;
+    const MAX_SIGNATURE_BYTES = 600_000; // ~450 KB PNG
+    if (!DATA_URL_RE.test(signature) || signature.length > MAX_SIGNATURE_BYTES) {
+      res.status(400).json({ error: "auditSignature must be a valid PNG data URL (max 450 KB)" });
+      return;
+    }
+    const signerName = n(b.auditSignerName) ?? null;
+    const signerRole = n(b.auditSignerRole) ?? null;
+    const signerDateRaw = nd(b.auditSignerDate) ?? null;
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+    const signerDate = signerDateRaw && DATE_RE.test(signerDateRaw) ? signerDateRaw : null;
+    const now = new Date();
+    const r = await db.execute(sql`UPDATE ${sql.raw(table)} SET audit_signature=${signature}, audit_signed_at=${now}, audit_signer_name=${signerName}, audit_signer_role=${signerRole}, audit_signer_date=${signerDate} WHERE id=${recordId} AND farm_id=${farmId} RETURNING id, audit_signature, audit_signed_at, audit_signer_name, audit_signer_role, audit_signer_date`);
+    if (r.rows.length === 0) {
+      res.status(404).json({ error: "Record not found" });
+      return;
+    }
+    res.json({ record: r.rows[0] });
+  });
+}
 
 // ── Pressing Additions (child rows of winery_pressing_records) ─────────────────
 router.get("/farms/:farmId/winery-pressing/:pressingId/additions", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
@@ -37481,7 +37523,11 @@ router.put("/farms/:farmId/winery-fermentation/:id", requireAuth, requireTenant,
   const isOrganicValue: boolean = b.isOrganic === "true" || b.isOrganic === true;
   const so2FromPressingPutValue: boolean = b.so2FromPressing === "true" || b.so2FromPressing === true;
   try {
-    const r = await db.execute(sql`UPDATE winery_fermentation_records SET vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},wine_colour=${n(b.wineColour)},vessel_id=${ni(b.vesselId)},pressing_record_id=${pressingId},start_date=${nd(b.startDate)},fermentation_type=${n(b.fermentationType)},yeast_strain=${n(b.yeastStrain)},inoculation_date=${nd(b.inoculationDate)},inoculation_temp_c=${nf(b.inoculationTempC)},start_brix=${nf(b.startBrix)},end_brix=${nf(b.endBrix)},end_date=${nd(b.endDate)},end_sg=${nf(b.endSg)},residual_sugar_gl=${nf(b.residualSugarGl)},max_temp_c=${nf(b.maxTempC)},min_temp_c=${nf(b.minTempC)},nutrient_additions=${n(b.nutrientAdditions)},so2_at_fermentation_mg_l=${nf(b.so2AtFermentationMgL)},so2_from_pressing=${so2FromPressingPutValue},end_ph=${nf(b.endPh)},end_ta_gl=${nf(b.endTaGl)},volume_litres=${nf(b.volumeLitres)},is_organic=${isOrganicValue},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
+    // Post-sign-off audit trail — same pattern as the pressing PUT: if the record
+    // already carries an audit_signature, atomically append a timestamped entry to
+    // edit_history in the same UPDATE so no edit to a signed record goes unrecorded.
+    const fermEditEntry = buildAuditEditEntry(await resolveAuditEditor(req), "Edited");
+    const r = await db.execute(sql`UPDATE winery_fermentation_records SET edit_history=CASE WHEN audit_signature IS NOT NULL THEN COALESCE(edit_history,'[]'::jsonb) || ${fermEditEntry}::jsonb ELSE COALESCE(edit_history,'[]'::jsonb) END,vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},wine_colour=${n(b.wineColour)},vessel_id=${ni(b.vesselId)},pressing_record_id=${pressingId},start_date=${nd(b.startDate)},fermentation_type=${n(b.fermentationType)},yeast_strain=${n(b.yeastStrain)},inoculation_date=${nd(b.inoculationDate)},inoculation_temp_c=${nf(b.inoculationTempC)},start_brix=${nf(b.startBrix)},end_brix=${nf(b.endBrix)},end_date=${nd(b.endDate)},end_sg=${nf(b.endSg)},residual_sugar_gl=${nf(b.residualSugarGl)},max_temp_c=${nf(b.maxTempC)},min_temp_c=${nf(b.minTempC)},nutrient_additions=${n(b.nutrientAdditions)},so2_at_fermentation_mg_l=${nf(b.so2AtFermentationMgL)},so2_from_pressing=${so2FromPressingPutValue},end_ph=${nf(b.endPh)},end_ta_gl=${nf(b.endTaGl)},volume_litres=${nf(b.volumeLitres)},is_organic=${isOrganicValue},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
     res.json({ record: r.rows[0] });
   } catch (err) {
     // PostgreSQL unique-constraint violation — (farm_id, batch_ref) index.
@@ -37495,7 +37541,14 @@ router.put("/farms/:farmId/winery-fermentation/:id", requireAuth, requireTenant,
 });
 router.delete("/farms/:farmId/winery-fermentation/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  await db.execute(sql`DELETE FROM winery_fermentation_records WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId}`);
+  const fermDelId = parseInt(req.params.id as string);
+  // Signed records are tamper-evident audit documents — block deletion (mirrors pressing).
+  const fermSigned = await db.execute(sql`SELECT audit_signature FROM winery_fermentation_records WHERE id=${fermDelId} AND farm_id=${farmId}`);
+  if (fermSigned.rows.length && (fermSigned.rows[0] as { audit_signature: string | null }).audit_signature) {
+    res.status(409).json({ error: "This fermentation record has been signed off and cannot be deleted. Signed records form part of the audit trail.", code: "SIGNED_RECORD_LOCKED" });
+    return;
+  }
+  await db.execute(sql`DELETE FROM winery_fermentation_records WHERE id=${fermDelId} AND farm_id=${farmId}`);
   res.json({ success: true });
 });
 
@@ -37546,7 +37599,9 @@ router.put("/farms/:farmId/winery-cellar-ops/:id", requireAuth, requireTenant, r
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const b = sanitiseBody(req.body);
   try {
-    const r = await db.execute(sql`UPDATE winery_cellar_ops SET op_date=${nd(b.opDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},op_type=${n(b.opType)},wine_colour=${n(b.wineColour)},from_vessel_id=${ni(b.fromVesselId)},to_vessel_id=${ni(b.toVesselId)},volume_moved_litres=${nf(b.volumeMovedLitres)},lees_depth_cm=${nf(b.leesDepthCm)},top_up_volume_litres=${nf(b.topUpVolumeLitres)},top_up_source=${n(b.topUpSource)},so2_product=${n(b.so2Product)},so2_quantity_g=${nf(b.so2QuantityG)},free_so2_before_mg_l=${nf(b.freeSo2BeforeMgL)},free_so2_after_mg_l=${nf(b.freeSo2AfterMgL)},fining_agent=${n(b.finingAgent)},fining_dose=${n(b.finingDose)},contact_time_hours=${ni(b.contactTimeHours)},filter_type=${n(b.filterType)},filter_pore_um=${nf(b.filterPoreUm)},clarity_before=${n(b.clarityBefore)},clarity_after=${n(b.clarityAfter)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
+    // Post-sign-off audit trail — same pattern as the pressing PUT.
+    const cellarEditEntry = buildAuditEditEntry(await resolveAuditEditor(req), "Edited");
+    const r = await db.execute(sql`UPDATE winery_cellar_ops SET edit_history=CASE WHEN audit_signature IS NOT NULL THEN COALESCE(edit_history,'[]'::jsonb) || ${cellarEditEntry}::jsonb ELSE COALESCE(edit_history,'[]'::jsonb) END,op_date=${nd(b.opDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},op_type=${n(b.opType)},wine_colour=${n(b.wineColour)},from_vessel_id=${ni(b.fromVesselId)},to_vessel_id=${ni(b.toVesselId)},volume_moved_litres=${nf(b.volumeMovedLitres)},lees_depth_cm=${nf(b.leesDepthCm)},top_up_volume_litres=${nf(b.topUpVolumeLitres)},top_up_source=${n(b.topUpSource)},so2_product=${n(b.so2Product)},so2_quantity_g=${nf(b.so2QuantityG)},free_so2_before_mg_l=${nf(b.freeSo2BeforeMgL)},free_so2_after_mg_l=${nf(b.freeSo2AfterMgL)},fining_agent=${n(b.finingAgent)},fining_dose=${n(b.finingDose)},contact_time_hours=${ni(b.contactTimeHours)},filter_type=${n(b.filterType)},filter_pore_um=${nf(b.filterPoreUm)},clarity_before=${n(b.clarityBefore)},clarity_after=${n(b.clarityAfter)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
     res.json({ record: r.rows[0] });
   } catch (err: any) {
     // Drizzle wraps the pg error, so also check err.cause for the code.
@@ -37556,7 +37611,14 @@ router.put("/farms/:farmId/winery-cellar-ops/:id", requireAuth, requireTenant, r
 });
 router.delete("/farms/:farmId/winery-cellar-ops/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  await db.execute(sql`DELETE FROM winery_cellar_ops WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId}`);
+  const cellarDelId = parseInt(req.params.id as string);
+  // Signed records are tamper-evident audit documents — block deletion (mirrors pressing).
+  const cellarSigned = await db.execute(sql`SELECT audit_signature FROM winery_cellar_ops WHERE id=${cellarDelId} AND farm_id=${farmId}`);
+  if (cellarSigned.rows.length && (cellarSigned.rows[0] as { audit_signature: string | null }).audit_signature) {
+    res.status(409).json({ error: "This cellar operation record has been signed off and cannot be deleted. Signed records form part of the audit trail.", code: "SIGNED_RECORD_LOCKED" });
+    return;
+  }
+  await db.execute(sql`DELETE FROM winery_cellar_ops WHERE id=${cellarDelId} AND farm_id=${farmId}`);
   res.json({ success: true });
 });
 
@@ -37601,7 +37663,9 @@ router.put("/farms/:farmId/winery-bottling/:id", requireAuth, requireTenant, req
     }
   }
   try {
-    const r = await db.execute(sql`UPDATE winery_bottling_records SET bottling_date=${nd(b.bottlingDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},lot_code=${n(b.lotCode)},wine_colour=${n(b.wineColour)},source_vessel_id=${ni(b.sourceVesselId)},volume_bottled_litres=${nf(b.volumeBottledLitres)},bottle_size_ml=${ni(b.bottleSizeMl)},bottles_produced=${ni(b.bottlesProduced)},cases_produced=${ni(b.casesProduced)},closure_type=${n(b.closureType)},cork_grade=${n(b.corkGrade)},label_batch=${n(b.labelBatch)},free_so2_mg_l=${nf(b.freeSo2MgL)},total_so2_mg_l=${nf(b.totalSo2MgL)},actual_abv_pct=${nf(b.actualAbvPct)},residual_sugar_gl=${nf(b.residualSugarGl)},ph=${nf(b.ph)},titratable_acidity_gl=${nf(b.titratableAcidityGl)},is_organic=${nb(b.isOrganic) ?? false},certified_organic=${nb(b.certifiedOrganic) ?? false},certifier_ref=${n(b.certifierRef)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${recordId} AND farm_id=${farmId} RETURNING *`);
+    // Post-sign-off audit trail — same pattern as the pressing PUT.
+    const bottlingEditEntry = buildAuditEditEntry(await resolveAuditEditor(req), "Edited");
+    const r = await db.execute(sql`UPDATE winery_bottling_records SET edit_history=CASE WHEN audit_signature IS NOT NULL THEN COALESCE(edit_history,'[]'::jsonb) || ${bottlingEditEntry}::jsonb ELSE COALESCE(edit_history,'[]'::jsonb) END,bottling_date=${nd(b.bottlingDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},lot_code=${n(b.lotCode)},wine_colour=${n(b.wineColour)},source_vessel_id=${ni(b.sourceVesselId)},volume_bottled_litres=${nf(b.volumeBottledLitres)},bottle_size_ml=${ni(b.bottleSizeMl)},bottles_produced=${ni(b.bottlesProduced)},cases_produced=${ni(b.casesProduced)},closure_type=${n(b.closureType)},cork_grade=${n(b.corkGrade)},label_batch=${n(b.labelBatch)},free_so2_mg_l=${nf(b.freeSo2MgL)},total_so2_mg_l=${nf(b.totalSo2MgL)},actual_abv_pct=${nf(b.actualAbvPct)},residual_sugar_gl=${nf(b.residualSugarGl)},ph=${nf(b.ph)},titratable_acidity_gl=${nf(b.titratableAcidityGl)},is_organic=${nb(b.isOrganic) ?? false},certified_organic=${nb(b.certifiedOrganic) ?? false},certifier_ref=${n(b.certifierRef)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${recordId} AND farm_id=${farmId} RETURNING *`);
     res.json({ record: r.rows[0] });
   } catch (err: unknown) {
     if ((err as { code?: string }).code === "23505") {
@@ -37613,7 +37677,14 @@ router.put("/farms/:farmId/winery-bottling/:id", requireAuth, requireTenant, req
 });
 router.delete("/farms/:farmId/winery-bottling/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  await db.execute(sql`DELETE FROM winery_bottling_records WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId}`);
+  const bottlingDelId = parseInt(req.params.id as string);
+  // Signed records are tamper-evident audit documents — block deletion (mirrors pressing).
+  const bottlingSigned = await db.execute(sql`SELECT audit_signature FROM winery_bottling_records WHERE id=${bottlingDelId} AND farm_id=${farmId}`);
+  if (bottlingSigned.rows.length && (bottlingSigned.rows[0] as { audit_signature: string | null }).audit_signature) {
+    res.status(409).json({ error: "This bottling record has been signed off and cannot be deleted. Signed records form part of the audit trail.", code: "SIGNED_RECORD_LOCKED" });
+    return;
+  }
+  await db.execute(sql`DELETE FROM winery_bottling_records WHERE id=${bottlingDelId} AND farm_id=${farmId}`);
   res.json({ success: true });
 });
 
