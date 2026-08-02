@@ -58,6 +58,7 @@ interface RaiseTaskDialogProps {
   defaultNote?: string;
   defaultDueDate?: string;
   taskType?: string;
+  taskSourceId?: string;
   module?: string;
   allowEditTitle?: boolean;
   onAssigned?: () => void;
@@ -66,7 +67,7 @@ interface RaiseTaskDialogProps {
 export function RaiseTaskDialog({
   farmId, open, onClose,
   defaultTitle = "", defaultDescription = "", defaultNote = "",
-  defaultDueDate = "", taskType = "custom", module = "General",
+  defaultDueDate = "", taskType = "custom", taskSourceId, module = "General",
   allowEditTitle = false,
   onAssigned,
 }: RaiseTaskDialogProps) {
@@ -121,6 +122,7 @@ export function RaiseTaskDialog({
       dueDate: dueDate || null,
       assignmentNote: note || null,
       taskType,
+      taskSourceId: taskSourceId || null,
       module,
     });
   }

@@ -62,6 +62,8 @@ interface TaskAssignment {
   status: string;
   dueDate: string | null;
   module: string | null;
+  taskType: string | null;
+  taskSourceId: string | null;
 }
 
 const TASK_STATUS_STYLES: Record<string, { label: string; bg: string; color: string; border: string }> = {
@@ -273,13 +275,19 @@ export default function FarmIncidentsPage() {
     enabled: !!farmId,
   });
 
-  // Map incidentId → tasks whose description references "Incident #<id>:"
+  // Map incidentId → tasks. Primary match: structured taskType/taskSourceId.
+  // Fallback for older tasks: parse "Incident #<id>" out of the description.
   const incidentTasks = React.useMemo(() => {
     const map = new Map<number, TaskAssignment[]>();
     for (const t of (tasksData?.records ?? [])) {
-      const m = /Incident #(\d+)\b/.exec(t.description ?? "");
-      if (!m) continue;
-      const id = Number(m[1]);
+      let id: number | null = null;
+      if (t.taskType === "incident" && t.taskSourceId && !isNaN(Number(t.taskSourceId))) {
+        id = Number(t.taskSourceId);
+      } else {
+        const m = /Incident #(\d+)\b/.exec(t.description ?? "");
+        if (m) id = Number(m[1]);
+      }
+      if (id === null) continue;
       if (!map.has(id)) map.set(id, []);
       map.get(id)!.push(t);
     }
@@ -1018,6 +1026,8 @@ export default function FarmIncidentsPage() {
         defaultTitle={raiseTaskFor ? `Incident Follow-up — ${raiseTaskFor.incidentType} (${fmt(raiseTaskFor.dateDiscovered)})` : ""}
         defaultDescription={raiseTaskFor ? `Incident #${raiseTaskFor.id}: ${raiseTaskFor.incidentType} discovered ${fmt(raiseTaskFor.dateDiscovered)} at ${raiseTaskFor.locationDescription}. Status: ${STATUSES.find(s => s.value === raiseTaskFor.status)?.label ?? raiseTaskFor.status}.` : ""}
         allowEditTitle
+        taskType="incident"
+        taskSourceId={raiseTaskFor ? String(raiseTaskFor.id) : undefined}
         module="incidents"
       />
 
