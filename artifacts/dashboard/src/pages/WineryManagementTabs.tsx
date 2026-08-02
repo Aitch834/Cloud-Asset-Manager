@@ -4021,7 +4021,25 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
       return next;
     });
   };
-  const [nameSearch, setNameSearch] = useState("");
+  // Name search persists across visits too (localStorage), completing the
+  // fully-restored view alongside the category/colour filters and sort.
+  const [nameSearch, setNameSearchState] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem("winery-additions-summary-name-search");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed === "string") return parsed;
+      }
+    } catch { /* ignore corrupt saved value */ }
+    return "";
+  });
+  const setNameSearch = (updater: React.SetStateAction<string>) => {
+    setNameSearchState(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      try { localStorage.setItem("winery-additions-summary-name-search", JSON.stringify(next)); } catch { /* storage unavailable */ }
+      return next;
+    });
+  };
   const [summarySort, setSummarySortState] = useState<{ col: "additive" | "vintage" | "total_dose" | "avg_dose" | "batch_count"; dir: "asc" | "desc" }>(() => {
     try {
       const saved = localStorage.getItem("winery-additions-summary-sort");
