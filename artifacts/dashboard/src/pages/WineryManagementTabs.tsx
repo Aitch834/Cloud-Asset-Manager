@@ -2334,6 +2334,44 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
 }
 
 // ─── Batch Trail — CSV export ─────────────────────────────────────────────────
+// ─── Vintage pH & TA comparison rows — shared by the batch-trail PDF + CSV ────
+// Per-batch pH/TA: bottling (primary, most recent) → fermentation end (fallback).
+// Both printBatchTrail's "Vintage pH & TA Comparison" table and the CSV export's
+// comparison section derive their rows from this one function so they can't drift.
+function computeVintagePhTaComparisonRows(data: BatchTrailData): { ref: string; ph: number | null; ta: number | null; source: string | null }[] {
+  const cmpMap = new Map<string, { ph: number | null; ta: number | null; source: string | null }>();
+  const cmpBottling = [...data.bottling].sort((a, b) =>
+    a.bottling_date && b.bottling_date
+      ? new Date(String(b.bottling_date)).getTime() - new Date(String(a.bottling_date)).getTime()
+      : 0
+  );
+  for (const r of cmpBottling) {
+    const ref = r.batch_ref ? String(r.batch_ref).trim() : null;
+    if (!ref) continue;
+    if (!cmpMap.has(ref)) cmpMap.set(ref, { ph: null, ta: null, source: null });
+    const entry = cmpMap.get(ref)!;
+    if (entry.ph == null && r.ph != null) { entry.ph = parseFloat(String(r.ph)); entry.source = "Bottling"; }
+    if (entry.ta == null && r.titratable_acidity_gl != null) { entry.ta = parseFloat(String(r.titratable_acidity_gl)); entry.source = entry.source ?? "Bottling"; }
+  }
+  const cmpFerm = [...data.fermentation].sort((a, b) =>
+    a.end_date && b.end_date
+      ? new Date(String(b.end_date)).getTime() - new Date(String(a.end_date)).getTime()
+      : 0
+  );
+  for (const r of cmpFerm) {
+    const ref = r.batch_ref ? String(r.batch_ref).trim() : null;
+    if (!ref) continue;
+    if (!cmpMap.has(ref)) cmpMap.set(ref, { ph: null, ta: null, source: null });
+    const entry = cmpMap.get(ref)!;
+    if (entry.ph == null && r.end_ph != null) { entry.ph = parseFloat(String(r.end_ph)); entry.source = entry.source ?? "Fermentation end"; }
+    if (entry.ta == null && r.end_ta_gl != null) { entry.ta = parseFloat(String(r.end_ta_gl)); entry.source = entry.source ?? "Fermentation end"; }
+  }
+  return Array.from(cmpMap.entries())
+    .filter(([, v]) => v.ph != null || v.ta != null)
+    .map(([ref, v]) => ({ ref, ...v }))
+    .sort((a, b) => a.ref.localeCompare(b.ref));
+}
+
 async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unknown>, data: BatchTrailData, farmName: string) {
   // Fetch attachments for the pressing record (best-effort — CSV still exports if this fails).
   // Mirrors the attachments block in the printed PDF (printBatchTrail).
@@ -2542,6 +2580,37 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
     }
   }
 
+  // ── Vintage pH & TA Comparison summary block (vintage scope only) ───────────
+  // Row logic shared with the printed PDF via computeVintagePhTaComparisonRows:
+  // per-batch pH/TA — bottling (most recent) primary, fermentation end fallback.
+  if (isVintageScoped) {
+    const cmpRows = computeVintagePhTaComparisonRows(data);
+    if (cmpRows.length > 0) {
+      // Blank separator row
+      rows.push(["", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+      // Section heading — "Detail" column carries the source stage per row
+      rows.push(["Vintage pH & TA Comparison", "Batch Ref", "", "Stage", "", "", "", "", "", "pH", "TA (g/L)", "", "", ""]);
+      for (const r of cmpRows) {
+        rows.push([
+          "Vintage Comparison",
+          r.ref,
+          "",
+          r.source ?? "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          r.ph != null ? r.ph.toFixed(2) : "",
+          r.ta != null ? r.ta.toFixed(1) : "",
+          "",
+          "",
+          "",
+        ]);
+      }
+    }
+  }
+
   const prefixLine = isVintageScoped && vintageYear
     ? `"Full Vintage Trail — Vintage ${vintageYear} — ${farmName.replace(/"/g, '""')}"`
     : null;
@@ -2628,40 +2697,10 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
   const phTaHasAny = pdfTrendStages.length > 0;
 
   // ── Vintage pH & TA Comparison (vintage scope only — mirrors the on-screen chart) ──
-  // Per-batch pH/TA: bottling (primary, most recent) → fermentation end (fallback)
+  // Row logic shared with the CSV export via computeVintagePhTaComparisonRows.
   let vintageComparisonHtml = "";
   if (isVintageScoped) {
-    const cmpMap = new Map<string, { ph: number | null; ta: number | null; source: string | null }>();
-    const cmpBottling = [...data.bottling].sort((a, b) =>
-      a.bottling_date && b.bottling_date
-        ? new Date(String(b.bottling_date)).getTime() - new Date(String(a.bottling_date)).getTime()
-        : 0
-    );
-    for (const r of cmpBottling) {
-      const ref = r.batch_ref ? String(r.batch_ref).trim() : null;
-      if (!ref) continue;
-      if (!cmpMap.has(ref)) cmpMap.set(ref, { ph: null, ta: null, source: null });
-      const entry = cmpMap.get(ref)!;
-      if (entry.ph == null && r.ph != null) { entry.ph = parseFloat(String(r.ph)); entry.source = "Bottling"; }
-      if (entry.ta == null && r.titratable_acidity_gl != null) { entry.ta = parseFloat(String(r.titratable_acidity_gl)); entry.source = entry.source ?? "Bottling"; }
-    }
-    const cmpFerm = [...data.fermentation].sort((a, b) =>
-      a.end_date && b.end_date
-        ? new Date(String(b.end_date)).getTime() - new Date(String(a.end_date)).getTime()
-        : 0
-    );
-    for (const r of cmpFerm) {
-      const ref = r.batch_ref ? String(r.batch_ref).trim() : null;
-      if (!ref) continue;
-      if (!cmpMap.has(ref)) cmpMap.set(ref, { ph: null, ta: null, source: null });
-      const entry = cmpMap.get(ref)!;
-      if (entry.ph == null && r.end_ph != null) { entry.ph = parseFloat(String(r.end_ph)); entry.source = entry.source ?? "Fermentation end"; }
-      if (entry.ta == null && r.end_ta_gl != null) { entry.ta = parseFloat(String(r.end_ta_gl)); entry.source = entry.source ?? "Fermentation end"; }
-    }
-    const cmpRows = Array.from(cmpMap.entries())
-      .filter(([, v]) => v.ph != null || v.ta != null)
-      .map(([ref, v]) => ({ ref, ...v }))
-      .sort((a, b) => a.ref.localeCompare(b.ref));
+    const cmpRows = computeVintagePhTaComparisonRows(data);
     if (cmpRows.length > 0) {
       vintageComparisonHtml = `
 <div class="section">
