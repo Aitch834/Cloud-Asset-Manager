@@ -27,19 +27,20 @@ app.use((_req, res, next) => {
 app.use(base, express.static(dist, { etag: false, lastModified: false, index: false }));
 
 // Build the SPA HTML once at startup.
-// Two-layer cache-busting strategy:
-//   1. Asset URLs get ?v=<token> so the proxy sees new URLs for JS/CSS.
-//   2. A tiny inline redirect script makes the browser itself request
-//      the page at ?_v=<token>.  Even if the proxy serves stale HTML,
-//      that old HTML still contains a redirect script (with its own old
-//      token) that sends the browser to a fresh URL the proxy never cached.
+// Cache-busting strategy:
+//   • JS/CSS assets are content-hashed by Vite (index-<hash>.js), so every
+//     rebuild already produces proxy-fresh URLs. Do NOT append ?v=<token> to
+//     them: lazy chunks import the shared bundle by its plain filename, so a
+//     tokenised entry URL makes the browser load the SAME file twice as two
+//     different modules → two React instances → React error #321 (invalid
+//     hook call) on every page load.
+//   • A tiny inline redirect script makes the browser itself request
+//     the page at ?_v=<token>.  Even if the proxy serves stale HTML,
+//     that old HTML still contains a redirect script (with its own old
+//     token) that sends the browser to a fresh URL the proxy never cached.
 const rawHtml = fs.readFileSync(path.join(dist, "index.html"), "utf8");
 
-// Rewrite asset src/href to include token
-const assetHtml = rawHtml.replace(
-  /(src|href)="([^"]+\.(js|css))"/g,
-  `$1="$2?v=${startupToken}"`
-);
+const assetHtml = rawHtml;
 
 // Inline redirect script — placed as the very first thing in <head>
 // so it fires before any module script and before React loads.

@@ -956,14 +956,14 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const { data: farmsData } = useQuery<{ records?: Record<string, unknown>[] }>({
+  const { data: farmsData } = useQuery<{ farms?: Record<string, unknown>[] }>({
     queryKey: ["farms-list"],
-    queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
+    queryFn: () => fetch("/api/tenants/current/farms", { credentials: "include" }).then(r => r.json()),
     staleTime: 300_000,
   });
   const farmName: string =
-    (Array.isArray(farmsData?.records)
-      ? (farmsData.records.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)
+    (Array.isArray(farmsData?.farms)
+      ? (farmsData.farms.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)
           ?.name as string | undefined
       : undefined) ?? `Farm ${farmId}`;
 
@@ -3746,13 +3746,13 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const { staffNames, isLoading: staffLoading } = useStaff(farmId);
   const batchSettings = useWineryBatchSettings(farmId);
   const { toast } = useToast();
-  const { data: farmsData } = useQuery<{ records?: Record<string, unknown>[] }>({
+  const { data: farmsData } = useQuery<{ farms?: Record<string, unknown>[] }>({
     queryKey: ["farms-list"],
-    queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
+    queryFn: () => fetch("/api/tenants/current/farms", { credentials: "include" }).then(r => r.json()),
     staleTime: 300_000,
   });
-  const farmName: string = (Array.isArray(farmsData?.records)
-    ? (farmsData.records.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
+  const farmName: string = (Array.isArray(farmsData?.farms)
+    ? (farmsData.farms.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
     : undefined) ?? `Farm ${farmId}`;
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
@@ -5516,13 +5516,13 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
   const [fermSearch, setFermSearch] = useState("");
   const [so2FromPressing, setSo2FromPressing] = useState(false);
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
-  const { data: farmsDataFerm } = useQuery<{ records?: Record<string, unknown>[] }>({
+  const { data: farmsDataFerm } = useQuery<{ farms?: Record<string, unknown>[] }>({
     queryKey: ["farms-list"],
-    queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
+    queryFn: () => fetch("/api/tenants/current/farms", { credentials: "include" }).then(r => r.json()),
     staleTime: 300_000,
   });
-  const farmNameFerm: string = (Array.isArray(farmsDataFerm?.records)
-    ? (farmsDataFerm.records.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
+  const farmNameFerm: string = (Array.isArray(farmsDataFerm?.farms)
+    ? (farmsDataFerm.farms.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
     : undefined) ?? `Farm ${farmId}`;
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -6273,13 +6273,13 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   // Confirm-before-save gate: shown when a sulfiting save would push the batch's
   // projected cumulative SO₂ total to/over its active ceiling.
   const [confirmOverCeiling, setConfirmOverCeiling] = useState(false);
-  const { data: farmsDataCellar } = useQuery<{ records?: Record<string, unknown>[] }>({
+  const { data: farmsDataCellar } = useQuery<{ farms?: Record<string, unknown>[] }>({
     queryKey: ["farms-list"],
-    queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
+    queryFn: () => fetch("/api/tenants/current/farms", { credentials: "include" }).then(r => r.json()),
     staleTime: 300_000,
   });
-  const farmNameCellar: string = (Array.isArray(farmsDataCellar?.records)
-    ? (farmsDataCellar.records.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
+  const farmNameCellar: string = (Array.isArray(farmsDataCellar?.farms)
+    ? (farmsDataCellar.farms.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
     : undefined) ?? `Farm ${farmId}`;
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -7095,13 +7095,13 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     if (importFileRef.current) importFileRef.current.value = "";
   };
 
-  const { data: farmsDataBottling } = useQuery<{ records?: Record<string, unknown>[] }>({
+  const { data: farmsDataBottling } = useQuery<{ farms?: Record<string, unknown>[] }>({
     queryKey: ["farms-list"],
-    queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
+    queryFn: () => fetch("/api/tenants/current/farms", { credentials: "include" }).then(r => r.json()),
     staleTime: 300_000,
   });
-  const farmNameBottling: string = (Array.isArray(farmsDataBottling?.records)
-    ? (farmsDataBottling.records.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
+  const farmNameBottling: string = (Array.isArray(farmsDataBottling?.farms)
+    ? (farmsDataBottling.farms.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
     : undefined) ?? `Farm ${farmId}`;
   const sf = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
 
@@ -7844,13 +7844,13 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
   // Fix button — after a save we auto-advance to the next flagged row.
   const [fixingFlaggedSo2, setFixingFlaggedSo2] = useState(false);
   const firstFlaggedSo2RowRef = useRef<HTMLTableRowElement>(null);
-  const { data: farmsDataSo2 } = useQuery<{ records?: Record<string, unknown>[] }>({
+  const { data: farmsDataSo2 } = useQuery<{ farms?: Record<string, unknown>[] }>({
     queryKey: ["farms-list"],
-    queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
+    queryFn: () => fetch("/api/tenants/current/farms", { credentials: "include" }).then(r => r.json()),
     staleTime: 300_000,
   });
-  const farmNameSo2: string = (Array.isArray(farmsDataSo2?.records)
-    ? (farmsDataSo2.records.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
+  const farmNameSo2: string = (Array.isArray(farmsDataSo2?.farms)
+    ? (farmsDataSo2.farms.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
     : undefined) ?? `Farm ${farmId}`;
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 

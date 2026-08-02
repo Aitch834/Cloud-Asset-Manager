@@ -2243,13 +2243,13 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
   });
 
   // Farm name for print header
-  const { data: farmsData } = useQuery<{ records?: Record<string, unknown>[] }>({
+  const { data: farmsData } = useQuery<{ farms?: Record<string, unknown>[] }>({
     queryKey: ["farms-list"],
-    queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
+    queryFn: () => fetch("/api/tenants/current/farms", { credentials: "include" }).then(r => r.json()),
     staleTime: 300_000,
   });
-  const farmName = (Array.isArray(farmsData?.records)
-    ? (farmsData.records.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name
+  const farmName = (Array.isArray(farmsData?.farms)
+    ? (farmsData.farms.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name
     : undefined) as string | undefined;
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -2723,13 +2723,13 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
   });
 
   // Fetch farm name and first winery licence number for print header
-  const { data: farmsData } = useQuery<{ records?: Record<string, unknown>[] }>({
+  const { data: farmsData } = useQuery<{ farms?: Record<string, unknown>[] }>({
     queryKey: ["farms-list"],
-    queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
+    queryFn: () => fetch("/api/tenants/current/farms", { credentials: "include" }).then(r => r.json()),
     staleTime: 300_000,
   });
-  const farmName = (Array.isArray(farmsData?.records)
-    ? (farmsData.records.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name
+  const farmName = (Array.isArray(farmsData?.farms)
+    ? (farmsData.farms.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name
     : undefined) as string | undefined;
   const { data: licencesData } = useQuery<{ records?: Record<string, unknown>[] }>({
     queryKey: ["winery-licences", farmId],
