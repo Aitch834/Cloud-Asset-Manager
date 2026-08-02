@@ -6798,6 +6798,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [yearFilter, setYearFilter] = usePersistedYearFilter("bottling", farmId);
+  const [bottlingSearch, setBottlingSearch] = useState("");
   const [nonCompliantOnly, setNonCompliantOnly] = useState(false);
   const [so2FromTest, setSo2FromTest] = useState(false);
   const [phTaFromAnalysis, setPhTaFromAnalysis] = useState<"fermentation" | "pressing" | null>(null);
@@ -7060,7 +7061,15 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
 
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
   if (!years.includes(String(new Date().getFullYear()))) years.unshift(String(new Date().getFullYear()));
-  const filtered = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
+  const filteredByYear = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
+  const filtered = bottlingSearch.trim() === "" ? filteredByYear : filteredByYear.filter(r => {
+    const q = bottlingSearch.trim().toLowerCase();
+    return String(r.batch_ref ?? "").toLowerCase().includes(q)
+      || String(r.lot_code ?? "").toLowerCase().includes(q)
+      || String(r.wine_colour ?? "").toLowerCase().includes(q)
+      || String(r.operator_name ?? "").toLowerCase().includes(q)
+      || String(r.notes ?? "").toLowerCase().includes(q);
+  });
 
   const isBottlingRowNonCompliant = (r: Record<string, unknown>): boolean => {
     const colour = String(r.wine_colour ?? "");
@@ -7120,10 +7129,19 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
       </div>
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-muted-foreground">Vintage:</span>
-        <Select value={yearFilter} onValueChange={v => { setYearFilter(v); setNonCompliantOnly(false); }}>
+        <Select value={yearFilter} onValueChange={v => { setYearFilter(v); setBottlingSearch(""); setNonCompliantOnly(false); }}>
           <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
         </Select>
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            className="h-8 text-xs pl-7 w-52"
+            placeholder="Batch, lot, wine, operator, notes…"
+            value={bottlingSearch}
+            onChange={e => setBottlingSearch(e.target.value)}
+          />
+        </div>
         {nonCompliantCount > 0 && (
           <Button
             size="sm"
