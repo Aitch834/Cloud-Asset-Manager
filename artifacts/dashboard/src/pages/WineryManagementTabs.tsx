@@ -7872,7 +7872,17 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
           <Input className="h-8 pl-7 text-xs w-52" placeholder="Search batch, colour, stage…" value={so2Search} onChange={e => setSo2Search(e.target.value)} />
         </div>
-        <Button size="sm" variant="outline" className="ml-auto" onClick={() => exportCSV(filtered, "so2-testing.csv", so2CsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+        <Button size="sm" variant="outline" className="ml-auto" onClick={() => {
+          // Traceable export filename — mirrors the Additions Report pattern:
+          // include the active vintage and/or sanitised search term so a
+          // downloaded subset is identifiable during audits.
+          const searchTrim = so2Search.trim();
+          const searchSlug = searchTrim ? searchTrim.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") : "";
+          const parts = ["so2-testing"];
+          if (yearFilter !== "all") parts.push(yearFilter);
+          if (searchSlug) parts.push(`search-${searchSlug}`);
+          exportCSV(filtered, `${parts.join("-")}.csv`, so2CsvCols);
+        }} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} test{filtered.length !== 1 ? "s" : ""}</span>
       </div>
       {so2ChartData.length > 1 && (
