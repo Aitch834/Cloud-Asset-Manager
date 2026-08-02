@@ -290,6 +290,38 @@ function BatchTrailButton({ batchRef, onClick }: { batchRef: unknown; onClick: (
   );
 }
 
+// ─── Cross-tab "view additions" shortcut ──────────────────────────────────────
+// Fermentation / Cellar Ops / Bottling rows carry a batch_ref but the Additions
+// Report lives in the Pressing tab. The shortcut stores the requested scope in
+// sessionStorage and fires an event; the parent page (ViticulturePage /
+// OrganicViticulturePage) listens for the event and switches to the Pressing
+// tab, whose mount effect consumes the stored scope and opens the report
+// pre-filtered — same pre-fill behaviour as the pressing-row Beaker button.
+export const WINERY_VIEW_ADDITIONS_EVENT = "winery:view-additions";
+const additionsShortcutKey = (farmId: number) => `winery-additions-shortcut-${farmId}`;
+function requestAdditionsReport(farmId: number, batchRef: unknown, vintageYear: unknown) {
+  try {
+    sessionStorage.setItem(additionsShortcutKey(farmId), JSON.stringify({
+      batchRef: String(batchRef ?? ""),
+      vintageYear: vintageYear != null && String(vintageYear) !== "" ? String(vintageYear) : null,
+    }));
+  } catch { /* storage unavailable — event alone still switches tab */ }
+  window.dispatchEvent(new Event(WINERY_VIEW_ADDITIONS_EVENT));
+}
+// Row action button for the shortcut — same disabled-title-on-span pattern as
+// BatchTrailButton, and the same amber Beaker styling as the pressing rows.
+function ViewAdditionsButton({ farmId, record }: { farmId: number; record: Record<string, unknown> }) {
+  const batchRef = record.batch_ref;
+  return (
+    <span title={batchRef ? `View additions for ${String(batchRef)}` : "No batch reference — additions view unavailable"} className="inline-flex">
+      <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600 disabled:opacity-40" disabled={!batchRef}
+        onClick={() => requestAdditionsReport(farmId, batchRef, record.vintage_year)}>
+        <Beaker className="h-4 w-4" />
+      </Button>
+    </span>
+  );
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 const WINE_COLOUR_OPTIONS = ["Red", "White", "Rosé", "Sparkling", "Orange", "Other"];
 const ORGANIC_MAX_SO2: Record<string, string> = { "Red": "100", "White": "150", "Rosé": "150", "Sparkling": "185", "Orange": "150" };
@@ -3928,6 +3960,28 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const addRowCounter = useRef(0);
   const [showReport, setShowReport] = useState(false);
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
+  // Consume a pending cross-tab "view additions" request (from a Fermentation /
+  // Cellar Ops / Bottling row shortcut). The parent page switches to this tab,
+  // which mounts the component — this effect then applies the stored scope and
+  // opens the report. One-shot: the key is removed once consumed.
+  useEffect(() => {
+    const consume = () => {
+      try {
+        const raw = sessionStorage.getItem(additionsShortcutKey(farmId));
+        if (!raw) return;
+        sessionStorage.removeItem(additionsShortcutKey(farmId));
+        const scope = JSON.parse(raw) as { batchRef?: string; vintageYear?: string | null };
+        if (scope.vintageYear) setYearFilter(String(scope.vintageYear));
+        setTxLogBatchFilter(String(scope.batchRef ?? ""));
+        setShowReport(true);
+      } catch { /* corrupt/unavailable storage — ignore */ }
+    };
+    consume(); // handle the tab-switch mount
+    // Also handle the already-on-pressing-tab case, where no remount occurs
+    window.addEventListener(WINERY_VIEW_ADDITIONS_EVENT, consume);
+    return () => window.removeEventListener(WINERY_VIEW_ADDITIONS_EVENT, consume);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [farmId]);
   // Category & colour filters persist across visits (localStorage), mirroring
   // the summarySort pattern below. Corrupt or legacy stored values are ignored.
   const [categoryFilter, setCategoryFilterState] = useState<Set<string>>(() => {
@@ -5889,6 +5943,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
                   <td className="p-3">{fermentStatus(r)}</td>
                   <td className="p-3 text-right whitespace-nowrap">
                     <BatchTrailButton batchRef={r.batch_ref} onClick={() => setTrailRecord(r)} />
+                    <ViewAdditionsButton farmId={farmId} record={r} />
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
@@ -6831,6 +6886,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                     <td className="p-3 text-muted-foreground">{fmt(r.operator_name)}</td>
                     <td className="p-3 text-right whitespace-nowrap">
                       <BatchTrailButton batchRef={r.batch_ref} onClick={() => setTrailRecord(r)} />
+                      <ViewAdditionsButton farmId={farmId} record={r} />
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
@@ -7569,6 +7625,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                   })()}</td>
                   <td className="p-3 text-right whitespace-nowrap">
                     <BatchTrailButton batchRef={r.batch_ref} onClick={() => setTrailRecord(r)} />
+                    <ViewAdditionsButton farmId={farmId} record={r} />
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>

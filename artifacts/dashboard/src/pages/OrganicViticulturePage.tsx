@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -51,6 +51,7 @@ import {
   So2TestingTab,
   EquipmentRegisterTab,
   BatchTrailQuickSearch,
+  WINERY_VIEW_ADDITIONS_EVENT,
 } from "@/pages/WineryManagementTabs";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -1718,6 +1719,14 @@ function CertificatesTab({ farmId }: { farmId: number }) {
 export default function OrganicViticulturePage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<Tab>("block-conversion");
+  // Cross-tab "view additions" shortcut: fermentation/cellar-ops/bottling rows
+  // request the Pressing tab's Additions Report; switching tabs mounts
+  // PressingRecordsTab, which consumes the stored scope and opens the report.
+  useEffect(() => {
+    const h = () => setTab("winery-pressing");
+    window.addEventListener(WINERY_VIEW_ADDITIONS_EVENT, h);
+    return () => window.removeEventListener(WINERY_VIEW_ADDITIONS_EVENT, h);
+  }, []);
 
   const { data: vineyardBlocks = [] } = useQuery<Record<string, unknown>[]>({
     queryKey: ["vineyard-blocks", farmId],
