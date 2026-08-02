@@ -39,7 +39,7 @@ async function call(method, path, body) {
   return { status: res.status, json };
 }
 
-async function testRoute(name, route, makeBody) {
+async function testRoute(name, route, makeBody, expectedCode = "DUPLICATE_BATCH_REF") {
   console.log(`\n${name} (POST ${route})`);
   const ref = `DUPCHK-${name.toUpperCase().slice(0, 5)}-${Date.now()}`;
 
@@ -49,10 +49,10 @@ async function testRoute(name, route, makeBody) {
   const firstId = first.json?.record?.id;
   if (firstId) created.push({ route, id: firstId });
 
-  // 2. Duplicate insert is rejected with 409 + DUPLICATE_BATCH_REF
+  // 2. Duplicate insert is rejected with 409 + the expected code
   const dup = await call("POST", route, makeBody(ref));
   check("duplicate insert returns 409", dup.status === 409, `got ${dup.status}: ${JSON.stringify(dup.json)}`);
-  check('duplicate insert returns code "DUPLICATE_BATCH_REF"', dup.json?.code === "DUPLICATE_BATCH_REF", `got code ${JSON.stringify(dup.json?.code)}`);
+  check(`duplicate insert returns code "${expectedCode}"`, dup.json?.code === expectedCode, `got code ${JSON.stringify(dup.json?.code)}`);
   if (dup.status === 201 && dup.json?.record?.id) created.push({ route, id: dup.json.record.id });
 
   // 3. PUT that renames another record onto this ref is also rejected
@@ -62,7 +62,7 @@ async function testRoute(name, route, makeBody) {
     created.push({ route, id: otherId });
     const put = await call("PUT", `${route}/${otherId}`, makeBody(ref));
     check("PUT onto an existing ref returns 409", put.status === 409, `got ${put.status}: ${JSON.stringify(put.json)}`);
-    check('PUT returns code "DUPLICATE_BATCH_REF"', put.json?.code === "DUPLICATE_BATCH_REF", `got code ${JSON.stringify(put.json?.code)}`);
+    check(`PUT returns code "${expectedCode}"`, put.json?.code === expectedCode, `got code ${JSON.stringify(put.json?.code)}`);
   } else {
     check("setup record for PUT check created", false, `got ${other.status}`);
   }
@@ -88,6 +88,13 @@ await testRoute("cellar-ops", `${base}/winery-cellar-ops`, (ref) => ({
   opDate: "2026-08-01",
   opType: "racking",
 }));
+
+// Bottling uses lot_code (not batch_ref) as its per-farm unique key
+await testRoute("bottling", `${base}/winery-bottling`, (ref) => ({
+  lotCode: ref,
+  bottlingDate: "2026-08-01",
+  vintageYear: 2026,
+}), "DUPLICATE_LOT_CODE");
 
 // Cleanup — remove every record this check created
 console.log("\nCleanup");
