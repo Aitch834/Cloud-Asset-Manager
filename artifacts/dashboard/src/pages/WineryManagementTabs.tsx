@@ -1406,6 +1406,8 @@ interface BatchTrailData {
   so2Tests: Record<string, unknown>[];
   bottling: Record<string, unknown>[];
   pressAdditions: Record<string, unknown>[];
+  /** Vintage scope only — all pressing sessions for the vintage (id, press_date, batch_ref, notes), independent of additions */
+  pressings?: Record<string, unknown>[];
 }
 
 function TrailSection({ icon: Icon, title, count, children }: { icon: React.ElementType; title: string; count: number; children: React.ReactNode }) {
@@ -2867,9 +2869,24 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
   // Group press additives by their pressing session. In vintage scope a trail
   // can span multiple pressings — each group renders its own sub-table with the
   // press date and batch ref, instead of one flat merged list.
-  const pressAdditiveGroups: { key: string; pressDate: string; batchRef: string | null; additions: Record<string, unknown>[] }[] = [];
+  const pressAdditiveGroups: { key: string; pressDate: string; batchRef: string | null; notes: string; additions: Record<string, unknown>[] }[] = [];
   {
     const groupIndex = new Map<string, number>();
+    // In vintage scope, seed one group per pressing session (from data.pressings)
+    // so sessions with zero additives — but non-empty notes — still get a block.
+    if (isVintageScoped) {
+      for (const p of data.pressings ?? []) {
+        const key = String(p.id);
+        groupIndex.set(key, pressAdditiveGroups.length);
+        pressAdditiveGroups.push({
+          key,
+          pressDate: p.press_date ? fmtDate(p.press_date) : "—",
+          batchRef: p.batch_ref != null && String(p.batch_ref).trim() !== "" ? String(p.batch_ref).trim() : null,
+          notes: p.notes != null ? String(p.notes).trim() : "",
+          additions: [],
+        });
+      }
+    }
     for (const a of data.pressAdditions) {
       const key = a.pressing_record_id != null ? String(a.pressing_record_id) : "unknown";
       let idx = groupIndex.get(key);
@@ -2880,10 +2897,16 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
           key,
           pressDate: a.pressing_press_date ? fmtDate(a.pressing_press_date) : "—",
           batchRef: a.pressing_batch_ref != null && String(a.pressing_batch_ref).trim() !== "" ? String(a.pressing_batch_ref).trim() : null,
+          notes: a.pressing_notes != null ? String(a.pressing_notes).trim() : "",
           additions: [],
         });
       }
       pressAdditiveGroups[idx].additions.push(a);
+    }
+    // Drop seeded sessions that ended up with neither additives nor notes —
+    // they'd render an empty block.
+    for (let i = pressAdditiveGroups.length - 1; i >= 0; i--) {
+      if (pressAdditiveGroups[i].additions.length === 0 && !pressAdditiveGroups[i].notes) pressAdditiveGroups.splice(i, 1);
     }
   }
 
@@ -2926,7 +2949,7 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
     </div>
 
     <!-- Settling row -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px${(pressAttachments.length > 0 || data.pressAdditions.length > 0 || pressingNotes) ? ";margin-bottom:8px" : ""}">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px${(pressAttachments.length > 0 || pressAdditiveGroups.length > 0 || (pressingNotes && !isVintageScoped)) ? ";margin-bottom:8px" : ""}">
       ${pField("Settling Method", String(pressing.settling_method ?? "—"))}
       ${pField("Settling Vessel", String(pressing.settling_vessel ?? "—"))}
       ${pField("Settling Time (hrs)", pressing.settling_hours != null && pressing.settling_hours !== "" ? String(pressing.settling_hours) : "—")}
@@ -2946,8 +2969,9 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
       </ul>
     </div>` : ""}
 
-    ${data.pressAdditions.length > 0 ? `
-    <!-- Press additives — grouped inside this pressing record -->
+    ${pressAdditiveGroups.length > 0 ? `
+    <!-- Press additives — grouped inside this pressing record. In vintage scope
+         a group renders for every pressing session with additives OR notes. -->
     <div style="border-top:1px solid #e5e7eb;padding-top:8px;margin-top:4px">
       <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:5px">Press Additives (${data.pressAdditions.length})</p>
       ${pressAdditiveGroups.map(g => `
@@ -2956,18 +2980,27 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
         ${g.batchRef ? `<span style="font-family:monospace;font-size:9px;background:#dbeafe;color:#1e40af;padding:1px 5px;border-radius:3px">${escHtml(g.batchRef)}</span>` : `<span style="font-size:9px;background:#f3f4f6;color:#6b7280;padding:1px 5px;border-radius:3px">No ref</span>`}
         <span style="font-weight:400;color:#9ca3af">(${g.additions.length})</span>
       </p>` : ""}
-      <table style="width:100%;border-collapse:collapse;margin-left:0">
+      ${g.additions.length > 0 ? `<table style="width:100%;border-collapse:collapse;margin-left:0">
         <tr style="background:#f9fafb">
           ${PRESS_ADDITIVE_COLUMNS.map(col => `<th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #d1d5db;text-align:${col.align}">${escHtml(col.pdfLabel)}</th>`).join("")}
         </tr>
         ${g.additions.map(a => `<tr>
           ${PRESS_ADDITIVE_COLUMNS.map(col => `<td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;${col.pdfCellStyle ?? ""}">${escHtml(col.pdfValue(a))}</td>`).join("")}
         </tr>`).join("")}
-      </table>`).join("")}
+      </table>` : `<p style="font-size:10px;color:#9ca3af;font-style:italic;margin:2px 0 4px">No additives recorded for this pressing</p>`}
+      ${isVintageScoped && g.notes ? `
+      <!-- Per-pressing notes — vintage scope mirrors the single-batch "Pressing Notes" block -->
+      <div style="margin:4px 0 6px">
+        <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:3px">Pressing Notes</p>
+        <p style="font-size:11px;color:#374151;font-style:italic">${escHtml(g.notes)}</p>
+      </div>` : ""}`).join("")}
     </div>` : ""}
 
-    ${pressingNotes ? `
-    <!-- Notes — shown below the additives section so print matches the CSV export -->
+    ${pressingNotes && !isVintageScoped ? `
+    <!-- Notes — shown below the additives section so print matches the CSV export.
+         In vintage scope each pressing session's notes render inside its own
+         additive group above, so this single-batch block is skipped to avoid
+         duplicating the same notes twice. -->
     <div style="border-top:1px solid #e5e7eb;padding-top:8px;margin-top:4px">
       <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:3px">Pressing Notes</p>
       <p style="font-size:11px;color:#374151;font-style:italic">${escHtml(pressingNotes)}</p>

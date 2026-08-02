@@ -37061,7 +37061,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
 
   const scope: "batchRef" | "vintageYear" = batchRef ? "batchRef" : "vintageYear";
 
-  let fermentation, cellarOps, so2Tests, bottling, pressAdditions;
+  let fermentation, cellarOps, so2Tests, bottling, pressAdditions, pressings;
 
   if (scope === "batchRef") {
     [fermentation, cellarOps, so2Tests, bottling, pressAdditions] = await Promise.all([
@@ -37113,7 +37113,8 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
       `),
       db.execute(sql`
         SELECT a.additive_name, a.category, a.dose, a.unit, a.notes,
-               a.pressing_record_id, p.press_date AS pressing_press_date, p.batch_ref AS pressing_batch_ref
+               a.pressing_record_id, p.press_date AS pressing_press_date, p.batch_ref AS pressing_batch_ref,
+               p.notes AS pressing_notes
         FROM winery_pressing_additions a
         JOIN winery_pressing_records p ON p.id = a.pressing_record_id
         WHERE p.farm_id = ${farmId} AND p.batch_ref = ${batchRef}
@@ -37122,7 +37123,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
     ]);
   } else {
     // Vintage-year fallback: fetch all records for this vintage regardless of batch_ref
-    [fermentation, cellarOps, so2Tests, bottling, pressAdditions] = await Promise.all([
+    [fermentation, cellarOps, so2Tests, bottling, pressAdditions, pressings] = await Promise.all([
       db.execute(sql`
         SELECT f.id, f.start_date, f.end_date, f.batch_ref, f.vintage_year, f.wine_colour,
                f.fermentation_type, f.yeast_strain, f.inoculation_date, f.volume_litres,
@@ -37171,11 +37172,20 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
       `),
       db.execute(sql`
         SELECT a.additive_name, a.category, a.dose, a.unit, a.notes,
-               a.pressing_record_id, p.press_date AS pressing_press_date, p.batch_ref AS pressing_batch_ref
+               a.pressing_record_id, p.press_date AS pressing_press_date, p.batch_ref AS pressing_batch_ref,
+               p.notes AS pressing_notes
         FROM winery_pressing_additions a
         JOIN winery_pressing_records p ON p.id = a.pressing_record_id
         WHERE p.farm_id = ${farmId} AND p.vintage_year = ${vintageYear}
         ORDER BY p.press_date ASC NULLS LAST, a.pressing_record_id ASC, a.id ASC
+      `),
+      // All pressing sessions for this vintage — independent of additions, so the
+      // trail can list sessions (and their notes) even when no additives were recorded.
+      db.execute(sql`
+        SELECT p.id, p.press_date, p.batch_ref, p.notes
+        FROM winery_pressing_records p
+        WHERE p.farm_id = ${farmId} AND p.vintage_year = ${vintageYear}
+        ORDER BY p.press_date ASC NULLS LAST, p.id ASC
       `),
     ]);
   }
@@ -37189,6 +37199,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
     so2Tests: so2Tests.rows,
     bottling: bottling.rows,
     pressAdditions: pressAdditions.rows,
+    pressings: pressings ? pressings.rows : [],
   });
 });
 
