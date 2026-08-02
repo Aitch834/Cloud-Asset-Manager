@@ -678,7 +678,14 @@ const SOURCE_COLOURS: Record<string, string> = {
   "Livestock":        "bg-blue-100 text-blue-700",
 };
 
+function summariseRejected(rejected: { row: number; reason: string }[]): string {
+  const shown = rejected.slice(0, 5).map(r => r.reason);
+  const more = rejected.length - shown.length;
+  return shown.join("\n") + (more > 0 ? `\n…and ${more} more.` : "");
+}
+
 function GenerateDialog({ farmId, onDone }: { farmId: number; onDone: () => void }) {
+  const { toast } = useToast();
   const [year, setYear] = useState(String(new Date().getFullYear() - 1));
   const [preview, setPreview] = useState<GeneratedSuggestion[] | null>(null);
   const [existingCount, setExistingCount] = useState(0);
@@ -722,12 +729,20 @@ function GenerateDialog({ farmId, onDone }: { farmId: number; onDone: () => void
         tonnesCo2e: editedCo2e[i] !== undefined ? editedCo2e[i] : String(s.tonnesCo2e),
       }));
     try {
-      await fetch(api(`farms/${farmId}/carbon-emissions/bulk`), {
+      const res = await fetch(api(`farms/${farmId}/carbon-emissions/bulk`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ records }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (data.rejectedCount > 0) {
+        toast({
+          title: `${data.created ?? 0} record${data.created === 1 ? "" : "s"} added, ${data.rejectedCount} skipped`,
+          description: summariseRejected(data.rejected ?? []),
+          variant: "destructive",
+        });
+      }
     } finally {
       setSaving(false);
       onDone();
@@ -1221,6 +1236,7 @@ const SEQ_SOURCE_COLOURS: Record<string, string> = {
 };
 
 function GenerateSeqDialog({ farmId, onDone }: { farmId: number; onDone: () => void }) {
+  const { toast } = useToast();
   const [year, setYear] = useState(String(new Date().getFullYear() - 1));
   const [preview, setPreview] = useState<SeqSuggestion[] | null>(null);
   const [existingCount, setExistingCount] = useState(0);
@@ -1262,12 +1278,20 @@ function GenerateSeqDialog({ farmId, onDone }: { farmId: number; onDone: () => v
         sequestrationFactorSource: s.sequestrationFactorSource,
       }));
     try {
-      await fetch(api(`farms/${farmId}/carbon-sequestration/bulk`), {
+      const res = await fetch(api(`farms/${farmId}/carbon-sequestration/bulk`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ records }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (data.rejectedCount > 0) {
+        toast({
+          title: `${data.created ?? 0} record${data.created === 1 ? "" : "s"} added, ${data.rejectedCount} skipped`,
+          description: summariseRejected(data.rejected ?? []),
+          variant: "destructive",
+        });
+      }
     } finally {
       setSaving(false);
       onDone();

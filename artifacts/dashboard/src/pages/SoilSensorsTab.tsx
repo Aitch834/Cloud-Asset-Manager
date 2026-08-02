@@ -487,7 +487,19 @@ function CsvImportDialog({ open, onClose, probe, farmId }: { open: boolean; onCl
       if (!res.ok) throw new Error((await res.json()).error ?? "Import failed");
       const data = await res.json();
       qc.invalidateQueries({ queryKey: ["soil-readings", probe.id] });
-      toast({ title: "Import complete", description: `${data.inserted} readings imported` });
+      const rejectedCount: number = data.rejectedCount ?? 0;
+      if (rejectedCount > 0) {
+        const reasons: { row: number; reason: string }[] = data.rejected ?? [];
+        const shown = reasons.slice(0, 5).map(r => r.reason);
+        const more = reasons.length - shown.length;
+        toast({
+          title: `${data.inserted} imported, ${rejectedCount} skipped`,
+          description: shown.join("\n") + (more > 0 ? `\n…and ${more} more.` : ""),
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Import complete", description: `${data.inserted} readings imported` });
+      }
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import failed");
