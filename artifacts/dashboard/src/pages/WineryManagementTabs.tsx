@@ -2510,10 +2510,20 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
 
   // Pressing additives — additive columns come from PRESS_ADDITIVE_COLUMNS (shared with the PDF)
   for (const a of data.pressAdditions) {
+    // In vintage scope the additives span multiple pressings — attribute each
+    // row to its own pressing (batch ref + press date from the API), matching
+    // the PDF's per-pressing grouping. Batch-ref scope keeps the single
+    // clicked pressing's values (identical, but preserved explicitly).
+    const additiveBatchRef = isVintageScoped && a.pressing_batch_ref != null && String(a.pressing_batch_ref).trim() !== ""
+      ? String(a.pressing_batch_ref).trim()
+      : pressingBatchRef;
+    const additiveDate = isVintageScoped && a.pressing_press_date
+      ? fmtDate(a.pressing_press_date)
+      : fmtDate(pressing.press_date);
     const cells: Record<string, string> = {
       "Stage": "Pressing — Additive",
-      "Batch Ref": pressingBatchRef,
-      "Date": fmtDate(pressing.press_date),
+      "Batch Ref": additiveBatchRef,
+      "Date": additiveDate,
       "Operator": String(pressing.operator_name ?? ""),
     };
     for (const col of PRESS_ADDITIVE_COLUMNS) cells[col.csvColumn] = col.csvValue(a);
