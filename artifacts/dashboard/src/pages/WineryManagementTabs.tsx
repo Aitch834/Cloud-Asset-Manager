@@ -2338,8 +2338,11 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
               <Button variant="outline" size="sm" onClick={() => { void exportBatchTrailCsv(farmId, pressing, data, farmName); }}>
                 <FileDown className="w-3.5 h-3.5 mr-1" />Export CSV
               </Button>
-              <Button variant="outline" size="sm" onClick={() => { void printBatchTrail(farmId, pressing, data, farmName, currentSig, { name: currentSignerName, role: currentSignerRole, signedAt: currentSignedAt, signerDate: currentSignerDate }); }}>
+              {/* Mirrors the embed argument passed to printBatchTrail below: the PDF embeds
+                  the signature exactly when currentSig is present. */}
+              <Button variant="outline" size="sm" onClick={() => { void printBatchTrail(farmId, pressing, data, farmName, currentSig, { name: currentSignerName, role: currentSignerRole, signedAt: currentSignedAt, signerDate: currentSignerDate }); }} title={currentSig ? "Signed — signature will be embedded" : undefined}>
                 <Printer className="w-3.5 h-3.5 mr-1" />Print / Export PDF
+                {!!currentSig && <ShieldCheck className="w-3.5 h-3.5 ml-1 text-green-600" aria-label="Signed — signature will be embedded" />}
               </Button>
               <Button size="sm" variant={currentSig ? "outline" : "default"} onClick={openSignDialog}>
                 <PenLine className="w-3.5 h-3.5 mr-1" />{currentSig ? "Re-sign" : "Sign Off"}
@@ -4201,6 +4204,23 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const { mixedVintages: summaryMixedUnitVintages, dominantUnitByVintage: summaryDominantUnitByVintage } =
     computeSo2DominantUnitByVintage(searchFilteredSummary);
 
+  // Mirrors the signedPress embed decision inside the Additions Report Print button's
+  // click handler: signature embeds only when scoped to a single vintage, every visible
+  // summary row derives from the pressing stage, and every pressing record in that
+  // vintage is signed by the same person. Kept in exact sync so the ShieldCheck
+  // indicator never promises an embedded signature the PDF won't actually contain.
+  const additionsWillEmbedSignature = (() => {
+    if (yearFilter === "all" || searchFilteredSummary.length === 0) return false;
+    const allRowsPressing = searchFilteredSummary.every(r =>
+      String(r.source ?? "pressing") === "pressing" && String(r.vintage_year ?? "") === yearFilter);
+    if (!allRowsPressing) return false;
+    const vintagePressings = crud.data.filter((r: Record<string, unknown>) => String(r.vintage_year ?? "") === yearFilter);
+    const allSigned = vintagePressings.length > 0 && vintagePressings.every((r: Record<string, unknown>) => r.audit_signature != null && r.audit_signature !== "");
+    if (!allSigned) return false;
+    const firstSigner = String(vintagePressings[0].audit_signer_name ?? "");
+    return vintagePressings.every((r: Record<string, unknown>) => String(r.audit_signer_name ?? "") === firstSigner);
+  })();
+
   const showSo2Chart = categoryFilter.size === 0 || categoryFilter.has("so2");
   // Scope the chart to the active wine colour filter so the graph matches the table below it
   const so2ChartSourceRows = additionsSummary.filter(r =>
@@ -4290,6 +4310,10 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
         String(r.batch_ref ?? "").toLowerCase() === txLogBatchFilter.trim().toLowerCase()
       ) ?? null)
     : null;
+  // Mirrors the Transaction Log PDF button's embed decision: the signature embeds when
+  // the batch-ref filter exactly matches a signed pressing record (same lookup as
+  // txLogExactMatch above and matchingPress inside the click handler).
+  const txLogWillEmbedSignature = txLogExactMatch != null && txLogExactMatch.audit_signature != null && txLogExactMatch.audit_signature !== "";
 
   const pressCsvCols = [
     { key: "vintage_year", label: "Vintage" },
@@ -4655,7 +4679,10 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                   signerDate: signedPress.audit_signer_date ? String(signedPress.audit_signer_date) : null,
                 } : undefined;
                 printAdditionsReport(searchFilteredSummary, farmName, scopeLabel, addSig, addSignerInfo);
-              }} disabled={!searchFilteredSummary.length}><FileDown className="w-3.5 h-3.5 mr-1" />Print / Export PDF</Button>
+              }} disabled={!searchFilteredSummary.length} title={additionsWillEmbedSignature ? "Signed — signature will be embedded" : undefined}>
+                <FileDown className="w-3.5 h-3.5 mr-1" />Print / Export PDF
+                {additionsWillEmbedSignature && <ShieldCheck className="w-3.5 h-3.5 ml-1 text-green-600" aria-label="Signed — signature will be embedded" />}
+              </Button>
               <Button size="sm" variant="outline" onClick={() => {
                 const summaryUnitsByVintage = new Map<string, Set<string>>();
                 searchFilteredSummary.filter(r => r.category === "so2").forEach(r => {
@@ -4710,7 +4737,10 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                   signerDate: matchingPress.audit_signer_date ? String(matchingPress.audit_signer_date) : null,
                 } : undefined;
                 printSo2TransactionLog(filteredTransactionLog, farmName, scope, sig, signerInfo);
-              }} disabled={!filteredTransactionLog.length} title="Print the SO₂ transaction log as a PDF — embeds the batch's digital signature if one exists"><Printer className="w-3.5 h-3.5 mr-1" />Transaction Log PDF</Button>
+              }} disabled={!filteredTransactionLog.length} title={txLogWillEmbedSignature ? "Signed — signature will be embedded" : "Print the SO₂ transaction log as a PDF — embeds the batch's digital signature if one exists"}>
+                <Printer className="w-3.5 h-3.5 mr-1" />Transaction Log PDF
+                {txLogWillEmbedSignature && <ShieldCheck className="w-3.5 h-3.5 ml-1 text-green-600" aria-label="Signed — signature will be embedded" />}
+              </Button>
               <Button size="sm" variant="outline" onClick={() => {
                 const suffix = txLogBatchFilter.trim() ? txLogBatchFilter.trim().replace(/[^a-zA-Z0-9_-]/g, "_") : yearFilter;
                 // Detect mixed SO₂ units per vintage — same logic as the PDF notice
