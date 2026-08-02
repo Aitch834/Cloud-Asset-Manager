@@ -4317,6 +4317,8 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
       if (!rows.length) return "";
       return rows.map((a: Record<string, unknown>) => `${String(a.additive_name)}: ${String(a.dose ?? "")}${a.unit ? ` ${String(a.unit)}` : ""}${a.notes ? ` (${String(a.notes)})` : ""}`).join("; ");
     }},
+    // Mirrors the on-screen "N additions" badge (count of additive entries per pressing record)
+    { key: "additions_count", label: "Additions", fmt: (r: Record<string, unknown>) => String(additionCounts.get(Number(r.id)) ?? 0) },
     // Sign-off columns — mirror the on-screen Sign-off badge (signed = audit_signature present)
     { key: "audit_signature", label: "Signed", fmt: (r: Record<string, unknown>) => (r.audit_signature != null && r.audit_signature !== "") ? "Yes" : "No" },
     { key: "audit_signer_name", label: "Signer Name" },
