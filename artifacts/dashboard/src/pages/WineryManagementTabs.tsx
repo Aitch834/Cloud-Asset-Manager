@@ -7725,6 +7725,9 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
   const [so2Search, setSo2Search] = useState("");
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   const [highlightedSo2RowId, setHighlightedSo2RowId] = useState<string | null>(null);
+  // True while the operator is remediating flagged rows via the amber banner's
+  // Fix button — after a save we auto-advance to the next flagged row.
+  const [fixingFlaggedSo2, setFixingFlaggedSo2] = useState(false);
   const firstFlaggedSo2RowRef = useRef<HTMLTableRowElement>(null);
   const { data: farmsDataSo2 } = useQuery<{ records?: Record<string, unknown>[] }>({
     queryKey: ["farms-list"],
@@ -7805,6 +7808,22 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
     try {
       if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...payload } as Record<string, unknown> & { id: number });
       else await crud.add.mutateAsync(payload);
+      // Fix-flow auto-advance: when remediating flagged rows via the amber
+      // banner's Fix button, jump straight to the next flagged row after each
+      // save. The just-saved row is excluded locally (the refetch may not have
+      // landed yet); if it still lacks a batch ref it re-flags on the next pass.
+      if (fixingFlaggedSo2 && editing !== null) {
+        const nextFlagged = filtered.filter(r => r.id !== editing && isFlaggedSo2Row(r));
+        if (nextFlagged.length > 0) {
+          toast({ title: "Saved", description: `${nextFlagged.length} flagged test${nextFlagged.length !== 1 ? "s" : ""} remaining — opening the next one.` });
+          openEdit(nextFlagged[0]);
+          return;
+        }
+        setFixingFlaggedSo2(false);
+        toast({ title: "Saved", description: "All flagged tests fixed." });
+        setOpen(false);
+        return;
+      }
       toast({ title: "Saved" }); setOpen(false);
     } catch (err) {
       const e = err as Error;
@@ -7834,11 +7853,12 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
     return maxVal != null && ORGANIC_LIMIT_NUMBERS.has(maxVal);
   }).length;
 
-  const findFirstFlaggedSo2 = () => filtered.find(r => {
+  const isFlaggedSo2Row = (r: Record<string, unknown>) => {
     if (r.batch_ref) return false;
     const maxVal = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : null;
     return maxVal != null && ORGANIC_LIMIT_NUMBERS.has(maxVal);
-  });
+  };
+  const findFirstFlaggedSo2 = () => filtered.find(isFlaggedSo2Row);
 
   const handleReviewFlaggedSo2 = () => {
     const firstFlagged = findFirstFlaggedSo2();
@@ -7852,6 +7872,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
   const handleFixFlaggedSo2 = () => {
     const firstFlagged = findFirstFlaggedSo2();
     if (!firstFlagged) return;
+    setFixingFlaggedSo2(true);
     openEdit(firstFlagged);
   };
 
@@ -7988,7 +8009,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
             className="shrink-0 inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 hover:bg-amber-200 hover:text-amber-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
           >
             <Pencil className="h-3 w-3" />
-            Fix
+            Fix{unverifiedLimitCount > 1 ? ` (${unverifiedLimitCount} remaining)` : ""}
           </button>
         </div>
       )}
@@ -8061,7 +8082,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      <Dialog open={open} onOpenChange={o => !o && setOpen(false)}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setFixingFlaggedSo2(false); } }}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing !== null ? "Edit" : "Log"} SO₂ Test</DialogTitle></DialogHeader>
           <div className="space-y-4">
@@ -8163,7 +8184,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
             <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setOpen(false); setFixingFlaggedSo2(false); }}>Cancel</Button>
             <Button onClick={save} disabled={!form.testDate || crud.add.isPending || crud.edit.isPending}>
               {(crud.add.isPending || crud.edit.isPending) && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Save
             </Button>
