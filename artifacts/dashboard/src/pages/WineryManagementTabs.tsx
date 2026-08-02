@@ -325,7 +325,10 @@ interface AdditionRow { tempId: number; id?: number; additiveName: string; categ
 // their additive columns from this list. Add a new field here (and, if the CSV
 // needs a new header column, to BATCH_TRAIL_CSV_HEADER) and both outputs pick
 // it up together — they can no longer drift apart.
+type PressAdditiveField = "additive_name" | "category" | "dose" | "unit" | "notes";
 interface PressAdditiveColumn {
+  /** Underlying additive record field — lookup key for the other winery reports */
+  field: PressAdditiveField;
   /** Which batch-trail CSV header column this field fills */
   csvColumn: string;
   /** Header label in the printed PDF additives table */
@@ -339,35 +342,54 @@ interface PressAdditiveColumn {
 }
 const PRESS_ADDITIVE_COLUMNS: PressAdditiveColumn[] = [
   {
+    field: "additive_name",
     csvColumn: "Type / Additive", pdfLabel: "Additive", align: "left",
     csvValue: a => String(a.additive_name ?? ""),
     pdfValue: a => String(a.additive_name ?? ""),
     pdfCellStyle: "font-weight:500",
   },
   {
+    field: "category",
     csvColumn: "Detail", pdfLabel: "Category", align: "left",
     csvValue: a => String(a.category ?? ""),
     pdfValue: a => ADDITIVE_CATEGORY_LABELS[String(a.category)] ?? String(a.category ?? ""),
     pdfCellStyle: "color:#6b7280",
   },
   {
+    field: "dose",
     csvColumn: "SO₂ / Dose", pdfLabel: "Dose", align: "right",
     csvValue: a => (a.dose != null ? parseFloat(String(a.dose)).toFixed(2) : ""),
     pdfValue: a => (a.dose != null ? parseFloat(String(a.dose)).toFixed(2) : "—"),
     pdfCellStyle: "text-align:right;font-family:monospace",
   },
   {
+    field: "unit",
     csvColumn: "Unit", pdfLabel: "Unit", align: "left",
     csvValue: a => String(a.unit ?? ""),
     pdfValue: a => String(a.unit ?? ""),
   },
   {
+    field: "notes",
     csvColumn: "Notes", pdfLabel: "Notes", align: "left",
     csvValue: a => String(a.notes ?? ""),
     pdfValue: a => String(a.notes ?? ""),
     pdfCellStyle: "color:#6b7280;font-style:italic",
   },
 ];
+// Field-keyed lookup into PRESS_ADDITIVE_COLUMNS. The Additive Usage Report,
+// the SO₂ & Additive Transaction Log (PDF + CSV) and the Pressing Report all
+// pull their additive value formatting from here, so a new/changed additive
+// field edited in PRESS_ADDITIVE_COLUMNS updates every winery output together.
+const ADDITIVE_COL: Record<PressAdditiveField, PressAdditiveColumn> = Object.fromEntries(
+  PRESS_ADDITIVE_COLUMNS.map(c => [c.field, c]),
+) as Record<PressAdditiveField, PressAdditiveColumn>;
+// exportCSV column for a shared additive field — generic label (the PDF label,
+// not the batch-trail-specific CSV slot name) + the shared CSV value formatter.
+const additiveCsvCol = (field: PressAdditiveField) => ({
+  key: field,
+  label: ADDITIVE_COL[field].pdfLabel,
+  fmt: (r: Record<string, unknown>) => ADDITIVE_COL[field].csvValue(r),
+});
 // Batch-trail CSV header — the additive columns above map into these slots by name.
 const BATCH_TRAIL_CSV_HEADER = ["Stage", "Batch Ref", "Date", "Type / Additive", "Detail", "SO₂ / Dose", "Unit", "SO₂ Ceiling (mg/L)", "SO₂ Compliance", "pH", "TA (g/L)", "Vessel", "Operator", "Notes"];
 
@@ -3301,7 +3323,8 @@ function printAdditionsReport(
                     : (warnOrg || warnAsc) ? 'style="background:#fef3c7"' : "";
 
     // limitCell contains only trusted static text + escaped unit
-    const unitEsc = escHtml(row.unit ?? "mg/kg");
+    // (unit value comes from the shared PRESS_ADDITIVE_COLUMNS definition)
+    const unitEsc = escHtml(ADDITIVE_COL.unit.pdfValue(row) || "mg/kg");
     const outlierDominant = so2UnitOutlierDominant(row, dominantUnitByVintage);
     if (outlierDominant) hasUnitOutliers = true;
     const unitCell = outlierDominant
@@ -3327,7 +3350,7 @@ function printAdditionsReport(
       : 'background:#d1fae5;color:#065f46';
     const sourceBadge = `<span style="display:inline-block;padding:1px 6px;border-radius:9999px;font-size:10px;font-weight:600;${sourceBadgeStyle}">${escHtml(sourceLabel)}</span>`;
     return `<tr ${rowStyle}>
-      <td style="font-weight:500">${escHtml(row.additive_name)}</td>
+      <td style="font-weight:500">${escHtml(ADDITIVE_COL.additive_name.pdfValue(row))}</td>
       ${vintageCell}
       <td>${colourBadge}</td>
       <td>${sourceBadge}</td>
@@ -3463,11 +3486,15 @@ function printPressingReport(rows: Record<string, unknown>[], farmName: string, 
       ? `<tr class="additions-row">
           <td colspan="${COL_COUNT}" style="padding:3px 7px 6px 20px;background:#f9fafb;border-bottom:1px solid #e5e7eb">
             <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;margin-right:8px">Additives:</span>
-            ${additions.map(a =>
-              `<span style="display:inline-block;margin-right:10px;font-size:9.5px;color:#374151">
-                <strong>${escHtml(a.additive_name ?? "")}</strong>&thinsp;${escHtml(a.dose ?? "")}${escHtml(a.unit ? "\u202f" + String(a.unit) : "")}${a.notes ? `&ensp;<span style="color:#9ca3af">${escHtml(a.notes)}</span>` : ""}
-              </span>`
-            ).join("")}
+            ${additions.map(a => {
+              // Values come from the shared PRESS_ADDITIVE_COLUMNS definitions
+              const dose = a.dose === "" ? "" : ADDITIVE_COL.dose.csvValue(a);
+              const unit = ADDITIVE_COL.unit.pdfValue(a);
+              const notes = ADDITIVE_COL.notes.pdfValue(a);
+              return `<span style="display:inline-block;margin-right:10px;font-size:9.5px;color:#374151">
+                <strong>${escHtml(ADDITIVE_COL.additive_name.pdfValue(a))}</strong>&thinsp;${escHtml(dose)}${escHtml(unit ? "\u202f" + unit : "")}${notes ? `&ensp;<span style="color:#9ca3af">${escHtml(notes)}</span>` : ""}
+              </span>`;
+            }).join("")}
           </td>
         </tr>`
       : "";
@@ -3610,9 +3637,11 @@ function printSo2TransactionLog(
   const tableRows = rows.map(r => {
     const src = String(r.source ?? "pressing");
     const stageLabel = SOURCE_LABELS[src] ?? src;
-    const doseVal = r.dose != null && r.dose !== ""
-      ? `${parseFloat(String(r.dose)).toFixed(2)} ${escHtml(String(r.unit ?? ""))}`
-      : "—";
+    // Dose/unit formatting comes from the shared PRESS_ADDITIVE_COLUMNS definitions
+    const dosePdf = ADDITIVE_COL.dose.pdfValue(r);
+    const doseVal = dosePdf === "—" || r.dose === ""
+      ? "—"
+      : `${dosePdf} ${escHtml(ADDITIVE_COL.unit.pdfValue(r))}`;
     // Dose rate (mg/L) — cellar sulfiting rows only; mirrors on-screen table and CSV export
     let doseRateVal = "—";
     if (r.source === "cellar" && r.so2_quantity_g != null) {
@@ -3630,12 +3659,12 @@ function printSo2TransactionLog(
       <td>${escHtml(r.wine_colour ?? "—")}</td>
       <td>${escHtml(r.vintage_year ?? "—")}</td>
       <td>${escHtml(stageLabel)}</td>
-      <td>${escHtml(r.additive_name ?? "—")}</td>
+      <td>${escHtml(ADDITIVE_COL.additive_name.pdfValue(r) || "—")}</td>
       <td style="text-align:right;font-family:monospace">${doseVal}</td>
       <td style="text-align:right;font-family:monospace">${doseRateVal}</td>
       <td>${escHtml(r.operator_name ?? "—")}</td>
       <td>${escHtml(r.vessel_ref ?? "—")}</td>
-      <td style="font-size:10px;color:#6b7280">${escHtml(r.notes ?? "")}</td>
+      <td style="font-size:10px;color:#6b7280">${escHtml(ADDITIVE_COL.notes.pdfValue(r))}</td>
     </tr>`;
   }).join("");
 
@@ -4194,11 +4223,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const so2MixedUnits = Array.from(so2UnitsByVintage.values()).some(units => units.size > 1);
   const summaryCsvCols = [
     { key: "vintage_year", label: "Vintage" },
-    { key: "additive_name", label: "Additive" },
-    { key: "category", label: "Category" },
+    // Additive/category/unit come from the shared PRESS_ADDITIVE_COLUMNS definitions
+    additiveCsvCol("additive_name"),
+    additiveCsvCol("category"),
     { key: "wine_colour", label: "Wine Colour" },
     { key: "source", label: "Stage", fmt: (r: Record<string, unknown>) => SOURCE_LABELS[String(r.source ?? "pressing")] ?? String(r.source ?? "pressing") },
-    { key: "unit", label: "Unit" },
+    additiveCsvCol("unit"),
     // Matches the on-screen amber unit badge and the PDF's "*" marker — same
     // dominant-unit map (computeSo2DominantUnitByVintage) drives all three.
     { key: "unit_outlier", label: "Unit Differs From Vintage", fmt: (r: Record<string, unknown>) => {
@@ -4220,10 +4250,11 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     { key: "record_date", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.record_date) },
     { key: "operator_name", label: "Operator" },
     { key: "vessel_ref", label: "Vessel" },
-    { key: "additive_name", label: "Additive" },
-    { key: "category", label: "Category" },
-    { key: "dose", label: "Dose" },
-    { key: "unit", label: "Unit" },
+    // Additive columns come from the shared PRESS_ADDITIVE_COLUMNS definitions
+    additiveCsvCol("additive_name"),
+    additiveCsvCol("category"),
+    additiveCsvCol("dose"),
+    additiveCsvCol("unit"),
     { key: "dose_rate_mg_l", label: "Dose Rate (mg/L)", fmt: (r: Record<string, unknown>) => {
       // Only compute for cellar sulfiting rows with so2_quantity_g
       if (r.source !== "cellar" || r.so2_quantity_g == null) return "";
@@ -4243,7 +4274,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
       if (!isNaN(moved) && moved > 0) return "Volume moved";
       return "";
     }},
-    { key: "notes", label: "Notes" },
+    additiveCsvCol("notes"),
   ];
 
   const filteredTransactionLog = (yearFilter === "all"
