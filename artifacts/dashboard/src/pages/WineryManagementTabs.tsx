@@ -3649,7 +3649,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [pressingSearch, setPressingSearch] = useState("");
   const [signedFilter, setSignedFilter] = useState<"all" | "signed" | "unsigned">("all");
   const pressingSortKey = `pressing-sort-${farmId}`;
-  const PRESSING_SORT_COLS = ["date", "batch_ref", "grapes_pressed_kg", "total_juice_litres", "juice_brix", "juice_ph", "juice_turbidity"] as const;
+  const PRESSING_SORT_COLS = ["date", "batch_ref", "grapes_pressed_kg", "total_juice_litres", "press_efficiency_l_per_kg", "juice_brix", "juice_ph", "juice_turbidity"] as const;
   type PressingSort = typeof PRESSING_SORT_COLS[number];
   const [pressingSortCol, setPressingSortColRaw] = useState<PressingSort>(() => {
     try { const v = localStorage.getItem(`pressing-sort-${farmId}-col`); return (PRESSING_SORT_COLS as readonly string[]).includes(v ?? "") ? v as PressingSort : "date"; } catch { return "date"; }
@@ -3965,13 +3965,13 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     } else {
       setPressingSortCol(col);
       // Numeric columns default desc (largest first); text columns default to their natural direction
-      setPressingSortDir(col === "grapes_pressed_kg" || col === "total_juice_litres" || col === "juice_brix" || col === "juice_ph" ? "desc" : col === "date" ? "desc" : "asc");
+      setPressingSortDir(col === "grapes_pressed_kg" || col === "total_juice_litres" || col === "press_efficiency_l_per_kg" || col === "juice_brix" || col === "juice_ph" ? "desc" : col === "date" ? "desc" : "asc");
     }
   };
   const TURBIDITY_ORDER: Record<string, number> = { "Clear": 0, "Slightly turbid": 1, "Turbid": 2 };
   const filtered = [...filteredBySigned].sort((a, b) => {
     let cmp = 0;
-    if (pressingSortCol === "grapes_pressed_kg" || pressingSortCol === "total_juice_litres" || pressingSortCol === "juice_brix" || pressingSortCol === "juice_ph") {
+    if (pressingSortCol === "grapes_pressed_kg" || pressingSortCol === "total_juice_litres" || pressingSortCol === "press_efficiency_l_per_kg" || pressingSortCol === "juice_brix" || pressingSortCol === "juice_ph") {
       const an = parseFloat(String(a[pressingSortCol] ?? ""));
       const bn = parseFloat(String(b[pressingSortCol] ?? ""));
       const aNull = isNaN(an), bNull = isNaN(bn);
@@ -4340,7 +4340,14 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                     : <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground" />}
                 </button>
               </th>
-              <th className="text-right p-3 font-medium">L/kg</th>
+              <th className="text-right p-3 font-medium">
+                <button className="flex items-center gap-1 hover:text-foreground ml-auto group" onClick={() => togglePressSort("press_efficiency_l_per_kg")}>
+                  L/kg
+                  {pressingSortCol === "press_efficiency_l_per_kg"
+                    ? pressingSortDir === "asc" ? <ArrowUp className="w-3.5 h-3.5 text-primary" /> : <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                    : <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground" />}
+                </button>
+              </th>
               <th className="text-right p-3 font-medium">
                 <button className="flex items-center gap-1 hover:text-foreground ml-auto group" onClick={() => togglePressSort("juice_brix")}>
                   Brix °
