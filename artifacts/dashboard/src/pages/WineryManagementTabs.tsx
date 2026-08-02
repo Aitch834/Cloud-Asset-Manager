@@ -2437,22 +2437,49 @@ function computeVintagePhTaComparisonRows(data: BatchTrailData): { ref: string; 
     .sort((a, b) => a.ref.localeCompare(b.ref));
 }
 
+// ─── Batch-trail attachment fetch helpers ─────────────────────────────────────
+// Best-effort attachment lookups shared by the CSV export and the printed PDF —
+// a failed fetch never blocks the export, the stage section is simply omitted.
+type TrailAttachment = { fileName: string; uploadedAt: string };
+
+async function fetchTrailAttachments(farmId: number, recordType: string, recordId: number): Promise<TrailAttachment[]> {
+  try {
+    const res = await fetch(api(`farms/${farmId}/record-attachments?recordType=${recordType}&recordId=${recordId}`), { credentials: "include" });
+    if (!res.ok) return [];
+    const json = await res.json();
+    return (Array.isArray(json) ? json : []) as TrailAttachment[];
+  } catch {
+    return []; // best-effort — non-critical
+  }
+}
+
+// Fetch attachments for every record of a stage; returns a map keyed by record id
+// containing only records that actually have attachments.
+async function fetchStageAttachments(farmId: number, recordType: string, records: Record<string, unknown>[]): Promise<Map<number, TrailAttachment[]>> {
+  const map = new Map<number, TrailAttachment[]>();
+  await Promise.all(records.map(async r => {
+    const id = r.id != null ? Number(r.id) : null;
+    if (!id) return;
+    const files = await fetchTrailAttachments(farmId, recordType, id);
+    if (files.length > 0) map.set(id, files);
+  }));
+  return map;
+}
+
 async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unknown>, data: BatchTrailData, farmName: string) {
   // Fetch attachments for the pressing record (best-effort — CSV still exports if this fails).
   // Mirrors the attachments block in the printed PDF (printBatchTrail).
-  let pressAttachments: { fileName: string; uploadedAt: string }[] = [];
+  let pressAttachments: TrailAttachment[] = [];
   const pressId = pressing.id != null ? Number(pressing.id) : null;
-  if (pressId) {
-    try {
-      const attRes = await fetch(api(`farms/${farmId}/record-attachments?recordType=winery-pressing&recordId=${pressId}`), { credentials: "include" });
-      if (attRes.ok) {
-        const attJson = await attRes.json();
-        pressAttachments = (Array.isArray(attJson) ? attJson : []) as { fileName: string; uploadedAt: string }[];
-      }
-    } catch {
-      // ignore — non-critical
-    }
-  }
+  // Fermentation / cellar op / SO₂ test / bottling attachments — same best-effort
+  // fetch, keyed per record so each stage row can list its own files.
+  const [fermAttachments, cellarAttachments, so2Attachments, bottlingAttachments] = await Promise.all([
+    fetchStageAttachments(farmId, "winery-fermentation", data.fermentation),
+    fetchStageAttachments(farmId, "winery-cellar-op", data.cellarOps),
+    fetchStageAttachments(farmId, "winery-so2-test", data.so2Tests),
+    fetchStageAttachments(farmId, "winery-bottling", data.bottling),
+    (async () => { if (pressId) pressAttachments = await fetchTrailAttachments(farmId, "winery-pressing", pressId); })(),
+  ]);
   const batchRef = String(pressing.batch_ref ?? "");
   const isVintageScoped = data.scope === "vintageYear";
   const vintageYear = data.vintageYear ? String(data.vintageYear) : (pressing.vintage_year ? String(pressing.vintage_year) : null);
@@ -2533,6 +2560,30 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
     ]);
   }
 
+  // Attachment rows for a stage record — same shape as the pressing attachment
+  // rows above; emitted directly after the record's own row, omitted when empty.
+  const pushStageAttachmentRows = (stageLabel: string, r: Record<string, unknown>, attMap: Map<number, TrailAttachment[]>) => {
+    const files = r.id != null ? attMap.get(Number(r.id)) : undefined;
+    for (const a of files ?? []) {
+      rows.push([
+        `${stageLabel} — Attachment`,
+        String(r.batch_ref ?? ""),
+        a.uploadedAt ? fmtDate(a.uploadedAt) : "",
+        "Attachment",
+        String(a.fileName ?? ""),
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        a.uploadedAt ? `Uploaded ${fmtDate(a.uploadedAt)}` : "",
+      ]);
+    }
+  };
+
   // Fermentation
   for (const r of data.fermentation) {
     rows.push([
@@ -2551,6 +2602,7 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
       String(r.operator_name ?? ""),
       String(r.notes ?? ""),
     ]);
+    pushStageAttachmentRows("Fermentation", r, fermAttachments);
   }
 
   // Cellar ops
@@ -2573,6 +2625,7 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
       String(r.operator_name ?? ""),
       String(r.notes ?? ""),
     ]);
+    pushStageAttachmentRows("Cellar Operation", r, cellarAttachments);
   }
 
   // SO₂ tests
@@ -2593,6 +2646,7 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
       String(r.operator_name ?? ""),
       String(r.notes ?? ""),
     ]);
+    pushStageAttachmentRows("SO₂ Test", r, so2Attachments);
   }
 
   // Bottling — includes SO₂ ceiling and compliance verdict, matching the PDF logic
@@ -2618,6 +2672,7 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
       String(r.operator_name ?? ""),
       String(r.notes ?? ""),
     ]);
+    pushStageAttachmentRows("Bottling", r, bottlingAttachments);
   }
 
   // ── pH & TA Analytical History summary block ────────────────────────────────
@@ -2705,19 +2760,17 @@ function sanitiseSignatureForHtml(sig: string | null | undefined): string | null
 
 async function printBatchTrail(farmId: number, pressing: Record<string, unknown>, data: BatchTrailData, farmName: string, auditSig?: string | null, signerInfo?: { name: string | null; role: string | null; signedAt: string | null; signerDate?: string | null }) {
   // Fetch attachments for the pressing record (best-effort — PDF still prints if this fails)
-  let pressAttachments: { fileName: string; uploadedAt: string }[] = [];
+  let pressAttachments: TrailAttachment[] = [];
   const pressId = pressing.id != null ? Number(pressing.id) : null;
-  if (pressId) {
-    try {
-      const attRes = await fetch(api(`farms/${farmId}/record-attachments?recordType=winery-pressing&recordId=${pressId}`), { credentials: "include" });
-      if (attRes.ok) {
-        const attJson = await attRes.json();
-        pressAttachments = (Array.isArray(attJson) ? attJson : []) as { fileName: string; uploadedAt: string }[];
-      }
-    } catch {
-      // ignore — non-critical
-    }
-  }
+  // Fermentation / cellar op / SO₂ test / bottling attachments — same best-effort
+  // fetch, keyed per record so each stage section can list its own files.
+  const [fermAttachments, cellarAttachments, so2Attachments, bottlingAttachments] = await Promise.all([
+    fetchStageAttachments(farmId, "winery-fermentation", data.fermentation),
+    fetchStageAttachments(farmId, "winery-cellar-op", data.cellarOps),
+    fetchStageAttachments(farmId, "winery-so2-test", data.so2Tests),
+    fetchStageAttachments(farmId, "winery-bottling", data.bottling),
+    (async () => { if (pressId) pressAttachments = await fetchTrailAttachments(farmId, "winery-pressing", pressId); })(),
+  ]);
   const batchRef = String(pressing.batch_ref ?? "");
   const printedOn = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   const vintage = pressing.vintage_year ? String(pressing.vintage_year) : null;
@@ -3127,6 +3180,35 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
   </tr>`;
   }).join("");
 
+  // Per-stage attachment blocks — rendered under the stage's own table, styled
+  // like the pressing attachments block. Omitted entirely when no record in the
+  // stage has attachments; records are labelled with date + batch ref.
+  const stageAttachmentsHtml = (records: Record<string, unknown>[], attMap: Map<number, TrailAttachment[]>, dateField: string) => {
+    const blocks = records.map(r => {
+      const files = r.id != null ? attMap.get(Number(r.id)) : undefined;
+      if (!files || files.length === 0) return "";
+      return `<div style="margin-bottom:5px">
+        <p style="font-size:9px;font-weight:600;color:#374151;margin-bottom:2px">${escHtml(fmtDate(r[dateField]))} ${batchRefBadge(r)}</p>
+        <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:3px">
+          ${files.map(a => `<li style="font-size:10px;color:#374151;display:flex;align-items:center;gap:6px">
+            <span style="display:inline-block;width:14px;height:14px;background:#dbeafe;border-radius:2px;flex-shrink:0;text-align:center;line-height:14px;font-size:9px;color:#1e40af">📎</span>
+            <span style="font-family:monospace">${escHtml(String(a.fileName ?? ""))}</span>
+            <span style="color:#9ca3af;font-size:9px">${a.uploadedAt ? fmtDate(a.uploadedAt) : ""}</span>
+          </li>`).join("")}
+        </ul>
+      </div>`;
+    }).filter(Boolean).join("");
+    if (!blocks) return "";
+    return `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:8px 12px;margin-top:-14px;margin-bottom:20px">
+      <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:5px">Attachments</p>
+      ${blocks}
+    </div>`;
+  };
+  const fermAttachmentsHtml = stageAttachmentsHtml(data.fermentation, fermAttachments, "start_date");
+  const cellarAttachmentsHtml = stageAttachmentsHtml(data.cellarOps, cellarAttachments, "op_date");
+  const so2AttachmentsHtml = stageAttachmentsHtml(data.so2Tests, so2Attachments, "test_date");
+  const bottlingAttachmentsHtml = stageAttachmentsHtml(data.bottling, bottlingAttachments, "bottling_date");
+
   const bottlingHeader = `<tr class="header-row"><th>Date</th><th>Lot Code</th><th>Colour</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">Bottles</th><th style="text-align:right">Free SO₂ (mg/L)</th><th style="text-align:right">Total SO₂ (mg/L)</th><th style="text-align:right">SO₂ ceiling</th><th>Compliance</th><th style="text-align:right">pH</th><th style="text-align:right">TA (g/L)</th><th style="text-align:right">ABV</th><th>Closure</th><th>Organic limits</th><th>Batch Ref</th></tr>`;
 
   const docTitle = isVintageScoped && vintage
@@ -3189,10 +3271,14 @@ ${so2SummaryHtml}
 ${phTaHistoryHtml}
 ${pressingBlockHtml}
 ${fermRows ? sectionHtml("2. Fermentation", fermHeader + fermRows) : ""}
+${fermAttachmentsHtml}
 ${cellarRows ? sectionHtml("3. Cellar operations", cellarHeader + cellarRows) : ""}
+${cellarAttachmentsHtml}
 ${so2Rows ? sectionHtml("4. SO₂ tests", so2Header + so2Rows) : ""}
 ${so2Rows && so2HasUnverifiedLimit ? `<p style="font-size:9px;color:#b45309;margin:2px 0 8px">⚠ Limit unverified — one or more SO₂ tests carry an organic ceiling but have no batch reference, so the applicable limit cannot be verified against a batch record.</p>` : ""}
+${so2AttachmentsHtml}
 ${bottlingRows ? sectionHtml("5. Bottling runs", bottlingHeader + bottlingRows) : ""}
+${bottlingAttachmentsHtml}
 
 <div class="signoff">
   <div style="margin-top:28px;border-top:2px solid #374151;padding-top:16px">
