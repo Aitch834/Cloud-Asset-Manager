@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
+import { computePrimaryPhTa, computePhTaStagePoints } from "@/lib/ph-ta-stages";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf, Search, Upload, PenLine, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
@@ -1968,69 +1969,19 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
             {/* SO₂ cumulative summary */}
             <So2SummaryBlock summary={computeSo2Summary(pressing, data)} />
 
-            {/* pH & TA analytical history */}
+            {/* pH & TA analytical history — stage merge logic shared via lib/ph-ta-stages */}
             {(() => {
-              const pressPh = pressing.juice_ph != null ? parseFloat(String(pressing.juice_ph)) : null;
-              const pressTa = pressing.juice_ta_gl != null ? parseFloat(String(pressing.juice_ta_gl)) : null;
-              // Latest fermentation end readings (most recent end_date or last in array)
-              const fermWithPh = [...data.fermentation].filter(r => r.end_ph != null || r.end_ta_gl != null)
-                .sort((a, b) => (a.end_date && b.end_date ? new Date(String(b.end_date)).getTime() - new Date(String(a.end_date)).getTime() : 0));
-              const fermRecord = fermWithPh[0] ?? null;
-              const fermPh = fermRecord?.end_ph != null ? parseFloat(String(fermRecord.end_ph)) : null;
-              const fermTa = fermRecord?.end_ta_gl != null ? parseFloat(String(fermRecord.end_ta_gl)) : null;
-              // Latest bottling pH/TA
-              const bottlingWithPh = [...data.bottling].filter(r => r.ph != null || r.titratable_acidity_gl != null)
-                .sort((a, b) => (a.bottling_date && b.bottling_date ? new Date(String(b.bottling_date)).getTime() - new Date(String(a.bottling_date)).getTime() : 0));
-              const bottlingRecord = bottlingWithPh[0] ?? null;
-              const bottPh = bottlingRecord?.ph != null ? parseFloat(String(bottlingRecord.ph)) : null;
-              const bottTa = bottlingRecord?.titratable_acidity_gl != null ? parseFloat(String(bottlingRecord.titratable_acidity_gl)) : null;
+              const primary = computePrimaryPhTa(pressing, data.fermentation, data.bottling);
+              const { ph: pressPh, ta: pressTa } = primary.pressing;
+              const { ph: fermPh,  ta: fermTa }  = primary.fermentation;
+              const { ph: bottPh,  ta: bottTa }  = primary.bottling;
 
-              // SO₂ test pH/TA readings — most recent per stage
-              const so2TestsByStage: Record<string, { ph: number | null; ta: number | null }> = {};
-              const sortedSo2Tests = [...data.so2Tests].sort((a, b) =>
-                new Date(String(b.test_date ?? "0")).getTime() - new Date(String(a.test_date ?? "0")).getTime()
-              );
-              for (const t of sortedSo2Tests) {
-                const stageKey = String(t.test_stage ?? "");
-                if (!stageKey || so2TestsByStage[stageKey]) continue; // keep most recent only
-                const tPh = t.ph != null ? parseFloat(String(t.ph)) : null;
-                const tTa = t.titratable_acidity_gl != null ? parseFloat(String(t.titratable_acidity_gl)) : null;
-                if (tPh == null && tTa == null) continue;
-                so2TestsByStage[stageKey] = { ph: tPh, ta: tTa };
-              }
-
-              // Stage order for the drift chart
-              const DRIFT_STAGE_ORDER = ["at-pressing", "post-fermentation", "post-racking", "pre-bottling", "at-bottling", "other"] as const;
-
-              // Base map: the three primary source stages
-              const stagePoints: Record<string, { label: string; ph: number | null; ta: number | null }> = {
-                "at-pressing":       { label: "At pressing",      ph: pressPh, ta: pressTa },
-                "post-fermentation": { label: "Post-ferm.",       ph: fermPh,  ta: fermTa },
-                "at-bottling":       { label: "Bottling",         ph: bottPh,  ta: bottTa },
+              // Short chart labels for the drift chart; extra SO₂-test stages fall back to their standard labels
+              const SCREEN_STAGE_LABELS: Record<string, string> = {
+                "at-pressing": "At pressing", "post-fermentation": "Post-ferm.", "at-bottling": "Bottling",
               };
-
-              // Merge SO₂ test readings: fill nulls in existing stages or add new stages
-              for (const stageKey of DRIFT_STAGE_ORDER) {
-                const test = so2TestsByStage[stageKey];
-                if (!test) continue;
-                if (stagePoints[stageKey]) {
-                  // Supplement only where primary source has no value
-                  if (stagePoints[stageKey].ph == null) stagePoints[stageKey].ph = test.ph;
-                  if (stagePoints[stageKey].ta == null)  stagePoints[stageKey].ta  = test.ta;
-                } else {
-                  // New stage from SO₂ test
-                  stagePoints[stageKey] = {
-                    label: SO2_TEST_STAGE_LABELS[stageKey] ?? stageKey,
-                    ph: test.ph,
-                    ta: test.ta,
-                  };
-                }
-              }
-
-              // Build ordered array — only stages with at least one value
-              const trendStages = DRIFT_STAGE_ORDER
-                .filter(k => stagePoints[k] && (stagePoints[k].ph != null || stagePoints[k].ta != null))
-                .map(k => ({ stage: stagePoints[k].label, ph: stagePoints[k].ph, ta: stagePoints[k].ta }));
+              const trendStages = computePhTaStagePoints(primary, data.so2Tests)
+                .map(p => ({ stage: SCREEN_STAGE_LABELS[p.key] ?? SO2_TEST_STAGE_LABELS[p.key] ?? p.key, ph: p.ph, ta: p.ta }));
 
               const hasAny = trendStages.length > 0;
               if (!hasAny) return null;
@@ -2567,29 +2518,19 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
   }
 
   // ── pH & TA Analytical History summary block ────────────────────────────────
-  // Mirrors the three-stage progression shown in the printBatchTrail PDF.
-  // Same source fields: pressing juice_ph/juice_ta_gl, fermentation end_ph/end_ta_gl,
-  // bottling ph/titratable_acidity_gl. Only rows with at least one value are included.
-  const pressPh  = pressing.juice_ph  != null ? fmtNum(pressing.juice_ph,  2) : "";
-  const pressTa  = pressing.juice_ta_gl != null ? fmtNum(pressing.juice_ta_gl, 1) : "";
-  const fermPhRecord = [...data.fermentation]
-    .filter(r => r.end_ph != null || r.end_ta_gl != null)
-    .sort((a, b) => (String(b.end_date ?? b.start_date ?? "")).localeCompare(String(a.end_date ?? a.start_date ?? "")))
-    [0] ?? null;
-  const fermPh = fermPhRecord?.end_ph  != null ? fmtNum(fermPhRecord.end_ph,  2) : "";
-  const fermTa = fermPhRecord?.end_ta_gl != null ? fmtNum(fermPhRecord.end_ta_gl, 1) : "";
-  const bottPhRecord = [...data.bottling]
-    .filter(r => r.ph != null || r.titratable_acidity_gl != null)
-    .sort((a, b) => (String(b.bottling_date ?? "")).localeCompare(String(a.bottling_date ?? "")))
-    [0] ?? null;
-  const bottPh = bottPhRecord?.ph  != null ? fmtNum(bottPhRecord.ph,  2) : "";
-  const bottTa = bottPhRecord?.titratable_acidity_gl != null ? fmtNum(bottPhRecord.titratable_acidity_gl, 1) : "";
-
-  const phTaStages: Array<[string, string, string]> = [
-    ["Pressing juice",       pressPh, pressTa],
-    ["Post-fermentation",    fermPh,  fermTa],
-    ["Bottling",             bottPh,  bottTa],
-  ].filter(([, ph, ta]) => ph !== "" || ta !== "") as Array<[string, string, string]>;
+  // Stage logic shared with the on-screen panel and PDF via lib/ph-ta-stages.
+  // The CSV currently reports only the three primary stages (no SO₂-test
+  // supplement), so the helper is called without so2Tests.
+  const CSV_STAGE_LABELS: Record<string, string> = {
+    "at-pressing": "Pressing juice", "post-fermentation": "Post-fermentation", "at-bottling": "Bottling",
+  };
+  const phTaStages: Array<[string, string, string]> = computePhTaStagePoints(
+    computePrimaryPhTa(pressing, data.fermentation, data.bottling)
+  ).map(p => [
+    CSV_STAGE_LABELS[p.key] ?? SO2_TEST_STAGE_LABELS[p.key] ?? p.key,
+    p.ph != null ? p.ph.toFixed(2) : "",
+    p.ta != null ? p.ta.toFixed(1) : "",
+  ]);
 
   if (phTaStages.length > 0) {
     // Blank separator row
@@ -2676,55 +2617,14 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
   const estimateBarPct = Math.min(estimatePct, 100).toFixed(0);
   const estimateColor = s2.runningEstimate > s2.activeLimit ? "#b91c1c" : estimatePct >= 75 ? "#92400e" : "#166534";
 
-  // ── pH & TA Analytical History (three-stage summary matching the on-screen panel) ──
-  const pressPh  = pressing.juice_ph  != null ? parseFloat(String(pressing.juice_ph))  : null;
-  const pressTa  = pressing.juice_ta_gl != null ? parseFloat(String(pressing.juice_ta_gl)) : null;
-  const fermWithPh = [...data.fermentation]
-    .filter(r => r.end_ph != null || r.end_ta_gl != null)
-    .sort((a, b) => (a.end_date && b.end_date ? new Date(String(b.end_date)).getTime() - new Date(String(a.end_date)).getTime() : 0));
-  const fermPhRecord = fermWithPh[0] ?? null;
-  const fermPh = fermPhRecord?.end_ph != null ? parseFloat(String(fermPhRecord.end_ph)) : null;
-  const fermTa = fermPhRecord?.end_ta_gl != null ? parseFloat(String(fermPhRecord.end_ta_gl)) : null;
-  const bottlingWithPh = [...data.bottling]
-    .filter(r => r.ph != null || r.titratable_acidity_gl != null)
-    .sort((a, b) => (a.bottling_date && b.bottling_date ? new Date(String(b.bottling_date)).getTime() - new Date(String(a.bottling_date)).getTime() : 0));
-  const bottPhRecord = bottlingWithPh[0] ?? null;
-  const bottPh = bottPhRecord?.ph != null ? parseFloat(String(bottPhRecord.ph)) : null;
-  const bottTa = bottPhRecord?.titratable_acidity_gl != null ? parseFloat(String(bottPhRecord.titratable_acidity_gl)) : null;
-
-  // SO₂ test pH/TA readings — most recent per stage (mirrors the on-screen merged stage logic)
-  const so2TestsByStage: Record<string, { ph: number | null; ta: number | null }> = {};
-  const sortedSo2TestsForPhTa = [...data.so2Tests].sort((a, b) =>
-    new Date(String(b.test_date ?? "0")).getTime() - new Date(String(a.test_date ?? "0")).getTime()
-  );
-  for (const t of sortedSo2TestsForPhTa) {
-    const stageKey = String(t.test_stage ?? "");
-    if (!stageKey || so2TestsByStage[stageKey]) continue; // keep most recent only
-    const tPh = t.ph != null ? parseFloat(String(t.ph)) : null;
-    const tTa = t.titratable_acidity_gl != null ? parseFloat(String(t.titratable_acidity_gl)) : null;
-    if (tPh == null && tTa == null) continue;
-    so2TestsByStage[stageKey] = { ph: tPh, ta: tTa };
-  }
-
-  const PDF_DRIFT_STAGE_ORDER = ["at-pressing", "post-fermentation", "post-racking", "pre-bottling", "at-bottling", "other"] as const;
-  const pdfStagePoints: Record<string, { label: string; ph: number | null; ta: number | null }> = {
-    "at-pressing":       { label: "At pressing (juice)", ph: pressPh, ta: pressTa },
-    "post-fermentation": { label: "Post-fermentation",   ph: fermPh,  ta: fermTa },
-    "at-bottling":       { label: "At bottling",         ph: bottPh,  ta: bottTa },
+  // ── pH & TA Analytical History (stage merge logic shared via lib/ph-ta-stages) ──
+  const PDF_STAGE_LABELS: Record<string, string> = {
+    "at-pressing": "At pressing (juice)", "post-fermentation": "Post-fermentation", "at-bottling": "At bottling",
   };
-  for (const stageKey of PDF_DRIFT_STAGE_ORDER) {
-    const test = so2TestsByStage[stageKey];
-    if (!test) continue;
-    if (pdfStagePoints[stageKey]) {
-      if (pdfStagePoints[stageKey].ph == null) pdfStagePoints[stageKey].ph = test.ph;
-      if (pdfStagePoints[stageKey].ta == null) pdfStagePoints[stageKey].ta = test.ta;
-    } else {
-      pdfStagePoints[stageKey] = { label: SO2_TEST_STAGE_LABELS[stageKey] ?? stageKey, ph: test.ph, ta: test.ta };
-    }
-  }
-  const pdfTrendStages = PDF_DRIFT_STAGE_ORDER
-    .filter(k => pdfStagePoints[k] && (pdfStagePoints[k].ph != null || pdfStagePoints[k].ta != null))
-    .map(k => pdfStagePoints[k]);
+  const pdfTrendStages = computePhTaStagePoints(
+    computePrimaryPhTa(pressing, data.fermentation, data.bottling),
+    data.so2Tests
+  ).map(p => ({ label: PDF_STAGE_LABELS[p.key] ?? SO2_TEST_STAGE_LABELS[p.key] ?? p.key, ph: p.ph, ta: p.ta }));
   const phTaHasAny = pdfTrendStages.length > 0;
 
   // ── Vintage pH & TA Comparison (vintage scope only — mirrors the on-screen chart) ──
