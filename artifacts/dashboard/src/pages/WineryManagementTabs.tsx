@@ -6529,6 +6529,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
               <th className="text-left p-3 font-medium">To</th>
               <th className="text-left p-3 font-medium">Detail</th>
               <th className="text-right p-3 font-medium">Dose Rate</th>
+              <th className="text-left p-3 font-medium">Compliance</th>
               <th className="text-left p-3 font-medium">Operator</th>
               <th className="p-3"></th>
             </tr></thead>
@@ -6556,6 +6557,18 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                     doseRateMissingReason = "No vessel capacity or batch volume recorded";
                   }
                 }
+                // Compliance verdict for sulfiting rows — same logic as the CSV export:
+                // ceiling from wine_colour + organic status, compared against free_so2_after_mg_l
+                let compliance: boolean | null = null;
+                if (String(r.op_type) === "sulfiting") {
+                  const colour = String(r.wine_colour ?? "");
+                  if (colour) {
+                    const isOrg = cellarRowIsOrganic(r);
+                    const ceiling = parseFloat((isOrg ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour]) ?? "");
+                    const freeAfter = r.free_so2_after_mg_l != null && r.free_so2_after_mg_l !== "" ? parseFloat(String(r.free_so2_after_mg_l)) : NaN;
+                    if (!isNaN(ceiling) && !isNaN(freeAfter)) compliance = freeAfter <= ceiling;
+                  }
+                }
                 return (
                   <tr key={String(r.id)} className="hover:bg-muted/20">
                     <td className="p-3 whitespace-nowrap">{fmtDate(r.op_date)}</td>
@@ -6577,6 +6590,11 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                           : <span title={doseRateMissingReason} className="text-muted-foreground cursor-default">—</span>
                         : <span className="text-muted-foreground">—</span>
                       }
+                    </td>
+                    <td className="p-3 whitespace-nowrap">
+                      {String(r.op_type) === "sulfiting" && compliance != null
+                        ? <So2Badge compliant={compliance} />
+                        : <span className="text-muted-foreground text-xs">—</span>}
                     </td>
                     <td className="p-3 text-muted-foreground">{fmt(r.operator_name)}</td>
                     <td className="p-3 text-right whitespace-nowrap">
