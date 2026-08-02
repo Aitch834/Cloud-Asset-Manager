@@ -6173,6 +6173,9 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   // True once the operator has manually changed the wine colour in the open form —
   // suppresses re-derivation of the colour-source badges until the form is reopened.
   const [cellarColourTouched, setCellarColourTouched] = useState(false);
+  // Confirm-before-save gate: shown when a sulfiting save would push the batch's
+  // projected cumulative SO₂ total to/over its active ceiling.
+  const [confirmOverCeiling, setConfirmOverCeiling] = useState(false);
   const { data: farmsDataCellar } = useQuery<{ records?: Record<string, unknown>[] }>({
     queryKey: ["farms-list"],
     queryFn: () => fetch("/api/farms", { credentials: "include" }).then(r => r.json()),
@@ -6319,12 +6322,25 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
     setCellarWineColourAutoSource(null);
     setOpen(true);
   };
-  const save = async () => {
+  const save = async (ceilingConfirmed = false) => {
     if (!form.opType) { toast({ title: "Please select an operation type", variant: "destructive" }); return; }
     if (form.opType === "sulfiting") {
       const vol = parseFloat(form.volumeMovedLitres ?? "");
       if (isNaN(vol) || vol <= 0) {
         toast({ title: "Batch volume required", description: "Enter the volume of wine being sulfited to enable SO₂ mg/L tracking.", variant: "destructive" });
+        return;
+      }
+      // Confirm before saving a sulfiting record whose projected cumulative SO₂
+      // total meets/exceeds the active (organic or conventional) ceiling. Only
+      // fires when both the projection and a ceiling are actually available.
+      if (
+        !ceilingConfirmed &&
+        cellarProjectedMgL != null &&
+        cellarCumulativeLimit &&
+        !isNaN(parseFloat(cellarCumulativeLimit)) &&
+        cellarProjectedMgL >= parseFloat(cellarCumulativeLimit)
+      ) {
+        setConfirmOverCeiling(true);
         return;
       }
     }
@@ -6707,12 +6723,31 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={save} disabled={!form.opDate || !form.opType || crud.add.isPending || crud.edit.isPending}>
+            <Button onClick={() => save()} disabled={!form.opDate || !form.opType || crud.add.isPending || crud.edit.isPending}>
               {(crud.add.isPending || crud.edit.isPending) && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Save
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {confirmOverCeiling && (
+        <Dialog open onOpenChange={() => setConfirmOverCeiling(false)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-amber-600" />SO₂ ceiling exceeded</DialogTitle>
+              <DialogDescription>
+                Projected total {cellarProjectedMgL != null ? cellarProjectedMgL.toFixed(1) : "—"} mg/L exceeds the {cellarCumulativeLimit} mg/L {cellarCumulativeLimitLabel} ceiling — save anyway?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setConfirmOverCeiling(false)}>Cancel</Button>
+              <Button variant="destructive" disabled={crud.add.isPending || crud.edit.isPending} onClick={() => { setConfirmOverCeiling(false); save(true); }}>
+                {(crud.add.isPending || crud.edit.isPending) && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Save anyway
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {view && (
         <Dialog open onOpenChange={() => setView(null)}>
