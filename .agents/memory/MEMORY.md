@@ -29,6 +29,7 @@
 - [Testing agent phantom "Sign In with Replit"](testing-agent-phantom-replit-login.md) — runTest can get stuck on a nonexistent Replit-login button/404; not a real app bug, fall back to dev-bypass verification
 - [Vite stale deps/transform cache (generic)](vite-stale-deps-cache.md) — new import throws "X is not defined" despite correct source + passing typecheck; rm -rf node_modules/.vite + restart fixes it in plain (non-test-dashboard) artifacts
 - [date columns + String(Date) → 500](date-column-string-date-500.md) — sanitiseBody makes Dates; `n()`/String(date) breaks `date` columns (22007); use `nd()`; real pg error is in err.cause
+- [sanitiseBody breaks strict date validation](sanitise-body-date-validation.md) — validate the original body string, not the sanitised Date; JS Date normalises Feb-30 so nd()-on-sanitised silently accepts bad dates
 - [Drizzle timestamp columns reject raw JSON date strings](drizzle-timestamp-json-string.md) — POST/PUT routes must wrap date fields in `new Date(...)` before db.insert/update or get a generic 500
 - [TGW seed rate calculator](tgw-seed-rate-calculator.md) — establishment % model (soil × drilling month), target population defaults, and where the calculator lives/feeds into field_crop_assignments
 - [lib/api-client-react build fix](api-client-react-build-fix.md) — tsc --build fails without noImplicitAny:false in its tsconfig + react/react-query as devDependencies (peerDeps aren't resolvable during standalone build)

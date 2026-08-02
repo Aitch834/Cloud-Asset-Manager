@@ -37627,15 +37627,39 @@ router.post("/farms/:farmId/winery-bottling/bulk", requireAuth, requireTenant, r
   const toInsert: Record<string, unknown>[] = [];
   // Track lot codes seen within this import batch to catch intra-batch duplicates
   const seenInBatch = new Set<string>();
+  let skippedWarningLines = 0;
+
+  // A record derived from a "WARNING:" prefix line in an exported CSV (rather than
+  // genuine data) — its first non-empty field starts with "WARNING:". Skip these
+  // silently instead of rejecting them, so direct API callers re-uploading exported
+  // CSVs don't get confusing validation errors.
+  const isWarningLineRecord = (rec: Record<string, unknown>): boolean => {
+    const firstValue = Object.values(rec).find((v) => typeof v === "string" && v.trim() !== "");
+    return typeof firstValue === "string" && firstValue.trim().toUpperCase().startsWith("WARNING:");
+  };
 
   for (let i = 0; i < records.length; i++) {
-    const raw = sanitiseBody(records[i] as Record<string, unknown>);
+    const original = records[i] as Record<string, unknown>;
+    const raw = sanitiseBody(original);
     const lotCode = n(raw.lotCode);
     const rowNum = i + 1;
 
+    // ── Skip warning-prefix lines from exported CSVs ──
+    if (isWarningLineRecord(original) || isWarningLineRecord(raw)) {
+      skippedWarningLines++;
+      continue;
+    }
+
+    // Validate the ORIGINAL bottlingDate string, not the sanitised value:
+    // sanitiseBody converts ISO-looking strings to Date objects, and JS Date
+    // silently normalises invalid calendar dates (e.g. 2025-02-30 → Mar 2),
+    // which would defeat the strict validation below.
+    const originalDate = original?.bottlingDate;
+    const bottlingDateStr = typeof originalDate === "string" ? originalDate.trim() : "";
+
     // ── Required-field validation ──
     const missingFields: string[] = [];
-    if (!n(raw.bottlingDate)) missingFields.push("Bottling Date");
+    if (!bottlingDateStr) missingFields.push("Bottling Date");
     if (!ni(raw.vintageYear)) missingFields.push("Vintage Year");
     if (missingFields.length > 0) {
       rejected.push({ row: rowNum, lotCode: lotCode ?? "", reason: `Row ${rowNum}: ${missingFields.join(", ")} ${missingFields.length === 1 ? "is" : "are"} required.` });
@@ -37643,7 +37667,6 @@ router.post("/farms/:farmId/winery-bottling/bulk", requireAuth, requireTenant, r
     }
 
     // ── Date-format validation (strict YYYY-MM-DD) ──
-    const bottlingDateStr = n(raw.bottlingDate) as string;
     const dateFormatOk = /^\d{4}-\d{2}-\d{2}$/.test(bottlingDateStr);
     let bottlingDateValid = false;
     if (dateFormatOk) {
@@ -37669,6 +37692,8 @@ router.post("/farms/:farmId/winery-bottling/bulk", requireAuth, requireTenant, r
       }
       seenInBatch.add(lotCode);
     }
+    // Insert exactly the validated YYYY-MM-DD string (not the sanitised Date object)
+    raw.bottlingDate = bottlingDateStr;
     toInsert.push(raw);
   }
 
@@ -37676,7 +37701,7 @@ router.post("/farms/:farmId/winery-bottling/bulk", requireAuth, requireTenant, r
   const inserted: unknown[] = [];
   for (const b of toInsert) {
     try {
-      const r = await db.execute(sql`INSERT INTO winery_bottling_records (farm_id,bottling_date,vintage_year,batch_ref,lot_code,wine_colour,source_vessel_id,volume_bottled_litres,bottle_size_ml,bottles_produced,cases_produced,closure_type,cork_grade,label_batch,free_so2_mg_l,total_so2_mg_l,actual_abv_pct,residual_sugar_gl,ph,titratable_acidity_gl,is_organic,certified_organic,certifier_ref,operator_name,notes) VALUES (${farmId},${n(b.bottlingDate)},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.lotCode)},${n(b.wineColour)},${ni(b.sourceVesselId)},${nf(b.volumeBottledLitres)},${ni(b.bottleSizeMl)},${ni(b.bottlesProduced)},${ni(b.casesProduced)},${n(b.closureType)},${n(b.corkGrade)},${n(b.labelBatch)},${nf(b.freeSo2MgL)},${nf(b.totalSo2MgL)},${nf(b.actualAbvPct)},${nf(b.residualSugarGl)},${nf(b.ph)},${nf(b.titratableAcidityGl)},${nb(b.isOrganic) ?? false},${nb(b.certifiedOrganic) ?? false},${n(b.certifierRef)},${n(b.operatorName)},${n(b.notes)}) RETURNING id`);
+      const r = await db.execute(sql`INSERT INTO winery_bottling_records (farm_id,bottling_date,vintage_year,batch_ref,lot_code,wine_colour,source_vessel_id,volume_bottled_litres,bottle_size_ml,bottles_produced,cases_produced,closure_type,cork_grade,label_batch,free_so2_mg_l,total_so2_mg_l,actual_abv_pct,residual_sugar_gl,ph,titratable_acidity_gl,is_organic,certified_organic,certifier_ref,operator_name,notes) VALUES (${farmId},${nd(b.bottlingDate)},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.lotCode)},${n(b.wineColour)},${ni(b.sourceVesselId)},${nf(b.volumeBottledLitres)},${ni(b.bottleSizeMl)},${ni(b.bottlesProduced)},${ni(b.casesProduced)},${n(b.closureType)},${n(b.corkGrade)},${n(b.labelBatch)},${nf(b.freeSo2MgL)},${nf(b.totalSo2MgL)},${nf(b.actualAbvPct)},${nf(b.residualSugarGl)},${nf(b.ph)},${nf(b.titratableAcidityGl)},${nb(b.isOrganic) ?? false},${nb(b.certifiedOrganic) ?? false},${n(b.certifierRef)},${n(b.operatorName)},${n(b.notes)}) RETURNING id`);
       inserted.push(r.rows[0]);
     } catch (err: unknown) {
       if ((err as { code?: string }).code === "23505") {
@@ -37688,7 +37713,7 @@ router.post("/farms/:farmId/winery-bottling/bulk", requireAuth, requireTenant, r
     }
   }
 
-  res.status(201).json({ insertedCount: inserted.length, rejectedCount: rejected.length, rejected });
+  res.status(201).json({ insertedCount: inserted.length, rejectedCount: rejected.length, rejected, skippedWarningLines });
 });
 
 // ── Lab Equipment Register ─────────────────────────────────────────────────────
