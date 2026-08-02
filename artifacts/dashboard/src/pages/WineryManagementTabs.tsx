@@ -2118,7 +2118,18 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
             {data.cellarOps.length > 0 && (
               <TrailSection icon={Wrench} title="Cellar Operations" count={data.cellarOps.length}>
                 <div className="rounded border divide-y">
-                  {data.cellarOps.map(r => (
+                  {(() => {
+                    // Per-op running SO₂ totals, computed in chronological order so
+                    // the on-screen figure matches the printed PDF's "Running total
+                    // after this op (cumulative mg/L)" column.
+                    const chrono = [...data.cellarOps].sort((a, b) => String(a.op_date ?? "").localeCompare(String(b.op_date ?? "")));
+                    const { perOp } = cellarSo2RunningTotals(chrono);
+                    const runningByOp = new Map<Record<string, unknown>, { contributed: boolean; runningMgL: number | null }>();
+                    chrono.forEach((op, i) => runningByOp.set(op, perOp[i]));
+                    return data.cellarOps.map(r => {
+                      const isSulfiting = String(r.op_type) === "sulfiting";
+                      const running = runningByOp.get(r);
+                      return (
                     <div key={String(r.id)} className="px-3 py-2.5 space-y-1">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -2135,10 +2146,17 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
                         {r.free_so2_before_mg_l != null && <span>Free SO₂ before: {fmtNum(r.free_so2_before_mg_l, 1)} mg/L</span>}
                         {r.free_so2_after_mg_l != null && <span>after: {fmtNum(r.free_so2_after_mg_l, 1)} mg/L</span>}
                         {!!r.fining_agent && <span>Fining: {String(r.fining_agent)}{r.fining_dose ? ` @ ${String(r.fining_dose)}` : ""}</span>}
+                        {isSulfiting && (
+                          <span className="font-mono font-medium text-amber-800">
+                            Running total after this op: {running?.contributed && running.runningMgL != null ? `≈ ${running.runningMgL.toFixed(1)} mg/L` : "—"}
+                          </span>
+                        )}
                       </div>
                       {!!r.notes && <p className="text-xs text-muted-foreground italic">{String(r.notes)}</p>}
                     </div>
-                  ))}
+                      );
+                    });
+                  })()}
                 </div>
               </TrailSection>
             )}
