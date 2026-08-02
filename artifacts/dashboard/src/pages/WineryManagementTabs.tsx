@@ -6985,6 +6985,9 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const [phTaFromAnalysis, setPhTaFromAnalysis] = useState<"fermentation" | "pressing" | null>(null);
   const [organicAutoSource, setOrganicAutoSource] = useState<"fermentation" | "pressing" | null>(null);
   const [wineColourAutoSource, setWineColourAutoSource] = useState<"fermentation" | "pressing" | null>(null);
+  // True once the operator has manually changed the wine colour in the open form —
+  // suppresses re-derivation of the colour-source badge until the form is reopened.
+  const [bottlingColourTouched, setBottlingColourTouched] = useState(false);
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   const [lotCodeError, setLotCodeError] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -7205,7 +7208,28 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const autoBottles = volL > 0 && sizeMl > 0 ? Math.floor((volL * 1000) / sizeMl) : null;
   const autoCases = autoBottles != null ? Math.floor(autoBottles / 12) : null;
 
-  const openAdd = () => { setEditing(null); setForm({ bottlingDate: today, vintageYear: String(new Date().getFullYear()), isOrganic: "false", certifiedOrganic: "false", bottleSizeMl: "750" }); setSo2FromTest(false); setPhTaFromAnalysis(null); setOrganicAutoSource(null); setWineColourAutoSource(null); setLotCodeError(null); setOpen(true); };
+  // Re-derive the colour-source badge while editing an existing record: the
+  // fermentation/pressing source queries resolve asynchronously, so this must
+  // re-run when they land, not just once in openEdit. Skipped once the operator
+  // manually changes the colour (bottlingColourTouched).
+  useEffect(() => {
+    if (!open || editing === null || bottlingColourTouched) return;
+    const storedColour = String(form.wineColour ?? "");
+    const bRef = String(form.batchRef ?? "");
+    const fermMatch = bRef ? fermentationRecords.find(f => String(f.batch_ref ?? "") === bRef) : undefined;
+    const fermColour = fermMatch && fermMatch.wine_colour ? String(fermMatch.wine_colour) : "";
+    const pressColour = bRef ? (bottlingPressingRefs.find(p => p.batchRef === bRef)?.wineColour ?? "") : "";
+    if (storedColour && fermColour && storedColour === fermColour) {
+      setWineColourAutoSource("fermentation");
+    } else if (storedColour && pressColour && storedColour === pressColour) {
+      setWineColourAutoSource("pressing");
+    } else {
+      setWineColourAutoSource(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editing, bottlingColourTouched, form.wineColour, form.batchRef, fermentationRecords, pressingRecords]);
+
+  const openAdd = () => { setEditing(null); setForm({ bottlingDate: today, vintageYear: String(new Date().getFullYear()), isOrganic: "false", certifiedOrganic: "false", bottleSizeMl: "750" }); setSo2FromTest(false); setPhTaFromAnalysis(null); setOrganicAutoSource(null); setWineColourAutoSource(null); setBottlingColourTouched(false); setLotCodeError(null); setOpen(true); };
   const openEdit = (r: Record<string, unknown>) => {
     setEditing(r.id as number);
     const raw = Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]));
@@ -7216,6 +7240,9 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     setSo2FromTest(false);
     setPhTaFromAnalysis(null);
     setOrganicAutoSource(null);
+    // Badge derivation happens in the effect above so it re-runs once the
+    // fermentation/pressing source queries resolve (they load asynchronously).
+    setBottlingColourTouched(false);
     setWineColourAutoSource(null);
     setLotCodeError(null);
     setOpen(true);
@@ -7459,7 +7486,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                     <span className="text-xs text-blue-600">auto from {wineColourAutoSource}</span>
                   )}
                 </div>
-                <Select value={String(form.wineColour ?? "")} onValueChange={v => { setWineColourAutoSource(null); sf("wineColour", v); }}>
+                <Select value={String(form.wineColour ?? "")} onValueChange={v => { setBottlingColourTouched(true); setWineColourAutoSource(null); sf("wineColour", v); }}>
                   <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>{WINE_COLOUR_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                 </Select>
