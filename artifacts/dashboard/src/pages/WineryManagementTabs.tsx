@@ -2569,13 +2569,14 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
 
   // ── pH & TA Analytical History summary block ────────────────────────────────
   // Stage logic shared with the on-screen panel and PDF via lib/ph-ta-stages.
-  // The CSV currently reports only the three primary stages (no SO₂-test
-  // supplement), so the helper is called without so2Tests.
+  // SO₂-test readings supplement the three primary stages (most recent test per
+  // stage; primary sources win), so the CSV matches the richer on-screen panel.
   const CSV_STAGE_LABELS: Record<string, string> = {
     "at-pressing": "Pressing juice", "post-fermentation": "Post-fermentation", "at-bottling": "Bottling",
   };
   const phTaStages: Array<[string, string, string]> = computePhTaStagePoints(
-    computePrimaryPhTa(pressing, data.fermentation, data.bottling)
+    computePrimaryPhTa(pressing, data.fermentation, data.bottling),
+    data.so2Tests
   ).map(p => [
     CSV_STAGE_LABELS[p.key] ?? SO2_TEST_STAGE_LABELS[p.key] ?? p.key,
     p.ph != null ? p.ph.toFixed(2) : "",
