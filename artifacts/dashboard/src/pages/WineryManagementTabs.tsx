@@ -8023,7 +8023,18 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
               {so2OrganicLine != null && so2OrganicLine !== so2MaxLimit && (
                 <ReferenceLine y={so2OrganicLine} stroke="#f59e0b" strokeDasharray="4 2" label={{ value: `Organic ${so2OrganicLine}`, position: "insideBottomRight", fontSize: 9, fill: "#d97706" }} />
               )}
-              <Line type="monotone" dataKey="Total SO₂" stroke="#8b5cf6" dot={{ r: 3 }} connectNulls />
+              <Line type="monotone" dataKey="Total SO₂" stroke="#8b5cf6" dot={(props: { cx?: number; cy?: number; index?: number; payload?: Record<string, unknown>; value?: number }) => {
+                // Breach flag: colour the dot red when this test's Total SO₂ exceeds
+                // its own row's organic ceiling (only set when the linked pressing
+                // batch is organic). Conventional/unlinked tests keep the purple dot.
+                const { cx, cy, index, payload, value } = props;
+                if (cx == null || cy == null || value == null) return <g key={`total-so2-dot-${index}`} />;
+                const ceiling = payload?.["Organic ceiling"] as number | null | undefined;
+                const breach = ceiling != null && value > ceiling;
+                return breach
+                  ? <circle key={`total-so2-dot-${index}`} cx={cx} cy={cy} r={4.5} fill="#ef4444" stroke="#b91c1c" strokeWidth={1.5} />
+                  : <circle key={`total-so2-dot-${index}`} cx={cx} cy={cy} r={3} fill="#8b5cf6" />;
+              }} connectNulls />
               <Line type="monotone" dataKey="Free SO₂" stroke="#3b82f6" dot={{ r: 3 }} connectNulls />
               {so2OrganicLine != null && (
                 <Line type="stepAfter" dataKey="Organic ceiling" stroke="#f59e0b" strokeDasharray="4 2" strokeWidth={1.5} dot={false} activeDot={false} connectNulls />
@@ -8033,7 +8044,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
           {so2OrganicLine != null && (
             <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
               <Leaf className="w-3 h-3 text-amber-600" />
-              Organic batches in view — the lower organic ceiling ({so2OrganicLine} mg/L{so2OrganicCeilings.some(v => v !== so2OrganicLine) ? " or colour-specific" : ""}) applies to those tests, not the conventional limit.
+              Organic batches in view — the lower organic ceiling ({so2OrganicLine} mg/L{so2OrganicCeilings.some(v => v !== so2OrganicLine) ? " or colour-specific" : ""}) applies to those tests, not the conventional limit. Red dots mark Total SO₂ tests above their batch's organic ceiling.
             </p>
           )}
         </div>
