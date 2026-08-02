@@ -35,6 +35,24 @@ function exportCSV(rows: Record<string, unknown>[], filename: string, cols: { ke
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
 }
 
+// Filename-safe slug for embedding filter values in export filenames
+const csvSlug = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+// Quote-escaped single-cell comment row for CSV prefix blocks
+const csvComment = (s: string) => `"${s.replace(/"/g, '""')}"`;
+
+// Farm display name for CSV/PDF headers — same "farms-list" query key as the
+// per-tab lookups so the list is fetched once and shared.
+function useFarmName(farmId: number): string {
+  const { data } = useQuery<{ farms?: Record<string, unknown>[] }>({
+    queryKey: ["farms-list"],
+    queryFn: () => fetch("/api/tenants/current/farms", { credentials: "include" }).then(r => r.json()),
+    staleTime: 300_000,
+  });
+  return ((Array.isArray(data?.farms)
+    ? (data.farms.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
+    : undefined) ?? `Farm ${farmId}`);
+}
+
 function useCrud<T extends Record<string, unknown>>(farmId: number, endpoint: string, key: string) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -420,6 +438,7 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [yearFilter, setYearFilter] = usePersistedYearFilter("harvest", farmId);
   const [harvestSearch, setHarvestSearch] = useState("");
+  const farmName = useFarmName(farmId);
   const sf = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
 
   // ── Import state ────────────────────────────────────────────────────────────
@@ -487,8 +506,14 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
         if (val !== "" || cells.length > 0) endRecord();
         return records;
       };
-      const parsed = parseCsv(text);
-      if (parsed.length < 2) { setImportError("CSV must have a header row and at least one data row."); return; }
+      let parsed = parseCsv(text);
+      // Skip any leading comment/prefix rows (e.g. the farm-name + filter block
+      // our own exports prepend) — the real header row is the first row that
+      // contains a recognised column header or alias.
+      const knownHeaders = new Set(HARVEST_COLUMNS.flatMap(c => [c.header, c.dbKey]));
+      const headerIdx = parsed.findIndex(cells => cells.some(cell => knownHeaders.has(cell)));
+      if (headerIdx > 0) parsed = parsed.slice(headerIdx);
+      if (headerIdx === -1 || parsed.length < 2) { setImportError("CSV must have a header row and at least one data row."); return; }
       const headers = parsed[0];
       const rows: Record<string, string>[] = [];
       for (let i = 1; i < parsed.length; i++) {
@@ -596,7 +621,17 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
           <Input className="h-8 pl-7 text-xs w-52" placeholder="Search grower, variety, notes…" value={harvestSearch} onChange={e => setHarvestSearch(e.target.value)} />
         </div>
-        <Button size="sm" variant="outline" className="ml-auto" onClick={() => exportCSV(filtered, "harvest-reception.csv", harvestCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+        <Button size="sm" variant="outline" className="ml-auto" onClick={() => {
+          const searchTrim = harvestSearch.trim();
+          const parts = ["harvest-reception", yearFilter === "all" ? "all-vintages" : yearFilter];
+          if (searchTrim) parts.push(`search-${csvSlug(searchTrim)}`);
+          const prefixLines = [
+            csvComment(`Harvest Reception — ${farmName}`),
+            csvComment(`Vintage: ${yearFilter === "all" ? "All vintages" : yearFilter}`),
+            csvComment(`Search filter: ${searchTrim || "None"}`),
+          ];
+          exportCSV(filtered, `${parts.join("-")}.csv`, harvestCsvCols, prefixLines);
+        }} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <Button size="sm" variant="outline" onClick={() => { resetHarvestImportDialog(); setImportOpen(true); }}><Upload className="w-3.5 h-3.5 mr-1" />Import CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
       </div>
@@ -5611,7 +5646,17 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
             onChange={e => setFermSearch(e.target.value)}
           />
         </div>
-        <Button size="sm" variant="outline" className="ml-auto" onClick={() => exportCSV(filtered, "fermentation-records.csv", fermentCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+        <Button size="sm" variant="outline" className="ml-auto" onClick={() => {
+          const searchTrim = fermSearch.trim();
+          const parts = ["fermentation-records", yearFilter === "all" ? "all-vintages" : yearFilter];
+          if (searchTrim) parts.push(`search-${csvSlug(searchTrim)}`);
+          const prefixLines = [
+            csvComment(`Fermentation Records — ${farmNameFerm}`),
+            csvComment(`Vintage: ${yearFilter === "all" ? "All vintages" : yearFilter}`),
+            csvComment(`Search filter: ${searchTrim || "None"}`),
+          ];
+          exportCSV(filtered, `${parts.join("-")}.csv`, fermentCsvCols, prefixLines);
+        }} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} batch{filtered.length !== 1 ? "es" : ""}</span>
       </div>
       {brixChartData.length > 1 && (
@@ -6000,6 +6045,7 @@ function VesselCleanRow({ farmId, vesselId }: { farmId: number; vesselId: number
 
 export function VesselRegisterTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const farmNameVessels = useFarmName(farmId);
   const crud = useCrud(farmId, "winery-vessels", "winery-vessels");
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -6051,7 +6097,10 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
           <p className="text-xs text-muted-foreground mt-0.5">Register all winery vessels — tanks, barrels, amphorae — with capacity, current contents, and cleaning history. Used as a reference in fermentation, cellar ops, SO₂ testing, and bottling records.</p>
         </div>
         <div className="flex gap-2 items-center">
-          <Button size="sm" variant="outline" onClick={() => exportCSV(crud.data, "vessels.csv", vesselCsvCols)} disabled={!crud.data.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(crud.data, "vessels.csv", vesselCsvCols, [
+            csvComment(`Tank & Vessel Register — ${farmNameVessels}`),
+            csvComment("Scope: All vessels (no filters on this register)"),
+          ])} disabled={!crud.data.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Vessel</Button>
         </div>
       </div>
@@ -6506,7 +6555,19 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
             onChange={e => setCellarSearch(e.target.value)}
           />
         </div>
-        <Button size="sm" variant="outline" className="ml-auto" onClick={() => exportCSV(filtered, "cellar-ops.csv", cellarCsvCols)} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+        <Button size="sm" variant="outline" className="ml-auto" onClick={() => {
+          const searchTrim = cellarSearch.trim();
+          const parts = ["cellar-ops", yearFilter === "all" ? "all-vintages" : yearFilter];
+          if (opFilter !== "all") parts.push(csvSlug(opFilter));
+          if (searchTrim) parts.push(`search-${csvSlug(searchTrim)}`);
+          const prefixLines = [
+            csvComment(`Cellar Operations Log — ${farmNameCellar}`),
+            csvComment(`Vintage: ${yearFilter === "all" ? "All vintages" : yearFilter}`),
+            csvComment(`Operation filter: ${opFilter === "all" ? "All types" : (CELLAR_OP_LABELS[opFilter] ?? opFilter)}`),
+            csvComment(`Search filter: ${searchTrim || "None"}`),
+          ];
+          exportCSV(filtered, `${parts.join("-")}.csv`, cellarCsvCols, prefixLines);
+        }} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
       </div>
 
@@ -8059,11 +8120,16 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
           // include the active vintage and/or sanitised search term so a
           // downloaded subset is identifiable during audits.
           const searchTrim = so2Search.trim();
-          const searchSlug = searchTrim ? searchTrim.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") : "";
+          const searchSlug = searchTrim ? csvSlug(searchTrim) : "";
           const parts = ["so2-testing"];
           if (yearFilter !== "all") parts.push(yearFilter);
           if (searchSlug) parts.push(`search-${searchSlug}`);
-          exportCSV(filtered, `${parts.join("-")}.csv`, so2CsvCols);
+          const prefixLines = [
+            csvComment(`SO₂ Testing Register — ${farmNameSo2}`),
+            csvComment(`Vintage: ${yearFilter === "all" ? "All vintages" : yearFilter}`),
+            csvComment(`Search filter: ${searchTrim || "None"}`),
+          ];
+          exportCSV(filtered, `${parts.join("-")}.csv`, so2CsvCols, prefixLines);
         }} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} test{filtered.length !== 1 ? "s" : ""}</span>
       </div>
@@ -8456,6 +8522,7 @@ function CalibrationRows({ farmId, equipmentId }: { farmId: number; equipmentId:
 }
 
 export function EquipmentRegisterTab({ farmId }: { farmId: number }) {
+  const farmNameEquip = useFarmName(farmId);
   const crud = useCrud(farmId, "winery-equipment", "winery-equipment");
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -8516,7 +8583,10 @@ export function EquipmentRegisterTab({ farmId }: { farmId: number }) {
           <p className="text-xs text-muted-foreground mt-0.5">Register all winemaking analytical equipment with calibration records. Required for traceability of on-site SO₂ testing results. Third-party lab results don't require this — their accreditation covers traceability.</p>
         </div>
         <div className="flex gap-2 items-center">
-          <Button size="sm" variant="outline" onClick={() => exportCSV(crud.data, "equipment.csv", equipCsvCols)} disabled={!crud.data.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(crud.data, "equipment.csv", equipCsvCols, [
+            csvComment(`Lab Equipment Register — ${farmNameEquip}`),
+            csvComment("Scope: All equipment (no filters on this register)"),
+          ])} disabled={!crud.data.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Equipment</Button>
         </div>
       </div>
