@@ -4464,12 +4464,14 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
           <p className="font-semibold text-sm flex items-center gap-2 flex-wrap">
             Pressing Records
             {unsignedCount > 0 && (
-              <span
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800"
-                title={`${unsignedCount} pressing record${unsignedCount === 1 ? "" : "s"} in the current vintage filter ${unsignedCount === 1 ? "has" : "have"} not been signed off`}
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 cursor-pointer hover:bg-amber-200 transition-colors"
+                title={`${unsignedCount} pressing record${unsignedCount === 1 ? "" : "s"} in the current vintage filter ${unsignedCount === 1 ? "has" : "have"} not been signed off — click to ${signedFilter === "unsigned" ? "show all records" : "show only unsigned records"}`}
+                onClick={() => setSignedFilter(f => (f === "unsigned" ? "all" : "unsigned"))}
               >
                 <PenLine className="w-3 h-3" />{unsignedCount} unsigned
-              </span>
+              </button>
             )}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">Log each pressing session — press type, grape weight in, juice yield, analysis, and settling method. One record per pressing run.</p>
