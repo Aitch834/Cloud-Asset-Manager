@@ -6167,8 +6167,9 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const [opFilter, setOpFilter] = useState("all");
   const [cellarSearch, setCellarSearch] = useState("");
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
-  const [cellarWineColourFromFermentation, setCellarWineColourFromFermentation] = useState(false);
-  const [cellarWineColourFromPressing, setCellarWineColourFromPressing] = useState(false);
+  // Single source-aware auto-fill state, matching the bottling form's
+  // wineColourAutoSource: "fermentation" | "pressing" | null
+  const [cellarWineColourAutoSource, setCellarWineColourAutoSource] = useState<"fermentation" | "pressing" | null>(null);
   // True once the operator has manually changed the wine colour in the open form —
   // suppresses re-derivation of the colour-source badges until the form is reopened.
   const [cellarColourTouched, setCellarColourTouched] = useState(false);
@@ -6189,9 +6190,8 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
 
   const handleCellarBatchRefChange = (val: string) => {
     sf("batchRef", val);
-    // Always reset the badges — recompute from scratch for this new batch ref
-    setCellarWineColourFromFermentation(false);
-    setCellarWineColourFromPressing(false);
+    // Always reset the hint — recompute from scratch for this new batch ref
+    setCellarWineColourAutoSource(null);
     const pressMatch = cellarPressingRefs.find(p => p.batchRef === val);
     const fermMatch = val
       ? cellarFermentationRecords.find(f => String(f.batch_ref ?? "") === val)
@@ -6204,9 +6204,9 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
       const inheritedColour = fermColour || pressColour;
       if (!form.wineColour && inheritedColour) {
         sf("wineColour", inheritedColour);
-        // Badge reflects where the colour actually came from
-        if (fermColour) setCellarWineColourFromFermentation(true);
-        else if (pressColour) setCellarWineColourFromPressing(true);
+        // Hint reflects where the colour actually came from
+        if (fermColour) setCellarWineColourAutoSource("fermentation");
+        else if (pressColour) setCellarWineColourAutoSource("pressing");
       }
       const isOrganic = fermMatch != null
         ? (fermMatch.is_organic === true || fermMatch.is_organic === "true" || fermMatch.is_organic === 1)
@@ -6291,19 +6291,16 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
     const fermColour = fermMatch && fermMatch.wine_colour ? String(fermMatch.wine_colour) : "";
     const pressColour = bRef ? (cellarPressingRefs.find(p => p.batchRef === bRef)?.wineColour ?? "") : "";
     if (storedColour && fermColour && storedColour === fermColour) {
-      setCellarWineColourFromFermentation(true);
-      setCellarWineColourFromPressing(false);
+      setCellarWineColourAutoSource("fermentation");
     } else if (storedColour && pressColour && storedColour === pressColour) {
-      setCellarWineColourFromFermentation(false);
-      setCellarWineColourFromPressing(true);
+      setCellarWineColourAutoSource("pressing");
     } else {
-      setCellarWineColourFromFermentation(false);
-      setCellarWineColourFromPressing(false);
+      setCellarWineColourAutoSource(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing, cellarColourTouched, form.wineColour, form.batchRef, cellarFermentationRecords, pressingRecords]);
 
-  const openAdd = () => { setEditing(null); setForm({ opDate: today, vintageYear: String(new Date().getFullYear()) }); setCellarColourTouched(false); setCellarWineColourFromFermentation(false); setCellarWineColourFromPressing(false); setOpen(true); };
+  const openAdd = () => { setEditing(null); setForm({ opDate: today, vintageYear: String(new Date().getFullYear()) }); setCellarColourTouched(false); setCellarWineColourAutoSource(null); setOpen(true); };
   const openEdit = (r: Record<string, unknown>) => {
     setEditing(r.id as number);
     const base = Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]));
@@ -6319,8 +6316,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
     // Badge derivation happens in the effect below so it re-runs once the
     // fermentation/pressing source queries resolve (they load asynchronously).
     setCellarColourTouched(false);
-    setCellarWineColourFromFermentation(false);
-    setCellarWineColourFromPressing(false);
+    setCellarWineColourAutoSource(null);
     setOpen(true);
   };
   const save = async () => {
@@ -6540,16 +6536,11 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <Label>Wine Colour</Label>
-                  {cellarWineColourFromFermentation && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
-                      from fermentation
-                    </span>
-                  )}
-                  {cellarWineColourFromPressing && !!form.wineColour && (
-                    <span className="text-xs text-blue-600">auto from pressing</span>
+                  {cellarWineColourAutoSource && !!form.wineColour && (
+                    <span className="text-xs text-blue-600">auto from {cellarWineColourAutoSource}</span>
                   )}
                 </div>
-                <Select value={form.wineColour ?? ""} onValueChange={v => { setCellarColourTouched(true); setCellarWineColourFromFermentation(false); setCellarWineColourFromPressing(false); sf("wineColour", v); }}>
+                <Select value={form.wineColour ?? ""} onValueChange={v => { setCellarColourTouched(true); setCellarWineColourAutoSource(null); sf("wineColour", v); }}>
                   <SelectTrigger><SelectValue placeholder="Select colour" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">— Not specified —</SelectItem>
