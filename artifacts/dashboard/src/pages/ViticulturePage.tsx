@@ -5415,15 +5415,35 @@ function GiDeclarationsSection({ farmId: _farmId, decls, designations, harvestRo
 
 export default function ViticulturePage() {
   const { farmId: selectedFarmId } = useAppStore();
-  const [tab, setTab] = useState("overview");
+  // Persist the active tab in localStorage, scoped to the farm — same lazy
+  // initializer + wrapped setter + farmId re-sync pattern as
+  // usePersistedYearFilter in WineryManagementTabs.tsx, so auditors deep in a
+  // winery tab land back where they left off after a reload.
+  const tabStorageKey = `viticulture-active-tab-${selectedFarmId ?? 0}`;
+  const readStoredTab = () => {
+    try {
+      const v = localStorage.getItem(tabStorageKey);
+      if (v && TABS.some(t => t.id === v)) return v;
+    } catch { /**/ }
+    return "overview";
+  };
+  const [tab, setTabRaw] = useState(readStoredTab);
+  useEffect(() => {
+    setTabRaw(readStoredTab());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabStorageKey]);
+  const setTab = (v: string) => { try { localStorage.setItem(tabStorageKey, v); } catch { /**/ } setTabRaw(v); };
   // Cross-tab "view additions" shortcut: fermentation/cellar-ops/bottling rows
   // request the Pressing tab's Additions Report; switching tabs mounts
   // PressingRecordsTab, which consumes the stored scope and opens the report.
   useEffect(() => {
+    // Persist via the wrapped setter so the shortcut writes to the *current*
+    // farm's storage key — re-registered whenever the farm (key) changes.
     const h = () => setTab("winery-pressing");
     window.addEventListener(WINERY_VIEW_ADDITIONS_EVENT, h);
     return () => window.removeEventListener(WINERY_VIEW_ADDITIONS_EVENT, h);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabStorageKey]);
   const [raiseOpen, setRaiseOpen] = useState(false);
   const blocks = useCrud(selectedFarmId ?? 0, "vineyard-blocks", "vineyard-blocks");
 
