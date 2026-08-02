@@ -140,6 +140,11 @@ const STATUSES = [
 
 const CRIME_TYPES = new Set(["Theft", "Criminal Damage"]);
 
+/** Types visually flagged as high-risk (red badge, warning icon). */
+const HIGH_RISK_TYPES = ["Fire", "Wildfire", "Flood"];
+/** Types where insurers usually require photo evidence ("no photos" hint). */
+const EVIDENCE_REQUIRED_TYPES = ["Fire", "Theft", "Criminal Damage"];
+
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
   const parts = d.split("-");
@@ -169,7 +174,7 @@ function statusBadge(status: string) {
 }
 
 function incidentTypeBadge(type: string) {
-  const isHighRisk = ["Fire","Wildfire","Flood"].includes(type);
+  const isHighRisk = HIGH_RISK_TYPES.includes(type);
   return (
     <span style={{
       display: "inline-block", padding: "2px 10px", borderRadius: 9999, fontSize: "0.72rem", fontWeight: 700,
@@ -229,6 +234,7 @@ export default function FarmIncidentsPage() {
   const qc = useQueryClient();
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [evidenceFilter, setEvidenceFilter] = useState<"all" | "missing" | "missing_high_risk">("all");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [viewId, setViewId] = useState<number | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
@@ -369,7 +375,14 @@ export default function FarmIncidentsPage() {
     setEditId(inc.id);
   };
 
-  const filtered = statusFilter === "all" ? incidents : incidents.filter(i => i.status === statusFilter);
+  const statusFiltered = statusFilter === "all" ? incidents : incidents.filter(i => i.status === statusFilter);
+  const filtered = evidenceFilter === "all"
+    ? statusFiltered
+    : statusFiltered.filter(i =>
+        (i.photos ?? []).length === 0 &&
+        (evidenceFilter === "missing" || HIGH_RISK_TYPES.includes(i.incidentType)));
+  const missingCount = incidents.filter(i => (i.photos ?? []).length === 0).length;
+  const missingHighRiskCount = incidents.filter(i => (i.photos ?? []).length === 0 && HIGH_RISK_TYPES.includes(i.incidentType)).length;
 
   // ── CSV Export ──
 
@@ -744,6 +757,29 @@ export default function FarmIncidentsPage() {
               }}
             >{"label" in s ? s.label : "All"}</button>
           ))}
+          <span style={{ width: 1, alignSelf: "stretch", background: "#e5e7eb", margin: "0 4px" }} />
+          {([
+            { value: "missing", label: `Missing evidence${missingCount ? ` (${missingCount})` : ""}` },
+            { value: "missing_high_risk", label: `High-risk, no photos${missingHighRiskCount ? ` (${missingHighRiskCount})` : ""}` },
+          ] as const).map(o => {
+            const active = evidenceFilter === o.value;
+            return (
+              <button
+                key={o.value}
+                onClick={() => setEvidenceFilter(active ? "all" : o.value)}
+                title={o.value === "missing"
+                  ? "Show only incidents with zero evidence photos"
+                  : "Show only high-risk (Fire, Wildfire, Flood) incidents with zero evidence photos"}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  padding: "4px 14px", borderRadius: 9999, fontSize: "0.8rem", fontWeight: 600, cursor: "pointer",
+                  background: active ? "#b45309" : "#fffbeb",
+                  color: active ? "#fff" : "#b45309",
+                  border: `1px ${active ? "solid" : "dashed"} ${active ? "#b45309" : "#fcd34d"}`,
+                }}
+              ><Camera style={{ width: 13, height: 13 }} />{o.label}</button>
+            );
+          })}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <Button variant="outline" size="sm" onClick={handleCsvExport} disabled={filtered.length === 0}>
@@ -775,15 +811,24 @@ export default function FarmIncidentsPage() {
       {filtered.length === 0 ? (
         <div style={{ textAlign: "center", padding: "60px 20px", color: "#9ca3af" }}>
           <Flame style={{ width: 36, height: 36, margin: "0 auto 12px", opacity: 0.3 }} />
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>No incidents recorded</div>
-          <div style={{ fontSize: "0.875rem" }}>Use "Log Incident" to record a fire, theft, or other event.</div>
+          {evidenceFilter !== "all" && incidents.length > 0 ? (
+            <>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>No incidents missing photo evidence</div>
+              <div style={{ fontSize: "0.875rem" }}>Every matching incident has at least one photo attached.</div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>No incidents recorded</div>
+              <div style={{ fontSize: "0.875rem" }}>Use "Log Incident" to record a fire, theft, or other event.</div>
+            </>
+          )}
         </div>
       ) : (
         <div style={{ display: "grid", gap: 10 }}>
           {filtered.map(inc => {
             const expanded = expandedId === inc.id;
             const fieldLabel = inc.fieldId ? (fields.find(f => f.id === inc.fieldId)?.name ?? "") : null;
-            const isHighRisk = ["Fire","Wildfire","Flood"].includes(inc.incidentType);
+            const isHighRisk = HIGH_RISK_TYPES.includes(inc.incidentType);
 
             return (
               <div key={inc.id} style={{
@@ -810,7 +855,7 @@ export default function FarmIncidentsPage() {
                         }}>
                           <Camera style={{ width: 12, height: 12 }} />{inc.photos.length}
                         </span>
-                      ) : ["Fire", "Theft", "Criminal Damage"].includes(inc.incidentType) ? (
+                      ) : EVIDENCE_REQUIRED_TYPES.includes(inc.incidentType) ? (
                         <span title="No photo evidence attached — insurers usually require photos for this incident type" style={{
                           display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 9999,
                           fontSize: "0.72rem", fontWeight: 600, background: "#fffbeb", color: "#b45309", border: "1px dashed #fcd34d",
