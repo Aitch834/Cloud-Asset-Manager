@@ -1818,13 +1818,6 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
         {isError && <p className="text-sm text-red-600 py-4">Failed to load batch trail. Please try again.</p>}
 
         {isVintageScoped && data && (
-          <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-            <span>This pressing record has no batch reference. Results show all winery records for Vintage {vintageYear} — they may span multiple batches.</span>
-          </div>
-        )}
-
-        {isVintageScoped && data && (
           <VintagePHComparisonChart
             data={data}
             vintageYear={vintageYear}
