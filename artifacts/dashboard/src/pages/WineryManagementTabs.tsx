@@ -1587,6 +1587,28 @@ function So2SummaryBlock({ summary }: { summary: So2Summary }) {
         </div>
       </div>
 
+      {/* Ceiling cards — mirror the PDF's side-by-side organic/conventional rows:
+          both ceilings are always shown, with the active one highlighted/labelled. */}
+      <div className="flex gap-2">
+        <div className={`flex-1 rounded px-2.5 py-1.5 ${summary.isOrganic ? "border-2 border-green-700 bg-white/80" : "border bg-white/40"}`}>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Organic ceiling {summary.isOrganic && <span className="text-green-800">· Active limit</span>}
+          </p>
+          <p className={`font-mono font-bold text-sm ${summary.isOrganic ? "text-green-800" : "text-foreground"}`}>{summary.organicLimit} mg/L</p>
+        </div>
+        <div className={`flex-1 rounded px-2.5 py-1.5 ${!summary.isOrganic ? "border-2 border-green-700 bg-white/80" : "border bg-white/40"}`}>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Conventional ceiling {!summary.isOrganic && <span className="text-green-800">· Active limit</span>}
+          </p>
+          <p className={`font-mono font-bold text-sm ${!summary.isOrganic ? "text-green-800" : "text-foreground"}`}>{summary.conventionalLimit} mg/L</p>
+        </div>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        {summary.isOrganic
+          ? `Organic batch — organic ceiling applies. Conventional ceiling shown for comparison (${(summary.conventionalLimit - summary.organicLimit).toFixed(0)} mg/L higher).`
+          : `Conventional batch — conventional ceiling applies. Organic ceiling shown for comparison (${(summary.conventionalLimit - summary.organicLimit).toFixed(0)} mg/L lower).`}
+      </p>
+
       {/* Limit bar */}
       <div className="space-y-1">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
