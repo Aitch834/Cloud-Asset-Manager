@@ -64,6 +64,7 @@ function AssignmentCard({ a, farmId, autoExpand, forceOpen }: { a: Assignment; f
   const [expanded, setExpanded] = useState(autoExpand ?? false);
   const isExpanded = expanded || !!forceOpen;
   const [newStatus, setNewStatus] = useState(a.status);
+  const [highlighted, setHighlighted] = useState(autoExpand ?? false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -71,7 +72,11 @@ function AssignmentCard({ a, farmId, autoExpand, forceOpen }: { a: Assignment; f
       setTimeout(() => {
         cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 150);
+      // Fade the highlight ring after a few seconds so it stays unobtrusive.
+      const t = setTimeout(() => setHighlighted(false), 4000);
+      return () => clearTimeout(t);
     }
+    return undefined;
   }, [autoExpand]);
 
   const { data: historyData, isFetching: historyLoading } = useQuery<{ history: HistoryEntry[] }>({
@@ -116,7 +121,7 @@ function AssignmentCard({ a, farmId, autoExpand, forceOpen }: { a: Assignment; f
       ref={cardRef}
       className={cn(
         "rounded-xl border bg-white transition-all",
-        autoExpand && "ring-2 ring-primary ring-offset-1",
+        highlighted && "ring-2 ring-primary ring-offset-1",
         isOverdue && a.status === "pending" ? "border-red-200" : "border-border"
       )}
     >
@@ -674,6 +679,14 @@ export default function TaskBoardPage() {
 
   function applyCompletedWindow(items: Assignment[]): Assignment[] {
     if (completedWindow === "all") return items;
+    // Never window-out a deep-linked task — it must be visible to be highlighted.
+    if (targetId != null) {
+      return applyWindow(items.filter(r => r.id !== targetId)).concat(items.filter(r => r.id === targetId));
+    }
+    return applyWindow(items);
+  }
+
+  function applyWindow(items: Assignment[]): Assignment[] {
     if (completedWindow.startsWith("year:")) {
       const yr = parseInt(completedWindow.slice(5), 10);
       return items.filter(r => {

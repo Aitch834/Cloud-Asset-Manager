@@ -93,12 +93,12 @@ function IncidentTaskList({ tasks }: { tasks: TaskAssignment[] }) {
       </div>
       <div style={{ display: "grid", gap: 6 }}>
         {tasks.map(t => (
-          <Link key={t.id} href="/task-board" onClick={e => e.stopPropagation()}
+          <Link key={t.id} href={`/task-board?id=${t.id}`} onClick={e => e.stopPropagation()}
             style={{
               display: "flex", alignItems: "center", gap: 8, textDecoration: "none",
               background: "#fff", border: "1px solid #f3e8c0", borderRadius: 6, padding: "6px 10px",
             }}
-            title="Open the Task Board">
+            title="Open this task on the Task Board">
             <span style={{
               flex: 1, minWidth: 0, fontSize: "0.82rem", fontWeight: 600, color: "#1f2937",
               overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
