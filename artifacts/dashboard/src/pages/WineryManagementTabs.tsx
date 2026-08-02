@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
+import { BOTTLING_COLUMNS, BOTTLING_IMPORT_HEADERS, resolveBottlingField, bottlingImportRecord, parseCsvText, parseBottlingCsv } from "@/lib/bottling-csv";
 import { computePrimaryPhTa, computePhTaStagePoints } from "@/lib/ph-ta-stages";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -524,44 +525,10 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
-      // Full-file CSV state machine: tokenizes the whole text so quoted fields
-      // may contain commas, escaped quotes ("") and embedded newlines — exports
-      // with multiline Notes round-trip cleanly through import.
-      const parseCsv = (src: string): string[][] => {
-        const records: string[][] = [];
-        let cells: string[] = [];
-        let val = "";
-        let inQuotes = false;
-        let cellStarted = false;
-        const endCell = () => { cells.push(val.trim()); val = ""; cellStarted = false; };
-        const endRecord = () => {
-          endCell();
-          // Skip records that are entirely empty (blank lines)
-          if (cells.length > 1 || cells[0] !== "") records.push(cells);
-          cells = [];
-        };
-        for (let i = 0; i < src.length; i++) {
-          const ch = src[i];
-          if (inQuotes) {
-            if (ch === '"') {
-              if (src[i + 1] === '"') { val += '"'; i++; }
-              else inQuotes = false;
-            } else val += ch;
-          } else if (ch === '"' && !cellStarted) {
-            inQuotes = true; cellStarted = true;
-          } else if (ch === ',') {
-            endCell();
-          } else if (ch === '\n' || ch === '\r') {
-            if (ch === '\r' && src[i + 1] === '\n') i++;
-            endRecord();
-          } else {
-            val += ch; cellStarted = true;
-          }
-        }
-        if (val !== "" || cells.length > 0) endRecord();
-        return records;
-      };
-      let parsed = parseCsv(text);
+      // Full-file CSV state machine (shared with the Bottling importer):
+      // quoted fields may contain commas, escaped quotes ("") and embedded
+      // newlines — exports with multiline Notes round-trip cleanly.
+      let parsed = parseCsvText(text);
       // Skip any leading comment/prefix rows (e.g. the farm-name + filter block
       // our own exports prepend) — the real header row is the first row that
       // contains a recognised column header or alias.
@@ -7216,26 +7183,10 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const importFileRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
 
-  const CSV_IMPORT_HEADERS = ["Bottling Date", "Vintage", "Batch Ref", "Lot Code", "Wine Colour", "Organic (Yes/No)", "Volume Bottled (L)", "Bottle Size (ml)", "Bottles", "Cases", "Closure Type", "Free SO2 (mg/L)", "Total SO2 (mg/L)", "Notes"];
-
   const downloadBottlingTemplate = () => {
-    const exampleRow = [
-      "2024-09-15",   // Bottling Date (YYYY-MM-DD)
-      "2023",         // Vintage
-      "BATCH-001",    // Batch Ref
-      "LOT-2023-001", // Lot Code
-      "White",        // Wine Colour (Red, White, Rosé, Sparkling, Orange, Other)
-      "No",           // Organic (Yes/No)
-      "500",          // Volume Bottled (L)
-      "750",          // Bottle Size (ml)
-      "666",          // Bottles
-      "55",           // Cases
-      "Screw cap (Stelvin)", // Closure Type
-      "35",           // Free SO2 (mg/L)
-      "120",          // Total SO2 (mg/L)
-      "Example row — delete before importing", // Notes
-    ];
-    const header = CSV_IMPORT_HEADERS.map(h => `"${h}"`).join(",");
+    // Headers and example row derived from BOTTLING_COLUMNS — always matches the import
+    const exampleRow = BOTTLING_COLUMNS.map(c => c.example);
+    const header = BOTTLING_IMPORT_HEADERS.map(h => `"${h}"`).join(",");
     const example = exampleRow.map(v => `"${v.replace(/"/g, '""')}"`).join(",");
     const blob = new Blob([header + "\n" + example + "\n"], { type: "text/csv" });
     const a = document.createElement("a");
@@ -7254,27 +7205,14 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
-      let lines = text.split(/\r?\n/).filter(l => l.trim());
-      // Exported CSVs may prepend WARNING lines (e.g. SO₂ non-compliance) before the header.
-      // Strip them here so round-tripped files re-import cleanly, and surface them in the preview.
-      const warnings: string[] = [];
-      while (lines.length > 0 && /^"?WARNING:/i.test(lines[0].trim())) {
-        warnings.push(lines[0].replace(/^"|"$/g, "").replace(/""/g, '"').replace(/","/g, " — ").trim());
-        lines = lines.slice(1);
-      }
-      setImportWarnings(warnings);
-      if (lines.length < 2) { setImportError("CSV must have a header row and at least one data row."); return; }
-      const headers = lines[0].split(",").map(h => h.replace(/^"|"$/g, "").trim());
-      const rows: Record<string, string>[] = [];
-      for (let i = 1; i < lines.length; i++) {
-        // Simple CSV split — handles quoted fields with no embedded commas
-        const cells = lines[i].match(/("(?:[^"]|"")*"|[^,]*)/g)?.map(c => c.replace(/^"|"$/g, "").replace(/""/g, '"').trim()) ?? [];
-        const row: Record<string, string> = {};
-        headers.forEach((h, idx) => { row[h] = cells[idx] ?? ""; });
-        rows.push(row);
-      }
-      if (rows.length > 500) { setImportError("Maximum 500 rows per import."); return; }
-      setImportParsed(rows);
+      // Full-file CSV state machine (shared with the Harvest importer): quoted
+      // fields may contain commas, escaped quotes ("") and embedded newlines —
+      // exports with multiline Notes round-trip cleanly. WARNING prefix records
+      // our own exports prepend are extracted and surfaced in the preview.
+      const parsed = parseBottlingCsv(text);
+      setImportWarnings(parsed.warnings);
+      if (!parsed.ok) { setImportError(parsed.error); return; }
+      setImportParsed(parsed.rows);
     };
     reader.readAsText(file);
   };
@@ -7284,22 +7222,9 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     setImportLoading(true);
     setImportError(null);
     try {
-      const records = importParsed.map(row => ({
-        bottlingDate: row["Bottling Date"] || row["bottling_date"] || undefined,
-        vintageYear: row["Vintage"] || row["vintage_year"] || undefined,
-        batchRef: row["Batch Ref"] || row["batch_ref"] || undefined,
-        lotCode: row["Lot Code"] || row["lot_code"] || undefined,
-        wineColour: row["Wine Colour"] || row["wine_colour"] || undefined,
-        isOrganic: (row["Organic (Yes/No)"] || row["Organic SO₂ Limits"] || row["is_organic"] || "").toLowerCase() === "yes" ? "true" : "false",
-        volumeBottledLitres: row["Volume Bottled (L)"] || row["volume_bottled_litres"] || undefined,
-        bottleSizeMl: row["Bottle Size (ml)"] || row["bottle_size_ml"] || undefined,
-        bottlesProduced: row["Bottles"] || row["bottles_produced"] || undefined,
-        casesProduced: row["Cases"] || row["cases_produced"] || undefined,
-        closureType: row["Closure Type"] || row["closure_type"] || undefined,
-        freeSo2MgL: row["Free SO2 (mg/L)"] || row["free_so2_mg_l"] || undefined,
-        totalSo2MgL: row["Total SO2 (mg/L)"] || row["total_so2_mg_l"] || undefined,
-        notes: row["Notes"] || row["notes"] || undefined,
-      }));
+      // Field mapping derived from BOTTLING_COLUMNS — headers, aliases and
+      // record keys always stay in sync with the export and template.
+      const records = importParsed.map(bottlingImportRecord);
       const r = await fetch(api(`farms/${farmId}/winery-bottling/bulk`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -7508,20 +7433,11 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const nonCompliantCount = filtered.filter(isBottlingRowNonCompliant).length;
   const displayRows = nonCompliantOnly ? filtered.filter(isBottlingRowNonCompliant) : filtered;
 
+  // Import-compatible columns derived from BOTTLING_COLUMNS (exact import
+  // headers + re-import-safe values: ISO dates, Yes/No booleans), followed by
+  // export-only derived columns the import simply ignores.
   const bottlingCsvCols = [
-    { key: "vintage_year", label: "Vintage" },
-    { key: "bottling_date", label: "Bottling Date", fmt: (r: Record<string, unknown>) => fmtDate(r.bottling_date) },
-    { key: "batch_ref", label: "Batch Ref" },
-    { key: "lot_code", label: "Lot Code" },
-    { key: "wine_colour", label: "Wine Colour" },
-    { key: "is_organic", label: "Organic SO₂ Limits", fmt: (r: Record<string, unknown>) => (r.is_organic === true || r.is_organic === "true") ? "Yes" : "No" },
-    { key: "volume_bottled_litres", label: "Volume Bottled (L)" },
-    { key: "bottle_size_ml", label: "Bottle Size (ml)" },
-    { key: "bottles_produced", label: "Bottles" },
-    { key: "cases_produced", label: "Cases" },
-    { key: "closure_type", label: "Closure Type" },
-    { key: "free_so2_mg_l", label: "Free SO₂ (mg/L)" },
-    { key: "total_so2_mg_l", label: "Total SO₂ (mg/L)" },
+    ...BOTTLING_COLUMNS.map(c => ({ key: c.dbKey, label: c.header, fmt: c.exportValue })),
     { key: "so2_ceiling", label: "SO₂ ceiling (mg/L)", fmt: (r: Record<string, unknown>) => {
       const colour = String(r.wine_colour ?? "");
       if (!colour) return "";
@@ -7914,7 +7830,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                     <FileDown className="w-3 h-3" />Download template
                   </button>
                 </div>
-                <p className="font-mono">{CSV_IMPORT_HEADERS.join(", ")}</p>
+                <p className="font-mono">{BOTTLING_IMPORT_HEADERS.join(", ")}</p>
                 <p className="mt-1">Exports from this register use a compatible format and can be re-imported directly. The template includes an example row showing the expected formats — delete it before importing.</p>
               </div>
               <div>
@@ -8001,35 +7917,14 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                       variant="outline"
                       className="h-6 text-xs px-2 border-red-300 text-red-700 hover:bg-red-100"
                       onClick={() => {
-                        // Alias map mirrors submitImport so snake_case and legacy headers round-trip correctly
-                        const FIELD_ALIASES: Record<string, string[]> = {
-                          "Bottling Date":     ["Bottling Date", "bottling_date"],
-                          "Vintage":           ["Vintage", "vintage_year"],
-                          "Batch Ref":         ["Batch Ref", "batch_ref"],
-                          "Lot Code":          ["Lot Code", "lot_code"],
-                          "Wine Colour":       ["Wine Colour", "wine_colour"],
-                          "Organic (Yes/No)":  ["Organic (Yes/No)", "Organic SO₂ Limits", "is_organic"],
-                          "Volume Bottled (L)":["Volume Bottled (L)", "volume_bottled_litres"],
-                          "Bottle Size (ml)":  ["Bottle Size (ml)", "bottle_size_ml"],
-                          "Bottles":           ["Bottles", "bottles_produced"],
-                          "Cases":             ["Cases", "cases_produced"],
-                          "Closure Type":      ["Closure Type", "closure_type"],
-                          "Free SO2 (mg/L)":   ["Free SO2 (mg/L)", "free_so2_mg_l"],
-                          "Total SO2 (mg/L)":  ["Total SO2 (mg/L)", "total_so2_mg_l"],
-                          "Notes":             ["Notes", "notes"],
-                        };
-                        const resolveField = (row: Record<string, string>, canonical: string) => {
-                          for (const alias of FIELD_ALIASES[canonical] ?? [canonical]) {
-                            if (row[alias] != null && row[alias] !== "") return row[alias];
-                          }
-                          return "";
-                        };
+                        // Headers and aliases derived from BOTTLING_COLUMNS so
+                        // snake_case and legacy headers round-trip correctly
                         const skippedRows = importResult.rejected
                           .map(r => importParsed[r.row - 1])
                           .filter(Boolean);
-                        const header = CSV_IMPORT_HEADERS.map(h => `"${h}"`).join(",");
+                        const header = BOTTLING_IMPORT_HEADERS.map(h => `"${h}"`).join(",");
                         const body = skippedRows.map(row =>
-                          CSV_IMPORT_HEADERS.map(h => `"${resolveField(row, h).replace(/"/g, '""')}"`).join(",")
+                          BOTTLING_IMPORT_HEADERS.map(h => `"${resolveBottlingField(row, h).replace(/"/g, '""')}"`).join(",")
                         ).join("\n");
                         const blob = new Blob([header + "\n" + body + "\n"], { type: "text/csv" });
                         const url = URL.createObjectURL(blob);

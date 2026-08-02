@@ -51,4 +51,5 @@
 - [Drizzle 23505 catch needs err.cause.code](drizzle-23505-err-cause.md) — drizzle wraps pg errors; `err.code` is undefined, unique-violation code is on `err.cause.code`; verify with a live duplicate request
 - [Silent mutation failures](mutation-fetch-no-ok-check.md) — bare fetch() in mutationFn never rejects on 500; ~480 dashboard write-mutations lack res.ok checks, so error toasts never fire
 - [Dashboard build OOM](dashboard-build-oom.md) — ~1 GB free RAM; Rollup OOMs at chunk rendering; mitigations in place; long-term fix = split WineryManagementTabs.tsx + LivestockPage.tsx (500 KB+)
+- [CSV re-import safety pattern](csv-reimport-safety.md) — shared column list + ISO/Yes-No values + full-file CSV state-machine parser required; line-split parsers get review-rejected
 - [serve.mjs ?v= token double-React #321](serve-token-double-react.md) — never add query tokens to content-hashed JS asset URLs; lazy chunks import plain filenames → two React instances
