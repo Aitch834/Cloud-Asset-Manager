@@ -291,7 +291,7 @@ export default function FarmIncidentsPage() {
       method: "POST", credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).then(r => r.json()),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     ...mutOpts,
     onSuccess: () => { mutOpts.onSuccess(); setAddOpen(false); setForm(emptyForm()); toast({ title: "Incident recorded" }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
@@ -302,7 +302,7 @@ export default function FarmIncidentsPage() {
       method: "PUT", credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).then(r => r.json()),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     ...mutOpts,
     onSuccess: () => { mutOpts.onSuccess(); setEditId(null); toast({ title: "Incident updated" }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
@@ -311,7 +311,7 @@ export default function FarmIncidentsPage() {
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/incidents/${id}`, {
       method: "DELETE", credentials: "include",
-    }).then(r => r.json()),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     ...mutOpts,
     onSuccess: () => { mutOpts.onSuccess(); setDeleteId(null); toast({ title: "Incident deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),

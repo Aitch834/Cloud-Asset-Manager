@@ -255,13 +255,13 @@ function TransactionsTab({ farmId }: { farmId: number }) {
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/financial-transactions`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...body, amountPence: body.amountPence ? Math.round(parseFloat(body.amountPence) * 100) : 0, vatAmountPence: body.vatAmountPence ? Math.round(parseFloat(body.vatAmountPence) * 100) : null }),
-    }),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Transaction saved" }); invalidate(); setAddOpen(false); setForm(emptyForm); },
     onError: () => toast({ title: "Failed to save transaction", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/financial-transactions/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/financial-transactions/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Transaction deleted" }); invalidate(); setDeleteId(null); },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
@@ -602,8 +602,8 @@ function CropContractsTab({ farmId }: { farmId: number }) {
         contractedPricePence: priceGbp ? Math.round(priceGbp * 100) : null,
         totalValuePence: priceGbp && qty ? Math.round(priceGbp * qty * 100) : null,
       };
-      if (editRecord) return fetch(`/api/farms/${farmId}/crop-contracts/${editRecord.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      return fetch(`/api/farms/${farmId}/crop-contracts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (editRecord) return fetch(`/api/farms/${farmId}/crop-contracts/${editRecord.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
+      return fetch(`/api/farms/${farmId}/crop-contracts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     },
     onSuccess: () => { toast({ title: editRecord ? "Contract updated" : "Contract saved" }); invalidate(); setAddOpen(false); setEditRecord(null); setForm(emptyForm); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
@@ -897,7 +897,7 @@ function AttachmentPanel({ farmId, purchaseId }: { farmId: number; purchaseId: n
   });
   const atts: any[] = attQ.data ?? [];
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/record-attachments/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/record-attachments/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["record-attachments", farmId, "livestock-purchase", purchaseId] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -909,8 +909,8 @@ function AttachmentPanel({ farmId, purchaseId }: { farmId: number; purchaseId: n
       const urlRes = await fetch("/api/storage/uploads/request-url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type || "application/octet-stream" }) });
       if (!urlRes.ok) throw new Error();
       const { uploadURL, objectPath } = await urlRes.json();
-      await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } });
-      await fetch(`/api/farms/${farmId}/record-attachments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recordType: "livestock-purchase", recordId: purchaseId, fileUrl: `/api/storage${objectPath}`, fileKey: objectPath, fileName: file.name, fileSize: file.size, mimeType: file.type }) });
+      await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
+      await fetch(`/api/farms/${farmId}/record-attachments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recordType: "livestock-purchase", recordId: purchaseId, fileUrl: `/api/storage${objectPath}`, fileKey: objectPath, fileName: file.name, fileSize: file.size, mimeType: file.type }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey: ["record-attachments", farmId, "livestock-purchase", purchaseId] });
     } catch { /* silent */ } finally { setUploading(false); }
   }
@@ -986,7 +986,7 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
         herdId: form.herdId && form.herdId !== "__none__" ? parseInt(String(form.herdId)) : null,
         notes: `Auto-created from purchase invoice${form.invoiceRef ? ` ref: ${form.invoiceRef}` : ""}`,
       };
-      const res = await fetch(`/api/farms/${farmId}/livestock-movements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const res = await fetch(`/api/farms/${farmId}/livestock-movements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       const data = await res.json();
       const newId = data?.movement?.id;
       if (newId) {
@@ -1005,11 +1005,11 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["livestock-purchases", farmId] });
 
-  const createMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/livestock-purchases`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onError: () => toast({ title: "Save failed", variant: "destructive" }) });
-  const updateMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/livestock-purchases/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Invoice updated" }); invalidate(); setAddOpen(false); setEditRecord(null); setForm(EMPTY); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
-  const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`/api/farms/${farmId}/livestock-purchases/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); }, onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
+  const createMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/livestock-purchases`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onError: () => toast({ title: "Save failed", variant: "destructive" }) });
+  const updateMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/livestock-purchases/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: () => { toast({ title: "Invoice updated" }); invalidate(); setAddOpen(false); setEditRecord(null); setForm(EMPTY); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
+  const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`/api/farms/${farmId}/livestock-purchases/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); }, onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   const markPaidMut = useMutation({
-    mutationFn: (b: { id: number; paidDate: string; paymentMethod: string; paymentReference: string }) => fetch(`/api/farms/${farmId}/livestock-purchases/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paymentStatus: "paid", paidDate: b.paidDate, paymentMethod: b.paymentMethod, paymentReference: b.paymentReference }) }).then(r => r.json()),
+    mutationFn: (b: { id: number; paidDate: string; paymentMethod: string; paymentReference: string }) => fetch(`/api/farms/${farmId}/livestock-purchases/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paymentStatus: "paid", paidDate: b.paidDate, paymentMethod: b.paymentMethod, paymentReference: b.paymentReference }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Marked as paid" }); invalidate(); setMarkPaidId(null); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
@@ -1032,8 +1032,8 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
             const urlRes = await fetch("/api/storage/uploads/request-url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type || "application/octet-stream" }) });
             if (!urlRes.ok) continue;
             const { uploadURL, objectPath } = await urlRes.json();
-            await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } });
-            await fetch(`/api/farms/${farmId}/record-attachments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recordType: "livestock-purchase", recordId: newId, fileUrl: `/api/storage${objectPath}`, fileKey: objectPath, fileName: file.name, fileSize: file.size, mimeType: file.type }) });
+            await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
+            await fetch(`/api/farms/${farmId}/record-attachments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recordType: "livestock-purchase", recordId: newId, fileUrl: `/api/storage${objectPath}`, fileKey: objectPath, fileName: file.name, fileSize: file.size, mimeType: file.type }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
           } catch { /* skip failed file */ }
         }
         setPendingUploading(false);

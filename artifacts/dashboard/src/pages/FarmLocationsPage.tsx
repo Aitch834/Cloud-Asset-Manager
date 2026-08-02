@@ -113,7 +113,7 @@ export default function FarmLocationsPage() {
           latitude: body.pin?.lat ?? null,
           longitude: body.pin?.lng ?? null,
         }),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["farm-locations", farmId] });
       closeDialog();
@@ -135,7 +135,7 @@ export default function FarmLocationsPage() {
           latitude: body.pin?.lat ?? null,
           longitude: body.pin?.lng ?? null,
         }),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["farm-locations", farmId] });
       closeDialog();
@@ -145,7 +145,7 @@ export default function FarmLocationsPage() {
 
   const deleteMut = useMutation({
     mutationFn: (id: number) =>
-      fetch(`/api/farms/${farmId}/farm-locations/${id}`, { method: "DELETE" }),
+      fetch(`/api/farms/${farmId}/farm-locations/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["farm-locations", farmId] });
       setDeleteId(null);

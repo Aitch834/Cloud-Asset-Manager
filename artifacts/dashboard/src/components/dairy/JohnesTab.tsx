@@ -119,14 +119,14 @@ export function JohnesDeclarationSection({ farmId, allMonitoringRecords }: { far
 
   async function del(id: number) {
     if (!confirm("Delete this declaration record?")) return;
-    await fetch(api(`farms/${farmId}/johnes-declarations/${id}`), { method: "DELETE", credentials: "include" });
+    await fetch(api(`farms/${farmId}/johnes-declarations/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     qc.invalidateQueries({ queryKey: qKey });
   }
 
   async function saveAck() {
     await fetch(api(`farms/${farmId}/johnes-declarations/${ackRec.id}/acknowledge`), {
       method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(ackForm),
-    });
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     qc.invalidateQueries({ queryKey: qKey });
     setAckOpen(false); setAckRec(null);
   }
@@ -423,7 +423,7 @@ export function JohnesTab({ farmId }: { farmId: number }) {
     await fetch(api(`farms/${farmId}/johnes-monitoring/${id}`), {
       method: "DELETE",
       credentials: "include",
-    });
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     qc.invalidateQueries({ queryKey: ["johnes-monitoring", farmId] });
   }
 

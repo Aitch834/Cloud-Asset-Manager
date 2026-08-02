@@ -267,7 +267,7 @@ export function FctImportDialog({ open, farmId, onClose }: Props) {
           netTonnesCo2e: plan.audit.netTco2e,
           notes: notes || `Imported from FCT CSV export (${fileName})`,
         }),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
 
       if (importEmissions) {
         for (const rec of plan.emissions) {
@@ -283,7 +283,7 @@ export function FctImportDialog({ open, farmId, onClose }: Props) {
               tonnesCo2e: rec.tonnesCo2e,
               emissionFactorSource: "Farm Carbon Toolkit (FCT)",
             }),
-          });
+          }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
           emissionCount++;
         }
       }
@@ -303,7 +303,7 @@ export function FctImportDialog({ open, farmId, onClose }: Props) {
               tonnesCo2eSequestered: rec.tonnesCo2eSequestered,
               sequestrationFactorSource: "Farm Carbon Toolkit (FCT)",
             }),
-          });
+          }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
           seqCount++;
         }
       }

@@ -76,7 +76,7 @@ export function BuyerCombobox({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (result: { record?: BuyerRecord }) => {
       qc.invalidateQueries({ queryKey: qKey });
       if (result.record) {

@@ -83,7 +83,7 @@ export default function NMPPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).then(r => r.json()),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (data: any) => {
       toast({ title: "Plan created — now add your field entries below" });
       qc.invalidateQueries({ queryKey: ["nmp-plans", farmId] });
@@ -102,7 +102,7 @@ export default function NMPPage() {
   });
 
   const deletePlanMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/nmp-plans/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/nmp-plans/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: (_data, id) => {
       toast({ title: "Plan deleted" });
       qc.invalidateQueries({ queryKey: ["nmp-plans", farmId] });
@@ -117,7 +117,7 @@ export default function NMPPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => {
       toast({ title: "Field entry added" });
       qc.invalidateQueries({ queryKey: ["nmp-entries", farmId, addEntryPlanId] });
@@ -129,7 +129,7 @@ export default function NMPPage() {
 
   const deleteEntryMut = useMutation({
     mutationFn: ({ entryId }: { entryId: number }) =>
-      fetch(`/api/farms/${farmId}/nmp-plans/${expandedPlanId}/field-entries/${entryId}`, { method: "DELETE" }),
+      fetch(`/api/farms/${farmId}/nmp-plans/${expandedPlanId}/field-entries/${entryId}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => {
       toast({ title: "Entry removed" });
       qc.invalidateQueries({ queryKey: ["nmp-entries", farmId, expandedPlanId] });
@@ -143,7 +143,7 @@ export default function NMPPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => {
       toast({ title: "Field entry updated" });
       qc.invalidateQueries({ queryKey: ["nmp-entries", farmId, expandedPlanId] });

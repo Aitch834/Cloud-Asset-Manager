@@ -77,7 +77,7 @@ export function RecordAttachments({ farmId, recordType, recordId, compact = fals
           fileSize: file.size,
           mimeType: file.type || null,
         }),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey });
       toast({ title: "Attachment uploaded" });
     } catch {
@@ -93,7 +93,7 @@ export function RecordAttachments({ farmId, recordType, recordId, compact = fals
       await fetch(`/api/farms/${farmId}/record-attachments/${id}`, {
         method: "DELETE",
         credentials: "include",
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey });
       toast({ title: "Attachment removed" });
     } catch {

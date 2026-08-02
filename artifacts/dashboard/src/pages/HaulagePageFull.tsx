@@ -233,22 +233,22 @@ function DispatchesTab({ farmId }: { farmId: number }) {
         buyerId: body.buyerId || null,
         haulierRegisteredId: body.haulierRegisteredId || null,
       };
-      if (editRecord) return fetch(`/api/farms/${farmId}/haulage/${editRecord.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      return fetch(`/api/farms/${farmId}/haulage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (editRecord) return fetch(`/api/farms/${farmId}/haulage/${editRecord.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
+      return fetch(`/api/farms/${farmId}/haulage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     },
     onSuccess: () => { toast({ title: editRecord ? "Dispatch updated" : "Dispatch recorded" }); invalidate(); setAddOpen(false); setEditRecord(null); setForm(emptyForm); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/haulage/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/haulage/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const confirmMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: any }) =>
-      fetch(`/api/farms/${farmId}/haulage/${id}/confirm-dispatch`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+      fetch(`/api/farms/${farmId}/haulage/${id}/confirm-dispatch`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => {
       toast({ title: "Dispatch confirmed — stock deducted from bin" });
       invalidate();
@@ -787,22 +787,22 @@ function TransfersTab({ farmId }: { farmId: number }) {
         destinationBinId: body.destinationBinId || null,
         deliveryStatus: "booked",
       };
-      if (editRecord) return fetch(`/api/farms/${farmId}/haulage/${editRecord.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      return fetch(`/api/farms/${farmId}/haulage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (editRecord) return fetch(`/api/farms/${farmId}/haulage/${editRecord.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
+      return fetch(`/api/farms/${farmId}/haulage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     },
     onSuccess: () => { toast({ title: editRecord ? "Transfer updated" : "Transfer recorded" }); invalidate(); setAddOpen(false); setEditRecord(null); setForm(emptyForm); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/haulage/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/haulage/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const confirmMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: any }) =>
-      fetch(`/api/farms/${farmId}/haulage/${id}/confirm-dispatch`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+      fetch(`/api/farms/${farmId}/haulage/${id}/confirm-dispatch`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Transfer confirmed — stock moved between bins" }); invalidate(); setConfirmId(null); setConfirmForm({ confirmedBy: "", notes: "" }); },
     onError: () => toast({ title: "Failed to confirm transfer", variant: "destructive" }),
   });
@@ -1269,8 +1269,8 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
 
   const saveMut = useMutation({
     mutationFn: (body: any) => {
-      if (editPlan) return fetch(`/api/farms/${farmId}/dispatch-plans/${editPlan.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
-      return fetch(`/api/farms/${farmId}/dispatch-plans`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
+      if (editPlan) return fetch(`/api/farms/${farmId}/dispatch-plans/${editPlan.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json());
+      return fetch(`/api/farms/${farmId}/dispatch-plans`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json());
     },
     onSuccess: (data: any) => {
       const ref = data?.record?.planRef;
@@ -1282,7 +1282,7 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
   });
 
   const notifyMut = useMutation({
-    mutationFn: (planId: number) => fetch(`/api/farms/${farmId}/dispatch-plans/${planId}/notify-haulier`, { method: "POST" }).then(r => r.json()),
+    mutationFn: (planId: number) => fetch(`/api/farms/${farmId}/dispatch-plans/${planId}/notify-haulier`, { method: "POST" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (data: any) => {
       qc.invalidateQueries({ queryKey: ["dispatch-plans", farmId] });
       toast({ title: data?.smsSent ? "Haulier notified — SMS sent" : "Haulier marked as notified" });
@@ -1291,14 +1291,14 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/dispatch-plans/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/dispatch-plans/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Plan deleted" }); qc.invalidateQueries({ queryKey: ["dispatch-plans", farmId] }); setDeleteTarget(null); },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
   const statusMut = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) =>
-      fetch(`/api/farms/${farmId}/dispatch-plans/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) }),
+      fetch(`/api/farms/${farmId}/dispatch-plans/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["dispatch-plans", farmId] }),
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
@@ -1889,8 +1889,8 @@ function HaulierDirectoryTab({ farmId }: { farmId: number }) {
 
   const saveMut = useMutation({
     mutationFn: (body: any) => {
-      if (editHaulier) return fetch(`/api/farms/${farmId}/hauliers/${editHaulier.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      return fetch(`/api/farms/${farmId}/hauliers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (editHaulier) return fetch(`/api/farms/${farmId}/hauliers/${editHaulier.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
+      return fetch(`/api/farms/${farmId}/hauliers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     },
     onSuccess: () => {
       toast({ title: editHaulier ? "Haulier updated" : "Haulier added" });
@@ -1901,7 +1901,7 @@ function HaulierDirectoryTab({ farmId }: { farmId: number }) {
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/hauliers/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/hauliers/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Haulier removed" }); qc.invalidateQueries({ queryKey: ["hauliers", farmId] }); setDeleteTarget(null); },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
@@ -2169,8 +2169,8 @@ function HaulierInvoicesTab({ farmId }: { farmId: number }) {
 
   const saveMut = useMutation({
     mutationFn: (body: any) => {
-      if (editInv) return fetch(`/api/farms/${farmId}/haulier-invoices/${editInv.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      return fetch(`/api/farms/${farmId}/haulier-invoices`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (editInv) return fetch(`/api/farms/${farmId}/haulier-invoices/${editInv.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
+      return fetch(`/api/farms/${farmId}/haulier-invoices`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     },
     onSuccess: () => {
       toast({ title: editInv ? "Invoice updated" : "Invoice added" });
@@ -2181,7 +2181,7 @@ function HaulierInvoicesTab({ farmId }: { farmId: number }) {
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/haulier-invoices/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/haulier-invoices/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => {
       toast({ title: "Invoice deleted" });
       qc.invalidateQueries({ queryKey: ["haulier-invoices", farmId] });
@@ -2194,7 +2194,7 @@ function HaulierInvoicesTab({ farmId }: { farmId: number }) {
     mutationFn: ({ invId, loadIds }: { invId: number; loadIds: number[] }) =>
       fetch(`/api/farms/${farmId}/haulier-invoices/${invId}/assign-loads`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ loadIds }),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (_, { loadIds }) => {
       toast({ title: `${loadIds.length} load${loadIds.length !== 1 ? "s" : ""} assigned to invoice` });
       qc.invalidateQueries({ queryKey: ["haulier-invoice-loads", farmId, expandedId] });
@@ -2208,7 +2208,7 @@ function HaulierInvoicesTab({ farmId }: { farmId: number }) {
     mutationFn: ({ invId, loadIds }: { invId: number; loadIds: number[] }) =>
       fetch(`/api/farms/${farmId}/haulier-invoices/${invId}/unassign-loads`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ loadIds }),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       toast({ title: "Load removed from invoice" });
       qc.invalidateQueries({ queryKey: ["haulier-invoice-loads", farmId, expandedId] });

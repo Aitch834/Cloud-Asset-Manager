@@ -107,7 +107,7 @@ function PhotoPanel({ incidentId, farmId, photos }: { incidentId: number; farmId
   const { toast } = useToast();
 
   const deleteMut = useMutation({
-    mutationFn: (photoId: number) => fetch(`/api/farms/${farmId}/encampments/${incidentId}/photos/${photoId}`, { method: "DELETE" }),
+    mutationFn: (photoId: number) => fetch(`/api/farms/${farmId}/encampments/${incidentId}/photos/${photoId}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["encampments", farmId] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -118,7 +118,7 @@ function PhotoPanel({ incidentId, farmId, photos }: { incidentId: number; farmId
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ objectPath: response.objectPath, fileName: response.objectPath.split("/").pop() }),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey: ["encampments", farmId] });
       toast({ title: "Photo uploaded" });
     },
@@ -285,13 +285,13 @@ export default function EncampmentPage() {
   }
 
   const createMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/encampments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/encampments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["encampments", farmId] }); setAddOpen(false); toast({ title: "Encampment logged" }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const updateMut = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/encampments/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/encampments/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["encampments", farmId] }); setEditItem(null); toast({ title: "Record updated" }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });

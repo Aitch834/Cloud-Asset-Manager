@@ -114,7 +114,7 @@ function InspectionPhotoPanel({ recordId, farmId, photos }: { recordId: number; 
   const { toast } = useToast();
 
   const deleteMut = useMutation({
-    mutationFn: (photoId: number) => fetch(`/api/farms/${farmId}/field-inspections/${recordId}/photos/${photoId}`, { method: "DELETE" }),
+    mutationFn: (photoId: number) => fetch(`/api/farms/${farmId}/field-inspections/${recordId}/photos/${photoId}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["field-inspections", farmId] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -125,7 +125,7 @@ function InspectionPhotoPanel({ recordId, farmId, photos }: { recordId: number; 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ objectPath: response.objectPath, fileName: response.objectPath.split("/").pop() }),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey: ["field-inspections", farmId] });
       toast({ title: "Photo uploaded" });
     },
@@ -203,7 +203,7 @@ function RaiseTaskDialog({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (data) => {
       const member = staff.find(s => s.id === Number(memberId));
       const name = member ? `${member.firstName} ${member.lastName}` : "staff member";
@@ -369,7 +369,7 @@ export default function FieldInspectionsPage() {
 
   const createInspMut = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      fetch(`/api/farms/${farmId}/field-inspections`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/field-inspections`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["field-inspections", farmId] });
       toast({ title: "Inspection logged" });
@@ -386,13 +386,13 @@ export default function FieldInspectionsPage() {
 
   const updateInspMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
-      fetch(`/api/farms/${farmId}/field-inspections/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/field-inspections/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["field-inspections", farmId] }); toast({ title: "Inspection updated" }); closeInspectionForm(); },
     onError: () => toast({ title: "Failed to update inspection", variant: "destructive" }),
   });
 
   const deleteInspMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/field-inspections/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/field-inspections/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["field-inspections", farmId] }); toast({ title: "Inspection deleted" }); },
     onError: () => toast({ title: "Failed to delete inspection", variant: "destructive" }),
   });
@@ -490,7 +490,7 @@ export default function FieldInspectionsPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ resolvedBy, resolutionNotes }),
-      }).then((r) => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then((r) => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["field-inspections", farmId] });
       toast({ title: "Inspection resolved", description: "The action has been marked as resolved." });

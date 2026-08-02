@@ -427,13 +427,13 @@ export default function DocumentsPage() {
 
   const createMut = useMutation({
     mutationFn: (body: any) =>
-      fetch(`/api/farms/${farmId}/documents`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+      fetch(`/api/farms/${farmId}/documents`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Document recorded" }); qc.invalidateQueries({ queryKey: ["documents", farmId] }); closeAdd(false); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/documents/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/documents/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Document deleted" }); qc.invalidateQueries({ queryKey: ["documents", farmId] }); setDeleteId(null); },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });

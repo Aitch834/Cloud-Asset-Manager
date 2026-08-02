@@ -93,7 +93,7 @@ function CertificationTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Error saving", variant: "destructive" }),
   });
   const mutDel = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-venison/certification/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-venison/certification/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-venison-cert", farmId] }); toast({ title: "Deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -249,7 +249,7 @@ function LandRegisterTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Error saving", variant: "destructive" }),
   });
   const mutDel = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-venison/land-register/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-venison/land-register/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-venison-land", farmId] }); toast({ title: "Deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -394,7 +394,7 @@ function FeedSupplementsTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Error saving", variant: "destructive" }),
   });
   const mutDel = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-venison/feed-supplements/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-venison/feed-supplements/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-venison-feed", farmId] }); toast({ title: "Deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -547,17 +547,17 @@ function VensDerogCard({ farmId, c: rec, isExpanded, onToggle, qc }: {
   const docs = docsData?.items ?? [];
 
   const saveEdit = useMutation({
-    mutationFn: (body: any) => fetch(api(`farms/${farmId}/organic-venison/derogations/${rec.id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: any) => fetch(api(`farms/${farmId}/organic-venison/derogations/${rec.id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-venison-derog", farmId] }); setEditOpen(false); toast({ title: "Saved" }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const saveDecision = useMutation({
-    mutationFn: (body: any) => fetch(api(`farms/${farmId}/organic-venison/derogations/${rec.id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: any) => fetch(api(`farms/${farmId}/organic-venison/derogations/${rec.id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-venison-derog", farmId] }); setRecordDecisionOpen(false); toast({ title: "Decision recorded" }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const delDerog = useMutation({
-    mutationFn: () => fetch(api(`farms/${farmId}/organic-venison/derogations/${rec.id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: () => fetch(api(`farms/${farmId}/organic-venison/derogations/${rec.id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-venison-derog", farmId] }); toast({ title: "Deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -570,12 +570,12 @@ function VensDerogCard({ farmId, c: rec, isExpanded, onToggle, qc }: {
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const delCorr = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-venison/derogation-correspondence/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-venison/derogation-correspondence/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["vens-derog-corr", rec.id] }); toast({ title: "Deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
   const delDoc = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-venison/derogation-documents/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-venison/derogation-documents/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["vens-derog-docs", rec.id] }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -586,10 +586,10 @@ function VensDerogCard({ farmId, c: rec, isExpanded, onToggle, qc }: {
   async function handleFileUpload(file: File, docType: string) {
     setUploading(true);
     try {
-      const presignRes = await fetch(api("uploads/presign"), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, contentType: file.type, recordType: "organic_venison_derogation" }) });
+      const presignRes = await fetch(api("uploads/presign"), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, contentType: file.type, recordType: "organic_venison_derogation" }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       const { uploadUrl, fileKey } = await presignRes.json();
-      await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
-      await fetch(api(`farms/${farmId}/organic-venison/derogations/${rec.id}/documents`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileKey, fileName: file.name, fileSize: file.size, mimeType: file.type, documentType: docType }) });
+      await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
+      await fetch(api(`farms/${farmId}/organic-venison/derogations/${rec.id}/documents`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileKey, fileName: file.name, fileSize: file.size, mimeType: file.type, documentType: docType }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey: ["vens-derog-docs", rec.id] });
     } catch { toast({ title: "Upload failed", variant: "destructive" }); }
     setUploading(false);
@@ -862,7 +862,7 @@ function DerogationsTab({ farmId }: { farmId: number }) {
   const records: any[] = data ?? [];
 
   const mutAdd = useMutation({
-    mutationFn: (body: any) => fetch(api(`farms/${farmId}/organic-venison/derogations`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: any) => fetch(api(`farms/${farmId}/organic-venison/derogations`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (d) => { qc.invalidateQueries({ queryKey: ["org-venison-derog", farmId] }); setAddOpen(false); setAddForm({ status: "pending" }); toast({ title: "Case created" }); setExpandedId(d?.id ?? null); },
     onError: () => toast({ title: "Error creating case", variant: "destructive" }),
   });

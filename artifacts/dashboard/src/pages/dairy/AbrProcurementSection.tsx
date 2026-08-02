@@ -177,7 +177,7 @@ function SupplierSubsection({ farmId, suppliers, loading, qc }: {
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const del = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/dairy/abr-suppliers/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/dairy/abr-suppliers/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["abr-suppliers", farmId] }); qc.invalidateQueries({ queryKey: ["abr-purchase-orders", farmId] }); qc.invalidateQueries({ queryKey: ["abr-invoices", farmId] }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -285,7 +285,7 @@ function PurchaseOrderSubsection({ farmId, orders, suppliers, loading, qc, suppl
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const del = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/dairy/abr-purchase-orders/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/dairy/abr-purchase-orders/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["abr-purchase-orders", farmId] }); qc.invalidateQueries({ queryKey: ["abr-grns", farmId] }); qc.invalidateQueries({ queryKey: ["abr-invoices", farmId] }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -299,7 +299,7 @@ function PurchaseOrderSubsection({ farmId, orders, suppliers, loading, qc, suppl
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const delItem = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/dairy/abr-po-items/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/dairy/abr-po-items/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["abr-purchase-orders", farmId] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -526,7 +526,7 @@ function GrnSubsection({ farmId, grns, orders, loading, qc, poRef }: {
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const del = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/dairy/abr-grns/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/dairy/abr-grns/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["abr-grns", farmId] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -643,7 +643,7 @@ function InvoiceSubsection({ farmId, invoices, suppliers, orders, loading, qc, s
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const del = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/dairy/abr-invoices/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/dairy/abr-invoices/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["abr-invoices", farmId] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });

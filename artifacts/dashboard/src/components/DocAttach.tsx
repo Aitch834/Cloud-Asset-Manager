@@ -35,7 +35,7 @@ export function DocAttach({ farmId, endpoint, recordId, documentPath, documentNa
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ documentPath: response.objectPath, documentName: file.name }),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey: keys });
       toast({ title: "Document attached" });
     } catch {
@@ -51,7 +51,7 @@ export function DocAttach({ farmId, endpoint, recordId, documentPath, documentNa
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ documentPath: null, documentName: null }),
-    });
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     qc.invalidateQueries({ queryKey: keys });
   }
 

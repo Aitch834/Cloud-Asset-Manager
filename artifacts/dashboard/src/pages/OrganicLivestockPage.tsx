@@ -533,7 +533,7 @@ function ConversionTab({ farmId, farmName }: { farmId: number; farmName: string 
             organicCertNumber: form.certificationRef ?? undefined,
             organicConversionStartDate: form.conversionStartDate ? new Date(form.conversionStartDate).toISOString() : undefined,
           }),
-        });
+        }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       }
       return res;
     },
@@ -548,7 +548,7 @@ function ConversionTab({ farmId, farmName }: { farmId: number; farmName: string 
 
   const remove = useMutation({
     mutationFn: (id: number) =>
-      fetch(`/api/farms/${farmId}/organic-livestock/conversion/${id}`, { method: "DELETE" }),
+      fetch(`/api/farms/${farmId}/organic-livestock/conversion/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["organic-livestock-conversion", farmId] });
       toast({ title: "Record deleted" });
@@ -572,7 +572,7 @@ function ConversionTab({ farmId, farmName }: { farmId: number; farmName: string 
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ conversionId: notifConversion?.id, ...notifForm }),
-    }),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["parallel-notifications", notifConversion?.id] });
       setNotifForm({ notificationYear: new Date().getFullYear(), notifiedDate: "", certifierRef: "", notes: "" });
@@ -582,7 +582,7 @@ function ConversionTab({ farmId, farmName }: { farmId: number; farmName: string 
   });
 
   const deleteNotif = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic-livestock/parallel-notifications/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic-livestock/parallel-notifications/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["parallel-notifications", notifConversion?.id] }),
     onError: () => toast({ title: "Failed to delete notification", variant: "destructive" }),
   });
@@ -1001,7 +1001,7 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   });
 
   const remove = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic-livestock/feed/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic-livestock/feed/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["organic-livestock-feed", farmId] }); toast({ title: "Record deleted" }); },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
@@ -1416,7 +1416,7 @@ function OutdoorAccessTab({ farmId, farmName }: { farmId: number; farmName: stri
   });
 
   const remove = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic-livestock/outdoor-access/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic-livestock/outdoor-access/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["organic-livestock-outdoor-access", farmId] }); toast({ title: "Record deleted" }); },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
@@ -1672,7 +1672,7 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
   });
 
   const remove = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic-livestock/treatments/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic-livestock/treatments/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["organic-livestock-treatments", farmId] }); toast({ title: "Record deleted" }); },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
@@ -2106,7 +2106,7 @@ function FeedDerogationTab({ farmId }: { farmId: number }) {
   });
 
   const deleteCase = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic-livestock/feed-derogations/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic-livestock/feed-derogations/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-derogations", farmId] }); if (expandedId === deleteCase.variables) setExpandedId(null); toast({ title: "Case deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -2124,14 +2124,14 @@ function FeedDerogationTab({ farmId }: { farmId: number }) {
 
   const deleteCorr = useMutation({
     mutationFn: ({ derogationId, corrId }: { derogationId: number; corrId: number }) =>
-      fetch(`/api/farms/${farmId}/organic-livestock/feed-derogations/${derogationId}/correspondence/${corrId}`, { method: "DELETE" }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/organic-livestock/feed-derogations/${derogationId}/correspondence/${corrId}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["feed-derogation-corr", expandedId] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const deleteDoc = useMutation({
     mutationFn: ({ derogationId, docId }: { derogationId: number; docId: number }) =>
-      fetch(`/api/farms/${farmId}/organic-livestock/feed-derogations/${derogationId}/documents/${docId}`, { method: "DELETE" }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/organic-livestock/feed-derogations/${derogationId}/documents/${docId}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["feed-derogation-docs", expandedId] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -2651,7 +2651,7 @@ function KiddingSection({ farmId }: { farmId: number }) {
   });
 
   const del = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic-livestock/kidding-records/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/organic-livestock/kidding-records/${id}`, { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ol-kidding-records", farmId] }); setConfirmDelete(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -2993,7 +2993,7 @@ function OrgVetPrescriptionsSection({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const del = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/vet-prescriptions/${id}`, { method: "DELETE", credentials: "include" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/vet-prescriptions/${id}`, { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["vet-prescriptions", farmId] }); setDeletePending(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -3323,17 +3323,17 @@ function OrgSheepDippingSection({ farmId }: { farmId: number }) {
   }
 
   const createMut = useMutation({
-    mutationFn: (b: typeof EMPTY_ORG_DIP & { notes: string | null }) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
+    mutationFn: (b: typeof EMPTY_ORG_DIP & { notes: string | null }) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dipping", farmId] }); setShowForm(false); setForm({ ...EMPTY_ORG_DIP }); toast({ title: "Dipping record saved" }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateMut = useMutation({
-    mutationFn: (b: typeof EMPTY_ORG_DIP & { id: number; notes: string | null }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()),
+    mutationFn: (b: typeof EMPTY_ORG_DIP & { id: number; notes: string | null }) => fetch(`${base}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dipping", farmId] }); setShowForm(false); setEditing(null); toast({ title: "Updated" }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dipping", farmId] }); setDeleteId(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });

@@ -264,7 +264,7 @@ export default function BiofuelPage() {
   });
 
   const deleteCertMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/biofuel/certification/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/biofuel/certification/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { invalidate(); toast({ title: "Certification deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -281,7 +281,7 @@ export default function BiofuelPage() {
   });
 
   const deleteFieldMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/biofuel/field-declarations/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/biofuel/field-declarations/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { invalidate(); toast({ title: "Declaration deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -298,7 +298,7 @@ export default function BiofuelPage() {
   });
 
   const deleteDeliveryMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/biofuel/deliveries/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/biofuel/deliveries/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { invalidate(); toast({ title: "Delivery deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -315,7 +315,7 @@ export default function BiofuelPage() {
   });
 
   const deactivateBuyerMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/biofuel/buyers/${id}/deactivate`, { method: "PATCH" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/biofuel/buyers/${id}/deactivate`, { method: "PATCH" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["biofuel-buyers", farmId] }); toast({ title: "Buyer marked inactive — all historic records preserved" }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });

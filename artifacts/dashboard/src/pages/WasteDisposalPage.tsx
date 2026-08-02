@@ -319,8 +319,8 @@ export default function WasteDisposalPage() {
         collectionBuildingId: body.collectionBuildingId ? Number(body.collectionBuildingId) : null,
         sourceDescription: body.sourceDescription || null,
       };
-      if (editRecord) return fetch(`/api/farms/${farmId}/waste/${editRecord.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      return fetch(`/api/farms/${farmId}/waste`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (editRecord) return fetch(`/api/farms/${farmId}/waste/${editRecord.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
+      return fetch(`/api/farms/${farmId}/waste`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     },
     onSuccess: () => {
       toast({ title: editRecord ? "Record updated" : "Record saved" });
@@ -354,7 +354,7 @@ export default function WasteDisposalPage() {
   };
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/waste/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/waste/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });

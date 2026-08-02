@@ -873,7 +873,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: number) => { await fetch(`${baseUrl}/${id}`, { method: "DELETE" }); },
+    mutationFn: async (id: number) => { await fetch(`${baseUrl}/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }); },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["seed-drilling", farmId] }); setDeleteId(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1704,19 +1704,19 @@ export default function FieldsPage() {
 
   const createLandUseMut = useMutation({
     mutationFn: (data: Partial<LandUseRecord> & { fieldId: number; year: number; landUse: string }) =>
-      fetch(`/api/farms/${safeFarmId}/field-season-land-use`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(r => r.json()),
+      fetch(`/api/farms/${safeFarmId}/field-season-land-use`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["field-season-land-use", safeFarmId] }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateLandUseMut = useMutation({
     mutationFn: ({ id, ...data }: Partial<LandUseRecord> & { id: number }) =>
-      fetch(`/api/farms/${safeFarmId}/field-season-land-use/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(r => r.json()),
+      fetch(`/api/farms/${safeFarmId}/field-season-land-use/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["field-season-land-use", safeFarmId] }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteLandUseMut = useMutation({
     mutationFn: (id: number) =>
-      fetch(`/api/farms/${safeFarmId}/field-season-land-use/${id}`, { method: "DELETE" }).then(r => r.json()),
+      fetch(`/api/farms/${safeFarmId}/field-season-land-use/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["field-season-land-use", safeFarmId] }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -2582,7 +2582,7 @@ export default function FieldsPage() {
                                                 if (!confirm("Remove this document?")) return;
                                                 const cropTypeId = crop.cropId ?? null;
                                                 if (!cropTypeId) return;
-                                                await fetch(`/api/farms/${safeFarmId}/crops/${cropTypeId}/documents/${doc.id}`, { method: "DELETE" });
+                                                await fetch(`/api/farms/${safeFarmId}/crops/${cropTypeId}/documents/${doc.id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
                                                 queryClient.invalidateQueries({ queryKey: ["crop-docs", safeFarmId, cropTypeId] });
                                               }}
                                               className="flex-shrink-0 p-1 rounded hover:bg-red-50 text-foreground/30 hover:text-red-500 transition-colors"
@@ -2617,7 +2617,7 @@ export default function FieldsPage() {
                                               method: "POST",
                                               headers: { "Content-Type": "application/json" },
                                               body: JSON.stringify({ title: file.name.replace(/\.[^.]+$/, ""), documentUrl: result.objectPath, documentName: file.name }),
-                                            });
+                                            }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
                                             queryClient.invalidateQueries({ queryKey: ["crop-docs", safeFarmId, cropTypeId] });
                                             e.target.value = "";
                                           } finally {
@@ -3052,7 +3052,7 @@ export default function FieldsPage() {
                           method: "PUT",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify(body),
-                        });
+                        }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
                         const data = await res.json();
                         queryClient.invalidateQueries({ queryKey: ["farms", farmId, "fields"] });
                         setSelectedFieldForHistory(prev => prev ? { ...prev, ...data.record } : null);
@@ -3269,7 +3269,7 @@ export default function FieldsPage() {
                                   <Download className="w-3.5 h-3.5" />
                                 </a>
                                 <button onClick={async () => {
-                                  await fetch(`/api/farms/${farmId}/fields/${f.id}/tenure-documents/${doc.id}`, { method: "DELETE" });
+                                  await fetch(`/api/farms/${farmId}/fields/${f.id}/tenure-documents/${doc.id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
                                   queryClient.invalidateQueries({ queryKey: ["field-tenure-docs", safeFarmId, f.id] });
                                 }} className="flex-shrink-0 p-1.5 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors" title="Remove">
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -3292,7 +3292,7 @@ export default function FieldsPage() {
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({ title: file.name.replace(/\.[^.]+$/, ""), documentUrl: result.objectPath, documentName: file.name }),
-                            });
+                            }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
                             queryClient.invalidateQueries({ queryKey: ["field-tenure-docs", safeFarmId, f.id] });
                             e.target.value = "";
                           }} />
@@ -4558,7 +4558,7 @@ export default function FieldsPage() {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify(landlordQuickForm),
-                });
+                }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
                 const data = await res.json();
                 queryClient.invalidateQueries({ queryKey: ["farm-landlords", safeFarmId] });
                 setTenureForm(prev => ({ ...prev, landlordSupplierId: String(data.record.id) }));
@@ -4882,7 +4882,7 @@ function CropRotationPlanner({ farmId, fields, fieldsLoading }: { farmId: number
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ notes, reasonTags }),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       await qc.invalidateQueries({ queryKey: ["field-crops-planner", farmId] });
     } catch {
       toast({ title: "Failed to save notes", variant: "destructive" });
@@ -5394,13 +5394,13 @@ function GrasslandSection({ farmId, fields }: { farmId: number; fields: any[] })
   const gEvents: any[] = grazingQ.data ?? [];
   const rRecords: any[] = reseedingQ.data ?? [];
 
-  const gCreateMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/grassland-grazing-events`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Grazing event recorded" }); qc.invalidateQueries({ queryKey: ["grassland-grazing", farmId] }); setGAddOpen(false); setGForm({ ...gEmpty }); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
-  const gUpdateMut = useMutation({ mutationFn: ({ id, b }: any) => fetch(`/api/farms/${farmId}/grassland-grazing-events/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Event updated" }); qc.invalidateQueries({ queryKey: ["grassland-grazing", farmId] }); setGEditRec(null); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
-  const gDeleteMut = useMutation({ mutationFn: (id: number) => fetch(`/api/farms/${farmId}/grassland-grazing-events/${id}`, { method: "DELETE" }), onSuccess: () => { toast({ title: "Event deleted" }); qc.invalidateQueries({ queryKey: ["grassland-grazing", farmId] }); setGDeleteId(null); }, onError: () => toast({ title: "Failed to delete", variant: "destructive" }) });
+  const gCreateMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/grassland-grazing-events`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: () => { toast({ title: "Grazing event recorded" }); qc.invalidateQueries({ queryKey: ["grassland-grazing", farmId] }); setGAddOpen(false); setGForm({ ...gEmpty }); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
+  const gUpdateMut = useMutation({ mutationFn: ({ id, b }: any) => fetch(`/api/farms/${farmId}/grassland-grazing-events/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: () => { toast({ title: "Event updated" }); qc.invalidateQueries({ queryKey: ["grassland-grazing", farmId] }); setGEditRec(null); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
+  const gDeleteMut = useMutation({ mutationFn: (id: number) => fetch(`/api/farms/${farmId}/grassland-grazing-events/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => { toast({ title: "Event deleted" }); qc.invalidateQueries({ queryKey: ["grassland-grazing", farmId] }); setGDeleteId(null); }, onError: () => toast({ title: "Failed to delete", variant: "destructive" }) });
 
-  const rCreateMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/grassland-reseeding-records`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Reseeding record created" }); qc.invalidateQueries({ queryKey: ["grassland-reseeding", farmId] }); setRAddOpen(false); setRForm({ ...rEmpty }); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
-  const rUpdateMut = useMutation({ mutationFn: ({ id, b }: any) => fetch(`/api/farms/${farmId}/grassland-reseeding-records/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Record updated" }); qc.invalidateQueries({ queryKey: ["grassland-reseeding", farmId] }); setREditRec(null); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
-  const rDeleteMut = useMutation({ mutationFn: (id: number) => fetch(`/api/farms/${farmId}/grassland-reseeding-records/${id}`, { method: "DELETE" }), onSuccess: () => { toast({ title: "Record deleted" }); qc.invalidateQueries({ queryKey: ["grassland-reseeding", farmId] }); setRDeleteId(null); }, onError: () => toast({ title: "Failed to delete", variant: "destructive" }) });
+  const rCreateMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/grassland-reseeding-records`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: () => { toast({ title: "Reseeding record created" }); qc.invalidateQueries({ queryKey: ["grassland-reseeding", farmId] }); setRAddOpen(false); setRForm({ ...rEmpty }); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
+  const rUpdateMut = useMutation({ mutationFn: ({ id, b }: any) => fetch(`/api/farms/${farmId}/grassland-reseeding-records/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: () => { toast({ title: "Record updated" }); qc.invalidateQueries({ queryKey: ["grassland-reseeding", farmId] }); setREditRec(null); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
+  const rDeleteMut = useMutation({ mutationFn: (id: number) => fetch(`/api/farms/${farmId}/grassland-reseeding-records/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => { toast({ title: "Record deleted" }); qc.invalidateQueries({ queryKey: ["grassland-reseeding", farmId] }); setRDeleteId(null); }, onError: () => toast({ title: "Failed to delete", variant: "destructive" }) });
 
   const fmtD = (d: any) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
   const fldName = (id: any) => fields.find(f => String(f.id) === String(id))?.name || `Field #${id}`;

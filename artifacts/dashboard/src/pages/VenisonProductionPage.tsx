@@ -167,7 +167,7 @@ function CullRecordsTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Error saving record", variant: "destructive" }),
   });
   const mutDel = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/venison-cull-records/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/venison-cull-records/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["venison-cull", farmId] }); toast({ title: "Deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -403,7 +403,7 @@ function CarcassSalesTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Error saving record", variant: "destructive" }),
   });
   const mutDel = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/venison-carcass-sales/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/venison-carcass-sales/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["venison-sales", farmId] }); toast({ title: "Deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -596,7 +596,7 @@ function HerdMonitoringTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Error saving record", variant: "destructive" }),
   });
   const mutDel = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/venison-herd-monitoring/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/venison-herd-monitoring/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["venison-monitoring", farmId] }); toast({ title: "Deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -769,7 +769,7 @@ function HealthRecordsTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Error saving record", variant: "destructive" }),
   });
   const mutDel = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/venison-health-records/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/venison-health-records/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["venison-health", farmId] }); toast({ title: "Deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -959,7 +959,7 @@ function FirearmsRegisterTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Error saving record", variant: "destructive" }),
   });
   const mutDel = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/venison-firearms-register/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/venison-firearms-register/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["venison-firearms", farmId] }); toast({ title: "Deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });

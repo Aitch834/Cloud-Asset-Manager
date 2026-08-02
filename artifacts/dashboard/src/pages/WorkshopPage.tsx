@@ -159,14 +159,14 @@ function JobDocumentsSection({ farmId, jobId }: { farmId: number; jobId: number 
   });
 
   const deleteDoc = useMutation({
-    mutationFn: (docId: number) => fetch(api(`farms/${farmId}/workshop/jobs/${jobId}/documents/${docId}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (docId: number) => fetch(api(`farms/${farmId}/workshop/jobs/${jobId}/documents/${docId}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["job-docs", jobId] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const saveDocMeta = useMutation({
     mutationFn: (body: { filename: string; storageKey: string; mimeType: string | null; fileSizeBytes: number | null; uploadedBy: string }) =>
-      fetch(api(`farms/${farmId}/workshop/jobs/${jobId}/documents`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(api(`farms/${farmId}/workshop/jobs/${jobId}/documents`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["job-docs", jobId] });
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -348,7 +348,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
     mutationFn: (jobId: number) =>
       fetch(api(`farms/${farmId}/workshop/jobs/${jobId}/raise-invoice`), {
         method: "POST", credentials: "include",
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] });
       toast({ title: "Invoice raised", description: "Draft invoice created in Farm Services & Contracting." });
@@ -367,7 +367,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
     mutationFn: () => fetch(api(`farms/${farmId}/workshop/parts/use`), {
       method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ stockItemId: parseInt(issuePartId), quantity: parseFloat(issueQty), jobId: editing?.id, performedBy: issueBy }),
-    }).then(r => r.json()),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["workshop-parts", farmId] });
       qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] });
@@ -379,7 +379,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
 
   const addLabourEntry = useMutation({
     mutationFn: (entry: { entryDate: string; description: string; chargeUnits: number; ratePence: number }) =>
-      fetch(api(`farms/${farmId}/workshop/jobs/${editing!.id}/labour`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(entry) }).then(r => r.json()),
+      fetch(api(`farms/${farmId}/workshop/jobs/${editing!.id}/labour`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(entry) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["job-labour-entries", editing?.id] });
       qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] });
@@ -389,7 +389,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
   });
 
   const deleteLabourEntry = useMutation({
-    mutationFn: (entryId: number) => fetch(api(`farms/${farmId}/workshop/jobs/${editing!.id}/labour/${entryId}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (entryId: number) => fetch(api(`farms/${farmId}/workshop/jobs/${editing!.id}/labour/${entryId}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["job-labour-entries", editing?.id] });
       qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] });
@@ -399,7 +399,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
 
   const saveWorkshopSettings = useMutation({
     mutationFn: (s: { labourRatePence: number; labourChargeUnitMinutes: number }) =>
-      fetch(api(`farms/${farmId}/workshop/settings`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s) }).then(r => r.json()),
+      fetch(api(`farms/${farmId}/workshop/settings`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["workshop-settings", farmId] });
       setSettingsOpen(false);
@@ -412,16 +412,16 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
     mutationFn: async (body: Partial<WorkshopJob["job"]>) => {
       const { labourHours: _lh, labourCostPence: _lcp, ...cleanBody } = body;
       if (editing) {
-        await fetch(api(`farms/${farmId}/workshop/jobs/${editing.id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cleanBody) });
+        await fetch(api(`farms/${farmId}/workshop/jobs/${editing.id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cleanBody) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
         for (const e of pendingLabourEntries) {
-          await fetch(api(`farms/${farmId}/workshop/jobs/${editing.id}/labour`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entryDate: e.date, description: e.description, chargeUnits: e.chargeUnits, ratePence: e.ratePence }) });
+          await fetch(api(`farms/${farmId}/workshop/jobs/${editing.id}/labour`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entryDate: e.date, description: e.description, chargeUnits: e.chargeUnits, ratePence: e.ratePence }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
         }
       } else {
-        const res = await fetch(api(`farms/${farmId}/workshop/jobs`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cleanBody) });
+        const res = await fetch(api(`farms/${farmId}/workshop/jobs`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cleanBody) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
         const newJob = await res.json();
         if (newJob?.id && pendingLabourEntries.length > 0) {
           for (const e of pendingLabourEntries) {
-            await fetch(api(`farms/${farmId}/workshop/jobs/${newJob.id}/labour`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entryDate: e.date, description: e.description, chargeUnits: e.chargeUnits, ratePence: e.ratePence }) });
+            await fetch(api(`farms/${farmId}/workshop/jobs/${newJob.id}/labour`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entryDate: e.date, description: e.description, chargeUnits: e.chargeUnits, ratePence: e.ratePence }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
           }
         }
       }
@@ -431,7 +431,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
   });
 
   const del = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/jobs/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/jobs/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1230,7 +1230,7 @@ function ServiceScheduleTab({ farmId }: { farmId: number }) {
 
   const logMut = useMutation({
     mutationFn: ({ equipmentId, body }: { equipmentId: number; body: Record<string, unknown> }) =>
-      fetch(api(`farms/${farmId}/equipment/${equipmentId}/maintenance`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(api(`farms/${farmId}/equipment/${equipmentId}/maintenance`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["workshop-schedule", farmId] });
       setLogEntry(null);
@@ -1623,7 +1623,7 @@ function GoodsReturnsView({ farmId, parts, staffNames, membersLoading }: { farmI
   });
 
   const createReturn = useMutation({
-    mutationFn: (body: Record<string, string>) => fetch(api(`farms/${farmId}/workshop/returns`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: Record<string, string>) => fetch(api(`farms/${farmId}/workshop/returns`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["workshop-returns", farmId] });
       qc.invalidateQueries({ queryKey: ["workshop-parts", farmId] });
@@ -1634,13 +1634,13 @@ function GoodsReturnsView({ farmId, parts, staffNames, membersLoading }: { farmI
   });
 
   const updateReturn = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: Record<string, string | null> }) => fetch(api(`farms/${farmId}/workshop/returns/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: ({ id, body }: { id: number; body: Record<string, string | null> }) => fetch(api(`farms/${farmId}/workshop/returns/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-returns", farmId] }); setEditReturn(null); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const deleteReturn = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/returns/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/returns/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["workshop-returns", farmId] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -2003,17 +2003,17 @@ function LocationManager({ farmId, onClose }: { farmId: number; onClose: () => v
   const lmRows = data?.rows ?? [];
   const unassignedBays = data?.unassignedBays ?? [];
 
-  const createRow = useMutation({ mutationFn: (b: { name: string; description: string }) => fetch(api(`farms/${farmId}/workshop/rows`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { inv(); setRowForm({ name: "", description: "" }); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
-  const updateRow = useMutation({ mutationFn: ({ id, ...b }: { id: number; name: string; description: string }) => fetch(api(`farms/${farmId}/workshop/rows/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { inv(); setEditingRow(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
-  const deleteRow = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/rows/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()), onSuccess: inv, onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
+  const createRow = useMutation({ mutationFn: (b: { name: string; description: string }) => fetch(api(`farms/${farmId}/workshop/rows`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: () => { inv(); setRowForm({ name: "", description: "" }); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
+  const updateRow = useMutation({ mutationFn: ({ id, ...b }: { id: number; name: string; description: string }) => fetch(api(`farms/${farmId}/workshop/rows/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: () => { inv(); setEditingRow(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
+  const deleteRow = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/rows/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: inv, onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
 
-  const createBay = useMutation({ mutationFn: (b: { name: string; description: string; rowId?: number }) => fetch(api(`farms/${farmId}/workshop/bays`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: (_d: unknown, vars: { name: string; description: string; rowId?: number }) => { inv(); const k = vars.rowId ? `r-${vars.rowId}` : "unassigned"; setBayFormByRow(f => ({ ...f, [k]: { name: "", description: "" } })); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
-  const updateBay = useMutation({ mutationFn: ({ id, ...b }: { id: number; name: string; description: string; rowId?: number }) => fetch(api(`farms/${farmId}/workshop/bays/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { inv(); setEditingBay(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
-  const deleteBay = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/bays/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()), onSuccess: inv, onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
+  const createBay = useMutation({ mutationFn: (b: { name: string; description: string; rowId?: number }) => fetch(api(`farms/${farmId}/workshop/bays`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: (_d: unknown, vars: { name: string; description: string; rowId?: number }) => { inv(); const k = vars.rowId ? `r-${vars.rowId}` : "unassigned"; setBayFormByRow(f => ({ ...f, [k]: { name: "", description: "" } })); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
+  const updateBay = useMutation({ mutationFn: ({ id, ...b }: { id: number; name: string; description: string; rowId?: number }) => fetch(api(`farms/${farmId}/workshop/bays/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: () => { inv(); setEditingBay(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
+  const deleteBay = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/bays/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: inv, onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
 
-  const createShelf = useMutation({ mutationFn: ({ bayId, name, capacity }: { bayId: number; name: string; capacity: string }) => fetch(api(`farms/${farmId}/workshop/bays/${bayId}/shelves`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, capacity: capacity || null }) }).then(r => r.json()), onSuccess: (_d: unknown, vars: { bayId: number; name: string; capacity: string }) => { inv(); setShelfFormByBay(f => ({ ...f, [vars.bayId]: { name: "", capacity: "" } })); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
-  const updateShelf = useMutation({ mutationFn: ({ id, ...b }: { id: number; name: string; capacity: string }) => fetch(api(`farms/${farmId}/workshop/shelves/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { inv(); setEditingShelf(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
-  const deleteShelf = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/shelves/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()), onSuccess: inv, onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
+  const createShelf = useMutation({ mutationFn: ({ bayId, name, capacity }: { bayId: number; name: string; capacity: string }) => fetch(api(`farms/${farmId}/workshop/bays/${bayId}/shelves`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, capacity: capacity || null }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: (_d: unknown, vars: { bayId: number; name: string; capacity: string }) => { inv(); setShelfFormByBay(f => ({ ...f, [vars.bayId]: { name: "", capacity: "" } })); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
+  const updateShelf = useMutation({ mutationFn: ({ id, ...b }: { id: number; name: string; capacity: string }) => fetch(api(`farms/${farmId}/workshop/shelves/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: () => { inv(); setEditingShelf(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
+  const deleteShelf = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/shelves/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: inv, onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
 
   function toggleRow(key: string) { setExpandedRows(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; }); }
   function toggleBay(id: number) { setExpandedBays(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; }); }
@@ -2250,14 +2250,14 @@ function PartPanel({ farmId, part, onClose, onEdit }: {
   });
 
   const deleteDoc = useMutation({
-    mutationFn: (docId: number) => fetch(api(`farms/${farmId}/workshop/parts/${part.id}/documents/${docId}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (docId: number) => fetch(api(`farms/${farmId}/workshop/parts/${part.id}/documents/${docId}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["part-docs", part.id] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const saveDocMeta = useMutation({
     mutationFn: (body: { filename: string; storageKey: string; mimeType: string | null; fileSizeBytes: number | null; uploadedBy: string }) =>
-      fetch(api(`farms/${farmId}/workshop/parts/${part.id}/documents`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(api(`farms/${farmId}/workshop/parts/${part.id}/documents`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["part-docs", part.id] });
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -2537,19 +2537,19 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
   });
 
   const deletePart = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/parts/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/parts/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-parts", farmId] }); setDeleteId(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const receive = useMutation({
-    mutationFn: (body: Record<string, string>) => fetch(api(`farms/${farmId}/workshop/parts/receive`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stockItemId: receivePart?.id, quantity: body.qty, supplierId: body.supplierId || null, unitCostPence: body.unitCostPence || null, invoiceReference: body.invoiceRef, deliveryDate: body.date, notes: body.notes, performedBy: body.performedBy }) }).then(r => r.json()),
+    mutationFn: (body: Record<string, string>) => fetch(api(`farms/${farmId}/workshop/parts/receive`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stockItemId: receivePart?.id, quantity: body.qty, supplierId: body.supplierId || null, unitCostPence: body.unitCostPence || null, invoiceReference: body.invoiceRef, deliveryDate: body.date, notes: body.notes, performedBy: body.performedBy }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-parts", farmId] }); qc.invalidateQueries({ queryKey: ["workshop-parts-movements", farmId] }); setReceiveOpen(false); setReceiveForm({ qty: "", unitCostPence: "", supplierId: "", invoiceRef: "", date: new Date().toISOString().slice(0, 10), notes: "", performedBy: "" }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const useParts = useMutation({
-    mutationFn: (body: Record<string, string>) => fetch(api(`farms/${farmId}/workshop/parts/use`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stockItemId: usePart?.id, quantity: body.qty, jobId: body.jobId || null, performedBy: body.performedBy, notes: body.notes }) }).then(r => r.json()),
+    mutationFn: (body: Record<string, string>) => fetch(api(`farms/${farmId}/workshop/parts/use`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stockItemId: usePart?.id, quantity: body.qty, jobId: body.jobId || null, performedBy: body.performedBy, notes: body.notes }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-parts", farmId] }); qc.invalidateQueries({ queryKey: ["workshop-parts-movements", farmId] }); qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] }); setUseOpen(false); setUseForm({ qty: "", jobId: "", performedBy: "", notes: "" }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
@@ -3461,22 +3461,22 @@ function CustomersTab({ farmId, onViewJobs }: { farmId: number; onViewJobs: () =
   const saveMut = useMutation({
     mutationFn: (body: any) => {
       if (editRecord) {
-        return fetch(api(`farms/${farmId}/farm-customers/${editRecord.id}`), { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json());
+        return fetch(api(`farms/${farmId}/farm-customers/${editRecord.id}`), { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json());
       }
-      return fetch(api(`farms/${farmId}/farm-customers`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json());
+      return fetch(api(`farms/${farmId}/farm-customers`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json());
     },
     onSuccess: () => { toast({ title: editRecord ? "Customer updated" : "Customer added" }); invalidate(); setAddOpen(false); setEditRecord(null); setForm(EMPTY_CUSTOMER); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
   const deactivateMut = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/farm-customers/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/farm-customers/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Customer deactivated" }); invalidate(); setDeactivateId(null); },
     onError: () => toast({ title: "Failed to deactivate", variant: "destructive" }),
   });
 
   const reactivateMut = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/farm-customers/${id}`), { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ isActive: true }) }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/farm-customers/${id}`), { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ isActive: true }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Customer reactivated" }); invalidate(); },
     onError: () => toast({ title: "Failed to reactivate", variant: "destructive" }),
   });
@@ -3733,7 +3733,7 @@ function WorkshopStocktakeView({ farmId }: { farmId: number }) {
 
   const createMut = useMutation({
     mutationFn: (body: { stocktakeDate: string; notes?: string }) =>
-      fetch(api(`farms/${farmId}/workshop/stocktakes`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(api(`farms/${farmId}/workshop/stocktakes`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (data: StocktakeSession) => {
       qc.invalidateQueries({ queryKey: ["workshop-stocktakes", farmId] });
       setNewOpen(false);
@@ -3745,13 +3745,13 @@ function WorkshopStocktakeView({ farmId }: { farmId: number }) {
 
   const updateItemMut = useMutation({
     mutationFn: ({ sessionId, itemId, countedQty }: { sessionId: number; itemId: number; countedQty: string | null }) =>
-      fetch(api(`farms/${farmId}/workshop/stocktakes/${sessionId}/items/${itemId}`), { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ countedQty }) }).then(r => r.json()),
+      fetch(api(`farms/${farmId}/workshop/stocktakes/${sessionId}/items/${itemId}`), { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ countedQty }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-stocktake-detail", farmId, activeId] }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const completeMut = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/stocktakes/${id}/complete`), { method: "POST", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/stocktakes/${id}/complete`), { method: "POST", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["workshop-stocktakes", farmId] });
       qc.invalidateQueries({ queryKey: ["workshop-stocktake-detail", farmId, activeId] });
@@ -3761,7 +3761,7 @@ function WorkshopStocktakeView({ farmId }: { farmId: number }) {
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/stocktakes/${id}`), { method: "DELETE", credentials: "include" }),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/stocktakes/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-stocktakes", farmId] }); setActiveId(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });

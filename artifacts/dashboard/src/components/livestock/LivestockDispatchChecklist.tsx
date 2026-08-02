@@ -196,7 +196,7 @@ export function LivestockDispatchChecklist({ farmId, movementId, onClose }: Prop
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey: ["movements", farmId] });
       qc.invalidateQueries({ queryKey: ["movement-detail", farmId, movementId] });
       toast({ title: signOff ? "Checklist signed off" : "Checklist saved" });
@@ -254,7 +254,7 @@ export function LivestockDispatchChecklist({ farmId, movementId, onClose }: Prop
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ movementDocumentUrl: result?.objectPath }),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey: ["movement-detail", farmId, movementId] });
       toast({ title: "Document uploaded" });
     }

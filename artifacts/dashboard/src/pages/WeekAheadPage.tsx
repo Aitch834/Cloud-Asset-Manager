@@ -135,13 +135,13 @@ function AssignDialog({
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
-        }).then(r => r.json());
+        }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json());
       }
       return fetch(`/api/farms/${farmId}/task-assignments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }).then(r => r.json());
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json());
     },
     onSuccess: (data) => {
       const member = staff.find(s => s.id === Number(memberId));
@@ -350,13 +350,13 @@ function ResourceAssignSection({
       fetch(`/api/farms/${farmId}/task-resource-allocations`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { onRefresh(); setShowPicker(false); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const removeAllocMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/task-resource-allocations/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/task-resource-allocations/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => onRefresh(),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -856,7 +856,7 @@ function GanttView({
       fetch(`/api/farms/${farmId}/task-resource-allocations`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => onAssigned(),
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
@@ -1192,7 +1192,7 @@ function AddReminderPanel({ farmId, days, onClose }: { farmId: number; days: 7 |
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["week-ahead", farmId, days] });
       onClose();
@@ -1396,7 +1396,7 @@ export default function WeekAheadPage() {
   const deleteMut = useMutation({
     mutationFn: (id: string) => {
       const numId = id.replace("planner-", "");
-      return fetch(`/api/farms/${farmId}/planner-events/${numId}`, { method: "DELETE" }).then(r => r.json());
+      return fetch(`/api/farms/${farmId}/planner-events/${numId}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json());
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["week-ahead", farmId, days] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),

@@ -233,7 +233,7 @@ function FlockConversionTab({ farmId }: { farmId: number }) {
   });
 
   const remove = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-sheep-dairy/flock-conversion/${id}`), { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-sheep-dairy/flock-conversion/${id}`), { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-sheep-flock-conv", farmId] }); toast({ title: "Record deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -454,7 +454,7 @@ function OrganicCollectionsTab({ farmId }: { farmId: number }) {
   });
 
   const remove = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-sheep-dairy/collections/${id}`), { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-sheep-dairy/collections/${id}`), { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-sheep-collections", farmId] }); toast({ title: "Record deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -805,7 +805,7 @@ function FeedNutritionTab({ farmId }: { farmId: number }) {
   });
 
   const remove = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-sheep-dairy/feed/${id}`), { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-sheep-dairy/feed/${id}`), { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-sheep-feed", farmId] }); toast({ title: "Record deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -973,7 +973,7 @@ function MastitisTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const del = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-dairy/mastitis-records/${id}`), { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-dairy/mastitis-records/${id}`), { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sheep-dairy-mastitis", farmId] }); toast({ title: "Record deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1135,7 +1135,7 @@ function TreatmentRegisterTab({ farmId }: { farmId: number }) {
   });
 
   const remove = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-sheep-dairy/treatments/${id}`), { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-sheep-dairy/treatments/${id}`), { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-sheep-treatments", farmId] }); toast({ title: "Record deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1337,7 +1337,7 @@ function TuppingTab({ farmId }: { farmId: number }) {
             notes: `Tupping: ${body.tuppingStartDate} → ${body.tuppingEndDate || "—"} | Ram: ${body.ramBreed || ""} ${body.ramTagNumber || ""} | Rx ref: ${body.cidrPrescriptionRef || "—"} | Practice: ${body.cidrVetPractice || "—"} | ORGANIC: doubled withdrawal applied`,
             source: "tupping-record",
           }),
-        });
+        }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       }
       if (cidrUsed && body.createVetVisit === "true" && body.cidrPrescribingVet) {
         await fetch(api(`farms/${farmId}/vet-visits`), {
@@ -1350,7 +1350,7 @@ function TuppingTab({ farmId }: { farmId: number }) {
             prescriptionsIssued: body.cidrPrescriptionRef || null,
             notes: `Tupping: ${body.tuppingStartDate} → ${body.tuppingEndDate || "—"} | Organic — doubled withdrawal applied`,
           }),
-        });
+        }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       }
       if (cidrUsed && body.cidrCostGbp && parseFloat(String(body.cidrCostGbp)) > 0) {
         await fetch(api(`farms/${farmId}/financial-transactions`), {
@@ -1363,7 +1363,7 @@ function TuppingTab({ farmId }: { farmId: number }) {
             reference: body.cidrPrescriptionRef || null, vendorCustomer: body.cidrVetPractice || null,
             notes: "Auto-created from organic tupping record (CIDR/Progesterone cost)",
           }),
-        });
+        }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       }
       return tupping;
     },
@@ -1372,7 +1372,7 @@ function TuppingTab({ farmId }: { farmId: number }) {
   });
 
   const del = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-tupping-records/${id}`), { method: "DELETE", credentials: "include" }),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/sheep-tupping-records/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["sheep-tupping", farmId] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });

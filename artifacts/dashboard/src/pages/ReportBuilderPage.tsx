@@ -690,7 +690,7 @@ export default function ReportBuilderPage() {
 
   const deleteReport = useMutation({
     mutationFn: async (id: number) => {
-      await fetch(`/api/farms/${farmId}/reports/${id}`, { method: "DELETE" });
+      await fetch(`/api/farms/${farmId}/reports/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-reports", farmId] });

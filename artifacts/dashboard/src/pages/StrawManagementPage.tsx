@@ -3072,7 +3072,7 @@ function FusariumKitStockSection({ farmId }: { farmId: number }) {
   });
 
   const del = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/straw/fusarium-test-kit-stock/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/straw/fusarium-test-kit-stock/${id}`, { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["straw-fusarium-kit-stock", farmId] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });

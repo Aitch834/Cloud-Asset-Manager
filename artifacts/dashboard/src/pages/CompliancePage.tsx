@@ -593,19 +593,19 @@ export default function CompliancePage() {
 
   const addTargetM = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      fetch(`/api/farms/${farmId}/feed-stock-targets`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/feed-stock-targets`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-stock-targets", farmId] }); toast({ title: "Species target added" }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateTargetM = useMutation({
     mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
-      fetch(`/api/farms/${farmId}/feed-stock-targets/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/feed-stock-targets/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-stock-targets", farmId] }); toast({ title: "Target updated" }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteTargetM = useMutation({
     mutationFn: (id: number) =>
-      fetch(`/api/farms/${farmId}/feed-stock-targets/${id}`, { method: "DELETE" }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/feed-stock-targets/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-stock-targets", farmId] }); toast({ title: "Target removed" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -675,7 +675,7 @@ export default function CompliancePage() {
     onError: () => toast({ title: "Error saving", variant: "destructive" }),
   });
   const delDiseaseMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/disease-incidents/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/disease-incidents/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { invalidate(); toast({ title: "Record deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -692,7 +692,7 @@ export default function CompliancePage() {
     onError: () => toast({ title: "Error saving", variant: "destructive" }),
   });
   const delRecallMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/feed-recalls/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/feed-recalls/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { invalidate(); toast({ title: "Recall record deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });

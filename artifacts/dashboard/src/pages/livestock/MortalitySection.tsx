@@ -570,17 +570,17 @@ export function MortalitySection({ farmId }: { farmId: number }) {
   }
 
   const createMut = useMutation({
-    mutationFn: (body: typeof EMPTY_FULL) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: typeof EMPTY_FULL) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); qc.invalidateQueries({ queryKey: ["animals", farmId] }); qc.invalidateQueries({ queryKey: ["notifications", farmId] }); setShowFullEdit(false); setFullForm(EMPTY_FULL); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateMut = useMutation({
-    mutationFn: (body: typeof EMPTY_FULL & { id: number }) => fetch(`${base}/${body.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: typeof EMPTY_FULL & { id: number }) => fetch(`${base}/${body.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); qc.invalidateQueries({ queryKey: ["notifications", farmId] }); setEditRecord(null); setShowFullEdit(false); setFullForm(EMPTY_FULL); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); setDeleteId(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });

@@ -92,7 +92,7 @@ export function RaiseTaskDialog({
       fetch(`/api/farms/${farmId}/task-assignments`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         credentials: "include", body: JSON.stringify(body),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["task-assignments", farmId] });
       toast({ title: "Task raised and assigned" });

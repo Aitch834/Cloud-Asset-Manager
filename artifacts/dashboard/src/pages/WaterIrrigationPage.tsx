@@ -76,7 +76,7 @@ function LicencesTab({ farmId }: { farmId: number }) {
   const [raiseTaskFor, setRaiseTaskFor] = useState<Record<string, unknown> | null>(null);
   const { data: licences = [], isLoading } = useQuery({ queryKey: ["water-licences", farmId], queryFn: () => fetch(api(`farms/${farmId}/water-abstraction-licences`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/water-abstraction-licences/${editing.id}`) : api(`farms/${farmId}/water-abstraction-licences`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["water-licences", farmId] }); setOpen(false); setForm({}); setEditing(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/water-abstraction-licences/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["water-licences", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/water-abstraction-licences/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => qc.invalidateQueries({ queryKey: ["water-licences", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   
   const openEdit = (r: Record<string, unknown>) => {
     setEditing(r);
@@ -183,8 +183,8 @@ function MeterReadingsTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const { data: readings = [], isLoading } = useQuery({ queryKey: ["water-readings", farmId], queryFn: () => fetch(api(`farms/${farmId}/water-meter-readings`), { credentials: "include" }).then(r => r.json()) });
-  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/water-meter-readings`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["water-readings", farmId] }); setOpen(false); setForm({}); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/water-meter-readings/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["water-readings", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
+  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/water-meter-readings`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["water-readings", farmId] }); setOpen(false); setForm({}); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/water-meter-readings/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => qc.invalidateQueries({ queryKey: ["water-readings", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   const allReadings = readings as Record<string, unknown>[];
 
   useEffect(() => {
@@ -280,7 +280,7 @@ function BoreholeTestsTab({ farmId }: { farmId: number }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["borehole-tests", farmId] }); setOpen(false); setEditing(null); setForm({}); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/borehole-tests/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["borehole-tests", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/borehole-tests/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => qc.invalidateQueries({ queryKey: ["borehole-tests", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
 
   function openAdd() { setEditing(null); setMode("log"); setForm({}); setOpen(true); }
   function openEdit(r: Record<string, unknown>) { setEditing(r); setMode("edit"); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }
@@ -442,7 +442,7 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
   });
 
   const del = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/irrigation-records/${id}`), { method: "DELETE", credentials: "include" }),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/irrigation-records/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["irrig-records", farmId] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -452,7 +452,7 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
       fetch(api(`farms/${farmId}/irrigation-records/${id}`), {
         method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include",
         body: JSON.stringify({ status: "closed", endDate: new Date().toISOString().slice(0, 10) }),
-      }),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["irrig-records", farmId] }); setConfirmClose(null); },
     onError: () => toast({ title: "Update failed", variant: "destructive" }),
   });
@@ -888,7 +888,7 @@ function IrrigationEquipmentTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const { data: equipment = [], isLoading } = useQuery({ queryKey: ["irrig-equip", farmId], queryFn: () => fetch(api(`farms/${farmId}/irrigation-equipment`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/irrigation-equipment/${editing.id}`) : api(`farms/${farmId}/irrigation-equipment`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["irrig-equip", farmId] }); setOpen(false); setForm({}); setEditing(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/irrigation-equipment/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["irrig-equip", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/irrigation-equipment/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => qc.invalidateQueries({ queryKey: ["irrig-equip", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   
   const openEdit = (r: Record<string, unknown>) => {
     setEditing(r);
@@ -967,7 +967,7 @@ function SoilMoistureTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const { data: records = [], isLoading } = useQuery({ queryKey: ["soil-moisture", farmId], queryFn: () => fetch(api(`farms/${farmId}/soil-moisture-readings`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/soil-moisture-readings/${editing.id}`) : api(`farms/${farmId}/soil-moisture-readings`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["soil-moisture", farmId] }); setOpen(false); setForm({}); setEditing(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/soil-moisture-readings/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["soil-moisture", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/soil-moisture-readings/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => qc.invalidateQueries({ queryKey: ["soil-moisture", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   
   const openEdit = (r: Record<string, unknown>) => {
     setEditing(r);
@@ -1057,7 +1057,7 @@ function DroughtManagementTab({ farmId }: { farmId: number }) {
   const { data: licences = [] } = useQuery({ queryKey: ["water-licences", farmId], queryFn: () => fetch(api(`farms/${farmId}/water-abstraction-licences`), { credentials: "include" }).then(r => r.json()) });
   const { data: records = [], isLoading } = useQuery({ queryKey: ["drought-plans", farmId], queryFn: () => fetch(api(`farms/${farmId}/drought-management-plans`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/drought-management-plans/${editing.id}`) : api(`farms/${farmId}/drought-management-plans`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["drought-plans", farmId] }); setOpen(false); setForm({}); setEditing(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/drought-management-plans/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["drought-plans", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/drought-management-plans/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => qc.invalidateQueries({ queryKey: ["drought-plans", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   
   const openEdit = (r: Record<string, unknown>) => {
     setEditing(r);
@@ -1159,7 +1159,7 @@ function CamsReturnsTab({ farmId }: { farmId: number }) {
   const { data: licences = [] } = useQuery({ queryKey: ["water-licences", farmId], queryFn: () => fetch(api(`farms/${farmId}/water-abstraction-licences`), { credentials: "include" }).then(r => r.json()) });
   const { data: records = [], isLoading } = useQuery({ queryKey: ["cams-returns", farmId], queryFn: () => fetch(api(`farms/${farmId}/cams-annual-returns`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/cams-annual-returns/${editing.id}`) : api(`farms/${farmId}/cams-annual-returns`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["cams-returns", farmId] }); setOpen(false); setForm({}); setEditing(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/cams-annual-returns/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["cams-returns", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/cams-annual-returns/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => qc.invalidateQueries({ queryKey: ["cams-returns", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   
   const openEdit = (r: Record<string, unknown>) => {
     setEditing(r);

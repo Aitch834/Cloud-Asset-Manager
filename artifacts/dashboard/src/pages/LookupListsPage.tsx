@@ -151,7 +151,7 @@ function ParentChildSubRow({
     mutationFn: (itemId: number) =>
       fetch(`/api/farms/${farmId}/lookups/${childKey}/${itemId}`, {
         method: "DELETE",
-      }).then((r) => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then((r) => r.json()),
     onSuccess: () => onChildDeleted(),
     onError: () =>
       toast({
@@ -463,7 +463,7 @@ function LookupListRow({
     mutationFn: (itemId: number) =>
       fetch(`/api/farms/${farmId}/lookups/${def.key}/${itemId}`, {
         method: "DELETE",
-      }).then((r) => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then((r) => r.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lookup-items", def.key] });
       queryClient.invalidateQueries({ queryKey: ["lookups-summary", farmId] });

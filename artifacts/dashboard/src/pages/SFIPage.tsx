@@ -161,34 +161,34 @@ export default function SFIPage() {
 
   // Agreement mutations
   const createAgreement = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/sfi-agreements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/sfi-agreements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Agreement saved" }); invalidate(); setAddAgreementOpen(false); setAgreementForm(emptyAgreement); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
   const updateAgreement = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/sfi-agreements/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/sfi-agreements/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Agreement updated" }); invalidate(); setEditAgreement(null); },
     onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
   const deleteAgreement = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/sfi-agreements/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/sfi-agreements/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteAgreementId(null); },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
   // Action mutations
   const createAction = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/sfi-actions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/sfi-actions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Action saved" }); invalidate(); setAddActionOpen(false); setActionForm(emptyAction); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
   const updateAction = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/sfi-actions/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/sfi-actions/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Action updated" }); invalidate(); setEditAction(null); },
     onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
   const deleteAction = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/sfi-actions/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/sfi-actions/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteActionId(null); },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });

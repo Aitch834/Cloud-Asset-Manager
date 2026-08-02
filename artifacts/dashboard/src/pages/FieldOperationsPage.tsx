@@ -287,7 +287,7 @@ export default function FieldOperationsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-      }).then((r) => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then((r) => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["field-operations", farmId] });
       setShowDialog(false);
@@ -302,7 +302,7 @@ export default function FieldOperationsPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-      }).then((r) => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then((r) => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["field-operations", farmId] });
       setShowDialog(false);
@@ -313,7 +313,7 @@ export default function FieldOperationsPage() {
 
   const deleteMut = useMutation({
     mutationFn: (id: number) =>
-      fetch(`/api/farms/${farmId}/field-operations/${id}`, { method: "DELETE" }).then((r) => r.json()),
+      fetch(`/api/farms/${farmId}/field-operations/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then((r) => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["field-operations", farmId] });
       setConfirmDelete(null);

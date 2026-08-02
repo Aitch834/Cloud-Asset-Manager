@@ -222,17 +222,17 @@ function BcmsCredentialsCard({ farmId, bcmsHoldingNumber }: { farmId: number; bc
   }, [creds, bcmsHoldingNumber]);
 
   const saveMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/bcms-credentials`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/bcms-credentials`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "BCMS credentials saved" }); credsQ.refetch(); setDirty(false); setPassword(""); },
     onError: () => toast({ title: "Failed to save credentials", variant: "destructive" }),
   });
   const testMut = useMutation({
-    mutationFn: () => fetch(`/api/farms/${farmId}/bcms-credentials/test`, { method: "POST" }).then(r => r.json()),
+    mutationFn: () => fetch(`/api/farms/${farmId}/bcms-credentials/test`, { method: "POST" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (d) => toast({ title: d.success ? (d.sandbox ? "Sandbox test passed" : "Connected to CTWS") : "Connection failed", description: d.message, variant: d.success ? "default" : "destructive" }),
     onError: () => toast({ title: "Test failed", variant: "destructive" }),
   });
   const deleteMut = useMutation({
-    mutationFn: () => fetch(`/api/farms/${farmId}/bcms-credentials`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: () => fetch(`/api/farms/${farmId}/bcms-credentials`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Credentials removed" }); credsQ.refetch(); setUsername(""); setPassword(""); setHolding(bcmsHoldingNumber ?? ""); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -445,7 +445,7 @@ function LipConnectionCard({ farmId }: { farmId: number }) {
   }, [farmId]);
 
   const testMut = useMutation({
-    mutationFn: () => fetch(`/api/farms/${farmId}/lip-credentials/test`, { method: "POST" }).then(r => r.json()),
+    mutationFn: () => fetch(`/api/farms/${farmId}/lip-credentials/test`, { method: "POST" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (d) => {
       toast({ title: d.success ? "LIP API reachable" : "LIP API test result", description: d.message, variant: d.success ? "default" : "destructive" });
       credsQ.refetch();
@@ -1035,7 +1035,7 @@ function GpsIntegrationCard({ farmId }: { farmId: number }) {
       await fetch(`/api/farms/${farmId}/gps-integrations/${provider}`, {
         method: "DELETE",
         credentials: "include",
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       toast({ title: "GPS integration removed" });
       integrationsQ.refetch();
     } catch {
@@ -1590,7 +1590,7 @@ function SensorIntegrationCard({ farmId }: { farmId: number }) {
       await fetch(`/api/farms/${farmId}/sensor-integrations/${provider}`, {
         method: "DELETE",
         credentials: "include",
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       toast({ title: "Integration removed" });
       integrationsQ.refetch();
     } catch {

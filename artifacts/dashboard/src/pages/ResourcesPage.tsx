@@ -181,7 +181,7 @@ function ImportPanel({ farmId, onImported }: { farmId: number; onImported: () =>
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items }),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (result) => {
       const count = result.resources?.length ?? 0;
       queryClient.invalidateQueries({ queryKey: ["resources", farmId] });
@@ -577,7 +577,7 @@ function PlannerTaskCard({
           reqOtherNotes: others,
           reqMaterials: materials.filter(m => m.name.trim()).map(m => ({ name: m.name.trim(), quantity: parseFloat(m.quantity) || 0, unit: m.unit.trim() })),
         }),
-      }).then(r => r.json());
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json());
     },
     onSuccess: () => { toast({ title: "Requirements updated" }); setShowEdit(false); onReqsUpdated(); },
     onError: () => toast({ title: "Failed to update requirements", variant: "destructive" }),
@@ -994,13 +994,13 @@ function PlannerTab({ farmId, resources }: { farmId: number; resources: FarmReso
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).then(r => r.json()),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["resource-planner", farmId, fromDate] }),
     onError: () => toast({ title: "Failed to assign resource", variant: "destructive" }),
   });
 
   const removeMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/task-resource-allocations/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/task-resource-allocations/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["resource-planner", farmId, fromDate] }),
     onError: () => toast({ title: "Failed to remove allocation", variant: "destructive" }),
   });
@@ -1393,7 +1393,7 @@ export default function ResourcesPage() {
   });
 
   const archiveMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/resources/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/resources/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["resources", farmId] }); toast({ title: "Resource archived" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1403,7 +1403,7 @@ export default function ResourcesPage() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isActive: true }),
-    }).then(r => r.json()),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["resources", farmId] }); toast({ title: "Resource restored" }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
@@ -1489,7 +1489,7 @@ function ResourcesTabSimple({ farmId, resources, isLoading, showArchived, setSho
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).then(r => r.json()),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { onInvalidate(); setShowForm(false); toast({ title: "Resource added" }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
@@ -1499,7 +1499,7 @@ function ResourcesTabSimple({ farmId, resources, isLoading, showArchived, setSho
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).then(r => r.json()),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { onInvalidate(); setEditingResource(null); toast({ title: "Resource updated" }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
@@ -1657,7 +1657,7 @@ function ActualCompletionModal({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...data, actualMaterials: data.actualMaterials }),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Actuals recorded ✓" }); onSaved(); onClose(); },
     onError: () => toast({ title: "Failed to save actuals", variant: "destructive" }),
   });
@@ -1668,7 +1668,7 @@ function ActualCompletionModal({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clearActuals: true }),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Actuals cleared" }); onSaved(); onClose(); },
     onError: () => toast({ title: "Failed to clear actuals", variant: "destructive" }),
   });
@@ -1907,7 +1907,7 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reqCommitted: committed }),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["planner-events-all", farmId] });
       toast({ title: vars.committed ? "Task committed ✓" : "Commitment removed" });

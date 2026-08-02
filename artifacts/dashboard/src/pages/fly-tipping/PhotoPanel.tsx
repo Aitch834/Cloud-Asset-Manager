@@ -15,7 +15,7 @@ export function PhotoPanel({ incidentId, farmId, photos, resource = "fly-tipping
   const invalidateKey = queryKey ?? ["fly-tipping", farmId];
 
   const deleteMut = useMutation({
-    mutationFn: (photoId: number) => fetch(`/api/farms/${farmId}/${resource}/${incidentId}/photos/${photoId}`, { method: "DELETE" }),
+    mutationFn: (photoId: number) => fetch(`/api/farms/${farmId}/${resource}/${incidentId}/photos/${photoId}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => qc.invalidateQueries({ queryKey: invalidateKey }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });

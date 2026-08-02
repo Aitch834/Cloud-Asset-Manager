@@ -229,13 +229,13 @@ function SyntheticHistoryPanel({
   const addPersisted = useMutation({
     mutationFn: (body: Record<string, unknown>) => fetch(api(`farms/${farmId}/organic-fp-block-status/${blockStatusId}/synthetic-history`), {
       method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body),
-    }),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["synth-history", blockStatusId] }); setAddMode("none"); setManualForm({ ...EMPTY_SYNTH }); setSelectedSprayId(""); toast({ title: "Entry added" }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const removePersisted = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp-synthetic-history/${id}`), { method: "DELETE", credentials: "include" }),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp-synthetic-history/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["synth-history", blockStatusId] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -542,7 +542,7 @@ function BlockStatusTab({ farmId, farmName }: { farmId: number; farmName: string
           fetch(api(`farms/${farmId}/organic-fp-block-status/${data.id}/synthetic-history`), {
             method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
             body: JSON.stringify(entry),
-          })
+          }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; })
         ));
         qc.invalidateQueries({ queryKey: ["synth-history", data.id] });
       }
@@ -553,7 +553,7 @@ function BlockStatusTab({ farmId, farmName }: { farmId: number; farmName: string
   });
 
   const del = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp-block-status/${id}`), { method: "DELETE", credentials: "include" }),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp-block-status/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ofp-block-status", farmId] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -825,7 +825,7 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
   });
 
   const del = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp-input-log/${id}`), { method: "DELETE", credentials: "include" }),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp-input-log/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ofp-input-log", farmId] }); toast({ title: "Input deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1202,7 +1202,7 @@ function CertificatesTab({ farmId, farmName }: { farmId: number; farmName: strin
   });
 
   const del = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp-certificates/${id}`), { method: "DELETE", credentials: "include" }),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp-certificates/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ofp-certificates", farmId] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1383,7 +1383,7 @@ function BuyerDeclarationsTab({ farmId, farmName }: { farmId: number; farmName: 
   });
 
   const del = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp-buyer-declarations/${id}`), { method: "DELETE", credentials: "include" }),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp-buyer-declarations/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ofp-buyer-decls", farmId] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1722,7 +1722,7 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
   });
 
   const deleteCase = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp/input-derogations/${id}`), { method: "DELETE", credentials: "include" }),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-fp/input-derogations/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ofp-input-derogations", farmId] }); toast({ title: "Case deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1744,14 +1744,14 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
 
   const deleteCorresp = useMutation({
     mutationFn: ({ id, caseId }: { id: number; caseId: number }) =>
-      fetch(api(`farms/${farmId}/organic-fp/input-derogation-correspondence/${id}`), { method: "DELETE", credentials: "include" })
+      fetch(api(`farms/${farmId}/organic-fp/input-derogation-correspondence/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; })
         .then(() => { loadCorrespDocs(caseId); }),
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
   const deleteDoc = useMutation({
     mutationFn: ({ id, caseId }: { id: number; caseId: number }) =>
-      fetch(api(`farms/${farmId}/organic-fp/input-derogation-documents/${id}`), { method: "DELETE", credentials: "include" })
+      fetch(api(`farms/${farmId}/organic-fp/input-derogation-documents/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; })
         .then(() => { loadCorrespDocs(caseId); }),
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
@@ -1762,8 +1762,8 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
       const presign = await fetch("/api/storage/uploads/request-url", {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
         body: JSON.stringify({ fileName: file.name, contentType: file.type, recordType: "organic_fp_derogation" }),
-      }).then(r => r.json());
-      await fetch(presign.uploadUrl, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json());
+      await fetch(presign.uploadUrl, { method: "PUT", body: file, headers: { "Content-Type": file.type } }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       await fetch(api(`farms/${farmId}/organic-fp/input-derogations/${caseId}/documents`), {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
         body: JSON.stringify({ fileKey: presign.storageKey ?? presign.fileKey, fileName: file.name, fileSize: file.size, documentType: uploadDocType, mimeType: file.type }),

@@ -272,9 +272,9 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
 
   const mut = useMutation({
     mutationFn: async (vars: { action: "create"; body: any } | { action: "update"; id: number; body: any } | { action: "delete"; id: number }) => {
-      if (vars.action === "create") return fetch(`/api/farms/${farmId}/fly-tipping`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(vars.body) }).then(r => r.json());
-      if (vars.action === "update") return fetch(`/api/farms/${farmId}/fly-tipping/${vars.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(vars.body) }).then(r => r.json());
-      return fetch(`/api/farms/${farmId}/fly-tipping/${vars.id}`, { method: "DELETE" });
+      if (vars.action === "create") return fetch(`/api/farms/${farmId}/fly-tipping`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(vars.body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json());
+      if (vars.action === "update") return fetch(`/api/farms/${farmId}/fly-tipping/${vars.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(vars.body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json());
+      return fetch(`/api/farms/${farmId}/fly-tipping/${vars.id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["fly-tipping", farmId] });

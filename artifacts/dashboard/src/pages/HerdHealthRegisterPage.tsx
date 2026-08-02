@@ -349,7 +349,7 @@ function ClinicalEventDialog({ open, onClose, farmId, herds, editRecord, onSaved
 function DeleteDialog({ record, farmId, onClose, onDeleted }: { record: any; farmId: number; onClose: () => void; onDeleted: () => void }) {
   const { toast } = useToast();
   const deleteMut = useMutation({
-    mutationFn: () => fetch(`/api/farms/${farmId}/herd-health-events/${record.id}`, { method: "DELETE" }),
+    mutationFn: () => fetch(`/api/farms/${farmId}/herd-health-events/${record.id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Event deleted" }); onDeleted(); onClose(); },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });

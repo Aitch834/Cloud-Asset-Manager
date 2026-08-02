@@ -159,7 +159,7 @@ function SubmissionStatusPanel({ farmId, weekStart, onSelectStaff }: { farmId: n
     mutationFn: () => fetch(`/api/farms/${farmId}/labour/settings`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ timesheetReminderTime: reminderTime }),
-    }).then(r => r.json()),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Reminder time saved" }); qc.invalidateQueries({ queryKey: ["labour-settings", farmId] }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
@@ -355,17 +355,17 @@ function TimesheetsTab({ farmId, staffNames, staffMembers }: { farmId: number; s
   });
 
   const addMut = useMutation({
-    mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/timesheets`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/timesheets`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Entry saved" }); qc.invalidateQueries({ queryKey: ["labour-timesheets", farmId] }); qc.invalidateQueries({ queryKey: ["labour-submission-status", farmId] }); setAddOpen(false); setEditItem(null); setForm(emptyForm()); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const editMut = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: object }) => fetch(`/api/farms/${farmId}/labour/timesheets/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: ({ id, body }: { id: number; body: object }) => fetch(`/api/farms/${farmId}/labour/timesheets/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Entry updated" }); qc.invalidateQueries({ queryKey: ["labour-timesheets", farmId] }); qc.invalidateQueries({ queryKey: ["labour-submission-status", farmId] }); setEditItem(null); setAddOpen(false); setForm(emptyForm()); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const delMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/labour/timesheets/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/labour/timesheets/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Entry deleted" }); qc.invalidateQueries({ queryKey: ["labour-timesheets", farmId] }); qc.invalidateQueries({ queryKey: ["labour-submission-status", farmId] }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -910,7 +910,7 @@ function RotaTab({ farmId, staffNames, staffMembers }: { farmId: number; staffNa
   const logAbsenceMut = useMutation({
     mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/absences`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-    }).then(r => r.json()),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       toast({ title: "Annual leave logged and deducted from entitlement" });
       qc.invalidateQueries({ queryKey: ["labour-absences", farmId] });
@@ -922,7 +922,7 @@ function RotaTab({ farmId, staffNames, staffMembers }: { farmId: number; staffNa
   const logAttMut = useMutation({
     mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/actual-attendance`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-    }).then(r => r.json()),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (_data, variables) => {
       const v = variables as { staffName: string; date: string; actualStatus: string };
       toast({ title: "Attendance logged" });
@@ -963,13 +963,13 @@ function RotaTab({ farmId, staffNames, staffMembers }: { farmId: number; staffNa
         await fetch(`/api/farms/${farmId}/labour/rota/${existing.id}`, {
           method: "PUT", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ...existing, [dayKey]: shiftVal === "none" ? null : shiftVal }),
-        });
+        }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       } else {
         const body: Record<string, string | null> = { weekStartDate: isoDate(weekStart), staffName };
         DAY_KEYS.forEach(k => { body[k] = k === dayKey ? (shiftVal === "none" ? null : shiftVal) : null; });
         await fetch(`/api/farms/${farmId}/labour/rota`, {
           method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-        });
+        }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       }
       qc.invalidateQueries({ queryKey: ["labour-rota", farmId, isoDate(weekStart)] });
       qc.invalidateQueries({ queryKey: ["labour-rota", farmId] });
@@ -1389,23 +1389,23 @@ function AbsenceTab({ farmId, staffNames, onPendingCount, staffMembers }: { farm
   });
 
   const addMut = useMutation({
-    mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/absences`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/absences`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Absence recorded" }); qc.invalidateQueries({ queryKey: ["labour-absences", farmId] }); setAddOpen(false); setEditItem(null); setForm(emptyForm()); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const editMut = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: object }) => fetch(`/api/farms/${farmId}/labour/absences/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: ({ id, body }: { id: number; body: object }) => fetch(`/api/farms/${farmId}/labour/absences/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Absence updated" }); qc.invalidateQueries({ queryKey: ["labour-absences", farmId] }); setAddOpen(false); setEditItem(null); setForm(emptyForm()); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const delMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/labour/absences/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/labour/absences/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Deleted" }); qc.invalidateQueries({ queryKey: ["labour-absences", farmId] }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
   const approveMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: object }) =>
-      fetch(`/api/farms/${farmId}/labour/absences/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/labour/absences/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["labour-absences", farmId] });
       toast({ title: "Leave request approved" });
@@ -1416,12 +1416,12 @@ function AbsenceTab({ farmId, staffNames, onPendingCount, staffMembers }: { farm
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const addEntMut = useMutation({
-    mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/entitlements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/entitlements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Entitlement set" }); qc.invalidateQueries({ queryKey: ["labour-entitlements", farmId] }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const editEntMut = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: object }) => fetch(`/api/farms/${farmId}/labour/entitlements/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: ({ id, body }: { id: number; body: object }) => fetch(`/api/farms/${farmId}/labour/entitlements/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Entitlement updated" }); qc.invalidateQueries({ queryKey: ["labour-entitlements", farmId] }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
@@ -1512,11 +1512,11 @@ function AbsenceTab({ farmId, staffNames, onPendingCount, staffMembers }: { farm
         if (existing) {
           const update: Record<string, unknown> = { ...existing };
           for (const dk of dayKeys) update[dk] = "holiday";
-          await fetch(`/api/farms/${farmId}/labour/rota/${existing.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(update) });
+          await fetch(`/api/farms/${farmId}/labour/rota/${existing.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(update) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
         } else {
           const body: Record<string, string | null> = { weekStartDate: weekStart, staffName: absence.staffName };
           for (const dk of dayKeys) body[dk] = "holiday";
-          await fetch(`/api/farms/${farmId}/labour/rota`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+          await fetch(`/api/farms/${farmId}/labour/rota`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
         }
       }
       qc.invalidateQueries({ queryKey: ["labour-rota", farmId] });
@@ -2225,7 +2225,7 @@ function ActualAttendanceTab({ farmId, staffNames, staffMembers }: { farmId: num
   const saveMut = useMutation({
     mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/actual-attendance`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-    }).then(r => r.json()),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["labour-actual-attendance", farmId] });
       qc.invalidateQueries({ queryKey: ["labour-actual-attendance-year", farmId] });
@@ -2509,17 +2509,17 @@ function PaySummaryTab({ farmId, staffNames, staffMembers }: { farmId: number; s
   });
 
   const addRateMut = useMutation({
-    mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/rates`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: object) => fetch(`/api/farms/${farmId}/labour/rates`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Rate saved" }); qc.invalidateQueries({ queryKey: ["labour-rates", farmId] }); setRateOpen(false); setEditRate(null); setRateForm(emptyRate()); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const editRateMut = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: object }) => fetch(`/api/farms/${farmId}/labour/rates/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: ({ id, body }: { id: number; body: object }) => fetch(`/api/farms/${farmId}/labour/rates/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Rate updated" }); qc.invalidateQueries({ queryKey: ["labour-rates", farmId] }); setRateOpen(false); setEditRate(null); setRateForm(emptyRate()); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const delRateMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/labour/rates/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/labour/rates/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Rate deleted" }); qc.invalidateQueries({ queryKey: ["labour-rates", farmId] }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -2755,9 +2755,9 @@ function WorkingTimeTab({ farmId, staffNames, staffMembers }: { farmId: number; 
   const toggleOptOut = async (name: string, current: boolean) => {
     const ent = entitlements.find(e => e.staffName === name && e.year === new Date().getFullYear());
     if (ent) {
-      await fetch(`/api/farms/${farmId}/labour/entitlements/${ent.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...ent, wtrOptOut: !current }) });
+      await fetch(`/api/farms/${farmId}/labour/entitlements/${ent.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...ent, wtrOptOut: !current }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     } else {
-      await fetch(`/api/farms/${farmId}/labour/entitlements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ staffName: name, year: new Date().getFullYear(), entitlementDays: "28", carriedOverDays: "0", wtrOptOut: !current }) });
+      await fetch(`/api/farms/${farmId}/labour/entitlements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ staffName: name, year: new Date().getFullYear(), entitlementDays: "28", carriedOverDays: "0", wtrOptOut: !current }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     }
     qc.invalidateQueries({ queryKey: ["labour-entitlements", farmId] });
     toast({ title: `WTR opt-out ${!current ? "recorded" : "removed"} for ${name}` });
@@ -2987,16 +2987,16 @@ function StaffHoursCrossRefTab({ farmId, staffNames }: { farmId: number; staffNa
   const saveAnnot = useMutation({
     mutationFn: async (body: object) => {
       if (annotating?.existing) {
-        return fetch(`/api/farms/${farmId}/labour/crossref-annotations/${annotating.existing.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
+        return fetch(`/api/farms/${farmId}/labour/crossref-annotations/${annotating.existing.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json());
       }
-      return fetch(`/api/farms/${farmId}/labour/crossref-annotations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
+      return fetch(`/api/farms/${farmId}/labour/crossref-annotations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json());
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["labour-crossref-annotations", farmId] }); toast({ title: "Annotation saved" }); setAnnotating(null); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const delAnnot = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/labour/crossref-annotations/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/labour/crossref-annotations/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["labour-crossref-annotations", farmId] }); toast({ title: "Annotation removed" }); setAnnotating(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });

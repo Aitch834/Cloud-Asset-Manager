@@ -451,7 +451,7 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
   });
 
   const deleteMov = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/storage-locations/${locationId}/movements/${id}`, { method: "DELETE", credentials: "include" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/storage-locations/${locationId}/movements/${id}`, { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["location-movements", farmId, locationId] }); setDeleteMovId(null); toast({ title: "Movement deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -928,14 +928,14 @@ function MerchantChargesPanel({ farmId, locationId, location }: { farmId: number
   });
 
   const deleteCharge = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/storage-locations/${locationId}/charges/${id}`, { method: "DELETE", credentials: "include" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/storage-locations/${locationId}/charges/${id}`, { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["merchant-charges", farmId, locationId] }); setDeleteChargeId(null); toast({ title: "Charge deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const autoGenMut = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      fetch(`/api/farms/${farmId}/storage-locations/${locationId}/charges/auto-generate`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then((r) => r.json()),
+      fetch(`/api/farms/${farmId}/storage-locations/${locationId}/charges/auto-generate`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then((r) => r.json()),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["merchant-charges", farmId, locationId] });
       setAutoGenOpen(false); setAutoGenForm(emptyAutoGen());
@@ -1262,7 +1262,7 @@ function GrainDryingTab({ farmId, locationId }: { farmId: number; locationId: nu
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/grain-drying/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/grain-drying/${id}`, { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-drying", farmId, locationId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1418,7 +1418,7 @@ function GrainConditioningTab({ farmId, locationId }: { farmId: number; location
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/grain-conditioning/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/grain-conditioning/${id}`, { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-conditioning", farmId, locationId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1596,7 +1596,7 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
   });
 
   const deleteTest = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/grain-quality-tests/${id}`, { method: "DELETE", credentials: "include" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/grain-quality-tests/${id}`, { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["grain-quality-tests", farmId, locationId] });
       setDeleteTestId(null); toast({ title: "Test deleted" });
@@ -1620,7 +1620,7 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
   });
 
   const deleteTemp = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/grain-temperature-logs/${id}`, { method: "DELETE", credentials: "include" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/grain-temperature-logs/${id}`, { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["grain-temperature-logs", farmId, locationId] });
       setDeleteTempId(null); toast({ title: "Log deleted" });
@@ -2094,7 +2094,7 @@ export default function StorageLocationsPage() {
 
   const deleteMut = useMutation({
     mutationFn: async (id: number) => {
-      await fetch(`/api/farms/${farmId}/storage-locations/${id}`, { method: "DELETE", credentials: "include" });
+      await fetch(`/api/farms/${farmId}/storage-locations/${id}`, { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["storage-locations", farmId] });
@@ -2410,7 +2410,7 @@ export default function StorageLocationsPage() {
               await fetch(`/api/farms/${farmId}/storage-locations/${qrLocation.id}`, {
                 method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include",
                 body: JSON.stringify({ storageCode: code }),
-              });
+              }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
               qc.invalidateQueries({ queryKey: ["storage-locations", farmId] });
               setQrLocation((prev) => prev ? { ...prev, storageCode: code } : null);
             } finally { setIsSavingStorageCode(false); }

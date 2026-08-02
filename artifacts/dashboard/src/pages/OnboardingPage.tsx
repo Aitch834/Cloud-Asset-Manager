@@ -136,7 +136,7 @@ export default function OnboardingPage() {
             method: "PUT",
             headers: { "Content-Type": "application/json", "x-tenant-slug": createdTenantSlug },
             body: JSON.stringify({ name: farmName, ...updated }),
-          }).catch(() => {});
+          }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).catch(() => {});
         }
       }
     }

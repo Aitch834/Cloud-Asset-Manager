@@ -107,7 +107,7 @@ function WeighTab({ farmId, onRaiseTask }: { farmId: number; onRaiseTask: (row: 
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["beef-weigh", farmId] }); setOpen(false); setForm({}); setEditing(null); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/beef-weigh-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["beef-weigh", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/beef-weigh-records/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => qc.invalidateQueries({ queryKey: ["beef-weigh", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   const [yearFilter, setYearFilter] = useState("all");
@@ -235,7 +235,7 @@ function FinishingTab({ farmId }: { farmId: number }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["beef-finishing", farmId] }); setOpen(false); setForm({}); setEditing(null); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/beef-finishing-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["beef-finishing", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/beef-finishing-records/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => qc.invalidateQueries({ queryKey: ["beef-finishing", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   const [yearFilter, setYearFilter] = useState("all");
@@ -370,7 +370,7 @@ function DeadweightTab({ farmId }: { farmId: number }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["beef-deadweight", farmId] }); setOpen(false); setForm({}); setEditing(null); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/beef-deadweight-settlements/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["beef-deadweight", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/beef-deadweight-settlements/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => qc.invalidateQueries({ queryKey: ["beef-deadweight", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
   const years = useMemo(() => Array.from(new Set((rows as Record<string, unknown>[]).map(r => String(r.killDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [rows]);
   const filtered = useMemo(() => yearFilter === "all" ? rows as Record<string, unknown>[] : (rows as Record<string, unknown>[]).filter(r => String(r.killDate ?? "").startsWith(yearFilter)), [rows, yearFilter]);
@@ -474,7 +474,7 @@ function RTChecklistTab({ farmId }: { farmId: number }) {
   const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
   const staffNames = (membersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
   const save = useMutation({ mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/beef-rt-checklists/${editing.id}`) : api(`farms/${farmId}/beef-rt-checklists`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); }, onSuccess: () => { qc.invalidateQueries({ queryKey: ["beef-rt", farmId] }); setOpen(false); setForm({}); setEditing(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/beef-rt-checklists/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["beef-rt", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/beef-rt-checklists/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => qc.invalidateQueries({ queryKey: ["beef-rt", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
   const boolFields = ["cattlePassportsCurrent","herdRegisterUpToDate","movementRecordsComplete","medicineRecordsComplete","feedRecordsComplete","mbmFreeStatus","tbStatusCurrent","assuranceMembershipCurrent","vetHealthPlanOnFile","staffTrainingCurrent"];
   const boolLabels: Record<string, string> = { cattlePassportsCurrent: "Cattle passports current & on farm", herdRegisterUpToDate: "Herd register up to date", movementRecordsComplete: "Movement records complete", medicineRecordsComplete: "Medicine records complete", feedRecordsComplete: "Feed records complete", mbmFreeStatus: "MBM-free status confirmed", tbStatusCurrent: "TB test status current", assuranceMembershipCurrent: "Assurance membership current", vetHealthPlanOnFile: "Vet health plan on file", staffTrainingCurrent: "Staff training current" };

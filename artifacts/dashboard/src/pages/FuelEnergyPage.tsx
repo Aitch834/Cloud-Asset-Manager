@@ -689,20 +689,20 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
     qc.invalidateQueries({ queryKey: ["solar-payments", farmId] });
   };
 
-  const createInstallMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-installations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Installation added" }); qc.invalidateQueries({ queryKey: ["solar-installations", farmId] }); setShowInstallDialog(false); setInstallForm(EMPTY_INSTALL); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
-  const updateInstallMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-installations/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Installation updated" }); qc.invalidateQueries({ queryKey: ["solar-installations", farmId] }); setShowInstallDialog(false); setEditInstall(null); setInstallForm(EMPTY_INSTALL); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
-  const deleteInstallMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/solar-installations/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { toast({ title: "Deleted" }); qc.invalidateQueries({ queryKey: ["solar-installations", farmId] }); setDeleteInstallId(null); }, onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
+  const createInstallMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-installations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: () => { toast({ title: "Installation added" }); qc.invalidateQueries({ queryKey: ["solar-installations", farmId] }); setShowInstallDialog(false); setInstallForm(EMPTY_INSTALL); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
+  const updateInstallMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-installations/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: () => { toast({ title: "Installation updated" }); qc.invalidateQueries({ queryKey: ["solar-installations", farmId] }); setShowInstallDialog(false); setEditInstall(null); setInstallForm(EMPTY_INSTALL); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
+  const deleteInstallMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/solar-installations/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: () => { toast({ title: "Deleted" }); qc.invalidateQueries({ queryKey: ["solar-installations", farmId] }); setDeleteInstallId(null); }, onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
 
   const { uploadFile, isUploading: isInstallDocUploading } = useUpload();
   const createDocMut = useMutation({
     mutationFn: (body: { installationId: number; documentType: string; fileName: string; storageKey: string; notes?: string }) =>
-      fetch(`${base}/solar-installations/${body.installationId}/documents`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`${base}/solar-installations/${body.installationId}/documents`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Document saved" }); refetchDocs(); setDocUploadNotes(""); setDocUploadType("other"); },
     onError: () => toast({ title: "Upload failed", variant: "destructive" }),
   });
   const deleteDocMut = useMutation({
     mutationFn: ({ installId, docId }: { installId: number; docId: number }) =>
-      fetch(`${base}/solar-installations/${installId}/documents/${docId}`, { method: "DELETE" }).then(r => r.json()),
+      fetch(`${base}/solar-installations/${installId}/documents/${docId}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Document removed" }); refetchDocs(); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -742,13 +742,13 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
     { value: "other", label: "Other Document" },
   ];
 
-  const createGenMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-generation`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Reading logged" }); qc.invalidateQueries({ queryKey: ["solar-generation", farmId] }); setShowGenDialog(false); setGenForm(EMPTY_GEN); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
-  const updateGenMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-generation/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Reading updated" }); qc.invalidateQueries({ queryKey: ["solar-generation", farmId] }); setShowGenDialog(false); setEditGen(null); setGenForm(EMPTY_GEN); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
-  const deleteGenMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/solar-generation/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { toast({ title: "Deleted" }); qc.invalidateQueries({ queryKey: ["solar-generation", farmId] }); setDeleteGenId(null); }, onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
+  const createGenMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-generation`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: () => { toast({ title: "Reading logged" }); qc.invalidateQueries({ queryKey: ["solar-generation", farmId] }); setShowGenDialog(false); setGenForm(EMPTY_GEN); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
+  const updateGenMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-generation/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: () => { toast({ title: "Reading updated" }); qc.invalidateQueries({ queryKey: ["solar-generation", farmId] }); setShowGenDialog(false); setEditGen(null); setGenForm(EMPTY_GEN); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
+  const deleteGenMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/solar-generation/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: () => { toast({ title: "Deleted" }); qc.invalidateQueries({ queryKey: ["solar-generation", farmId] }); setDeleteGenId(null); }, onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
 
-  const createPaymentMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-export-payments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...b, paymentAmountPence: b.paymentAmountPence ? Math.round(parseFloat(b.paymentAmountPence) * 100) : 0 }) }).then(r => r.json()), onSuccess: () => { toast({ title: "Payment recorded" }); qc.invalidateQueries({ queryKey: ["solar-payments", farmId] }); setShowPaymentDialog(false); setPaymentForm(EMPTY_PAYMENT); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
-  const updatePaymentMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-export-payments/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...b, paymentAmountPence: b.paymentAmountPence ? Math.round(parseFloat(b.paymentAmountPence) * 100) : undefined }) }).then(r => r.json()), onSuccess: () => { toast({ title: "Payment updated" }); qc.invalidateQueries({ queryKey: ["solar-payments", farmId] }); setShowPaymentDialog(false); setEditPayment(null); setPaymentForm(EMPTY_PAYMENT); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
-  const deletePaymentMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/solar-export-payments/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { toast({ title: "Deleted" }); qc.invalidateQueries({ queryKey: ["solar-payments", farmId] }); setDeletePaymentId(null); }, onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
+  const createPaymentMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-export-payments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...b, paymentAmountPence: b.paymentAmountPence ? Math.round(parseFloat(b.paymentAmountPence) * 100) : 0 }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: () => { toast({ title: "Payment recorded" }); qc.invalidateQueries({ queryKey: ["solar-payments", farmId] }); setShowPaymentDialog(false); setPaymentForm(EMPTY_PAYMENT); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
+  const updatePaymentMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-export-payments/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...b, paymentAmountPence: b.paymentAmountPence ? Math.round(parseFloat(b.paymentAmountPence) * 100) : undefined }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: () => { toast({ title: "Payment updated" }); qc.invalidateQueries({ queryKey: ["solar-payments", farmId] }); setShowPaymentDialog(false); setEditPayment(null); setPaymentForm(EMPTY_PAYMENT); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
+  const deletePaymentMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/solar-export-payments/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()), onSuccess: () => { toast({ title: "Deleted" }); qc.invalidateQueries({ queryKey: ["solar-payments", farmId] }); setDeletePaymentId(null); }, onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
 
   void invalidateAll;
   const techLabel = (t: string) => TECH_TYPES.find(x => x.value === t)?.label ?? t;
@@ -1500,7 +1500,7 @@ export default function FuelEnergyPage() {
     onError: () => toast({ title: "Error saving tank", variant: "destructive" }),
   });
   const delTankMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/fuel/tanks/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/fuel/tanks/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { invalidate(); toast({ title: "Tank removed" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1529,7 +1529,7 @@ export default function FuelEnergyPage() {
     onError: () => toast({ title: "Error updating delivery", variant: "destructive" }),
   });
   const delDeliveryMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/fuel/deliveries/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/fuel/deliveries/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { invalidate(); toast({ title: "Delivery removed" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1553,7 +1553,7 @@ export default function FuelEnergyPage() {
     onError: () => toast({ title: "Error saving usage", variant: "destructive" }),
   });
   const delUsageMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/fuel/usage/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/fuel/usage/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { invalidate(); toast({ title: "Record removed" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1571,7 +1571,7 @@ export default function FuelEnergyPage() {
     onError: () => toast({ title: "Error saving inspection", variant: "destructive" }),
   });
   const delInspMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/fuel/storage-inspections/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/fuel/storage-inspections/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { invalidate(); toast({ title: "Inspection removed" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1591,7 +1591,7 @@ export default function FuelEnergyPage() {
     onError: () => toast({ title: "Error saving meter", variant: "destructive" }),
   });
   const delMeterMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/energy/meters/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/energy/meters/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { invalidate(); toast({ title: "Meter removed" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1609,7 +1609,7 @@ export default function FuelEnergyPage() {
     onError: () => toast({ title: "Error saving reading", variant: "destructive" }),
   });
   const delReadingMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/energy/readings/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/energy/readings/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { invalidate(); toast({ title: "Reading removed" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1629,7 +1629,7 @@ export default function FuelEnergyPage() {
     onError: () => toast({ title: "Error saving stock check", variant: "destructive" }),
   });
   const delStockCheckMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/fuel/stock-checks/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/fuel/stock-checks/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { invalidate(); toast({ title: "Stock check removed" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });

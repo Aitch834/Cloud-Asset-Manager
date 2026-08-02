@@ -304,7 +304,7 @@ function StockLevelsTab({ levels, products, loading, farmId, onRefresh, toast, q
   const [search, setSearch] = useState("");
 
   const adjMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/stock-movements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/stock-movements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Adjustment saved" }); onRefresh(); setAdjOpen(false); setAdjForm({ stockItemId: "", quantityChange: "", movementType: "adjustment", notes: "" }); },
     onError: () => toast({ title: "Failed to save adjustment", variant: "destructive" }),
   });
@@ -435,7 +435,7 @@ function GoodsReceivedTab({ deliveries, products, suppliers, purchaseOrders, loa
   const staffNames = (membersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
 
   const createMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/stock-deliveries`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, costPence: body.costPence ? Math.round(parseFloat(body.costPence) * 100) : null }) }),
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/stock-deliveries`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, costPence: body.costPence ? Math.round(parseFloat(body.costPence) * 100) : null }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Goods received logged (GRN auto-generated)" }); onRefresh(); setOpen(false); setForm(emptyForm); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
@@ -449,7 +449,7 @@ function GoodsReceivedTab({ deliveries, products, suppliers, purchaseOrders, loa
         amountPence: body.amountPence ? Math.round(parseFloat(body.amountPence) * 100) : 0,
         vatAmountPence: body.vatAmountPence ? Math.round(parseFloat(body.vatAmountPence) * 100) : null,
       }),
-    }),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => {
       toast({ title: "Invoice linked to Financial Records" });
       onRefresh();
@@ -813,12 +813,12 @@ function ProductsTab({ products, suppliers, loading, farmId, onRefresh, toast }:
   const resetForm = () => setForm({ name: "", category: "", productCode: "", mappNumber: "", unit: "", reorderLevel: "", storageLocation: "", defaultSupplierId: "", notes: "", approvalRequired: false, approverId: "" });
 
   const createMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/stock-items`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/stock-items`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Product added" }); onRefresh(); setOpen(false); resetForm(); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
   const updateMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/stock-items/${editItem.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/stock-items/${editItem.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Product updated" }); onRefresh(); setOpen(false); setEditItem(null); resetForm(); },
     onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
@@ -1085,13 +1085,13 @@ function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, fa
   });
 
   const createMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/purchase-orders`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/purchase-orders`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Purchase Order created" }); onRefresh(); setOpen(false); setForm(emptyForm); setLines([{ ...emptyLine }]); },
     onError: () => toast({ title: "Failed to create PO", variant: "destructive" }),
   });
 
   const updateStatusMut = useMutation({
-    mutationFn: ({ poId, status }: any) => fetch(`/api/farms/${farmId}/purchase-orders/${poId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) }),
+    mutationFn: ({ poId, status }: any) => fetch(`/api/farms/${farmId}/purchase-orders/${poId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Status updated" }); onRefresh(); if (viewPo) qc.invalidateQueries({ queryKey: ["purchase-order-detail", viewPo.id] }); },
     onError: () => toast({ title: "Failed to update status", variant: "destructive" }),
   });
@@ -1716,24 +1716,24 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
   const resetForm = () => setForm(emptyForm);
 
   const createMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/suppliers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/suppliers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Trade contact added" }); onRefresh(); setOpen(false); resetForm(); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
   const updateMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/suppliers/${editItem.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/suppliers/${editItem.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Trade contact updated" }); onRefresh(); setOpen(false); setEditItem(null); resetForm(); },
     onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
 
   const deactivateMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/suppliers/${id}/deactivate`, { method: "PATCH" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/suppliers/${id}/deactivate`, { method: "PATCH" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Contact deactivated — all historic records preserved" }); onRefresh(); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const reactivateMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/suppliers/${id}/reactivate`, { method: "PATCH" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/suppliers/${id}/reactivate`, { method: "PATCH" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Contact reactivated" }); onRefresh(); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
@@ -2024,7 +2024,7 @@ function StocktakeTab({ farmId }: { farmId: number }) {
 
   const createMut = useMutation({
     mutationFn: (body: { stocktakeDate: string; notes?: string }) =>
-      fetch(`/api/farms/${farmId}/stocktakes`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/stocktakes`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (data: StocktakeSession) => {
       qc.invalidateQueries({ queryKey: ["stocktakes", farmId] });
       setNewOpen(false);
@@ -2036,13 +2036,13 @@ function StocktakeTab({ farmId }: { farmId: number }) {
 
   const updateItemMut = useMutation({
     mutationFn: ({ sessionId, itemId, body }: { sessionId: number; itemId: number; body: Record<string, unknown> }) =>
-      fetch(`/api/farms/${farmId}/stocktakes/${sessionId}/items/${itemId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/stocktakes/${sessionId}/items/${itemId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["stocktake-detail", farmId, activeId] }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const completeMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/stocktakes/${id}/complete`, { method: "POST", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/stocktakes/${id}/complete`, { method: "POST", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["stocktakes", farmId] });
       qc.invalidateQueries({ queryKey: ["stocktake-detail", farmId, activeId] });
@@ -2052,7 +2052,7 @@ function StocktakeTab({ farmId }: { farmId: number }) {
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/stocktakes/${id}`, { method: "DELETE", credentials: "include" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/stocktakes/${id}`, { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["stocktakes", farmId] }); setActiveId(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });

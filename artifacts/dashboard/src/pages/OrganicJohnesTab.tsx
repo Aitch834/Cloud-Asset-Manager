@@ -102,7 +102,7 @@ function JohnesDocAttach({ farmId, endpoint, recordId, documentPath, documentNam
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ documentPath: response.objectPath, documentName: file.name }),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey: keys });
       toast({ title: "Document attached" });
     } catch {
@@ -118,7 +118,7 @@ function JohnesDocAttach({ farmId, endpoint, recordId, documentPath, documentNam
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ documentPath: null, documentName: null }),
-    });
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     qc.invalidateQueries({ queryKey: keys });
   }
 
@@ -239,7 +239,7 @@ function JohnesRecordAttachments({ farmId, recordType, recordId, compact = false
           fileSize: file.size,
           mimeType: file.type || null,
         }),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey });
       toast({ title: "Attachment uploaded" });
     } catch {
@@ -255,7 +255,7 @@ function JohnesRecordAttachments({ farmId, recordType, recordId, compact = false
       await fetch(`/api/farms/${farmId}/record-attachments/${id}`, {
         method: "DELETE",
         credentials: "include",
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey });
       toast({ title: "Attachment removed" });
     } catch {
@@ -450,7 +450,7 @@ export function OrganicJohnesTab({ farmId }: { farmId: number }) {
     await fetch(`/api/farms/${farmId}/johnes-monitoring/${id}`, {
       method: "DELETE",
       credentials: "include",
-    });
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     qc.invalidateQueries({ queryKey: ["johnes-monitoring", farmId] });
   }
 

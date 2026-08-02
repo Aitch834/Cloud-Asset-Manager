@@ -113,7 +113,7 @@ function DocCell({ record, farmId, onRefresh }: { record: InsuranceRecord; farmI
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ documentPath: response.objectPath, documentName: fileName }),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       onRefresh();
     },
   });
@@ -123,7 +123,7 @@ function DocCell({ record, farmId, onRefresh }: { record: InsuranceRecord; farmI
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ documentPath: null, documentName: null }),
-    });
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     onRefresh();
   };
 
@@ -217,13 +217,13 @@ function InsuranceDialog({ open, onClose, initial, farmId, onSaved, renewalOfId 
           });
           if (!urlRes.ok) throw new Error("Could not get upload URL");
           const { uploadURL, objectPath } = await urlRes.json();
-          await fetch(uploadURL, { method: "PUT", body: pendingFile, headers: { "Content-Type": pendingFile.type } });
+          await fetch(uploadURL, { method: "PUT", body: pendingFile, headers: { "Content-Type": pendingFile.type } }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
           const fileName = objectPath.split("/").pop() ?? pendingFile.name;
           await fetch(`/api/farms/${farmId}/insurance/${record.id}/document`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ documentPath: objectPath, documentName: fileName }),
-          });
+          }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
         } catch {
           toast({ title: "Policy saved but document upload failed", variant: "destructive" });
         } finally {
@@ -413,13 +413,13 @@ function InsuranceDocs({ farmId, recordId, legacyPath, legacyName }: { farmId: n
       });
       if (!urlRes.ok) throw new Error("Could not get upload URL");
       const { uploadURL, objectPath } = await urlRes.json();
-      await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+      await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       const fileName = objectPath.split("/").pop() ?? file.name;
       await fetch(`/api/farms/${farmId}/insurance/${recordId}/documents`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ documentType: uploadType, documentPath: objectPath, documentName: fileName }),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       toast({ title: "Document saved" });
       refresh();
     } catch {
@@ -430,7 +430,7 @@ function InsuranceDocs({ farmId, recordId, legacyPath, legacyName }: { farmId: n
   };
 
   const deleteDoc = async (docId: number) => {
-    await fetch(`/api/farms/${farmId}/insurance/${recordId}/documents/${docId}`, { method: "DELETE" });
+    await fetch(`/api/farms/${farmId}/insurance/${recordId}/documents/${docId}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     refresh();
   };
 
@@ -656,7 +656,7 @@ function ClaimsSection({ farmId, records }: { farmId: number; records: Insurance
 
   const deleteClaim = async () => {
     if (!deleteId) return;
-    await fetch(`/api/farms/${farmId}/insurance-claims/${deleteId}`, { method: "DELETE" });
+    await fetch(`/api/farms/${farmId}/insurance-claims/${deleteId}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     toast({ title: "Claim removed" });
     refresh();
     setDeleteId(null);
@@ -861,7 +861,7 @@ export default function InsurancePage() {
   const onRefresh = () => qc.invalidateQueries({ queryKey: ["insurance", farmId] });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/insurance/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/insurance/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Policy removed" }); onRefresh(); setDeleteId(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });

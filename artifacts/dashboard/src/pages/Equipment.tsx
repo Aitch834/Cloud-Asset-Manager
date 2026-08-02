@@ -338,13 +338,13 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
 
   const createM = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      fetch(`/api/farms/${farmId}/equipment-defect-reports`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/equipment-defect-reports`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["equipment-defects", farmId] }); setFormOpen(false); setForm(emptyDefectForm); toast({ title: "Defect report created" }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const patchM = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) =>
-      fetch(`/api/farms/${farmId}/equipment-defect-reports/${id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ status }) }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/equipment-defect-reports/${id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ status }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["equipment-defects", farmId] }); setUpdatingId(null); toast({ title: "Status updated" }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
@@ -743,7 +743,7 @@ export default function EquipmentPage() {
         method: "PUT", credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ assetNumber: an }),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: getListEquipmentQueryKey(farmId ?? 0) }),
     onError: () => toast({ title: "Failed to assign asset number", variant: "destructive" }),
@@ -758,19 +758,19 @@ export default function EquipmentPage() {
 
   const addMaintMut = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      fetch(`/api/farms/${farmId}/equipment/${managingItem!.id}/maintenance`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/equipment/${managingItem!.id}/maintenance`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["equipment-maintenance", farmId, managingItem?.id] }); queryClient.invalidateQueries({ queryKey: getListEquipmentQueryKey(farmId ?? 0) }); setServiceFormOpen(false); setEditingLog(null); setServiceForm(EMPTY_SERVICE_FORM); toast({ title: "Service record saved" }); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
   const editMaintMut = useMutation({
     mutationFn: ({ logId, body }: { logId: number; body: Record<string, unknown> }) =>
-      fetch(`/api/farms/${farmId}/equipment/${managingItem!.id}/maintenance/${logId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/equipment/${managingItem!.id}/maintenance/${logId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["equipment-maintenance", farmId, managingItem?.id] }); queryClient.invalidateQueries({ queryKey: getListEquipmentQueryKey(farmId ?? 0) }); setServiceFormOpen(false); setEditingLog(null); setServiceForm(EMPTY_SERVICE_FORM); toast({ title: "Record updated" }); },
     onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
   const deleteMaintMut = useMutation({
     mutationFn: (logId: number) =>
-      fetch(`/api/farms/${farmId}/equipment/${managingItem!.id}/maintenance/${logId}`, { method: "DELETE" }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/equipment/${managingItem!.id}/maintenance/${logId}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["equipment-maintenance", farmId, managingItem?.id] }); queryClient.invalidateQueries({ queryKey: getListEquipmentQueryKey(farmId ?? 0) }); setDeletingLogId(null); toast({ title: "Record deleted" }); },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });

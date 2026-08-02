@@ -240,7 +240,7 @@ function RegisterTab({ farmId }: { farmId: number }) {
 
   const createTest = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      fetch(`/api/farms/${farmId}/soil-tests`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/soil-tests`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["soil-tests", farmId] });
       setAddTestOpen(false); setEditTest(null); setTestForm(EMPTY_TEST);
@@ -252,7 +252,7 @@ function RegisterTab({ farmId }: { farmId: number }) {
   });
   const updateTest = useMutation({
     mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
-      fetch(`/api/farms/${farmId}/soil-tests/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/soil-tests/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["soil-tests", farmId] });
       setEditTest(null); setTestForm(EMPTY_TEST); setAddTestOpen(false);
@@ -262,7 +262,7 @@ function RegisterTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteTest = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/soil-tests/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/soil-tests/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: (_, id) => {
       qc.invalidateQueries({ queryKey: ["soil-tests", farmId] });
       setDeleteTestId(null);
@@ -272,13 +272,13 @@ function RegisterTab({ farmId }: { farmId: number }) {
   });
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) =>
-      fetch(`/api/farms/${farmId}/soil-tests/${id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/soil-tests/${id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["soil-tests", farmId] }); },
     onError: () => toast({ title: "Update failed", variant: "destructive" }),
   });
   const addResult = useMutation({
     mutationFn: ({ testId, body }: { testId: number; body: Record<string, unknown> }) =>
-      fetch(`/api/farms/${farmId}/soil-tests/${testId}/results`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/soil-tests/${testId}/results`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (_, vars) => { qc.invalidateQueries({ queryKey: ["soil-test-detail", farmId, vars.testId] }); setAddResultFor(null); setResultForm(EMPTY_RESULT); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });

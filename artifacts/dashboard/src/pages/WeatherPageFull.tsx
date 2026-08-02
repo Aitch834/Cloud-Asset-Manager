@@ -67,12 +67,12 @@ function ReadingsTab({ farmId }: { farmId: number }) {
   const invalidate = () => qc.invalidateQueries({ queryKey: ["weather-readings", farmId] });
 
   const createMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/weather-readings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/weather-readings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Reading saved" }); invalidate(); setAddOpen(false); resetForm(); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/weather-readings/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/weather-readings/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -318,12 +318,12 @@ function VehicleReadingsTab({ farmId }: { farmId: number }) {
   const invalidate = () => qc.invalidateQueries({ queryKey: ["vehicle-weather", farmId] });
 
   const createMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/vehicle-weather-readings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/vehicle-weather-readings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Reading saved" }); invalidate(); setAddOpen(false); setForm(EMPTY_VEH_FORM); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/vehicle-weather-readings/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/vehicle-weather-readings/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -611,17 +611,17 @@ function DevicesTab({ farmId }: { farmId: number }) {
   const invalidate = () => qc.invalidateQueries({ queryKey: ["vehicle-weather-devices", farmId] });
 
   const createMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/vehicle-weather-devices`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/vehicle-weather-devices`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Device added" }); invalidate(); setAddOpen(false); setForm(EMPTY_DEV_FORM); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
   const updateMut = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/vehicle-weather-devices/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/vehicle-weather-devices/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Device updated" }); invalidate(); setEditRecord(null); setForm(EMPTY_DEV_FORM); },
     onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/vehicle-weather-devices/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/vehicle-weather-devices/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Device removed" }); invalidate(); setDeleteId(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });

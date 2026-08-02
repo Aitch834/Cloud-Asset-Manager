@@ -225,7 +225,7 @@ function RiskAssessmentTab({ farmId, openId }: { farmId: number; openId?: number
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/risk-assessments/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/risk-assessments/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["risk-assessments", farmId] }); setDeleteId(null); toast({ title: "Assessment deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -596,15 +596,15 @@ function CoshhTab({ farmId, openId }: { farmId: number; openId?: number | null }
         assessmentDate: body.assessmentDate ? new Date(body.assessmentDate).toISOString() : new Date().toISOString(),
         reviewDate: body.reviewDate ? new Date(body.reviewDate).toISOString() : null,
       };
-      if (editRecord) return fetch(`/api/farms/${farmId}/risk-coshh/${editRecord.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      return fetch(`/api/farms/${farmId}/risk-coshh`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (editRecord) return fetch(`/api/farms/${farmId}/risk-coshh/${editRecord.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
+      return fetch(`/api/farms/${farmId}/risk-coshh`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     },
     onSuccess: () => { toast({ title: editRecord ? "COSHH record updated" : "COSHH record saved" }); invalidate(); setAddOpen(false); setEditRecord(null); setForm(emptyForm); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/risk-coshh/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/risk-coshh/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
@@ -819,17 +819,17 @@ function DocCell({ endpoint, queryKey, documentPath, documentName }: {
   async function handleFile(file: File) {
     setUploading(true);
     try {
-      const urlRes = await fetch("/api/storage/uploads/request-url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, contentType: file.type || "application/octet-stream" }) });
+      const urlRes = await fetch("/api/storage/uploads/request-url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, contentType: file.type || "application/octet-stream" }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       const { uploadURL, objectPath } = await urlRes.json();
-      await fetch(uploadURL, { method: "PUT", headers: { "Content-Type": file.type || "application/octet-stream" }, body: file });
+      await fetch(uploadURL, { method: "PUT", headers: { "Content-Type": file.type || "application/octet-stream" }, body: file }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       const fileName = objectPath.split("/").pop() ?? file.name;
-      await fetch(endpoint, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ documentPath: objectPath, documentName: fileName }) });
+      await fetch(endpoint, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ documentPath: objectPath, documentName: fileName }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey });
     } finally { setUploading(false); }
   }
 
   async function handleRemove() {
-    await fetch(endpoint, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ documentPath: null, documentName: null }) });
+    await fetch(endpoint, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ documentPath: null, documentName: null }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     qc.invalidateQueries({ queryKey });
   }
 
@@ -945,26 +945,26 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
   const expandedTests: PatTestRecord[] = testData?.records ?? [];
 
   const createMut = useMutation({
-    mutationFn: (body: typeof EMPTY_PAT_EQUIPMENT) => fetch(`/api/farms/${farmId}/workshop/pat-equipment`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, buildingId: body.buildingId ? parseInt(body.buildingId) : null }) }).then(r => r.json()),
+    mutationFn: (body: typeof EMPTY_PAT_EQUIPMENT) => fetch(`/api/farms/${farmId}/workshop/pat-equipment`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, buildingId: body.buildingId ? parseInt(body.buildingId) : null }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pat-equipment", farmId] }); setShowForm(false); setForm(EMPTY_PAT_EQUIPMENT); toast({ title: "Appliance added" }); },
     onError: () => toast({ title: "Error saving record", variant: "destructive" }),
   });
 
   const updateMut = useMutation({
-    mutationFn: (body: typeof EMPTY_PAT_EQUIPMENT) => fetch(`/api/farms/${farmId}/workshop/pat-equipment/${editing!.id}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, buildingId: body.buildingId ? parseInt(body.buildingId) : null }) }).then(r => r.json()),
+    mutationFn: (body: typeof EMPTY_PAT_EQUIPMENT) => fetch(`/api/farms/${farmId}/workshop/pat-equipment/${editing!.id}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, buildingId: body.buildingId ? parseInt(body.buildingId) : null }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pat-equipment", farmId] }); setShowForm(false); setEditing(null); setForm(EMPTY_PAT_EQUIPMENT); toast({ title: "Appliance updated" }); },
     onError: () => toast({ title: "Error saving record", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/workshop/pat-equipment/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/workshop/pat-equipment/${id}`, { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pat-equipment", farmId] }); setDeleteId(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const createTestMut = useMutation({
     mutationFn: ({ eqId, body }: { eqId: number; body: typeof EMPTY_PAT_TEST }) =>
-      fetch(`/api/farms/${farmId}/workshop/pat-equipment/${eqId}/tests`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/workshop/pat-equipment/${eqId}/tests`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (_, { eqId }) => {
       qc.invalidateQueries({ queryKey: ["pat-test-records", farmId, eqId] });
       qc.invalidateQueries({ queryKey: ["pat-equipment", farmId] });
@@ -976,7 +976,7 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
 
   const updateTestMut = useMutation({
     mutationFn: ({ eqId, testId, body }: { eqId: number; testId: number; body: typeof EMPTY_PAT_TEST }) =>
-      fetch(`/api/farms/${farmId}/workshop/pat-equipment/${eqId}/tests/${testId}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/workshop/pat-equipment/${eqId}/tests/${testId}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (_, { eqId }) => {
       qc.invalidateQueries({ queryKey: ["pat-test-records", farmId, eqId] });
       qc.invalidateQueries({ queryKey: ["pat-equipment", farmId] });
@@ -988,7 +988,7 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
 
   const deleteTestMut = useMutation({
     mutationFn: ({ eqId, testId }: { eqId: number; testId: number }) =>
-      fetch(`/api/farms/${farmId}/workshop/pat-equipment/${eqId}/tests/${testId}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/workshop/pat-equipment/${eqId}/tests/${testId}`, { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (_, { eqId }) => {
       qc.invalidateQueries({ queryKey: ["pat-test-records", farmId, eqId] });
       qc.invalidateQueries({ queryKey: ["pat-equipment", farmId] });
@@ -1549,26 +1549,26 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
   const expandedServices: FireService[] = svcData?.records ?? [];
 
   const createMut = useMutation({
-    mutationFn: (body: typeof EMPTY_FIRE) => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, buildingId: body.buildingId ? parseInt(body.buildingId) : null }) }).then(r => r.json()),
+    mutationFn: (body: typeof EMPTY_FIRE) => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, buildingId: body.buildingId ? parseInt(body.buildingId) : null }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] }); setShowForm(false); setForm(EMPTY_FIRE); toast({ title: "Extinguisher added" }); },
     onError: () => toast({ title: "Error saving record", variant: "destructive" }),
   });
 
   const updateMut = useMutation({
-    mutationFn: (body: typeof EMPTY_FIRE) => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${editing!.id}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, buildingId: body.buildingId ? parseInt(body.buildingId) : null }) }).then(r => r.json()),
+    mutationFn: (body: typeof EMPTY_FIRE) => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${editing!.id}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, buildingId: body.buildingId ? parseInt(body.buildingId) : null }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] }); setShowForm(false); setEditing(null); setForm(EMPTY_FIRE); toast({ title: "Extinguisher updated" }); },
     onError: () => toast({ title: "Error saving record", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${id}`, { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] }); setDeleteId(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const createServiceMut = useMutation({
     mutationFn: ({ extId, body }: { extId: number; body: typeof EMPTY_SERVICE }) =>
-      fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${extId}/services`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${extId}/services`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (_, { extId }) => {
       qc.invalidateQueries({ queryKey: ["fire-extinguisher-services", farmId, extId] });
       qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] });
@@ -1580,7 +1580,7 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
 
   const updateServiceMut = useMutation({
     mutationFn: ({ extId, svcId, body }: { extId: number; svcId: number; body: typeof EMPTY_SERVICE }) =>
-      fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${extId}/services/${svcId}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${extId}/services/${svcId}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (_, { extId }) => {
       qc.invalidateQueries({ queryKey: ["fire-extinguisher-services", farmId, extId] });
       qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] });
@@ -1592,7 +1592,7 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
 
   const deleteServiceMut = useMutation({
     mutationFn: ({ extId, svcId }: { extId: number; svcId: number }) =>
-      fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${extId}/services/${svcId}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${extId}/services/${svcId}`, { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (_, { extId }) => {
       qc.invalidateQueries({ queryKey: ["fire-extinguisher-services", farmId, extId] });
       qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] });

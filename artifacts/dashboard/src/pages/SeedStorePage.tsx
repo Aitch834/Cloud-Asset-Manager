@@ -285,7 +285,7 @@ function SeedStoreRecordAttachments({ farmId, recordType, recordId, compact = fa
           fileSize: file.size,
           mimeType: file.type || null,
         }),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey });
       toast({ title: "Attachment uploaded" });
     } catch {
@@ -301,7 +301,7 @@ function SeedStoreRecordAttachments({ farmId, recordType, recordId, compact = fa
       await fetch(`/api/farms/${farmId}/record-attachments/${id}`, {
         method: "DELETE",
         credentials: "include",
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey });
       toast({ title: "Attachment removed" });
     } catch {
@@ -496,7 +496,7 @@ export default function SeedStorePage() {
   const deleteMut = useMutation({
     mutationFn: (id: number) => {
       const { safeFarmId: fid } = _mut.current;
-      return fetch(`/api/farms/${fid}/seed-batches/${id}`, { method: "DELETE" }).then(r => r.json());
+      return fetch(`/api/farms/${fid}/seed-batches/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json());
     },
     onSuccess: () => {
       const { toast: t, invalidate, setDeleteTarget } = _mut.current;
@@ -529,7 +529,7 @@ export default function SeedStorePage() {
   const deletePoMut = useMutation({
     mutationFn: (id: number) => {
       const { safeFarmId: fid } = _mut.current;
-      return fetch(`/api/farms/${fid}/seed-purchase-orders/${id}`, { method: "DELETE" }).then(r => r.json());
+      return fetch(`/api/farms/${fid}/seed-purchase-orders/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json());
     },
     onSuccess: () => {
       const { invalidate, setDeletePoTarget, toast: t } = _mut.current;
@@ -547,7 +547,7 @@ export default function SeedStorePage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "received", actualDeliveryDate: date }),
-      }).then(r => r.json());
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json());
     },
     onSuccess: () => {
       const { invalidate, setReceivePoId, toast: t } = _mut.current;
@@ -565,7 +565,7 @@ export default function SeedStorePage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "cancelled" }),
-      }).then(r => r.json());
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json());
     },
     onSuccess: () => {
       const { invalidate, toast: t } = _mut.current;
@@ -601,7 +601,7 @@ export default function SeedStorePage() {
             taskType: "compliance_corrective",
             taskSourceId: `seed-seg-check-${checkId}`,
           }),
-        });
+        }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
         return { ...saved, taskCreated: true };
       }
       return saved;
@@ -619,7 +619,7 @@ export default function SeedStorePage() {
   const deleteSegMut = useMutation({
     mutationFn: (id: number) => {
       const { safeFarmId: fid } = _mut.current;
-      return fetch(`/api/farms/${fid}/seed-storage-checks/${id}`, { method: "DELETE" }).then(r => r.json());
+      return fetch(`/api/farms/${fid}/seed-storage-checks/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json());
     },
     onSuccess: () => {
       const { invalidateSeg, setDeleteSegTarget, toast: t } = _mut.current;
@@ -950,7 +950,7 @@ export default function SeedStorePage() {
 
   const assignMut = useMutation({
     mutationFn: ({ fieldId, varietyId, seedBatchId, bagsAllocated, plantingDate }: any) =>
-      fetch(`/api/farms/${safeFarmId}/field-crops`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fieldId, varietyId, seedBatchId, bagsAllocated: bagsAllocated || null, plantingDate: plantingDate || null }) }).then(r => r.json()),
+      fetch(`/api/farms/${safeFarmId}/field-crops`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fieldId, varietyId, seedBatchId, bagsAllocated: bagsAllocated || null, plantingDate: plantingDate || null }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (data) => {
       if (data.error) { toast({ title: data.error, variant: "destructive" }); return; }
       qc.invalidateQueries({ queryKey: ["seed-batches", safeFarmId] });
@@ -963,7 +963,7 @@ export default function SeedStorePage() {
 
   const editAllocMut = useMutation({
     mutationFn: ({ id, bagsAllocated, plantingDate }: any) =>
-      fetch(`/api/farms/${safeFarmId}/field-crops/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bagsAllocated: bagsAllocated || null, plantingDate: plantingDate || null }) }).then(r => r.json()),
+      fetch(`/api/farms/${safeFarmId}/field-crops/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bagsAllocated: bagsAllocated || null, plantingDate: plantingDate || null }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (data) => {
       if (data.error) { toast({ title: data.error, variant: "destructive" }); return; }
       qc.invalidateQueries({ queryKey: ["seed-batches", safeFarmId] });
@@ -986,7 +986,7 @@ export default function SeedStorePage() {
 
   const stocktakeMut = useMutation({
     mutationFn: (body: any) =>
-      fetch(`/api/farms/${safeFarmId}/seed-stocktakes`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`/api/farms/${safeFarmId}/seed-stocktakes`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (data) => {
       if (data.error) { toast({ title: data.error, variant: "destructive" }); return; }
       qc.invalidateQueries({ queryKey: ["seed-stocktakes", safeFarmId] });

@@ -28,7 +28,7 @@ function useCrud<T extends Record<string, unknown>>(farmId: number, endpoint: st
     onSuccess: () => { qc.invalidateQueries({ queryKey: [key, farmId] }); setOpen(false); setForm({}); setEditing(null); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/${endpoint}/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: [key, farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/${endpoint}/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => qc.invalidateQueries({ queryKey: [key, farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   function openAdd(defaults: Record<string, unknown> = {}) { setEditing(null); setForm(defaults); setOpen(true); }
   function openEdit(r: T) { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""]))); setOpen(true); }
   return { data, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit };

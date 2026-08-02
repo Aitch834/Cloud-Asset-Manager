@@ -200,7 +200,7 @@ function FlockConversionTab({ farmId }: { farmId: number }) {
   });
 
   const remove = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-goat-dairy/flock-conversion/${id}`), { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-goat-dairy/flock-conversion/${id}`), { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-goat-flock-conv", farmId] }); toast({ title: "Record deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -421,7 +421,7 @@ function OrganicCollectionsTab({ farmId }: { farmId: number }) {
   });
 
   const remove = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-goat-dairy/collections/${id}`), { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-goat-dairy/collections/${id}`), { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-goat-collections", farmId] }); toast({ title: "Record deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -772,7 +772,7 @@ function FeedNutritionTab({ farmId }: { farmId: number }) {
   });
 
   const remove = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-goat-dairy/feed/${id}`), { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-goat-dairy/feed/${id}`), { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-goat-feed", farmId] }); toast({ title: "Record deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -940,7 +940,7 @@ function MastitisTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const del = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-dairy/mastitis-records/${id}`), { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-dairy/mastitis-records/${id}`), { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-dairy-mastitis", farmId] }); toast({ title: "Deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1108,7 +1108,7 @@ function KiddingTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const del = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-dairy/kidding-records/${id}`), { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/goat-dairy/kidding-records/${id}`), { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-dairy-kidding", farmId] }); toast({ title: "Deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1305,7 +1305,7 @@ function TreatmentRegisterTab({ farmId }: { farmId: number }) {
   });
 
   const remove = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-goat-dairy/treatments/${id}`), { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/organic-goat-dairy/treatments/${id}`), { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["org-goat-treatments", farmId] }); toast({ title: "Record deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });

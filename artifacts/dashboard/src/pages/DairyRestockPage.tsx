@@ -232,7 +232,7 @@ export default function DairyRestockPage() {
       fetch(api(`farms/${farmId}/dairy-supplies/restock-requests/${id}`), {
         method: "DELETE",
         credentials: "include",
-      }),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["dairy-restock", farmId] });
       toast({ title: "Request deleted" });

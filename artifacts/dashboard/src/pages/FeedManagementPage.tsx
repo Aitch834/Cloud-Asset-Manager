@@ -210,7 +210,7 @@ export default function FeedManagementPage() {
     onError: () => toast({ title: "Error saving order", variant: "destructive" }),
   });
   const deleteFpoMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/feed-purchase-orders/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/feed-purchase-orders/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { invalidate(); toast({ title: "Order removed" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -220,7 +220,7 @@ export default function FeedManagementPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "received", actualDeliveryDate: date }),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { invalidate(); setReceiveId(null); toast({ title: "Order marked as received — remember to log the delivery receipt in the Delivery Records tab." }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
@@ -295,7 +295,7 @@ export default function FeedManagementPage() {
     onError: () => toast({ title: "Error saving delivery", variant: "destructive" }),
   });
   const delDeliveryMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/feed-deliveries/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/feed-deliveries/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { invalidate(); toast({ title: "Delivery removed" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -347,7 +347,7 @@ export default function FeedManagementPage() {
     onError: () => toast({ title: "Error saving", variant: "destructive" }),
   });
   const delStockMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/feed-stock/${id}`, { method: "DELETE" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/feed-stock/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { invalidate(); toast({ title: "Bin removed" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1767,7 +1767,7 @@ function MedicatedFeedTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/medicated-feed/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/medicated-feed/${id}`, { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["medicated-feed", farmId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });

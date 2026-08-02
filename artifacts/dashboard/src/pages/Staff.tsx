@@ -335,33 +335,33 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
   const setSF = (k: string, v: unknown) => setStockForm(f => ({ ...f, [k]: v }));
 
   const createIssueMut = useMutation({
-    mutationFn: (b: typeof EMPTY_ISSUE) => fetch(issueBase, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ ...b, stockItemId: b.stockItemId ? parseInt(b.stockItemId) : null }) }).then(r => r.json()),
+    mutationFn: (b: typeof EMPTY_ISSUE) => fetch(issueBase, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ ...b, stockItemId: b.stockItemId ? parseInt(b.stockItemId) : null }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-records", farmId] }); qc.invalidateQueries({ queryKey: ["ppe-stock", farmId] }); setShowIssueForm(false); setIssueForm({ ...EMPTY_ISSUE }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateIssueMut = useMutation({
-    mutationFn: (b: typeof EMPTY_ISSUE & { id: number }) => fetch(`${issueBase}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ ...b, stockItemId: b.stockItemId ? parseInt(b.stockItemId) : null }) }).then(r => r.json()),
+    mutationFn: (b: typeof EMPTY_ISSUE & { id: number }) => fetch(`${issueBase}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ ...b, stockItemId: b.stockItemId ? parseInt(b.stockItemId) : null }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-records", farmId] }); setShowIssueForm(false); setEditIssue(null); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteIssueMut = useMutation({
-    mutationFn: (id: number) => fetch(`${issueBase}/${id}`, { method: "DELETE", headers: authHeaders() }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`${issueBase}/${id}`, { method: "DELETE", headers: authHeaders() }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-records", farmId] }); setDeleteIssueId(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const createStockMut = useMutation({
-    mutationFn: (b: typeof EMPTY_STOCK) => fetch(stockBase, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ ...b, quantityReceived: parseInt(b.quantityReceived || "0"), unitCostPence: b.unitCostPence ? Math.round(parseFloat(b.unitCostPence) * 100) : null, supplierId: b.supplierId ? parseInt(b.supplierId) : null }) }).then(r => r.json()),
+    mutationFn: (b: typeof EMPTY_STOCK) => fetch(stockBase, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ ...b, quantityReceived: parseInt(b.quantityReceived || "0"), unitCostPence: b.unitCostPence ? Math.round(parseFloat(b.unitCostPence) * 100) : null, supplierId: b.supplierId ? parseInt(b.supplierId) : null }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-stock", farmId] }); setShowStockForm(false); setStockForm({ ...EMPTY_STOCK }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateStockMut = useMutation({
-    mutationFn: (b: typeof EMPTY_STOCK & { id: number }) => fetch(`${stockBase}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ ...b, quantityReceived: parseInt(b.quantityReceived || "0"), quantityInStock: parseInt(b.quantityReceived || "0"), unitCostPence: b.unitCostPence ? Math.round(parseFloat(b.unitCostPence) * 100) : null, supplierId: b.supplierId ? parseInt(b.supplierId) : null }) }).then(r => r.json()),
+    mutationFn: (b: typeof EMPTY_STOCK & { id: number }) => fetch(`${stockBase}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ ...b, quantityReceived: parseInt(b.quantityReceived || "0"), quantityInStock: parseInt(b.quantityReceived || "0"), unitCostPence: b.unitCostPence ? Math.round(parseFloat(b.unitCostPence) * 100) : null, supplierId: b.supplierId ? parseInt(b.supplierId) : null }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-stock", farmId] }); setShowStockForm(false); setEditStock(null); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteStockMut = useMutation({
-    mutationFn: (id: number) => fetch(`${stockBase}/${id}`, { method: "DELETE", headers: authHeaders() }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`${stockBase}/${id}`, { method: "DELETE", headers: authHeaders() }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-stock", farmId] }); setDeleteStockId(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -386,17 +386,17 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
   }
 
   const createRiskMut = useMutation({
-    mutationFn: (b: typeof EMPTY_RISK) => fetch(riskBase, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(riskPayload(b)) }).then(r => r.json()),
+    mutationFn: (b: typeof EMPTY_RISK) => fetch(riskBase, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(riskPayload(b)) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-risk", farmId] }); setShowRiskForm(false); setRiskForm({ ...EMPTY_RISK }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const updateRiskMut = useMutation({
-    mutationFn: (b: typeof EMPTY_RISK & { id: number }) => fetch(`${riskBase}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(riskPayload(b)) }).then(r => r.json()),
+    mutationFn: (b: typeof EMPTY_RISK & { id: number }) => fetch(`${riskBase}/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(riskPayload(b)) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-risk", farmId] }); setShowRiskForm(false); setEditRisk(null); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const deleteRiskMut = useMutation({
-    mutationFn: (id: number) => fetch(`${riskBase}/${id}`, { method: "DELETE", headers: authHeaders() }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`${riskBase}/${id}`, { method: "DELETE", headers: authHeaders() }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-risk", farmId] }); setDeleteRiskId(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -423,7 +423,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
 
   const createStocktakeMut = useMutation({
     mutationFn: (body: { stocktakeDate: string; conductedBy?: string; notes?: string }) =>
-      fetch(stocktakeBase, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(stocktakeBase, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (data: StocktakeSession) => {
       qc.invalidateQueries({ queryKey: ["ppe-stocktakes", farmId] });
       setStocktakeNewOpen(false);
@@ -434,14 +434,14 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
 
   const patchStocktakeItemMut = useMutation({
     mutationFn: ({ sessionId, itemId, countedQty, notes }: { sessionId: number; itemId: number; countedQty: number | null; notes: string }) =>
-      fetch(`${stocktakeBase}/${sessionId}/items/${itemId}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ countedQty, notes }) }).then(r => r.json()),
+      fetch(`${stocktakeBase}/${sessionId}/items/${itemId}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ countedQty, notes }) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-stocktake-detail", farmId, activeStocktakeId] }); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
   const completeStocktakeMut = useMutation({
     mutationFn: (sessionId: number) =>
-      fetch(`${stocktakeBase}/${sessionId}/complete`, { method: "POST", headers: authHeaders() }).then(r => r.json()),
+      fetch(`${stocktakeBase}/${sessionId}/complete`, { method: "POST", headers: authHeaders() }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ppe-stocktakes", farmId] });
       qc.invalidateQueries({ queryKey: ["ppe-stocktake-detail", farmId, activeStocktakeId] });
@@ -452,7 +452,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
   });
 
   const deleteStocktakeMut = useMutation({
-    mutationFn: (id: number) => fetch(`${stocktakeBase}/${id}`, { method: "DELETE", headers: authHeaders() }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`${stocktakeBase}/${id}`, { method: "DELETE", headers: authHeaders() }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ppe-stocktakes", farmId] });
       if (stocktakeDeleteId === activeStocktakeId) setActiveStocktakeId(null);
@@ -482,22 +482,22 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
   const setSPF = (k: string, v: unknown) => setPoForm(f => ({ ...f, [k]: v as string }));
 
   const createPoMut = useMutation({
-    mutationFn: (data: Record<string, unknown>) => fetch(ppoBase, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(data) }).then(r => r.json()),
+    mutationFn: (data: Record<string, unknown>) => fetch(ppoBase, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(data) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-purchase-orders", farmId] }); setShowPoForm(false); toast({ title: "PPE order raised" }); },
     onError: () => toast({ title: "Error raising order", variant: "destructive" }),
   });
   const updatePoMut = useMutation({
-    mutationFn: (data: Record<string, unknown>) => fetch(`${ppoBase}/${editPo?.id}`, { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(data) }).then(r => r.json()),
+    mutationFn: (data: Record<string, unknown>) => fetch(`${ppoBase}/${editPo?.id}`, { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(data) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-purchase-orders", farmId] }); setShowPoForm(false); setEditPo(null); toast({ title: "Order updated" }); },
     onError: () => toast({ title: "Error updating order", variant: "destructive" }),
   });
   const deletePoMut = useMutation({
-    mutationFn: (id: number) => fetch(`${ppoBase}/${id}`, { method: "DELETE", headers: authHeaders() }).then(r => r.json()),
+    mutationFn: (id: number) => fetch(`${ppoBase}/${id}`, { method: "DELETE", headers: authHeaders() }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ppe-purchase-orders", farmId] }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
   const receivePoMut = useMutation({
-    mutationFn: (data: Record<string, unknown>) => fetch(`${ppoBase}/${showGrnDialog?.id}/receive`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(data) }).then(r => r.json()),
+    mutationFn: (data: Record<string, unknown>) => fetch(`${ppoBase}/${showGrnDialog?.id}/receive`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(data) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (d: { grnNumber: string }) => {
       qc.invalidateQueries({ queryKey: ["ppe-purchase-orders", farmId] });
       qc.invalidateQueries({ queryKey: ["ppe-stock", farmId] });

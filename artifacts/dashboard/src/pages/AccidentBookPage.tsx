@@ -84,7 +84,7 @@ function AccidentPhotoPanel({ recordId, farmId, photos }: { recordId: number; fa
   const { toast } = useToast();
 
   const deleteMut = useMutation({
-    mutationFn: (photoId: number) => fetch(`/api/farms/${farmId}/accident-book/${recordId}/photos/${photoId}`, { method: "DELETE" }),
+    mutationFn: (photoId: number) => fetch(`/api/farms/${farmId}/accident-book/${recordId}/photos/${photoId}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["accident-book", farmId] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -95,7 +95,7 @@ function AccidentPhotoPanel({ recordId, farmId, photos }: { recordId: number; fa
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ objectPath: response.objectPath, fileName: response.objectPath.split("/").pop() }),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey: ["accident-book", farmId] });
       toast({ title: "Photo uploaded" });
     },
@@ -313,7 +313,7 @@ function InvestigateDialog({ farmId, record, onClose }: { farmId: number; record
         riddorReportedDate: riddorReportedDate || null,
         status: "under_investigation",
       }),
-    }).then(r => r.json()),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["accident-book", farmId] }); onClose(); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
@@ -379,7 +379,7 @@ function RecordCorrectiveActionDialog({ farmId, record, onClose }: { farmId: num
         correctiveActionBy: correctiveActionBy || null,
         status: "corrective_action_taken",
       }),
-    }).then(r => r.json()),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["accident-book", farmId] }); onClose(); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
@@ -421,7 +421,7 @@ function SignOffDialog({ farmId, record, onClose }: { farmId: number; record: Ac
     mutationFn: () => fetch(`/api/farms/${farmId}/accident-book/${record.id}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ signedOffBy: signedOffBy || null, signOffDate: signOffDate || null, status: "closed" }),
-    }).then(r => r.json()),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["accident-book", farmId] }); onClose(); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
@@ -586,17 +586,17 @@ export default function AccidentBookPage() {
   const invalidate = () => { qc.invalidateQueries({ queryKey: ["accident-book", farmId] }); qc.invalidateQueries({ queryKey: ["notifications", farmId] }); };
 
   const createMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/accident-book`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/accident-book`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Record added to Accident Book" }); invalidate(); setAddOpen(false); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
   const updateMut = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/accident-book/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/accident-book/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => { toast({ title: "Record updated" }); invalidate(); setAddOpen(false); setEditItem(null); },
     onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/accident-book/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/accident-book/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Record deleted" }); invalidate(); setDeleteId(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });

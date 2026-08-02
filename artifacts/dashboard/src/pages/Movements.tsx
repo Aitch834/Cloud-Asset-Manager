@@ -399,7 +399,7 @@ function AttachmentsPanel({ movementId, farmId }: { movementId: number; farmId: 
 
   const deleteMutation = useMutation({
     mutationFn: async (docId: number) => {
-      await fetch(`/api/farms/${farmId}/movements/${movementId}/attachments/${docId}`, { method: "DELETE" });
+      await fetch(`/api/farms/${farmId}/movements/${movementId}/attachments/${docId}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["movement-attachments", movementId] }),
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
@@ -416,7 +416,7 @@ function AttachmentsPanel({ movementId, farmId }: { movementId: number; farmId: 
           filePath: response.objectPath,
           notes: uploadNotes.trim() || null,
         }),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       queryClient.invalidateQueries({ queryKey: ["movement-attachments", movementId] });
       setUploadTitle("");
       setUploadNotes("");
@@ -747,7 +747,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: number) => { await fetch(`${baseUrl}/${id}`, { method: "DELETE" }); },
+    mutationFn: async (id: number) => { await fetch(`${baseUrl}/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }); },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["mortality-records", farmId] }); setDeleteId(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1393,7 +1393,7 @@ export default function Movements() {
 
   const submitLipMut = useMutation({
     mutationFn: (movementId: number) =>
-      fetch(`/api/farms/${farmId}/lip-submit-movement/${movementId}`, { method: "POST" }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/lip-submit-movement/${movementId}`, { method: "POST" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onMutate: (id) => setLipSubmittingId(id),
     onSuccess: (d) => {
       setLipSubmittingId(null);
@@ -1415,7 +1415,7 @@ export default function Movements() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ lipReference: params.lipReference, action: params.action, rejectionReason: params.rejectionReason, rejectionReasonId: params.rejectionReasonId, submissionId: params.submissionId }),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (d) => {
       setLipActionDialog(null);
       setLipActionReason("");
@@ -1432,7 +1432,7 @@ export default function Movements() {
 
   const checkAsyncMut = useMutation({
     mutationFn: (submissionId: number) =>
-      fetch(`/api/farms/${farmId}/lip-check-async/${submissionId}`, { method: "POST" }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/lip-check-async/${submissionId}`, { method: "POST" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (d, submissionId) => {
       refetchLipSubmissions();
       if (d.resolved) {
@@ -1451,7 +1451,7 @@ export default function Movements() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ lipReference: params.lipReference, submissionId: params.submissionId }),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (d) => {
       setLipActionDialog(null);
       refetchLipSubmissions();
@@ -1490,7 +1490,7 @@ export default function Movements() {
 
   const submitEidcymruMut = useMutation({
     mutationFn: (movementId: number) =>
-      fetch(`/api/farms/${farmId}/eidcymru-submit/${movementId}`, { method: "POST" }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/eidcymru-submit/${movementId}`, { method: "POST" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onMutate: (id) => setEidcymruSubmittingId(id),
     onSuccess: (d) => {
       setEidcymruSubmittingId(null);
@@ -1508,7 +1508,7 @@ export default function Movements() {
 
   const submitScoteidMut = useMutation({
     mutationFn: (movementId: number) =>
-      fetch(`/api/farms/${farmId}/scoteid-submit/${movementId}`, { method: "POST" }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/scoteid-submit/${movementId}`, { method: "POST" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onMutate: (id) => setScoteidSubmittingId(id),
     onSuccess: (d) => {
       setScoteidSubmittingId(null);
@@ -1526,7 +1526,7 @@ export default function Movements() {
 
   const submitLisMut = useMutation({
     mutationFn: (movementId: number) =>
-      fetch(`/api/farms/${farmId}/lis-submit/${movementId}`, { method: "POST" }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/lis-submit/${movementId}`, { method: "POST" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onMutate: (id) => setLisSubmittingId(id),
     onSuccess: (d, id) => {
       setLisSubmittingId(null);
@@ -1549,7 +1549,7 @@ export default function Movements() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ bcmsManualRef }),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (d) => {
       if (d.success) {
         queryClient.invalidateQueries({ queryKey: ["movements", farmId] });
@@ -1570,7 +1570,7 @@ export default function Movements() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ lisManualRef }),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (d) => {
       if (d.success) {
         queryClient.invalidateQueries({ queryKey: ["movements", farmId] });
@@ -1585,7 +1585,7 @@ export default function Movements() {
   });
 
   const lisSyncMut = useMutation({
-    mutationFn: () => fetch(`/api/farms/${farmId}/lis/sync-herds`, { method: "POST" }).then(r => r.json()),
+    mutationFn: () => fetch(`/api/farms/${farmId}/lis/sync-herds`, { method: "POST" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (d) => {
       refetchLisSubmissions();
       refetchLisInbound();
@@ -1601,7 +1601,7 @@ export default function Movements() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(vars),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (d) => {
       setLisReviewDialog(null);
       refetchLisInbound();
@@ -1621,7 +1621,7 @@ export default function Movements() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ movId }),
-      }).then(r => r.json()),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: (d) => {
       setLisUndoConfirmId(null);
       refetchLisInbound();
@@ -1637,7 +1637,7 @@ export default function Movements() {
 
   const submitBcmsMut = useMutation({
     mutationFn: (movementId: number) =>
-      fetch(`/api/farms/${farmId}/bcms-submit/${movementId}`, { method: "POST" }).then(r => r.json()),
+      fetch(`/api/farms/${farmId}/bcms-submit/${movementId}`, { method: "POST" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onMutate: (id) => setSubmittingId(id),
     onSuccess: (d, id) => {
       setSubmittingId(null);

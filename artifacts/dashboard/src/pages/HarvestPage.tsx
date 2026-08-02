@@ -310,7 +310,7 @@ function HarvestLogTab({ harvests, transports, storages, farmRecord, equipment, 
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => {
       toast({ title: "Harvest record updated" });
       onRefresh();
@@ -320,7 +320,7 @@ function HarvestLogTab({ harvests, transports, storages, farmRecord, equipment, 
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/harvests/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/harvests/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => {
       toast({ title: "Record deleted" });
       onRefresh();
@@ -927,7 +927,7 @@ function TransportTab({ transports, harvests, farmId, loading, onRefresh, toast 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => {
       toast({ title: "Transport leg saved" });
       onRefresh();
@@ -938,7 +938,7 @@ function TransportTab({ transports, harvests, farmId, loading, onRefresh, toast 
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/harvest-transport/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/harvest-transport/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => {
       toast({ title: "Transport record deleted" });
       onRefresh();
@@ -1126,7 +1126,7 @@ function StorageTab({ storages, harvests, farmId, loading, onRefresh, toast }: a
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => {
       toast({ title: "Storage record saved" });
       onRefresh();
@@ -1137,7 +1137,7 @@ function StorageTab({ storages, harvests, farmId, loading, onRefresh, toast }: a
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/harvest-storage/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/harvest-storage/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => {
       toast({ title: "Storage record deleted" });
       onRefresh();

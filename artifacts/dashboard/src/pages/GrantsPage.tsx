@@ -281,7 +281,7 @@ export default function GrantsPage() {
 
   const deleteMut = useMutation({
     mutationFn: async (id: number) => {
-      await fetch(`/api/farms/${farmId}/grants/${id}`, { method: "DELETE" });
+      await fetch(`/api/farms/${farmId}/grants/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["grants", farmId] });
@@ -333,7 +333,7 @@ export default function GrantsPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ documentPath: response.objectPath, documentName: file.name }),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey: ["grants", farmId] });
       toast({ title: "Evidence uploaded" });
     } catch {
@@ -348,7 +348,7 @@ export default function GrantsPage() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ documentPath: null, documentName: null }),
-    });
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     qc.invalidateQueries({ queryKey: ["grants", farmId] });
   }
 

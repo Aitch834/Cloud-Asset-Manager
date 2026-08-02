@@ -186,7 +186,7 @@ export default function AdvisorsAccessPage() {
 
   const inviteAdvisor = useMutation({
     mutationFn: async (body: typeof advisorForm) => {
-      const r = await fetch(`/api/farms/${farmId}/advisors`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const r = await fetch(`/api/farms/${farmId}/advisors`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       return r.json();
     },
     onSuccess: (data) => {
@@ -201,7 +201,7 @@ export default function AdvisorsAccessPage() {
 
   const createSession = useMutation({
     mutationFn: async (body: typeof sessionForm) => {
-      const r = await fetch(`/api/farms/${farmId}/inspection-sessions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const r = await fetch(`/api/farms/${farmId}/inspection-sessions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       return r.json();
     },
     onSuccess: (data) => {
@@ -215,13 +215,13 @@ export default function AdvisorsAccessPage() {
   });
 
   const revokeAdvisor = useMutation({
-    mutationFn: async (id: number) => fetch(`/api/farms/${farmId}/advisors/${id}`, { method: "DELETE" }),
+    mutationFn: async (id: number) => fetch(`/api/farms/${farmId}/advisors/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["advisors", farmId] }); toast({ title: "Advisor access revoked" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const revokeSession = useMutation({
-    mutationFn: async (id: number) => fetch(`/api/farms/${farmId}/inspection-sessions/${id}`, { method: "DELETE" }),
+    mutationFn: async (id: number) => fetch(`/api/farms/${farmId}/inspection-sessions/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["inspection-sessions", farmId] }); toast({ title: "Inspection session revoked" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -605,7 +605,7 @@ function InspectorModeCard({ farmId, toast }: { farmId: number; toast: ReturnTyp
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       return r.json();
     },
     onSuccess: (data) => {

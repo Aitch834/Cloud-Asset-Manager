@@ -634,7 +634,7 @@ function LogCleanDialog({ farmId, bin, onClose, onSaved }: { farmId: number; bin
         cleanedDate: new Date(form.cleanedDate).toISOString(),
         notes: form.notes || null,
       }),
-    }).then(r => r.json()),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bin-cleaning-status", farmId, bin.id] });
       toast({ title: "Cleaning record saved", description: `${bin.binName} marked as cleaned.` });
@@ -985,20 +985,20 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
 
   const saveLevelMut = useMutation({
     mutationFn: (body: any) => editRow
-      ? fetch(`/api/farms/${farmId}/crop-stock-levels/${editRow.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-      : fetch(`/api/farms/${farmId}/crop-stock-levels`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+      ? fetch(`/api/farms/${farmId}/crop-stock-levels/${editRow.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; })
+      : fetch(`/api/farms/${farmId}/crop-stock-levels`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: editRow ? "Stock record updated" : "Stock record created" }); qc.invalidateQueries({ queryKey: ["crop-stock-levels", farmId] }); setAddOpen(false); setEditRow(null); setLevelForm(emptyLevel); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
   const deleteLevelMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/crop-stock-levels/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/crop-stock-levels/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Deleted" }); qc.invalidateQueries({ queryKey: ["crop-stock-levels", farmId] }); setDeleteId(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
   const harvestMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/crop-stock-movements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/crop-stock-movements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Harvest-in recorded — stock level updated" }); qc.invalidateQueries({ queryKey: ["crop-stock-levels", farmId] }); qc.invalidateQueries({ queryKey: ["crop-stock-movements", farmId] }); setHarvestOpen(false); setHarvestForm(emptyHarvest); },
     onError: () => toast({ title: "Failed to record harvest", variant: "destructive" }),
   });
@@ -1472,7 +1472,7 @@ function MovementsTab({ farmId }: { farmId: number }) {
   const binName = (id: number | null | undefined) => bins.find(b => b.id === id)?.binName ?? "—";
 
   const adjMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/crop-stock-movements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/crop-stock-movements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "Adjustment recorded" }); qc.invalidateQueries({ queryKey: ["crop-stock-movements", farmId] }); qc.invalidateQueries({ queryKey: ["crop-stock-levels", farmId] }); setAdjOpen(false); setAdjForm(emptyAdj); },
     onError: () => toast({ title: "Failed", variant: "destructive" }),
   });
@@ -1890,7 +1890,7 @@ function CropStocktakesTab({ farmId }: { farmId: number }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).then(r => r.json()),
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => {
       toast({ title: "Stocktake recorded" });
       qc.invalidateQueries({ queryKey: ["crop-stock-stocktakes", farmId] });
