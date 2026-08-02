@@ -7904,6 +7904,14 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
       if (total == null || isNaN(total)) return "—";
       return total <= c ? "Pass" : "Fail";
     } },
+    // Mirrors the on-screen table flag and the batch-trail PDF so2Rows builder:
+    // an organic-ceiling max_permitted with no batch_ref means the limit can't
+    // be verified against a batch record.
+    { key: "limit_unverified", label: "Limit Unverified", fmt: (r: Record<string, unknown>) => {
+      const maxVal = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : null;
+      const organicLimits = new Set(Object.values(ORGANIC_MAX_SO2).map(v => parseFloat(v)));
+      return !r.batch_ref && maxVal != null && organicLimits.has(maxVal) ? "Yes — no batch ref" : "";
+    } },
     { key: "test_method", label: "Test Method" },
     { key: "notes", label: "Notes" },
   ];
