@@ -60,7 +60,16 @@ async function testRoute(name, route, makeBody, expectedCode = "DUPLICATE_BATCH_
   const otherId = other.json?.record?.id;
   if (otherId) {
     created.push({ route, id: otherId });
-    const put = await call("PUT", `${route}/${otherId}`, makeBody(ref));
+    // farmRlsMiddleware commits each request's transaction in res.on("finish"),
+    // i.e. *after* the response is sent — so a PUT fired immediately after the
+    // setup POST can race the commit and see 0 rows (200 + empty body). That is
+    // a timing artefact, not a duplicate-check regression: a real regression
+    // returns 200 WITH the updated record. Retry only the 0-row case briefly.
+    let put = await call("PUT", `${route}/${otherId}`, makeBody(ref));
+    for (let i = 0; i < 10 && put.status === 200 && !put.json?.record; i++) {
+      await new Promise((r) => setTimeout(r, 150));
+      put = await call("PUT", `${route}/${otherId}`, makeBody(ref));
+    }
     check("PUT onto an existing ref returns 409", put.status === 409, `got ${put.status}: ${JSON.stringify(put.json)}`);
     check(`PUT returns code "${expectedCode}"`, put.json?.code === expectedCode, `got code ${JSON.stringify(put.json?.code)}`);
   } else {
