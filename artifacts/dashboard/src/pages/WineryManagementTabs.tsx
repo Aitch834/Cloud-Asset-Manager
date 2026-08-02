@@ -1241,9 +1241,15 @@ function VintagePHComparisonChart({
     .sort((a, b) => a.ref.localeCompare(b.ref));
 
   const availableColours = Array.from(new Set(allChartData.map(d => d.colour).filter((c): c is string => !!c))).sort();
-  const showColourFilter = availableColours.length > 1;
+  const unspecifiedCount = allChartData.filter(d => !d.colour).length;
+  const hasUnspecified = unspecifiedCount > 0;
+  // Show the filter when there is more than one distinct group to filter between
+  // (recorded colours plus, when present, the "Unspecified" group).
+  const showColourFilter = availableColours.length + (hasUnspecified ? 1 : 0) > 1;
   const chartData = showColourFilter && colourFilter !== "all"
-    ? allChartData.filter(d => d.colour === colourFilter)
+    ? colourFilter === "__unspecified__"
+      ? allChartData.filter(d => !d.colour)
+      : allChartData.filter(d => d.colour === colourFilter)
     : allChartData;
 
   if (allChartData.length < 2) return null;
@@ -1267,8 +1273,14 @@ function VintagePHComparisonChart({
             <SelectContent>
               <SelectItem value="all">All colours</SelectItem>
               {availableColours.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              {hasUnspecified && <SelectItem value="__unspecified__">Unspecified</SelectItem>}
             </SelectContent>
           </Select>
+          {hasUnspecified && (
+            <span className="text-xs text-amber-700">
+              {unspecifiedCount} batch{unspecifiedCount !== 1 ? "es" : ""} without a recorded wine colour
+            </span>
+          )}
         </div>
       )}
       {chartData.length === 0 && (
