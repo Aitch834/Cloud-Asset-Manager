@@ -490,6 +490,17 @@ const colourFilterLabel = (c: string) => (c === UNSPECIFIED_COLOUR ? "Unspecifie
 const rowMatchesColour = (r: Record<string, unknown>, filter: string) =>
   filter === UNSPECIFIED_COLOUR ? String(r.wine_colour ?? "") === "" : String(r.wine_colour ?? "") === filter;
 const ORGANIC_MAX_SO2: Record<string, string> = { "Red": "100", "White": "150", "Rosé": "150", "Sparkling": "185", "Orange": "150" };
+// Shared "limit unverified" predicate — an organic-ceiling max_permitted with no
+// batch_ref means the applicable limit can't be verified against a batch record.
+// Used by the on-screen SO₂ table flag, the SO₂ register CSV column, the
+// batch-trail CSV export, and the batch-trail PDF so2Rows builder, so the rule
+// can never drift between surfaces.
+const SO2_ORGANIC_LIMIT_NUMBERS = new Set(Object.values(ORGANIC_MAX_SO2).map(v => parseFloat(v)));
+function so2LimitUnverified(r: Record<string, unknown>): boolean {
+  if (r.batch_ref) return false;
+  const maxVal = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : null;
+  return maxVal != null && SO2_ORGANIC_LIMIT_NUMBERS.has(maxVal);
+}
 // Conventional (non-organic) total SO₂ ceilings — UK-retained Reg 1308/2013 Annex VIII Part B
 const CONVENTIONAL_MAX_SO2: Record<string, string> = { "Red": "150", "White": "200", "Rosé": "200", "Sparkling": "235", "Orange": "200" };
 const SOURCE_TYPE_OPTIONS = ["Own vineyard", "Contract grower", "Purchased grapes"];
@@ -2927,14 +2938,12 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
   }
 
   // SO₂ tests
-  // Mirrors the batch-trail PDF so2Rows builder and the SO₂ register CSV
-  // "Limit Unverified" column: an organic-ceiling max_permitted with no
-  // batch_ref means the applicable limit can't be verified against a batch
-  // record, so the compliance cell carries the same caveat.
-  const so2OrganicLimitNumbers = new Set(Object.values(ORGANIC_MAX_SO2).map(v => parseFloat(v)));
+  // Uses the shared so2LimitUnverified predicate (same rule as the batch-trail
+  // PDF, the SO₂ register CSV column and the on-screen table flag), so the
+  // compliance cell carries the same caveat.
   for (const r of data.so2Tests) {
     const maxVal = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : null;
-    const unverifiedLimit = !r.batch_ref && maxVal != null && so2OrganicLimitNumbers.has(maxVal);
+    const unverifiedLimit = so2LimitUnverified(r);
     const compliance = r.so2_compliant === true || r.so2_compliant === "true" ? "Compliant" : r.so2_compliant === false || r.so2_compliant === "false" ? "Exceeds Limit" : "";
     rows.push([
       "SO₂ Test",
@@ -3511,14 +3520,13 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
   const cellarHeader = `<tr class="header-row"><th>Date</th><th>Operation</th><th>Vessel(s)</th><th style="text-align:right">Volume (L)</th><th>SO₂ detail</th><th style="text-align:right">Running total after this op (cumulative mg/L)</th><th>Fining agent</th><th>Operator</th><th>Batch Ref</th></tr>`;
 
   // SO₂ tests
-  const SO2_ORGANIC_LIMIT_NUMBERS = new Set(Object.values(ORGANIC_MAX_SO2).map(v => parseFloat(v)));
   let so2HasUnverifiedLimit = false;
   const so2Rows = data.so2Tests.map(r => {
     const compliant = r.so2_compliant === true || r.so2_compliant === "true" || r.so2_compliant === 1;
     const nonCompliant = r.so2_compliant === false || r.so2_compliant === "false" || r.so2_compliant === 0;
     const complianceStyle = nonCompliant ? ' style="color:#b91c1c;font-weight:600"' : (compliant ? ' style="color:#166534"' : "");
     const maxVal = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : null;
-    const unverifiedLimit = !r.batch_ref && maxVal != null && SO2_ORGANIC_LIMIT_NUMBERS.has(maxVal);
+    const unverifiedLimit = so2LimitUnverified(r);
     if (unverifiedLimit) so2HasUnverifiedLimit = true;
     return `<tr${unverifiedLimit ? ' style="background:#fffbeb"' : ""}>
     <td>${escHtml(fmtDate(r.test_date))}</td>
@@ -8729,19 +8737,11 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
     );
   });
 
-  // Rows where batch_ref is missing and max_permitted_mg_l is an organic ceiling value
-  const ORGANIC_LIMIT_NUMBERS = new Set(Object.values(ORGANIC_MAX_SO2).map(v => parseFloat(v)));
-  const unverifiedLimitCount = filtered.filter(r => {
-    if (r.batch_ref) return false;
-    const maxVal = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : null;
-    return maxVal != null && ORGANIC_LIMIT_NUMBERS.has(maxVal);
-  }).length;
+  // Rows where batch_ref is missing and max_permitted_mg_l is an organic ceiling
+  // value — shared so2LimitUnverified predicate.
+  const unverifiedLimitCount = filtered.filter(so2LimitUnverified).length;
 
-  const isFlaggedSo2Row = (r: Record<string, unknown>) => {
-    if (r.batch_ref) return false;
-    const maxVal = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : null;
-    return maxVal != null && ORGANIC_LIMIT_NUMBERS.has(maxVal);
-  };
+  const isFlaggedSo2Row = (r: Record<string, unknown>) => so2LimitUnverified(r);
   const findFirstFlaggedSo2 = () => filtered.find(isFlaggedSo2Row);
 
   // Step through flagged rows: each click advances to the next flagged row
@@ -8799,14 +8799,9 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
       if (total == null || isNaN(total)) return "—";
       return total <= c ? "Pass" : "Fail";
     } },
-    // Mirrors the on-screen table flag and the batch-trail PDF so2Rows builder:
-    // an organic-ceiling max_permitted with no batch_ref means the limit can't
-    // be verified against a batch record.
-    { key: "limit_unverified", label: "Limit Unverified", fmt: (r: Record<string, unknown>) => {
-      const maxVal = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : null;
-      const organicLimits = new Set(Object.values(ORGANIC_MAX_SO2).map(v => parseFloat(v)));
-      return !r.batch_ref && maxVal != null && organicLimits.has(maxVal) ? "Yes — no batch ref" : "";
-    } },
+    // Shared so2LimitUnverified predicate — same rule as the on-screen table
+    // flag and the batch-trail PDF so2Rows builder.
+    { key: "limit_unverified", label: "Limit Unverified", fmt: (r: Record<string, unknown>) => so2LimitUnverified(r) ? "Yes — no batch ref" : "" },
     { key: "test_method", label: "Test Method" },
     { key: "notes", label: "Notes" },
   ];
@@ -8976,9 +8971,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
             </tr></thead>
             <tbody className="divide-y">
               {filtered.map((r, idx) => {
-                const batchMissing = !r.batch_ref;
-                const maxVal = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : null;
-                const isUnverifiedLimit = batchMissing && maxVal != null && ORGANIC_LIMIT_NUMBERS.has(maxVal);
+                const isUnverifiedLimit = so2LimitUnverified(r);
                 const rowId = String(r.id);
                 const isHighlighted = highlightedSo2RowId === rowId;
                 return (
