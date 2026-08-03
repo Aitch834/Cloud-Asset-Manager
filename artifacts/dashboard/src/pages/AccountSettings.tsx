@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { apiUrl } from "@/lib/api";
 import { useState, useEffect } from "react";
 import { Smartphone, BellRing, BellOff, AlertTriangle, Loader2, CheckCircle2, Lock } from "lucide-react";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -79,7 +80,7 @@ export default function AccountSettings() {
   useEffect(() => {
     async function fetchProfile() {
       try {
-        const res = await fetch(`${import.meta.env.BASE_URL}api/account/profile`);
+        const res = await fetch(apiUrl("account/profile"));
         if (!res.ok) throw new Error("Failed to load profile");
         const data = await res.json() as AccountProfile;
         setProfile(data);
@@ -103,7 +104,7 @@ export default function AccountSettings() {
 
     setSaving(true);
     try {
-      const res = await fetch(`${import.meta.env.BASE_URL}api/account/profile`, {
+      const res = await fetch(apiUrl("account/profile"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phoneNumber: phoneNumber.trim(), smsOptIn }),

@@ -96,12 +96,15 @@ export default function SelectContext() {
     }
   }, [tenantSlug, farmId, setLocation]);
 
-  // New user with no tenants → go to onboarding wizard
+  // New user with no tenants → go to onboarding wizard.
+  // Skip when a tenant is already selected in the app store (e.g. just created
+  // via onboarding) — the tenants query may still hold a stale empty result,
+  // and bouncing back to /onboard would trap the user in the wizard.
   useEffect(() => {
-    if (tenantsData?.tenants && tenantsData.tenants.length === 0) {
+    if (!tenantSlug && tenantsData?.tenants && tenantsData.tenants.length === 0) {
       setLocation('/onboard');
     }
-  }, [tenantsData, setLocation]);
+  }, [tenantsData, tenantSlug, setLocation]);
 
   useEffect(() => {
     if (tenantsData?.tenants && tenantsData.tenants.length === 1 && !tenantSlug) {

@@ -105,7 +105,7 @@ router.post("/tenants/current/farms", requireAuth, requireTenant, requireClientA
     name, address, postcode, cphNumber, gridReference, totalAcreage,
     sectorArable, sectorBeef, sectorSheep, sectorDairy, sectorPigs, sectorPoultry,
     sectorEggs, sectorGoats, sectorEquine, sectorHorticulture, sectorViticulture, sectorFreshProduce,
-    redTractorId,
+    sectorDeer, redTractorId,
   } = req.body;
 
   if (!name) {
@@ -133,6 +133,7 @@ router.post("/tenants/current/farms", requireAuth, requireTenant, requireClientA
     sectorHorticulture: sectorHorticulture ?? false,
     sectorViticulture: sectorViticulture ?? false,
     sectorFreshProduce: sectorFreshProduce ?? false,
+    sectorDeer: sectorDeer ?? false,
     redTractorId: redTractorId || null,
   }).returning();
 

@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
+import { apiUrl } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Building2, Tractor, Package, CreditCard,
   CheckCircle2, ChevronRight, Loader2, ArrowLeft, Lock
@@ -53,6 +55,21 @@ interface Module {
   isCore: boolean;
 }
 
+/** Pull a specific error message out of an API response, falling back sensibly. */
+async function extractError(res: Response, fallback: string): Promise<string> {
+  try {
+    const contentType = res.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      const body = await res.json() as { error?: string };
+      if (body.error) return body.error;
+    }
+  } catch {
+    // fall through to status-based message
+  }
+  if (res.status === 401) return "Your session has expired. Please sign in again.";
+  return `${fallback} (server responded with ${res.status})`;
+}
+
 function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -74,6 +91,14 @@ export default function OnboardingPage() {
   const { user } = useSafeUser();
   const { toast } = useToast();
   const { setTenantSlug, setFarmId } = useAppStore();
+  const queryClient = useQueryClient();
+
+  /** Leave onboarding: drop stale cached queries (e.g. the empty tenants list
+   *  fetched before the tenant existed) so /select sees the new tenant/farm. */
+  function finishOnboarding() {
+    queryClient.invalidateQueries();
+    setLocation("/select");
+  }
 
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
@@ -103,7 +128,7 @@ export default function OnboardingPage() {
   useEffect(() => {
     if (step === 3 && modules.length === 0) {
       setLoadingModules(true);
-      fetch(`${import.meta.env.BASE_URL}api/billing/modules`)
+      fetch(apiUrl("billing/modules"))
         .then((r) => r.json())
         .then((data) => {
           const mods: Module[] = data.modules ?? [];
@@ -132,7 +157,7 @@ export default function OnboardingPage() {
         if (sectorKey && !farmSectors[sectorKey]) {
           const updated = { ...farmSectors, [sectorKey]: true };
           setFarmSectors(updated);
-          fetch(`${import.meta.env.BASE_URL}api/farms/${createdFarmId}`, {
+          fetch(apiUrl(`farms/${createdFarmId}`), {
             method: "PUT",
             headers: { "Content-Type": "application/json", "x-tenant-slug": createdTenantSlug },
             body: JSON.stringify({ name: farmName, ...updated }),
@@ -158,7 +183,7 @@ export default function OnboardingPage() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch(`${import.meta.env.BASE_URL}api/tenants`, {
+      const res = await fetch(apiUrl("tenants"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -171,7 +196,7 @@ export default function OnboardingPage() {
       });
       if (res.status === 409) {
         const uniqueSlug = `${slug}-${Date.now().toString(36)}`;
-        const retry = await fetch(`${import.meta.env.BASE_URL}api/tenants`, {
+        const retry = await fetch(apiUrl("tenants"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -182,20 +207,24 @@ export default function OnboardingPage() {
             address: bizAddress.trim() || undefined,
           }),
         });
-        if (!retry.ok) throw new Error("Failed to create business");
+        if (!retry.ok) throw new Error(await extractError(retry, "Could not create your business"));
         const data = await retry.json();
         setCreatedTenantSlug(data.tenant.slug);
         setTenantSlug(data.tenant.slug);
       } else if (!res.ok) {
-        throw new Error("Failed to create business");
+        throw new Error(await extractError(res, "Could not create your business"));
       } else {
         const data = await res.json();
         setCreatedTenantSlug(data.tenant.slug);
         setTenantSlug(data.tenant.slug);
       }
       setStep(2);
-    } catch {
-      toast({ title: "Something went wrong. Please try again.", variant: "destructive" });
+    } catch (err) {
+      toast({
+        title: "Could not create your business",
+        description: err instanceof Error ? err.message : "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -212,7 +241,7 @@ export default function OnboardingPage() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch(`${import.meta.env.BASE_URL}api/tenants/current/farms`, {
+      const res = await fetch(apiUrl("tenants/current/farms"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -225,13 +254,17 @@ export default function OnboardingPage() {
           ...farmSectors,
         }),
       });
-      if (!res.ok) throw new Error("Failed to create farm");
+      if (!res.ok) throw new Error(await extractError(res, "Could not create your farm"));
       const data = await res.json();
       setCreatedFarmId(data.farm.id);
       setFarmId(data.farm.id);
       setStep(3);
-    } catch {
-      toast({ title: "Something went wrong. Please try again.", variant: "destructive" });
+    } catch (err) {
+      toast({
+        title: "Could not create your farm",
+        description: err instanceof Error ? err.message : "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -244,12 +277,12 @@ export default function OnboardingPage() {
       return mod && !mod.isCore;
     });
     if (nonCoreIds.length === 0) {
-      setLocation("/select");
+      finishOnboarding();
       return;
     }
     setSubmitting(true);
     try {
-      const res = await fetch(`${import.meta.env.BASE_URL}api/billing/checkout`, {
+      const res = await fetch(apiUrl("billing/checkout"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -265,7 +298,7 @@ export default function OnboardingPage() {
       const data = await res.json() as { checkoutUrl?: string; url?: string };
       const redirectUrl = data.checkoutUrl ?? data.url;
       if (redirectUrl) window.location.href = redirectUrl;
-      else setLocation("/select");
+      else finishOnboarding();
     } catch {
       toast({ title: "Something went wrong.", variant: "destructive" });
     } finally {
@@ -512,7 +545,7 @@ export default function OnboardingPage() {
                   variant={monthlyTotal > 0 ? "outline" : "default"}
                   size="lg"
                   className="w-full"
-                  onClick={() => setLocation("/select")}
+                  onClick={finishOnboarding}
                 >
                   {monthlyTotal > 0 ? "Start without subscription" : "Go to Dashboard"}
                 </Button>
