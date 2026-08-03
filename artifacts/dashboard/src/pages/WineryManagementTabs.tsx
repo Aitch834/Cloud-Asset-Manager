@@ -2763,28 +2763,29 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
   const vintageYear = data.vintageYear ? String(data.vintageYear) : (pressing.vintage_year ? String(pressing.vintage_year) : null);
   const rows: string[][] = [];
 
+  // Every data row is built as a named-cell record and mapped through
+  // BATCH_TRAIL_CSV_HEADER (same pattern as the pressing-additive rows), so
+  // inserting or reordering a header column can never misalign a row's values.
+  const pushRow = (cells: Record<string, string>) => {
+    rows.push(BATCH_TRAIL_CSV_HEADER.map(h => cells[h] ?? ""));
+  };
+
   // Header
   rows.push([...BATCH_TRAIL_CSV_HEADER]);
 
   const pressingBatchRef = String(pressing.batch_ref ?? "");
 
   // Pressing — summary row with juice analytics
-  rows.push([
-    "Pressing — Juice",
-    pressingBatchRef,
-    fmtDate(pressing.press_date),
-    String(pressing.press_type ?? ""),
-    pressing.juice_brix != null ? `Brix: ${fmtNum(pressing.juice_brix, 1)}` : "",
-    "",
-    "",
-    "",
-    "",
-    pressing.juice_ph != null ? fmtNum(pressing.juice_ph, 2) : "",
-    pressing.juice_ta_gl != null ? fmtNum(pressing.juice_ta_gl, 1) : "",
-    "",
-    String(pressing.operator_name ?? ""),
-    "",
-  ]);
+  pushRow({
+    "Stage": "Pressing — Juice",
+    "Batch Ref": pressingBatchRef,
+    "Date": fmtDate(pressing.press_date),
+    "Type / Additive": String(pressing.press_type ?? ""),
+    "Detail": pressing.juice_brix != null ? `Brix: ${fmtNum(pressing.juice_brix, 1)}` : "",
+    "pH": pressing.juice_ph != null ? fmtNum(pressing.juice_ph, 2) : "",
+    "TA (g/L)": pressing.juice_ta_gl != null ? fmtNum(pressing.juice_ta_gl, 1) : "",
+    "Operator": String(pressing.operator_name ?? ""),
+  });
 
   // Pressing additives — additive columns come from PRESS_ADDITIVE_COLUMNS (shared with the PDF)
   for (const a of data.pressAdditions) {
@@ -2807,27 +2808,17 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
         : String(pressing.operator_name ?? ""),
     };
     for (const col of PRESS_ADDITIVE_COLUMNS) cells[col.csvColumn] = col.csvValue(a);
-    rows.push(BATCH_TRAIL_CSV_HEADER.map(h => cells[h] ?? ""));
+    pushRow(cells);
   }
 
   // Pressing notes — dedicated row, only when non-empty (mirrors on-screen view)
   if (pressing.notes) {
-    rows.push([
-      "Pressing — Notes",
-      pressingBatchRef,
-      fmtDate(pressing.press_date),
-      "",
-      String(pressing.notes),
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-    ]);
+    pushRow({
+      "Stage": "Pressing — Notes",
+      "Batch Ref": pressingBatchRef,
+      "Date": fmtDate(pressing.press_date),
+      "Detail": String(pressing.notes),
+    });
   }
 
   // Pressing attachments — one row per file, only when attachments exist (mirrors the PDF).
@@ -2839,22 +2830,14 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
     const files = pid != null ? (pressingAttachmentsById.get(pid) ?? []) : [];
     const rowBatchRef = String(p.batch_ref ?? "").trim() || pressingBatchRef;
     for (const a of files) {
-      rows.push([
-        "Pressing — Attachment",
-        rowBatchRef,
-        a.uploadedAt ? fmtDate(a.uploadedAt) : "",
-        "Attachment",
-        String(a.fileName ?? ""),
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        a.uploadedAt ? `Uploaded ${fmtDate(a.uploadedAt)}` : "",
-      ]);
+      pushRow({
+        "Stage": "Pressing — Attachment",
+        "Batch Ref": rowBatchRef,
+        "Date": a.uploadedAt ? fmtDate(a.uploadedAt) : "",
+        "Type / Additive": "Attachment",
+        "Detail": String(a.fileName ?? ""),
+        "Notes": a.uploadedAt ? `Uploaded ${fmtDate(a.uploadedAt)}` : "",
+      });
     }
   }
 
@@ -2863,43 +2846,33 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
   const pushStageAttachmentRows = (stageLabel: string, r: Record<string, unknown>, attMap: Map<number, TrailAttachment[]>) => {
     const files = r.id != null ? attMap.get(Number(r.id)) : undefined;
     for (const a of files ?? []) {
-      rows.push([
-        `${stageLabel} — Attachment`,
-        String(r.batch_ref ?? ""),
-        a.uploadedAt ? fmtDate(a.uploadedAt) : "",
-        "Attachment",
-        String(a.fileName ?? ""),
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        a.uploadedAt ? `Uploaded ${fmtDate(a.uploadedAt)}` : "",
-      ]);
+      pushRow({
+        "Stage": `${stageLabel} — Attachment`,
+        "Batch Ref": String(r.batch_ref ?? ""),
+        "Date": a.uploadedAt ? fmtDate(a.uploadedAt) : "",
+        "Type / Additive": "Attachment",
+        "Detail": String(a.fileName ?? ""),
+        "Notes": a.uploadedAt ? `Uploaded ${fmtDate(a.uploadedAt)}` : "",
+      });
     }
   };
 
   // Fermentation
   for (const r of data.fermentation) {
-    rows.push([
-      "Fermentation",
-      String(r.batch_ref ?? ""),
-      r.start_date ? fmtDate(r.start_date) : "",
-      String(r.fermentation_type ?? ""),
-      r.yeast_strain ? `Yeast: ${String(r.yeast_strain)}` : "",
-      r.so2_at_fermentation_mg_l != null ? fmtNum(r.so2_at_fermentation_mg_l, 1) : "",
-      r.so2_at_fermentation_mg_l != null ? "mg/L" : "",
-      "",
-      "",
-      r.end_ph != null ? fmtNum(r.end_ph, 2) : "",
-      r.end_ta_gl != null ? fmtNum(r.end_ta_gl, 1) : "",
-      String(r.vessel_ref ?? ""),
-      String(r.operator_name ?? ""),
-      String(r.notes ?? ""),
-    ]);
+    pushRow({
+      "Stage": "Fermentation",
+      "Batch Ref": String(r.batch_ref ?? ""),
+      "Date": r.start_date ? fmtDate(r.start_date) : "",
+      "Type / Additive": String(r.fermentation_type ?? ""),
+      "Detail": r.yeast_strain ? `Yeast: ${String(r.yeast_strain)}` : "",
+      "SO₂ / Dose": r.so2_at_fermentation_mg_l != null ? fmtNum(r.so2_at_fermentation_mg_l, 1) : "",
+      "Unit": r.so2_at_fermentation_mg_l != null ? "mg/L" : "",
+      "pH": r.end_ph != null ? fmtNum(r.end_ph, 2) : "",
+      "TA (g/L)": r.end_ta_gl != null ? fmtNum(r.end_ta_gl, 1) : "",
+      "Vessel": String(r.vessel_ref ?? ""),
+      "Operator": String(r.operator_name ?? ""),
+      "Notes": String(r.notes ?? ""),
+    });
     pushStageAttachmentRows("Fermentation", r, fermAttachments);
   }
 
@@ -2917,23 +2890,19 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
     const runningCell = String(r.op_type) === "sulfiting"
       ? (running?.contributed && running.runningMgL != null ? `≈ ${running.runningMgL.toFixed(1)}` : "—")
       : "";
-    rows.push([
-      "Cellar Operation",
-      String(r.batch_ref ?? ""),
-      fmtDate(r.op_date),
-      CELLAR_OP_LABELS[String(r.op_type)] ?? String(r.op_type ?? ""),
-      r.fining_agent ? `Fining: ${String(r.fining_agent)}` : "",
-      soDetails,
-      soUnit,
-      "",
-      "",
-      "",
-      "",
-      [r.from_vessel_ref, r.to_vessel_ref].filter(Boolean).join(" → "),
-      String(r.operator_name ?? ""),
-      String(r.notes ?? ""),
-      runningCell,
-    ]);
+    pushRow({
+      "Stage": "Cellar Operation",
+      "Batch Ref": String(r.batch_ref ?? ""),
+      "Date": fmtDate(r.op_date),
+      "Type / Additive": CELLAR_OP_LABELS[String(r.op_type)] ?? String(r.op_type ?? ""),
+      "Detail": r.fining_agent ? `Fining: ${String(r.fining_agent)}` : "",
+      "SO₂ / Dose": soDetails,
+      "Unit": soUnit,
+      "Vessel": [r.from_vessel_ref, r.to_vessel_ref].filter(Boolean).join(" → "),
+      "Operator": String(r.operator_name ?? ""),
+      "Notes": String(r.notes ?? ""),
+      "Running SO₂ Total (mg/L)": runningCell,
+    });
     pushStageAttachmentRows("Cellar Operation", r, cellarAttachments);
   }
 
@@ -2945,22 +2914,21 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
     const maxVal = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : null;
     const unverifiedLimit = so2LimitUnverified(r);
     const compliance = r.so2_compliant === true || r.so2_compliant === "true" ? "Compliant" : r.so2_compliant === false || r.so2_compliant === "false" ? "Exceeds Limit" : "";
-    rows.push([
-      "SO₂ Test",
-      String(r.batch_ref ?? ""),
-      fmtDate(r.test_date),
-      SO2_TEST_STAGE_LABELS[String(r.test_stage)] ?? String(r.test_stage ?? ""),
-      "",
-      r.free_so2_mg_l != null ? fmtNum(r.free_so2_mg_l, 1) : "",
-      "mg/L (free)",
-      maxVal != null ? maxVal.toFixed(0) : "",
-      unverifiedLimit ? (compliance ? `${compliance} — Limit unverified (no batch ref)` : "Limit unverified (no batch ref)") : compliance,
-      r.ph != null ? fmtNum(r.ph, 2) : "",
-      r.titratable_acidity_gl != null ? fmtNum(r.titratable_acidity_gl, 1) : "",
-      String(r.vessel_ref ?? ""),
-      String(r.operator_name ?? ""),
-      String(r.notes ?? ""),
-    ]);
+    pushRow({
+      "Stage": "SO₂ Test",
+      "Batch Ref": String(r.batch_ref ?? ""),
+      "Date": fmtDate(r.test_date),
+      "Type / Additive": SO2_TEST_STAGE_LABELS[String(r.test_stage)] ?? String(r.test_stage ?? ""),
+      "SO₂ / Dose": r.free_so2_mg_l != null ? fmtNum(r.free_so2_mg_l, 1) : "",
+      "Unit": "mg/L (free)",
+      "SO₂ Ceiling (mg/L)": maxVal != null ? maxVal.toFixed(0) : "",
+      "SO₂ Compliance": unverifiedLimit ? (compliance ? `${compliance} — Limit unverified (no batch ref)` : "Limit unverified (no batch ref)") : compliance,
+      "pH": r.ph != null ? fmtNum(r.ph, 2) : "",
+      "TA (g/L)": r.titratable_acidity_gl != null ? fmtNum(r.titratable_acidity_gl, 1) : "",
+      "Vessel": String(r.vessel_ref ?? ""),
+      "Operator": String(r.operator_name ?? ""),
+      "Notes": String(r.notes ?? ""),
+    });
     pushStageAttachmentRows("SO₂ Test", r, so2Attachments);
   }
 
@@ -2971,22 +2939,22 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
     const ceiling = colour ? parseFloat(isOrg ? (ORGANIC_MAX_SO2[colour] ?? "") : (CONVENTIONAL_MAX_SO2[colour] ?? "")) : NaN;
     const totalSo2 = r.total_so2_mg_l != null ? parseFloat(String(r.total_so2_mg_l)) : null;
     const hasCompliance = totalSo2 != null && !isNaN(ceiling);
-    rows.push([
-      "Bottling",
-      String(r.batch_ref ?? ""),
-      fmtDate(r.bottling_date),
-      r.lot_code ? `Lot: ${String(r.lot_code)}` : "",
-      r.bottles_produced != null ? `${String(r.bottles_produced)} bottles` : "",
-      r.free_so2_mg_l != null ? fmtNum(r.free_so2_mg_l, 1) : "",
-      r.free_so2_mg_l != null ? "mg/L (free SO₂)" : "",
-      !isNaN(ceiling) ? `${ceiling.toFixed(0)} (${isOrg ? "organic" : "conventional"})` : "",
-      hasCompliance ? (totalSo2! > ceiling ? "Exceeds Limit" : "Compliant") : "",
-      r.ph != null ? fmtNum(r.ph, 2) : "",
-      r.titratable_acidity_gl != null ? fmtNum(r.titratable_acidity_gl, 1) : "",
-      String(r.source_vessel_ref ?? ""),
-      String(r.operator_name ?? ""),
-      String(r.notes ?? ""),
-    ]);
+    pushRow({
+      "Stage": "Bottling",
+      "Batch Ref": String(r.batch_ref ?? ""),
+      "Date": fmtDate(r.bottling_date),
+      "Type / Additive": r.lot_code ? `Lot: ${String(r.lot_code)}` : "",
+      "Detail": r.bottles_produced != null ? `${String(r.bottles_produced)} bottles` : "",
+      "SO₂ / Dose": r.free_so2_mg_l != null ? fmtNum(r.free_so2_mg_l, 1) : "",
+      "Unit": r.free_so2_mg_l != null ? "mg/L (free SO₂)" : "",
+      "SO₂ Ceiling (mg/L)": !isNaN(ceiling) ? `${ceiling.toFixed(0)} (${isOrg ? "organic" : "conventional"})` : "",
+      "SO₂ Compliance": hasCompliance ? (totalSo2! > ceiling ? "Exceeds Limit" : "Compliant") : "",
+      "pH": r.ph != null ? fmtNum(r.ph, 2) : "",
+      "TA (g/L)": r.titratable_acidity_gl != null ? fmtNum(r.titratable_acidity_gl, 1) : "",
+      "Vessel": String(r.source_vessel_ref ?? ""),
+      "Operator": String(r.operator_name ?? ""),
+      "Notes": String(r.notes ?? ""),
+    });
     pushStageAttachmentRows("Bottling", r, bottlingAttachments);
   }
 
@@ -3008,11 +2976,11 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
 
   if (phTaStages.length > 0) {
     // Blank separator row
-    rows.push(["", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
-    // Section heading (spans first two columns for readability)
-    rows.push(["pH & TA Analytical History", "", "", "", "", "", "", "", "", "pH", "TA (g/L)", "", "", ""]);
+    pushRow({});
+    // Section heading — pH/TA labels placed under their own header columns
+    pushRow({ "Stage": "pH & TA Analytical History", "pH": "pH", "TA (g/L)": "TA (g/L)" });
     for (const [stage, ph, ta] of phTaStages) {
-      rows.push([stage, batchRef, "", "", "", "", "", "", "", ph, ta, "", "", ""]);
+      pushRow({ "Stage": stage, "Batch Ref": batchRef, "pH": ph, "TA (g/L)": ta });
     }
   }
 
@@ -3023,26 +2991,17 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
     const cmpRows = computeVintagePhTaComparisonRows(data);
     if (cmpRows.length > 0) {
       // Blank separator row
-      rows.push(["", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
-      // Section heading — "Detail" column carries the source stage per row
-      rows.push(["Vintage pH & TA Comparison", "Batch Ref", "", "Stage", "", "", "", "", "", "pH", "TA (g/L)", "", "", ""]);
+      pushRow({});
+      // Section heading — "Type / Additive" column carries the source stage per row
+      pushRow({ "Stage": "Vintage pH & TA Comparison", "Batch Ref": "Batch Ref", "Type / Additive": "Stage", "pH": "pH", "TA (g/L)": "TA (g/L)" });
       for (const r of cmpRows) {
-        rows.push([
-          "Vintage Comparison",
-          r.ref,
-          "",
-          r.source ?? "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          r.ph != null ? r.ph.toFixed(2) : "",
-          r.ta != null ? r.ta.toFixed(1) : "",
-          "",
-          "",
-          "",
-        ]);
+        pushRow({
+          "Stage": "Vintage Comparison",
+          "Batch Ref": r.ref,
+          "Type / Additive": r.source ?? "",
+          "pH": r.ph != null ? r.ph.toFixed(2) : "",
+          "TA (g/L)": r.ta != null ? r.ta.toFixed(1) : "",
+        });
       }
     }
   }
@@ -3050,13 +3009,9 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
   const prefixLine = isVintageScoped && vintageYear
     ? `"Full Vintage Trail — Vintage ${vintageYear} — ${farmName.replace(/"/g, '""')}"`
     : null;
-  // Pad every row to the header width so rows built before the "Running SO₂
-  // Total (mg/L)" column was appended stay aligned with the header.
-  const csvWidth = BATCH_TRAIL_CSV_HEADER.length;
-  const csv = rows.map(row => {
-    const padded = row.length < csvWidth ? [...row, ...Array(csvWidth - row.length).fill("")] : row;
-    return padded.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",");
-  }).join("\n");
+  // Every row is built via pushRow (named cells mapped through
+  // BATCH_TRAIL_CSV_HEADER), so all rows are already exactly header-width.
+  const csv = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
   const blob = new Blob([prefixLine ? prefixLine + "\n" + csv : csv], { type: "text/csv" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
