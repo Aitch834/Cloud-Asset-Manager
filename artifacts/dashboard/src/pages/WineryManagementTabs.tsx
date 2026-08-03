@@ -6137,12 +6137,24 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
               {(viewAdditions?.length ?? 0) > 0 ? (
                 <div className="col-span-2">
                   <p className="text-xs text-muted-foreground uppercase tracking-wide">Additions at Press</p>
+                  {/* Cell values come from the shared PRESS_ADDITIVE_COLUMNS definitions
+                      (via ADDITIVE_COL), the same source the exports render from, and any
+                      extra shared field is appended generically — screen and downloads
+                      can no longer drift apart. */}
                   <div className="mt-1 space-y-1">
                     {(viewAdditions ?? []).map((a, i) => (
-                      <div key={i} className="flex gap-2 text-sm flex-wrap">
-                        <span className="font-medium">{String(a.additive_name)}</span>
-                        {(a.dose != null && a.dose !== "") && <span className="text-muted-foreground">{String(a.dose)} {String(a.unit ?? "")}</span>}
-                        {!!(a.notes) && <span className="text-xs text-muted-foreground">— {String(a.notes)}</span>}
+                      <div key={i} className="space-y-0.5">
+                        <div className="flex gap-2 text-sm flex-wrap">
+                          <span className="font-medium">{ADDITIVE_COL.additive_name.pdfValue(a) || "—"}</span>
+                          {!!ADDITIVE_COL.category.pdfValue(a) && <span className="text-xs text-muted-foreground self-center">{ADDITIVE_COL.category.pdfValue(a)}</span>}
+                          {(a.dose != null && a.dose !== "") && <span className="text-muted-foreground">{ADDITIVE_COL.dose.pdfValue(a)} {ADDITIVE_COL.unit.pdfValue(a)}</span>}
+                          {!!(a.notes) && <span className="text-xs text-muted-foreground">— {ADDITIVE_COL.notes.pdfValue(a)}</span>}
+                        </div>
+                        {EXTRA_ADDITIVE_COLUMNS.map(col => (
+                          <p key={col.field} className="text-xs text-muted-foreground">
+                            <span className="uppercase tracking-wide font-semibold" style={{ fontSize: "10px" }}>{col.pdfLabel}:</span> {col.pdfValue(a) || "—"}
+                          </p>
+                        ))}
                       </div>
                     ))}
                   </div>
@@ -6708,28 +6720,38 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
                     <p className="text-xs text-muted-foreground italic">No structured additions recorded for the linked pressing batch.</p>
                   ) : (
                     <div className="rounded-md border overflow-hidden text-xs">
+                      {/* Headers/cells come from the shared PRESS_ADDITIVE_COLUMNS definitions
+                          (via ADDITIVE_COL), the same source the exports render from, and any
+                          extra shared field is appended generically — screen and downloads
+                          can no longer drift apart. */}
                       <table className="w-full">
                         <thead className="bg-muted/40"><tr>
-                          <th className="text-left p-2 font-medium">Additive</th>
-                          <th className="text-left p-2 font-medium">Category</th>
-                          <th className="text-right p-2 font-medium">Dose</th>
-                          <th className="text-left p-2 font-medium">Unit</th>
-                          <th className="text-left p-2 font-medium">Notes</th>
+                          <th className={`text-${ADDITIVE_COL.additive_name.align} p-2 font-medium`}>{ADDITIVE_COL.additive_name.pdfLabel}</th>
+                          <th className={`text-${ADDITIVE_COL.category.align} p-2 font-medium`}>{ADDITIVE_COL.category.pdfLabel}</th>
+                          <th className={`text-${ADDITIVE_COL.dose.align} p-2 font-medium`}>{ADDITIVE_COL.dose.pdfLabel}</th>
+                          <th className={`text-${ADDITIVE_COL.unit.align} p-2 font-medium`}>{ADDITIVE_COL.unit.pdfLabel}</th>
+                          <th className={`text-${ADDITIVE_COL.notes.align} p-2 font-medium`}>{ADDITIVE_COL.notes.pdfLabel}</th>
+                          {EXTRA_ADDITIVE_COLUMNS.map(col => (
+                            <th key={col.field} className={`text-${col.align} p-2 font-medium`}>{col.pdfLabel}</th>
+                          ))}
                         </tr></thead>
                         <tbody className="divide-y">
                           {additions.map((a, i) => (
                             <tr key={String(a.id ?? i)} className="hover:bg-muted/20">
-                              <td className="p-2 font-medium">{fmt(a.additive_name)}</td>
-                              <td className="p-2 text-muted-foreground">{fmt(a.category)}</td>
-                              <td className="p-2 text-right font-mono">{fmt(a.dose)}</td>
-                              <td className="p-2">{fmt(a.unit)}</td>
-                              <td className="p-2 text-muted-foreground max-w-[8rem] lg:max-w-[11rem] xl:max-w-[14rem]">
+                              <td className={`p-2 font-medium text-${ADDITIVE_COL.additive_name.align}`}>{ADDITIVE_COL.additive_name.pdfValue(a) || "—"}</td>
+                              <td className={`p-2 text-muted-foreground text-${ADDITIVE_COL.category.align}`}>{ADDITIVE_COL.category.pdfValue(a) || "—"}</td>
+                              <td className={`p-2 font-mono text-${ADDITIVE_COL.dose.align}`}>{a.dose != null && a.dose !== "" ? ADDITIVE_COL.dose.pdfValue(a) : "—"}</td>
+                              <td className={`p-2 text-${ADDITIVE_COL.unit.align}`}>{ADDITIVE_COL.unit.pdfValue(a) || "—"}</td>
+                              <td className={`p-2 text-muted-foreground text-${ADDITIVE_COL.notes.align} max-w-[8rem] lg:max-w-[11rem] xl:max-w-[14rem]`}>
                                 {a.notes ? (
-                                  <span className="truncate block cursor-help underline decoration-dotted decoration-muted-foreground/40 underline-offset-2" title={String(a.notes)}>
-                                    {String(a.notes).length > 120 ? `${String(a.notes).slice(0, 120)}…` : String(a.notes)}
+                                  <span className="truncate block cursor-help underline decoration-dotted decoration-muted-foreground/40 underline-offset-2" title={ADDITIVE_COL.notes.pdfValue(a)}>
+                                    {ADDITIVE_COL.notes.pdfValue(a).length > 120 ? `${ADDITIVE_COL.notes.pdfValue(a).slice(0, 120)}…` : ADDITIVE_COL.notes.pdfValue(a)}
                                   </span>
                                 ) : <span className="text-muted-foreground/50">—</span>}
                               </td>
+                              {EXTRA_ADDITIVE_COLUMNS.map(col => (
+                                <td key={col.field} className={`p-2 text-muted-foreground text-${col.align}`}>{col.pdfValue(a) || "—"}</td>
+                              ))}
                             </tr>
                           ))}
                         </tbody>
