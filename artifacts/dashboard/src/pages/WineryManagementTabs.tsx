@@ -6076,6 +6076,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
   const [isOrganicForm, setIsOrganicForm] = useState(false);
   const [yearFilter, setYearFilter] = usePersistedYearFilter("fermentation", farmId);
   const [fermSearch, setFermSearch] = useState("");
+  const [fermSignedFilter, setFermSignedFilter] = useState<"all" | "signed" | "unsigned">("all");
   const [so2FromPressing, setSo2FromPressing] = useState(false);
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   const farmNameFerm: string = useFarmName(farmId);
@@ -6142,7 +6143,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
   if (!years.includes(String(new Date().getFullYear()))) years.unshift(String(new Date().getFullYear()));
   const filteredByYear = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
-  const filtered = fermSearch.trim() === "" ? filteredByYear : filteredByYear.filter(r => {
+  const fermFilteredBySearch = fermSearch.trim() === "" ? filteredByYear : filteredByYear.filter(r => {
     const q = fermSearch.trim().toLowerCase();
     const vesselRef = r.vessel_ref ?? vessels.find(v => v.id === r.vessel_id)?.vessel_ref;
     return String(r.batch_ref ?? "").toLowerCase().includes(q)
@@ -6150,6 +6151,18 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
       || String(vesselRef ?? "").toLowerCase().includes(q)
       || String(r.operator_name ?? "").toLowerCase().includes(q);
   });
+  const filtered = fermSignedFilter === "all"
+    ? fermFilteredBySearch
+    : fermFilteredBySearch.filter(r => {
+        const isSigned = r.audit_signature != null && r.audit_signature !== "";
+        return fermSignedFilter === "signed" ? isSigned : !isSigned;
+      });
+  // Outstanding sign-offs across the current vintage filter (independent of
+  // search / signed-status filters) — same as the Pressing table's header badge
+  const fermUnsignedCount = useMemo(
+    () => filteredByYear.filter(r => r.audit_signature == null || r.audit_signature === "").length,
+    [filteredByYear],
+  );
   const fermentCsvCols = [
     { key: "vintage_year", label: "Vintage" },
     { key: "batch_ref", label: "Batch Ref" },
@@ -6190,7 +6203,19 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-semibold text-sm">Fermentation Records</p>
+          <p className="font-semibold text-sm flex items-center gap-2 flex-wrap">
+            Fermentation Records
+            {fermUnsignedCount > 0 && (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 cursor-pointer hover:bg-amber-200 transition-colors"
+                title={`${fermUnsignedCount} fermentation record${fermUnsignedCount === 1 ? "" : "s"} in the current vintage filter ${fermUnsignedCount === 1 ? "has" : "have"} not been signed off — click to ${fermSignedFilter === "unsigned" ? "show all records" : "show only unsigned records"}`}
+                onClick={() => setFermSignedFilter(f => (f === "unsigned" ? "all" : "unsigned"))}
+              >
+                <PenLine className="w-3 h-3" />{fermUnsignedCount} unsigned
+              </button>
+            )}
+          </p>
           <p className="text-xs text-muted-foreground mt-0.5">Track each fermentation batch from inoculation to dryness. One record per batch per vessel. Links to your Tank Register for vessel assignment.</p>
         </div>
         <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Fermentation</Button>
@@ -6210,6 +6235,15 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
             onChange={e => setFermSearch(e.target.value)}
           />
         </div>
+        <span className="text-xs text-muted-foreground">Sign-off:</span>
+        <Select value={fermSignedFilter} onValueChange={v => setFermSignedFilter(v as "all" | "signed" | "unsigned")}>
+          <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="signed">Signed only</SelectItem>
+            <SelectItem value="unsigned">Unsigned only</SelectItem>
+          </SelectContent>
+        </Select>
         <Button size="sm" variant="outline" className="ml-auto" onClick={() => {
           const searchTrim = fermSearch.trim();
           const parts = ["fermentation-records"];
@@ -6844,6 +6878,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const [yearFilter, setYearFilter] = usePersistedYearFilter("cellar-ops", farmId);
   const [opFilter, setOpFilter] = useState("all");
   const [cellarSearch, setCellarSearch] = useState("");
+  const [cellarSignedFilter, setCellarSignedFilter] = useState<"all" | "signed" | "unsigned">("all");
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   // Single source-aware auto-fill state, matching the bottling form's
   // wineColourAutoSource: "fermentation" | "pressing" | null
@@ -7027,8 +7062,8 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
 
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
   if (!years.includes(String(new Date().getFullYear()))) years.unshift(String(new Date().getFullYear()));
-  const filtered = crud.data
-    .filter(r => yearFilter === "all" || String(r.vintage_year) === yearFilter)
+  const cellarFilteredByYear = crud.data.filter(r => yearFilter === "all" || String(r.vintage_year) === yearFilter);
+  const filtered = cellarFilteredByYear
     .filter(r => opFilter === "all" || String(r.op_type) === opFilter)
     .filter(r => {
       const q = cellarSearch.trim().toLowerCase();
@@ -7036,7 +7071,18 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
       return String(r.batch_ref ?? "").toLowerCase().includes(q)
         || String(r.operator_name ?? "").toLowerCase().includes(q)
         || String(r.notes ?? "").toLowerCase().includes(q);
+    })
+    .filter(r => {
+      if (cellarSignedFilter === "all") return true;
+      const isSigned = r.audit_signature != null && r.audit_signature !== "";
+      return cellarSignedFilter === "signed" ? isSigned : !isSigned;
     });
+  // Outstanding sign-offs across the current vintage filter (independent of
+  // op-type / search / signed-status filters) — same as the Pressing table badge
+  const cellarUnsignedCount = useMemo(
+    () => cellarFilteredByYear.filter(r => r.audit_signature == null || r.audit_signature === "").length,
+    [cellarFilteredByYear],
+  );
   // Organic status for a cellar-ops row: derived from the linked pressing record by
   // batch_ref (same as the view dialog / form), falling back to the row's own flag.
   const cellarRowIsOrganic = (r: Record<string, unknown>): boolean => {
@@ -7105,7 +7151,19 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-semibold text-sm">Cellar Operations Log</p>
+          <p className="font-semibold text-sm flex items-center gap-2 flex-wrap">
+            Cellar Operations Log
+            {cellarUnsignedCount > 0 && (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 cursor-pointer hover:bg-amber-200 transition-colors"
+                title={`${cellarUnsignedCount} cellar operation${cellarUnsignedCount === 1 ? "" : "s"} in the current vintage filter ${cellarUnsignedCount === 1 ? "has" : "have"} not been signed off — click to ${cellarSignedFilter === "unsigned" ? "show all records" : "show only unsigned records"}`}
+                onClick={() => setCellarSignedFilter(f => (f === "unsigned" ? "all" : "unsigned"))}
+              >
+                <PenLine className="w-3 h-3" />{cellarUnsignedCount} unsigned
+              </button>
+            )}
+          </p>
           <p className="text-xs text-muted-foreground mt-0.5">Record all winemaking interventions — racking, topping, sulfiting, fining, filtering, and cold stabilisation. The SO₂ addition records here feed into your SO₂ compliance audit trail.</p>
         </div>
         <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Log Operation</Button>
@@ -7130,6 +7188,15 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
             onChange={e => setCellarSearch(e.target.value)}
           />
         </div>
+        <span className="text-xs text-muted-foreground">Sign-off:</span>
+        <Select value={cellarSignedFilter} onValueChange={v => setCellarSignedFilter(v as "all" | "signed" | "unsigned")}>
+          <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="signed">Signed only</SelectItem>
+            <SelectItem value="unsigned">Unsigned only</SelectItem>
+          </SelectContent>
+        </Select>
         <Button size="sm" variant="outline" className="ml-auto" onClick={() => {
           const searchTrim = cellarSearch.trim();
           const parts = ["cellar-ops"];
@@ -7566,6 +7633,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [yearFilter, setYearFilter] = usePersistedYearFilter("bottling", farmId);
   const [bottlingSearch, setBottlingSearch] = useState("");
+  const [bottlingSignedFilter, setBottlingSignedFilter] = useState<"all" | "signed" | "unsigned">("all");
   const [nonCompliantOnly, setNonCompliantOnly] = useState(false);
   const [so2FromTest, setSo2FromTest] = useState(false);
   const [phTaFromAnalysis, setPhTaFromAnalysis] = useState<"fermentation" | "pressing" | null>(null);
@@ -7838,7 +7906,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
   if (!years.includes(String(new Date().getFullYear()))) years.unshift(String(new Date().getFullYear()));
   const filteredByYear = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
-  const filtered = bottlingSearch.trim() === "" ? filteredByYear : filteredByYear.filter(r => {
+  const bottlingFilteredBySearch = bottlingSearch.trim() === "" ? filteredByYear : filteredByYear.filter(r => {
     const q = bottlingSearch.trim().toLowerCase();
     return String(r.batch_ref ?? "").toLowerCase().includes(q)
       || String(r.lot_code ?? "").toLowerCase().includes(q)
@@ -7846,6 +7914,18 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
       || String(r.operator_name ?? "").toLowerCase().includes(q)
       || String(r.notes ?? "").toLowerCase().includes(q);
   });
+  const filtered = bottlingSignedFilter === "all"
+    ? bottlingFilteredBySearch
+    : bottlingFilteredBySearch.filter(r => {
+        const isSigned = r.audit_signature != null && r.audit_signature !== "";
+        return bottlingSignedFilter === "signed" ? isSigned : !isSigned;
+      });
+  // Outstanding sign-offs across the current vintage filter (independent of
+  // search / signed-status filters) — same as the Pressing table's header badge
+  const bottlingUnsignedCount = useMemo(
+    () => filteredByYear.filter(r => r.audit_signature == null || r.audit_signature === "").length,
+    [filteredByYear],
+  );
 
   const isBottlingRowNonCompliant = (r: Record<string, unknown>): boolean => {
     const colour = String(r.wine_colour ?? "");
@@ -7889,7 +7969,19 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-semibold text-sm">Bottling Records</p>
+          <p className="font-semibold text-sm flex items-center gap-2 flex-wrap">
+            Bottling Records
+            {bottlingUnsignedCount > 0 && (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 cursor-pointer hover:bg-amber-200 transition-colors"
+                title={`${bottlingUnsignedCount} bottling record${bottlingUnsignedCount === 1 ? "" : "s"} in the current vintage filter ${bottlingUnsignedCount === 1 ? "has" : "have"} not been signed off — click to ${bottlingSignedFilter === "unsigned" ? "show all records" : "show only unsigned records"}`}
+                onClick={() => setBottlingSignedFilter(f => (f === "unsigned" ? "all" : "unsigned"))}
+              >
+                <PenLine className="w-3 h-3" />{bottlingUnsignedCount} unsigned
+              </button>
+            )}
+          </p>
           <p className="text-xs text-muted-foreground mt-0.5">Record each bottling run — lot code, volume, bottle format, closure type, and pre-bottling analysis. The lot code is used for excise duty returns and batch traceability.</p>
         </div>
         <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Bottling Run</Button>
@@ -7909,6 +8001,15 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
             onChange={e => setBottlingSearch(e.target.value)}
           />
         </div>
+        <span className="text-xs text-muted-foreground">Sign-off:</span>
+        <Select value={bottlingSignedFilter} onValueChange={v => setBottlingSignedFilter(v as "all" | "signed" | "unsigned")}>
+          <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="signed">Signed only</SelectItem>
+            <SelectItem value="unsigned">Unsigned only</SelectItem>
+          </SelectContent>
+        </Select>
         {nonCompliantCount > 0 && (
           <Button
             size="sm"
