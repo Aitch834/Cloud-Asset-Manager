@@ -1821,6 +1821,14 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
   const currentSignerName = localSignerName ?? (pressing.audit_signer_name ? String(pressing.audit_signer_name) : null);
   const currentSignerRole = localSignerRole ?? (pressing.audit_signer_role ? String(pressing.audit_signer_role) : null);
   const currentSignerDate = localSignerDate ?? (pressing.audit_signer_date ? String(pressing.audit_signer_date) : null);
+  // Single shared embed decision for the Batch Trail PDF — consumed by BOTH the
+  // ShieldCheck indicator and the printBatchTrail call, so they can never drift apart.
+  // Sanitised first, mirroring the PDF helper's validation, so an invalid stored
+  // signature never shows the indicator while producing an unsigned PDF.
+  const batchTrailSafeSig = sanitiseSignatureForHtml(currentSig);
+  const batchTrailEmbed: SignatureEmbed = batchTrailSafeSig
+    ? { willEmbed: true, sig: batchTrailSafeSig, signerInfo: { name: currentSignerName, role: currentSignerRole, signedAt: currentSignedAt, signerDate: currentSignerDate } }
+    : NO_EMBED;
 
   const openSignDialog = () => {
     setSignerName(currentSignerName ?? "");
@@ -2441,11 +2449,9 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
               <Button variant="outline" size="sm" onClick={() => { void exportBatchTrailCsv(farmId, pressing, data, farmName); }}>
                 <FileDown className="w-3.5 h-3.5 mr-1" />Export CSV
               </Button>
-              {/* Mirrors the embed argument passed to printBatchTrail below: the PDF embeds
-                  the signature exactly when currentSig is present. */}
-              <Button variant="outline" size="sm" onClick={() => { void printBatchTrail(farmId, pressing, data, farmName, currentSig, { name: currentSignerName, role: currentSignerRole, signedAt: currentSignedAt, signerDate: currentSignerDate }); }} title={currentSig ? "Signed — signature will be embedded" : undefined}>
+              <Button variant="outline" size="sm" onClick={() => { void printBatchTrail(farmId, pressing, data, farmName, batchTrailEmbed.sig, batchTrailEmbed.signerInfo); }} title={batchTrailEmbed.willEmbed ? "Signed — signature will be embedded" : undefined}>
                 <Printer className="w-3.5 h-3.5 mr-1" />Print / Export PDF
-                {!!currentSig && <ShieldCheck className="w-3.5 h-3.5 ml-1 text-green-600" aria-label="Signed — signature will be embedded" />}
+                {batchTrailEmbed.willEmbed && <ShieldCheck className="w-3.5 h-3.5 ml-1 text-green-600" aria-label="Signed — signature will be embedded" />}
               </Button>
               <Button size="sm" variant={currentSig ? "outline" : "default"} onClick={openSignDialog}>
                 <PenLine className="w-3.5 h-3.5 mr-1" />{currentSig ? "Re-sign" : "Sign Off"}
@@ -2894,6 +2900,33 @@ function sanitiseSignatureForHtml(sig: string | null | undefined): string | null
   if (!sig) return null;
   if (!SAFE_PNG_DATA_URL.test(sig) || sig.length > MAX_SIG_BYTES) return null;
   return sig;
+}
+
+// ── Shared signature-embed decision ──────────────────────────────────────────
+// Single source of truth for whether a printed report will embed a digital
+// signature. Each report computes one SignatureEmbed and BOTH the button's
+// ShieldCheck indicator and the print call consume it, so the indicator can
+// never promise an embedded signature the PDF won't actually contain.
+type SignerInfo = { name: string | null; role: string | null; signedAt: string | null; signerDate: string | null };
+type SignatureEmbed = { willEmbed: boolean; sig: string | null; signerInfo: SignerInfo | undefined };
+const NO_EMBED: SignatureEmbed = { willEmbed: false, sig: null, signerInfo: undefined };
+function signatureEmbedFrom(record: Record<string, unknown> | null | undefined): SignatureEmbed {
+  // Validate/sanitise first — the PDF helpers only embed signatures that pass
+  // sanitiseSignatureForHtml, so willEmbed must be derived from the same
+  // validated value or a malformed/oversized stored signature would show the
+  // ShieldCheck indicator while the PDF silently omits the signature.
+  const sig = record ? sanitiseSignatureForHtml(record.audit_signature ? String(record.audit_signature) : null) : null;
+  if (!record || !sig) return NO_EMBED;
+  return {
+    willEmbed: true,
+    sig,
+    signerInfo: {
+      name: record.audit_signer_name ? String(record.audit_signer_name) : null,
+      role: record.audit_signer_role ? String(record.audit_signer_role) : null,
+      signedAt: record.audit_signed_at ? String(record.audit_signed_at) : null,
+      signerDate: record.audit_signer_date ? String(record.audit_signer_date) : null,
+    },
+  };
 }
 
 async function printBatchTrail(farmId: number, pressing: Record<string, unknown>, data: BatchTrailData, farmName: string, auditSig?: string | null, signerInfo?: { name: string | null; role: string | null; signedAt: string | null; signerDate?: string | null }) {
@@ -4413,15 +4446,16 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const pressingNonCompliantCount = filtered.filter(r => nonCompliantPressingIds.has(r.id as number)).length;
   const displayedPressings = pressingNonCompliantOnly ? filtered.filter(r => nonCompliantPressingIds.has(r.id as number)) : filtered;
 
-  // Mirrors the embed decision made in the Print button's click handler: the PDF
-  // embeds the digital signature only when scoped to a single vintage and every
-  // visible record is signed by the same person. Kept in sync so the indicator
-  // never promises an embedded signature the PDF won't actually contain.
-  const willEmbedSignature = useMemo(() => {
-    if (yearFilter === "all" || filtered.length === 0) return false;
-    if (!filtered.every(r => r.audit_signature != null && r.audit_signature !== "")) return false;
+  // Single shared embed decision for the Pressing report — consumed by BOTH the
+  // ShieldCheck indicator and the Print button's click handler. The PDF embeds
+  // the digital signature only when scoped to a single vintage and every visible
+  // record is signed by the same person.
+  const pressingEmbed = useMemo<SignatureEmbed>(() => {
+    if (yearFilter === "all" || filtered.length === 0) return NO_EMBED;
+    if (!filtered.every(r => r.audit_signature != null && r.audit_signature !== "")) return NO_EMBED;
     const firstSigner = String(filtered[0].audit_signer_name ?? "");
-    return filtered.every(r => String(r.audit_signer_name ?? "") === firstSigner);
+    if (!filtered.every(r => String(r.audit_signer_name ?? "") === firstSigner)) return NO_EMBED;
+    return signatureEmbedFrom(filtered[0]);
   }, [yearFilter, filtered]);
 
   // ── Additions Report derived data ────────────────────────────────────────────
@@ -4477,21 +4511,26 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const { mixedVintages: summaryMixedUnitVintages, dominantUnitByVintage: summaryDominantUnitByVintage } =
     computeSo2DominantUnitByVintage(searchFilteredSummary);
 
-  // Mirrors the signedPress embed decision inside the Additions Report Print button's
-  // click handler: signature embeds only when scoped to a single vintage, every visible
-  // summary row derives from the pressing stage, and every pressing record in that
-  // vintage is signed by the same person. Kept in exact sync so the ShieldCheck
-  // indicator never promises an embedded signature the PDF won't actually contain.
-  const additionsWillEmbedSignature = (() => {
-    if (yearFilter === "all" || searchFilteredSummary.length === 0) return false;
+  // Single shared embed decision for the Additions Report — consumed by BOTH the
+  // ShieldCheck indicator and the Print button's click handler. The signature
+  // embeds only when every printed row provably derives from records the
+  // signature attests to: the report must be scoped to a single vintage, every
+  // visible summary row must come from the pressing stage (fermentation/cellar
+  // additions are not covered by pressing sign-offs), and every pressing record
+  // in that vintage must be signed by the same person. Narrowing filters
+  // (search/colour/category) only subset that signed scope, so they remain safe;
+  // anything broader falls back to blank sign-off lines.
+  const additionsEmbed = ((): SignatureEmbed => {
+    if (yearFilter === "all" || searchFilteredSummary.length === 0) return NO_EMBED;
     const allRowsPressing = searchFilteredSummary.every(r =>
       String(r.source ?? "pressing") === "pressing" && String(r.vintage_year ?? "") === yearFilter);
-    if (!allRowsPressing) return false;
+    if (!allRowsPressing) return NO_EMBED;
     const vintagePressings = crud.data.filter((r: Record<string, unknown>) => String(r.vintage_year ?? "") === yearFilter);
     const allSigned = vintagePressings.length > 0 && vintagePressings.every((r: Record<string, unknown>) => r.audit_signature != null && r.audit_signature !== "");
-    if (!allSigned) return false;
+    if (!allSigned) return NO_EMBED;
     const firstSigner = String(vintagePressings[0].audit_signer_name ?? "");
-    return vintagePressings.every((r: Record<string, unknown>) => String(r.audit_signer_name ?? "") === firstSigner);
+    if (!vintagePressings.every((r: Record<string, unknown>) => String(r.audit_signer_name ?? "") === firstSigner)) return NO_EMBED;
+    return signatureEmbedFrom(vintagePressings[0]);
   })();
 
   const showSo2Chart = categoryFilter.size === 0 || categoryFilter.has("so2");
@@ -4594,10 +4633,10 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
         String(r.batch_ref ?? "").toLowerCase() === txLogBatchFilter.trim().toLowerCase()
       ) ?? null)
     : null;
-  // Mirrors the Transaction Log PDF button's embed decision: the signature embeds when
-  // the batch-ref filter exactly matches a signed pressing record (same lookup as
-  // txLogExactMatch above and matchingPress inside the click handler).
-  const txLogWillEmbedSignature = txLogExactMatch != null && txLogExactMatch.audit_signature != null && txLogExactMatch.audit_signature !== "";
+  // Single shared embed decision for the Transaction Log PDF — consumed by BOTH
+  // the ShieldCheck indicator and the print handler: the signature embeds when
+  // the batch-ref filter exactly matches a signed pressing record.
+  const txLogEmbed = signatureEmbedFrom(txLogExactMatch);
 
   const pressCsvCols = [
     { key: "vintage_year", label: "Vintage" },
@@ -4716,25 +4755,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
         }}><Beaker className="w-3.5 h-3.5 mr-1" />Additions Report</Button>
         <Button size="sm" variant="outline" onClick={() => {
           const vintageLabel = yearFilter === "all" ? "All vintages" : yearFilter;
-          // Embed the digital signature only when scoped to a single vintage and all visible
-          // records are signed by the same person. Multi-vintage or mixed-signer prints fall
-          // back to blank sign-off lines so the PDF cannot be misconstrued as a signed audit
-          // that spans a broader scope than the signer intended.
-          const isSingleVintage = yearFilter !== "all";
-          const allSigned = isSingleVintage && filtered.length > 0 && filtered.every(r => r.audit_signature != null && r.audit_signature !== "");
-          const firstSigner = allSigned ? String(filtered[0].audit_signer_name ?? "") : "";
-          const uniformSigner = allSigned && filtered.every(r => String(r.audit_signer_name ?? "") === firstSigner);
-          const sharedSig = uniformSigner ? (filtered[0].audit_signature ? String(filtered[0].audit_signature) : null) : null;
-          const sharedSignerInfo = uniformSigner && sharedSig ? {
-            name: filtered[0].audit_signer_name ? String(filtered[0].audit_signer_name) : null,
-            role: filtered[0].audit_signer_role ? String(filtered[0].audit_signer_role) : null,
-            signedAt: filtered[0].audit_signed_at ? String(filtered[0].audit_signed_at) : null,
-            signerDate: filtered[0].audit_signer_date ? String(filtered[0].audit_signer_date) : null,
-          } : undefined;
-          printPressingReport(filtered, farmName, vintageLabel, allAdditions, sharedSig, sharedSignerInfo);
-        }} disabled={!filtered.length} title={willEmbedSignature ? "Signed — signature will be embedded" : undefined}>
+          // Shared embed decision (pressingEmbed) — same object drives the ShieldCheck
+          // indicator on this button, so they can never drift apart.
+          printPressingReport(filtered, farmName, vintageLabel, allAdditions, pressingEmbed.sig, pressingEmbed.signerInfo);
+        }} disabled={!filtered.length} title={pressingEmbed.willEmbed ? "Signed — signature will be embedded" : undefined}>
           <Printer className="w-3.5 h-3.5 mr-1" />Print / Export PDF
-          {willEmbedSignature && <ShieldCheck className="w-3.5 h-3.5 ml-1 text-green-600" aria-label="Signed — signature will be embedded" />}
+          {pressingEmbed.willEmbed && <ShieldCheck className="w-3.5 h-3.5 ml-1 text-green-600" aria-label="Signed — signature will be embedded" />}
         </Button>
         <Button size="sm" variant="outline" onClick={() => {
           // Apply the active colour filter (from the Additions Report panel) to the exported
@@ -4956,37 +4982,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                 const scopeLabel = colourFilter !== null
                   ? (colourFilter === UNSPECIFIED_COLOUR ? `${vintagePart} · Unspecified colour` : `${vintagePart} · ${colourFilter} wine`)
                   : vintagePart;
-                // Embed the digital signature only when every printed row provably derives
-                // from records the signature attests to: the report must be scoped to a
-                // single vintage, every visible summary row must come from the pressing
-                // stage (fermentation/cellar additions are not covered by pressing
-                // sign-offs), and every pressing record in that vintage must be signed by
-                // the same person. Narrowing filters (search/colour/category) only subset
-                // that signed scope, so they remain safe; anything broader falls back to
-                // blank sign-off lines — mirrors the other winery PDFs.
-                let signedPress: Record<string, unknown> | null = null;
-                if (yearFilter !== "all" && searchFilteredSummary.length > 0) {
-                  const allRowsPressing = searchFilteredSummary.every(r =>
-                    String(r.source ?? "pressing") === "pressing" && String(r.vintage_year ?? "") === yearFilter);
-                  if (allRowsPressing) {
-                    const vintagePressings = crud.data.filter((r: Record<string, unknown>) => String(r.vintage_year ?? "") === yearFilter);
-                    const allSigned = vintagePressings.length > 0 && vintagePressings.every((r: Record<string, unknown>) => r.audit_signature != null && r.audit_signature !== "");
-                    const firstSigner = allSigned ? String(vintagePressings[0].audit_signer_name ?? "") : "";
-                    const uniformSigner = allSigned && vintagePressings.every((r: Record<string, unknown>) => String(r.audit_signer_name ?? "") === firstSigner);
-                    if (uniformSigner) signedPress = vintagePressings[0];
-                  }
-                }
-                const addSig = signedPress?.audit_signature ? String(signedPress.audit_signature) : null;
-                const addSignerInfo = signedPress && addSig ? {
-                  name: signedPress.audit_signer_name ? String(signedPress.audit_signer_name) : null,
-                  role: signedPress.audit_signer_role ? String(signedPress.audit_signer_role) : null,
-                  signedAt: signedPress.audit_signed_at ? String(signedPress.audit_signed_at) : null,
-                  signerDate: signedPress.audit_signer_date ? String(signedPress.audit_signer_date) : null,
-                } : undefined;
-                printAdditionsReport(searchFilteredSummary, farmName, scopeLabel, addSig, addSignerInfo);
-              }} disabled={!searchFilteredSummary.length} title={additionsWillEmbedSignature ? "Signed — signature will be embedded" : undefined}>
+                // Shared embed decision (additionsEmbed) — same object drives the
+                // ShieldCheck indicator on this button, so they can never drift apart.
+                printAdditionsReport(searchFilteredSummary, farmName, scopeLabel, additionsEmbed.sig, additionsEmbed.signerInfo);
+              }} disabled={!searchFilteredSummary.length} title={additionsEmbed.willEmbed ? "Signed — signature will be embedded" : undefined}>
                 <FileDown className="w-3.5 h-3.5 mr-1" />Print / Export PDF
-                {additionsWillEmbedSignature && <ShieldCheck className="w-3.5 h-3.5 ml-1 text-green-600" aria-label="Signed — signature will be embedded" />}
+                {additionsEmbed.willEmbed && <ShieldCheck className="w-3.5 h-3.5 ml-1 text-green-600" aria-label="Signed — signature will be embedded" />}
               </Button>
               <Button size="sm" variant="outline" onClick={() => {
                 const summaryUnitsByVintage = new Map<string, Set<string>>();
@@ -5031,20 +5032,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
               <Button size="sm" variant="outline" onClick={() => {
                 const batchTrim = txLogBatchFilter.trim();
                 const scope = batchTrim || (yearFilter === "all" ? "All vintages" : yearFilter);
-                const matchingPress = batchTrim
-                  ? crud.data.find((r: Record<string, unknown>) => String(r.batch_ref ?? "").toLowerCase() === batchTrim.toLowerCase())
-                  : null;
-                const sig = matchingPress?.audit_signature ? String(matchingPress.audit_signature) : null;
-                const signerInfo = matchingPress ? {
-                  name: matchingPress.audit_signer_name ? String(matchingPress.audit_signer_name) : null,
-                  role: matchingPress.audit_signer_role ? String(matchingPress.audit_signer_role) : null,
-                  signedAt: matchingPress.audit_signed_at ? String(matchingPress.audit_signed_at) : null,
-                  signerDate: matchingPress.audit_signer_date ? String(matchingPress.audit_signer_date) : null,
-                } : undefined;
-                printSo2TransactionLog(filteredTransactionLog, farmName, scope, sig, signerInfo);
-              }} disabled={!filteredTransactionLog.length} title={txLogWillEmbedSignature ? "Signed — signature will be embedded" : "Print the SO₂ transaction log as a PDF — embeds the batch's digital signature if one exists"}>
+                // Shared embed decision (txLogEmbed, from txLogExactMatch) — same object
+                // drives the ShieldCheck indicator on this button, so they can never drift apart.
+                printSo2TransactionLog(filteredTransactionLog, farmName, scope, txLogEmbed.sig, txLogEmbed.signerInfo);
+              }} disabled={!filteredTransactionLog.length} title={txLogEmbed.willEmbed ? "Signed — signature will be embedded" : "Print the SO₂ transaction log as a PDF — embeds the batch's digital signature if one exists"}>
                 <Printer className="w-3.5 h-3.5 mr-1" />Transaction Log PDF
-                {txLogWillEmbedSignature && <ShieldCheck className="w-3.5 h-3.5 ml-1 text-green-600" aria-label="Signed — signature will be embedded" />}
+                {txLogEmbed.willEmbed && <ShieldCheck className="w-3.5 h-3.5 ml-1 text-green-600" aria-label="Signed — signature will be embedded" />}
               </Button>
               <Button size="sm" variant="outline" onClick={() => {
                 const suffix = txLogBatchFilter.trim() ? txLogBatchFilter.trim().replace(/[^a-zA-Z0-9_-]/g, "_") : yearFilter;
