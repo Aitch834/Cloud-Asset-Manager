@@ -5686,8 +5686,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                               <span className="text-muted-foreground text-xs">—</span>
                             )}
                           </td>
-                          <td className="p-2.5 text-muted-foreground text-xs">{fmt(row.operator_name)}</td>
-                          <td className="p-2.5 text-muted-foreground text-xs">{fmt(row.vessel_ref)}</td>
+                          <td className="p-2.5 text-muted-foreground text-xs max-w-[7rem]">
+                            <span className="truncate block" title={row.operator_name ? String(row.operator_name) : undefined}>{fmt(row.operator_name)}</span>
+                          </td>
+                          <td className="p-2.5 text-muted-foreground text-xs max-w-[8rem]">
+                            <span className="truncate block" title={row.vessel_ref ? String(row.vessel_ref) : undefined}>{fmt(row.vessel_ref)}</span>
+                          </td>
                         </tr>
                       );
                     })}
