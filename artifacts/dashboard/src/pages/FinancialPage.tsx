@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Plus, Search, TrendingUp, TrendingDown, Trash2, PoundSterling, Package, Download, FileText, Wheat, Pencil, Eye, Zap, ExternalLink, CheckCircle2, AlertCircle, Clock, ShoppingBag, CalendarCheck, X, BarChart3, Loader2, Upload, Link2, ArrowRightLeft } from "lucide-react";
@@ -431,7 +432,7 @@ function TransactionsTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) setForm(emptyForm); }}>
+      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) { setForm(emptyForm); createMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 560 }}>
           <DialogHeader><DialogTitle>Add Financial Transaction</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
@@ -532,6 +533,7 @@ function TransactionsTab({ farmId }: { farmId: number }) {
             </div>
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={createMut} message="Failed to save the transaction — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
             <Button onClick={() => createMut.mutate(form)} disabled={!form.transactionDate || !form.description || !form.category || !form.amountPence || createMut.isPending}>Save Transaction</Button>
@@ -539,10 +541,11 @@ function TransactionsTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Transaction</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Are you sure you want to delete this transaction?</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete the transaction." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>

@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, ChevronDown, ChevronRight, Leaf, Printer, Info, ArrowRight, Pencil, ExternalLink } from "lucide-react";
 
@@ -406,7 +407,7 @@ export default function NMPPage() {
         )}
 
         {/* ── Create Plan dialog ── */}
-        <Dialog open={addPlanOpen} onOpenChange={o => { setAddPlanOpen(o); if (!o) setPlanForm(emptyPlan); }}>
+        <Dialog open={addPlanOpen} onOpenChange={o => { setAddPlanOpen(o); if (!o) { setPlanForm(emptyPlan); createPlanMut.reset(); } }}>
           <DialogContent style={{ maxWidth: 500 }}>
             <DialogHeader>
               <DialogTitle>Create Nutrient Management Plan</DialogTitle>
@@ -447,6 +448,7 @@ export default function NMPPage() {
                 />
               </div>
             </div>
+            <DialogMutationError mutation={createPlanMut} message="Failed to create plan — your entries are still here." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setAddPlanOpen(false)}>Cancel</Button>
               <Button
@@ -460,7 +462,7 @@ export default function NMPPage() {
         </Dialog>
 
         {/* ── Add Field Entry dialog ── */}
-        <Dialog open={addEntryPlanId !== null} onOpenChange={o => { if (!o) setAddEntryPlanId(null); }}>
+        <Dialog open={addEntryPlanId !== null} onOpenChange={o => { if (!o) { setAddEntryPlanId(null); createEntryMut.reset(); } }}>
           <DialogContent style={{ maxWidth: 540 }}>
             <DialogHeader>
               <DialogTitle>Add Field Nutrient Budget</DialogTitle>
@@ -560,6 +562,7 @@ export default function NMPPage() {
                 />
               </div>
             </div>
+            <DialogMutationError mutation={createEntryMut} message="Failed to add field entry — your entries are still here." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setAddEntryPlanId(null)}>Done</Button>
               <Button
@@ -573,12 +576,13 @@ export default function NMPPage() {
         </Dialog>
 
         {/* ── Delete Plan dialog ── */}
-        <Dialog open={deletePlanId !== null} onOpenChange={o => { if (!o) setDeletePlanId(null); }}>
+        <Dialog open={deletePlanId !== null} onOpenChange={o => { if (!o) { setDeletePlanId(null); deletePlanMut.reset(); } }}>
           <DialogContent style={{ maxWidth: 400 }}>
             <DialogHeader><DialogTitle>Delete NMP</DialogTitle></DialogHeader>
             <p className="text-sm text-gray-600 py-2">
               This will permanently delete the plan and all its field entries. This cannot be undone.
             </p>
+            <DialogMutationError mutation={deletePlanMut} message="Failed to delete the plan." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeletePlanId(null)}>Cancel</Button>
               <Button
@@ -593,7 +597,7 @@ export default function NMPPage() {
         </Dialog>
 
         {/* ── Edit Field Entry dialog ── */}
-        <Dialog open={!!editEntry} onOpenChange={o => { if (!o) setEditEntry(null); }}>
+        <Dialog open={!!editEntry} onOpenChange={o => { if (!o) { setEditEntry(null); updateEntryMut.reset(); } }}>
           <DialogContent style={{ maxWidth: 540 }}>
             <DialogHeader>
               <DialogTitle>Edit Field Nutrient Budget</DialogTitle>
@@ -672,6 +676,7 @@ export default function NMPPage() {
                 />
               </div>
             </div>
+            <DialogMutationError mutation={updateEntryMut} message="Failed to update the entry — your changes are still here." />
             <DialogFooter className="mt-2">
               <Button variant="outline" onClick={() => setEditEntry(null)}>Cancel</Button>
               <Button

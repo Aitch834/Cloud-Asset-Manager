@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -152,7 +153,7 @@ function AuditsTab({ farmId, prefillAudit, onPrefillUsed }: { farmId: number; pr
     mutationFn: (b: Record<string, unknown>) => fetch(
       editing ? api(`farms/${farmId}/carbon-audits/${editing.id}`) : api(`farms/${farmId}/carbon-audits`),
       { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
-    ),
+    ).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["carbon-audits", farmId] }); setOpen(false); setForm({}); setEditing(null); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
@@ -329,7 +330,7 @@ function AuditsTab({ farmId, prefillAudit, onPrefillUsed }: { farmId: number; pr
       )}
 
       {/* ── Edit / create dialog ── */}
-      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditing(null); setForm({}); } }}>
+      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditing(null); setForm({}); save.reset(); } }}>
         <DialogContent style={{ maxWidth: "46rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Carbon Audit" : "Add Carbon Audit"}</DialogTitle></DialogHeader>
           <div className="max-h-[75vh] overflow-y-auto pr-1 space-y-4">
@@ -532,6 +533,7 @@ function AuditsTab({ farmId, prefillAudit, onPrefillUsed }: { farmId: number; pr
             </div>
           </div>
 
+          <DialogMutationError mutation={save} message="Failed to save the audit — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate(form)} disabled={save.isPending}>

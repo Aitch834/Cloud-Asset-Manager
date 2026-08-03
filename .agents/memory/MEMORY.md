@@ -54,3 +54,4 @@
 - [CSV re-import safety pattern](csv-reimport-safety.md) — shared column list + ISO/Yes-No values + full-file CSV state-machine parser required; line-split parsers get review-rejected
 - [RLS middleware commits after response](rls-middleware-commit-after-response.md) — farm-scoped tx COMMITs in res.on("finish"); fast sequential requests can see 0 rows for a just-created record — retry in scripts
 - [serve.mjs ?v= token double-React #321](serve-token-double-react.md) — never add query tokens to content-hashed JS asset URLs; lazy chunks import plain filenames → two React instances
+- [Dialog failed-save UX convention](dialog-mutation-error.md) — failed dialog saves must show inline DialogMutationError + keep dialog open + mutation.reset() on close; toast-only is not enough
