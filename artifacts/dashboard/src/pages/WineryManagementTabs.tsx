@@ -285,6 +285,158 @@ function signOffTooltip(r: Record<string, unknown>): string {
   return "Signed";
 }
 
+// ─── Shared per-record audit sign-off (fermentation / cellar ops / bottling) ──
+// Mirrors the pressing sign-off flow: same signature-pad dialog, the same
+// PUT farms/:farmId/<endpoint>/:id/sign-off contract, and the same signed
+// badge/tooltip as the Pressing table.
+function SignOffBadge({ r }: { r: Record<string, unknown> }) {
+  return r.audit_signature
+    ? (
+      <span
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 cursor-default"
+        title={signOffTooltip(r)}
+      >
+        <ShieldCheck className="w-3 h-3" />Signed
+      </span>
+    )
+    : <span className="text-xs text-muted-foreground/60">Unsigned</span>;
+}
+
+// Row action button opening the sign-off dialog — teal PenLine, disabled-title-on-span
+// pattern is unnecessary here (never disabled), plain title suffices.
+function SignOffButton({ record, onClick }: { record: Record<string, unknown>; onClick: () => void }) {
+  return (
+    <Button variant="ghost" size="icon" className="h-7 w-7 text-green-700" title={record.audit_signature ? "Re-sign this record" : "Sign off this record"} onClick={onClick}>
+      <PenLine className="h-4 w-4" />
+    </Button>
+  );
+}
+
+// "Audit Sign-off" section for view dialogs — same layout as the batch-trail
+// dialog's signature block: signature image + signer name/role + signed date.
+function AuditSignOffView({ record }: { record: Record<string, unknown> }) {
+  if (!record.audit_signature) return null;
+  const name = record.audit_signer_name ? String(record.audit_signer_name) : null;
+  const role = record.audit_signer_role ? String(record.audit_signer_role) : null;
+  let dateLine = "—";
+  if (record.audit_signer_date) {
+    const s = String(record.audit_signer_date);
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(s);
+    if (!isNaN(d.getTime())) dateLine = fmtDDMonYYYY(d);
+  } else if (record.audit_signed_at) {
+    const d = new Date(String(record.audit_signed_at));
+    if (!isNaN(d.getTime())) dateLine = d.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+  return (
+    <div className="rounded-lg border px-4 py-3 space-y-2 mt-2">
+      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+        <ShieldCheck className="h-3.5 w-3.5 text-green-600" />Audit Sign-off
+      </span>
+      <div className="flex items-start gap-3 flex-wrap">
+        <img src={String(record.audit_signature)} alt="Audit signature" className="border rounded bg-white max-h-16" />
+        <div className="text-xs text-muted-foreground self-center space-y-0.5">
+          {name && (
+            <p className="font-medium text-foreground text-sm">
+              {name}{role ? <span className="text-muted-foreground font-normal"> — {role}</span> : ""}
+            </p>
+          )}
+          <p>Signed: {dateLine}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Signature-pad dialog for a single record. `endpoint` is the API path segment
+// (winery-fermentation / winery-cellar-ops / winery-bottling); `queryKey` is the
+// tab's useCrud key so the table refreshes with the new badge on success.
+function RecordSignOffDialog({ farmId, endpoint, queryKey, recordLabel, record, onClose }: {
+  farmId: number; endpoint: string; queryKey: string; recordLabel: string;
+  record: Record<string, unknown>; onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [signerName, setSignerName] = useState(record.audit_signer_name ? String(record.audit_signer_name) : "");
+  const [signerRole, setSignerRole] = useState(record.audit_signer_role ? String(record.audit_signer_role) : "");
+  const [signerDate, setSignerDate] = useState(() => {
+    const s = record.audit_signer_date ? String(record.audit_signer_date) : "";
+    return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : today;
+  });
+  const sigRef = useRef<SignatureCanvas | null>(null);
+
+  const signOffMutation = useMutation({
+    mutationFn: async ({ signatureDataUrl, name, role, date }: { signatureDataUrl: string; name: string; role: string; date: string }) => {
+      const r = await fetch(api(`farms/${farmId}/${endpoint}/${record.id}/sign-off`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ auditSignature: signatureDataUrl, auditSignerName: name || null, auditSignerRole: role || null, auditSignerDate: date || null }),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Sign-off failed"); }
+      return r.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [queryKey, farmId] });
+      toast({ title: `${recordLabel} signed off`, description: "Signature saved successfully." });
+      onClose();
+    },
+    onError: (err: Error) => {
+      toast({ title: "Sign-off failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleConfirmSignature = () => {
+    if (!sigRef.current || sigRef.current.isEmpty()) {
+      toast({ title: "No signature", description: "Please draw your signature before confirming.", variant: "destructive" });
+      return;
+    }
+    const dataUrl = sigRef.current.getTrimmedCanvas().toDataURL("image/png");
+    signOffMutation.mutate({ signatureDataUrl: dataUrl, name: signerName, role: signerRole, date: signerDate });
+  };
+
+  return (
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><PenLine className="h-4 w-4" />Sign Off {recordLabel}</DialogTitle>
+          <DialogDescription>Complete the fields below and draw your signature. These details will be saved against the record and shown alongside it for audit purposes.</DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label className="text-xs">Auditor Name</Label>
+            <Input value={signerName} onChange={e => setSignerName(e.target.value)} placeholder="Full name" className="mt-1" />
+          </div>
+          <div>
+            <Label className="text-xs">Role</Label>
+            <Input value={signerRole} onChange={e => setSignerRole(e.target.value)} placeholder="e.g. Certification Inspector" className="mt-1" />
+          </div>
+          <div>
+            <Label className="text-xs">Date</Label>
+            <Input type="date" value={signerDate} onChange={e => setSignerDate(e.target.value)} className="mt-1" />
+          </div>
+        </div>
+        <div className="border rounded-lg overflow-hidden bg-white touch-none" style={{ height: 180 }}>
+          <SignatureCanvas
+            ref={sigRef}
+            canvasProps={{ style: { width: "100%", height: "100%" }, className: "signature-pad" }}
+            backgroundColor="white"
+            penColor="#111827"
+          />
+        </div>
+        <p className="text-xs text-muted-foreground text-center">Sign above — draw with your finger, stylus, or mouse</p>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => sigRef.current?.clear()}>Clear</Button>
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={handleConfirmSignature} disabled={signOffMutation.isPending}>
+            {signOffMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Confirm &amp; Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Batch-trail table button. The base Button applies `disabled:pointer-events-none`,
 // which suppresses the native `title` tooltip on a disabled button — so the
 // explanatory title lives on a wrapping <span>, which still receives hover events.
@@ -5917,6 +6069,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
+  const [signingOff, setSigningOff] = useState<Record<string, unknown> | null>(null);
   const [view, setView] = useState<Record<string, unknown> | null>(null);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
@@ -6104,6 +6257,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
               <th className="text-right p-3 font-medium">End pH</th>
               <th className="text-right p-3 font-medium">End TA (g/L)</th>
               <th className="text-left p-3 font-medium">Status</th>
+              <th className="text-left p-3 font-medium">Sign-off</th>
               <th className="p-3"></th>
             </tr></thead>
             <tbody className="divide-y">
@@ -6125,9 +6279,11 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
                   <td className="p-3 text-right">{r.end_ph != null ? fmtNum(r.end_ph, 2) : "—"}</td>
                   <td className="p-3 text-right">{r.end_ta_gl != null ? fmtNum(r.end_ta_gl, 1) : "—"}</td>
                   <td className="p-3">{fermentStatus(r)}</td>
+                  <td className="p-3 whitespace-nowrap"><SignOffBadge r={r} /></td>
                   <td className="p-3 text-right whitespace-nowrap">
                     <BatchTrailButton batchRef={r.batch_ref} onClick={() => setTrailRecord(r)} />
                     <ViewAdditionsButton farmId={farmId} record={r} />
+                    <SignOffButton record={r} onClick={() => setSigningOff(r)} />
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
@@ -6357,11 +6513,15 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
                 </div>
               );
             })()}
+            <AuditSignOffView record={view} />
             <EditHistorySection history={view.edit_history} />
             {typeof view.id === "number" && <div className="border-t pt-3 mt-1"><RecordAttachments farmId={farmId} recordType="winery-fermentation" recordId={view.id} /></div>}
             <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+      {signingOff && (
+        <RecordSignOffDialog farmId={farmId} endpoint="winery-fermentation" queryKey="winery-fermentation" recordLabel="Fermentation Record" record={signingOff} onClose={() => setSigningOff(null)} />
       )}
       <Dialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
         <DialogContent>
@@ -6677,6 +6837,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
+  const [signingOff, setSigningOff] = useState<Record<string, unknown> | null>(null);
   const [view, setView] = useState<Record<string, unknown> | null>(null);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
@@ -7003,6 +7164,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
               <th className="text-left p-3 font-medium">Compliance</th>
               <th className="text-left p-3 font-medium">Operator</th>
               <th className="text-left p-3 font-medium">Notes</th>
+              <th className="text-left p-3 font-medium">Sign-off</th>
               <th className="p-3"></th>
             </tr></thead>
             <tbody className="divide-y">
@@ -7061,9 +7223,11 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                     </td>
                     <td className="p-3 text-muted-foreground">{fmt(r.operator_name)}</td>
                     <NotesCell notes={r.notes} />
+                    <td className="p-3 whitespace-nowrap"><SignOffBadge r={r} /></td>
                     <td className="p-3 text-right whitespace-nowrap">
                       <BatchTrailButton batchRef={r.batch_ref} onClick={() => setTrailRecord(r)} />
                       <ViewAdditionsButton farmId={farmId} record={r} />
+                      <SignOffButton record={r} onClick={() => setSigningOff(r)} />
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
@@ -7356,11 +7520,15 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
               <ViewField label="Operator" value={fmt(view.operator_name)} />
               {!!view.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>}
             </div>
+            <AuditSignOffView record={view} />
             <EditHistorySection history={view.edit_history} />
             {typeof view.id === "number" && <div className="border-t pt-3 mt-1"><RecordAttachments farmId={farmId} recordType="winery-cellar-op" recordId={view.id} /></div>}
             <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+      {signingOff && (
+        <RecordSignOffDialog farmId={farmId} endpoint="winery-cellar-ops" queryKey="winery-cellar-ops" recordLabel="Cellar Operation" record={signingOff} onClose={() => setSigningOff(null)} />
       )}
       <Dialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
         <DialogContent>
@@ -7392,6 +7560,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
+  const [signingOff, setSigningOff] = useState<Record<string, unknown> | null>(null);
   const [view, setView] = useState<Record<string, unknown> | null>(null);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
@@ -7806,6 +7975,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
               <th className="text-right p-3 font-medium">Total SO₂</th>
               <th className="text-left p-3 font-medium">SO₂ Status</th>
               <th className="text-left p-3 font-medium">Notes</th>
+              <th className="text-left p-3 font-medium">Sign-off</th>
               <th className="p-3"></th>
             </tr></thead>
             <tbody className="divide-y">
@@ -7839,9 +8009,11 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                     );
                   })()}</td>
                   <NotesCell notes={r.notes} />
+                  <td className="p-3 whitespace-nowrap"><SignOffBadge r={r} /></td>
                   <td className="p-3 text-right whitespace-nowrap">
                     <BatchTrailButton batchRef={r.batch_ref} onClick={() => setTrailRecord(r)} />
                     <ViewAdditionsButton farmId={farmId} record={r} />
+                    <SignOffButton record={r} onClick={() => setSigningOff(r)} />
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
@@ -8075,11 +8247,15 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
               <ViewField label="Operator" value={fmt(view.operator_name)} />
               {!!view.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>}
             </div>
+            <AuditSignOffView record={view} />
             <EditHistorySection history={view.edit_history} />
             {typeof view.id === "number" && <div className="border-t pt-3 mt-1"><RecordAttachments farmId={farmId} recordType="winery-bottling" recordId={view.id} /></div>}
             <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+      {signingOff && (
+        <RecordSignOffDialog farmId={farmId} endpoint="winery-bottling" queryKey="winery-bottling" recordLabel="Bottling Record" record={signingOff} onClose={() => setSigningOff(null)} />
       )}
       <Dialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
         <DialogContent>
