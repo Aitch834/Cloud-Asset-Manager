@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -964,7 +965,7 @@ function AssetRegisterTab({ farmId, onRegisterExport }: { farmId: number; onRegi
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function BusinessReportsPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("gross-margin");
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "business-reports", farmId, validIds: ["gross-margin", "pl", "input-costs", "grain-position", "subsidies", "year-on-year", "assets", "benchmarking"], defaultTab: "gross-margin" });
   const [year, setYear] = useState(new Date().getFullYear());
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 6 }, (_, i) => currentYear - i);

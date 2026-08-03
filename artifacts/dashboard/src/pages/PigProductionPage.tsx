@@ -1,4 +1,5 @@
 import { useState, useMemo, type ReactNode } from "react";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { openPrintWindow } from "@/lib/print-report";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
@@ -2681,10 +2682,11 @@ function PigAnalyticsTab({ farmId }: { farmId: number }) {
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 type Tab = "overview" | "flocks" | "movements" | "medicine" | "fci" | "feed" | "vet" | "stockmanship" | "tail-biting" | "farrowing" | "red-tractor" | "kill-records" | "salmonella" | "vaccination" | "disease-monitoring" | "analytics" | "enterprise";
+const PIG_PRODUCTION_TAB_IDS: Tab[] = ["overview", "flocks", "movements", "medicine", "fci", "feed", "vet", "stockmanship", "tail-biting", "farrowing", "red-tractor", "kill-records", "salmonella", "vaccination", "disease-monitoring", "analytics", "enterprise"];
 
 export default function PigProductionPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["overview","flocks","movements","medicine","fci","feed","vet","stockmanship","tail-biting","farrowing","red-tractor","kill-records","salmonella","vaccination","disease-monitoring","analytics"]; return t && valid.includes(t) ? t : "overview"; });
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "pig-production", farmId, validIds: PIG_PRODUCTION_TAB_IDS, defaultTab: "overview", urlOverride: new URLSearchParams(window.location.search).get("tab") });
   const [generating, setGenerating] = useState(false);
   if (!farmId) return <Redirect to="/" />;
 

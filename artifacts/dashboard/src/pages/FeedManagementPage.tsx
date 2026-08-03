@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabButton, TabBar } from "@/components/ui/tab-button";
 import { Button } from "@/components/ui/button";
@@ -110,9 +111,15 @@ function StockBar({ current, reorder, capacity }: { current: number; reorder: nu
 }
 
 export default function FeedManagementPage() {
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["stock", "deliveries", "trace", "orders"]; return t && valid.includes(t) ? t : "stock"; });
-  const [stockFilter, setStockFilter] = useState<StockFilter>("all");
   const { farmId } = useAppStore();
+  const [tab, setTab] = usePersistedTab<Tab>({
+    page: "feed-management",
+    farmId,
+    validIds: ["stock", "deliveries", "trace", "orders", "medicated"],
+    defaultTab: "stock",
+    urlOverride: new URLSearchParams(window.location.search).get("tab"),
+  });
+  const [stockFilter, setStockFilter] = useState<StockFilter>("all");
   const { toast } = useToast();
   const qc = useQueryClient();
 

@@ -1,5 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Redirect } from "wouter";
 import {
@@ -1384,7 +1385,7 @@ export default function ResourcesPage() {
   if (!farmId) return <Redirect href="/select" />;
 
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"resources" | "planner" | "status" | "analytics">("resources");
+  const [activeTab, setActiveTab] = usePersistedTab<"resources" | "planner" | "status" | "analytics">({ page: "resources", farmId, validIds: ["resources", "planner", "status", "analytics"], defaultTab: "resources" });
   const [showArchived, setShowArchived] = useState(false);
 
   const { data, isLoading } = useQuery<{ resources: FarmResource[] }>({

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { api } from "@/lib/api";
@@ -89,7 +90,7 @@ export default function OrganicPoultryPage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [tab, setTab] = useState<"certification" | "access" | "feed" | "derogations">("certification");
+  const [tab, setTab] = usePersistedTab<"certification" | "access" | "feed" | "derogations">({ page: "organic-poultry", farmId, validIds: ["certification", "access", "feed", "derogations"], defaultTab: "certification" });
 
   const [certOpen, setCertOpen] = useState(false);
   const [editingCert, setEditingCert] = useState<Certification | null>(null);

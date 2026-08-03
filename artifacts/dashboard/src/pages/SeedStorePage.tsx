@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useCrops } from "@/hooks/use-crops";
@@ -205,6 +206,7 @@ function printSegregationRegister(checks: any[], farmId: number) {
 }
 
 type Tab = "stock" | "allocation" | "orders" | "segregation" | "stocktakes";
+const SEED_STORE_TAB_IDS: Tab[] = ["stock", "allocation", "orders", "segregation", "stocktakes"];
 
 interface SeedStoreAttachment {
   id: number;
@@ -632,11 +634,7 @@ export default function SeedStorePage() {
 
   // ─────────────────────────────────────────────────────────────────────────
 
-  const [tab, setTab] = useState<Tab>(() => {
-    const p = new URLSearchParams(window.location.search);
-    const t = p.get("tab") as Tab | null;
-    return (["orders", "segregation", "allocation", "stocktakes"] as Tab[]).includes(t as Tab) ? t as Tab : "stock";
-  });
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "seed-store", farmId, validIds: SEED_STORE_TAB_IDS, defaultTab: "stock", urlOverride: new URLSearchParams(window.location.search).get("tab") });
 
   const { data: membersData, isLoading: membersLoading } = useFarmMembers(safeFarmId);
   const staffNames = (membersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);

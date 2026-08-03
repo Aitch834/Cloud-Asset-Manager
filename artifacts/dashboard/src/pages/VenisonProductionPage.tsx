@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 
 const api = (path: string) => `/api/${path}`;
 
@@ -1216,10 +1217,13 @@ function VenisonAnalyticsTab({ farmId }: { farmId: number }) {
 }
 
 // ─── PAGE ─────────────────────────────────────────────────────────────────────
+type VenisonTab = "herds" | "cull" | "sales" | "monitoring" | "health" | "firearms" | "analytics" | "enterprise";
+const VENISON_TAB_IDS: VenisonTab[] = ["herds", "cull", "sales", "monitoring", "health", "firearms", "analytics", "enterprise"];
+
 export default function VenisonProductionPage() {
   const { selectedFarm } = useAppStore();
   const farmId = selectedFarm?.id;
-  const [tab, setTab] = useState<"herds" | "cull" | "sales" | "monitoring" | "health" | "firearms" | "analytics" | "enterprise">("herds");
+  const [tab, setTab] = usePersistedTab<VenisonTab>({ page: "venison-production", farmId, validIds: VENISON_TAB_IDS, defaultTab: "herds" });
 
   if (!farmId) {
     return (

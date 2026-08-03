@@ -4,6 +4,7 @@ import { downloadCsvFile } from "@/lib/csv";
 import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -3263,7 +3264,7 @@ function StaffHoursCrossRefTab({ farmId, staffNames }: { farmId: number; staffNa
 
 export default function LabourPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<LabourTab>("rota");
+  const [tab, setTab] = usePersistedTab<LabourTab>({ page: "labour", farmId, validIds: ["timesheets", "rota", "actual", "absence", "pay", "wtr", "analytics", "crossref", "enterprise"], defaultTab: "rota" });
   const [absencePendingBadge, setAbsencePendingBadge] = useState(0);
 
   const staffQ = useQuery<{ members: Array<{ id: number; firstName: string | null; lastName: string | null; isActive?: boolean; departmentName: string | null; departmentColour: string | null }> }>({

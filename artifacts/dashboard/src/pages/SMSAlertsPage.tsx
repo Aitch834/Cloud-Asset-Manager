@@ -1,6 +1,6 @@
-import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { api } from "@/lib/api";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -56,7 +56,7 @@ export default function SMSAlertsPage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<"config" | "team" | "history">("config");
+  const [activeTab, setActiveTab] = usePersistedTab<"config" | "team" | "history">({ page: "sms-alerts", farmId, validIds: ["config", "team", "history"], defaultTab: "config" });
 
   const teamQ = useQuery<TeamMember[]>({
     queryKey: ["farms", farmId, "team-sms"],

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -195,7 +196,7 @@ export default function DocumentsPage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [pageTab, setPageTab] = useState<"hub" | "register" | "checklist">("hub");
+  const [pageTab, setPageTab] = usePersistedTab<"hub" | "register" | "checklist">({ page: "documents", farmId, validIds: ["hub", "register", "checklist"], defaultTab: "hub" });
 
   // ── Standalone documents (Document Register) ──────────────────────────────
   const docsQ = useQuery({

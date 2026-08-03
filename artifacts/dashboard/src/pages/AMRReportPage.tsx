@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { api } from "@/lib/api";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -40,7 +41,7 @@ const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - i);
 export default function AMRReportPage() {
   const { farmId } = useAppStore();
   const [year, setYear] = useState(currentYear);
-  const [tab, setTab] = useState<"summary" | "species" | "trend" | "ruma">("summary");
+  const [tab, setTab] = usePersistedTab<"summary" | "species" | "trend" | "ruma">({ page: "amr-report", farmId, validIds: ["summary", "species", "trend", "ruma"], defaultTab: "summary" });
 
   const reportQ = useQuery<AMRReport>({
     queryKey: ["farms", farmId, "amr-report", year],

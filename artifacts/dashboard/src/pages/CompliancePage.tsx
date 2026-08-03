@@ -1,5 +1,6 @@
 // @ts-nocheck
 import React, { useState } from "react";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -479,7 +480,7 @@ export default function CompliancePage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<Tab>("biosecurity");
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "compliance", farmId, validIds: ["biosecurity", "contingency", "disease", "recalls", "audit-pack"], defaultTab: "biosecurity" });
 
   // ── Biosecurity plan state
   const [editingBio, setEditingBio] = useState(false);

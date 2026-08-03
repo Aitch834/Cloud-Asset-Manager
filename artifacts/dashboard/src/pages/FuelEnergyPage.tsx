@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabButton, TabBar } from "@/components/ui/tab-button";
 import { Button } from "@/components/ui/button";
@@ -1391,12 +1392,18 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
 }
 
 export default function FuelEnergyPage() {
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["tanks","deliveries","usage","inspections","grid-energy","solar","reports"]; return t && valid.includes(t) ? t : "tanks"; });
+  const { farmId } = useAppStore();
+  const [tab, setTab] = usePersistedTab<Tab>({
+    page: "fuel-energy",
+    farmId,
+    validIds: ["tanks", "deliveries", "usage", "inspections", "grid-energy", "solar", "reports"],
+    defaultTab: "tanks",
+    urlOverride: new URLSearchParams(window.location.search).get("tab"),
+  });
   const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
   const [hlInspId, setHlInspId] = useState<number | null>(openId);
   const inspRowRefs = useRef<Map<number, HTMLElement>>(new Map());
   const autoInspOpened = useRef(false);
-  const { farmId } = useAppStore();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [raiseTaskFor, setRaiseTaskFor] = useState<any>(null);

@@ -3,6 +3,7 @@ import React, { useState, useMemo } from "react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -256,7 +257,7 @@ export default function VetLedgerPage() {
   const invalidate = () => { queryClient.invalidateQueries({ queryKey: ["vet-visits", farmId] }); queryClient.invalidateQueries({ queryKey: ["vet-invoices", farmId] }); };
 
   type VetTab = "visits" | "invoices" | "amrm" | "analytics";
-  const [tab, setTab] = useState<VetTab>("visits");
+  const [tab, setTab] = usePersistedTab<VetTab>({ page: "vet-ledger", farmId, validIds: ["visits", "invoices", "amrm", "analytics"], defaultTab: "visits" });
   const [amrmYear, setAmrmYear] = useState<number>(new Date().getFullYear());
   const [search, setSearch] = useState("");
   const [raiseTaskVisit, setRaiseTaskVisit] = useState<Record<string, unknown> | null>(null);

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { api } from "@/lib/api";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -61,7 +62,7 @@ export default function TBTestingPage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [tab, setTab] = useState<"records" | "restrictions" | "analytics">("records");
+  const [tab, setTab] = usePersistedTab<"records" | "restrictions" | "analytics">({ page: "tb-testing", farmId, validIds: ["records", "restrictions", "analytics"], defaultTab: "records" });
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<TBTest | null>(null);

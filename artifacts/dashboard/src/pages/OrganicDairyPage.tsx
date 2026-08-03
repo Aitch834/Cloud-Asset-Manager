@@ -3,6 +3,7 @@ import { AbrProcurementSection } from "@/pages/dairy/AbrProcurementSection";
 import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -2805,7 +2806,7 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
 
 export default function OrganicDairyPage() {
   const { farmId } = useAppStore();
-  const [activeTab, setActiveTab] = useState("herd-conversion");
+  const [activeTab, setActiveTab] = usePersistedTab<string>({ page: "organic-dairy", farmId, validIds: ["herd-conversion", "collections", "mastitis", "calving", "bcs", "mobility", "tank", "dct", "recording", "johnes", "feed", "treatments", "enterprise", "abr-kit", "scc-equipment", "supplies"], defaultTab: "herd-conversion" });
   const { data: farmData } = useQuery<{ name: string }>({
     queryKey: ["farm-detail", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),

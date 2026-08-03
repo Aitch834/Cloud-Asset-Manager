@@ -4,6 +4,7 @@ import { useLookupStrings } from "@/hooks/use-lookup";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2640,17 +2641,11 @@ function HaulierInvoicesTab({ farmId }: { farmId: number }) {
 }
 
 // ─── Page Shell ─────────────────────────────────────────────────────────────
+const HAULAGE_TAB_IDS: Tab[] = ["plans", "dispatches", "transfers", "grain-position", "invoices", "directory"];
+
 export default function HaulagePageFull() {
   const { farmId } = useAppStore();
-  const initialTab = (): Tab => {
-    if (typeof window !== "undefined") {
-      const p = new URLSearchParams(window.location.search).get("tab");
-      const valid: Tab[] = ["plans", "dispatches", "transfers", "grain-position", "invoices", "directory"];
-      if (p && valid.includes(p as Tab)) return p as Tab;
-    }
-    return "dispatches";
-  };
-  const [tab, setTab] = useState<Tab>(initialTab);
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "haulage", farmId, validIds: HAULAGE_TAB_IDS, defaultTab: "dispatches", urlOverride: typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") : null });
 
   return (
     <AppLayout title="Haulage & Transport">

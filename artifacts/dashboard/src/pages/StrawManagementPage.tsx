@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2023,10 +2024,13 @@ function MoistureDialog({ open, onClose, farmId, editRow, inventory, activeMeter
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
+type StrawTab = "baling" | "inventory" | "sales" | "monitoring" | "analytics";
+const STRAW_TAB_IDS: StrawTab[] = ["baling", "inventory", "sales", "monitoring", "analytics"];
+
 export default function StrawManagementPage() {
   const { farmId: rawFarmId } = useAppStore();
   const farmId = rawFarmId!;
-  const [tab, setTab] = useState<"baling" | "inventory" | "sales" | "monitoring" | "analytics">("baling");
+  const [tab, setTab] = usePersistedTab<StrawTab>({ page: "straw-management", farmId: rawFarmId, validIds: STRAW_TAB_IDS, defaultTab: "baling" });
   const [balingDlg, setBalingDlg] = useState<{ open: boolean; row?: any }>({ open: false });
   const [journeyDlg, setJourneyDlg] = useState<{ open: boolean; balingOp?: any }>({ open: false });
   const [invDlg, setInvDlg] = useState<{ open: boolean; row?: any; balingOp?: any }>({ open: false });

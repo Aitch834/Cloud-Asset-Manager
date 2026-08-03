@@ -8,6 +8,7 @@ import { TabButton, TabBar } from "@/components/ui/tab-button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -56,7 +57,12 @@ export default function HarvestPage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<TabKey>("log");
+  const [tab, setTab] = usePersistedTab<TabKey>({
+    page: "harvest",
+    farmId,
+    validIds: ["log", "dayview", "transport", "storage", "print"],
+    defaultTab: "log",
+  });
   const harvestQ = useQuery({
     queryKey: ["harvests", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/harvests`).then(r => r.json()),

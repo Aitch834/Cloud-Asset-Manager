@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -2417,7 +2418,7 @@ function SFIActionsTab({ farmId, openId }: { farmId: number; openId?: number | n
 
 export default function EnvironmentalPageFull() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["features","schemes","assessments","events","sfi","slurry","silage"]; return t && valid.includes(t) ? t : "features"; });
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "environmental", farmId, validIds: ["features", "schemes", "assessments", "events", "sfi", "slurry", "silage"], defaultTab: "features", urlOverride: new URLSearchParams(window.location.search).get("tab") });
   const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
   const schemesQ = useQuery({
     queryKey: ["agri-schemes", farmId],

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef } from "react";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -3452,7 +3453,7 @@ const TABS: { id: Tab; label: string; icon: React.FC<any> }[] = [
 
 export default function SalesTradingPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("grain");
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "sales-trading", farmId, validIds: TABS.map(t => t.id), defaultTab: "grain" });
 
   if (!farmId) {
     return (

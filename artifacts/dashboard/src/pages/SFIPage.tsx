@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -98,6 +99,7 @@ const SFI_ACTION_CODES: { code: string; description: string; category: string }[
 ];
 
 type Tab = "overview" | "agreements" | "actions";
+const SFI_TAB_IDS: Tab[] = ["overview", "agreements", "actions"];
 
 const emptyAgreement = { agreementNumber: "", schemeName: "", agreementStartDate: "", agreementEndDate: "", totalAnnualPayment: "", managingBody: "RPA", agentOrAdvisorName: "", status: "active", notes: "" };
 const emptyAction = { actionCode: "", actionTitle: "", landParcelReference: "", eligibleAreaHa: "", annualPaymentPerHa: "", annualPaymentAmount: "", evidenceRequired: "", lastEvidenceDate: "", nextEvidenceDate: "", complianceStatus: "not_started", notes: "", agreementId: "" };
@@ -106,7 +108,7 @@ export default function SFIPage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "sfi", farmId, validIds: SFI_TAB_IDS, defaultTab: "overview" });
 
   // Agreements state
   const [addAgreementOpen, setAddAgreementOpen] = useState(false);

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { herdSpeciesDisplayLabel, herdProductionSubtype } from "@/lib/herd-utils";
 import { gradeLabel } from "@/lib/harvestGrades";
 import { useQuery } from "@tanstack/react-query";
@@ -15,6 +16,7 @@ import {
 import { buildProReport, printProReport } from "@/lib/print-report";
 
 type Tab = "arable" | "livestock" | "ipm" | "organic" | "forage";
+const SEASON_REPORTS_TAB_IDS: Tab[] = ["arable", "livestock", "ipm", "organic", "forage"];
 
 const fmt2 = (n: number | null | undefined, dp = 2) => {
   if (n == null || isNaN(n)) return "—";
@@ -423,7 +425,7 @@ ${livestockHerds.map((h: any) => `<tr>
 export default function SeasonReportsPage() {
   const { farmId: currentFarmId } = useAppStore();
   const farmId = currentFarmId;
-  const [tab, setTab] = useState<Tab>("arable");
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "season-reports", farmId, validIds: SEASON_REPORTS_TAB_IDS, defaultTab: "arable" });
   const [year, setYear] = useState<number>(new Date().getFullYear());
 
   const { data: yearsData } = useQuery<{ years: number[] }>({

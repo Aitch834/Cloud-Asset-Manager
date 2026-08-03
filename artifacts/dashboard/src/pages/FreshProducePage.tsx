@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { Redirect } from "wouter";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFarmMembers } from "@/hooks/use-farm-members";
@@ -1479,11 +1480,12 @@ type Tab = "blocks" | "crops" | "water" | "harvest" | "intake" | "packhouse" | "
 
 export default function FreshProducePage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => {
-    const p = new URLSearchParams(window.location.search);
-    const t = p.get("tab") as Tab | null;
-    const valid: Tab[] = ["blocks", "crops", "water", "harvest", "intake", "packhouse", "allergen", "reports"];
-    return t && valid.includes(t) ? t : "blocks";
+  const [tab, setTab] = usePersistedTab<Tab>({
+    page: "fresh-produce",
+    farmId,
+    validIds: ["blocks", "crops", "water", "harvest", "intake", "packhouse", "allergen", "reports"],
+    defaultTab: "blocks",
+    urlOverride: new URLSearchParams(window.location.search).get("tab"),
   });
   if (!farmId) return <Redirect to="/" />;
   return (

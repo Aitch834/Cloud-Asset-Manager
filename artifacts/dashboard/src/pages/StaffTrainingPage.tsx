@@ -4,6 +4,7 @@ import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,7 @@ import { useFarmMembers, memberFullName, type FarmMember } from "@/hooks/use-far
 import { StaffSelect } from "@/components/ui/staff-select";
 
 type Tab = "training" | "certificates" | "rtw" | "courses" | "analytics" | "matrix";
+const STAFF_TAB_IDS: Tab[] = ["training", "certificates", "rtw", "courses", "analytics", "matrix"];
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -2289,9 +2291,8 @@ export default function StaffTrainingPage() {
     typeof window !== "undefined" ? window.location.search : ""
   );
   const urlMember = params.get("member") ?? undefined;
-  const urlTab = (params.get("tab") as Tab | null) ?? "training";
 
-  const [tab, setTab] = useState<Tab>(urlTab);
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "staff-training", farmId, validIds: STAFF_TAB_IDS, defaultTab: "training", urlOverride: params.get("tab") });
   const membersQ = useFarmMembers(farmId);
   const staffNames = (membersQ.data?.members ?? []).filter(m => m.isActive !== false).map(memberFullName);
   const staffLoading = membersQ.isLoading;

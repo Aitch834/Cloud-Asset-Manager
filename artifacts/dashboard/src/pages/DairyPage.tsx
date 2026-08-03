@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 
 import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, PieChart, Pie, Cell, Legend } from "recharts";
@@ -75,7 +76,7 @@ type Tab = "milk" | "mastitis" | "calving" | "bcs" | "mobility" | "tank" | "dct"
 
 export default function DairyPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("milk");
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "dairy", farmId, validIds: ["milk", "mastitis", "calving", "bcs", "mobility", "tank", "dct", "johnes", "recording", "enterprise", "abr-kit", "scc-equipment", "supplies"], defaultTab: "milk" });
 
   if (!farmId) return <Redirect to="/select" />;
 

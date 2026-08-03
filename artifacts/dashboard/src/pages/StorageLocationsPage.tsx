@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useToast } from "@/hooks/use-toast";
 import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { StorageLocationMapPicker } from "@/components/storage/StorageLocationMapPicker";
@@ -2071,7 +2072,7 @@ export default function StorageLocationsPage() {
   const farmName = farmData?.record?.name ?? "BDE Farm";
 
   const locations: StorageLocation[] = locationsQ.data?.records ?? [];
-  const [mainTab, setMainTab] = useState<"locations" | "analytics">("locations");
+  const [mainTab, setMainTab] = usePersistedTab<"locations" | "analytics">({ page: "storage-locations", farmId, validIds: ["locations", "analytics"], defaultTab: "locations" });
 
   const saveMut = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {

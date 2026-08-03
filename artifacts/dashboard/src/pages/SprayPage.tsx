@@ -7,6 +7,7 @@ import { TabButton, TabBar } from "@/components/ui/tab-button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -278,12 +279,15 @@ function degreesToCompass(deg: number): string {
 const PRODUCT_CATEGORIES_FALLBACK = ["Herbicide", "Fungicide", "Insecticide", "Molluscicide", "Growth Regulator", "Foliar Feed", "Adjuvant", "Other"];
 
 
+type SprayTab = "applications" | "dayview" | "products" | "print" | "analytics" | "ipm" | "lerap" | "notifications" | "disposal" | "store" | "stocktakes";
+const SPRAY_TAB_IDS: SprayTab[] = ["applications", "dayview", "products", "print", "analytics", "ipm", "lerap", "notifications", "disposal", "store", "stocktakes"];
+
 export default function SprayPage() {
   const { farmId } = useAppStore();
   const productCategories = useLookupStrings("spray_product_categories", PRODUCT_CATEGORIES_FALLBACK);
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"applications" | "dayview" | "products" | "print" | "analytics" | "ipm" | "lerap" | "notifications" | "disposal" | "store" | "stocktakes">("applications");
+  const [tab, setTab] = usePersistedTab<SprayTab>({ page: "spray", farmId, validIds: SPRAY_TAB_IDS, defaultTab: "applications" });
 
   const [cropYear, setCropYear] = useState<number>(currentCropYear());
   const applicationsQ = useQuery({ queryKey: ["spray-applications", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-applications`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });

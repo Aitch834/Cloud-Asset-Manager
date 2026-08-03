@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card } from "@/components/ui/card";
@@ -2163,7 +2164,7 @@ type TabKey = typeof TABS[number]["key"];
 
 export default function OrganicFreshProducePage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<TabKey>("block-status");
+  const [tab, setTab] = usePersistedTab<TabKey>({ page: "organic-fresh-produce", farmId, validIds: TABS.map(t => t.key), defaultTab: "block-status" });
 
   const { data: farmData } = useQuery<{ name: string }>({
     queryKey: ["farm-detail", farmId],

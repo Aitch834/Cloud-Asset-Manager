@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -1881,7 +1882,7 @@ type Tab = "activities" | "shop" | "hygiene" | "equine" | "shooting" | "income" 
 
 export default function DiversificationPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["activities","income","shop","hygiene","equine","shooting","analytics"]; return t && valid.includes(t) ? t : "activities"; });
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "diversification", farmId, validIds: ["activities", "income", "shop", "hygiene", "equine", "shooting", "analytics"], defaultTab: "activities", urlOverride: new URLSearchParams(window.location.search).get("tab") });
   if (!farmId) return <Redirect to="/" />;
   return (
     <AppLayout title="Farm Diversification">

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useLocation } from "wouter";
 import { FlaskConical, CheckCircle2, AlertTriangle, Clock, ChevronRight, Info, TrendingUp } from "lucide-react";
@@ -86,7 +87,7 @@ const NUTRIENT_OPTIONS = [
 export default function SoilDashboard() {
   const { farmId } = useAppStore();
   const [, navigate] = useLocation();
-  const [viewTab, setViewTab] = useState<"overview" | "trends">("overview");
+  const [viewTab, setViewTab] = usePersistedTab<"overview" | "trends">({ page: "soil-dashboard", farmId, validIds: ["overview", "trends"], defaultTab: "overview" });
   const [selectedNutrient, setSelectedNutrient] = useState("ph");
 
   const fieldsQ = useQuery({

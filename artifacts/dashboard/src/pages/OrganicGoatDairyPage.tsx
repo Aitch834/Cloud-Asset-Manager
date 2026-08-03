@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -74,10 +75,11 @@ const ROUTES_OF_ADMINISTRATION = ["Intramuscular (IM)", "Subcutaneous (SC)", "In
 
 import { DairySuppliesTab } from "@/components/DairySuppliesTab";
 type Tab = "conversion" | "collections" | "feed" | "treatments" | "mastitis" | "kidding" | "bcs" | "tank" | "cae" | "assurance" | "abr-kit" | "scc-equipment" | "supplies";
+const GOAT_DAIRY_TAB_IDS: Tab[] = ["conversion", "collections", "feed", "treatments", "mastitis", "kidding", "bcs", "tank", "cae", "assurance", "abr-kit", "scc-equipment", "supplies"];
 
 export default function OrganicGoatDairyPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("conversion");
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "organic-goat-dairy", farmId, validIds: GOAT_DAIRY_TAB_IDS, defaultTab: "conversion" });
   if (!farmId) return <Redirect to="/select" />;
 
   return (

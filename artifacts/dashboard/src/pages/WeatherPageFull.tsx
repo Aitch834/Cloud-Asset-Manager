@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,7 @@ function wmoToCondition(code: number): string {
 }
 
 type Tab = "readings" | "chart" | "vehicle" | "devices" | "stations";
+const WEATHER_TAB_IDS: Tab[] = ["readings", "chart", "vehicle", "devices", "stations"];
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -1103,7 +1105,7 @@ function ConnectedStationsTab({ farmId }: { farmId: number }) {
 
 export default function WeatherPageFull() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("readings");
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "weather", farmId, validIds: WEATHER_TAB_IDS, defaultTab: "readings" });
 
   return (
     <AppLayout title="Weather Records">

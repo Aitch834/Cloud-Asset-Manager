@@ -4,6 +4,7 @@ import { printProReport } from "@/lib/print-report";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear } from "@/lib/cropYear";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -879,7 +880,7 @@ function MedHistoryDialog({ records, herds, onClose }: { records: any[]; herds: 
 function MedicineRegisterContent({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [statusFilter, setStatusFilter] = usePersistedTab<StatusFilter>({ page: "medicine", farmId, validIds: ["all", "in_withdrawal", "cleared", "no_withdrawal", "analytics", "adr"], defaultTab: "all" });
   const [search, setSearch] = useState("");
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [historyOpen, setHistoryOpen] = useState(false);

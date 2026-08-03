@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Button } from "@/components/ui/button";
@@ -456,7 +457,7 @@ export default function OrganicArablePage() {
   const allDeliveries: any[] = deliveriesQ.data ?? [];
 
   // ── Tab ──
-  const [activeTab, setActiveTab] = useState<Tab>("certification");
+  const [activeTab, setActiveTab] = usePersistedTab<Tab>({ page: "organic-arable", farmId, validIds: ["certification", "field-conversion", "seed-sourcing", "input-log", "harvest-declarations"], defaultTab: "certification" });
 
   // ── Certification ──
   const [certFilter, setCertFilter] = useState("all");

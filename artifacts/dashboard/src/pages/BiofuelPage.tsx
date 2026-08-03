@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -179,7 +180,7 @@ export default function BiofuelPage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [activeTab, setActiveTab] = usePersistedTab<Tab>({ page: "biofuel", farmId, validIds: ["overview", "certification", "fields", "buyers", "deliveries"], defaultTab: "overview" });
   const [certDialog, setCertDialog] = useState(false);
   const [fieldDialog, setFieldDialog] = useState(false);
   const [deliveryDialog, setDeliveryDialog] = useState(false);

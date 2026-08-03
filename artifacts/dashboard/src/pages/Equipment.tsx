@@ -1,4 +1,5 @@
 import { useState, useRef, Fragment, useMemo, useEffect } from "react";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useUserRole } from "@/hooks/use-user-role";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from "recharts";
 import { QRCodeSVG } from "qrcode.react";
@@ -643,7 +644,7 @@ function EquipmentAnalyticsTab({ farmId }: { farmId: number }) {
 
 export default function EquipmentPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<"equipment" | "defects" | "analytics">("equipment");
+  const [tab, setTab] = usePersistedTab<"equipment" | "defects" | "analytics">({ page: "equipment", farmId, validIds: ["equipment", "defects", "analytics"], defaultTab: "equipment" });
   const [viewRecord, setViewRecord] = useState<any>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [addGpsTracked, setAddGpsTracked] = useState(false);

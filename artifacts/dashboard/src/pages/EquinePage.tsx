@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { api } from "@/lib/api";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -64,7 +65,7 @@ export default function EquinePage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [tab, setTab] = useState<"horses" | "health" | "analytics">("horses");
+  const [tab, setTab] = usePersistedTab<"horses" | "health" | "analytics">({ page: "equine", farmId, validIds: ["horses", "health", "analytics"], defaultTab: "horses" });
   const [search, setSearch] = useState("");
   const [selectedHorse, setSelectedHorse] = useState<number | null>(null);
   const [horseOpen, setHorseOpen] = useState(false);

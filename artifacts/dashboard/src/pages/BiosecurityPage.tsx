@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useAppStore } from "@/hooks/use-app-store";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
@@ -2118,7 +2119,7 @@ function BiosecurityPlanTab({ farmId }: { farmId: number }) {
 
 export default function BiosecurityPage({ defaultTab = "visitors" }: { defaultTab?: MainTab }) {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<MainTab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as MainTab | null; const valid: MainTab[] = ["visitors","pest-control","cleaning","coshh","biosecurity-plan"]; return t && valid.includes(t) ? t : defaultTab; });
+  const [tab, setTab] = usePersistedTab<MainTab>({ page: "biosecurity", farmId, validIds: ["visitors", "pest-control", "cleaning", "coshh", "biosecurity-plan"], defaultTab, urlOverride: new URLSearchParams(window.location.search).get("tab") });
 
   const { data: farmData } = useQuery({
     queryKey: ["farm-detail", farmId],

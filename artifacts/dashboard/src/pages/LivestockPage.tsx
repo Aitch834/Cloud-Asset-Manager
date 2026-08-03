@@ -4,6 +4,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { MortalitySection } from "./livestock/MortalitySection";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useToast } from "@/hooks/use-toast";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -7794,9 +7795,12 @@ function LivestockAnalyticsSection({ farmId }: { farmId: number }) {
   );
 }
 
+type LivestockTab = "herds" | "vet-plans" | "mortality" | "contractors" | "feed" | "water" | "animals" | "ai-repro" | "vet-rx" | "sires" | "straws" | "lambing" | "tb-tests" | "welfare-outcomes" | "sheep-dipping" | "bvd" | "casualty-slaughter" | "isolation" | "analytics";
+const LIVESTOCK_TAB_IDS: LivestockTab[] = ["herds","vet-plans","mortality","contractors","feed","water","animals","ai-repro","vet-rx","sires","straws","lambing","tb-tests","welfare-outcomes","sheep-dipping","bvd","casualty-slaughter","isolation","analytics"];
+
 export default function LivestockPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<"herds" | "vet-plans" | "mortality" | "contractors" | "feed" | "water" | "animals" | "ai-repro" | "vet-rx" | "sires" | "straws" | "lambing" | "tb-tests" | "welfare-outcomes" | "sheep-dipping" | "bvd" | "casualty-slaughter" | "isolation" | "analytics">(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as any; const valid = ["herds","vet-plans","mortality","contractors","feed","water","animals","ai-repro","vet-rx","sires","straws","lambing","tb-tests","welfare-outcomes","sheep-dipping","bvd","casualty-slaughter","isolation","analytics"]; return valid.includes(t) ? t : "herds"; });
+  const [tab, setTab] = usePersistedTab<LivestockTab>({ page: "livestock", farmId, validIds: LIVESTOCK_TAB_IDS, defaultTab: "herds", urlOverride: typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") : null });
 
   if (!farmId) return <Redirect href="/select" />;
 

@@ -15,6 +15,7 @@ import {
   DialogDescription, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useFields, useAddField, useUpdateField, useDeleteField } from "@/hooks/use-fields";
 import { useCrops, useAddCrop, useFieldCropAssignments, useAssignCrop } from "@/hooks/use-crops";
 import {
@@ -1514,7 +1515,12 @@ export default function FieldsPage() {
   const { farmId } = useAppStore();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [tab, setTab] = useState<"fields" | "crops" | "seed" | "tenure" | "rotation" | "map" | "grassland">("fields");
+  const [tab, setTab] = usePersistedTab<"fields" | "crops" | "seed" | "tenure" | "rotation" | "map" | "grassland">({
+    page: "fields",
+    farmId,
+    validIds: ["fields", "crops", "seed", "tenure", "rotation", "map", "grassland"],
+    defaultTab: "fields",
+  });
   const [search, setSearch] = useState("");
   const [isAddFieldOpen, setIsAddFieldOpen] = useState(false);
   const [isAddCropOpen, setIsAddCropOpen] = useState(false);

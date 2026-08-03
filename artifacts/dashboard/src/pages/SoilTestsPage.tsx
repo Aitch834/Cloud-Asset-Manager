@@ -8,6 +8,7 @@ import { openPrintWindow } from "@/lib/print-report";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card } from "@/components/ui/card";
@@ -1355,9 +1356,11 @@ function TrendsTab({ farmId }: { farmId: number }) {
   );
 }
 
+const SOIL_TAB_IDS: PageTab[] = ["register", "map", "trends", "sensors", "print"];
+
 export default function SoilTestsPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<PageTab>("register");
+  const [tab, setTab] = usePersistedTab<PageTab>({ page: "soil-tests", farmId, validIds: SOIL_TAB_IDS, defaultTab: "register" });
 
   if (!farmId) return <Redirect to="/" />;
 

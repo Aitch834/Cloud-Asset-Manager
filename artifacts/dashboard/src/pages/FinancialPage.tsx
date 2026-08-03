@@ -4,6 +4,7 @@ import { useLookupStrings } from "@/hooks/use-lookup";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1965,7 +1966,12 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
 
 export default function FinancialPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("transactions");
+  const [tab, setTab] = usePersistedTab<Tab>({
+    page: "financial",
+    farmId,
+    validIds: ["transactions", "crop-contracts", "grants", "livestock-purchases", "analytics", "accountant-pack"],
+    defaultTab: "transactions",
+  });
 
   return (
     <AppLayout title="Financial Records">

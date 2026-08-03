@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -102,10 +103,11 @@ interface TuppingRecord {
 }
 
 type Tab = "milk" | "tupping" | "mastitis" | "kidding" | "treatments" | "bcs" | "tank" | "mv" | "assurance" | "abr-kit" | "scc-equipment" | "enterprise" | "supplies";
+const SHEEP_DAIRY_TAB_IDS: Tab[] = ["milk", "tupping", "mastitis", "kidding", "treatments", "bcs", "tank", "mv", "assurance", "abr-kit", "scc-equipment", "enterprise", "supplies"];
 
 export default function SheepDairyPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("milk");
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "sheep-dairy", farmId, validIds: SHEEP_DAIRY_TAB_IDS, defaultTab: "milk" });
   if (!farmId) return <Redirect to="/select" />;
 
   return (

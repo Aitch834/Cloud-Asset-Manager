@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { OtherSelect } from "@/components/ui/other-select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useToast } from "@/hooks/use-toast";
 import { Redirect, Link } from "wouter";
 import { cn } from "@/lib/utils";
@@ -3636,10 +3637,11 @@ function CustomersTab({ farmId, onViewJobs }: { farmId: number; onViewJobs: () =
 }
 
 type Tab = "jobs" | "schedule" | "overview" | "parts" | "analytics" | "customers";
+const WORKSHOP_TAB_IDS: Tab[] = ["jobs", "schedule", "overview", "parts", "analytics", "customers"];
 
 export default function WorkshopPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["jobs","schedule","overview","parts","analytics","customers"]; return t && valid.includes(t) ? t : "jobs"; });
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "workshop", farmId, validIds: WORKSHOP_TAB_IDS, defaultTab: "jobs", urlOverride: new URLSearchParams(window.location.search).get("tab") });
   const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
   const [jobNavStatus, setJobNavStatus] = useState<string>("all");
   const [jobNavKey, setJobNavKey] = useState(0);

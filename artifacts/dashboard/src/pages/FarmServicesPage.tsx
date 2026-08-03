@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useToast } from "@/hooks/use-toast";
 import { useFarmMembers } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -3666,11 +3667,12 @@ function ComplianceBanner() {
 
 export default function FarmServicesPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => {
-    const p = new URLSearchParams(window.location.search);
-    const t = p.get("tab") as Tab | null;
-    const valid: Tab[] = ["customers", "agreements", "grain", "invoices", "work-orders", "hire"];
-    return t && valid.includes(t) ? t : "customers";
+  const [tab, setTab] = usePersistedTab<Tab>({
+    page: "farm-services",
+    farmId,
+    validIds: ["customers", "agreements", "grain", "invoices", "work-orders", "hire"],
+    defaultTab: "customers",
+    urlOverride: new URLSearchParams(window.location.search).get("tab"),
   });
   const [invoicePrefill, setInvoicePrefill] = useState<InvoicePrefill | null>(null);
 

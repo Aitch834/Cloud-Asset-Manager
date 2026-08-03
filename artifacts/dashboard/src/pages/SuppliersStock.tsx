@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useFarmMembers } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -122,17 +123,13 @@ function EmptyState({ icon: Icon, title, subtitle }: { icon: React.ElementType; 
   );
 }
 
-export default function SuppliersStockPage() {
-  const [tab, setTab] = useState<"suppliers" | "products" | "purchase-orders" | "received" | "levels" | "movements" | "trade-history" | "stocktake">("levels");
-  const [prefilledPo, setPrefilledPo] = useState<{ form: any; lines: any[] } | null>(null);
-  const { farmId } = useAppStore();
+type SuppliersTab = "suppliers" | "products" | "purchase-orders" | "received" | "levels" | "movements" | "trade-history" | "stocktake";
+const SUPPLIERS_TAB_IDS: SuppliersTab[] = ["suppliers", "products", "purchase-orders", "received", "levels", "movements", "trade-history", "stocktake"];
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const requested = params.get("tab") as typeof tab | null;
-    const valid: (typeof tab)[] = ["suppliers", "products", "purchase-orders", "received", "levels", "movements", "trade-history", "stocktake"];
-    if (requested && valid.includes(requested)) setTab(requested);
-  }, []);
+export default function SuppliersStockPage() {
+  const { farmId } = useAppStore();
+  const [tab, setTab] = usePersistedTab<SuppliersTab>({ page: "suppliers-stock", farmId, validIds: SUPPLIERS_TAB_IDS, defaultTab: "levels", urlOverride: new URLSearchParams(window.location.search).get("tab") });
+  const [prefilledPo, setPrefilledPo] = useState<{ form: any; lines: any[] } | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
 

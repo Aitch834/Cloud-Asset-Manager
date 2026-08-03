@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { api } from "@/lib/api";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,7 @@ export default function BeekeepingPage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [tab, setTab] = useState<"apiaries" | "inspections" | "honey" | "analytics">("apiaries");
+  const [tab, setTab] = usePersistedTab<"apiaries" | "inspections" | "honey" | "analytics">({ page: "beekeeping", farmId, validIds: ["apiaries", "inspections", "honey", "analytics"], defaultTab: "apiaries" });
   const [apiaryId, setApiaryId] = useState<number | null>(null);
   const [apiaryOpen, setApiaryOpen] = useState(false);
   const [inspOpen, setInspOpen] = useState(false);

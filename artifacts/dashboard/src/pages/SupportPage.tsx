@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { api } from "@/lib/api";
 import {
@@ -536,7 +537,7 @@ function InfoCard({ icon: Icon, title, body }: { icon: React.ComponentType<{ cla
 
 export default function SupportPage() {
   const { farmId, tenantSlug } = useAppStore();
-  const [tab, setTab] = useState<Tab>("my-tickets");
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "support", farmId, validIds: ["my-tickets", "new-ticket"], defaultTab: "my-tickets" });
 
   const tabs: { id: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: "my-tickets", label: "My Tickets", icon: MessageSquare },

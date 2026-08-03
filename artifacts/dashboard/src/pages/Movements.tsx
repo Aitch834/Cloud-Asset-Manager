@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { downloadCsvFile } from "@/lib/csv";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -1149,7 +1150,7 @@ export default function Movements() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [printRecord, setPrintRecord] = useState<Movement | null>(null);
   const [expandedAttachments, setExpandedAttachments] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<"movements" | "mortality" | "bcms-submissions" | "lis-submissions" | "lip-submissions" | "lip-lost-found" | "eidcymru-submissions" | "scoteid-submissions">("movements");
+  const [activeTab, setActiveTab] = usePersistedTab<"movements" | "mortality" | "bcms-submissions" | "lis-submissions" | "lip-submissions" | "lip-lost-found" | "eidcymru-submissions" | "scoteid-submissions">({ page: "movements", farmId, validIds: ["movements", "mortality", "bcms-submissions", "lis-submissions", "lip-submissions", "lip-lost-found", "eidcymru-submissions", "scoteid-submissions"], defaultTab: "movements" });
   const [lipActionDialog, setLipActionDialog] = useState<{ type: "confirm" | "reject" | "cancel"; submissionId: number; lipReference: string } | null>(null);
   const [lipActionReason, setLipActionReason] = useState("");
   const [lipRejectionReasonId, setLipRejectionReasonId] = useState("");

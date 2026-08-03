@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -3609,8 +3610,22 @@ function OrgSheepDippingSection({ farmId }: { farmId: number }) {
   );
 }
 
+const ORGANIC_LIVESTOCK_TAB_IDS = [
+  "conversion", "feed", "feed-derogations", "outdoor-access", "treatments",
+  "herds", "animals", "vet-plans", "mortality", "contractors", "ls-feed",
+  "water", "sires", "straws", "ai-repro", "vet-rx", "tb-tests",
+  "welfare-outcomes", "sheep-dipping", "kidding",
+] as const;
+
 export default function OrganicLivestockPage() {
   const { farmId } = useAppStore();
+  const [tab, setTab] = usePersistedTab<string>({
+    page: "organic-livestock",
+    farmId,
+    validIds: ORGANIC_LIVESTOCK_TAB_IDS,
+    defaultTab: "conversion",
+    urlOverride: new URLSearchParams(window.location.search).get("tab"),
+  });
   const { data: farmData } = useQuery<{ name: string }>({
     queryKey: ["farm-detail", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
@@ -3621,7 +3636,7 @@ export default function OrganicLivestockPage() {
   return (
     <AppLayout title="Organic Livestock">
       {farmId && (
-        <Tabs defaultValue="conversion">
+        <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="flex-wrap h-auto gap-y-1">
             <TabsTrigger value="conversion">Conversion</TabsTrigger>
             <TabsTrigger value="feed">Feed Records</TabsTrigger>

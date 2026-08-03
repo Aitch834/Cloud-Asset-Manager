@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -69,7 +70,12 @@ type Tab = "milk" | "mastitis" | "kidding" | "bcs" | "tank" | "cae" | "assurance
 
 export default function GoatDairyPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("milk");
+  const [tab, setTab] = usePersistedTab<Tab>({
+    page: "goat-dairy",
+    farmId,
+    validIds: ["milk", "mastitis", "kidding", "bcs", "tank", "cae", "assurance", "abr-kit", "scc-equipment", "enterprise", "supplies"],
+    defaultTab: "milk",
+  });
   if (!farmId) return <Redirect to="/select" />;
 
   return (

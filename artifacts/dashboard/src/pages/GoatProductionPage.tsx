@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { GoatEnterpriseReport } from "@/components/GoatEnterpriseReport";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { Checkbox } from "@/components/ui/checkbox";
 
 const api = (path: string) => `/api/${path}`;
@@ -997,7 +998,12 @@ function GoatAnalyticsTab({ farmId }: { farmId: number }) {
 // ─── PAGE ─────────────────────────────────────────────────────────────────────
 export default function GoatProductionPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<"herds" | "mating" | "scanning" | "weigh" | "cull" | "health" | "analytics" | "enterprise">("herds");
+  const [tab, setTab] = usePersistedTab<"herds" | "mating" | "scanning" | "weigh" | "cull" | "health" | "analytics" | "enterprise">({
+    page: "goat-production",
+    farmId,
+    validIds: ["herds", "mating", "scanning", "weigh", "cull", "health", "analytics", "enterprise"],
+    defaultTab: "herds",
+  });
 
   if (!farmId) {
     return (

@@ -1,5 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Redirect, useSearch } from "wouter";
 import {
@@ -616,7 +617,7 @@ export default function TaskBoardPage() {
     return v ? parseInt(v, 10) : null;
   })();
 
-  const [view, setView] = useState<"board" | "reports">("board");
+  const [view, setView] = usePersistedTab<"board" | "reports">({ page: "task-board", farmId, validIds: ["board", "reports"], defaultTab: "board" });
   const [showNewTask, setShowNewTask] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");

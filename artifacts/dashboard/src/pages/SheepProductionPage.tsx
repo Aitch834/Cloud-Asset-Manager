@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFarmMembers } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -1525,9 +1526,11 @@ function SheepAnalyticsTab({ farmId }: { farmId: number }) {
   );
 }
 
+const SHEEP_TAB_IDS: Tab[] = ["flocks", "tupping", "scanning", "weigh", "shearing", "health", "rt-checklist", "analytics", "weighing-equipment", "enterprise"];
+
 export default function SheepProductionPage() {
   const farmId = useAppStore(s => s.farmId);
-  const [tab, setTab] = useState<Tab>("tupping");
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "sheep-production", farmId, validIds: SHEEP_TAB_IDS, defaultTab: "tupping" });
 
   if (!farmId) {
     return (

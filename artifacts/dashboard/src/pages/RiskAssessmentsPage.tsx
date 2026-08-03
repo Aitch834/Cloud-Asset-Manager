@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { FarmLocationSelect } from "@/components/ui/FarmLocationSelect";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +20,7 @@ import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 
 type Tab = "risk" | "coshh" | "pat" | "fire";
+const RISK_ASSESSMENTS_TAB_IDS: Tab[] = ["risk", "coshh", "pat", "fire"];
 type RiskLevel = "low" | "medium" | "high" | "critical";
 type Status = "active" | "under-review" | "archived";
 
@@ -2359,7 +2361,7 @@ function HsReportModal({ farmId, onClose }: { farmId: number; onClose: () => voi
 
 export default function RiskAssessmentsPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["risk","coshh","pat","fire"]; return t && valid.includes(t) ? t : "risk"; });
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "risk-assessments", farmId, validIds: RISK_ASSESSMENTS_TAB_IDS, defaultTab: "risk", urlOverride: new URLSearchParams(window.location.search).get("tab") });
   const [reportOpen, setReportOpen] = useState(false);
   const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
 

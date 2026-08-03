@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, type ReactNode } from "react";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, Loader2, Eye, Leaf, Award, Map, Package, FileQuestion } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -938,10 +939,13 @@ function DerogationsTab({ farmId }: { farmId: number }) {
 }
 
 // ─── PAGE ─────────────────────────────────────────────────────────────────────
+type OrganicVenisonTab = "certification" | "land" | "feed" | "derogations";
+const ORGANIC_VENISON_TAB_IDS: OrganicVenisonTab[] = ["certification", "land", "feed", "derogations"];
+
 export default function OrganicVenisonPage() {
   const { selectedFarm } = useAppStore();
   const farmId = selectedFarm?.id;
-  const [tab, setTab] = useState<"certification" | "land" | "feed" | "derogations">("certification");
+  const [tab, setTab] = usePersistedTab<OrganicVenisonTab>({ page: "organic-venison", farmId, validIds: ORGANIC_VENISON_TAB_IDS, defaultTab: "certification" });
 
   if (!farmId) {
     return (

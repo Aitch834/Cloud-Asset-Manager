@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { api } from "@/lib/api";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -59,7 +60,7 @@ export default function PoultryNCPPage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [tab, setTab] = useState<"records" | "analytics">("records");
+  const [tab, setTab] = usePersistedTab<"records" | "analytics">({ page: "poultry-ncp", farmId, validIds: ["records", "analytics"], defaultTab: "records" });
   const [search, setSearch] = useState("");
   const [resultFilter, setResultFilter] = useState<string>("all");
   const [open, setOpen] = useState(false);

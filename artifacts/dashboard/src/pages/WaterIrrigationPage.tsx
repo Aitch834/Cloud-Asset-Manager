@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { Redirect } from "wouter";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
@@ -1241,10 +1242,11 @@ function CamsReturnsTab({ farmId }: { farmId: number }) {
 }
 
 type Tab = "licences" | "readings" | "borehole" | "records" | "equipment" | "soil-moisture" | "drought" | "cams";
+const WATER_TAB_IDS: Tab[] = ["licences", "readings", "borehole", "records", "equipment", "soil-moisture", "drought", "cams"];
 
 export default function WaterIrrigationPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["licences","readings","borehole","records","equipment","soil-moisture","drought","cams"]; return t && valid.includes(t) ? t : "licences"; });
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "water-irrigation", farmId, validIds: WATER_TAB_IDS, defaultTab: "licences", urlOverride: new URLSearchParams(window.location.search).get("tab") });
   if (!farmId) return <Redirect to="/" />;
   return (
     <AppLayout title="Water & Irrigation Management">

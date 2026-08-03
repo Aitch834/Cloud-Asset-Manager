@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { openPrintWindow } from "@/lib/print-report";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -693,7 +694,7 @@ type Tab = "weigh" | "finishing" | "deadweight" | "rt-checklist" | "reports" | "
 
 export default function BeefProductionPage() {
   const farmId = useAppStore(s => s.farmId);
-  const [tab, setTab] = useState<Tab>("weigh");
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "beef-production", farmId, validIds: ["weigh", "finishing", "deadweight", "rt-checklist", "reports", "enterprise"], defaultTab: "weigh" });
   const [raiseTaskFor, setRaiseTaskFor] = useState<Record<string, unknown> | null>(null);
 
   // tabsReady defers the first tab render until after React's commit phase.

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, Plus, Pencil, Trash2, Loader2, BarChart3, Flame, Trees, Zap, FileBarChart, SunMedium, Sprout, Upload, Sparkles, Printer } from "lucide-react";
@@ -3301,7 +3302,7 @@ type Tab = "audits" | "emissions" | "sequestration" | "actions" | "reports" | "r
 
 export default function CarbonPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("audits");
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "carbon", farmId, validIds: ["audits", "emissions", "sequestration", "actions", "reports", "renewable", "bng", "auto-calc"], defaultTab: "audits" });
   const [prefillAudit, setPrefillAudit] = useState<PrefillAudit | null>(null);
   if (!farmId) return <Redirect to="/" />;
   return (

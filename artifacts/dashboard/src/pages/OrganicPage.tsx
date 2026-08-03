@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card } from "@/components/ui/card";
@@ -1652,7 +1653,7 @@ const TAB_ICONS: Record<TabKey, React.ElementType> = {
 
 export default function OrganicPage() {
   const { farmId } = useAppStore();
-  const [activeTab, setActiveTab] = useState<TabKey>("certification");
+  const [activeTab, setActiveTab] = usePersistedTab<TabKey>({ page: "organic", farmId, validIds: TABS, defaultTab: "certification" });
 
   const { data: farmData } = useQuery<{ name: string }>({
     queryKey: ["farm-detail", farmId],

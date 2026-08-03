@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useLocation } from "wouter";
 import { Wrench, CheckCircle2, AlertTriangle, Clock, ChevronRight, Tractor, Calendar, TrendingUp } from "lucide-react";
@@ -50,7 +51,12 @@ function ServiceStatus({ days }: { days: number | null }) {
 export default function FleetDashboard() {
   const { farmId } = useAppStore();
   const [, navigate] = useLocation();
-  const [tab, setTab] = useState<"status" | "cost">("status");
+  const [tab, setTab] = usePersistedTab<"status" | "cost">({
+    page: "fleet",
+    farmId,
+    validIds: ["status", "cost"],
+    defaultTab: "status",
+  });
 
   const equipmentQ = useQuery({
     queryKey: ["equipment", farmId],

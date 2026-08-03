@@ -4,6 +4,7 @@ import { useLookupStrings } from "@/hooks/use-lookup";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2122,7 +2123,7 @@ export default function InspectionsPageFull() {
   const urlInspId = params.get("id") ? parseInt(params.get("id")!, 10) : undefined;
   const urlCaId = params.get("caId") ? parseInt(params.get("caId")!, 10) : undefined;
 
-  const [tab, setTab] = useState<Tab>(urlTab && ["inspections", "issues-register", "assurance-certs"].includes(urlTab) ? urlTab : "inspections");
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "inspections", farmId, validIds: ["inspections", "issues-register", "assurance-certs"], defaultTab: "inspections", urlOverride: urlTab });
   const [reportOpen, setReportOpen] = useState(false);
 
   return (

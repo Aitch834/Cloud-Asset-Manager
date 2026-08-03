@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -2042,7 +2043,7 @@ function CropStocktakesTab({ farmId }: { farmId: number }) {
 // ─── Page Shell ──────────────────────────────────────────────────────────────
 export default function CropStockPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("stock");
+  const [tab, setTab] = usePersistedTab<Tab>({ page: "crop-stock", farmId, validIds: ["stock", "movements", "stocktakes"], defaultTab: "stock" });
 
   return (
     <AppLayout title="Crop Stock">

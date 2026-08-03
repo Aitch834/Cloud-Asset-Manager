@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -187,6 +188,12 @@ function CopyButton({ text }: { text: string }) {
 
 export default function DataApiPage() {
   const { farmId } = useAppStore();
+  const [tab, setTab] = usePersistedTab<string>({
+    page: "data-api",
+    farmId,
+    validIds: ["powerQuery", "googleSheets", "python"],
+    defaultTab: "powerQuery",
+  });
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [newKeyName, setNewKeyName] = useState("");
@@ -397,7 +404,7 @@ export default function DataApiPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="powerQuery">
+          <Tabs value={tab} onValueChange={setTab}>
             <TabsList className="mb-4">
               <TabsTrigger value="powerQuery" className="flex items-center gap-1.5">
                 <FileSpreadsheet className="w-3.5 h-3.5" /> Excel Power Query
