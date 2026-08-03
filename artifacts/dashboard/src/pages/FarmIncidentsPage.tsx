@@ -414,7 +414,15 @@ export default function FarmIncidentsPage() {
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `farm-incidents-${new Date().toISOString().split("T")[0]}.csv`;
+    const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    const filterParts: string[] = [];
+    if (statusFilter !== "all") {
+      filterParts.push(slugify(STATUSES.find(s => s.value === statusFilter)?.label ?? statusFilter));
+    }
+    if (evidenceFilter === "missing") filterParts.push("missing-evidence");
+    else if (evidenceFilter === "missing_high_risk") filterParts.push("high-risk-no-photos");
+    const filterSuffix = filterParts.length ? `-${filterParts.join("-")}` : "";
+    a.href = url; a.download = `farm-incidents${filterSuffix}-${new Date().toISOString().split("T")[0]}.csv`;
     a.click(); URL.revokeObjectURL(url);
   };
 
