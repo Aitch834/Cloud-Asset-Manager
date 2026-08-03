@@ -4107,14 +4107,26 @@ function printSo2TransactionLog(
   const printedOn = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   const safeSig = sanitiseSignatureForHtml(auditSig);
 
+  // Unit-outlier audit cue — same dominant-unit map as the additions report PDF
+  // and the transaction-log CSV (computeSo2DominantUnitByVintage), so the
+  // printed audit copy carries the same marker as every other output.
+  const { dominantUnitByVintage } = computeSo2DominantUnitByVintage(rows);
+  let hasUnitOutliers = false;
+
   const tableRows = rows.map(r => {
     const src = String(r.source ?? "pressing");
     const stageLabel = SOURCE_LABELS[src] ?? src;
     // Dose/unit formatting comes from the shared PRESS_ADDITIVE_COLUMNS definitions
     const dosePdf = ADDITIVE_COL.dose.pdfValue(r);
+    const unitEsc = escHtml(ADDITIVE_COL.unit.pdfValue(r));
+    const outlierDominant = so2UnitOutlierDominant(r, dominantUnitByVintage);
+    if (outlierDominant) hasUnitOutliers = true;
+    const unitPart = outlierDominant
+      ? `<span style="color:#92400e;font-weight:600">${unitEsc} *</span><br /><span style="color:#92400e;font-size:9px;font-family:'Segoe UI',Arial,sans-serif">unit differs — most records for this vintage use ${escHtml(outlierDominant)}</span>`
+      : unitEsc;
     const doseVal = dosePdf === "—" || r.dose === ""
       ? "—"
-      : `${dosePdf} ${escHtml(ADDITIVE_COL.unit.pdfValue(r))}`;
+      : `${dosePdf} ${unitPart}`;
     // Dose rate (mg/L) — cellar sulfiting rows only; mirrors on-screen table and CSV export
     let doseRateVal = "—";
     if (r.source === "cellar" && r.so2_quantity_g != null) {
@@ -4190,6 +4202,7 @@ function printSo2TransactionLog(
   <tbody>${tableRows}</tbody>
 </table>
 <p style="margin-top:6px;font-size:9px;color:#6b7280">* Dose Rate (mg/L) is estimated for cellar sulfiting rows only: <strong>V</strong> = based on vessel capacity, <strong>M</strong> = based on volume moved.</p>
+${hasUnitOutliers ? `<p style="margin-top:4px;font-size:9px;color:#92400e">* Unit differs from the most common SO₂ unit used for that vintage</p>` : ""}
 
 <div class="signoff">
   <div style="margin-top:28px;border-top:2px solid #374151;padding-top:16px">
