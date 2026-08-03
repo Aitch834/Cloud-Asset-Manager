@@ -4863,13 +4863,18 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                   </td>
                   <td className="p-3 text-right whitespace-nowrap">
                     <BatchTrailButton batchRef={r.batch_ref} onClick={() => setTrailRecord(r)} />
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600 disabled:opacity-40" title={r.batch_ref ? `View additions for ${String(r.batch_ref)}` : "No batch reference — additions view unavailable"} disabled={!r.batch_ref} onClick={() => {
-                      // Open the Additions Report pre-scoped to this row's batch ref and
-                      // vintage year — same pre-fill behaviour as the batch trail dialog.
-                      if (r.vintage_year != null && String(r.vintage_year) !== "") setYearFilter(String(r.vintage_year));
-                      setTxLogBatchFilter(String(r.batch_ref ?? ""));
-                      setShowReport(true);
-                    }}><Beaker className="h-4 w-4" /></Button>
+                    {/* Title lives on a wrapping span (same pattern as BatchTrailButton):
+                        the base Button's disabled:pointer-events-none suppresses native
+                        tooltips on the disabled button itself. */}
+                    <span title={r.batch_ref ? `View additions for ${String(r.batch_ref)}` : "No batch reference — additions view unavailable"} className="inline-flex">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600 disabled:opacity-40" disabled={!r.batch_ref} onClick={() => {
+                        // Open the Additions Report pre-scoped to this row's batch ref and
+                        // vintage year — same pre-fill behaviour as the batch trail dialog.
+                        if (r.vintage_year != null && String(r.vintage_year) !== "") setYearFilter(String(r.vintage_year));
+                        setTxLogBatchFilter(String(r.batch_ref ?? ""));
+                        setShowReport(true);
+                      }}><Beaker className="h-4 w-4" /></Button>
+                    </span>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
