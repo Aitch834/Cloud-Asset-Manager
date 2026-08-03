@@ -39,6 +39,32 @@ async function call(method, path, body) {
   return { status: res.status, json };
 }
 
+// Preflight: make sure the API server is actually up before running checks.
+// If the api-server workflow is asleep, every request comes back as a 502
+// from the proxy (or a connection error) — that is NOT a duplicate-handling
+// regression, so detect it up front and fail with an explicit message.
+async function preflight() {
+  const attempts = 5;
+  let last = "";
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(`${API_BASE}/farms/${FARM_ID}`, { headers: HEADERS });
+      if (res.status !== 502 && res.status !== 503 && res.status !== 504) return; // server answered
+      last = `HTTP ${res.status}`;
+    } catch (err) {
+      last = err?.cause?.code ?? err?.message ?? String(err);
+    }
+    if (i < attempts - 1) await new Promise((r) => setTimeout(r, 2000));
+  }
+  console.error(
+    `\nAPI server unreachable at ${API_BASE} (${last}).\n` +
+      `The api-server workflow does not appear to be running — start the ` +
+      `"artifacts/api-server: API Server" workflow, then re-run this check.\n` +
+      `No duplicate-ref checks were executed; this is NOT a duplicate-handling failure.`,
+  );
+  process.exit(2);
+}
+
 async function testRoute(name, route, makeBody, expectedCode = "DUPLICATE_BATCH_REF") {
   console.log(`\n${name} (POST ${route})`);
   const ref = `DUPCHK-${name.toUpperCase().slice(0, 5)}-${Date.now()}`;
@@ -100,6 +126,8 @@ async function testRoute(name, route, makeBody, expectedCode = "DUPLICATE_BATCH_
     `got code ${JSON.stringify(loser.json?.code)}`,
   );
 }
+
+await preflight();
 
 const base = `/farms/${FARM_ID}`;
 
