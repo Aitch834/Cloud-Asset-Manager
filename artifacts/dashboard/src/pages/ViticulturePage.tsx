@@ -1,3 +1,4 @@
+import { useFarmName } from "@/hooks/use-farm-name";
 import { useState, useMemo, useEffect, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -2243,15 +2244,8 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
     enabled: !!farmId,
   });
 
-  // Farm name for print header
-  const { data: farmsData } = useQuery<{ farms?: Record<string, unknown>[] }>({
-    queryKey: ["farms-list"],
-    queryFn: () => fetch("/api/tenants/current/farms", { credentials: "include" }).then(r => r.json()),
-    staleTime: 300_000,
-  });
-  const farmName = (Array.isArray(farmsData?.farms)
-    ? (farmsData.farms.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name
-    : undefined) as string | undefined;
+  // Farm name for print header — shared hook, includes `Farm ${farmId}` fallback
+  const farmName = useFarmName(farmId);
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
   const sfv = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
@@ -2723,15 +2717,8 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
     staleTime: 60_000,
   });
 
-  // Fetch farm name and first winery licence number for print header
-  const { data: farmsData } = useQuery<{ farms?: Record<string, unknown>[] }>({
-    queryKey: ["farms-list"],
-    queryFn: () => fetch("/api/tenants/current/farms", { credentials: "include" }).then(r => r.json()),
-    staleTime: 300_000,
-  });
-  const farmName = (Array.isArray(farmsData?.farms)
-    ? (farmsData.farms.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name
-    : undefined) as string | undefined;
+  // Farm name (shared hook) and first winery licence number for print header
+  const farmName = useFarmName(farmId);
   const { data: licencesData } = useQuery<{ records?: Record<string, unknown>[] }>({
     queryKey: ["winery-licences", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/winery-licences`), { credentials: "include" }).then(r => r.json()),

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
 import { BOTTLING_COLUMNS, BOTTLING_IMPORT_HEADERS, resolveBottlingField, bottlingImportRecord, parseCsvText, parseBottlingCsv } from "@/lib/bottling-csv";
 import { computePrimaryPhTa, computePhTaStagePoints } from "@/lib/ph-ta-stages";
@@ -41,18 +42,8 @@ const csvSlug = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300
 // Quote-escaped single-cell comment row for CSV prefix blocks
 const csvComment = (s: string) => `"${s.replace(/"/g, '""')}"`;
 
-// Farm display name for CSV/PDF headers — same "farms-list" query key as the
-// per-tab lookups so the list is fetched once and shared.
-function useFarmName(farmId: number): string {
-  const { data } = useQuery<{ farms?: Record<string, unknown>[] }>({
-    queryKey: ["farms-list"],
-    queryFn: () => fetch("/api/tenants/current/farms", { credentials: "include" }).then(r => r.json()),
-    staleTime: 300_000,
-  });
-  return ((Array.isArray(data?.farms)
-    ? (data.farms.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
-    : undefined) ?? `Farm ${farmId}`);
-}
+// Farm display name for CSV/PDF headers comes from the shared useFarmName hook
+// (single "farms-list" query) so the lookup can't silently drift per call site.
 
 function useCrud<T extends Record<string, unknown>>(farmId: number, endpoint: string, key: string) {
   const qc = useQueryClient();
@@ -1075,16 +1066,7 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const { data: farmsData } = useQuery<{ farms?: Record<string, unknown>[] }>({
-    queryKey: ["farms-list"],
-    queryFn: () => fetch("/api/tenants/current/farms", { credentials: "include" }).then(r => r.json()),
-    staleTime: 300_000,
-  });
-  const farmName: string =
-    (Array.isArray(farmsData?.farms)
-      ? (farmsData.farms.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)
-          ?.name as string | undefined
-      : undefined) ?? `Farm ${farmId}`;
+  const farmName: string = useFarmName(farmId);
 
   // Reuse cached pressing data already fetched by the pressing tab
   const { data: pressingData } = usePressing(farmId);
@@ -3986,14 +3968,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const { staffNames, isLoading: staffLoading } = useStaff(farmId);
   const batchSettings = useWineryBatchSettings(farmId);
   const { toast } = useToast();
-  const { data: farmsData } = useQuery<{ farms?: Record<string, unknown>[] }>({
-    queryKey: ["farms-list"],
-    queryFn: () => fetch("/api/tenants/current/farms", { credentials: "include" }).then(r => r.json()),
-    staleTime: 300_000,
-  });
-  const farmName: string = (Array.isArray(farmsData?.farms)
-    ? (farmsData.farms.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
-    : undefined) ?? `Farm ${farmId}`;
+  const farmName: string = useFarmName(farmId);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
   const [view, setView] = useState<Record<string, unknown> | null>(null);
@@ -5852,14 +5827,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
   const [fermSearch, setFermSearch] = useState("");
   const [so2FromPressing, setSo2FromPressing] = useState(false);
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
-  const { data: farmsDataFerm } = useQuery<{ farms?: Record<string, unknown>[] }>({
-    queryKey: ["farms-list"],
-    queryFn: () => fetch("/api/tenants/current/farms", { credentials: "include" }).then(r => r.json()),
-    staleTime: 300_000,
-  });
-  const farmNameFerm: string = (Array.isArray(farmsDataFerm?.farms)
-    ? (farmsDataFerm.farms.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
-    : undefined) ?? `Farm ${farmId}`;
+  const farmNameFerm: string = useFarmName(farmId);
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   // Pressing records sorted newest-first for the link select
@@ -6627,14 +6595,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   // Confirm-before-save gate: shown when a sulfiting save would push the batch's
   // projected cumulative SO₂ total to/over its active ceiling.
   const [confirmOverCeiling, setConfirmOverCeiling] = useState(false);
-  const { data: farmsDataCellar } = useQuery<{ farms?: Record<string, unknown>[] }>({
-    queryKey: ["farms-list"],
-    queryFn: () => fetch("/api/tenants/current/farms", { credentials: "include" }).then(r => r.json()),
-    staleTime: 300_000,
-  });
-  const farmNameCellar: string = (Array.isArray(farmsDataCellar?.farms)
-    ? (farmsDataCellar.farms.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
-    : undefined) ?? `Farm ${farmId}`;
+  const farmNameCellar: string = useFarmName(farmId);
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   const cellarPressingRefs = pressingRecords
@@ -7429,14 +7390,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     if (importFileRef.current) importFileRef.current.value = "";
   };
 
-  const { data: farmsDataBottling } = useQuery<{ farms?: Record<string, unknown>[] }>({
-    queryKey: ["farms-list"],
-    queryFn: () => fetch("/api/tenants/current/farms", { credentials: "include" }).then(r => r.json()),
-    staleTime: 300_000,
-  });
-  const farmNameBottling: string = (Array.isArray(farmsDataBottling?.farms)
-    ? (farmsDataBottling.farms.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
-    : undefined) ?? `Farm ${farmId}`;
+  const farmNameBottling: string = useFarmName(farmId);
   const sf = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
 
   // Read SO₂ test records to enable pre-fill on batch ref selection
@@ -8231,14 +8185,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
   // click). Each Review click advances to the next flagged row, wrapping.
   const [so2ReviewIndex, setSo2ReviewIndex] = useState<number | null>(null);
   const flaggedSo2RowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
-  const { data: farmsDataSo2 } = useQuery<{ farms?: Record<string, unknown>[] }>({
-    queryKey: ["farms-list"],
-    queryFn: () => fetch("/api/tenants/current/farms", { credentials: "include" }).then(r => r.json()),
-    staleTime: 300_000,
-  });
-  const farmNameSo2: string = (Array.isArray(farmsDataSo2?.farms)
-    ? (farmsDataSo2.farms.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
-    : undefined) ?? `Farm ${farmId}`;
+  const farmNameSo2: string = useFarmName(farmId);
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   const so2PressingRefs = pressingRecords
