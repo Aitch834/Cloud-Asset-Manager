@@ -1,5 +1,5 @@
 import { BatchTrailDialog } from "./BatchTrail";
-import { useCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, today, fmtDate, CELLAR_OP_TYPES, CELLAR_OP_LABELS, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmtNum, fmt, So2Badge, NotesCell, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, WINE_COLOUR_OPTIONS, SectionLabel, ViewField, AuditSignOffView, EditHistorySection, RecordSignOffDialog } from "./shared";
+import { useCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, today, fmtDate, CELLAR_OP_TYPES, CELLAR_OP_LABELS, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmtNum, fmt, So2Badge, NotesCell, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, WINE_COLOUR_OPTIONS, SectionLabel, ViewField, AuditSignOffView, EditHistorySection, RecordSignOffDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -316,6 +316,8 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
     } },
     { key: "operator_name", label: "Operator" },
     { key: "notes", label: "Notes" },
+    // Sign-off columns — shared with the pressing export so formatting can't drift
+    ...SIGN_OFF_CSV_COLUMNS,
   ];
 
   return (

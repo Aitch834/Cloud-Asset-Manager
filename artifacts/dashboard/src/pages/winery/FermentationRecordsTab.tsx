@@ -1,5 +1,5 @@
 import { BatchTrailDialog } from "./BatchTrail";
-import { useCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, fmtDate, fmtNum, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmt, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, SectionLabel, WINE_COLOUR_OPTIONS, FERMENTATION_TYPE_OPTIONS, today, ORGANIC_MAX_SO2, ViewField, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, AuditSignOffView, EditHistorySection, RecordSignOffDialog } from "./shared";
+import { useCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, fmtDate, fmtNum, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmt, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, SectionLabel, WINE_COLOUR_OPTIONS, FERMENTATION_TYPE_OPTIONS, today, ORGANIC_MAX_SO2, ViewField, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, AuditSignOffView, EditHistorySection, RecordSignOffDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -148,6 +148,8 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
     { key: "end_ta_gl", label: "End TA (g/L)", fmt: (r: Record<string, unknown>) => r.end_ta_gl != null ? fmtNum(r.end_ta_gl, 1) : "" },
     { key: "operator_name", label: "Operator" },
     { key: "notes", label: "Notes" },
+    // Sign-off columns — shared with the pressing export so formatting can't drift
+    ...SIGN_OFF_CSV_COLUMNS,
   ];
 
   const fermentStatus = (r: Record<string, unknown>) => {

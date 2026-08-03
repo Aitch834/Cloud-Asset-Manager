@@ -43,6 +43,27 @@ export const csvSlug = (s: string) => s.toLowerCase().normalize("NFD").replace(/
 // Quote-escaped single-cell comment row for CSV prefix blocks
 export const csvComment = (s: string) => `"${s.replace(/"/g, '""')}"`;
 
+// Sign-off columns — mirror the on-screen Sign-off badge (signed = audit_signature
+// present). Shared by the pressing, fermentation, cellar-ops and bottling CSV
+// exports so the four sign-off columns can't drift between registers.
+export const SIGN_OFF_CSV_COLUMNS: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[] = [
+  { key: "audit_signature", label: "Signed", fmt: (r: Record<string, unknown>) => (r.audit_signature != null && r.audit_signature !== "") ? "Yes" : "No" },
+  { key: "audit_signer_name", label: "Signer Name" },
+  { key: "audit_signer_role", label: "Signer Role" },
+  { key: "audit_signer_date", label: "Signed At", fmt: (r: Record<string, unknown>) => {
+    // Prefer the auditor-declared declaration date; fall back to the digital signature timestamp.
+    if (r.audit_signer_date) {
+      const s = String(r.audit_signer_date);
+      const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      // Date-only values are parsed as local calendar dates to avoid UTC day-shift.
+      const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(s);
+      return isNaN(d.getTime()) ? s : d.toLocaleDateString("en-GB");
+    }
+    if (r.audit_signed_at) return fmtDate(r.audit_signed_at);
+    return "";
+  }},
+];
+
 // Farm display name for CSV/PDF headers comes from the shared useFarmName hook
 // (single "farms-list" query) so the lookup can't silently drift per call site.
 

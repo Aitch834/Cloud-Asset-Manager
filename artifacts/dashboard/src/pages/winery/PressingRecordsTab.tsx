@@ -1,6 +1,6 @@
 import { SignatureEmbed, NO_EMBED, signatureEmbedFrom, computeSo2DominantUnitByVintage, SOURCE_LABELS, so2UnitOutlierDominant, printPressingReport, printAdditionsReport, printSo2TransactionLog } from "./print";
 import { useWineryBatchSettings, BatchTrailDialog } from "./BatchTrail";
-import { useCrud, useVessels, useEquipment, useStaff, AdditionRow, additionsShortcutKey, WINERY_VIEW_ADDITIONS_EVENT, ADDITIVE_CATEGORY_LABELS, WINE_COLOUR_OPTIONS, UNSPECIFIED_COLOUR, useAdditionsSummary, useAllPressAdditions, PERMITTED_ADDITIVES, PRESS_TYPE_OPTIONS, today, rowMatchesColour, additiveCsvCol, fmtDate, colourFilterLabel, exportCSV, QueryErrorNotice, EmptyState, fmt, fmtNum, signOffTooltip, BatchTrailButton, ORGANIC_MAX_SO2, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SectionLabel, JUICE_TURBIDITY_OPTIONS, ALL_DOSE_UNITS, SETTLING_METHOD_OPTIONS, ViewField, AssignWineColourDialog } from "./shared";
+import { useCrud, useVessels, useEquipment, useStaff, AdditionRow, additionsShortcutKey, WINERY_VIEW_ADDITIONS_EVENT, ADDITIVE_CATEGORY_LABELS, WINE_COLOUR_OPTIONS, UNSPECIFIED_COLOUR, useAdditionsSummary, useAllPressAdditions, PERMITTED_ADDITIVES, PRESS_TYPE_OPTIONS, today, rowMatchesColour, additiveCsvCol, fmtDate, colourFilterLabel, exportCSV, QueryErrorNotice, EmptyState, fmt, fmtNum, signOffTooltip, BatchTrailButton, ORGANIC_MAX_SO2, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SectionLabel, JUICE_TURBIDITY_OPTIONS, ALL_DOSE_UNITS, SETTLING_METHOD_OPTIONS, ViewField, AssignWineColourDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -697,22 +697,8 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     }},
     // Mirrors the on-screen "N additions" badge (count of additive entries per pressing record)
     { key: "additions_count", label: "Additions", fmt: (r: Record<string, unknown>) => String(additionCounts.get(Number(r.id)) ?? 0) },
-    // Sign-off columns — mirror the on-screen Sign-off badge (signed = audit_signature present)
-    { key: "audit_signature", label: "Signed", fmt: (r: Record<string, unknown>) => (r.audit_signature != null && r.audit_signature !== "") ? "Yes" : "No" },
-    { key: "audit_signer_name", label: "Signer Name" },
-    { key: "audit_signer_role", label: "Signer Role" },
-    { key: "audit_signer_date", label: "Signed At", fmt: (r: Record<string, unknown>) => {
-      // Prefer the auditor-declared declaration date; fall back to the digital signature timestamp.
-      if (r.audit_signer_date) {
-        const s = String(r.audit_signer_date);
-        const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-        // Date-only values are parsed as local calendar dates to avoid UTC day-shift.
-        const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(s);
-        return isNaN(d.getTime()) ? s : d.toLocaleDateString("en-GB");
-      }
-      if (r.audit_signed_at) return fmtDate(r.audit_signed_at);
-      return "";
-    }},
+    // Sign-off columns — shared with fermentation, cellar-ops and bottling exports
+    ...SIGN_OFF_CSV_COLUMNS,
   ];
 
   return (

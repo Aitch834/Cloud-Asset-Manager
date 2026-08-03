@@ -1,5 +1,5 @@
 import { BatchTrailDialog } from "./BatchTrail";
-import { useCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, today, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, csvComment, csvSlug, exportCSV, QueryErrorNotice, EmptyState, fmtDate, fmt, fmtNum, So2Badge, NotesCell, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, SectionLabel, WINE_COLOUR_OPTIONS, CLOSURE_TYPE_OPTIONS, ViewField, AuditSignOffView, EditHistorySection, RecordSignOffDialog } from "./shared";
+import { useCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, today, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, csvComment, csvSlug, exportCSV, QueryErrorNotice, EmptyState, fmtDate, fmt, fmtNum, So2Badge, NotesCell, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, SectionLabel, WINE_COLOUR_OPTIONS, CLOSURE_TYPE_OPTIONS, ViewField, AuditSignOffView, EditHistorySection, RecordSignOffDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -375,6 +375,9 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     }},
     { key: "certified_organic", label: "Certified Organic", fmt: (r: Record<string, unknown>) => r.certified_organic ? "Yes" : "No" },
     { key: "notes", label: "Notes" },
+    // Sign-off columns — shared with the pressing export so formatting can't drift.
+    // Export-only: the bottling importer ignores unknown headers.
+    ...SIGN_OFF_CSV_COLUMNS,
   ];
 
   return (
