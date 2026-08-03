@@ -677,7 +677,8 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
         </div>
         <Button size="sm" variant="outline" className="ml-auto" onClick={() => {
           const searchTrim = harvestSearch.trim();
-          const parts = ["harvest-reception", yearFilter === "all" ? "all-vintages" : yearFilter];
+          const parts = ["harvest-reception"];
+          if (yearFilter !== "all") parts.push(yearFilter);
           if (searchTrim) parts.push(`search-${csvSlug(searchTrim)}`);
           const prefixLines = [
             csvComment(`Harvest Reception — ${farmName}`),
@@ -5894,7 +5895,8 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
         </div>
         <Button size="sm" variant="outline" className="ml-auto" onClick={() => {
           const searchTrim = fermSearch.trim();
-          const parts = ["fermentation-records", yearFilter === "all" ? "all-vintages" : yearFilter];
+          const parts = ["fermentation-records"];
+          if (yearFilter !== "all") parts.push(yearFilter);
           if (searchTrim) parts.push(`search-${csvSlug(searchTrim)}`);
           const prefixLines = [
             csvComment(`Fermentation Records — ${farmNameFerm}`),
@@ -6806,7 +6808,8 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
         </div>
         <Button size="sm" variant="outline" className="ml-auto" onClick={() => {
           const searchTrim = cellarSearch.trim();
-          const parts = ["cellar-ops", yearFilter === "all" ? "all-vintages" : yearFilter];
+          const parts = ["cellar-ops"];
+          if (yearFilter !== "all") parts.push(yearFilter);
           if (opFilter !== "all") parts.push(csvSlug(opFilter));
           if (searchTrim) parts.push(`search-${csvSlug(searchTrim)}`);
           const prefixLines = [
