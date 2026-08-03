@@ -4444,6 +4444,18 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     { key: "max_dose", label: "Max Dose" },
   ];
 
+  const filteredTransactionLog = (yearFilter === "all"
+    ? allAdditions
+    : allAdditions.filter((r: Record<string, unknown>) => String(r.vintage_year) === yearFilter)
+  ).filter((r: Record<string, unknown>) =>
+    txLogBatchFilter.trim() === "" || String(r.batch_ref ?? "").toLowerCase().includes(txLogBatchFilter.trim().toLowerCase())
+  );
+  // Dominant SO₂ unit per vintage across the per-record rows in the export —
+  // same computation as the summary table/PDF/CSV (each record counts once:
+  // batch_count is absent on these rows, so the helper defaults it to 1).
+  const { dominantUnitByVintage: txLogDominantUnitByVintage } =
+    computeSo2DominantUnitByVintage(filteredTransactionLog);
+
   const transactionLogCsvCols = [
     { key: "source", label: "Source", fmt: (r: Record<string, unknown>) => SOURCE_LABELS[String(r.source ?? "pressing")] ?? String(r.source ?? "pressing") },
     { key: "vintage_year", label: "Vintage" },
@@ -4457,6 +4469,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     additiveCsvCol("category"),
     additiveCsvCol("dose"),
     additiveCsvCol("unit"),
+    // Matches the summary table/PDF/CSV audit cue — same dominant-unit map
+    // (computeSo2DominantUnitByVintage) applied to the per-record rows.
+    { key: "unit_outlier", label: "Unit Differs From Vintage", fmt: (r: Record<string, unknown>) => {
+      const dominant = so2UnitOutlierDominant(r, txLogDominantUnitByVintage);
+      return dominant ? `Yes — most records for this vintage use ${dominant}` : "";
+    }},
     { key: "dose_rate_mg_l", label: "Dose Rate (mg/L)", fmt: (r: Record<string, unknown>) => {
       // Only compute for cellar sulfiting rows with so2_quantity_g
       if (r.source !== "cellar" || r.so2_quantity_g == null) return "";
@@ -4478,13 +4496,6 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     }},
     additiveCsvCol("notes"),
   ];
-
-  const filteredTransactionLog = (yearFilter === "all"
-    ? allAdditions
-    : allAdditions.filter((r: Record<string, unknown>) => String(r.vintage_year) === yearFilter)
-  ).filter((r: Record<string, unknown>) =>
-    txLogBatchFilter.trim() === "" || String(r.batch_ref ?? "").toLowerCase().includes(txLogBatchFilter.trim().toLowerCase())
-  );
 
   // Exact-match pressing record for the sign-off badge
   const txLogExactMatch = txLogBatchFilter.trim()
