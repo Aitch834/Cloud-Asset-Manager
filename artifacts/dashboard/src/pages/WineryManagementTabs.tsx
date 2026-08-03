@@ -1928,9 +1928,25 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
               // Group additives by their pressing session — in vintage scope a
               // trail can span multiple pressings, so each pressing renders its
               // own indented sub-list with press date + batch ref.
-              const additiveGroups: { key: string; pressDate: string; batchRef: string | null; additions: Record<string, unknown>[] }[] = [];
+              const additiveGroups: { key: string; pressDate: string; batchRef: string | null; pressingNotes: string; additions: Record<string, unknown>[] }[] = [];
               {
                 const groupIndex = new Map<string, number>();
+                // In vintage scope, seed one group per pressing session (from
+                // data.pressings) so sessions with zero additives — but
+                // non-empty notes — still get a block, matching the PDF.
+                if (isVintageScoped) {
+                  for (const p of data.pressings ?? []) {
+                    const key = String(p.id);
+                    groupIndex.set(key, additiveGroups.length);
+                    additiveGroups.push({
+                      key,
+                      pressDate: p.press_date ? fmtDate(p.press_date) : "—",
+                      batchRef: p.batch_ref != null && String(p.batch_ref).trim() !== "" ? String(p.batch_ref).trim() : null,
+                      pressingNotes: p.notes != null ? String(p.notes).trim() : "",
+                      additions: [],
+                    });
+                  }
+                }
                 for (const a of data.pressAdditions) {
                   const key = a.pressing_record_id != null ? String(a.pressing_record_id) : "unknown";
                   let idx = groupIndex.get(key);
@@ -1941,10 +1957,16 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
                       key,
                       pressDate: a.pressing_press_date ? fmtDate(a.pressing_press_date) : "—",
                       batchRef: a.pressing_batch_ref != null && String(a.pressing_batch_ref).trim() !== "" ? String(a.pressing_batch_ref).trim() : null,
+                      pressingNotes: a.pressing_notes != null ? String(a.pressing_notes).trim() : "",
                       additions: [],
                     });
                   }
                   additiveGroups[idx].additions.push(a);
+                }
+                // Drop seeded sessions that ended up with neither additives
+                // nor notes — they'd render an empty block.
+                for (let i = additiveGroups.length - 1; i >= 0; i--) {
+                  if (additiveGroups[i].additions.length === 0 && !additiveGroups[i].pressingNotes) additiveGroups.splice(i, 1);
                 }
               }
               if (!hasDetails && !pressId && additiveGroups.length === 0 && !pressing.notes) return null;
@@ -2034,6 +2056,16 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
                               <span className="font-normal text-muted-foreground/70">({g.additions.length})</span>
                             </p>
                           )}
+                          {isVintageScoped && !!g.pressingNotes && (
+                            <div className="mb-1">
+                              <p className="text-muted-foreground uppercase tracking-wide font-semibold" style={{ fontSize: "10px" }}>Pressing Notes</p>
+                              <p className="text-xs text-muted-foreground italic">{g.pressingNotes}</p>
+                            </div>
+                          )}
+                          {g.additions.length === 0 && (
+                            <p className="text-xs text-muted-foreground/70 italic">No additives recorded for this pressing.</p>
+                          )}
+                          {g.additions.length > 0 && (
                           <div className="rounded border divide-y bg-background">
                             {g.additions.map((a, i) => (
                               <div key={i} className="px-3 py-2 space-y-0.5">
@@ -2047,11 +2079,12 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
                               </div>
                             ))}
                           </div>
+                          )}
                         </div>
                       ))}
                     </div>
                   )}
-                  {!!pressing.notes && (
+                  {!isVintageScoped && !!pressing.notes && (
                     <div className="pt-2 border-t">
                       <p className="text-muted-foreground uppercase tracking-wide font-semibold" style={{ fontSize: "10px" }}>Pressing Notes</p>
                       <p className="text-xs text-muted-foreground italic mt-1">{String(pressing.notes)}</p>
