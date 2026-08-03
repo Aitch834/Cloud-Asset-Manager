@@ -8979,6 +8979,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
                   <NotesCell notes={r.notes} />
                   <td className="p-3 text-right whitespace-nowrap">
                     <BatchTrailButton batchRef={r.batch_ref} onClick={() => setTrailRecord(r)} />
+                    <ViewAdditionsButton farmId={farmId} record={r} />
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
