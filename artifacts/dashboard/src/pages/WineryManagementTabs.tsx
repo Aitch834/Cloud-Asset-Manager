@@ -7687,15 +7687,23 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
         )}
         <Button size="sm" variant="outline" className="ml-auto" onClick={() => {
           const nonCompliantRows = filtered.filter(isBottlingRowNonCompliant);
-          const prefixLines: string[] = [];
+          // Farm-name + filter header block — same pattern as the fermentation
+          // and cellar-ops exports, kept ahead of the SO₂ warning line.
+          const searchTrim = bottlingSearch.trim();
+          const prefixLines: string[] = [
+            csvComment(`Bottling Records — ${farmNameBottling}`),
+            csvComment(`Vintage: ${yearFilter === "all" ? "All vintages" : yearFilter}`),
+            csvComment(`Search filter: ${searchTrim || "None"}`),
+          ];
           if (nonCompliantRows.length > 0) {
             const lotList = nonCompliantRows.map(r => r.lot_code ? String(r.lot_code) : "(no lot code)").join(", ");
             prefixLines.push(`"WARNING: ${nonCompliantRows.length} run${nonCompliantRows.length !== 1 ? "s" : ""} exceed the applicable SO₂ limit: ${lotList}"`);
           }
-          // Traceable export filename — mirrors the SO₂ CSV pattern: include a
-          // sanitised search term so a filtered download is identifiable.
-          const searchTrim = bottlingSearch.trim();
+          // Traceable export filename — mirrors the SO₂ CSV pattern: include
+          // the vintage scope and a sanitised search term so a filtered
+          // download is identifiable.
           const parts = ["bottling-records"];
+          if (yearFilter !== "all") parts.push(yearFilter);
           if (searchTrim) parts.push(`search-${csvSlug(searchTrim)}`);
           exportCSV(filtered, `${parts.join("-")}.csv`, bottlingCsvCols, prefixLines.length > 0 ? prefixLines : undefined);
         }} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
