@@ -7,7 +7,7 @@ import { BOTTLING_COLUMNS, BOTTLING_IMPORT_HEADERS, resolveBottlingField, bottli
 import { computePrimaryPhTa, computePhTaStagePoints } from "@/lib/ph-ta-stages";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf, Search, Upload, PenLine, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf, Search, Upload, PenLine, ArrowUp, ArrowDown, ArrowUpDown, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -916,6 +916,18 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
   const expectedVintageScoped = !batchRef && !!vintageYear;
   const isVintageScoped = data ? data.scope === "vintageYear" : expectedVintageScoped;
 
+  // Vintage scope: fetch attachments for EVERY pressing session in the vintage
+  // (same best-effort fetchStageAttachments the CSV/PDF exports use) so the
+  // on-screen dialog can list files per pressing, not just the primary one.
+  // Single-batch scope never enables this query — behaviour unchanged.
+  const vintagePressingIds = (data?.pressings ?? []).map(p => Number(p.id)).filter(n => Number.isFinite(n));
+  const { data: vintagePressingAttachments } = useQuery<Map<number, TrailAttachment[]>>({
+    queryKey: ["winery-batch-trail-pressing-attachments", farmId, vintageYear, vintagePressingIds.join(",")],
+    queryFn: () => fetchStageAttachments(farmId, "winery-pressing", data?.pressings ?? []),
+    enabled: isVintageScoped && !!data && vintagePressingIds.length > 0,
+    staleTime: 30_000,
+  });
+
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1035,7 +1047,11 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                   if (additiveGroups[i].additions.length === 0 && !additiveGroups[i].pressingNotes) additiveGroups.splice(i, 1);
                 }
               }
-              if (!hasDetails && !pressId && additiveGroups.length === 0 && !pressing.notes) return null;
+              const hasOtherPressingFiles = isVintageScoped && !!vintagePressingAttachments && (data.pressings ?? []).some(p => {
+                const pid = p.id != null ? Number(p.id) : null;
+                return pid != null && (vintagePressingAttachments.get(pid) ?? []).length > 0;
+              });
+              if (!hasDetails && !pressId && additiveGroups.length === 0 && !pressing.notes && !hasOtherPressingFiles) return null;
               return (
                 <div className="rounded-lg border bg-muted/20 px-4 py-3 space-y-3">
                   <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
@@ -1104,6 +1120,51 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                       <RecordAttachments farmId={farmId} recordType="winery-pressing" recordId={pressId} compact />
                     </div>
                   )}
+                  {/* Vintage scope: attachments for the OTHER pressing sessions in the
+                      vintage (primary's files are already shown by RecordAttachments
+                      above). Same best-effort data the CSV/PDF exports list — sessions
+                      without files are omitted. Single-batch scope renders nothing. */}
+                  {isVintageScoped && vintagePressingAttachments && (() => {
+                    const others = (data.pressings ?? []).filter(p => {
+                      const pid = p.id != null ? Number(p.id) : null;
+                      return pid != null && pid !== pressId && (vintagePressingAttachments.get(pid) ?? []).length > 0;
+                    });
+                    if (others.length === 0) return null;
+                    return (
+                      <div className="pt-2 border-t space-y-2">
+                        <p className="text-muted-foreground uppercase tracking-wide font-semibold" style={{ fontSize: "10px" }}>
+                          Attachments — Other Pressings
+                        </p>
+                        {others.map(p => {
+                          const pid = Number(p.id);
+                          const files = vintagePressingAttachments.get(pid) ?? [];
+                          const ref = p.batch_ref != null && String(p.batch_ref).trim() !== "" ? String(p.batch_ref).trim() : null;
+                          return (
+                            <div key={pid} className="pl-4">
+                              <p className="text-xs font-medium text-muted-foreground flex items-center gap-2 mb-1">
+                                <span>Pressing — {p.press_date ? fmtDate(p.press_date) : "—"}</span>
+                                {ref ? (
+                                  <span className="font-mono text-blue-800 bg-blue-100 rounded px-1.5 py-0.5" style={{ fontSize: "10px" }}>{ref}</span>
+                                ) : (
+                                  <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5" style={{ fontSize: "10px" }}>No ref</span>
+                                )}
+                                <span className="font-normal text-muted-foreground/70">({files.length})</span>
+                              </p>
+                              <ul className="space-y-0.5">
+                                {files.map((f, i) => (
+                                  <li key={i} className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                    <Paperclip className="h-3 w-3 shrink-0" />
+                                    <span className="truncate">{String(f.fileName ?? "")}</span>
+                                    {!!f.uploadedAt && <span className="text-muted-foreground/70 shrink-0">· Uploaded {fmtDate(f.uploadedAt)}</span>}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                   {additiveGroups.length > 0 && (
                     <div className="pt-2 border-t space-y-2">
                       <p className="text-muted-foreground uppercase tracking-wide font-semibold" style={{ fontSize: "10px" }}>
