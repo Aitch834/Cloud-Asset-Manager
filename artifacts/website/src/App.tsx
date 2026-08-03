@@ -19,7 +19,7 @@ function ScrollToTop() {
         referrer: document.referrer || null,
       }),
       keepalive: true,
-    }).catch(() => {});
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).catch(() => {});
   }, [location]);
   return null;
 }

@@ -135,7 +135,7 @@ export default function RegisterInterest() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       setSubmitted(true);
     } catch {
       toast({ title: "Something went wrong. Please try again or email us directly.", variant: "destructive" });

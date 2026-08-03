@@ -196,13 +196,13 @@ export default function Admin() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: replyText.trim() }),
       });
-      if (r.ok) {
-        const data = await r.json() as { message: TicketMessage };
-        setTicketMessages((prev) => [...prev, data.message]);
-        setReplyText("");
-      }
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json() as { message: TicketMessage };
+      setTicketMessages((prev) => [...prev, data.message]);
+      setReplyText("");
     } catch (err) {
       console.warn("Failed to send reply:", err);
+      alert("Failed to send reply. Please try again.");
     }
     setSendingReply(false);
   };
@@ -215,14 +215,14 @@ export default function Admin() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (r.ok) {
-        setTickets((prev) => prev.map((t) => t.id === ticketId ? { ...t, status: newStatus } : t));
-        if (selectedTicket?.id === ticketId) {
-          setSelectedTicket((prev) => prev ? { ...prev, status: newStatus } : null);
-        }
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setTickets((prev) => prev.map((t) => t.id === ticketId ? { ...t, status: newStatus } : t));
+      if (selectedTicket?.id === ticketId) {
+        setSelectedTicket((prev) => prev ? { ...prev, status: newStatus } : null);
       }
     } catch (err) {
       console.warn("Failed to update ticket status:", err);
+      alert("Failed to update ticket status. Please try again.");
     }
   };
 
