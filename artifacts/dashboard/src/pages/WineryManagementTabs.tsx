@@ -330,6 +330,13 @@ function ViewAdditionsButton({ farmId, record }: { farmId: number; record: Recor
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const WINE_COLOUR_OPTIONS = ["Red", "White", "Rosé", "Sparkling", "Orange", "Other"];
+// Sentinel for "no wine colour recorded" — same value the vintage pH/TA chart
+// uses for its Unspecified option, so persisted filters stay consistent.
+const UNSPECIFIED_COLOUR = "__unspecified__";
+const colourFilterLabel = (c: string) => (c === UNSPECIFIED_COLOUR ? "Unspecified" : c);
+// Does a summary/pressing row match the active colour filter value?
+const rowMatchesColour = (r: Record<string, unknown>, filter: string) =>
+  filter === UNSPECIFIED_COLOUR ? String(r.wine_colour ?? "") === "" : String(r.wine_colour ?? "") === filter;
 const ORGANIC_MAX_SO2: Record<string, string> = { "Red": "100", "White": "150", "Rosé": "150", "Sparkling": "185", "Orange": "150" };
 // Conventional (non-organic) total SO₂ ceilings — UK-retained Reg 1308/2013 Annex VIII Part B
 const CONVENTIONAL_MAX_SO2: Record<string, string> = { "Red": "150", "White": "200", "Rosé": "200", "Sparkling": "235", "Orange": "200" };
@@ -4075,7 +4082,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
       const saved = localStorage.getItem("winery-additions-summary-colour-filter");
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed === null || (typeof parsed === "string" && WINE_COLOUR_OPTIONS.includes(parsed))) return parsed;
+        if (parsed === null || (typeof parsed === "string" && (WINE_COLOUR_OPTIONS.includes(parsed) || parsed === UNSPECIFIED_COLOUR))) return parsed;
       }
     } catch { /* ignore corrupt saved value */ }
     return null;
@@ -4410,9 +4417,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     : filteredSummary.filter(r => categoryFilter.has(String(r.category ?? "other")));
   // Wine colour filter
   const availableColours = Array.from(new Set(filteredSummary.map(r => String(r.wine_colour ?? "")).filter(Boolean))).sort();
+  // Offer an "Unspecified" chip whenever any visible row lacks a wine colour,
+  // so those rows can be isolated (mirrors the pH/TA chart's Unspecified option).
+  const summaryHasUnspecifiedColour = filteredSummary.some(r => String(r.wine_colour ?? "") === "");
   const colourFilteredSummary = colourFilter === null
     ? categoryFilteredSummary
-    : categoryFilteredSummary.filter(r => String(r.wine_colour ?? "") === colourFilter);
+    : categoryFilteredSummary.filter(r => rowMatchesColour(r, colourFilter));
   const searchFilteredSummaryUnsorted = nameSearch.trim() === ""
     ? colourFilteredSummary
     : colourFilteredSummary.filter(r =>
@@ -4471,7 +4481,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const showSo2Chart = categoryFilter.size === 0 || categoryFilter.has("so2");
   // Scope the chart to the active wine colour filter so the graph matches the table below it
   const so2ChartSourceRows = additionsSummary.filter(r =>
-    r.category === "so2" && (colourFilter === null || String(r.wine_colour ?? "") === colourFilter)
+    r.category === "so2" && (colourFilter === null || rowMatchesColour(r, colourFilter))
   );
   const so2ByVintage = new Map<string, number>();
   so2ChartSourceRows.forEach(r => {
@@ -4714,15 +4724,15 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
           // Apply the active colour filter (from the Additions Report panel) to the exported
           // rows so the scope stated in the filename/header matches the file contents.
           const exportRows = colourFilter
-            ? filtered.filter(r => String(r.wine_colour ?? "") === colourFilter)
+            ? filtered.filter(r => rowMatchesColour(r, colourFilter))
             : filtered;
           const vintageSlug = yearFilter === "all" ? "all-vintages" : yearFilter;
-          const colourSlug = colourFilter ? `-${colourFilter.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-")}` : "";
+          const colourSlug = colourFilter ? `-${colourFilterLabel(colourFilter).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-")}` : "";
           const filename = `pressing-report-${vintageSlug}${colourSlug}.csv`;
           const prefixLines = [
             `"Pressing Report — ${farmName.replace(/"/g, '""')}"`,
             `"Vintage: ${yearFilter === "all" ? "All vintages" : yearFilter}"`,
-            `"Colour filter: ${colourFilter ? colourFilter.replace(/"/g, '""') : "All colours"}"`,
+            `"Colour filter: ${colourFilter ? colourFilterLabel(colourFilter).replace(/"/g, '""') : "All colours"}"`,
           ];
           exportCSV(exportRows, filename, pressCsvCols, prefixLines);
         }} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
@@ -4927,7 +4937,9 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={() => {
                 const vintagePart = yearFilter === "all" ? "All vintages" : yearFilter;
-                const scopeLabel = colourFilter !== null ? `${vintagePart} · ${colourFilter} wine` : vintagePart;
+                const scopeLabel = colourFilter !== null
+                  ? (colourFilter === UNSPECIFIED_COLOUR ? `${vintagePart} · Unspecified colour` : `${vintagePart} · ${colourFilter} wine`)
+                  : vintagePart;
                 // Embed the digital signature only when every printed row provably derives
                 // from records the signature attests to: the report must be scoped to a
                 // single vintage, every visible summary row must come from the pressing
@@ -4989,13 +5001,13 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                     `"SO2 total limits (mg/kg) — Organic: Red 100 · White/Rosé/Orange 150 · Sparkling 185","Conventional: Red 150 · White/Rosé/Orange 200 · Sparkling 235","UK-retained Reg 2019/934 (organic) · Reg 1308/2013 Annex VIII Part B (conventional). Limits are for total SO2 across the wine's life."`,
                   );
                 }
-                const colourSlug = colourFilter !== null ? colourFilter.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-") : "";
+                const colourSlug = colourFilter !== null ? colourFilterLabel(colourFilter).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-") : "";
                 const filename = colourFilter !== null
                   ? `additions-report-${colourSlug}-${yearFilter}.csv`
                   : `pressing-additions-report-${yearFilter}.csv`;
                 if (colourFilter !== null) {
                   const vintageLabel = yearFilter === "all" ? "All vintages" : `Vintage ${yearFilter}`;
-                  const headerText = `Additive Usage Report — ${colourFilter} — ${vintageLabel} — ${farmName}`;
+                  const headerText = `Additive Usage Report — ${colourFilterLabel(colourFilter)} — ${vintageLabel} — ${farmName}`;
                   prefixLines.unshift(`"${headerText.replace(/"/g, '""')}"`);
                 }
                 exportCSV(searchFilteredSummary, filename, summaryCsvCols, prefixLines);
@@ -5126,10 +5138,10 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                 )}
               </>
             )}
-            {availableColours.length > 1 && (
+            {availableColours.length + (summaryHasUnspecifiedColour ? 1 : 0) > 1 && (
               <>
                 <span className="text-xs text-muted-foreground shrink-0">Colour:</span>
-                {availableColours.map(colour => {
+                {[...availableColours, ...(summaryHasUnspecifiedColour ? [UNSPECIFIED_COLOUR] : [])].map(colour => {
                   const active = colourFilter === colour;
                   return (
                     <button
@@ -5141,7 +5153,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                           : "bg-background text-muted-foreground border-border hover:border-purple-400 hover:text-purple-700"
                       }`}
                     >
-                      {colour}
+                      {colourFilterLabel(colour)}
                     </button>
                   );
                 })}
@@ -5160,7 +5172,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
           {/* SO₂ bar chart across vintages — only shown when there is data for >1 vintage */}
           {showSo2Chart && so2ChartData.length > 1 && (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">SO₂ / KMS — Total dose by vintage{colourFilter ? ` (${colourFilter})` : ""}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">SO₂ / KMS — Total dose by vintage{colourFilter ? ` (${colourFilterLabel(colourFilter)})` : ""}</p>
               <p className="text-xs text-muted-foreground mb-2">Stacked total across all pressing batches per vintage. Units may differ between records — check individual rows below.</p>
               {(() => {
                 const allFilteredOrganic = filtered.length > 0 && filtered.every(r => r.is_organic === true || r.is_organic === "true" || r.is_organic === 1);
