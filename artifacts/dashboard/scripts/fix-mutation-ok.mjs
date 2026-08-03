@@ -93,3 +93,9 @@ for (const file of walk(ROOT)) {
 
 console.log(`files changed: ${filesChanged}, edits: ${edits}, skipped(handled in .then): ${skippedHandled}, skipped(status nearby): ${skippedStatus}`);
 if (process.argv.includes("--verbose")) console.log(report.join("\n"));
+if (DRY && edits > 0) {
+  console.error(`FAIL: ${edits} unhandled write-fetch call(s) found under ${ROOT} — they never throw on non-OK responses, so failed saves look successful.`);
+  console.error(report.join("\n"));
+  console.error(`Fix: add an ok-check (throw on !res.ok), or run: node artifacts/dashboard/scripts/fix-mutation-ok.mjs ${process.argv[2] || "src"}`);
+  process.exit(1);
+}
