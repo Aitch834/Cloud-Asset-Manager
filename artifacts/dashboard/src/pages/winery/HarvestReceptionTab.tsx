@@ -43,6 +43,10 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
   const [importError, setImportError] = useState<string | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const [importResult, setImportResult] = useState<{ insertedCount: number; rejectedCount: number; rejected: { row: number; reason: string }[] } | null>(null);
+  // Headers not matching any HARVEST_COLUMNS header or dbKey — silently ignored
+  // by the field mapping, so surface them as a preview warning (mirrors the
+  // Bottling importer's unknownHeaders behaviour).
+  const [importUnknownHeaders, setImportUnknownHeaders] = useState<string[]>([]);
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const downloadHarvestTemplate = () => {
@@ -60,6 +64,7 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
     setImportError(null);
     setImportResult(null);
     setImportParsed([]);
+    setImportUnknownHeaders([]);
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
@@ -77,6 +82,9 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
       if (headerIdx > 0) parsed = parsed.slice(headerIdx);
       if (headerIdx === -1 || parsed.length < 2) { setImportError("CSV must have a header row and at least one data row."); return; }
       const headers = parsed[0];
+      // Blank header cells are skipped; anything else not in knownHeaders would
+      // be silently dropped by resolveHarvestField — warn before importing.
+      setImportUnknownHeaders(headers.filter(h => h.trim() !== "" && !knownHeaders.has(h)));
       const rows: Record<string, string>[] = [];
       for (let i = 1; i < parsed.length; i++) {
         const cells = parsed[i];
@@ -123,6 +131,7 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
 
   const resetHarvestImportDialog = () => {
     setImportParsed([]);
+    setImportUnknownHeaders([]);
     setImportError(null);
     setImportResult(null);
     setImportLoading(false);
@@ -414,6 +423,16 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
                 <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700 flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
                   <span>{importError}</span>
+                </div>
+              )}
+              {importUnknownHeaders.length > 0 && !importError && (
+                <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium">Unrecognised column{importUnknownHeaders.length !== 1 ? "s" : ""} — these will be ignored on import:</p>
+                    <p className="text-xs mt-1 font-mono">{importUnknownHeaders.join(", ")}</p>
+                    <p className="text-xs mt-1 text-amber-700">Check for typos against the template headers. You can still import — data in unrecognised columns will not be saved.</p>
+                  </div>
                 </div>
               )}
               {importParsed.length > 0 && !importError && (
