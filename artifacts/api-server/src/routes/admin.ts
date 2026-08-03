@@ -5,7 +5,7 @@ import { eq, and, count, desc, sql, asc, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
 import { sendSetupGuideEmail, sendAdminEmail, sendTicketReplyEmail } from "../lib/mailer";
-import { fetchInbox, fetchEmail, markAsRead, markAsUnread, deleteEmail, isImapConfigured, listMailboxes, fetchFolder, fetchEmailFromFolder, markFolderEmailRead, permanentlyDeleteFromFolder, moveToInbox, getUnreadCounts } from "../lib/imap";
+import { fetchInbox, fetchEmail, fetchAttachment, markAsRead, markAsUnread, deleteEmail, isImapConfigured, listMailboxes, fetchFolder, fetchEmailFromFolder, markFolderEmailRead, permanentlyDeleteFromFolder, moveToInbox, getUnreadCounts } from "../lib/imap";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -658,6 +658,43 @@ router.get("/admin/inbox/:uid", requireAuth, async (req: Request, res: Response)
   }
 });
 
+const MAX_ATTACHMENT_BYTES = 35 * 1024 * 1024; // hard cap; mail servers reject messages beyond ~25MB anyway
+
+async function sendAttachment(req: Request, res: Response, folder: string): Promise<void> {
+  const uidRaw = String(req.params.uid ?? "");
+  const indexRaw = String(req.params.index ?? "");
+  if (!/^\d{1,10}$/.test(uidRaw) || !/^\d{1,3}$/.test(indexRaw)) {
+    res.status(400).json({ error: "Invalid UID or attachment index" });
+    return;
+  }
+  const uid = parseInt(uidRaw, 10);
+  const index = parseInt(indexRaw, 10);
+
+  try {
+    const att = await fetchAttachment(folder, uid, index);
+    if (att.content.length > MAX_ATTACHMENT_BYTES) {
+      res.status(413).json({ error: "Attachment is too large to download through the portal." });
+      return;
+    }
+    const safeName = att.filename.replace(/[\r\n"\\]/g, "_");
+    res.setHeader("Content-Type", att.contentType);
+    res.setHeader("Content-Disposition", `attachment; filename="${safeName}"`);
+    res.setHeader("Content-Length", String(att.content.length));
+    res.send(att.content);
+  } catch (err) {
+    console.error(`[IMAP] fetchAttachment(${folder}, ${uid}, ${index}) error:`, err);
+    const notFound = err instanceof Error && err.message === "Attachment not found";
+    res.status(notFound ? 404 : 502).json({
+      error: notFound ? "Attachment not found." : "Failed to fetch attachment. Check server logs for details.",
+    });
+  }
+}
+
+router.get("/admin/inbox/:uid/attachments/:index", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  await sendAttachment(req, res, "INBOX");
+});
+
 router.patch("/admin/inbox/:uid/read", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
 
@@ -847,6 +884,12 @@ router.get("/admin/folder/:folder/:uid", requireAuth, async (req: Request, res: 
     console.error(`[IMAP] fetchEmailFromFolder(${folder}, ${uid}) error:`, err);
     res.status(502).json({ error: "Failed to fetch email." });
   }
+});
+
+router.get("/admin/folder/:folder/:uid/attachments/:index", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const folder = decodeURIComponent(req.params.folder as string);
+  await sendAttachment(req, res, folder);
 });
 
 router.patch("/admin/folder/:folder/:uid/read", requireAuth, async (req: Request, res: Response): Promise<void> => {

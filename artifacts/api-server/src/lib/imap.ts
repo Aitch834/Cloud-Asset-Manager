@@ -20,6 +20,13 @@ export interface InboxEmail {
   hasAttachments: boolean;
 }
 
+export interface EmailAttachmentMeta {
+  index: number;
+  filename: string;
+  contentType: string;
+  size: number;
+}
+
 export interface FullEmail extends InboxEmail {
   body: string;
   bodyHtml: string | null;
@@ -27,6 +34,16 @@ export interface FullEmail extends InboxEmail {
   messageId: string | null;
   inReplyTo: string | null;
   references: string | null;
+  attachments: EmailAttachmentMeta[];
+}
+
+function attachmentMetas(parsed: ParsedMail): EmailAttachmentMeta[] {
+  return (parsed.attachments ?? []).map((a, i) => ({
+    index: i,
+    filename: a.filename || `attachment-${i + 1}`,
+    contentType: a.contentType || "application/octet-stream",
+    size: a.size ?? a.content?.length ?? 0,
+  }));
 }
 
 function createClient(): ImapFlow {
@@ -198,6 +215,7 @@ export async function fetchEmail(uid: number): Promise<FullEmail> {
         messageId: parsed.messageId ?? null,
         inReplyTo: parsed.inReplyTo ?? null,
         references: refsToString(parsed.references),
+        attachments: attachmentMetas(parsed),
       };
     }
 
@@ -205,6 +223,53 @@ export async function fetchEmail(uid: number): Promise<FullEmail> {
 
     if (!fullEmail) throw new Error("Message not found");
     return fullEmail;
+  } catch (err) {
+    try { client.close(); } catch {}
+    throw err;
+  }
+}
+
+export interface EmailAttachmentFile extends EmailAttachmentMeta {
+  content: Buffer;
+}
+
+export async function fetchAttachment(folder: string, uid: number, index: number): Promise<EmailAttachmentFile> {
+  if (!IMAP_PASS) {
+    throw new Error("IMAP password not configured (TITAN_IMAP_PASSWORD missing)");
+  }
+
+  const client = createClient();
+
+  try {
+    await client.connect();
+    await client.mailboxOpen(folder);
+
+    let file: EmailAttachmentFile | null = null;
+
+    for await (const msg of client.fetch(String(uid), {
+      uid: true,
+      source: true,
+    }, { uid: true })) {
+      if (!msg.source) continue;
+
+      const readable = Readable.from(msg.source);
+      const parsed: ParsedMail = await simpleParser(readable);
+      const att = (parsed.attachments ?? [])[index];
+      if (!att) continue;
+
+      file = {
+        index,
+        filename: att.filename || `attachment-${index + 1}`,
+        contentType: att.contentType || "application/octet-stream",
+        size: att.size ?? att.content?.length ?? 0,
+        content: att.content as Buffer,
+      };
+    }
+
+    await client.logout();
+
+    if (!file) throw new Error("Attachment not found");
+    return file;
   } catch (err) {
     try { client.close(); } catch {}
     throw err;
@@ -452,6 +517,7 @@ export async function fetchEmailFromFolder(folder: string, uid: number): Promise
         messageId: parsed.messageId ?? null,
         inReplyTo: parsed.inReplyTo ?? null,
         references: refsToString(parsed.references),
+        attachments: attachmentMetas(parsed),
       };
     }
 

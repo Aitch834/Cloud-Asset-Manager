@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
-import { api, type EmailTemplate, type AdminEmailSent, type Tenant, type InboxEmail, type FullEmail } from "@/lib/api";
+import { api, type EmailTemplate, type AdminEmailSent, type Tenant, type InboxEmail, type FullEmail, type EmailAttachment } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
 import {
   Mail, Send, Clock, FileText, Plus, Trash2, Edit2, Check, X,
@@ -23,6 +23,81 @@ const STATUS_STYLES: Record<string, string> = {
   sent: "bg-green-100 text-green-700",
   failed: "bg-red-100 text-red-700",
 };
+
+function formatBytes(n: number): string {
+  if (!n || n <= 0) return "";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function AttachmentList({
+  attachments,
+  onDownload,
+}: {
+  attachments: EmailAttachment[] | undefined;
+  onDownload: (att: EmailAttachment) => Promise<{ blob: Blob; filename: string }>;
+}) {
+  const [downloading, setDownloading] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!attachments || attachments.length === 0) return null;
+
+  const handleDownload = async (att: EmailAttachment) => {
+    setDownloading(att.index);
+    setError(null);
+    try {
+      const { blob, filename } = await onDownload(att);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename || att.filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError(`Couldn't download "${att.filename}". Please try again.`);
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  return (
+    <div className="px-6 pb-5">
+      <div className="border border-border rounded-lg p-3 bg-muted/20">
+        <div className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+          <Paperclip className="w-3.5 h-3.5" />
+          {attachments.length === 1 ? "1 attachment" : `${attachments.length} attachments`}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {attachments.map((att) => (
+            <button
+              key={att.index}
+              onClick={() => handleDownload(att)}
+              disabled={downloading !== null}
+              title={`Download ${att.filename}`}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-background border border-border rounded-md hover:bg-muted transition-colors disabled:opacity-50"
+            >
+              {downloading === att.index ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+              ) : (
+                <Paperclip className="w-3.5 h-3.5 shrink-0" />
+              )}
+              <span className="max-w-[220px] truncate">{att.filename}</span>
+              {att.size > 0 && <span className="text-muted-foreground shrink-0">({formatBytes(att.size)})</span>}
+            </button>
+          ))}
+        </div>
+        {error && (
+          <div className="mt-2 text-xs text-red-600 flex items-center gap-1">
+            <AlertCircle className="w-3.5 h-3.5" /> {error}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function TabBar({
   tabs,
@@ -593,6 +668,11 @@ function InboxTab({ onCountsChange }: { onCountsChange?: () => void }) {
                 </pre>
               )}
             </div>
+
+            <AttachmentList
+              attachments={selected.attachments}
+              onDownload={(att) => api.downloadEmailAttachment(selected.uid, att.index, secret)}
+            />
 
             {/* Reply box */}
             {replyOpen && (
@@ -1771,6 +1851,11 @@ function FolderTab({ folder, label, onCountsChange }: { folder: string; label: s
                 </pre>
               )}
             </div>
+
+            <AttachmentList
+              attachments={selected.attachments}
+              onDownload={(att) => api.downloadFolderEmailAttachment(folder, selected.uid, att.index, secret)}
+            />
           </div>
         </div>
       )}

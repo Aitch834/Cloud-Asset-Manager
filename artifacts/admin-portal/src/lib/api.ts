@@ -215,6 +215,13 @@ export interface InboxEmail {
   hasAttachments: boolean;
 }
 
+export interface EmailAttachment {
+  index: number;
+  filename: string;
+  contentType: string;
+  size: number;
+}
+
 export interface FullEmail extends InboxEmail {
   body: string;
   bodyHtml: string | null;
@@ -222,6 +229,7 @@ export interface FullEmail extends InboxEmail {
   messageId: string | null;
   inReplyTo: string | null;
   references: string | null;
+  attachments?: EmailAttachment[];
 }
 
 export interface EmailTemplate {
@@ -416,6 +424,12 @@ export const api = {
 
   getEmail: (uid: number, secret: string) =>
     get<{ email: FullEmail }>(`/admin/inbox/${uid}`, secret),
+
+  downloadEmailAttachment: (uid: number, index: number, secret: string) =>
+    getBlob(`/admin/inbox/${uid}/attachments/${index}`, secret),
+
+  downloadFolderEmailAttachment: (folder: string, uid: number, index: number, secret: string) =>
+    getBlob(`/admin/folder/${encodeURIComponent(folder)}/${uid}/attachments/${index}`, secret),
 
   markEmailRead: (uid: number, read: boolean, secret: string) =>
     patch<{ ok: boolean }>(`/admin/inbox/${uid}/read`, { read }, secret),
