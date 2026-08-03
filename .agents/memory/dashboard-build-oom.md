@@ -39,6 +39,10 @@ Root cause: the container has 8 GB total RAM but ~7 GB is consumed by the runnin
 4. **`artifacts/dashboard/dist/` is tracked in git**:
    - Committed dist = last working build; restored as fallback
 
+## Update (Aug 2026)
+
+WineryManagementTabs.tsx was split into `src/pages/winery/` modules (shared.tsx, print.tsx, BatchTrail.tsx, one file per tab) with WineryManagementTabs.tsx as an `export *` barrel; the build now completes in ~36s with no memory flag. Remaining oversized chunks: ViticulturePage (~1.28 MB), index (~1.14 MB), LivestockPage (~840 KB) — split those next if OOM recurs.
+
 ## Long-term fix required
 
 The root cause is that WineryManagementTabs.tsx and LivestockPage.tsx have grown to 500 KB+ each. Rollup holds all source in memory during chunk rendering, and these files dominate the total.

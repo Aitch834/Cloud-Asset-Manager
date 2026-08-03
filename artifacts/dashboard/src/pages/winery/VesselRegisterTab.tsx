@@ -1,0 +1,302 @@
+import { today, CLEAN_TYPE_OPTIONS, fmtDate, fmt, useCrud, exportCSV, csvComment, QueryErrorNotice, EmptyState, fmtNum, NotesCell, VESSEL_TYPE_OPTIONS, VESSEL_STATUS_OPTIONS, SectionLabel, TOASTING_OPTIONS, ViewField } from "./shared";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useFarmName } from "@/hooks/use-farm-name";
+import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
+import { BOTTLING_COLUMNS, BOTTLING_IMPORT_HEADERS, resolveBottlingField, bottlingImportRecord, parseCsvText, parseBottlingCsv } from "@/lib/bottling-csv";
+import { computePrimaryPhTa, computePhTaStagePoints } from "@/lib/ph-ta-stages";
+import { StaffSelect } from "@/components/ui/staff-select";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf, Search, Upload, PenLine, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/hooks/use-toast";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
+import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from "recharts";
+import SignatureCanvas from "react-signature-canvas";
+
+import { apiUrl as api } from "@/lib/api";
+
+export function VesselCleanRow({ farmId, vesselId }: { farmId: number; vesselId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data, isLoading } = useQuery<Record<string, unknown>[]>({
+    queryKey: ["winery-vessel-cleans", farmId, vesselId],
+    queryFn: async () => { const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/cleans`), { credentials: "include" }); return (await r.json()).records ?? []; },
+    enabled: !!vesselId,
+  });
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState<Record<string, string | boolean>>({ cleanDate: today, rinseCompleted: "true" });
+  const sf = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
+
+  const addMut = useMutation({
+    mutationFn: async () => { const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/cleans`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(form) }); if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Save failed"); } },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["winery-vessel-cleans", farmId, vesselId] }); setShowAdd(false); setForm({ cleanDate: today, rinseCompleted: "true" }); toast({ title: "Clean record added" }); },
+    onError: (err: Error) => toast({ title: "Save failed", description: err.message || "An unexpected error occurred.", variant: "destructive" }),
+  });
+  const delMut = useMutation({
+    mutationFn: async (cleanId: number) => { const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/cleans/${cleanId}`), { method: "DELETE", credentials: "include" }); if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Delete failed"); } },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["winery-vessel-cleans", farmId, vesselId] }),
+    onError: (err: Error) => toast({ title: "Delete failed", description: err.message || "An unexpected error occurred.", variant: "destructive" }),
+  });
+
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cleaning History</p>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(s => !s)}><Plus className="w-3 h-3 mr-1" />Log Clean</Button>
+      </div>
+      {showAdd && (
+        <div className="border rounded-lg p-3 mb-3 bg-muted/20 space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div><Label className="text-xs">Clean Date *</Label><Input type="date" max={today} value={String(form.cleanDate ?? "")} onChange={e => sf("cleanDate", e.target.value)} className="h-8 text-xs" /></div>
+            <div><Label className="text-xs">Clean Type</Label>
+              <Select value={String(form.cleanType ?? "")} onValueChange={v => sf("cleanType", v)}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>{CLEAN_TYPE_OPTIONS.map(o => <SelectItem key={o} value={o} className="text-xs">{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label className="text-xs">Cleaning Product</Label><Input value={String(form.cleaningProduct ?? "")} onChange={e => sf("cleaningProduct", e.target.value)} className="h-8 text-xs" placeholder="e.g. Citric acid 2%" /></div>
+            <div><Label className="text-xs">Concentration (%)</Label><Input type="number" step="0.01" value={String(form.concentrationPct ?? "")} onChange={e => sf("concentrationPct", e.target.value)} className="h-8 text-xs" /></div>
+            <div><Label className="text-xs">Water Temp (°C)</Label><Input type="number" step="0.1" value={String(form.waterTempC ?? "")} onChange={e => sf("waterTempC", e.target.value)} className="h-8 text-xs" /></div>
+            <div><Label className="text-xs">Contact Time (min)</Label><Input type="number" value={String(form.contactTimeMin ?? "")} onChange={e => sf("contactTimeMin", e.target.value)} className="h-8 text-xs" /></div>
+            <div><Label className="text-xs">Operator</Label><Input value={String(form.operatorName ?? "")} onChange={e => sf("operatorName", e.target.value)} className="h-8 text-xs" /></div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox id="rinse-chk" checked={form.rinseCompleted !== "false" && form.rinseCompleted !== false} onCheckedChange={v => sf("rinseCompleted", v ? "true" : "false")} />
+            <Label htmlFor="rinse-chk" className="text-xs cursor-pointer">Final rinse completed</Label>
+          </div>
+          <div><Label className="text-xs">Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={1} className="text-xs" /></div>
+          <div className="flex gap-2">
+            <Button size="sm" className="h-7 text-xs" onClick={() => addMut.mutate()} disabled={!form.cleanDate || addMut.isPending}>{addMut.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}Save Clean</Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(false)}>Cancel</Button>
+          </div>
+        </div>
+      )}
+      {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (data ?? []).length === 0 ? <p className="text-xs text-muted-foreground">No cleaning records yet.</p> : (
+        <div className="space-y-1">
+          {(data ?? []).map(c => (
+            <div key={String(c.id)} className="flex items-center justify-between text-xs border rounded px-3 py-1.5">
+              <span className="font-medium">{fmtDate(c.clean_date)}</span>
+              <span className="text-muted-foreground">{fmt(c.clean_type)}</span>
+              <span className="text-muted-foreground">{fmt(c.cleaning_product)}</span>
+              <span>{c.rinse_completed ? <span className="text-green-700">Rinse ✓</span> : <span className="text-red-600">No rinse</span>}</span>
+              <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(c.id))}><Trash2 className="h-3 w-3" /></Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function VesselRegisterTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const farmNameVessels = useFarmName(farmId);
+  const crud = useCrud(farmId, "winery-vessels", "winery-vessels");
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<number | null>(null);
+  const [view, setView] = useState<Record<string, unknown> | null>(null);
+  const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  const isBarrel = form.vesselType?.toLowerCase().includes("barrel") || form.vesselType?.toLowerCase().includes("barrique");
+
+  const openAdd = () => { setEditing(null); setForm({ status: "active" }); setOpen(true); };
+  const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
+  const save = async () => {
+    try {
+      if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...form } as Record<string, unknown> & { id: number });
+      else await crud.add.mutateAsync(form);
+      toast({ title: "Saved" }); setOpen(false);
+      qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] });
+    } catch (err) {
+      const e = err as Error;
+      toast({ title: "Save failed", description: e.message || "An unexpected error occurred.", variant: "destructive" });
+    }
+  };
+
+  const statusBadge = (s: unknown) => {
+    const v = String(s ?? "active");
+    if (v === "active") return <span className="text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5">Active</span>;
+    if (v === "retired") return <span className="text-xs bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">Retired</span>;
+    return <span className="text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">{v}</span>;
+  };
+  const vesselCsvCols = [
+    { key: "vessel_ref", label: "Vessel Ref" },
+    { key: "vessel_type", label: "Vessel Type" },
+    { key: "capacity_litres", label: "Capacity (L)" },
+    { key: "location", label: "Location" },
+    { key: "current_contents", label: "Current Contents" },
+    { key: "volume_current_litres", label: "Current Volume (L)" },
+    { key: "status", label: "Status" },
+    { key: "last_cleaned_date", label: "Last Cleaned", fmt: (r: Record<string, unknown>) => fmtDate(r.last_cleaned_date) },
+    { key: "notes", label: "Notes" },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold text-sm">Tank & Vessel Register</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Register all winery vessels — tanks, barrels, amphorae — with capacity, current contents, and cleaning history. Used as a reference in fermentation, cellar ops, SO₂ testing, and bottling records.</p>
+        </div>
+        <div className="flex gap-2 items-center">
+          <Button size="sm" variant="outline" onClick={() => exportCSV(crud.data, "vessels.csv", vesselCsvCols, [
+            csvComment(`Tank & Vessel Register — ${farmNameVessels}`),
+            csvComment("Scope: All vessels (no filters on this register)"),
+          ])} disabled={!crud.data.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Vessel</Button>
+        </div>
+      </div>
+      {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        : crud.isError ? <QueryErrorNotice label="vessels" error={crud.error} />
+        : crud.data.length === 0 ? <EmptyState icon={Package} title="No vessels registered yet" sub="Add your tanks, barrels, and other winery vessels to the register." />
+        : (
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40"><tr>
+              <th className="text-left p-3 font-medium">Ref</th>
+              <th className="text-left p-3 font-medium">Type</th>
+              <th className="text-right p-3 font-medium">Capacity (L)</th>
+              <th className="text-left p-3 font-medium">Location</th>
+              <th className="text-left p-3 font-medium">Current Contents</th>
+              <th className="text-right p-3 font-medium">Volume (L)</th>
+              <th className="text-left p-3 font-medium">Status</th>
+              <th className="text-left p-3 font-medium">Notes</th>
+              <th className="p-3"></th>
+            </tr></thead>
+            <tbody className="divide-y">
+              {crud.data.map(r => (
+                <tr key={String(r.id)} className="hover:bg-muted/20">
+                  <td className="p-3 font-mono font-semibold">{fmt(r.vessel_ref)}</td>
+                  <td className="p-3 text-muted-foreground">{fmt(r.vessel_type)}</td>
+                  <td className="p-3 text-right">{fmtNum(r.capacity_litres, 0)}</td>
+                  <td className="p-3 text-muted-foreground text-xs">{fmt(r.location)}</td>
+                  <td className="p-3">{fmt(r.current_contents)}</td>
+                  <td className="p-3 text-right">{r.current_volume_litres ? fmtNum(r.current_volume_litres, 0) : "—"}</td>
+                  <td className="p-3">{statusBadge(r.status)}</td>
+                  <NotesCell notes={r.notes} />
+                  <td className="p-3 text-right whitespace-nowrap">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={o => !o && setOpen(false)}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing !== null ? "Edit" : "Register"} Vessel</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Vessel Reference *</Label><Input value={form.vesselRef ?? ""} onChange={e => sf("vesselRef", e.target.value)} placeholder="e.g. T1, Barrel-B12, A1" /></div>
+              <div>
+                <Label>Vessel Type</Label>
+                <Select value={form.vesselType ?? ""} onValueChange={v => sf("vesselType", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>{VESSEL_TYPE_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>Capacity (L)</Label><Input type="number" step="0.1" value={form.capacityLitres ?? ""} onChange={e => sf("capacityLitres", e.target.value)} /></div>
+              <div><Label>Material</Label><Input value={form.material ?? ""} onChange={e => sf("material", e.target.value)} placeholder="e.g. 316L stainless, French oak" /></div>
+              <div><Label>Year Purchased</Label><Input type="number" value={form.yearPurchased ?? ""} onChange={e => sf("yearPurchased", e.target.value)} /></div>
+              <div><Label>Manufacturer</Label><Input value={form.manufacturer ?? ""} onChange={e => sf("manufacturer", e.target.value)} /></div>
+              <div><Label>Location</Label><Input value={form.location ?? ""} onChange={e => sf("location", e.target.value)} placeholder="e.g. Winery floor, East cellar" /></div>
+              <div>
+                <Label>Status</Label>
+                <Select value={form.status ?? "active"} onValueChange={v => sf("status", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{VESSEL_STATUS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o.charAt(0).toUpperCase() + o.slice(1)}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            {isBarrel && (
+              <>
+                <SectionLabel>Barrel details</SectionLabel>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Oak Origin</Label><Input value={form.oakOrigin ?? ""} onChange={e => sf("oakOrigin", e.target.value)} placeholder="e.g. French Allier, American" /></div>
+                  <div><Label>Cooperage</Label><Input value={form.cooperage ?? ""} onChange={e => sf("cooperage", e.target.value)} placeholder="e.g. Demptos, François Frères" /></div>
+                  <div><Label>Fill Number</Label><Input type="number" min="1" value={form.fillNumber ?? ""} onChange={e => sf("fillNumber", e.target.value)} placeholder="How many vintages used" /></div>
+                  <div>
+                    <Label>Toasting Level</Label>
+                    <Select value={form.toastingLevel ?? ""} onValueChange={v => sf("toastingLevel", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>{TOASTING_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </>
+            )}
+            <SectionLabel>Current state</SectionLabel>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Current Contents</Label><Input value={form.currentContents ?? ""} onChange={e => sf("currentContents", e.target.value)} placeholder="e.g. Bacchus 2024, empty" /></div>
+              <div><Label>Current Volume (L)</Label><Input type="number" step="0.1" value={form.currentVolumeLitres ?? ""} onChange={e => sf("currentVolumeLitres", e.target.value)} /></div>
+            </div>
+            <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={save} disabled={!form.vesselRef || crud.add.isPending || crud.edit.isPending}>
+              {(crud.add.isPending || crud.edit.isPending) && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {view && (
+        <Dialog open onOpenChange={() => setView(null)}>
+          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Vessel — {fmt(view.vessel_ref)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <ViewField label="Vessel Ref" value={<span className="font-mono">{fmt(view.vessel_ref)}</span>} />
+              <ViewField label="Type" value={fmt(view.vessel_type)} />
+              <ViewField label="Capacity" value={view.capacity_litres ? `${fmtNum(view.capacity_litres, 0)} L` : "—"} />
+              <ViewField label="Material" value={fmt(view.material)} />
+              <ViewField label="Year Purchased" value={fmt(view.year_purchased)} />
+              <ViewField label="Manufacturer" value={fmt(view.manufacturer)} />
+              <ViewField label="Location" value={fmt(view.location)} />
+              <ViewField label="Status" value={statusBadge(view.status)} />
+              {String(view.vessel_type ?? "").toLowerCase().includes("barrel") && (
+                <>
+                  <ViewField label="Oak Origin" value={fmt(view.oak_origin)} />
+                  <ViewField label="Cooperage" value={fmt(view.cooperage)} />
+                  <ViewField label="Fill Number" value={fmt(view.fill_number)} />
+                  <ViewField label="Toasting" value={fmt(view.toasting_level)} />
+                </>
+              )}
+              <ViewField label="Current Contents" value={fmt(view.current_contents)} />
+              <ViewField label="Current Volume" value={view.current_volume_litres ? `${fmtNum(view.current_volume_litres, 0)} L` : "—"} />
+              {!!view.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>}
+            </div>
+            <VesselCleanRow farmId={farmId} vesselId={view.id as number} />
+            <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      <Dialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Delete Vessel</DialogTitle><DialogDescription>Remove vessel {fmt(deleting?.vessel_ref)} from the register? All associated cleaning records will also be deleted.</DialogDescription></DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={async () => { try { await crud.remove.mutateAsync(Number(deleting!.id)); toast({ title: "Deleted" }); } catch (err) { toast({ title: "Delete failed", description: (err as Error).message || "An unexpected error occurred.", variant: "destructive" }); } setDeleting(null); }}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Cellar Operations Log ────────────────────────────────────────────────────
