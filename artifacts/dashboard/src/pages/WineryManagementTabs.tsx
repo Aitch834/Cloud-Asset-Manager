@@ -7262,6 +7262,10 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const [bottlingColourTouched, setBottlingColourTouched] = useState(false);
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   const [lotCodeError, setLotCodeError] = useState<string | null>(null);
+  // Confirm-before-save gate: shown when the entered total SO₂ exceeds the
+  // active (organic or conventional) ceiling for the wine colour — same
+  // pattern as the Cellar Ops sulfiting confirm.
+  const [confirmOverCeiling, setConfirmOverCeiling] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importParsed, setImportParsed] = useState<Record<string, string>[]>([]);
   const [importError, setImportError] = useState<string | null>(null);
@@ -7477,7 +7481,34 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     setLotCodeError(null);
     setOpen(true);
   };
-  const save = async () => {
+  // Active total-SO₂ ceiling for the open form — organic when the batch is
+  // flagged organic, otherwise the conventional ceiling for the wine colour.
+  const bottlingFormIsOrganic = form.isOrganic === "true" || form.isOrganic === true;
+  // Edit mode keeps the API's snake_case keys until a field is touched, so
+  // accept both key styles when reading colour and total SO₂.
+  const bottlingFormColour = String(form.wineColour ?? form.wine_colour ?? "");
+  const bottlingFormCeiling = bottlingFormColour
+    ? (bottlingFormIsOrganic ? ORGANIC_MAX_SO2[bottlingFormColour] : CONVENTIONAL_MAX_SO2[bottlingFormColour])
+    : undefined;
+  const bottlingFormTotalSo2Raw = form.totalSo2MgL ?? form.total_so2_mg_l;
+  const bottlingFormTotalSo2 = bottlingFormTotalSo2Raw != null && String(bottlingFormTotalSo2Raw) !== ""
+    ? parseFloat(String(bottlingFormTotalSo2Raw))
+    : null;
+  const save = async (ceilingConfirmed = false) => {
+    // Confirm before saving a record whose entered total SO₂ exceeds the
+    // applicable ceiling. Only fires when both the total and a ceiling are
+    // actually available — otherwise saving proceeds normally.
+    if (
+      !ceilingConfirmed &&
+      bottlingFormTotalSo2 != null &&
+      !isNaN(bottlingFormTotalSo2) &&
+      bottlingFormCeiling &&
+      !isNaN(parseFloat(bottlingFormCeiling)) &&
+      bottlingFormTotalSo2 > parseFloat(bottlingFormCeiling)
+    ) {
+      setConfirmOverCeiling(true);
+      return;
+    }
     const payload = {
       ...form,
       bottlesProduced: autoBottles != null ? String(autoBottles) : form.bottlesProduced,
@@ -7824,12 +7855,31 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={save} disabled={!form.bottlingDate || crud.add.isPending || crud.edit.isPending}>
+            <Button onClick={() => save()} disabled={!form.bottlingDate || crud.add.isPending || crud.edit.isPending}>
               {(crud.add.isPending || crud.edit.isPending) && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Save
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {confirmOverCeiling && (
+        <Dialog open onOpenChange={() => setConfirmOverCeiling(false)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-amber-600" />SO₂ ceiling exceeded</DialogTitle>
+              <DialogDescription>
+                Total SO₂ {bottlingFormTotalSo2 != null && !isNaN(bottlingFormTotalSo2) ? bottlingFormTotalSo2.toFixed(1) : "—"} mg/L exceeds the {bottlingFormCeiling} mg/L {bottlingFormIsOrganic ? "organic" : "conventional"} ceiling — save anyway?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setConfirmOverCeiling(false)}>Cancel</Button>
+              <Button variant="destructive" disabled={crud.add.isPending || crud.edit.isPending} onClick={() => { setConfirmOverCeiling(false); save(true); }}>
+                {(crud.add.isPending || crud.edit.isPending) && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Save anyway
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {view && (
         <Dialog open onOpenChange={() => setView(null)}>
