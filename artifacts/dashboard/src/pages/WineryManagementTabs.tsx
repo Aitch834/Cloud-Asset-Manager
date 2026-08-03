@@ -233,6 +233,21 @@ function EditHistorySection({ history }: { history: unknown }) {
   );
 }
 
+// Notes preview cell — same truncation pattern as the Pressing table's notes
+// column: responsive max-width, single-line truncation with a dotted-underline
+// cue, full text in a native `title` tooltip, 120-char cap, em-dash when empty.
+function NotesCell({ notes }: { notes: unknown }) {
+  return (
+    <td className="p-3 text-left text-muted-foreground max-w-[8rem] lg:max-w-[11rem] xl:max-w-[14rem]">
+      {notes ? (
+        <span className="truncate block cursor-help underline decoration-dotted decoration-muted-foreground/40 underline-offset-2" title={String(notes)}>
+          {String(notes).length > 120 ? `${String(notes).slice(0, 120)}…` : String(notes)}
+        </span>
+      ) : <span className="text-muted-foreground/50">—</span>}
+    </td>
+  );
+}
+
 function EmptyState({ icon: Icon, title, sub }: { icon: React.ElementType; title: string; sub: string }) {
   return (
     <div className="border-2 border-dashed rounded-lg p-10 text-center text-muted-foreground">
@@ -705,6 +720,7 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
               <th className="text-right p-3 font-medium">TA (g/L)</th>
               <th className="text-left p-3 font-medium">Condition</th>
               <th className="text-left p-3 font-medium">Status</th>
+              <th className="text-left p-3 font-medium">Notes</th>
               <th className="p-3"></th>
             </tr></thead>
             <tbody className="divide-y">
@@ -719,6 +735,7 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
                   <td className="p-3 text-right">{fmtNum(r.titratable_acidity_gl, 1)}</td>
                   <td className="p-3">{fmt(r.grape_condition)}</td>
                   <td className="p-3">{r.accepted === false || r.accepted === "false" ? <span className="text-xs bg-red-100 text-red-700 rounded px-2 py-0.5">Rejected</span> : <span className="text-xs bg-green-100 text-green-700 rounded px-2 py-0.5">Accepted</span>}</td>
+                  <NotesCell notes={r.notes} />
                   <td className="p-3 text-right whitespace-nowrap">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
@@ -6926,6 +6943,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
               <th className="text-right p-3 font-medium">Dose Rate</th>
               <th className="text-left p-3 font-medium">Compliance</th>
               <th className="text-left p-3 font-medium">Operator</th>
+              <th className="text-left p-3 font-medium">Notes</th>
               <th className="p-3"></th>
             </tr></thead>
             <tbody className="divide-y">
@@ -6983,6 +7001,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                         : <span className="text-muted-foreground text-xs">—</span>}
                     </td>
                     <td className="p-3 text-muted-foreground">{fmt(r.operator_name)}</td>
+                    <NotesCell notes={r.notes} />
                     <td className="p-3 text-right whitespace-nowrap">
                       <BatchTrailButton batchRef={r.batch_ref} onClick={() => setTrailRecord(r)} />
                       <ViewAdditionsButton farmId={farmId} record={r} />
@@ -7726,6 +7745,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
               <th className="text-right p-3 font-medium">Free SO₂</th>
               <th className="text-right p-3 font-medium">Total SO₂</th>
               <th className="text-left p-3 font-medium">SO₂ Status</th>
+              <th className="text-left p-3 font-medium">Notes</th>
               <th className="p-3"></th>
             </tr></thead>
             <tbody className="divide-y">
@@ -7758,6 +7778,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                       </div>
                     );
                   })()}</td>
+                  <NotesCell notes={r.notes} />
                   <td className="p-3 text-right whitespace-nowrap">
                     <BatchTrailButton batchRef={r.batch_ref} onClick={() => setTrailRecord(r)} />
                     <ViewAdditionsButton farmId={farmId} record={r} />
@@ -8567,6 +8588,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
               <th className="text-right p-3 font-medium">Total SO₂</th>
               <th className="text-right p-3 font-medium">Max (mg/L)</th>
               <th className="text-left p-3 font-medium">Status</th>
+              <th className="text-left p-3 font-medium">Notes</th>
               <th className="p-3"></th>
             </tr></thead>
             <tbody className="divide-y">
@@ -8603,6 +8625,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
                   <td className="p-3 text-right font-semibold">{r.total_so2_mg_l ? `${fmtNum(r.total_so2_mg_l, 0)}` : "—"}</td>
                   <td className="p-3 text-right text-muted-foreground">{r.max_permitted_mg_l ? `${fmtNum(r.max_permitted_mg_l, 0)}` : "—"}</td>
                   <td className="p-3"><So2Badge compliant={r.so2_compliant} /></td>
+                  <NotesCell notes={r.notes} />
                   <td className="p-3 text-right whitespace-nowrap">
                     <BatchTrailButton batchRef={r.batch_ref} onClick={() => setTrailRecord(r)} />
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
