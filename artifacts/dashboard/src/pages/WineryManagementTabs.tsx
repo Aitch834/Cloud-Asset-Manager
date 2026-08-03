@@ -1083,10 +1083,30 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
     staleTime: 60_000,
   });
 
+  // The Batch Trail dialog itself matches a ref across ALL winery record types
+  // (fermentation, cellar ops, SO₂ tests, bottling, pressing additions), so the
+  // typeahead must draw from the same sources — a ref that only exists in, say,
+  // cellar ops or bottling would otherwise open fine via Enter but never appear
+  // as a suggestion. These queries share the same queryKey + response shape as
+  // their tabs, so cached data is reused when a tab has already loaded.
+  const useBatchRefSource = (endpoint: string, key: string) =>
+    useQuery<Record<string, unknown>[]>({
+      queryKey: [key, farmId],
+      queryFn: async () => {
+        const r = await fetch(api(`farms/${farmId}/${endpoint}`), { credentials: "include" });
+        const d = await r.json();
+        return (d.records ?? []) as Record<string, unknown>[];
+      },
+      enabled: !!farmId,
+      staleTime: 60_000,
+    });
+  const { data: cellarOpsData } = useBatchRefSource("winery-cellar-ops", "winery-cellar-ops");
+  const { data: bottlingData } = useBatchRefSource("winery-bottling", "winery-bottling");
+  const { data: so2TestsData } = useBatchRefSource("winery-so2-tests", "winery-so2-tests");
+
   // Build sorted, deduplicated list of all known batch refs carrying their vintage year.
-  // Pressing is the authoritative source for vintage year; fermentation fills in any gaps.
-  // Sorted by most recent activity date (pressing_date / fermentation_start_date) so
-  // commonly-used batches surface first.
+  // Pressing is the authoritative source for vintage year; the other record types fill
+  // in any gaps. Sorted by most recent activity date so commonly-used batches surface first.
   const allBatchRefs = useMemo(() => {
     const map = new Map<string, { vintageYear: string | null; latestDate: string | null }>();
     // Helper: keep the more-recent of two ISO date strings (or nulls)
@@ -1095,14 +1115,19 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
       if (!b) return a;
       return a >= b ? a : b;
     };
-    // Pressing — preferred source for vintage year; use press_date as activity date
-    for (const r of pressingData ?? []) {
-      if (r.batch_ref) {
+    // Fold one record source into the map. dateField names the record's activity
+    // date column. Array.isArray guards against a shared-key cache entry holding
+    // a non-array shape (never unwrap-mismatch a shared queryKey silently).
+    const fold = (records: unknown, dateField: string) => {
+      if (!Array.isArray(records)) return;
+      for (const r of records as Record<string, unknown>[]) {
+        if (!r.batch_ref) continue;
         const ref = String(r.batch_ref);
-        const date = r.press_date != null ? String(r.press_date).slice(0, 10) : null;
+        const date = r[dateField] != null ? String(r[dateField]).slice(0, 10) : null;
         const existing = map.get(ref);
         if (existing) {
           existing.latestDate = laterDate(existing.latestDate, date);
+          if (existing.vintageYear == null && r.vintage_year != null) existing.vintageYear = String(r.vintage_year);
         } else {
           map.set(ref, {
             vintageYear: r.vintage_year != null ? String(r.vintage_year) : null,
@@ -1110,23 +1135,13 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
           });
         }
       }
-    }
-    // Fermentation — use start_date as activity date
-    for (const r of fermentationData ?? []) {
-      if (r.batch_ref) {
-        const ref = String(r.batch_ref);
-        const date = r.start_date != null ? String(r.start_date).slice(0, 10) : null;
-        const existing = map.get(ref);
-        if (existing) {
-          existing.latestDate = laterDate(existing.latestDate, date);
-        } else {
-          map.set(ref, {
-            vintageYear: r.vintage_year != null ? String(r.vintage_year) : null,
-            latestDate: date,
-          });
-        }
-      }
-    }
+    };
+    // Pressing first — preferred source for vintage year
+    fold(pressingData, "press_date");
+    fold(fermentationData, "start_date");
+    fold(cellarOpsData, "op_date");
+    fold(bottlingData, "bottling_date");
+    fold(so2TestsData, "test_date");
     return Array.from(map.entries())
       .map(([ref, { vintageYear, latestDate }]) => ({ ref, vintageYear, latestDate }))
       // Most recent first; fall back to alphabetical when dates are equal or both null
@@ -1136,7 +1151,7 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
         if (b.latestDate) return 1;
         return a.ref.localeCompare(b.ref);
       });
-  }, [pressingData, fermentationData]);
+  }, [pressingData, fermentationData, cellarOpsData, bottlingData, so2TestsData]);
 
   // Case-insensitive partial-match suggestions, capped at 10
   const suggestions = useMemo(() => {
