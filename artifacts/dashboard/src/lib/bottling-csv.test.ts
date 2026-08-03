@@ -84,6 +84,22 @@ describe("bottling CSV export → import round trip", () => {
     expect(bottlingImportRecord(parsed.rows[1]).isOrganic).toBe("false");
   });
 
+  it("lists unrecognised headers without blocking the import", () => {
+    const csv = `"Bottling Date","Batch Reff","Notes"\n"2023-05-01","BATCH-001","ok"`;
+    const parsed = parseBottlingCsv(csv);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.unknownHeaders).toEqual(["Batch Reff"]);
+    expect(parsed.rows).toHaveLength(1);
+  });
+
+  it("reports no unrecognised headers for a clean template export", () => {
+    const parsed = parseBottlingCsv(buildExportCsv([sampleDbRow]));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.unknownHeaders).toEqual([]);
+  });
+
   it("rejects files without a recognised header row", () => {
     const parsed = parseBottlingCsv('"Foo","Bar"\n"1","2"');
     expect(parsed.ok).toBe(false);

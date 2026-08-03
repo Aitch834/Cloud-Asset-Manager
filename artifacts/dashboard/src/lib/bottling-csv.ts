@@ -119,7 +119,7 @@ export function parseCsvText(src: string): string[][] {
 // it starting with "WARNING:" is surfaced as a warning, other prefix records
 // (e.g. farm-name comment rows) are skipped.
 export function parseBottlingCsv(text: string):
-  | { ok: true; rows: Record<string, string>[]; warnings: string[] }
+  | { ok: true; rows: Record<string, string>[]; warnings: string[]; unknownHeaders: string[] }
   | { ok: false; error: string; warnings: string[] } {
   const parsed = parseCsvText(text);
   const knownHeaders = new Set(BOTTLING_COLUMNS.flatMap(c => [c.header, ...(c.aliases ?? []), c.dbKey]));
@@ -134,6 +134,11 @@ export function parseBottlingCsv(text: string):
     return { ok: false, error: "CSV must have a header row and at least one data row.", warnings };
   }
   const headers = records[0];
+  // Headers not matching any BOTTLING_COLUMNS header, alias or dbKey are
+  // silently ignored by the field mapping — surface them so a typo'd header
+  // doesn't quietly drop the whole column (mirrors the Harvest importer's
+  // knownHeaders behaviour). Blank header cells are skipped.
+  const unknownHeaders = headers.filter(h => h.trim() !== "" && !knownHeaders.has(h));
   const rows: Record<string, string>[] = [];
   for (let i = 1; i < records.length; i++) {
     const cells = records[i];
@@ -142,5 +147,5 @@ export function parseBottlingCsv(text: string):
     rows.push(row);
   }
   if (rows.length > 500) return { ok: false, error: "Maximum 500 rows per import.", warnings };
-  return { ok: true, rows, warnings };
+  return { ok: true, rows, warnings, unknownHeaders };
 }
