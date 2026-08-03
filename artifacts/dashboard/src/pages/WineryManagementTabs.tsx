@@ -8598,6 +8598,9 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
   // True while the operator is remediating flagged rows via the amber banner's
   // Fix button — after a save we auto-advance to the next flagged row.
   const [fixingFlaggedSo2, setFixingFlaggedSo2] = useState(false);
+  // Progress through the Fix queue, captured when the flow starts so the
+  // indicator reads "2 of 5" even as saved rows drop out of the flagged set.
+  const [fixFlowProgress, setFixFlowProgress] = useState<{ position: number; total: number } | null>(null);
   // Review cycling: index of the last-reviewed flagged row (null until first
   // click). Each Review click advances to the next flagged row, wrapping.
   const [so2ReviewIndex, setSo2ReviewIndex] = useState<number | null>(null);
@@ -8693,10 +8696,14 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
         const nextFlagged = filtered.filter(r => r.id !== editing && isFlaggedSo2Row(r));
         if (nextFlagged.length > 0) {
           toast({ title: "Saved", description: `${nextFlagged.length} flagged test${nextFlagged.length !== 1 ? "s" : ""} remaining — opening the next one.` });
+          // Advance the queue position captured at flow start so the dialog
+          // header keeps counting up (2 of 5, 3 of 5, …) as rows are fixed.
+          setFixFlowProgress(p => p ? { ...p, position: Math.min(p.position + 1, p.total) } : p);
           openEdit(nextFlagged[0]);
           return;
         }
         setFixingFlaggedSo2(false);
+        setFixFlowProgress(null);
         toast({ title: "Saved", description: "All flagged tests fixed." });
         setOpen(false);
         return;
@@ -8760,6 +8767,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
     const firstFlagged = findFirstFlaggedSo2();
     if (!firstFlagged) return;
     setFixingFlaggedSo2(true);
+    setFixFlowProgress({ position: 1, total: flaggedSo2Rows.length });
     openEdit(firstFlagged);
   };
 
@@ -9016,9 +9024,22 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setFixingFlaggedSo2(false); } }}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setFixingFlaggedSo2(false); setFixFlowProgress(null); } }}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editing !== null ? "Edit" : "Log"} SO₂ Test</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{editing !== null ? "Edit" : "Log"} SO₂ Test</DialogTitle>
+            {/* Fix-flow progress: while remediating flagged rows via the amber
+                banner's Fix button, show where the operator is in the queue.
+                Position/total come from state captured when the flow started
+                (advanced on each save) so the count stays stable even as saved
+                rows drop out of the live flagged set. */}
+            {fixingFlaggedSo2 && editing !== null && fixFlowProgress && (
+              <p className="text-xs font-medium text-amber-700 flex items-center gap-1">
+                <Wrench className="h-3 w-3" />
+                Fixing flagged test {fixFlowProgress.position} of {fixFlowProgress.total}
+              </p>
+            )}
+          </DialogHeader>
           <div className="space-y-4">
             <SectionLabel>Sample identity</SectionLabel>
             <div className="grid grid-cols-2 gap-3">
