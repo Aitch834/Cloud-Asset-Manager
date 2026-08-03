@@ -19,6 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useAppStore } from "@/hooks/use-app-store";
+import { parseCsvText } from "@/lib/bottling-csv";
 import { toast } from "@/hooks/use-toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -443,16 +444,15 @@ function CsvImportDialog({ open, onClose, probe, farmId }: { open: boolean; onCl
 
   const parseCSV = useCallback((text: string) => {
     setError(null);
-    const lines = text.trim().split(/\r?\n/);
-    if (lines.length < 2) { setError("CSV must have a header row and at least one data row."); return; }
-    const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, "").toLowerCase());
+    const records = parseCsvText(text);
+    if (records.length < 2) { setError("CSV must have a header row and at least one data row."); return; }
+    const headers = records[0].map(h => h.toLowerCase());
     const required = ["readingat"];
     const missing = required.filter(r => !headers.includes(r));
     if (missing.length > 0) { setError(`Missing required column: ${missing.join(", ")}. Expected headers: readingat, depthcm, moisturepercent, temperaturecelsius, ecuspercm`); return; }
-    const rows = lines.slice(1).map(line => {
-      const vals = line.split(",").map(v => v.trim().replace(/^"|"$/g, ""));
-      return Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? ""]));
-    });
+    const rows = records.slice(1).map(vals =>
+      Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? ""])),
+    );
     setPreview(rows.slice(0, 5));
   }, []);
 
@@ -517,10 +517,10 @@ function CsvImportDialog({ open, onClose, probe, farmId }: { open: boolean; onCl
   const doImport = async () => {
     if (!fileRef.current?.files?.[0]) return;
     const text = await fileRef.current.files[0].text();
-    const lines = text.trim().split(/\r?\n/);
-    const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, "").toLowerCase());
-    const rowVals: CsvRowVals[] = lines.slice(1).map(line => {
-      const vals = line.split(",").map(v => v.trim().replace(/^"|"$/g, ""));
+    const records = parseCsvText(text);
+    if (records.length < 2) { setError("CSV must have a header row and at least one data row."); return; }
+    const headers = records[0].map(h => h.toLowerCase());
+    const rowVals: CsvRowVals[] = records.slice(1).map(vals => {
       const row = Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? ""]));
       return {
         readingAt: row["readingat"] || row["datetime"] || row["timestamp"] || "",
