@@ -6775,6 +6775,21 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
     return r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
   };
 
+  // Single source of truth for the Cellar Ops SO₂ compliance verdict — used by
+  // BOTH the on-screen table badge and the CSV export columns, so the screen
+  // and the download can never disagree. Ceiling comes from wine_colour +
+  // organic status; verdict compares it against free_so2_after_mg_l.
+  const cellarSo2Verdict = (r: Record<string, unknown>): { ceiling: number; isOrganic: boolean; compliant: boolean | null } | null => {
+    if (String(r.op_type) !== "sulfiting") return null;
+    const colour = String(r.wine_colour ?? "");
+    if (!colour) return null;
+    const isOrganic = cellarRowIsOrganic(r);
+    const ceiling = parseFloat((isOrganic ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour]) ?? "");
+    if (isNaN(ceiling)) return null;
+    const freeAfter = r.free_so2_after_mg_l != null && r.free_so2_after_mg_l !== "" ? parseFloat(String(r.free_so2_after_mg_l)) : NaN;
+    return { ceiling, isOrganic, compliant: isNaN(freeAfter) ? null : freeAfter <= ceiling };
+  };
+
   const cellarCsvCols = [
     { key: "vintage_year", label: "Vintage" },
     { key: "batch_ref", label: "Batch Ref" },
@@ -6804,22 +6819,13 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
       return "";
     } },
     { key: "so2_ceiling_mg_l", label: "SO₂ ceiling (mg/L)", fmt: (r: Record<string, unknown>) => {
-      if (String(r.op_type) !== "sulfiting") return "";
-      const colour = String(r.wine_colour ?? "");
-      if (!colour) return "";
-      const isOrg = cellarRowIsOrganic(r);
-      const ceiling = isOrg ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour];
-      return ceiling ? `${ceiling} (${isOrg ? "organic" : "conventional"})` : "";
+      const v = cellarSo2Verdict(r);
+      return v ? `${v.ceiling} (${v.isOrganic ? "organic" : "conventional"})` : "";
     } },
     { key: "so2_compliance", label: "Compliance", fmt: (r: Record<string, unknown>) => {
-      if (String(r.op_type) !== "sulfiting") return "";
-      const colour = String(r.wine_colour ?? "");
-      if (!colour) return "";
-      const isOrg = cellarRowIsOrganic(r);
-      const ceiling = parseFloat((isOrg ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour]) ?? "");
-      const freeAfter = r.free_so2_after_mg_l != null && r.free_so2_after_mg_l !== "" ? parseFloat(String(r.free_so2_after_mg_l)) : NaN;
-      if (isNaN(ceiling) || isNaN(freeAfter)) return "";
-      return freeAfter > ceiling ? "Exceeds Limit" : "Compliant";
+      const v = cellarSo2Verdict(r);
+      if (!v || v.compliant == null) return "";
+      return v.compliant ? "Compliant" : "Exceeds Limit";
     } },
     { key: "operator_name", label: "Operator" },
     { key: "notes", label: "Notes" },
@@ -6913,18 +6919,9 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                     doseRateMissingReason = "No vessel capacity or batch volume recorded";
                   }
                 }
-                // Compliance verdict for sulfiting rows — same logic as the CSV export:
-                // ceiling from wine_colour + organic status, compared against free_so2_after_mg_l
-                let compliance: boolean | null = null;
-                if (String(r.op_type) === "sulfiting") {
-                  const colour = String(r.wine_colour ?? "");
-                  if (colour) {
-                    const isOrg = cellarRowIsOrganic(r);
-                    const ceiling = parseFloat((isOrg ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour]) ?? "");
-                    const freeAfter = r.free_so2_after_mg_l != null && r.free_so2_after_mg_l !== "" ? parseFloat(String(r.free_so2_after_mg_l)) : NaN;
-                    if (!isNaN(ceiling) && !isNaN(freeAfter)) compliance = freeAfter <= ceiling;
-                  }
-                }
+                // Compliance verdict for sulfiting rows — shared helper with the
+                // CSV export columns, so screen and download can never disagree.
+                const compliance: boolean | null = cellarSo2Verdict(r)?.compliant ?? null;
                 return (
                   <tr key={String(r.id)} className="hover:bg-muted/20">
                     <td className="p-3 whitespace-nowrap">{fmtDate(r.op_date)}</td>
