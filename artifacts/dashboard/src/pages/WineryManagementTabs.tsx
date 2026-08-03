@@ -7575,7 +7575,12 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
             const lotList = nonCompliantRows.map(r => r.lot_code ? String(r.lot_code) : "(no lot code)").join(", ");
             prefixLines.push(`"WARNING: ${nonCompliantRows.length} run${nonCompliantRows.length !== 1 ? "s" : ""} exceed the applicable SO₂ limit: ${lotList}"`);
           }
-          exportCSV(filtered, "bottling-records.csv", bottlingCsvCols, prefixLines.length > 0 ? prefixLines : undefined);
+          // Traceable export filename — mirrors the SO₂ CSV pattern: include a
+          // sanitised search term so a filtered download is identifiable.
+          const searchTrim = bottlingSearch.trim();
+          const parts = ["bottling-records"];
+          if (searchTrim) parts.push(`search-${csvSlug(searchTrim)}`);
+          exportCSV(filtered, `${parts.join("-")}.csv`, bottlingCsvCols, prefixLines.length > 0 ? prefixLines : undefined);
         }} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <Button size="sm" variant="outline" onClick={() => { resetImportDialog(); setImportOpen(true); }}><Upload className="w-3.5 h-3.5 mr-1" />Import CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} run{filtered.length !== 1 ? "s" : ""}</span>
