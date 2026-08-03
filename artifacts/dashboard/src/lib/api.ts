@@ -1,5 +1,8 @@
 const buildUrl = (path: string) => `/api${path}`;
 
+/** Shared API URL helper: `apiUrl("winery/pressings")` -> "/api/winery/pressings". */
+export const apiUrl = (path: string) => `/api/${path.replace(/^\/+/, "")}`;
+
 const headers = () => ({ "Content-Type": "application/json" });
 
 async function request(url: string, init?: RequestInit): Promise<any> {

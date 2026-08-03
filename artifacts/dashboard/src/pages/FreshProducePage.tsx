@@ -22,7 +22,7 @@ import { useFarmMembers } from "@/hooks/use-farm-members";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { StaffSelect } from "@/components/ui/staff-select";
 
-const api = (path: string) => `/api/${path}`;
+import { apiUrl as api } from "@/lib/api";
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
 
