@@ -678,14 +678,9 @@ const SOURCE_COLOURS: Record<string, string> = {
   "Livestock":        "bg-blue-100 text-blue-700",
 };
 
-function summariseRejected(rejected: { row: number; reason: string }[]): string {
-  const shown = rejected.slice(0, 5).map(r => r.reason);
-  const more = rejected.length - shown.length;
-  return shown.join("\n") + (more > 0 ? `\n…and ${more} more.` : "");
-}
-
 function GenerateDialog({ farmId, onDone }: { farmId: number; onDone: () => void }) {
   const { toast } = useToast();
+  const qc = useQueryClient();
   const [year, setYear] = useState(String(new Date().getFullYear() - 1));
   const [preview, setPreview] = useState<GeneratedSuggestion[] | null>(null);
   const [existingCount, setExistingCount] = useState(0);
@@ -693,12 +688,15 @@ function GenerateDialog({ farmId, onDone }: { farmId: number; onDone: () => void
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [saving, setSaving] = useState(false);
   const [editedCo2e, setEditedCo2e] = useState<Record<number, string>>({});
+  const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
+  const hasRowErrors = Object.keys(rowErrors).length > 0;
 
   const fetchPreview = async () => {
     setLoading(true);
     setPreview(null);
     setSelected(new Set());
     setEditedCo2e({});
+    setRowErrors({});
     try {
       const res = await fetch(api(`farms/${farmId}/carbon-emissions/preview?year=${year}`), { credentials: "include" });
       const data = await res.json();
@@ -714,10 +712,11 @@ function GenerateDialog({ farmId, onDone }: { farmId: number; onDone: () => void
   const confirm = async () => {
     if (!preview) return;
     setSaving(true);
-    const records = preview
+    const chosen = preview
       .map((s, i) => ({ s, i }))
-      .filter(({ i }) => selected.has(i))
-      .map(({ s, i }) => ({
+      .filter(({ i }) => selected.has(i));
+    const submittedIdx = chosen.map(({ i }) => i);
+    const records = chosen.map(({ s, i }) => ({
         emissionYear: parseInt(year),
         category: s.category,
         subcategory: s.subcategory,
@@ -737,15 +736,28 @@ function GenerateDialog({ farmId, onDone }: { farmId: number; onDone: () => void
       }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       const data = await res.json().catch(() => ({}));
       if (data.rejectedCount > 0) {
+        // Map rejected row numbers (1-based, in submission order) back to preview indices
+        const errs: Record<number, string> = {};
+        for (const rej of (data.rejected ?? []) as { row: number; reason: string }[]) {
+          const pIdx = submittedIdx[rej.row - 1];
+          if (pIdx !== undefined) errs[pIdx] = rej.reason.replace(/^Row \d+:\s*/, "");
+        }
+        setRowErrors(errs);
+        setSelected(new Set(Object.keys(errs).map(Number)));
+        qc.invalidateQueries({ queryKey: ["carbon-emissions", farmId] });
         toast({
           title: `${data.created ?? 0} record${data.created === 1 ? "" : "s"} added, ${data.rejectedCount} skipped`,
-          description: summariseRejected(data.rejected ?? []),
+          description: "The skipped rows are highlighted below — fix them and re-submit.",
           variant: "destructive",
         });
+        setSaving(false);
+        return; // keep the dialog open so the failed rows can be fixed and retried
       }
-    } finally {
       setSaving(false);
       onDone();
+    } catch (err) {
+      setSaving(false);
+      toast({ title: "Import failed", description: err instanceof Error ? err.message : undefined, variant: "destructive" });
     }
   };
 
@@ -771,7 +783,7 @@ function GenerateDialog({ farmId, onDone }: { farmId: number; onDone: () => void
           <div className="flex items-end gap-3">
             <div className="w-36">
               <Label>Year</Label>
-              <Select value={year} onValueChange={v => { setYear(v); setPreview(null); }}>
+              <Select value={year} onValueChange={v => { setYear(v); if (!hasRowErrors) setPreview(null); }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{EM_YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
               </Select>
@@ -780,6 +792,13 @@ function GenerateDialog({ farmId, onDone }: { farmId: number; onDone: () => void
               {loading ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Fetching…</> : "Fetch from records"}
             </Button>
           </div>
+
+          {hasRowErrors && (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+              <span className="font-medium">{Object.keys(rowErrors).length} row{Object.keys(rowErrors).length !== 1 ? "s were" : " was"} skipped.</span>{" "}
+              They are highlighted below with the reason — correct the values (e.g. pick a valid year) and click Create to re-submit just those rows.
+            </div>
+          )}
 
           {preview !== null && existingCount > 0 && (
             <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
@@ -826,7 +845,7 @@ function GenerateDialog({ farmId, onDone }: { farmId: number; onDone: () => void
                   </thead>
                   <tbody>
                     {preview.map((s, i) => (
-                      <tr key={i} className={`border-t transition-opacity ${selected.has(i) ? "" : "opacity-40"}`}>
+                      <tr key={i} className={`border-t transition-opacity ${rowErrors[i] ? "bg-red-50" : ""} ${selected.has(i) ? "" : "opacity-40"}`}>
                         <td className="p-2">
                           <Checkbox
                             checked={selected.has(i)}
@@ -845,6 +864,7 @@ function GenerateDialog({ farmId, onDone }: { farmId: number; onDone: () => void
                         <td className="p-2">
                           <div className="font-medium text-xs leading-tight">{s.subcategory || s.category}</div>
                           <div className="text-xs text-muted-foreground">{s.scope}</div>
+                          {!!rowErrors[i] && <div className="text-xs text-red-600 font-medium mt-0.5">{rowErrors[i]}</div>}
                         </td>
                         <td className="p-2 text-xs text-muted-foreground max-w-xs">
                           <span className="line-clamp-2">{s.activityDescription}</span>
@@ -1237,6 +1257,7 @@ const SEQ_SOURCE_COLOURS: Record<string, string> = {
 
 function GenerateSeqDialog({ farmId, onDone }: { farmId: number; onDone: () => void }) {
   const { toast } = useToast();
+  const qc = useQueryClient();
   const [year, setYear] = useState(String(new Date().getFullYear() - 1));
   const [preview, setPreview] = useState<SeqSuggestion[] | null>(null);
   const [existingCount, setExistingCount] = useState(0);
@@ -1244,12 +1265,15 @@ function GenerateSeqDialog({ farmId, onDone }: { farmId: number; onDone: () => v
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [saving, setSaving] = useState(false);
   const [editedCo2e, setEditedCo2e] = useState<Record<number, string>>({});
+  const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
+  const hasRowErrors = Object.keys(rowErrors).length > 0;
 
   const fetchPreview = async () => {
     setLoading(true);
     setPreview(null);
     setSelected(new Set());
     setEditedCo2e({});
+    setRowErrors({});
     try {
       const res = await fetch(api(`farms/${farmId}/carbon-sequestration/preview?year=${year}`), { credentials: "include" });
       const data = await res.json();
@@ -1265,10 +1289,11 @@ function GenerateSeqDialog({ farmId, onDone }: { farmId: number; onDone: () => v
   const confirm = async () => {
     if (!preview) return;
     setSaving(true);
-    const records = preview
+    const chosen = preview
       .map((s, i) => ({ s, i }))
-      .filter(({ i }) => selected.has(i))
-      .map(({ s, i }) => ({
+      .filter(({ i }) => selected.has(i));
+    const submittedIdx = chosen.map(({ i }) => i);
+    const records = chosen.map(({ s, i }) => ({
         sequestrationYear: parseInt(year),
         featureType: s.featureType,
         featureName: s.featureName,
@@ -1286,15 +1311,27 @@ function GenerateSeqDialog({ farmId, onDone }: { farmId: number; onDone: () => v
       }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       const data = await res.json().catch(() => ({}));
       if (data.rejectedCount > 0) {
+        const errs: Record<number, string> = {};
+        for (const rej of (data.rejected ?? []) as { row: number; reason: string }[]) {
+          const pIdx = submittedIdx[rej.row - 1];
+          if (pIdx !== undefined) errs[pIdx] = rej.reason.replace(/^Row \d+:\s*/, "");
+        }
+        setRowErrors(errs);
+        setSelected(new Set(Object.keys(errs).map(Number)));
+        qc.invalidateQueries({ queryKey: ["carbon-seq", farmId] });
         toast({
           title: `${data.created ?? 0} record${data.created === 1 ? "" : "s"} added, ${data.rejectedCount} skipped`,
-          description: summariseRejected(data.rejected ?? []),
+          description: "The skipped rows are highlighted below — fix them and re-submit.",
           variant: "destructive",
         });
+        setSaving(false);
+        return; // keep the dialog open so the failed rows can be fixed and retried
       }
-    } finally {
       setSaving(false);
       onDone();
+    } catch (err) {
+      setSaving(false);
+      toast({ title: "Import failed", description: err instanceof Error ? err.message : undefined, variant: "destructive" });
     }
   };
 
@@ -1326,7 +1363,7 @@ function GenerateSeqDialog({ farmId, onDone }: { farmId: number; onDone: () => v
           <div className="flex items-end gap-3">
             <div className="w-36">
               <Label>Year</Label>
-              <Select value={year} onValueChange={v => { setYear(v); setPreview(null); }}>
+              <Select value={year} onValueChange={v => { setYear(v); if (!hasRowErrors) setPreview(null); }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{EM_YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
               </Select>
@@ -1335,6 +1372,13 @@ function GenerateSeqDialog({ farmId, onDone }: { farmId: number; onDone: () => v
               {loading ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Scanning…</> : "Preview"}
             </Button>
           </div>
+
+          {hasRowErrors && (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+              <span className="font-medium">{Object.keys(rowErrors).length} row{Object.keys(rowErrors).length !== 1 ? "s were" : " was"} skipped.</span>{" "}
+              They are highlighted below with the reason — correct the values (e.g. pick a valid year) and click Create to re-submit just those rows.
+            </div>
+          )}
 
           {existingCount > 0 && (
             <div className="flex gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
@@ -1368,14 +1412,17 @@ function GenerateSeqDialog({ farmId, onDone }: { farmId: number; onDone: () => v
                   </thead>
                   <tbody>
                     {preview.map((s, i) => (
-                      <tr key={i} className={`border-t ${!selected.has(i) ? "opacity-40" : ""}`}>
+                      <tr key={i} className={`border-t ${rowErrors[i] ? "bg-red-50" : ""} ${!selected.has(i) ? "opacity-40" : ""}`}>
                         <td className="p-2">
                           <Checkbox checked={selected.has(i)} onCheckedChange={c => setSelected(prev => { const n = new Set(prev); c ? n.add(i) : n.delete(i); return n; })} />
                         </td>
                         <td className="p-2">
                           <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap ${SEQ_SOURCE_COLOURS[s.source] ?? "bg-muted text-muted-foreground"}`}>{s.source}</span>
                         </td>
-                        <td className="p-2 font-medium">{s.featureType}</td>
+                        <td className="p-2 font-medium">
+                          {s.featureType}
+                          {!!rowErrors[i] && <div className="text-xs text-red-600 font-normal mt-0.5">{rowErrors[i]}</div>}
+                        </td>
                         <td className="p-2 text-muted-foreground max-w-[14rem] truncate">{s.featureName || "—"}</td>
                         <td className="p-2 text-right tabular-nums">{s.quantity.toFixed(3)}</td>
                         <td className="p-2 text-muted-foreground">{s.unit}</td>

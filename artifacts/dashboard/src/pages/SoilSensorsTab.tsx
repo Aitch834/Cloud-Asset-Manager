@@ -429,12 +429,17 @@ function AddReadingDialog({ open, onClose, probe, farmId }: { open: boolean; onC
 }
 
 // ─── CSV import dialog ────────────────────────────────────────────────────────
+type CsvRowVals = { readingAt: string; depthCm: string; moisturePercent: string; temperatureCelsius: string; ecUsPerCm: string; notes: string };
+type FailedRow = { values: CsvRowVals; reason: string };
+
 function CsvImportDialog({ open, onClose, probe, farmId }: { open: boolean; onClose: () => void; probe: SoilSensorProbe; farmId: number; }) {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<Array<Record<string, string>>>([]);
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const [failedRows, setFailedRows] = useState<FailedRow[]>([]);
+  const [importedSoFar, setImportedSoFar] = useState(0);
 
   const parseCSV = useCallback((text: string) => {
     setError(null);
@@ -454,31 +459,27 @@ function CsvImportDialog({ open, onClose, probe, farmId }: { open: boolean; onCl
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
+    setFailedRows([]);
+    setImportedSoFar(0);
     const reader = new FileReader();
     reader.onload = ev => parseCSV(String(ev.target?.result ?? ""));
     reader.readAsText(f);
   };
 
-  const doImport = async () => {
-    if (!fileRef.current?.files?.[0]) return;
+  // Submit a batch of rows. On rejections, keeps the dialog open with the failed
+  // rows shown inline (editable) so the user can fix and retry just those rows.
+  const submitRows = async (rowVals: CsvRowVals[], alreadyImported: number) => {
     setImporting(true);
+    setError(null);
     try {
-      const text = await fileRef.current.files[0].text();
-      const lines = text.trim().split(/\r?\n/);
-      const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, "").toLowerCase());
-      const rows = lines.slice(1).map(line => {
-        const vals = line.split(",").map(v => v.trim().replace(/^"|"$/g, ""));
-        const row = Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? ""]));
-        return {
-          readingAt: row["readingat"] || row["datetime"] || row["timestamp"],
-          depthCm: row["depthcm"] ? parseInt(row["depthcm"], 10) : undefined,
-          moisturePercent: row["moisturepercent"] || row["moisture"] || undefined,
-          temperatureCelsius: row["temperaturecelsius"] || row["temperature"] || row["temp"] || undefined,
-          ecUsPerCm: row["ecuspercm"] || row["ec"] || undefined,
-          notes: row["notes"] || undefined,
-        };
-      }).filter(r => r.readingAt);
-
+      const rows = rowVals.map(r => ({
+        readingAt: r.readingAt,
+        depthCm: r.depthCm ? parseInt(r.depthCm, 10) : undefined,
+        moisturePercent: r.moisturePercent || undefined,
+        temperatureCelsius: r.temperatureCelsius || undefined,
+        ecUsPerCm: r.ecUsPerCm || undefined,
+        notes: r.notes || undefined,
+      }));
       const res = await fetch(`/api/farms/${farmId}/soil-sensors/${probe.id}/readings/bulk`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -487,25 +488,58 @@ function CsvImportDialog({ open, onClose, probe, farmId }: { open: boolean; onCl
       if (!res.ok) throw new Error((await res.json()).error ?? "Import failed");
       const data = await res.json();
       qc.invalidateQueries({ queryKey: ["soil-readings", probe.id] });
+      const totalImported = alreadyImported + (data.inserted ?? 0);
       const rejectedCount: number = data.rejectedCount ?? 0;
       if (rejectedCount > 0) {
-        const reasons: { row: number; reason: string }[] = data.rejected ?? [];
-        const shown = reasons.slice(0, 5).map(r => r.reason);
-        const more = reasons.length - shown.length;
+        const rejects: { row: number; reason: string }[] = data.rejected ?? [];
+        setFailedRows(rejects
+          .filter(rej => rowVals[rej.row - 1] !== undefined)
+          .map(rej => ({ values: rowVals[rej.row - 1], reason: rej.reason.replace(/^Row \d+:\s*/, "") })));
+        setImportedSoFar(totalImported);
         toast({
           title: `${data.inserted} imported, ${rejectedCount} skipped`,
-          description: shown.join("\n") + (more > 0 ? `\n…and ${more} more.` : ""),
+          description: "Fix the skipped rows below and re-submit just those rows.",
           variant: "destructive",
         });
       } else {
-        toast({ title: "Import complete", description: `${data.inserted} readings imported` });
+        toast({ title: "Import complete", description: `${totalImported} readings imported` });
+        setFailedRows([]);
+        setImportedSoFar(0);
+        onClose();
       }
-      onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import failed");
     } finally {
       setImporting(false);
     }
+  };
+
+  const doImport = async () => {
+    if (!fileRef.current?.files?.[0]) return;
+    const text = await fileRef.current.files[0].text();
+    const lines = text.trim().split(/\r?\n/);
+    const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, "").toLowerCase());
+    const rowVals: CsvRowVals[] = lines.slice(1).map(line => {
+      const vals = line.split(",").map(v => v.trim().replace(/^"|"$/g, ""));
+      const row = Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? ""]));
+      return {
+        readingAt: row["readingat"] || row["datetime"] || row["timestamp"] || "",
+        depthCm: row["depthcm"] || "",
+        moisturePercent: row["moisturepercent"] || row["moisture"] || "",
+        temperatureCelsius: row["temperaturecelsius"] || row["temperature"] || row["temp"] || "",
+        ecUsPerCm: row["ecuspercm"] || row["ec"] || "",
+        notes: row["notes"] || "",
+      };
+    });
+    await submitRows(rowVals, 0);
+  };
+
+  const retryFailed = async () => {
+    await submitRows(failedRows.map(f => f.values), importedSoFar);
+  };
+
+  const setFailedField = (idx: number, key: keyof CsvRowVals, value: string) => {
+    setFailedRows(prev => prev.map((f, i) => i === idx ? { ...f, values: { ...f.values, [key]: value } } : f));
   };
 
   return (
@@ -536,7 +570,50 @@ function CsvImportDialog({ open, onClose, probe, farmId }: { open: boolean; onCl
               <p className="text-xs text-red-700">{error}</p>
             </div>
           )}
-          {preview.length > 0 && (
+          {failedRows.length > 0 && (
+            <div>
+              <div className="rounded-md border border-red-200 bg-red-50 p-3 mb-2 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                <p className="text-xs text-red-700">
+                  <strong>{failedRows.length} row{failedRows.length !== 1 ? "s were" : " was"} skipped</strong>
+                  {importedSoFar > 0 ? <> ({importedSoFar} imported so far)</> : null}.
+                  {" "}Correct the values below and click "Retry skipped rows" to import just these rows.
+                </p>
+              </div>
+              <div className="overflow-x-auto rounded border border-gray-200 max-h-64 overflow-y-auto">
+                <table className="text-xs w-full">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="px-2 py-1 text-left text-gray-500 font-medium">Reading At *</th>
+                      <th className="px-2 py-1 text-left text-gray-500 font-medium">Depth</th>
+                      <th className="px-2 py-1 text-left text-gray-500 font-medium">Moist %</th>
+                      <th className="px-2 py-1 text-left text-gray-500 font-medium">Temp °C</th>
+                      <th className="px-2 py-1 text-left text-gray-500 font-medium">EC</th>
+                      <th className="px-2 py-1 text-left text-gray-500 font-medium">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {failedRows.map((f, i) => (
+                      <React.Fragment key={i}>
+                        <tr className="border-t border-gray-100 bg-red-50/50">
+                          <td className="px-1 py-1"><Input className="h-7 text-xs min-w-36" value={f.values.readingAt} onChange={e => setFailedField(i, "readingAt", e.target.value)} placeholder="YYYY-MM-DD HH:MM" /></td>
+                          <td className="px-1 py-1"><Input className="h-7 text-xs w-16" value={f.values.depthCm} onChange={e => setFailedField(i, "depthCm", e.target.value)} /></td>
+                          <td className="px-1 py-1"><Input className="h-7 text-xs w-16" value={f.values.moisturePercent} onChange={e => setFailedField(i, "moisturePercent", e.target.value)} /></td>
+                          <td className="px-1 py-1"><Input className="h-7 text-xs w-16" value={f.values.temperatureCelsius} onChange={e => setFailedField(i, "temperatureCelsius", e.target.value)} /></td>
+                          <td className="px-1 py-1"><Input className="h-7 text-xs w-16" value={f.values.ecUsPerCm} onChange={e => setFailedField(i, "ecUsPerCm", e.target.value)} /></td>
+                          <td className="px-1 py-1"><Input className="h-7 text-xs min-w-24" value={f.values.notes} onChange={e => setFailedField(i, "notes", e.target.value)} /></td>
+                        </tr>
+                        <tr className="bg-red-50/50">
+                          <td colSpan={6} className="px-2 pb-1.5 text-red-600">{f.reason}</td>
+                        </tr>
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          {failedRows.length === 0 && preview.length > 0 && (
             <div>
               <p className="text-xs font-medium text-gray-600 mb-1">Preview (first {preview.length} rows)</p>
               <div className="overflow-x-auto rounded border border-gray-200">
@@ -557,11 +634,18 @@ function CsvImportDialog({ open, onClose, probe, farmId }: { open: boolean; onCl
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={doImport} disabled={!preview.length || !!error || importing}>
-            {importing && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-            <Upload className="w-4 h-4 mr-1.5" /> Import Readings
-          </Button>
+          <Button variant="outline" onClick={onClose}>{failedRows.length > 0 ? "Close" : "Cancel"}</Button>
+          {failedRows.length > 0 ? (
+            <Button onClick={retryFailed} disabled={importing}>
+              {importing && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              <Upload className="w-4 h-4 mr-1.5" /> Retry {failedRows.length} skipped row{failedRows.length !== 1 ? "s" : ""}
+            </Button>
+          ) : (
+            <Button onClick={doImport} disabled={!preview.length || !!error || importing}>
+              {importing && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              <Upload className="w-4 h-4 mr-1.5" /> Import Readings
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
