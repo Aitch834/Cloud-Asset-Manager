@@ -1006,7 +1006,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
               // Group additives by their pressing session — in vintage scope a
               // trail can span multiple pressings, so each pressing renders its
               // own indented sub-list with press date + batch ref.
-              const additiveGroups: { key: string; pressDate: string; batchRef: string | null; pressingNotes: string; additions: Record<string, unknown>[] }[] = [];
+              const additiveGroups: { key: string; pressDate: string; batchRef: string | null; operatorName: string | null; pressingNotes: string; additions: Record<string, unknown>[] }[] = [];
               {
                 const groupIndex = new Map<string, number>();
                 // In vintage scope, seed one group per pressing session (from
@@ -1020,6 +1020,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                       key,
                       pressDate: p.press_date ? fmtDate(p.press_date) : "—",
                       batchRef: p.batch_ref != null && String(p.batch_ref).trim() !== "" ? String(p.batch_ref).trim() : null,
+                      operatorName: p.operator_name != null && String(p.operator_name).trim() !== "" ? String(p.operator_name).trim() : null,
                       pressingNotes: p.notes != null ? String(p.notes).trim() : "",
                       additions: [],
                     });
@@ -1035,6 +1036,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                       key,
                       pressDate: a.pressing_press_date ? fmtDate(a.pressing_press_date) : "—",
                       batchRef: a.pressing_batch_ref != null && String(a.pressing_batch_ref).trim() !== "" ? String(a.pressing_batch_ref).trim() : null,
+                      operatorName: a.pressing_operator_name != null && String(a.pressing_operator_name).trim() !== "" ? String(a.pressing_operator_name).trim() : null,
                       pressingNotes: a.pressing_notes != null ? String(a.pressing_notes).trim() : "",
                       additions: [],
                     });
@@ -1179,6 +1181,11 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                                 <span className="font-mono text-blue-800 bg-blue-100 rounded px-1.5 py-0.5" style={{ fontSize: "10px" }}>{g.batchRef}</span>
                               ) : (
                                 <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5" style={{ fontSize: "10px" }}>No ref</span>
+                              )}
+                              {/* Each pressing's own operator — mirrors the PDF group header so a
+                                  vintage trail no longer reads as one operator doing everything */}
+                              {g.operatorName && (
+                                <span className="font-normal text-muted-foreground/70">Operator: {g.operatorName}</span>
                               )}
                               <span className="font-normal text-muted-foreground/70">({g.additions.length})</span>
                             </p>
