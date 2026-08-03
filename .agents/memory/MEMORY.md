@@ -55,3 +55,4 @@
 - [RLS middleware commits after response](rls-middleware-commit-after-response.md) — farm-scoped tx COMMITs in res.on("finish"); fast sequential requests can see 0 rows for a just-created record — retry in scripts
 - [serve.mjs ?v= token double-React #321](serve-token-double-react.md) — never add query tokens to content-hashed JS asset URLs; lazy chunks import plain filenames → two React instances
 - [Dialog failed-save UX convention](dialog-mutation-error.md) — failed dialog saves must show inline DialogMutationError + keep dialog open + mutation.reset() on close; toast-only is not enough
+- [farm_task_assignments task_type default](task-type-default-custom.md) — task_type defaults to 'custom' (never NULL); backfills/queries for "untyped" tasks must match 'custom', not IS NULL

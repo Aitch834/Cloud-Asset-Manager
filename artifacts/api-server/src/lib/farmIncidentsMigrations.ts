@@ -60,4 +60,17 @@ export async function runFarmIncidentsMigrations(): Promise<void> {
         OR farm_id = current_setting('app.current_farm_id', true)::integer
       )
   `);
+
+  // One-off backfill: older incident tasks were raised before taskType/taskSourceId
+  // were set at creation and were matched by parsing "Incident #<id>" from the
+  // description. Set the structured link so the description-regex fallback in the
+  // dashboard can be retired. Idempotent — only touches rows still missing the link.
+  await db.execute(sql`
+    UPDATE farm_task_assignments
+    SET task_type = 'incident',
+        task_source_id = substring(description from 'Incident #(\\d+)')
+    WHERE (task_type IS NULL OR task_type IN ('', 'custom'))
+      AND (task_source_id IS NULL OR task_source_id = '')
+      AND description ~ 'Incident #\\d+'
+  `);
 }

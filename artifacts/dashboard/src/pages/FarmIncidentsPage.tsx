@@ -275,19 +275,13 @@ export default function FarmIncidentsPage() {
     enabled: !!farmId,
   });
 
-  // Map incidentId → tasks. Primary match: structured taskType/taskSourceId.
-  // Fallback for older tasks: parse "Incident #<id>" out of the description.
+  // Map incidentId → tasks via the structured taskType/taskSourceId link.
+  // (Older tasks are backfilled by a startup migration, so no description parsing.)
   const incidentTasks = React.useMemo(() => {
     const map = new Map<number, TaskAssignment[]>();
     for (const t of (tasksData?.records ?? [])) {
-      let id: number | null = null;
-      if (t.taskType === "incident" && t.taskSourceId && !isNaN(Number(t.taskSourceId))) {
-        id = Number(t.taskSourceId);
-      } else {
-        const m = /Incident #(\d+)\b/.exec(t.description ?? "");
-        if (m) id = Number(m[1]);
-      }
-      if (id === null) continue;
+      if (t.taskType !== "incident" || !t.taskSourceId || isNaN(Number(t.taskSourceId))) continue;
+      const id = Number(t.taskSourceId);
       if (!map.has(id)) map.set(id, []);
       map.get(id)!.push(t);
     }
