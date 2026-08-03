@@ -2576,21 +2576,27 @@ async function fetchStageAttachments(farmId: number, recordType: string, records
 }
 
 async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unknown>, data: BatchTrailData, farmName: string) {
-  // Fetch attachments for the pressing record (best-effort — CSV still exports if this fails).
+  // Fetch attachments for the pressing record(s) (best-effort — CSV still exports if this fails).
   // Mirrors the attachments block in the printed PDF (printBatchTrail).
-  let pressAttachments: TrailAttachment[] = [];
+  // In vintage scope the trail spans every pressing session in data.pressings,
+  // so attachments are fetched for ALL of them (keyed per pressing id) rather
+  // than just the clicked/primary pressing. Single-batch scope is unchanged.
+  const isVintageScoped = data.scope === "vintageYear";
   const pressId = pressing.id != null ? Number(pressing.id) : null;
+  const vintagePressings = isVintageScoped && Array.isArray(data.pressings) && data.pressings.length > 0
+    ? data.pressings
+    : [pressing];
   // Fermentation / cellar op / SO₂ test / bottling attachments — same best-effort
   // fetch, keyed per record so each stage row can list its own files.
-  const [fermAttachments, cellarAttachments, so2Attachments, bottlingAttachments] = await Promise.all([
+  const [pressingAttachmentsById, fermAttachments, cellarAttachments, so2Attachments, bottlingAttachments] = await Promise.all([
+    fetchStageAttachments(farmId, "winery-pressing", vintagePressings),
     fetchStageAttachments(farmId, "winery-fermentation", data.fermentation),
     fetchStageAttachments(farmId, "winery-cellar-op", data.cellarOps),
     fetchStageAttachments(farmId, "winery-so2-test", data.so2Tests),
     fetchStageAttachments(farmId, "winery-bottling", data.bottling),
-    (async () => { if (pressId) pressAttachments = await fetchTrailAttachments(farmId, "winery-pressing", pressId); })(),
   ]);
+  const pressAttachments: TrailAttachment[] = pressId != null ? (pressingAttachmentsById.get(pressId) ?? []) : [];
   const batchRef = String(pressing.batch_ref ?? "");
-  const isVintageScoped = data.scope === "vintageYear";
   const vintageYear = data.vintageYear ? String(data.vintageYear) : (pressing.vintage_year ? String(pressing.vintage_year) : null);
   const rows: string[][] = [];
 
@@ -2659,24 +2665,32 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
     ]);
   }
 
-  // Pressing attachments — one row per file, only when attachments exist (mirrors the PDF)
-  for (const a of pressAttachments) {
-    rows.push([
-      "Pressing — Attachment",
-      pressingBatchRef,
-      a.uploadedAt ? fmtDate(a.uploadedAt) : "",
-      "Attachment",
-      String(a.fileName ?? ""),
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      a.uploadedAt ? `Uploaded ${fmtDate(a.uploadedAt)}` : "",
-    ]);
+  // Pressing attachments — one row per file, only when attachments exist (mirrors the PDF).
+  // In vintage scope every pressing session's attachments are listed, each row
+  // attributed to its own pressing's batch ref; single-batch scope emits only
+  // the clicked pressing's files (unchanged behaviour).
+  for (const p of vintagePressings) {
+    const pid = p.id != null ? Number(p.id) : null;
+    const files = pid != null ? (pressingAttachmentsById.get(pid) ?? []) : [];
+    const rowBatchRef = String(p.batch_ref ?? "").trim() || pressingBatchRef;
+    for (const a of files) {
+      rows.push([
+        "Pressing — Attachment",
+        rowBatchRef,
+        a.uploadedAt ? fmtDate(a.uploadedAt) : "",
+        "Attachment",
+        String(a.fileName ?? ""),
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        a.uploadedAt ? `Uploaded ${fmtDate(a.uploadedAt)}` : "",
+      ]);
+    }
   }
 
   // Attachment rows for a stage record — same shape as the pressing attachment
@@ -2930,23 +2944,29 @@ function signatureEmbedFrom(record: Record<string, unknown> | null | undefined):
 }
 
 async function printBatchTrail(farmId: number, pressing: Record<string, unknown>, data: BatchTrailData, farmName: string, auditSig?: string | null, signerInfo?: { name: string | null; role: string | null; signedAt: string | null; signerDate?: string | null }) {
-  // Fetch attachments for the pressing record (best-effort — PDF still prints if this fails)
-  let pressAttachments: TrailAttachment[] = [];
+  // Fetch attachments for the pressing record(s) (best-effort — PDF still prints if this fails).
+  // In vintage scope the trail spans every pressing session in data.pressings,
+  // so attachments are fetched for ALL of them (keyed per pressing id) and
+  // rendered per pressing session. Single-batch scope is unchanged.
+  const isVintageScoped = data.scope === "vintageYear";
   const pressId = pressing.id != null ? Number(pressing.id) : null;
+  const vintagePressings = isVintageScoped && Array.isArray(data.pressings) && data.pressings.length > 0
+    ? data.pressings
+    : [pressing];
   // Fermentation / cellar op / SO₂ test / bottling attachments — same best-effort
   // fetch, keyed per record so each stage section can list its own files.
-  const [fermAttachments, cellarAttachments, so2Attachments, bottlingAttachments] = await Promise.all([
+  const [pressingAttachmentsById, fermAttachments, cellarAttachments, so2Attachments, bottlingAttachments] = await Promise.all([
+    fetchStageAttachments(farmId, "winery-pressing", vintagePressings),
     fetchStageAttachments(farmId, "winery-fermentation", data.fermentation),
     fetchStageAttachments(farmId, "winery-cellar-op", data.cellarOps),
     fetchStageAttachments(farmId, "winery-so2-test", data.so2Tests),
     fetchStageAttachments(farmId, "winery-bottling", data.bottling),
-    (async () => { if (pressId) pressAttachments = await fetchTrailAttachments(farmId, "winery-pressing", pressId); })(),
   ]);
+  const pressAttachments: TrailAttachment[] = pressId != null ? (pressingAttachmentsById.get(pressId) ?? []) : [];
   const batchRef = String(pressing.batch_ref ?? "");
   const printedOn = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   const vintage = pressing.vintage_year ? String(pressing.vintage_year) : null;
   const pressDate = pressing.press_date ? fmtDate(pressing.press_date) : "—";
-  const isVintageScoped = data.scope === "vintageYear";
 
   // Validate the signature before any HTML injection — reject anything that isn't
   // a strict PNG base64 data URL (guards against stored XSS via the sign-off API).
@@ -3109,11 +3129,17 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
   // Group press additives by their pressing session. In vintage scope a trail
   // can span multiple pressings — each group renders its own sub-table with the
   // press date and batch ref, instead of one flat merged list.
-  const pressAdditiveGroups: { key: string; pressDate: string; batchRef: string | null; notes: string; additions: Record<string, unknown>[] }[] = [];
+  const pressAdditiveGroups: { key: string; pressDate: string; batchRef: string | null; notes: string; attachments: TrailAttachment[]; additions: Record<string, unknown>[] }[] = [];
   {
     const groupIndex = new Map<string, number>();
+    // Attachments for a pressing session, keyed off the group key (pressing id)
+    const groupAttachments = (key: string) => {
+      const n = Number(key);
+      return Number.isFinite(n) ? (pressingAttachmentsById.get(n) ?? []) : [];
+    };
     // In vintage scope, seed one group per pressing session (from data.pressings)
-    // so sessions with zero additives — but non-empty notes — still get a block.
+    // so sessions with zero additives — but non-empty notes or attachments —
+    // still get a block.
     if (isVintageScoped) {
       for (const p of data.pressings ?? []) {
         const key = String(p.id);
@@ -3123,6 +3149,7 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
           pressDate: p.press_date ? fmtDate(p.press_date) : "—",
           batchRef: p.batch_ref != null && String(p.batch_ref).trim() !== "" ? String(p.batch_ref).trim() : null,
           notes: p.notes != null ? String(p.notes).trim() : "",
+          attachments: groupAttachments(key),
           additions: [],
         });
       }
@@ -3138,15 +3165,17 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
           pressDate: a.pressing_press_date ? fmtDate(a.pressing_press_date) : "—",
           batchRef: a.pressing_batch_ref != null && String(a.pressing_batch_ref).trim() !== "" ? String(a.pressing_batch_ref).trim() : null,
           notes: a.pressing_notes != null ? String(a.pressing_notes).trim() : "",
+          attachments: groupAttachments(key),
           additions: [],
         });
       }
       pressAdditiveGroups[idx].additions.push(a);
     }
-    // Drop seeded sessions that ended up with neither additives nor notes —
-    // they'd render an empty block.
+    // Drop seeded sessions that ended up with no additives, notes or
+    // attachments — they'd render an empty block.
     for (let i = pressAdditiveGroups.length - 1; i >= 0; i--) {
-      if (pressAdditiveGroups[i].additions.length === 0 && !pressAdditiveGroups[i].notes) pressAdditiveGroups.splice(i, 1);
+      const g = pressAdditiveGroups[i];
+      if (g.additions.length === 0 && !g.notes && g.attachments.length === 0) pressAdditiveGroups.splice(i, 1);
     }
   }
 
@@ -3189,15 +3218,17 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
     </div>
 
     <!-- Settling row -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px${(pressAttachments.length > 0 || pressAdditiveGroups.length > 0 || (pressingNotes && !isVintageScoped)) ? ";margin-bottom:8px" : ""}">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px${((pressAttachments.length > 0 && !isVintageScoped) || pressAdditiveGroups.length > 0 || (pressingNotes && !isVintageScoped)) ? ";margin-bottom:8px" : ""}">
       ${pField("Settling Method", String(pressing.settling_method ?? "—"))}
       ${pField("Settling Vessel", String(pressing.settling_vessel ?? "—"))}
       ${pField("Settling Time (hrs)", pressing.settling_hours != null && pressing.settling_hours !== "" ? String(pressing.settling_hours) : "—")}
       <div></div>
     </div>
 
-    ${pressAttachments.length > 0 ? `
-    <!-- Attachments -->
+    ${pressAttachments.length > 0 && !isVintageScoped ? `
+    <!-- Attachments — single-batch scope only. In vintage scope each pressing
+         session's attachments render inside its own group below, so this block
+         is skipped to avoid duplicating the primary pressing's files. -->
     <div style="border-top:1px solid #e5e7eb;padding-top:8px">
       <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:5px">Attachments (${pressAttachments.length})</p>
       <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:3px">
@@ -3228,6 +3259,18 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
           ${PRESS_ADDITIVE_COLUMNS.map(col => `<td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;${col.pdfCellStyle ?? ""}">${escHtml(col.pdfValue(a))}</td>`).join("")}
         </tr>`).join("")}
       </table>` : `<p style="font-size:10px;color:#9ca3af;font-style:italic;margin:2px 0 4px">No additives recorded for this pressing</p>`}
+      ${isVintageScoped && g.attachments.length > 0 ? `
+      <!-- Per-pressing attachments — vintage scope lists every pressing session's files -->
+      <div style="margin:4px 0 6px">
+        <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:3px">Attachments (${g.attachments.length})</p>
+        <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:3px">
+          ${g.attachments.map(a => `<li style="font-size:10px;color:#374151;display:flex;align-items:center;gap:6px">
+            <span style="display:inline-block;width:14px;height:14px;background:#dbeafe;border-radius:2px;flex-shrink:0;text-align:center;line-height:14px;font-size:9px;color:#1e40af">📎</span>
+            <span style="font-family:monospace">${escHtml(String(a.fileName ?? ""))}</span>
+            <span style="color:#9ca3af;font-size:9px">${a.uploadedAt ? fmtDate(a.uploadedAt) : ""}</span>
+          </li>`).join("")}
+        </ul>
+      </div>` : ""}
       ${isVintageScoped && g.notes ? `
       <!-- Per-pressing notes — vintage scope mirrors the single-batch "Pressing Notes" block -->
       <div style="margin:4px 0 6px">
