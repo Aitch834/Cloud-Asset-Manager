@@ -469,6 +469,14 @@ const additiveCsvCol = (field: PressAdditiveField) => ({
   label: ADDITIVE_COL[field].pdfLabel,
   fmt: (r: Record<string, unknown>) => ADDITIVE_COL[field].csvValue(r),
 });
+// The five fields the on-screen tables (batch-trail dialog press-additive rows,
+// Transaction Log individual-records table) lay out with bespoke styling. Any
+// field later added to PRESS_ADDITIVE_COLUMNS beyond these is rendered
+// generically by those tables (label + shared pdfValue), so a new additive
+// field shows up on screen together with the PDF/CSV exports instead of
+// silently appearing only in the downloads.
+const STYLED_ADDITIVE_FIELDS: PressAdditiveField[] = ["additive_name", "category", "dose", "unit", "notes"];
+const EXTRA_ADDITIVE_COLUMNS = PRESS_ADDITIVE_COLUMNS.filter(c => !STYLED_ADDITIVE_FIELDS.includes(c.field));
 // Batch-trail CSV header — the additive columns above map into these slots by name.
 const BATCH_TRAIL_CSV_HEADER = ["Stage", "Batch Ref", "Date", "Type / Additive", "Detail", "SO₂ / Dose", "Unit", "SO₂ Ceiling (mg/L)", "SO₂ Compliance", "pH", "TA (g/L)", "Vessel", "Operator", "Notes", "Running SO₂ Total (mg/L)"];
 
@@ -2088,15 +2096,23 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
                           )}
                           {g.additions.length > 0 && (
                           <div className="rounded border divide-y bg-background">
+                            {/* Cell values come from the shared PRESS_ADDITIVE_COLUMNS definitions
+                                (via ADDITIVE_COL), the same source the batch-trail PDF/CSV render
+                                from — screen and downloads can no longer drift apart. */}
                             {g.additions.map((a, i) => (
                               <div key={i} className="px-3 py-2 space-y-0.5">
                                 <div className="flex items-center gap-3 text-xs">
                                   <Beaker className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                                  <span className="font-medium">{fmt(a.additive_name)}</span>
-                                  <span className="text-muted-foreground">{ADDITIVE_CATEGORY_LABELS[String(a.category)] ?? fmt(a.category)}</span>
-                                  <span className="text-muted-foreground font-mono ml-auto">{a.dose != null ? `${fmtNum(a.dose, 2)} ${fmt(a.unit)}` : "—"}</span>
+                                  <span className="font-medium">{ADDITIVE_COL.additive_name.pdfValue(a) || "—"}</span>
+                                  <span className="text-muted-foreground">{ADDITIVE_COL.category.pdfValue(a) || "—"}</span>
+                                  <span className="text-muted-foreground font-mono ml-auto">{a.dose != null && a.dose !== "" ? `${ADDITIVE_COL.dose.pdfValue(a)} ${ADDITIVE_COL.unit.pdfValue(a)}`.trim() : "—"}</span>
                                 </div>
-                                {!!a.notes && <p className="text-xs text-muted-foreground italic pl-6">{String(a.notes)}</p>}
+                                {!!a.notes && <p className="text-xs text-muted-foreground italic pl-6">{ADDITIVE_COL.notes.pdfValue(a)}</p>}
+                                {EXTRA_ADDITIVE_COLUMNS.map(col => (
+                                  <p key={col.field} className="text-xs text-muted-foreground pl-6">
+                                    <span className="uppercase tracking-wide font-semibold" style={{ fontSize: "10px" }}>{col.pdfLabel}:</span> {col.pdfValue(a) || "—"}
+                                  </p>
+                                ))}
                               </div>
                             ))}
                           </div>
@@ -5392,9 +5408,15 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                     {yearFilter === "all" && <th className="text-left p-2.5 font-medium">Vintage</th>}
                     <th className="text-left p-2.5 font-medium whitespace-nowrap">Wine Colour</th>
                     <th className="text-left p-2.5 font-medium">Stage</th>
-                    <th className="text-left p-2.5 font-medium">Additive</th>
-                    <th className="text-right p-2.5 font-medium">Dose</th>
-                    <th className="text-left p-2.5 font-medium">Unit</th>
+                    {/* Additive headers/cells come from the shared PRESS_ADDITIVE_COLUMNS
+                        definitions (ADDITIVE_COL) — the same source the Transaction Log
+                        CSV/PDF exports render from, so screen and downloads stay in sync. */}
+                    <th className={`text-${ADDITIVE_COL.additive_name.align} p-2.5 font-medium`}>{ADDITIVE_COL.additive_name.pdfLabel}</th>
+                    <th className={`text-${ADDITIVE_COL.dose.align} p-2.5 font-medium`}>{ADDITIVE_COL.dose.pdfLabel}</th>
+                    <th className={`text-${ADDITIVE_COL.unit.align} p-2.5 font-medium`}>{ADDITIVE_COL.unit.pdfLabel}</th>
+                    {EXTRA_ADDITIVE_COLUMNS.map(col => (
+                      <th key={col.field} className={`text-${col.align} p-2.5 font-medium`}>{col.pdfLabel}</th>
+                    ))}
                     <th className="text-right p-2.5 font-medium whitespace-nowrap">Dose Rate</th>
                     <th className="text-left p-2.5 font-medium">Operator</th>
                     <th className="text-left p-2.5 font-medium">Vessel</th>
@@ -5444,9 +5466,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                               {SOURCE_LABELS[src] ?? src}
                             </span>
                           </td>
-                          <td className="p-2.5">{fmt(row.additive_name)}</td>
-                          <td className="p-2.5 text-right font-mono">{row.dose != null && row.dose !== "" ? parseFloat(String(row.dose)).toFixed(2) : "—"}</td>
-                          <td className="p-2.5 text-xs text-muted-foreground">{fmt(row.unit)}</td>
+                          <td className={`p-2.5 text-${ADDITIVE_COL.additive_name.align}`}>{ADDITIVE_COL.additive_name.pdfValue(row) || "—"}</td>
+                          <td className={`p-2.5 text-${ADDITIVE_COL.dose.align} font-mono`}>{row.dose != null && row.dose !== "" ? ADDITIVE_COL.dose.pdfValue(row) : "—"}</td>
+                          <td className={`p-2.5 text-${ADDITIVE_COL.unit.align} text-xs text-muted-foreground`}>{ADDITIVE_COL.unit.pdfValue(row) || "—"}</td>
+                          {EXTRA_ADDITIVE_COLUMNS.map(col => (
+                            <td key={col.field} className={`p-2.5 text-${col.align} text-xs text-muted-foreground`}>{col.pdfValue(row) || "—"}</td>
+                          ))}
                           <td className="p-2.5 text-right">
                             {txDoseRateMgL != null ? (
                               <span
