@@ -7,4 +7,4 @@ description: Rule for passing date params in api-server raw-SQL routes after san
 
 **Why:** The drizzle "Failed query" log hides the pg root cause; the failure looks unrelated (e.g. blamed on adjacent SQL). The real error is only in `err.cause` (`cause.message`/`cause.code`) — log that when a raw-SQL route 500s mysteriously.
 
-**How to apply:** Any raw-SQL route writing `date` columns from a sanitised body; grep for the local date normaliser helper in the winery section of farms.ts and reuse the pattern.
+**How to apply:** Any raw-SQL route writing `date` columns from a sanitised body; reuse the `nd()` normaliser in farms.ts (winery section). All existing sanitised-body routes in farms.ts were swept and fixed (Aug 2026); apply `nd()` in any NEW route that String-coerces a sanitised date field. Routes using raw `req.body` (not sanitiseBody) are unaffected.

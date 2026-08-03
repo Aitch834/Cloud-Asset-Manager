@@ -32741,7 +32741,7 @@ router.post("/farms/:farmId/pig-vaccination-records", requireAuth, requireTenant
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(pigVaccinationRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, vaccinationDate: String(b.vaccinationDate ?? ""), vaccinationCategory: String(b.vaccinationCategory ?? ""), vaccineProduct: String(b.vaccineProduct ?? ""), batchNumber: b.batchNumber ? String(b.batchNumber) : null, expiryDate: b.expiryDate ? String(b.expiryDate) : null, ageGroupTreated: b.ageGroupTreated ? String(b.ageGroupTreated) : null, numberTreated: b.numberTreated ? Number(b.numberTreated) : null, doseVolumeMl: b.doseVolumeMl ? String(b.doseVolumeMl) : null, administrationRoute: b.administrationRoute ? String(b.administrationRoute) : null, withdrawalPeriodDays: b.withdrawalPeriodDays ? Number(b.withdrawalPeriodDays) : 0, nextDueDate: b.nextDueDate ? String(b.nextDueDate) : null, administeredBy: b.administeredBy ? String(b.administeredBy) : null, vetPrescribed: b.vetPrescribed === "true" || b.vetPrescribed === true, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await db.insert(pigVaccinationRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, vaccinationDate: (nd(b.vaccinationDate) ?? ""), vaccinationCategory: String(b.vaccinationCategory ?? ""), vaccineProduct: String(b.vaccineProduct ?? ""), batchNumber: b.batchNumber ? String(b.batchNumber) : null, expiryDate: nd(b.expiryDate), ageGroupTreated: b.ageGroupTreated ? String(b.ageGroupTreated) : null, numberTreated: b.numberTreated ? Number(b.numberTreated) : null, doseVolumeMl: b.doseVolumeMl ? String(b.doseVolumeMl) : null, administrationRoute: b.administrationRoute ? String(b.administrationRoute) : null, withdrawalPeriodDays: b.withdrawalPeriodDays ? Number(b.withdrawalPeriodDays) : 0, nextDueDate: nd(b.nextDueDate), administeredBy: b.administeredBy ? String(b.administeredBy) : null, vetPrescribed: b.vetPrescribed === "true" || b.vetPrescribed === true, notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ row });
 });
 router.put("/farms/:farmId/pig-vaccination-records/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -32750,17 +32750,17 @@ router.put("/farms/:farmId/pig-vaccination-records/:id", requireAuth, requireTen
   const id = Number(req.params.id);
   const b = sanitiseBody(req.body as Record<string, unknown>);
   const updates: Record<string, unknown> = {};
-  if (b.vaccinationDate !== undefined) updates.vaccinationDate = String(b.vaccinationDate);
+  if (b.vaccinationDate !== undefined) updates.vaccinationDate = nd(b.vaccinationDate);
   if (b.vaccinationCategory !== undefined) updates.vaccinationCategory = String(b.vaccinationCategory);
   if (b.vaccineProduct !== undefined) updates.vaccineProduct = String(b.vaccineProduct);
   if (b.batchNumber !== undefined) updates.batchNumber = b.batchNumber ? String(b.batchNumber) : null;
-  if (b.expiryDate !== undefined) updates.expiryDate = b.expiryDate ? String(b.expiryDate) : null;
+  if (b.expiryDate !== undefined) updates.expiryDate = nd(b.expiryDate);
   if (b.ageGroupTreated !== undefined) updates.ageGroupTreated = b.ageGroupTreated ? String(b.ageGroupTreated) : null;
   if (b.numberTreated !== undefined) updates.numberTreated = b.numberTreated ? Number(b.numberTreated) : null;
   if (b.doseVolumeMl !== undefined) updates.doseVolumeMl = b.doseVolumeMl ? String(b.doseVolumeMl) : null;
   if (b.administrationRoute !== undefined) updates.administrationRoute = b.administrationRoute ? String(b.administrationRoute) : null;
   if (b.withdrawalPeriodDays !== undefined) updates.withdrawalPeriodDays = Number(b.withdrawalPeriodDays ?? 0);
-  if (b.nextDueDate !== undefined) updates.nextDueDate = b.nextDueDate ? String(b.nextDueDate) : null;
+  if (b.nextDueDate !== undefined) updates.nextDueDate = nd(b.nextDueDate);
   if (b.administeredBy !== undefined) updates.administeredBy = b.administeredBy ? String(b.administeredBy) : null;
   if (b.vetPrescribed !== undefined) updates.vetPrescribed = b.vetPrescribed === "true" || b.vetPrescribed === true;
   if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
@@ -32793,7 +32793,7 @@ router.post("/farms/:farmId/pig-disease-monitoring", requireAuth, requireTenant,
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(pigDiseaseMonitoringTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, monitoringDate: String(b.monitoringDate ?? ""), monitoringType: String(b.monitoringType ?? ""), accreditationScheme: b.accreditationScheme ? String(b.accreditationScheme) : null, schemeReference: b.schemeReference ? String(b.schemeReference) : null, testingBody: b.testingBody ? String(b.testingBody) : null, numberOfSamples: b.numberOfSamples ? Number(b.numberOfSamples) : null, positiveResults: b.positiveResults ? Number(b.positiveResults) : 0, negativeResults: b.negativeResults ? Number(b.negativeResults) : 0, herdStatus: b.herdStatus ? String(b.herdStatus) : null, actionsTaken: b.actionsTaken ? String(b.actionsTaken) : null, nextTestDue: b.nextTestDue ? String(b.nextTestDue) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await db.insert(pigDiseaseMonitoringTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, monitoringDate: (nd(b.monitoringDate) ?? ""), monitoringType: String(b.monitoringType ?? ""), accreditationScheme: b.accreditationScheme ? String(b.accreditationScheme) : null, schemeReference: b.schemeReference ? String(b.schemeReference) : null, testingBody: b.testingBody ? String(b.testingBody) : null, numberOfSamples: b.numberOfSamples ? Number(b.numberOfSamples) : null, positiveResults: b.positiveResults ? Number(b.positiveResults) : 0, negativeResults: b.negativeResults ? Number(b.negativeResults) : 0, herdStatus: b.herdStatus ? String(b.herdStatus) : null, actionsTaken: b.actionsTaken ? String(b.actionsTaken) : null, nextTestDue: nd(b.nextTestDue), notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ row });
 });
 router.put("/farms/:farmId/pig-disease-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -32802,7 +32802,7 @@ router.put("/farms/:farmId/pig-disease-monitoring/:id", requireAuth, requireTena
   const id = Number(req.params.id);
   const b = sanitiseBody(req.body as Record<string, unknown>);
   const updates: Record<string, unknown> = {};
-  if (b.monitoringDate !== undefined) updates.monitoringDate = String(b.monitoringDate);
+  if (b.monitoringDate !== undefined) updates.monitoringDate = nd(b.monitoringDate);
   if (b.monitoringType !== undefined) updates.monitoringType = String(b.monitoringType);
   if (b.accreditationScheme !== undefined) updates.accreditationScheme = b.accreditationScheme ? String(b.accreditationScheme) : null;
   if (b.schemeReference !== undefined) updates.schemeReference = b.schemeReference ? String(b.schemeReference) : null;
@@ -32812,7 +32812,7 @@ router.put("/farms/:farmId/pig-disease-monitoring/:id", requireAuth, requireTena
   if (b.negativeResults !== undefined) updates.negativeResults = Number(b.negativeResults ?? 0);
   if (b.herdStatus !== undefined) updates.herdStatus = b.herdStatus ? String(b.herdStatus) : null;
   if (b.actionsTaken !== undefined) updates.actionsTaken = b.actionsTaken ? String(b.actionsTaken) : null;
-  if (b.nextTestDue !== undefined) updates.nextTestDue = b.nextTestDue ? String(b.nextTestDue) : null;
+  if (b.nextTestDue !== undefined) updates.nextTestDue = nd(b.nextTestDue);
   if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
   const [row] = await db.update(pigDiseaseMonitoringTable).set(updates).where(and(eq(pigDiseaseMonitoringTable.id, id), eq(pigDiseaseMonitoringTable.farmId, farmId))).returning();
   res.json({ row });
@@ -32853,7 +32853,7 @@ router.post("/farms/:farmId/poultry-vaccination-records", requireAuth, requireTe
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(poultryVaccinationRecordsTable).values({ farmId, flockId: b.flockId ? Number(b.flockId) : null, vaccinationDate: String(b.vaccinationDate ?? ""), vaccinationCategory: String(b.vaccinationCategory ?? ""), vaccineProduct: String(b.vaccineProduct ?? ""), batchNumber: b.batchNumber ? String(b.batchNumber) : null, expiryDate: b.expiryDate ? String(b.expiryDate) : null, ageGroupTreated: b.ageGroupTreated ? String(b.ageGroupTreated) : null, numberTreated: b.numberTreated ? Number(b.numberTreated) : null, doseVolume: b.doseVolume ? String(b.doseVolume) : null, administrationRoute: b.administrationRoute ? String(b.administrationRoute) : null, withdrawalPeriodDays: b.withdrawalPeriodDays ? Number(b.withdrawalPeriodDays) : 0, nextDueDate: b.nextDueDate ? String(b.nextDueDate) : null, administeredBy: b.administeredBy ? String(b.administeredBy) : null, vetPrescribed: b.vetPrescribed === "true" || b.vetPrescribed === true, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await db.insert(poultryVaccinationRecordsTable).values({ farmId, flockId: b.flockId ? Number(b.flockId) : null, vaccinationDate: (nd(b.vaccinationDate) ?? ""), vaccinationCategory: String(b.vaccinationCategory ?? ""), vaccineProduct: String(b.vaccineProduct ?? ""), batchNumber: b.batchNumber ? String(b.batchNumber) : null, expiryDate: nd(b.expiryDate), ageGroupTreated: b.ageGroupTreated ? String(b.ageGroupTreated) : null, numberTreated: b.numberTreated ? Number(b.numberTreated) : null, doseVolume: b.doseVolume ? String(b.doseVolume) : null, administrationRoute: b.administrationRoute ? String(b.administrationRoute) : null, withdrawalPeriodDays: b.withdrawalPeriodDays ? Number(b.withdrawalPeriodDays) : 0, nextDueDate: nd(b.nextDueDate), administeredBy: b.administeredBy ? String(b.administeredBy) : null, vetPrescribed: b.vetPrescribed === "true" || b.vetPrescribed === true, notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ row });
 });
 router.put("/farms/:farmId/poultry-vaccination-records/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -32862,17 +32862,17 @@ router.put("/farms/:farmId/poultry-vaccination-records/:id", requireAuth, requir
   const id = Number(req.params.id);
   const b = sanitiseBody(req.body as Record<string, unknown>);
   const updates: Record<string, unknown> = {};
-  if (b.vaccinationDate !== undefined) updates.vaccinationDate = String(b.vaccinationDate);
+  if (b.vaccinationDate !== undefined) updates.vaccinationDate = nd(b.vaccinationDate);
   if (b.vaccinationCategory !== undefined) updates.vaccinationCategory = String(b.vaccinationCategory);
   if (b.vaccineProduct !== undefined) updates.vaccineProduct = String(b.vaccineProduct);
   if (b.batchNumber !== undefined) updates.batchNumber = b.batchNumber ? String(b.batchNumber) : null;
-  if (b.expiryDate !== undefined) updates.expiryDate = b.expiryDate ? String(b.expiryDate) : null;
+  if (b.expiryDate !== undefined) updates.expiryDate = nd(b.expiryDate);
   if (b.ageGroupTreated !== undefined) updates.ageGroupTreated = b.ageGroupTreated ? String(b.ageGroupTreated) : null;
   if (b.numberTreated !== undefined) updates.numberTreated = b.numberTreated ? Number(b.numberTreated) : null;
   if (b.doseVolume !== undefined) updates.doseVolume = b.doseVolume ? String(b.doseVolume) : null;
   if (b.administrationRoute !== undefined) updates.administrationRoute = b.administrationRoute ? String(b.administrationRoute) : null;
   if (b.withdrawalPeriodDays !== undefined) updates.withdrawalPeriodDays = Number(b.withdrawalPeriodDays ?? 0);
-  if (b.nextDueDate !== undefined) updates.nextDueDate = b.nextDueDate ? String(b.nextDueDate) : null;
+  if (b.nextDueDate !== undefined) updates.nextDueDate = nd(b.nextDueDate);
   if (b.administeredBy !== undefined) updates.administeredBy = b.administeredBy ? String(b.administeredBy) : null;
   if (b.vetPrescribed !== undefined) updates.vetPrescribed = b.vetPrescribed === "true" || b.vetPrescribed === true;
   if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
@@ -32905,7 +32905,7 @@ router.post("/farms/:farmId/poultry-disease-monitoring", requireAuth, requireTen
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(poultryDiseaseMonitoringTable).values({ farmId, flockId: b.flockId ? Number(b.flockId) : null, monitoringDate: String(b.monitoringDate ?? ""), monitoringType: String(b.monitoringType ?? ""), testingBody: b.testingBody ? String(b.testingBody) : null, numberOfSamples: b.numberOfSamples ? Number(b.numberOfSamples) : null, positiveResults: b.positiveResults ? Number(b.positiveResults) : 0, negativeResults: b.negativeResults ? Number(b.negativeResults) : 0, flockStatus: b.flockStatus ? String(b.flockStatus) : null, aiRiskLevel: b.aiRiskLevel ? String(b.aiRiskLevel) : null, actionsTaken: b.actionsTaken ? String(b.actionsTaken) : null, nextTestDue: b.nextTestDue ? String(b.nextTestDue) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await db.insert(poultryDiseaseMonitoringTable).values({ farmId, flockId: b.flockId ? Number(b.flockId) : null, monitoringDate: (nd(b.monitoringDate) ?? ""), monitoringType: String(b.monitoringType ?? ""), testingBody: b.testingBody ? String(b.testingBody) : null, numberOfSamples: b.numberOfSamples ? Number(b.numberOfSamples) : null, positiveResults: b.positiveResults ? Number(b.positiveResults) : 0, negativeResults: b.negativeResults ? Number(b.negativeResults) : 0, flockStatus: b.flockStatus ? String(b.flockStatus) : null, aiRiskLevel: b.aiRiskLevel ? String(b.aiRiskLevel) : null, actionsTaken: b.actionsTaken ? String(b.actionsTaken) : null, nextTestDue: nd(b.nextTestDue), notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ row });
 });
 router.put("/farms/:farmId/poultry-disease-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -32914,7 +32914,7 @@ router.put("/farms/:farmId/poultry-disease-monitoring/:id", requireAuth, require
   const id = Number(req.params.id);
   const b = sanitiseBody(req.body as Record<string, unknown>);
   const updates: Record<string, unknown> = {};
-  if (b.monitoringDate !== undefined) updates.monitoringDate = String(b.monitoringDate);
+  if (b.monitoringDate !== undefined) updates.monitoringDate = nd(b.monitoringDate);
   if (b.monitoringType !== undefined) updates.monitoringType = String(b.monitoringType);
   if (b.testingBody !== undefined) updates.testingBody = b.testingBody ? String(b.testingBody) : null;
   if (b.numberOfSamples !== undefined) updates.numberOfSamples = b.numberOfSamples ? Number(b.numberOfSamples) : null;
@@ -32923,7 +32923,7 @@ router.put("/farms/:farmId/poultry-disease-monitoring/:id", requireAuth, require
   if (b.flockStatus !== undefined) updates.flockStatus = b.flockStatus ? String(b.flockStatus) : null;
   if (b.aiRiskLevel !== undefined) updates.aiRiskLevel = b.aiRiskLevel ? String(b.aiRiskLevel) : null;
   if (b.actionsTaken !== undefined) updates.actionsTaken = b.actionsTaken ? String(b.actionsTaken) : null;
-  if (b.nextTestDue !== undefined) updates.nextTestDue = b.nextTestDue ? String(b.nextTestDue) : null;
+  if (b.nextTestDue !== undefined) updates.nextTestDue = nd(b.nextTestDue);
   if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
   const [row] = await db.update(poultryDiseaseMonitoringTable).set(updates).where(and(eq(poultryDiseaseMonitoringTable.id, id), eq(poultryDiseaseMonitoringTable.farmId, farmId))).returning();
   res.json({ row });
@@ -35265,7 +35265,7 @@ router.post("/farms/:farmId/goat-mating-records", requireAuth, requireTenant, re
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(goatMatingRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, matingStartDate: String(b.matingStartDate ?? ""), matingEndDate: b.matingEndDate ? String(b.matingEndDate) : null, buckEarTag: b.buckEarTag ? String(b.buckEarTag) : null, buckBreed: b.buckBreed ? String(b.buckBreed) : null, buckOwner: b.buckOwner ? String(b.buckOwner) : null, buckHiredOrOwned: b.buckHiredOrOwned ? String(b.buckHiredOrOwned) : "owned", doesExposed: b.doesExposed ? Number(b.doesExposed) : null, expectedKiddingDate: b.expectedKiddingDate ? String(b.expectedKiddingDate) : null, progesteroneSpongeUsed: b.progesteroneSpongeUsed === "true" || b.progesteroneSpongeUsed === true, matingMethod: b.matingMethod ? String(b.matingMethod) : "natural", notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await db.insert(goatMatingRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, matingStartDate: (nd(b.matingStartDate) ?? ""), matingEndDate: nd(b.matingEndDate), buckEarTag: b.buckEarTag ? String(b.buckEarTag) : null, buckBreed: b.buckBreed ? String(b.buckBreed) : null, buckOwner: b.buckOwner ? String(b.buckOwner) : null, buckHiredOrOwned: b.buckHiredOrOwned ? String(b.buckHiredOrOwned) : "owned", doesExposed: b.doesExposed ? Number(b.doesExposed) : null, expectedKiddingDate: nd(b.expectedKiddingDate), progesteroneSpongeUsed: b.progesteroneSpongeUsed === "true" || b.progesteroneSpongeUsed === true, matingMethod: b.matingMethod ? String(b.matingMethod) : "natural", notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ row });
 });
 router.put("/farms/:farmId/goat-mating-records/:id", requireAuth, requireTenant, requireModuleByKey("goat-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -35274,14 +35274,14 @@ router.put("/farms/:farmId/goat-mating-records/:id", requireAuth, requireTenant,
   const id = Number(req.params.id);
   const b = sanitiseBody(req.body as Record<string, unknown>);
   const updates: Record<string, unknown> = {};
-  if (b.matingStartDate !== undefined) updates.matingStartDate = String(b.matingStartDate);
-  if (b.matingEndDate !== undefined) updates.matingEndDate = b.matingEndDate ? String(b.matingEndDate) : null;
+  if (b.matingStartDate !== undefined) updates.matingStartDate = nd(b.matingStartDate);
+  if (b.matingEndDate !== undefined) updates.matingEndDate = nd(b.matingEndDate);
   if (b.buckEarTag !== undefined) updates.buckEarTag = b.buckEarTag ? String(b.buckEarTag) : null;
   if (b.buckBreed !== undefined) updates.buckBreed = b.buckBreed ? String(b.buckBreed) : null;
   if (b.buckOwner !== undefined) updates.buckOwner = b.buckOwner ? String(b.buckOwner) : null;
   if (b.buckHiredOrOwned !== undefined) updates.buckHiredOrOwned = String(b.buckHiredOrOwned);
   if (b.doesExposed !== undefined) updates.doesExposed = b.doesExposed ? Number(b.doesExposed) : null;
-  if (b.expectedKiddingDate !== undefined) updates.expectedKiddingDate = b.expectedKiddingDate ? String(b.expectedKiddingDate) : null;
+  if (b.expectedKiddingDate !== undefined) updates.expectedKiddingDate = nd(b.expectedKiddingDate);
   if (b.progesteroneSpongeUsed !== undefined) updates.progesteroneSpongeUsed = b.progesteroneSpongeUsed === "true" || b.progesteroneSpongeUsed === true;
   if (b.matingMethod !== undefined) updates.matingMethod = String(b.matingMethod);
   if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
@@ -35306,7 +35306,7 @@ router.post("/farms/:farmId/goat-scanning-records", requireAuth, requireTenant, 
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(goatScanningRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, scanDate: String(b.scanDate ?? ""), scannerName: b.scannerName ? String(b.scannerName) : null, scannerCompany: b.scannerCompany ? String(b.scannerCompany) : null, totalDoesScanned: Number(b.totalDoesScanned ?? 0), doesBarren: b.doesBarren ? Number(b.doesBarren) : 0, doesSingles: b.doesSingles ? Number(b.doesSingles) : 0, doesDoubles: b.doesDoubles ? Number(b.doesDoubles) : 0, doesTriples: b.doesTriples ? Number(b.doesTriples) : 0, expectedTotalKids: b.expectedTotalKids ? Number(b.expectedTotalKids) : null, scanningPercentage: b.scanningPercentage ? String(b.scanningPercentage) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await db.insert(goatScanningRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, scanDate: (nd(b.scanDate) ?? ""), scannerName: b.scannerName ? String(b.scannerName) : null, scannerCompany: b.scannerCompany ? String(b.scannerCompany) : null, totalDoesScanned: Number(b.totalDoesScanned ?? 0), doesBarren: b.doesBarren ? Number(b.doesBarren) : 0, doesSingles: b.doesSingles ? Number(b.doesSingles) : 0, doesDoubles: b.doesDoubles ? Number(b.doesDoubles) : 0, doesTriples: b.doesTriples ? Number(b.doesTriples) : 0, expectedTotalKids: b.expectedTotalKids ? Number(b.expectedTotalKids) : null, scanningPercentage: b.scanningPercentage ? String(b.scanningPercentage) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ row });
 });
 router.put("/farms/:farmId/goat-scanning-records/:id", requireAuth, requireTenant, requireModuleByKey("goat-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -35315,7 +35315,7 @@ router.put("/farms/:farmId/goat-scanning-records/:id", requireAuth, requireTenan
   const id = Number(req.params.id);
   const b = sanitiseBody(req.body as Record<string, unknown>);
   const updates: Record<string, unknown> = {};
-  if (b.scanDate !== undefined) updates.scanDate = String(b.scanDate);
+  if (b.scanDate !== undefined) updates.scanDate = nd(b.scanDate);
   if (b.scannerName !== undefined) updates.scannerName = b.scannerName ? String(b.scannerName) : null;
   if (b.scannerCompany !== undefined) updates.scannerCompany = b.scannerCompany ? String(b.scannerCompany) : null;
   if (b.totalDoesScanned !== undefined) updates.totalDoesScanned = Number(b.totalDoesScanned);
@@ -35347,7 +35347,7 @@ router.post("/farms/:farmId/goat-weigh-records", requireAuth, requireTenant, req
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(goatWeighRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, weighDate: String(b.weighDate ?? ""), weighType: b.weighType ? String(b.weighType) : "routine", weighedBy: b.weighedBy ? String(b.weighedBy) : null, ageClassWeighed: b.ageClassWeighed ? String(b.ageClassWeighed) : null, numberWeighed: Number(b.numberWeighed ?? 0), averageWeightKg: b.averageWeightKg ? String(b.averageWeightKg) : null, lowestWeightKg: b.lowestWeightKg ? String(b.lowestWeightKg) : null, highestWeightKg: b.highestWeightKg ? String(b.highestWeightKg) : null, targetWeightKg: b.targetWeightKg ? String(b.targetWeightKg) : null, dlwgGPerDay: b.dlwgGPerDay ? String(b.dlwgGPerDay) : null, daysSincePreviousWeigh: b.daysSincePreviousWeigh ? Number(b.daysSincePreviousWeigh) : null, bodyConditionScore: b.bodyConditionScore ? String(b.bodyConditionScore) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await db.insert(goatWeighRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, weighDate: (nd(b.weighDate) ?? ""), weighType: b.weighType ? String(b.weighType) : "routine", weighedBy: b.weighedBy ? String(b.weighedBy) : null, ageClassWeighed: b.ageClassWeighed ? String(b.ageClassWeighed) : null, numberWeighed: Number(b.numberWeighed ?? 0), averageWeightKg: b.averageWeightKg ? String(b.averageWeightKg) : null, lowestWeightKg: b.lowestWeightKg ? String(b.lowestWeightKg) : null, highestWeightKg: b.highestWeightKg ? String(b.highestWeightKg) : null, targetWeightKg: b.targetWeightKg ? String(b.targetWeightKg) : null, dlwgGPerDay: b.dlwgGPerDay ? String(b.dlwgGPerDay) : null, daysSincePreviousWeigh: b.daysSincePreviousWeigh ? Number(b.daysSincePreviousWeigh) : null, bodyConditionScore: b.bodyConditionScore ? String(b.bodyConditionScore) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ row });
 });
 router.put("/farms/:farmId/goat-weigh-records/:id", requireAuth, requireTenant, requireModuleByKey("goat-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -35356,7 +35356,7 @@ router.put("/farms/:farmId/goat-weigh-records/:id", requireAuth, requireTenant, 
   const id = Number(req.params.id);
   const b = sanitiseBody(req.body as Record<string, unknown>);
   const updates: Record<string, unknown> = {};
-  if (b.weighDate !== undefined) updates.weighDate = String(b.weighDate);
+  if (b.weighDate !== undefined) updates.weighDate = nd(b.weighDate);
   if (b.weighType !== undefined) updates.weighType = String(b.weighType);
   if (b.weighedBy !== undefined) updates.weighedBy = b.weighedBy ? String(b.weighedBy) : null;
   if (b.ageClassWeighed !== undefined) updates.ageClassWeighed = b.ageClassWeighed ? String(b.ageClassWeighed) : null;
@@ -35390,7 +35390,7 @@ router.post("/farms/:farmId/goat-cull-records", requireAuth, requireTenant, requ
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(goatCullRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, cullDate: String(b.cullDate ?? ""), numberCulled: Number(b.numberCulled ?? 1), ageClass: b.ageClass ? String(b.ageClass) : null, reasonForCulling: String(b.reasonForCulling ?? ""), destination: String(b.destination ?? ""), destinationCph: b.destinationCph ? String(b.destinationCph) : null, averageLiveWeightKg: b.averageLiveWeightKg ? String(b.averageLiveWeightKg) : null, averageDeadweightKg: b.averageDeadweightKg ? String(b.averageDeadweightKg) : null, deadweightKilloutPercent: b.deadweightKilloutPercent ? String(b.deadweightKilloutPercent) : null, pricePerHeadGbp: b.pricePerHeadGbp ? String(b.pricePerHeadGbp) : null, totalValueGbp: b.totalValueGbp ? String(b.totalValueGbp) : null, abattoirName: b.abattoirName ? String(b.abattoirName) : null, finishGrade: b.finishGrade ? String(b.finishGrade) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await db.insert(goatCullRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, cullDate: (nd(b.cullDate) ?? ""), numberCulled: Number(b.numberCulled ?? 1), ageClass: b.ageClass ? String(b.ageClass) : null, reasonForCulling: String(b.reasonForCulling ?? ""), destination: String(b.destination ?? ""), destinationCph: b.destinationCph ? String(b.destinationCph) : null, averageLiveWeightKg: b.averageLiveWeightKg ? String(b.averageLiveWeightKg) : null, averageDeadweightKg: b.averageDeadweightKg ? String(b.averageDeadweightKg) : null, deadweightKilloutPercent: b.deadweightKilloutPercent ? String(b.deadweightKilloutPercent) : null, pricePerHeadGbp: b.pricePerHeadGbp ? String(b.pricePerHeadGbp) : null, totalValueGbp: b.totalValueGbp ? String(b.totalValueGbp) : null, abattoirName: b.abattoirName ? String(b.abattoirName) : null, finishGrade: b.finishGrade ? String(b.finishGrade) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ row });
 });
 router.put("/farms/:farmId/goat-cull-records/:id", requireAuth, requireTenant, requireModuleByKey("goat-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -35399,7 +35399,7 @@ router.put("/farms/:farmId/goat-cull-records/:id", requireAuth, requireTenant, r
   const id = Number(req.params.id);
   const b = sanitiseBody(req.body as Record<string, unknown>);
   const updates: Record<string, unknown> = {};
-  if (b.cullDate !== undefined) updates.cullDate = String(b.cullDate);
+  if (b.cullDate !== undefined) updates.cullDate = nd(b.cullDate);
   if (b.numberCulled !== undefined) updates.numberCulled = Number(b.numberCulled);
   if (b.ageClass !== undefined) updates.ageClass = b.ageClass ? String(b.ageClass) : null;
   if (b.reasonForCulling !== undefined) updates.reasonForCulling = String(b.reasonForCulling);
@@ -35434,7 +35434,7 @@ router.post("/farms/:farmId/goat-vaccination-programmes", requireAuth, requireTe
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(goatVaccinationProgrammesTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, vaccinationDate: String(b.vaccinationDate ?? ""), vaccineProduct: String(b.vaccineProduct ?? ""), vaccinationCategory: String(b.vaccinationCategory ?? ""), batchNumber: b.batchNumber ? String(b.batchNumber) : null, expiryDate: b.expiryDate ? String(b.expiryDate) : null, numberTreated: Number(b.numberTreated ?? 0), ageClassTreated: b.ageClassTreated ? String(b.ageClassTreated) : null, doseVolumeMl: b.doseVolumeMl ? String(b.doseVolumeMl) : null, administrationRoute: b.administrationRoute ? String(b.administrationRoute) : null, withdrawalPeriodDays: b.withdrawalPeriodDays ? Number(b.withdrawalPeriodDays) : 0, nextDueDate: b.nextDueDate ? String(b.nextDueDate) : null, administeredBy: b.administeredBy ? String(b.administeredBy) : null, vetPrescribed: b.vetPrescribed === "true" || b.vetPrescribed === true, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await db.insert(goatVaccinationProgrammesTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, vaccinationDate: (nd(b.vaccinationDate) ?? ""), vaccineProduct: String(b.vaccineProduct ?? ""), vaccinationCategory: String(b.vaccinationCategory ?? ""), batchNumber: b.batchNumber ? String(b.batchNumber) : null, expiryDate: nd(b.expiryDate), numberTreated: Number(b.numberTreated ?? 0), ageClassTreated: b.ageClassTreated ? String(b.ageClassTreated) : null, doseVolumeMl: b.doseVolumeMl ? String(b.doseVolumeMl) : null, administrationRoute: b.administrationRoute ? String(b.administrationRoute) : null, withdrawalPeriodDays: b.withdrawalPeriodDays ? Number(b.withdrawalPeriodDays) : 0, nextDueDate: nd(b.nextDueDate), administeredBy: b.administeredBy ? String(b.administeredBy) : null, vetPrescribed: b.vetPrescribed === "true" || b.vetPrescribed === true, notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ row });
 });
 router.put("/farms/:farmId/goat-vaccination-programmes/:id", requireAuth, requireTenant, requireModuleByKey("goat-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -35443,17 +35443,17 @@ router.put("/farms/:farmId/goat-vaccination-programmes/:id", requireAuth, requir
   const id = Number(req.params.id);
   const b = sanitiseBody(req.body as Record<string, unknown>);
   const updates: Record<string, unknown> = {};
-  if (b.vaccinationDate !== undefined) updates.vaccinationDate = String(b.vaccinationDate);
+  if (b.vaccinationDate !== undefined) updates.vaccinationDate = nd(b.vaccinationDate);
   if (b.vaccineProduct !== undefined) updates.vaccineProduct = String(b.vaccineProduct);
   if (b.vaccinationCategory !== undefined) updates.vaccinationCategory = String(b.vaccinationCategory);
   if (b.batchNumber !== undefined) updates.batchNumber = b.batchNumber ? String(b.batchNumber) : null;
-  if (b.expiryDate !== undefined) updates.expiryDate = b.expiryDate ? String(b.expiryDate) : null;
+  if (b.expiryDate !== undefined) updates.expiryDate = nd(b.expiryDate);
   if (b.numberTreated !== undefined) updates.numberTreated = Number(b.numberTreated);
   if (b.ageClassTreated !== undefined) updates.ageClassTreated = b.ageClassTreated ? String(b.ageClassTreated) : null;
   if (b.doseVolumeMl !== undefined) updates.doseVolumeMl = b.doseVolumeMl ? String(b.doseVolumeMl) : null;
   if (b.administrationRoute !== undefined) updates.administrationRoute = b.administrationRoute ? String(b.administrationRoute) : null;
   if (b.withdrawalPeriodDays !== undefined) updates.withdrawalPeriodDays = Number(b.withdrawalPeriodDays ?? 0);
-  if (b.nextDueDate !== undefined) updates.nextDueDate = b.nextDueDate ? String(b.nextDueDate) : null;
+  if (b.nextDueDate !== undefined) updates.nextDueDate = nd(b.nextDueDate);
   if (b.administeredBy !== undefined) updates.administeredBy = b.administeredBy ? String(b.administeredBy) : null;
   if (b.vetPrescribed !== undefined) updates.vetPrescribed = b.vetPrescribed === "true" || b.vetPrescribed === true;
   if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
@@ -35478,7 +35478,7 @@ router.post("/farms/:farmId/goat-disease-monitoring", requireAuth, requireTenant
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(goatDiseaseMonitoringTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, monitoringDate: String(b.monitoringDate ?? ""), monitoringType: String(b.monitoringType ?? ""), schemeReference: b.schemeReference ? String(b.schemeReference) : null, testingBody: b.testingBody ? String(b.testingBody) : null, numberOfSamples: b.numberOfSamples ? Number(b.numberOfSamples) : null, positiveResults: b.positiveResults ? Number(b.positiveResults) : 0, negativeResults: b.negativeResults ? Number(b.negativeResults) : 0, status: b.status ? String(b.status) : "pending", actionsTaken: b.actionsTaken ? String(b.actionsTaken) : null, nextTestDue: b.nextTestDue ? String(b.nextTestDue) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await db.insert(goatDiseaseMonitoringTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, monitoringDate: (nd(b.monitoringDate) ?? ""), monitoringType: String(b.monitoringType ?? ""), schemeReference: b.schemeReference ? String(b.schemeReference) : null, testingBody: b.testingBody ? String(b.testingBody) : null, numberOfSamples: b.numberOfSamples ? Number(b.numberOfSamples) : null, positiveResults: b.positiveResults ? Number(b.positiveResults) : 0, negativeResults: b.negativeResults ? Number(b.negativeResults) : 0, status: b.status ? String(b.status) : "pending", actionsTaken: b.actionsTaken ? String(b.actionsTaken) : null, nextTestDue: nd(b.nextTestDue), notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ row });
 });
 router.put("/farms/:farmId/goat-disease-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("goat-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -35487,7 +35487,7 @@ router.put("/farms/:farmId/goat-disease-monitoring/:id", requireAuth, requireTen
   const id = Number(req.params.id);
   const b = sanitiseBody(req.body as Record<string, unknown>);
   const updates: Record<string, unknown> = {};
-  if (b.monitoringDate !== undefined) updates.monitoringDate = String(b.monitoringDate);
+  if (b.monitoringDate !== undefined) updates.monitoringDate = nd(b.monitoringDate);
   if (b.monitoringType !== undefined) updates.monitoringType = String(b.monitoringType);
   if (b.schemeReference !== undefined) updates.schemeReference = b.schemeReference ? String(b.schemeReference) : null;
   if (b.testingBody !== undefined) updates.testingBody = b.testingBody ? String(b.testingBody) : null;
@@ -35496,7 +35496,7 @@ router.put("/farms/:farmId/goat-disease-monitoring/:id", requireAuth, requireTen
   if (b.negativeResults !== undefined) updates.negativeResults = Number(b.negativeResults ?? 0);
   if (b.status !== undefined) updates.status = String(b.status);
   if (b.actionsTaken !== undefined) updates.actionsTaken = b.actionsTaken ? String(b.actionsTaken) : null;
-  if (b.nextTestDue !== undefined) updates.nextTestDue = b.nextTestDue ? String(b.nextTestDue) : null;
+  if (b.nextTestDue !== undefined) updates.nextTestDue = nd(b.nextTestDue);
   if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
   const [row] = await db.update(goatDiseaseMonitoringTable).set(updates).where(and(eq(goatDiseaseMonitoringTable.id, id), eq(goatDiseaseMonitoringTable.farmId, farmId))).returning();
   res.json({ row });
@@ -35519,7 +35519,7 @@ router.post("/farms/:farmId/venison-cull-records", requireAuth, requireTenant, r
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(venisonCullRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, cullDate: String(b.cullDate ?? ""), stalkerName: b.stalkerName ? String(b.stalkerName) : null, species: String(b.species ?? ""), sex: b.sex ? String(b.sex) : null, ageClass: b.ageClass ? String(b.ageClass) : null, locationBeat: b.locationBeat ? String(b.locationBeat) : null, larderNumber: b.larderNumber ? String(b.larderNumber) : null, carcassNumber: b.carcassNumber ? String(b.carcassNumber) : null, liveweightKg: b.liveweightKg ? String(b.liveweightKg) : null, grallochWeightKg: b.grallochWeightKg ? String(b.grallochWeightKg) : null, carcassWeightKg: b.carcassWeightKg ? String(b.carcassWeightKg) : null, killoutPercent: b.killoutPercent ? String(b.killoutPercent) : null, cullMethod: b.cullMethod ? String(b.cullMethod) : "rifle", cullReason: String(b.cullReason ?? ""), foodSafetyInspectionResult: b.foodSafetyInspectionResult ? String(b.foodSafetyInspectionResult) : "passed", notifiableDiseaseSupect: b.notifiableDiseaseSupect === true || b.notifiableDiseaseSupect === "true", notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await db.insert(venisonCullRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, cullDate: (nd(b.cullDate) ?? ""), stalkerName: b.stalkerName ? String(b.stalkerName) : null, species: String(b.species ?? ""), sex: b.sex ? String(b.sex) : null, ageClass: b.ageClass ? String(b.ageClass) : null, locationBeat: b.locationBeat ? String(b.locationBeat) : null, larderNumber: b.larderNumber ? String(b.larderNumber) : null, carcassNumber: b.carcassNumber ? String(b.carcassNumber) : null, liveweightKg: b.liveweightKg ? String(b.liveweightKg) : null, grallochWeightKg: b.grallochWeightKg ? String(b.grallochWeightKg) : null, carcassWeightKg: b.carcassWeightKg ? String(b.carcassWeightKg) : null, killoutPercent: b.killoutPercent ? String(b.killoutPercent) : null, cullMethod: b.cullMethod ? String(b.cullMethod) : "rifle", cullReason: String(b.cullReason ?? ""), foodSafetyInspectionResult: b.foodSafetyInspectionResult ? String(b.foodSafetyInspectionResult) : "passed", notifiableDiseaseSupect: b.notifiableDiseaseSupect === true || b.notifiableDiseaseSupect === "true", notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ row });
 });
 router.put("/farms/:farmId/venison-cull-records/:id", requireAuth, requireTenant, requireModuleByKey("venison-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -35528,7 +35528,7 @@ router.put("/farms/:farmId/venison-cull-records/:id", requireAuth, requireTenant
   const id = Number(req.params.id);
   const b = sanitiseBody(req.body as Record<string, unknown>);
   const updates: Record<string, unknown> = {};
-  if (b.cullDate !== undefined) updates.cullDate = String(b.cullDate);
+  if (b.cullDate !== undefined) updates.cullDate = nd(b.cullDate);
   if (b.herdId !== undefined) updates.herdId = b.herdId ? Number(b.herdId) : null;
   if (b.stalkerName !== undefined) updates.stalkerName = b.stalkerName ? String(b.stalkerName) : null;
   if (b.species !== undefined) updates.species = String(b.species);
@@ -35567,7 +35567,7 @@ router.post("/farms/:farmId/venison-carcass-sales", requireAuth, requireTenant, 
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(venisonCarcassSalesTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, saleDate: String(b.saleDate ?? ""), facilityType: String(b.facilityType ?? ""), species: b.species ? String(b.species) : null, numberCarcasses: Number(b.numberCarcasses ?? 0), carcassNumbers: b.carcassNumbers ? String(b.carcassNumbers) : null, gradeOrQuality: b.gradeOrQuality ? String(b.gradeOrQuality) : null, destinationType: String(b.destinationType ?? ""), buyerName: b.buyerName ? String(b.buyerName) : null, pricePerKgGbp: b.pricePerKgGbp ? String(b.pricePerKgGbp) : null, totalWeightKg: b.totalWeightKg ? String(b.totalWeightKg) : null, totalValueGbp: b.totalValueGbp ? String(b.totalValueGbp) : null, invoiceReference: b.invoiceReference ? String(b.invoiceReference) : null, wildGameDeclarationNumber: b.wildGameDeclarationNumber ? String(b.wildGameDeclarationNumber) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await db.insert(venisonCarcassSalesTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, saleDate: (nd(b.saleDate) ?? ""), facilityType: String(b.facilityType ?? ""), species: b.species ? String(b.species) : null, numberCarcasses: Number(b.numberCarcasses ?? 0), carcassNumbers: b.carcassNumbers ? String(b.carcassNumbers) : null, gradeOrQuality: b.gradeOrQuality ? String(b.gradeOrQuality) : null, destinationType: String(b.destinationType ?? ""), buyerName: b.buyerName ? String(b.buyerName) : null, pricePerKgGbp: b.pricePerKgGbp ? String(b.pricePerKgGbp) : null, totalWeightKg: b.totalWeightKg ? String(b.totalWeightKg) : null, totalValueGbp: b.totalValueGbp ? String(b.totalValueGbp) : null, invoiceReference: b.invoiceReference ? String(b.invoiceReference) : null, wildGameDeclarationNumber: b.wildGameDeclarationNumber ? String(b.wildGameDeclarationNumber) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ row });
 });
 router.put("/farms/:farmId/venison-carcass-sales/:id", requireAuth, requireTenant, requireModuleByKey("venison-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -35576,7 +35576,7 @@ router.put("/farms/:farmId/venison-carcass-sales/:id", requireAuth, requireTenan
   const id = Number(req.params.id);
   const b = sanitiseBody(req.body as Record<string, unknown>);
   const updates: Record<string, unknown> = {};
-  if (b.saleDate !== undefined) updates.saleDate = String(b.saleDate);
+  if (b.saleDate !== undefined) updates.saleDate = nd(b.saleDate);
   if (b.herdId !== undefined) updates.herdId = b.herdId ? Number(b.herdId) : null;
   if (b.facilityType !== undefined) updates.facilityType = String(b.facilityType);
   if (b.species !== undefined) updates.species = b.species ? String(b.species) : null;
@@ -35612,7 +35612,7 @@ router.post("/farms/:farmId/venison-herd-monitoring", requireAuth, requireTenant
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(venisonHerdMonitoringTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, surveyDate: String(b.surveyDate ?? ""), surveyMethod: String(b.surveyMethod ?? ""), species: b.species ? String(b.species) : null, maleCount: b.maleCount ? Number(b.maleCount) : null, femaleCount: b.femaleCount ? Number(b.femaleCount) : null, youngCount: b.youngCount ? Number(b.youngCount) : null, totalCount: b.totalCount ? Number(b.totalCount) : null, maleFemaleRatio: b.maleFemaleRatio ? String(b.maleFemaleRatio) : null, recruitmentRatePercent: b.recruitmentRatePercent ? String(b.recruitmentRatePercent) : null, observedBy: b.observedBy ? String(b.observedBy) : null, weatherConditions: b.weatherConditions ? String(b.weatherConditions) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await db.insert(venisonHerdMonitoringTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, surveyDate: (nd(b.surveyDate) ?? ""), surveyMethod: String(b.surveyMethod ?? ""), species: b.species ? String(b.species) : null, maleCount: b.maleCount ? Number(b.maleCount) : null, femaleCount: b.femaleCount ? Number(b.femaleCount) : null, youngCount: b.youngCount ? Number(b.youngCount) : null, totalCount: b.totalCount ? Number(b.totalCount) : null, maleFemaleRatio: b.maleFemaleRatio ? String(b.maleFemaleRatio) : null, recruitmentRatePercent: b.recruitmentRatePercent ? String(b.recruitmentRatePercent) : null, observedBy: b.observedBy ? String(b.observedBy) : null, weatherConditions: b.weatherConditions ? String(b.weatherConditions) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ row });
 });
 router.put("/farms/:farmId/venison-herd-monitoring/:id", requireAuth, requireTenant, requireModuleByKey("venison-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -35621,7 +35621,7 @@ router.put("/farms/:farmId/venison-herd-monitoring/:id", requireAuth, requireTen
   const id = Number(req.params.id);
   const b = sanitiseBody(req.body as Record<string, unknown>);
   const updates: Record<string, unknown> = {};
-  if (b.surveyDate !== undefined) updates.surveyDate = String(b.surveyDate);
+  if (b.surveyDate !== undefined) updates.surveyDate = nd(b.surveyDate);
   if (b.herdId !== undefined) updates.herdId = b.herdId ? Number(b.herdId) : null;
   if (b.surveyMethod !== undefined) updates.surveyMethod = String(b.surveyMethod);
   if (b.species !== undefined) updates.species = b.species ? String(b.species) : null;
@@ -35655,7 +35655,7 @@ router.post("/farms/:farmId/venison-health-records", requireAuth, requireTenant,
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(venisonHealthRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, eventDate: String(b.eventDate ?? ""), healthEventType: String(b.healthEventType ?? ""), productOrDescription: b.productOrDescription ? String(b.productOrDescription) : null, batchNumber: b.batchNumber ? String(b.batchNumber) : null, numberTreated: b.numberTreated ? Number(b.numberTreated) : null, withdrawalPeriodDays: b.withdrawalPeriodDays ? Number(b.withdrawalPeriodDays) : 0, btbTestResult: b.btbTestResult ? String(b.btbTestResult) : null, aphaReference: b.aphaReference ? String(b.aphaReference) : null, vetName: b.vetName ? String(b.vetName) : null, vetPrescribed: b.vetPrescribed === true || b.vetPrescribed === "true", notifiableDiseaseSupect: b.notifiableDiseaseSupect === true || b.notifiableDiseaseSupect === "true", notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await db.insert(venisonHealthRecordsTable).values({ farmId, herdId: b.herdId ? Number(b.herdId) : null, eventDate: (nd(b.eventDate) ?? ""), healthEventType: String(b.healthEventType ?? ""), productOrDescription: b.productOrDescription ? String(b.productOrDescription) : null, batchNumber: b.batchNumber ? String(b.batchNumber) : null, numberTreated: b.numberTreated ? Number(b.numberTreated) : null, withdrawalPeriodDays: b.withdrawalPeriodDays ? Number(b.withdrawalPeriodDays) : 0, btbTestResult: b.btbTestResult ? String(b.btbTestResult) : null, aphaReference: b.aphaReference ? String(b.aphaReference) : null, vetName: b.vetName ? String(b.vetName) : null, vetPrescribed: b.vetPrescribed === true || b.vetPrescribed === "true", notifiableDiseaseSupect: b.notifiableDiseaseSupect === true || b.notifiableDiseaseSupect === "true", notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ row });
 });
 router.put("/farms/:farmId/venison-health-records/:id", requireAuth, requireTenant, requireModuleByKey("venison-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -35664,7 +35664,7 @@ router.put("/farms/:farmId/venison-health-records/:id", requireAuth, requireTena
   const id = Number(req.params.id);
   const b = sanitiseBody(req.body as Record<string, unknown>);
   const updates: Record<string, unknown> = {};
-  if (b.eventDate !== undefined) updates.eventDate = String(b.eventDate);
+  if (b.eventDate !== undefined) updates.eventDate = nd(b.eventDate);
   if (b.herdId !== undefined) updates.herdId = b.herdId ? Number(b.herdId) : null;
   if (b.healthEventType !== undefined) updates.healthEventType = String(b.healthEventType);
   if (b.productOrDescription !== undefined) updates.productOrDescription = b.productOrDescription ? String(b.productOrDescription) : null;
@@ -35698,7 +35698,7 @@ router.post("/farms/:farmId/venison-firearms-register", requireAuth, requireTena
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(venisonFirearmsRegisterTable).values({ farmId, holderName: String(b.holderName ?? ""), certificateType: String(b.certificateType ?? ""), certificateNumber: b.certificateNumber ? String(b.certificateNumber) : null, issuingAuthority: b.issuingAuthority ? String(b.issuingAuthority) : null, issueDate: b.issueDate ? String(b.issueDate) : null, expiryDate: b.expiryDate ? String(b.expiryDate) : null, calibreOrDescription: b.calibreOrDescription ? String(b.calibreOrDescription) : null, status: b.status ? String(b.status) : "active", notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await db.insert(venisonFirearmsRegisterTable).values({ farmId, holderName: String(b.holderName ?? ""), certificateType: String(b.certificateType ?? ""), certificateNumber: b.certificateNumber ? String(b.certificateNumber) : null, issuingAuthority: b.issuingAuthority ? String(b.issuingAuthority) : null, issueDate: nd(b.issueDate), expiryDate: nd(b.expiryDate), calibreOrDescription: b.calibreOrDescription ? String(b.calibreOrDescription) : null, status: b.status ? String(b.status) : "active", notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ row });
 });
 router.put("/farms/:farmId/venison-firearms-register/:id", requireAuth, requireTenant, requireModuleByKey("venison-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -35711,8 +35711,8 @@ router.put("/farms/:farmId/venison-firearms-register/:id", requireAuth, requireT
   if (b.certificateType !== undefined) updates.certificateType = String(b.certificateType);
   if (b.certificateNumber !== undefined) updates.certificateNumber = b.certificateNumber ? String(b.certificateNumber) : null;
   if (b.issuingAuthority !== undefined) updates.issuingAuthority = b.issuingAuthority ? String(b.issuingAuthority) : null;
-  if (b.issueDate !== undefined) updates.issueDate = b.issueDate ? String(b.issueDate) : null;
-  if (b.expiryDate !== undefined) updates.expiryDate = b.expiryDate ? String(b.expiryDate) : null;
+  if (b.issueDate !== undefined) updates.issueDate = nd(b.issueDate);
+  if (b.expiryDate !== undefined) updates.expiryDate = nd(b.expiryDate);
   if (b.calibreOrDescription !== undefined) updates.calibreOrDescription = b.calibreOrDescription ? String(b.calibreOrDescription) : null;
   if (b.status !== undefined) updates.status = String(b.status);
   if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
@@ -35737,7 +35737,7 @@ router.post("/farms/:farmId/organic-venison/certification", requireAuth, require
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(organicVenisonCertificationTable).values({ farmId, certifyingBody: String(b.certifyingBody ?? ""), certificateNumber: b.certificateNumber ? String(b.certificateNumber) : null, certificateType: b.certificateType ? String(b.certificateType) : "venison", issueDate: b.issueDate ? String(b.issueDate) : null, expiryDate: b.expiryDate ? String(b.expiryDate) : null, scope: b.scope ? String(b.scope) : null, status: b.status ? String(b.status) : "active", notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await db.insert(organicVenisonCertificationTable).values({ farmId, certifyingBody: String(b.certifyingBody ?? ""), certificateNumber: b.certificateNumber ? String(b.certificateNumber) : null, certificateType: b.certificateType ? String(b.certificateType) : "venison", issueDate: nd(b.issueDate), expiryDate: nd(b.expiryDate), scope: b.scope ? String(b.scope) : null, status: b.status ? String(b.status) : "active", notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ row });
 });
 router.put("/farms/:farmId/organic-venison/certification/:id", requireAuth, requireTenant, requireModuleByKey("organic-venison", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -35749,8 +35749,8 @@ router.put("/farms/:farmId/organic-venison/certification/:id", requireAuth, requ
   if (b.certifyingBody !== undefined) updates.certifyingBody = String(b.certifyingBody);
   if (b.certificateNumber !== undefined) updates.certificateNumber = b.certificateNumber ? String(b.certificateNumber) : null;
   if (b.certificateType !== undefined) updates.certificateType = String(b.certificateType);
-  if (b.issueDate !== undefined) updates.issueDate = b.issueDate ? String(b.issueDate) : null;
-  if (b.expiryDate !== undefined) updates.expiryDate = b.expiryDate ? String(b.expiryDate) : null;
+  if (b.issueDate !== undefined) updates.issueDate = nd(b.issueDate);
+  if (b.expiryDate !== undefined) updates.expiryDate = nd(b.expiryDate);
   if (b.scope !== undefined) updates.scope = b.scope ? String(b.scope) : null;
   if (b.status !== undefined) updates.status = String(b.status);
   if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
@@ -35775,7 +35775,7 @@ router.post("/farms/:farmId/organic-venison/land-register", requireAuth, require
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(organicVenisonLandRegisterTable).values({ farmId, compartmentName: String(b.compartmentName ?? ""), areaHa: b.areaHa ? String(b.areaHa) : null, conversionStatus: b.conversionStatus ? String(b.conversionStatus) : "pre-conversion", conversionStartDate: b.conversionStartDate ? String(b.conversionStartDate) : null, certifiedOrganicDate: b.certifiedOrganicDate ? String(b.certifiedOrganicDate) : null, certifyingBody: b.certifyingBody ? String(b.certifyingBody) : null, certifierReference: b.certifierReference ? String(b.certifierReference) : null, previousLandUse: b.previousLandUse ? String(b.previousLandUse) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await db.insert(organicVenisonLandRegisterTable).values({ farmId, compartmentName: String(b.compartmentName ?? ""), areaHa: b.areaHa ? String(b.areaHa) : null, conversionStatus: b.conversionStatus ? String(b.conversionStatus) : "pre-conversion", conversionStartDate: nd(b.conversionStartDate), certifiedOrganicDate: nd(b.certifiedOrganicDate), certifyingBody: b.certifyingBody ? String(b.certifyingBody) : null, certifierReference: b.certifierReference ? String(b.certifierReference) : null, previousLandUse: b.previousLandUse ? String(b.previousLandUse) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ row });
 });
 router.put("/farms/:farmId/organic-venison/land-register/:id", requireAuth, requireTenant, requireModuleByKey("organic-venison", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -35787,8 +35787,8 @@ router.put("/farms/:farmId/organic-venison/land-register/:id", requireAuth, requ
   if (b.compartmentName !== undefined) updates.compartmentName = String(b.compartmentName);
   if (b.areaHa !== undefined) updates.areaHa = b.areaHa ? String(b.areaHa) : null;
   if (b.conversionStatus !== undefined) updates.conversionStatus = String(b.conversionStatus);
-  if (b.conversionStartDate !== undefined) updates.conversionStartDate = b.conversionStartDate ? String(b.conversionStartDate) : null;
-  if (b.certifiedOrganicDate !== undefined) updates.certifiedOrganicDate = b.certifiedOrganicDate ? String(b.certifiedOrganicDate) : null;
+  if (b.conversionStartDate !== undefined) updates.conversionStartDate = nd(b.conversionStartDate);
+  if (b.certifiedOrganicDate !== undefined) updates.certifiedOrganicDate = nd(b.certifiedOrganicDate);
   if (b.certifyingBody !== undefined) updates.certifyingBody = b.certifyingBody ? String(b.certifyingBody) : null;
   if (b.certifierReference !== undefined) updates.certifierReference = b.certifierReference ? String(b.certifierReference) : null;
   if (b.previousLandUse !== undefined) updates.previousLandUse = b.previousLandUse ? String(b.previousLandUse) : null;
@@ -35814,7 +35814,7 @@ router.post("/farms/:farmId/organic-venison/feed-supplements", requireAuth, requ
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(organicVenisonFeedSupplementsTable).values({ farmId, applicationDate: String(b.applicationDate ?? ""), productName: String(b.productName ?? ""), productType: b.productType ? String(b.productType) : null, organicApprovalStatus: b.organicApprovalStatus ? String(b.organicApprovalStatus) : "certified organic", certifierApprovalReference: b.certifierApprovalReference ? String(b.certifierApprovalReference) : null, quantityKg: b.quantityKg ? String(b.quantityKg) : null, areaOrHerd: b.areaOrHerd ? String(b.areaOrHerd) : null, supplierName: b.supplierName ? String(b.supplierName) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await db.insert(organicVenisonFeedSupplementsTable).values({ farmId, applicationDate: (nd(b.applicationDate) ?? ""), productName: String(b.productName ?? ""), productType: b.productType ? String(b.productType) : null, organicApprovalStatus: b.organicApprovalStatus ? String(b.organicApprovalStatus) : "certified organic", certifierApprovalReference: b.certifierApprovalReference ? String(b.certifierApprovalReference) : null, quantityKg: b.quantityKg ? String(b.quantityKg) : null, areaOrHerd: b.areaOrHerd ? String(b.areaOrHerd) : null, supplierName: b.supplierName ? String(b.supplierName) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ row });
 });
 router.put("/farms/:farmId/organic-venison/feed-supplements/:id", requireAuth, requireTenant, requireModuleByKey("organic-venison", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -35823,7 +35823,7 @@ router.put("/farms/:farmId/organic-venison/feed-supplements/:id", requireAuth, r
   const id = Number(req.params.id);
   const b = sanitiseBody(req.body as Record<string, unknown>);
   const updates: Record<string, unknown> = {};
-  if (b.applicationDate !== undefined) updates.applicationDate = String(b.applicationDate);
+  if (b.applicationDate !== undefined) updates.applicationDate = nd(b.applicationDate);
   if (b.productName !== undefined) updates.productName = String(b.productName);
   if (b.productType !== undefined) updates.productType = b.productType ? String(b.productType) : null;
   if (b.organicApprovalStatus !== undefined) updates.organicApprovalStatus = String(b.organicApprovalStatus);
@@ -35853,7 +35853,7 @@ router.post("/farms/:farmId/organic-venison/derogations", requireAuth, requireTe
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [row] = await db.insert(organicVenisonDerogationsTable).values({ farmId, caseReference: b.caseReference ? String(b.caseReference) : null, inputName: String(b.inputName ?? ""), inputType: b.inputType ? String(b.inputType) : null, regulatoryBasis: b.regulatoryBasis ? String(b.regulatoryBasis) : null, certifyingBody: b.certifyingBody ? String(b.certifyingBody) : null, certifierRef: b.certifierRef ? String(b.certifierRef) : null, internalDecisionDate: b.internalDecisionDate ? String(b.internalDecisionDate) : null, availabilitySearchDate: b.availabilitySearchDate ? String(b.availabilitySearchDate) : null, availabilitySearchRef: b.availabilitySearchRef ? String(b.availabilitySearchRef) : null, applicationDate: b.applicationDate ? String(b.applicationDate) : null, justification: b.justification ? String(b.justification) : null, status: b.status ? String(b.status) : "pending", decisionDate: b.decisionDate ? String(b.decisionDate) : null, expiryDate: b.expiryDate ? String(b.expiryDate) : null, approvalConditions: b.approvalConditions ? String(b.approvalConditions) : null, rejectionReason: b.rejectionReason ? String(b.rejectionReason) : null, rejectionRef: b.rejectionRef ? String(b.rejectionRef) : null, correctiveAction: b.correctiveAction ? String(b.correctiveAction) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [row] = await db.insert(organicVenisonDerogationsTable).values({ farmId, caseReference: b.caseReference ? String(b.caseReference) : null, inputName: String(b.inputName ?? ""), inputType: b.inputType ? String(b.inputType) : null, regulatoryBasis: b.regulatoryBasis ? String(b.regulatoryBasis) : null, certifyingBody: b.certifyingBody ? String(b.certifyingBody) : null, certifierRef: b.certifierRef ? String(b.certifierRef) : null, internalDecisionDate: nd(b.internalDecisionDate), availabilitySearchDate: nd(b.availabilitySearchDate), availabilitySearchRef: b.availabilitySearchRef ? String(b.availabilitySearchRef) : null, applicationDate: nd(b.applicationDate), justification: b.justification ? String(b.justification) : null, status: b.status ? String(b.status) : "pending", decisionDate: nd(b.decisionDate), expiryDate: nd(b.expiryDate), approvalConditions: b.approvalConditions ? String(b.approvalConditions) : null, rejectionReason: b.rejectionReason ? String(b.rejectionReason) : null, rejectionRef: b.rejectionRef ? String(b.rejectionRef) : null, correctiveAction: b.correctiveAction ? String(b.correctiveAction) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ row });
 });
 router.put("/farms/:farmId/organic-venison/derogations/:id", requireAuth, requireTenant, requireModuleByKey("organic-venison", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -35867,16 +35867,16 @@ router.put("/farms/:farmId/organic-venison/derogations/:id", requireAuth, requir
   if (b.inputType !== undefined) updates.inputType = b.inputType ? String(b.inputType) : null;
   if (b.regulatoryBasis !== undefined) updates.regulatoryBasis = b.regulatoryBasis ? String(b.regulatoryBasis) : null;
   if (b.certifyingBody !== undefined) updates.certifyingBody = b.certifyingBody ? String(b.certifyingBody) : null;
-  if (b.applicationDate !== undefined) updates.applicationDate = b.applicationDate ? String(b.applicationDate) : null;
+  if (b.applicationDate !== undefined) updates.applicationDate = nd(b.applicationDate);
   if (b.justification !== undefined) updates.justification = b.justification ? String(b.justification) : null;
   if (b.status !== undefined) updates.status = String(b.status);
-  if (b.decisionDate !== undefined) updates.decisionDate = b.decisionDate ? String(b.decisionDate) : null;
-  if (b.expiryDate !== undefined) updates.expiryDate = b.expiryDate ? String(b.expiryDate) : null;
+  if (b.decisionDate !== undefined) updates.decisionDate = nd(b.decisionDate);
+  if (b.expiryDate !== undefined) updates.expiryDate = nd(b.expiryDate);
   if (b.approvalConditions !== undefined) updates.approvalConditions = b.approvalConditions ? String(b.approvalConditions) : null;
   if (b.notes !== undefined) updates.notes = b.notes ? String(b.notes) : null;
   if (b.certifierRef !== undefined) updates.certifierRef = b.certifierRef ? String(b.certifierRef) : null;
-  if (b.internalDecisionDate !== undefined) updates.internalDecisionDate = b.internalDecisionDate ? String(b.internalDecisionDate) : null;
-  if (b.availabilitySearchDate !== undefined) updates.availabilitySearchDate = b.availabilitySearchDate ? String(b.availabilitySearchDate) : null;
+  if (b.internalDecisionDate !== undefined) updates.internalDecisionDate = nd(b.internalDecisionDate);
+  if (b.availabilitySearchDate !== undefined) updates.availabilitySearchDate = nd(b.availabilitySearchDate);
   if (b.availabilitySearchRef !== undefined) updates.availabilitySearchRef = b.availabilitySearchRef ? String(b.availabilitySearchRef) : null;
   if (b.rejectionReason !== undefined) updates.rejectionReason = b.rejectionReason ? String(b.rejectionReason) : null;
   if (b.rejectionRef !== undefined) updates.rejectionRef = b.rejectionRef ? String(b.rejectionRef) : null;
@@ -35903,7 +35903,7 @@ router.post("/farms/:farmId/organic-venison/derogations/:id/correspondence", req
   if (!farmId) return;
   const derogationId = Number(req.params.id);
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [item] = await db.insert(organicVenisonDerogationCorrespondenceTable).values({ farmId, derogationId, correspondenceDate: String(b.correspondenceDate), direction: b.direction ? String(b.direction) : "to-certifier", correspondenceType: b.correspondenceType ? String(b.correspondenceType) : "", summary: b.summary ? String(b.summary) : "", reference: b.reference ? String(b.reference) : null, notes: b.notes ? String(b.notes) : null }).returning();
+  const [item] = await db.insert(organicVenisonDerogationCorrespondenceTable).values({ farmId, derogationId, correspondenceDate: nd(b.correspondenceDate) ?? "", direction: b.direction ? String(b.direction) : "to-certifier", correspondenceType: b.correspondenceType ? String(b.correspondenceType) : "", summary: b.summary ? String(b.summary) : "", reference: b.reference ? String(b.reference) : null, notes: b.notes ? String(b.notes) : null }).returning();
   res.status(201).json({ item });
 });
 router.put("/farms/:farmId/organic-venison/derogation-correspondence/:id", requireAuth, requireTenant, requireModuleByKey("organic-venison", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -35911,7 +35911,7 @@ router.put("/farms/:farmId/organic-venison/derogation-correspondence/:id", requi
   if (!farmId) return;
   const id = Number(req.params.id);
   const b = sanitiseBody(req.body as Record<string, unknown>);
-  const [item] = await db.update(organicVenisonDerogationCorrespondenceTable).set({ correspondenceDate: b.correspondenceDate ? String(b.correspondenceDate) : undefined, direction: b.direction ? String(b.direction) : undefined, correspondenceType: b.correspondenceType ? String(b.correspondenceType) : undefined, summary: b.summary ? String(b.summary) : undefined, reference: b.reference !== undefined ? (b.reference ? String(b.reference) : null) : undefined, notes: b.notes !== undefined ? (b.notes ? String(b.notes) : null) : undefined }).where(and(eq(organicVenisonDerogationCorrespondenceTable.id, id), eq(organicVenisonDerogationCorrespondenceTable.farmId, farmId))).returning();
+  const [item] = await db.update(organicVenisonDerogationCorrespondenceTable).set({ correspondenceDate: b.correspondenceDate ? nd(b.correspondenceDate) ?? undefined : undefined, direction: b.direction ? String(b.direction) : undefined, correspondenceType: b.correspondenceType ? String(b.correspondenceType) : undefined, summary: b.summary ? String(b.summary) : undefined, reference: b.reference !== undefined ? (b.reference ? String(b.reference) : null) : undefined, notes: b.notes !== undefined ? (b.notes ? String(b.notes) : null) : undefined }).where(and(eq(organicVenisonDerogationCorrespondenceTable.id, id), eq(organicVenisonDerogationCorrespondenceTable.farmId, farmId))).returning();
   res.json({ item });
 });
 router.delete("/farms/:farmId/organic-venison/derogation-correspondence/:id", requireAuth, requireTenant, requireModuleByKey("organic-venison", "delete"), async (req: Request, res: Response): Promise<void> => {
