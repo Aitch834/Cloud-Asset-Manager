@@ -1,6 +1,6 @@
 import { SignatureEmbed, NO_EMBED, signatureEmbedFrom, computeSo2DominantUnitByVintage, SOURCE_LABELS, so2UnitOutlierDominant, printPressingReport, printAdditionsReport, printSo2TransactionLog } from "./print";
 import { useWineryBatchSettings, BatchTrailDialog } from "./BatchTrail";
-import { useCrud, useVessels, useEquipment, useStaff, AdditionRow, additionsShortcutKey, WINERY_VIEW_ADDITIONS_EVENT, ADDITIVE_CATEGORY_LABELS, WINE_COLOUR_OPTIONS, UNSPECIFIED_COLOUR, useAdditionsSummary, useAllPressAdditions, PERMITTED_ADDITIVES, PRESS_TYPE_OPTIONS, today, rowMatchesColour, additiveCsvCol, fmtDate, colourFilterLabel, exportCSV, QueryErrorNotice, EmptyState, fmt, fmtNum, signOffTooltip, BatchTrailButton, ORGANIC_MAX_SO2, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SectionLabel, JUICE_TURBIDITY_OPTIONS, ALL_DOSE_UNITS, SETTLING_METHOD_OPTIONS, ViewField, AssignWineColourDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
+import { useCrud, useVessels, useEquipment, useStaff, AdditionRow, additionsShortcutKey, WINERY_VIEW_ADDITIONS_EVENT, ADDITIVE_CATEGORY_LABELS, WINE_COLOUR_OPTIONS, UNSPECIFIED_COLOUR, useAdditionsSummary, useAllPressAdditions, PERMITTED_ADDITIVES, PRESS_TYPE_OPTIONS, today, rowMatchesColour, additiveCsvCol, fmtDate, colourFilterLabel, exportCSV, QueryErrorNotice, EmptyState, NotesCell, fmt, fmtNum, signOffTooltip, BatchTrailButton, ORGANIC_MAX_SO2, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SectionLabel, JUICE_TURBIDITY_OPTIONS, ALL_DOSE_UNITS, SETTLING_METHOD_OPTIONS, ViewField, AssignWineColourDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -1452,6 +1452,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                     <th className="text-right p-2.5 font-medium whitespace-nowrap">Dose Rate</th>
                     <th className="text-left p-2.5 font-medium">Operator</th>
                     <th className="text-left p-2.5 font-medium">Vessel</th>
+                    <th className="text-left p-2.5 font-medium">Notes</th>
                   </tr></thead>
                   <tbody className="divide-y">
                     {filteredTransactionLog.map((row: Record<string, unknown>, i: number) => {
@@ -1531,6 +1532,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                           <td className="p-2.5 text-muted-foreground text-xs max-w-[8rem]">
                             <span className="truncate block" title={row.vessel_ref ? String(row.vessel_ref) : undefined}>{fmt(row.vessel_ref)}</span>
                           </td>
+                          <NotesCell notes={row.notes} />
                         </tr>
                       );
                     })}
