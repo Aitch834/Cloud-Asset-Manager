@@ -6706,6 +6706,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               <th className="text-left p-3 font-medium">Current Contents</th>
               <th className="text-right p-3 font-medium">Volume (L)</th>
               <th className="text-left p-3 font-medium">Status</th>
+              <th className="text-left p-3 font-medium">Notes</th>
               <th className="p-3"></th>
             </tr></thead>
             <tbody className="divide-y">
@@ -6718,6 +6719,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   <td className="p-3">{fmt(r.current_contents)}</td>
                   <td className="p-3 text-right">{r.current_volume_litres ? fmtNum(r.current_volume_litres, 0) : "—"}</td>
                   <td className="p-3">{statusBadge(r.status)}</td>
+                  <NotesCell notes={r.notes} />
                   <td className="p-3 text-right whitespace-nowrap">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
@@ -9353,6 +9355,7 @@ export function EquipmentRegisterTab({ farmId }: { farmId: number }) {
               <th className="text-left p-3 font-medium">Next Due</th>
               <th className="text-left p-3 font-medium">Cal Status</th>
               <th className="text-left p-3 font-medium">Equip Status</th>
+              <th className="text-left p-3 font-medium">Notes</th>
               <th className="p-3"></th>
             </tr></thead>
             <tbody className="divide-y">
@@ -9366,6 +9369,7 @@ export function EquipmentRegisterTab({ farmId }: { farmId: number }) {
                   <td className="p-3 whitespace-nowrap text-xs">{fmtDate(r.next_calibration_due)}</td>
                   <td className="p-3">{calStatus(r)}</td>
                   <td className="p-3">{r.status === "active" ? <span className="text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5">Active</span> : <span className="text-xs bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">{fmt(r.status)}</span>}</td>
+                  <NotesCell notes={r.notes} />
                   <td className="p-3 text-right whitespace-nowrap">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
