@@ -4688,6 +4688,18 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
         }} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
         <span className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
       </div>
+      {!crud.isLoading && pressingNonCompliantCount > 0 && (
+        <div className="flex items-start gap-2.5 rounded-md border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-800">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-red-600" />
+          <span>
+            <strong>{pressingNonCompliantCount} record{pressingNonCompliantCount !== 1 ? "s" : ""}</strong> exceed{pressingNonCompliantCount === 1 ? "s" : ""} the applicable additive limit
+            {yearFilter !== "all" ? ` in ${yearFilter}` : ""}.{" "}
+            {!pressingNonCompliantOnly && (
+              <button className="underline font-medium" onClick={() => setPressingNonCompliantOnly(true)}>Show non-compliant only</button>
+            )}
+          </span>
+        </div>
+      )}
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         : filtered.length === 0 ? <EmptyState icon={Gauge} title="No pressing records yet" sub="Add a record for each pressing run to track juice yield and composition." />
         : displayedPressings.length === 0 ? <EmptyState icon={CheckCircle2} title="No non-compliant records" sub="All pressing records in the current filter are within their additive limits." />
