@@ -37114,6 +37114,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
       db.execute(sql`
         SELECT a.additive_name, a.category, a.dose, a.unit, a.notes,
                a.pressing_record_id, p.press_date AS pressing_press_date, p.batch_ref AS pressing_batch_ref,
+               p.operator_name AS pressing_operator_name,
                p.notes AS pressing_notes
         FROM winery_pressing_additions a
         JOIN winery_pressing_records p ON p.id = a.pressing_record_id
@@ -37173,6 +37174,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
       db.execute(sql`
         SELECT a.additive_name, a.category, a.dose, a.unit, a.notes,
                a.pressing_record_id, p.press_date AS pressing_press_date, p.batch_ref AS pressing_batch_ref,
+               p.operator_name AS pressing_operator_name,
                p.notes AS pressing_notes
         FROM winery_pressing_additions a
         JOIN winery_pressing_records p ON p.id = a.pressing_record_id
@@ -37182,7 +37184,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
       // All pressing sessions for this vintage — independent of additions, so the
       // trail can list sessions (and their notes) even when no additives were recorded.
       db.execute(sql`
-        SELECT p.id, p.press_date, p.batch_ref, p.notes
+        SELECT p.id, p.press_date, p.batch_ref, p.operator_name, p.notes
         FROM winery_pressing_records p
         WHERE p.farm_id = ${farmId} AND p.vintage_year = ${vintageYear}
         ORDER BY p.press_date ASC NULLS LAST, p.id ASC

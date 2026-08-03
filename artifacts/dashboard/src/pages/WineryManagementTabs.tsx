@@ -2639,7 +2639,9 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
       "Stage": "Pressing — Additive",
       "Batch Ref": additiveBatchRef,
       "Date": additiveDate,
-      "Operator": String(pressing.operator_name ?? ""),
+      "Operator": isVintageScoped && a.pressing_operator_name != null && String(a.pressing_operator_name).trim() !== ""
+        ? String(a.pressing_operator_name).trim()
+        : String(pressing.operator_name ?? ""),
     };
     for (const col of PRESS_ADDITIVE_COLUMNS) cells[col.csvColumn] = col.csvValue(a);
     rows.push(BATCH_TRAIL_CSV_HEADER.map(h => cells[h] ?? ""));
@@ -3129,7 +3131,7 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
   // Group press additives by their pressing session. In vintage scope a trail
   // can span multiple pressings — each group renders its own sub-table with the
   // press date and batch ref, instead of one flat merged list.
-  const pressAdditiveGroups: { key: string; pressDate: string; batchRef: string | null; notes: string; attachments: TrailAttachment[]; additions: Record<string, unknown>[] }[] = [];
+  const pressAdditiveGroups: { key: string; pressDate: string; batchRef: string | null; operatorName: string | null; notes: string; attachments: TrailAttachment[]; additions: Record<string, unknown>[] }[] = [];
   {
     const groupIndex = new Map<string, number>();
     // Attachments for a pressing session, keyed off the group key (pressing id)
@@ -3148,6 +3150,7 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
           key,
           pressDate: p.press_date ? fmtDate(p.press_date) : "—",
           batchRef: p.batch_ref != null && String(p.batch_ref).trim() !== "" ? String(p.batch_ref).trim() : null,
+          operatorName: p.operator_name != null && String(p.operator_name).trim() !== "" ? String(p.operator_name).trim() : null,
           notes: p.notes != null ? String(p.notes).trim() : "",
           attachments: groupAttachments(key),
           additions: [],
@@ -3164,6 +3167,7 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
           key,
           pressDate: a.pressing_press_date ? fmtDate(a.pressing_press_date) : "—",
           batchRef: a.pressing_batch_ref != null && String(a.pressing_batch_ref).trim() !== "" ? String(a.pressing_batch_ref).trim() : null,
+          operatorName: a.pressing_operator_name != null && String(a.pressing_operator_name).trim() !== "" ? String(a.pressing_operator_name).trim() : null,
           notes: a.pressing_notes != null ? String(a.pressing_notes).trim() : "",
           attachments: groupAttachments(key),
           additions: [],
@@ -3249,6 +3253,7 @@ async function printBatchTrail(farmId: number, pressing: Record<string, unknown>
       ${isVintageScoped ? `<p style="font-size:9px;font-weight:600;color:#374151;margin:6px 0 3px;display:flex;align-items:center;gap:6px">
         <span>Pressing — ${escHtml(g.pressDate)}</span>
         ${g.batchRef ? `<span style="font-family:monospace;font-size:9px;background:#dbeafe;color:#1e40af;padding:1px 5px;border-radius:3px">${escHtml(g.batchRef)}</span>` : `<span style="font-size:9px;background:#f3f4f6;color:#6b7280;padding:1px 5px;border-radius:3px">No ref</span>`}
+        ${g.operatorName ? `<span style="font-weight:400;color:#6b7280">Operator: ${escHtml(g.operatorName)}</span>` : ""}
         <span style="font-weight:400;color:#9ca3af">(${g.additions.length})</span>
       </p>` : ""}
       ${g.additions.length > 0 ? `<table style="width:100%;border-collapse:collapse;margin-left:0">
