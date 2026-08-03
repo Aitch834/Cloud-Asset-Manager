@@ -8431,7 +8431,31 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="date" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} width={36} />
-              <Tooltip contentStyle={{ fontSize: 11 }} />
+              <Tooltip content={({ active, payload, label }) => {
+                // Custom tooltip mirroring the default look, but flagging an
+                // organic-ceiling breach on the Total SO₂ row — same breach
+                // rule as the red dot renderer below (row's own ceiling only).
+                if (!active || !payload || payload.length === 0) return null;
+                const row = (payload[0]?.payload ?? {}) as Record<string, unknown>;
+                const ceiling = row["Organic ceiling"] as number | null | undefined;
+                const total = row["Total SO₂"] as number | null | undefined;
+                const breach = ceiling != null && total != null && total > ceiling;
+                return (
+                  <div style={{ fontSize: 11 }} className="rounded border bg-white px-2.5 py-1.5 shadow-sm">
+                    <p className="font-medium mb-0.5">{String(label ?? "")}</p>
+                    {payload.map((entry, i) => {
+                      const isTotal = entry.dataKey === "Total SO₂";
+                      const rowBreach = isTotal && breach;
+                      return (
+                        <p key={i} style={{ color: rowBreach ? "#dc2626" : (entry.color as string | undefined) }} className={rowBreach ? "font-semibold" : undefined}>
+                          {String(entry.name)}: {entry.value != null ? String(entry.value) : "—"} mg/L
+                          {rowBreach && <span> — Exceeds organic ceiling ({ceiling} mg/L)</span>}
+                        </p>
+                      );
+                    })}
+                  </div>
+                );
+              }} />
               <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
               {so2MaxLimit > 0 && <ReferenceLine y={so2MaxLimit} stroke="#ef4444" strokeDasharray="4 2" label={{ value: `Limit ${so2MaxLimit}`, position: "insideTopRight", fontSize: 9, fill: "#ef4444" }} />}
               {so2OrganicLine != null && so2OrganicLine !== so2MaxLimit && (
