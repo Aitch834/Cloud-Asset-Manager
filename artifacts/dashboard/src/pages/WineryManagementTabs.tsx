@@ -45,15 +45,25 @@ const csvComment = (s: string) => `"${s.replace(/"/g, '""')}"`;
 // Farm display name for CSV/PDF headers comes from the shared useFarmName hook
 // (single "farms-list" query) so the lookup can't silently drift per call site.
 
+// Shared GET helper for the read queries below — rejects on non-2xx so failures
+// surface as a query error state instead of silently returning empty data.
+async function fetchWineryJson(path: string): Promise<Record<string, unknown>> {
+  const r = await fetch(api(path), { credentials: "include" });
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({}));
+    throw new Error((e as { error?: string }).error || `Request failed (HTTP ${r.status})`);
+  }
+  return r.json();
+}
+
 function useCrud<T extends Record<string, unknown>>(farmId: number, endpoint: string, key: string) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const q = useQuery<T[]>({
     queryKey: [key, farmId],
     queryFn: async () => {
-      const r = await fetch(api(`farms/${farmId}/${endpoint}`), { credentials: "include" });
-      const d = await r.json();
-      return d.records ?? [];
+      const d = await fetchWineryJson(`farms/${farmId}/${endpoint}`);
+      return (d.records ?? []) as T[];
     },
     enabled: !!farmId,
   });
@@ -81,17 +91,13 @@ function useCrud<T extends Record<string, unknown>>(farmId: number, endpoint: st
     onSuccess: invalidate,
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
-  return { data: q.data ?? [], isLoading: q.isLoading, add, edit, remove };
+  return { data: q.data ?? [], isLoading: q.isLoading, isError: q.isError, error: q.error, add, edit, remove };
 }
 
 function useVessels(farmId: number) {
   return useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-vessels", farmId],
-    queryFn: async () => {
-      const r = await fetch(api(`farms/${farmId}/winery-vessels`), { credentials: "include" });
-      const d = await r.json();
-      return (d.records ?? []) as Record<string, unknown>[];
-    },
+    queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-vessels`)).records ?? []) as Record<string, unknown>[],
     enabled: !!farmId,
     staleTime: 60_000,
   });
@@ -100,11 +106,7 @@ function useVessels(farmId: number) {
 function useEquipment(farmId: number) {
   return useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-equipment", farmId],
-    queryFn: async () => {
-      const r = await fetch(api(`farms/${farmId}/winery-equipment`), { credentials: "include" });
-      const d = await r.json();
-      return (d.records ?? []) as Record<string, unknown>[];
-    },
+    queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-equipment`)).records ?? []) as Record<string, unknown>[],
     enabled: !!farmId,
     staleTime: 60_000,
   });
@@ -113,11 +115,7 @@ function useEquipment(farmId: number) {
 function usePressing(farmId: number) {
   return useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-pressing", farmId],
-    queryFn: async () => {
-      const r = await fetch(api(`farms/${farmId}/winery-pressing`), { credentials: "include" });
-      const d = await r.json();
-      return (d.records ?? []) as Record<string, unknown>[];
-    },
+    queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-pressing`)).records ?? []) as Record<string, unknown>[],
     enabled: !!farmId,
     staleTime: 60_000,
   });
@@ -126,11 +124,7 @@ function usePressing(farmId: number) {
 function useAdditionsSummary(farmId: number) {
   return useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-pressing-additions-summary", farmId],
-    queryFn: async () => {
-      const r = await fetch(api(`farms/${farmId}/winery-pressing/additions-summary`), { credentials: "include" });
-      const d = await r.json();
-      return (d.summary ?? []) as Record<string, unknown>[];
-    },
+    queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-pressing/additions-summary`)).summary ?? []) as Record<string, unknown>[],
     enabled: !!farmId,
     staleTime: 30_000,
   });
@@ -139,14 +133,21 @@ function useAdditionsSummary(farmId: number) {
 function useAllPressAdditions(farmId: number) {
   return useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-pressing-all-additions", farmId],
-    queryFn: async () => {
-      const r = await fetch(api(`farms/${farmId}/winery-pressing/all-additions`), { credentials: "include" });
-      const d = await r.json();
-      return (d.additions ?? []) as Record<string, unknown>[];
-    },
+    queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-pressing/all-additions`)).additions ?? []) as Record<string, unknown>[],
     enabled: !!farmId,
     staleTime: 30_000,
   });
+}
+
+// Compact inline error banner for a failed read query — shown in place of data
+// so failures are visible instead of rendering as silently-empty tables.
+function QueryErrorNotice({ label, error }: { label: string; error: unknown }) {
+  return (
+    <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+      <XCircle className="h-4 w-4 mt-0.5 shrink-0 text-red-600" />
+      <span><strong>Failed to load {label}.</strong> {error instanceof Error ? error.message : "Please try again."}</span>
+    </div>
+  );
 }
 
 function useStaff(farmId: number) {
@@ -875,6 +876,7 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
         <span className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</span>
       </div>
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        : crud.isError ? <QueryErrorNotice label="intake records" error={crud.error} />
         : filtered.length === 0 ? <EmptyState icon={Wine} title="No intake records yet" sub="Log grape deliveries received at the winery gate." />
         : (
         <div className="overflow-x-auto rounded-lg border">
@@ -4359,8 +4361,8 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   };
   const [txLogBatchFilter, setTxLogBatchFilter] = useState("");
   const [signedConfirmRecord, setSignedConfirmRecord] = useState<Record<string, unknown> | null>(null);
-  const { data: additionsSummary = [] } = useAdditionsSummary(farmId);
-  const { data: allAdditions = [] } = useAllPressAdditions(farmId);
+  const { data: additionsSummary = [], isError: summaryError, error: summaryErrorObj } = useAdditionsSummary(farmId);
+  const { data: allAdditions = [], isError: allAdditionsError, error: allAdditionsErrorObj } = useAllPressAdditions(farmId);
   const sf = (k: string, v: string | boolean) => {
     if (k === "batchRef") setBatchRefError(null);
     setForm(f => ({ ...f, [k]: v }));
@@ -4969,6 +4971,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
         </div>
       )}
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        : crud.isError ? <QueryErrorNotice label="pressing records" error={crud.error} />
         : filtered.length === 0 ? <EmptyState icon={Gauge} title="No pressing records yet" sub="Add a record for each pressing run to track juice yield and composition." />
         : displayedPressings.length === 0 ? <EmptyState icon={CheckCircle2} title="No non-compliant records" sub="All pressing records in the current filter are within their additive limits." />
         : (
@@ -5393,7 +5396,9 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             </div>
           )}
 
-          {filteredSummary.length === 0 ? (
+          {summaryError || allAdditionsError ? (
+            <QueryErrorNotice label="the additions report" error={summaryErrorObj ?? allAdditionsErrorObj} />
+          ) : filteredSummary.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">No structured additions recorded{yearFilter !== "all" ? ` for ${yearFilter}` : ""}. Add additives when logging a press record.</p>
           ) : searchFilteredSummary.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">No rows match the current filters. Try a different additive name or clear the category filter.</p>
@@ -6255,6 +6260,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
         </div>
       )}
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        : crud.isError ? <QueryErrorNotice label="fermentation records" error={crud.error} />
         : filtered.length === 0 ? <EmptyState icon={Beaker} title="No fermentation records yet" sub="Add a record when you begin each fermentation batch." />
         : (
         <div className="overflow-x-auto rounded-lg border">
@@ -6694,6 +6700,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
         </div>
       </div>
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        : crud.isError ? <QueryErrorNotice label="vessels" error={crud.error} />
         : crud.data.length === 0 ? <EmptyState icon={Package} title="No vessels registered yet" sub="Add your tanks, barrels, and other winery vessels to the register." />
         : (
         <div className="overflow-x-auto rounded-lg border">
@@ -7197,6 +7204,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
       </div>
 
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        : crud.isError ? <QueryErrorNotice label="cellar operations" error={crud.error} />
         : filtered.length === 0 ? <EmptyState icon={Wrench} title="No cellar operations logged" sub="Log racking, topping, sulfiting and other interventions here." />
         : (
         <div className="overflow-x-auto rounded-lg border">
@@ -8046,6 +8054,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
         </div>
       )}
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        : crud.isError ? <QueryErrorNotice label="bottling records" error={crud.error} />
         : filtered.length === 0 ? <EmptyState icon={Wine} title="No bottling records yet" sub="Add a record for each bottling run." />
         : displayRows.length === 0 ? <EmptyState icon={CheckCircle2} title="No non-compliant runs" sub="All bottling runs in this vintage are within the SO₂ limit." />
         : (
@@ -8907,6 +8916,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
         </div>
       )}
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        : crud.isError ? <QueryErrorNotice label="SO₂ tests" error={crud.error} />
         : filtered.length === 0 ? <EmptyState icon={FlaskConical} title="No SO₂ tests logged" sub="Record each SO₂ analysis here — at pressing, post-racking, and pre-bottling." />
         : (
         <div className="overflow-x-auto rounded-lg border">
@@ -9342,6 +9352,7 @@ export function EquipmentRegisterTab({ farmId }: { farmId: number }) {
         </div>
       )}
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        : crud.isError ? <QueryErrorNotice label="equipment records" error={crud.error} />
         : crud.data.length === 0 ? <EmptyState icon={ShieldCheck} title="No equipment registered" sub="Add analytical equipment (Ripper burette, pH meter, refractometer, etc.) to track calibration records." />
         : (
         <div className="overflow-x-auto rounded-lg border">

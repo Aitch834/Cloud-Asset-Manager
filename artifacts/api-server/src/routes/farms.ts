@@ -36920,7 +36920,7 @@ router.get("/farms/:farmId/winery-pressing/additions-summary", requireAuth, requ
   const rows = await db.execute(sql`
     SELECT
       p.vintage_year,
-      p.wine_colour,
+      pc.wine_colour,
       a.additive_name,
       a.category,
       a.unit,
@@ -36932,8 +36932,22 @@ router.get("/farms/:farmId/winery-pressing/additions-summary", requireAuth, requ
       ROUND(AVG(a.dose)::numeric, 3)              AS avg_dose
     FROM winery_pressing_additions a
     JOIN winery_pressing_records p ON p.id = a.pressing_record_id
+    -- Pressing records carry no wine_colour column; derive it from the batch's
+    -- downstream records (fermentation first, then cellar ops, then bottling).
+    LEFT JOIN LATERAL (
+      SELECT wc.wine_colour FROM (
+        SELECT f2.wine_colour, 1 AS pr FROM winery_fermentation_records f2
+          WHERE f2.farm_id = p.farm_id AND f2.batch_ref = p.batch_ref AND COALESCE(f2.wine_colour, '') <> ''
+        UNION ALL
+        SELECT o2.wine_colour, 2 FROM winery_cellar_ops o2
+          WHERE o2.farm_id = p.farm_id AND o2.batch_ref = p.batch_ref AND COALESCE(o2.wine_colour, '') <> ''
+        UNION ALL
+        SELECT b2.wine_colour, 3 FROM winery_bottling_records b2
+          WHERE b2.farm_id = p.farm_id AND b2.batch_ref = p.batch_ref AND COALESCE(b2.wine_colour, '') <> ''
+      ) wc ORDER BY wc.pr LIMIT 1
+    ) pc ON TRUE
     WHERE p.farm_id = ${farmId}
-    GROUP BY p.vintage_year, p.wine_colour, a.additive_name, a.category, a.unit
+    GROUP BY p.vintage_year, pc.wine_colour, a.additive_name, a.category, a.unit
 
     UNION ALL
 
@@ -36984,7 +36998,7 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.execute(sql`
     SELECT 'pressing' AS source,
-           p.vintage_year, p.batch_ref, p.wine_colour, p.press_date AS record_date,
+           p.vintage_year, p.batch_ref, pc.wine_colour, p.press_date AS record_date,
            a.additive_name, a.category, a.dose::text AS dose, a.unit, a.notes,
            a.pressing_record_id,
            p.operator_name,
@@ -36994,6 +37008,20 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
            NULL::numeric AS so2_quantity_g
     FROM winery_pressing_additions a
     JOIN winery_pressing_records p ON p.id = a.pressing_record_id
+    -- Pressing records carry no wine_colour column; derive it from the batch's
+    -- downstream records (fermentation first, then cellar ops, then bottling).
+    LEFT JOIN LATERAL (
+      SELECT wc.wine_colour FROM (
+        SELECT f2.wine_colour, 1 AS pr FROM winery_fermentation_records f2
+          WHERE f2.farm_id = p.farm_id AND f2.batch_ref = p.batch_ref AND COALESCE(f2.wine_colour, '') <> ''
+        UNION ALL
+        SELECT o2.wine_colour, 2 FROM winery_cellar_ops o2
+          WHERE o2.farm_id = p.farm_id AND o2.batch_ref = p.batch_ref AND COALESCE(o2.wine_colour, '') <> ''
+        UNION ALL
+        SELECT b2.wine_colour, 3 FROM winery_bottling_records b2
+          WHERE b2.farm_id = p.farm_id AND b2.batch_ref = p.batch_ref AND COALESCE(b2.wine_colour, '') <> ''
+      ) wc ORDER BY wc.pr LIMIT 1
+    ) pc ON TRUE
     WHERE p.farm_id = ${farmId}
 
     UNION ALL
