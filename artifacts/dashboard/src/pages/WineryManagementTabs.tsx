@@ -7523,16 +7523,14 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
               {!!view.free_so2_before_mg_l && <ViewField label="Free SO₂ Before" value={`${fmtNum(view.free_so2_before_mg_l, 0)} mg/L`} />}
               {!!view.free_so2_after_mg_l && <ViewField label="Free SO₂ After" value={`${fmtNum(view.free_so2_after_mg_l, 0)} mg/L`} />}
               {(() => {
-                if (String(view.op_type) !== "sulfiting") return null;
+                // Same shared verdict as the table badge and CSV export — no inline recomputation.
+                const verdict = cellarSo2Verdict(view as Record<string, unknown>);
+                if (!verdict) return null;
+                const { ceiling, isOrganic: viewIsOrganic, compliant } = verdict;
                 const viewWineColour = String(view.wine_colour ?? "");
-                const viewPressing = view.batch_ref ? cellarPressingRefs.find(p => p.batchRef === String(view.batch_ref)) : null;
-                const viewIsOrganic = !!(viewPressing?.isOrganic);
-                const viewOrgLimit = viewIsOrganic && viewWineColour ? ORGANIC_MAX_SO2[viewWineColour] : null;
+                const viewActiveLimit = String(ceiling);
                 const viewConvLimit = viewWineColour ? CONVENTIONAL_MAX_SO2[viewWineColour] : null;
-                const viewActiveLimit = viewIsOrganic ? (viewOrgLimit ?? viewConvLimit) : viewConvLimit;
-                if (!viewActiveLimit) return null;
-                const viewFreeSo2 = view.free_so2_after_mg_l != null && view.free_so2_after_mg_l !== "" ? parseFloat(String(view.free_so2_after_mg_l)) : NaN;
-                const viewOverLimit = !isNaN(viewFreeSo2) && viewFreeSo2 > parseFloat(viewActiveLimit);
+                const viewOverLimit = compliant === false;
                 return (
                   <>
                     <div className="col-span-2 rounded-md border bg-slate-50 border-slate-200 px-3 py-2 text-xs flex items-center gap-2 text-slate-700">
