@@ -28,6 +28,7 @@ type Assignment = {
   completionNote: string | null;
   createdAt: string;
   taskType: string;
+  taskSourceId: string | null;
 };
 
 type HistoryEntry = {
@@ -163,7 +164,10 @@ function AssignmentCard({ a, farmId, autoExpand, forceOpen }: { a: Assignment; f
               </span>
             )}
             {a.taskType === "field-inspection" && (
-              <Link href="/field-inspections">
+              <Link
+                href={a.taskSourceId ? `/field-inspections?inspectionId=${encodeURIComponent(a.taskSourceId)}` : "/field-inspections"}
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+              >
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 cursor-pointer hover:bg-amber-100 flex items-center gap-1 w-fit">
                   <Search className="w-2.5 h-2.5" />From Field Inspection
                 </span>

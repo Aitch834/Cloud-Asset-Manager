@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
+import { useSearch } from "wouter";
 import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CropYearSelector } from "@/components/CropYearSelector";
@@ -305,6 +306,16 @@ export default function FieldInspectionsPage() {
   const { user } = useSafeUser();
   const inspectorName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.primaryEmailAddress?.emailAddress || "" : "";
 
+  // Deep link from Task Board: /field-inspections?inspectionId=<id>
+  const searchStr = useSearch();
+  const targetInspectionId = (() => {
+    const v = new URLSearchParams(searchStr).get("inspectionId");
+    const n = v ? parseInt(v, 10) : NaN;
+    return Number.isFinite(n) ? n : null;
+  })();
+  const [highlightId, setHighlightId] = useState<number | null>(null);
+  const scrolledToTarget = useRef(false);
+
   const [search, setSearch] = useState("");
   const [filterAction, setFilterAction] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -464,7 +475,22 @@ export default function FieldInspectionsPage() {
   const thisMonthStart = (() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1); })();
   const thisMonthLabel = new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" });
 
+  // Scroll to and temporarily highlight a deep-linked inspection once records load.
+  useEffect(() => {
+    if (targetInspectionId == null || scrolledToTarget.current || records.length === 0) return;
+    if (!records.some(r => r.id === targetInspectionId)) return;
+    scrolledToTarget.current = true;
+    setHighlightId(targetInspectionId);
+    setTimeout(() => {
+      document.getElementById(`inspection-row-${targetInspectionId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 150);
+    const t = setTimeout(() => setHighlightId(null), 4000);
+    return () => clearTimeout(t);
+  }, [targetInspectionId, records]);
+
   const filtered = records.filter((r) => {
+    // Never filter out a deep-linked inspection — it must be visible to be highlighted.
+    if (r.id === targetInspectionId) return true;
     if (!allYears && !isInCropYear(r.inspectionDate, cropYear)) return false;
     if (resolvedThisMonthMode) {
       if (!r.isResolved || !r.resolvedAt || new Date(r.resolvedAt) < thisMonthStart) return false;
@@ -693,7 +719,11 @@ export default function FieldInspectionsPage() {
               </thead>
               <tbody>
                 {filtered.map((r) => (
-                  <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                  <tr
+                    key={r.id}
+                    id={`inspection-row-${r.id}`}
+                    className={`border-b border-gray-50 transition-colors ${highlightId === r.id ? "bg-indigo-50 ring-2 ring-inset ring-indigo-300" : "hover:bg-gray-50"}`}
+                  >
                     <td className="px-4 py-3 font-medium text-gray-900">{r.fieldName}</td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{fmt(r.inspectionDate)}</td>
                     <td className="px-4 py-3 text-gray-600">{r.cropType || "—"}</td>
