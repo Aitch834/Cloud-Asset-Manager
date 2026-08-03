@@ -8139,7 +8139,10 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
   // True while the operator is remediating flagged rows via the amber banner's
   // Fix button — after a save we auto-advance to the next flagged row.
   const [fixingFlaggedSo2, setFixingFlaggedSo2] = useState(false);
-  const firstFlaggedSo2RowRef = useRef<HTMLTableRowElement>(null);
+  // Review cycling: index of the last-reviewed flagged row (null until first
+  // click). Each Review click advances to the next flagged row, wrapping.
+  const [so2ReviewIndex, setSo2ReviewIndex] = useState<number | null>(null);
+  const flaggedSo2RowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   const { data: farmsDataSo2 } = useQuery<{ farms?: Record<string, unknown>[] }>({
     queryKey: ["farms-list"],
     queryFn: () => fetch("/api/tenants/current/farms", { credentials: "include" }).then(r => r.json()),
@@ -8271,14 +8274,24 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
   };
   const findFirstFlaggedSo2 = () => filtered.find(isFlaggedSo2Row);
 
+  // Step through flagged rows: each click advances to the next flagged row
+  // (wrapping around), so operators can inspect each one in turn.
+  const flaggedSo2Rows = filtered.filter(isFlaggedSo2Row);
   const handleReviewFlaggedSo2 = () => {
-    const firstFlagged = findFirstFlaggedSo2();
-    if (!firstFlagged) return;
-    const rowId = String(firstFlagged.id);
+    if (flaggedSo2Rows.length === 0) return;
+    const nextIndex = so2ReviewIndex == null ? 0 : (so2ReviewIndex + 1) % flaggedSo2Rows.length;
+    setSo2ReviewIndex(nextIndex);
+    const rowId = String(flaggedSo2Rows[nextIndex].id);
     setHighlightedSo2RowId(rowId);
-    firstFlaggedSo2RowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    flaggedSo2RowRefs.current[rowId]?.scrollIntoView({ behavior: "smooth", block: "center" });
     setTimeout(() => setHighlightedSo2RowId(null), 2500);
   };
+  // The flagged set can shrink (rows fixed) or change with filters — drop the
+  // cursor whenever it no longer points at a valid position so the indicator
+  // and the next click restart cleanly from the top.
+  useEffect(() => {
+    if (so2ReviewIndex != null && so2ReviewIndex >= flaggedSo2Rows.length) setSo2ReviewIndex(null);
+  }, [flaggedSo2Rows.length, so2ReviewIndex]);
 
   const handleFixFlaggedSo2 = () => {
     const firstFlagged = findFirstFlaggedSo2();
@@ -8436,7 +8449,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
             onClick={handleReviewFlaggedSo2}
             className="shrink-0 rounded px-2 py-0.5 text-xs font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
           >
-            Review
+            Review{so2ReviewIndex != null && flaggedSo2Rows.length > 0 ? ` (${so2ReviewIndex + 1} of ${flaggedSo2Rows.length})` : ""}
           </button>
           <button
             type="button"
@@ -8471,15 +8484,11 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
                 const maxVal = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : null;
                 const isUnverifiedLimit = batchMissing && maxVal != null && ORGANIC_LIMIT_NUMBERS.has(maxVal);
                 const rowId = String(r.id);
-                const isFirstFlagged = isUnverifiedLimit && !filtered.slice(0, idx).some(prev => {
-                  const prevMax = prev.max_permitted_mg_l != null && prev.max_permitted_mg_l !== "" ? parseFloat(String(prev.max_permitted_mg_l)) : null;
-                  return !prev.batch_ref && prevMax != null && ORGANIC_LIMIT_NUMBERS.has(prevMax);
-                });
                 const isHighlighted = highlightedSo2RowId === rowId;
                 return (
                 <tr
                   key={rowId}
-                  ref={isFirstFlagged ? firstFlaggedSo2RowRef : undefined}
+                  ref={isUnverifiedLimit ? (el => { flaggedSo2RowRefs.current[rowId] = el; }) : undefined}
                   className={`transition-colors duration-700${isHighlighted ? " bg-amber-200" : isUnverifiedLimit ? " bg-amber-50/40 hover:bg-muted/20" : " hover:bg-muted/20"}`}
                 >
                   <td className="p-3 whitespace-nowrap">{fmtDate(r.test_date)}</td>
