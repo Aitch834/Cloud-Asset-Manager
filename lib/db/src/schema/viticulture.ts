@@ -382,6 +382,7 @@ export const wineryPressingRecordsTable = pgTable("winery_pressing_records", {
   pressDate: date("press_date").notNull(),
   vintageYear: integer("vintage_year"),
   batchRef: text("batch_ref"),
+  wineColour: text("wine_colour"), // own declared colour — downstream records (fermentation/cellar/bottling) take priority when deriving a batch's colour
   pressType: text("press_type"), // pneumatic-bladder | basket | continuous-screw | other
   grapesPressedKg: numeric("grapes_pressed_kg", { precision: 10, scale: 2 }),
   freeRunLitres: numeric("free_run_litres", { precision: 10, scale: 2 }),

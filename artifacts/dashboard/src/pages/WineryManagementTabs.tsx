@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from "recharts";
 import SignatureCanvas from "react-signature-canvas";
 
@@ -483,6 +484,96 @@ function ViewAdditionsButton({ farmId, record }: { farmId: number; record: Recor
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const WINE_COLOUR_OPTIONS = ["Red", "White", "Rosé", "Sparkling", "Orange", "Other"];
+
+// ─── Assign wine colour dialog ────────────────────────────────────────────────
+// Inline colour picker for pressing batches whose derived wine colour is missing
+// ("Unspecified" in the Additions Report / vintage pH-TA chart). Each row saves
+// immediately via the single-column PUT .../wine-colour endpoint, so the rest of
+// the pressing record can never be clobbered. Saves invalidate every winery
+// query that groups by colour, so rows leave the Unspecified group without a
+// manual refresh.
+function AssignWineColourDialog({ farmId, records, onClose }: {
+  farmId: number;
+  records: { id: number; batchRef: string; pressDate: string | null }[];
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [saved, setSaved] = useState<Record<number, string>>({});
+  const [pendingId, setPendingId] = useState<number | null>(null);
+  const assignMutation = useMutation({
+    mutationFn: async ({ id, colour }: { id: number; colour: string }) => {
+      const r = await fetch(api(`farms/${farmId}/winery-pressing/${id}/wine-colour`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ wineColour: colour }),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error((e as { error?: string }).error || "Save failed"); }
+      return r.json();
+    },
+    onSuccess: (_d, vars) => {
+      setSaved(s => ({ ...s, [vars.id]: vars.colour }));
+      qc.invalidateQueries({ queryKey: ["winery-pressing", farmId] });
+      qc.invalidateQueries({ queryKey: ["winery-pressing-additions-summary", farmId] });
+      qc.invalidateQueries({ queryKey: ["winery-pressing-all-additions", farmId] });
+      qc.invalidateQueries({ queryKey: ["winery-batch-trail", farmId] });
+      toast({ title: "Wine colour saved" });
+    },
+    onSettled: () => setPendingId(null),
+  });
+  const handleClose = () => { assignMutation.reset(); onClose(); };
+  return (
+    <Dialog open onOpenChange={o => !o && handleClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><Wine className="h-4 w-4" />Assign Wine Colour</DialogTitle>
+          <DialogDescription>
+            These pressing batches have no recorded wine colour, so they appear as "Unspecified" in reports. Pick a colour to save it straight onto the batch record.
+          </DialogDescription>
+        </DialogHeader>
+        {records.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-2">No pressing batches without a wine colour were found for this scope.</p>
+        ) : (
+          <div className="max-h-80 overflow-y-auto divide-y rounded-md border">
+            {records.map(rec => {
+              const savedColour = saved[rec.id];
+              return (
+                <div key={rec.id} className="flex items-center gap-3 px-3 py-2" data-testid={`assign-colour-row-${rec.id}`}>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-mono text-xs font-medium truncate">{rec.batchRef || "(no batch ref)"}</p>
+                    {rec.pressDate && <p className="text-xs text-muted-foreground">Pressed {fmtDate(rec.pressDate)}</p>}
+                  </div>
+                  {savedColour ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                      <CheckCircle2 className="w-3 h-3" />{savedColour}
+                    </span>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      {pendingId === rec.id && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                      <Select
+                        value=""
+                        onValueChange={colour => { setPendingId(rec.id); assignMutation.mutate({ id: rec.id, colour }); }}
+                        disabled={assignMutation.isPending}
+                      >
+                        <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Select colour…" /></SelectTrigger>
+                        <SelectContent>{WINE_COLOUR_OPTIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <DialogMutationError mutation={assignMutation} message="The wine colour could not be saved." />
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={handleClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 // Sentinel for "no wine colour recorded" — same value the vintage pH/TA chart
 // uses for its Unspecified option, so persisted filters stay consistent.
 const UNSPECIFIED_COLOUR = "__unspecified__";
@@ -1468,11 +1559,14 @@ function VintagePHComparisonChart({
   vintageYear,
   highlightedBatch,
   onBatchClick,
+  onAssignColours,
 }: {
   data: BatchTrailData;
   vintageYear: string | null;
   highlightedBatch: string | null;
   onBatchClick: (ref: string) => void;
+  /** Optional shortcut: opens the assign-wine-colour dialog for the Unspecified batches */
+  onAssignColours?: () => void;
 }) {
   const [colourFilter, setColourFilter] = useState<string>("all");
 
@@ -1480,9 +1574,10 @@ function VintagePHComparisonChart({
   // Brix: fermentation start_brix (juice sugar at fermentation start)
   const batchMap = new Map<string, { ph: number | null; ta: number | null; brix: number | null; colour: string | null }>();
 
-  // Per-batch wine colour lookup (fermentation first, then bottling)
+  // Per-batch wine colour lookup (fermentation first, then bottling, then the
+  // pressing record's own declared colour)
   const colourOf = (ref: string): string | null => {
-    for (const src of [data.fermentation, data.bottling]) {
+    for (const src of [data.fermentation, data.bottling, data.pressings ?? []]) {
       for (const r of src) {
         if (r.batch_ref && String(r.batch_ref).trim() === ref && r.wine_colour) return String(r.wine_colour);
       }
@@ -1564,6 +1659,15 @@ function VintagePHComparisonChart({
             <span className="text-xs text-amber-700">
               {unspecifiedCount} batch{unspecifiedCount !== 1 ? "es" : ""} without a recorded wine colour
             </span>
+          )}
+          {hasUnspecified && onAssignColours && (
+            <button
+              onClick={onAssignColours}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border border-dashed border-purple-400 text-purple-700 hover:bg-purple-50 transition-colors"
+              data-testid="assign-colours-chart-button"
+            >
+              <Wine className="h-3 w-3" />Assign colours…
+            </button>
           )}
         </div>
       )}
@@ -1967,6 +2071,27 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
     staleTime: 30_000,
   });
 
+  // ── Assign wine colour (vintage scope) ───────────────────────────────────────
+  // Pressing sessions in this vintage whose batch has no derived colour anywhere
+  // (fermentation → bottling → pressing's own colour) — targets for the dialog.
+  const [assignColourRecords, setAssignColourRecords] = useState<{ id: number; batchRef: string; pressDate: string | null }[] | null>(null);
+  const openAssignColours = () => {
+    if (!data) return;
+    const hasColour = (ref: string) =>
+      [data.fermentation, data.bottling, data.pressings ?? []].some(src =>
+        src.some(r => r.batch_ref && String(r.batch_ref).trim() === ref && r.wine_colour));
+    const seen = new Set<number>();
+    const targets: { id: number; batchRef: string; pressDate: string | null }[] = [];
+    for (const p of data.pressings ?? []) {
+      const ref = p.batch_ref ? String(p.batch_ref).trim() : "";
+      const id = Number(p.id);
+      if (!ref || seen.has(id) || hasColour(ref)) continue;
+      seen.add(id);
+      targets.push({ id, batchRef: ref, pressDate: p.press_date ? String(p.press_date) : null });
+    }
+    setAssignColourRecords(targets);
+  };
+
   // ── Signature state ──────────────────────────────────────────────────────────
   const [sigOpen, setSigOpen] = useState(false);
   const [localSignature, setLocalSignature] = useState<string | null>(null);
@@ -2115,6 +2240,14 @@ function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: num
             vintageYear={vintageYear}
             highlightedBatch={highlightedBatch}
             onBatchClick={handleBatchHighlight}
+            onAssignColours={(data.pressings ?? []).length > 0 ? openAssignColours : undefined}
+          />
+        )}
+        {assignColourRecords && (
+          <AssignWineColourDialog
+            farmId={farmId}
+            records={assignColourRecords}
+            onClose={() => setAssignColourRecords(null)}
           />
         )}
 
@@ -4363,6 +4496,10 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [signedConfirmRecord, setSignedConfirmRecord] = useState<Record<string, unknown> | null>(null);
   const { data: additionsSummary = [], isError: summaryError, error: summaryErrorObj } = useAdditionsSummary(farmId);
   const { data: allAdditions = [], isError: allAdditionsError, error: allAdditionsErrorObj } = useAllPressAdditions(farmId);
+  // "Assign wine colour" shortcut for Unspecified report rows. Holds a snapshot
+  // of the target pressing records while the dialog is open (null = closed) so
+  // rows don't vanish mid-dialog when queries refresh after each save.
+  const [assignColourRecords, setAssignColourRecords] = useState<{ id: number; batchRef: string; pressDate: string | null }[] | null>(null);
   const sf = (k: string, v: string | boolean) => {
     if (k === "batchRef") setBatchRefError(null);
     setForm(f => ({ ...f, [k]: v }));
@@ -4426,6 +4563,35 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     return convMax !== undefined && doseVal > convMax;
   });
 
+  // Pressing batches whose derived wine colour is missing — targets for the
+  // Assign Wine Colour dialog. Report rows from fermentation/cellar sources are
+  // mapped back to the batch's pressing record via batch_ref (unique per farm).
+  const colourlessPressings = useMemo(() => {
+    const out = new Map<number, { id: number; batchRef: string; pressDate: string | null; vintage: string }>();
+    for (const a of allAdditions) {
+      if (String(a.wine_colour ?? "") !== "") continue;
+      let rec: Record<string, unknown> | undefined;
+      if (a.pressing_record_id != null) rec = crud.data.find(r => r.id === a.pressing_record_id);
+      else if (a.batch_ref) rec = crud.data.find(r => String(r.batch_ref ?? "") === String(a.batch_ref));
+      if (!rec) continue;
+      const id = rec.id as number;
+      if (!out.has(id)) out.set(id, {
+        id,
+        batchRef: String(rec.batch_ref ?? ""),
+        pressDate: rec.press_date ? String(rec.press_date) : null,
+        vintage: String(a.vintage_year ?? rec.vintage_year ?? ""),
+      });
+    }
+    return Array.from(out.values());
+  }, [allAdditions, crud.data]);
+  // Snapshot the matching batches and open the dialog. `vintage` is a year
+  // string, or "all" to include every vintage.
+  const openAssignColours = (vintage: string) => {
+    setAssignColourRecords(colourlessPressings
+      .filter(p => vintage === "all" || p.vintage === vintage)
+      .map(({ id, batchRef, pressDate }) => ({ id, batchRef, pressDate })));
+  };
+
   // Count of additive entries per pressing record, for the row badge
   const additionCounts = useMemo(() => {
     const m = new Map<number, number>();
@@ -4473,7 +4639,12 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   };
   const doOpenEdit = (r: Record<string, unknown>) => {
     setEditing(r.id as number);
-    setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
+    // wineColour is mapped to its camelCase form key explicitly so the Select
+    // reads it and the PUT body carries it (the API reads b.wineColour).
+    setForm({
+      ...Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])),
+      wineColour: r.wine_colour == null ? "" : String(r.wine_colour),
+    });
     setPressTypeOther(!!r.press_type && !KNOWN_PRESS_TYPES.includes(String(r.press_type)));
     setOpen(true);
   };
@@ -5345,6 +5516,16 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                     </button>
                   );
                 })}
+                {summaryHasUnspecifiedColour && (
+                  <button
+                    onClick={() => openAssignColours(yearFilter)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border border-dashed border-purple-400 text-purple-700 hover:bg-purple-50 transition-colors"
+                    title="Assign a wine colour to the batches shown under Unspecified"
+                    data-testid="assign-colours-chip-button"
+                  >
+                    <Wine className="h-3 w-3" />Assign colours…
+                  </button>
+                )}
                 {colourFilter !== null && categoryFilter.size === 0 && (
                   <button
                     onClick={() => setColourFilter(null)}
@@ -5509,7 +5690,16 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                         <td className="p-2.5">
                           {wineColour
                             ? <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">{wineColour}</span>
-                            : <span className="text-muted-foreground text-xs">—</span>}
+                            : (
+                              <button
+                                onClick={() => openAssignColours(String(row.vintage_year ?? "") || "all")}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium border border-dashed border-purple-300 text-purple-700 hover:bg-purple-50 transition-colors"
+                                title="No wine colour recorded — assign one to the batch record"
+                                data-testid="assign-colour-cell-button"
+                              >
+                                <Wine className="h-3 w-3" />Assign
+                              </button>
+                            )}
                         </td>
                         <td className="p-2.5">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${stageBadgeClass}`}>
@@ -5700,6 +5890,14 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Press Date *</Label><Input type="date" max={today} value={String(form.pressDate ?? "")} onChange={e => sf("pressDate", e.target.value)} /></div>
               <div><Label>Vintage Year</Label><Input type="number" value={String(form.vintageYear ?? "")} onChange={e => sf("vintageYear", e.target.value)} /></div>
+              <div>
+                <Label>Wine Colour</Label>
+                <Select value={String(form.wineColour ?? "")} onValueChange={v => sf("wineColour", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>{WINE_COLOUR_OPTIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">Used when no downstream fermentation/cellar/bottling record carries a colour.</p>
+              </div>
               <div>
                 <Label>Batch / Lot Reference</Label>
                 <div className="relative">
@@ -5921,6 +6119,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
               <ViewField label="Press Date" value={fmtDate(view.press_date)} />
               <ViewField label="Vintage Year" value={fmt(view.vintage_year)} />
               <ViewField label="Batch Ref" value={fmt(view.batch_ref)} />
+              <ViewField label="Wine Colour" value={fmt(view.wine_colour)} />
               <ViewField label="Press Type" value={fmt(view.press_type)} />
               <ViewField label="Certified Organic" value={(view.is_organic === true || view.is_organic === "true" || view.is_organic === 1) ? <span className="inline-flex items-center gap-1 text-green-700 font-medium"><ShieldCheck className="h-3.5 w-3.5" />Yes — organic SO₂ limits apply</span> : "No"} />
               <ViewField label="Operator" value={fmt(view.operator_name)} />
@@ -5973,6 +6172,13 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
             <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+      {assignColourRecords && (
+        <AssignWineColourDialog
+          farmId={farmId}
+          records={assignColourRecords}
+          onClose={() => setAssignColourRecords(null)}
+        />
       )}
       <Dialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
         <DialogContent>

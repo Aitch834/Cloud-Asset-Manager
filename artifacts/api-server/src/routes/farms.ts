@@ -36899,7 +36899,7 @@ router.post("/farms/:farmId/winery-pressing", requireAuth, requireTenant, requir
     batchRef = buildBatchRef(s.prefix, s.year_format, s.padding_digits, s.issued_seq);
   }
   try {
-    const r = await db.execute(sql`INSERT INTO winery_pressing_records (farm_id,press_date,vintage_year,batch_ref,press_type,grapes_pressed_kg,free_run_litres,press_wine_litres,total_juice_litres,press_efficiency_l_per_kg,juice_brix,juice_ph,juice_ta_gl,juice_turbidity,free_run_separated,additions_at_press,settling_method,settling_vessel,settling_hours,juice_analysis_source,is_organic,operator_name,notes) VALUES (${farmId},${nd(b.pressDate)},${ni(b.vintageYear)},${batchRef},${n(b.pressType)},${nf(b.grapesPressedKg)},${nf(b.freeRunLitres)},${nf(b.pressWineLitres)},${nf(b.totalJuiceLitres)},${nf(b.pressEfficiencyLPerKg)},${nf(b.juiceBrix)},${nf(b.juicePh)},${nf(b.juiceTaGl)},${n(b.juiceTurbidity)},${nb(b.freeRunSeparated) ?? true},${n(b.additionsAtPress)},${n(b.settlingMethod)},${n(b.settlingVessel)},${ni(b.settlingHours)},${n(b.juiceAnalysisSource)},${nb(b.isOrganic) ?? false},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
+    const r = await db.execute(sql`INSERT INTO winery_pressing_records (farm_id,press_date,vintage_year,batch_ref,wine_colour,press_type,grapes_pressed_kg,free_run_litres,press_wine_litres,total_juice_litres,press_efficiency_l_per_kg,juice_brix,juice_ph,juice_ta_gl,juice_turbidity,free_run_separated,additions_at_press,settling_method,settling_vessel,settling_hours,juice_analysis_source,is_organic,operator_name,notes) VALUES (${farmId},${nd(b.pressDate)},${ni(b.vintageYear)},${batchRef},${n(b.wineColour)},${n(b.pressType)},${nf(b.grapesPressedKg)},${nf(b.freeRunLitres)},${nf(b.pressWineLitres)},${nf(b.totalJuiceLitres)},${nf(b.pressEfficiencyLPerKg)},${nf(b.juiceBrix)},${nf(b.juicePh)},${nf(b.juiceTaGl)},${n(b.juiceTurbidity)},${nb(b.freeRunSeparated) ?? true},${n(b.additionsAtPress)},${n(b.settlingMethod)},${n(b.settlingVessel)},${ni(b.settlingHours)},${n(b.juiceAnalysisSource)},${nb(b.isOrganic) ?? false},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
     res.status(201).json({ record: r.rows[0] });
   } catch (err: unknown) {
     // PostgreSQL unique-constraint violation — (farm_id, batch_ref) index.
@@ -36944,6 +36944,8 @@ router.get("/farms/:farmId/winery-pressing/additions-summary", requireAuth, requ
         UNION ALL
         SELECT b2.wine_colour, 3 FROM winery_bottling_records b2
           WHERE b2.farm_id = p.farm_id AND b2.batch_ref = p.batch_ref AND COALESCE(b2.wine_colour, '') <> ''
+        UNION ALL
+        SELECT p.wine_colour, 4 WHERE COALESCE(p.wine_colour, '') <> ''
       ) wc ORDER BY wc.pr LIMIT 1
     ) pc ON TRUE
     WHERE p.farm_id = ${farmId}
@@ -36953,7 +36955,7 @@ router.get("/farms/:farmId/winery-pressing/additions-summary", requireAuth, requ
 
     SELECT
       f.vintage_year,
-      f.wine_colour,
+      COALESCE(NULLIF(f.wine_colour, ''), NULLIF(pf.wine_colour, '')) AS wine_colour,
       'SO₂ at fermentation'::text                AS additive_name,
       'so2'::text                                 AS category,
       'mg/L'::text                                AS unit,
@@ -36964,15 +36966,17 @@ router.get("/farms/:farmId/winery-pressing/additions-summary", requireAuth, requ
       ROUND(MAX(f.so2_at_fermentation_mg_l)::numeric, 3) AS max_dose,
       ROUND(AVG(f.so2_at_fermentation_mg_l)::numeric, 3) AS avg_dose
     FROM winery_fermentation_records f
+    -- (farm_id, batch_ref) is unique on pressing records, so this join cannot fan out
+    LEFT JOIN winery_pressing_records pf ON pf.farm_id = f.farm_id AND pf.batch_ref = f.batch_ref
     WHERE f.farm_id = ${farmId}
       AND f.so2_at_fermentation_mg_l IS NOT NULL
-    GROUP BY f.vintage_year, f.wine_colour
+    GROUP BY f.vintage_year, COALESCE(NULLIF(f.wine_colour, ''), NULLIF(pf.wine_colour, ''))
 
     UNION ALL
 
     SELECT
       o.vintage_year,
-      o.wine_colour,
+      COALESCE(NULLIF(o.wine_colour, ''), NULLIF(po.wine_colour, '')) AS wine_colour,
       'SO₂ (cellar sulfiting)'::text             AS additive_name,
       'so2'::text                                 AS category,
       'g'::text                                   AS unit,
@@ -36983,10 +36987,11 @@ router.get("/farms/:farmId/winery-pressing/additions-summary", requireAuth, requ
       ROUND(MAX(o.so2_quantity_g)::numeric, 3)   AS max_dose,
       ROUND(AVG(o.so2_quantity_g)::numeric, 3)   AS avg_dose
     FROM winery_cellar_ops o
+    LEFT JOIN winery_pressing_records po ON po.farm_id = o.farm_id AND po.batch_ref = o.batch_ref
     WHERE o.farm_id = ${farmId}
       AND o.op_type = 'sulfiting'
       AND o.so2_quantity_g IS NOT NULL
-    GROUP BY o.vintage_year, o.wine_colour
+    GROUP BY o.vintage_year, COALESCE(NULLIF(o.wine_colour, ''), NULLIF(po.wine_colour, ''))
 
     ORDER BY vintage_year DESC NULLS LAST, source, category, additive_name
   `);
@@ -37020,6 +37025,8 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
         UNION ALL
         SELECT b2.wine_colour, 3 FROM winery_bottling_records b2
           WHERE b2.farm_id = p.farm_id AND b2.batch_ref = p.batch_ref AND COALESCE(b2.wine_colour, '') <> ''
+        UNION ALL
+        SELECT p.wine_colour, 4 WHERE COALESCE(p.wine_colour, '') <> ''
       ) wc ORDER BY wc.pr LIMIT 1
     ) pc ON TRUE
     WHERE p.farm_id = ${farmId}
@@ -37027,7 +37034,9 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
     UNION ALL
 
     SELECT 'fermentation' AS source,
-           f.vintage_year, f.batch_ref, f.wine_colour, f.start_date AS record_date,
+           f.vintage_year, f.batch_ref,
+           COALESCE(NULLIF(f.wine_colour, ''), NULLIF(pf.wine_colour, '')) AS wine_colour,
+           f.start_date AS record_date,
            'SO₂ / Potassium metabisulphite (KMS)' AS additive_name,
            'so2' AS category,
            f.so2_at_fermentation_mg_l::text AS dose,
@@ -37041,13 +37050,16 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
            NULL::numeric AS so2_quantity_g
     FROM winery_fermentation_records f
     LEFT JOIN winery_vessels v ON v.id = f.vessel_id
+    LEFT JOIN winery_pressing_records pf ON pf.farm_id = f.farm_id AND pf.batch_ref = f.batch_ref
     WHERE f.farm_id = ${farmId}
       AND f.so2_at_fermentation_mg_l IS NOT NULL
 
     UNION ALL
 
     SELECT 'cellar' AS source,
-           o.vintage_year, o.batch_ref, o.wine_colour, o.op_date AS record_date,
+           o.vintage_year, o.batch_ref,
+           COALESCE(NULLIF(o.wine_colour, ''), NULLIF(po.wine_colour, '')) AS wine_colour,
+           o.op_date AS record_date,
            'SO₂ / Potassium metabisulphite (KMS)' AS additive_name,
            'so2' AS category,
            o.so2_quantity_g::text AS dose,
@@ -37066,6 +37078,7 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
     FROM winery_cellar_ops o
     LEFT JOIN winery_vessels fv ON fv.id = o.from_vessel_id
     LEFT JOIN winery_vessels tv ON tv.id = o.to_vessel_id
+    LEFT JOIN winery_pressing_records po ON po.farm_id = o.farm_id AND po.batch_ref = o.batch_ref
     WHERE o.farm_id = ${farmId}
       AND o.op_type = 'sulfiting'
       AND o.so2_quantity_g IS NOT NULL
@@ -37212,7 +37225,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
       // All pressing sessions for this vintage — independent of additions, so the
       // trail can list sessions (and their notes) even when no additives were recorded.
       db.execute(sql`
-        SELECT p.id, p.press_date, p.batch_ref, p.operator_name, p.notes
+        SELECT p.id, p.press_date, p.batch_ref, p.wine_colour, p.operator_name, p.notes
         FROM winery_pressing_records p
         WHERE p.farm_id = ${farmId} AND p.vintage_year = ${vintageYear}
         ORDER BY p.press_date ASC NULLS LAST, p.id ASC
@@ -37248,7 +37261,7 @@ router.put("/farms/:farmId/winery-pressing/:id", requireAuth, requireTenant, req
     // Attribution comes from the authenticated identity, never the request body —
     // operator_name remains ordinary record data but cannot forge the audit entry.
     const editEntry = buildAuditEditEntry(await resolveAuditEditor(req), "Edited");
-    const r = await db.execute(sql`UPDATE winery_pressing_records SET edit_history=CASE WHEN audit_signature IS NOT NULL THEN COALESCE(edit_history,'[]'::jsonb) || ${editEntry}::jsonb ELSE COALESCE(edit_history,'[]'::jsonb) END,press_date=${nd(b.pressDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${batchRef},press_type=${n(b.pressType)},grapes_pressed_kg=${nf(b.grapesPressedKg)},free_run_litres=${nf(b.freeRunLitres)},press_wine_litres=${nf(b.pressWineLitres)},total_juice_litres=${nf(b.totalJuiceLitres)},press_efficiency_l_per_kg=${nf(b.pressEfficiencyLPerKg)},juice_brix=${nf(b.juiceBrix)},juice_ph=${nf(b.juicePh)},juice_ta_gl=${nf(b.juiceTaGl)},juice_turbidity=${n(b.juiceTurbidity)},free_run_separated=${nb(b.freeRunSeparated) ?? true},additions_at_press=${n(b.additionsAtPress)},settling_method=${n(b.settlingMethod)},settling_vessel=${n(b.settlingVessel)},settling_hours=${ni(b.settlingHours)},juice_analysis_source=${n(b.juiceAnalysisSource)},is_organic=${nb(b.isOrganic) ?? false},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${recordId} AND farm_id=${farmId} RETURNING *`);
+    const r = await db.execute(sql`UPDATE winery_pressing_records SET edit_history=CASE WHEN audit_signature IS NOT NULL THEN COALESCE(edit_history,'[]'::jsonb) || ${editEntry}::jsonb ELSE COALESCE(edit_history,'[]'::jsonb) END,press_date=${nd(b.pressDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${batchRef},wine_colour=${n(b.wineColour)},press_type=${n(b.pressType)},grapes_pressed_kg=${nf(b.grapesPressedKg)},free_run_litres=${nf(b.freeRunLitres)},press_wine_litres=${nf(b.pressWineLitres)},total_juice_litres=${nf(b.totalJuiceLitres)},press_efficiency_l_per_kg=${nf(b.pressEfficiencyLPerKg)},juice_brix=${nf(b.juiceBrix)},juice_ph=${nf(b.juicePh)},juice_ta_gl=${nf(b.juiceTaGl)},juice_turbidity=${n(b.juiceTurbidity)},free_run_separated=${nb(b.freeRunSeparated) ?? true},additions_at_press=${n(b.additionsAtPress)},settling_method=${n(b.settlingMethod)},settling_vessel=${n(b.settlingVessel)},settling_hours=${ni(b.settlingHours)},juice_analysis_source=${n(b.juiceAnalysisSource)},is_organic=${nb(b.isOrganic) ?? false},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${recordId} AND farm_id=${farmId} RETURNING *`);
     res.json({ record: r.rows[0] });
   } catch (err: unknown) {
     // PostgreSQL unique-constraint violation — (farm_id, batch_ref) index.
@@ -37304,6 +37317,30 @@ router.put("/farms/:farmId/winery-pressing/:id/sign-off", requireAuth, requireTe
   const signerDate = signerDateRaw && DATE_RE.test(signerDateRaw) ? signerDateRaw : null;
   const now = new Date();
   const r = await db.execute(sql`UPDATE winery_pressing_records SET audit_signature=${signature}, audit_signed_at=${now}, audit_signer_name=${signerName}, audit_signer_role=${signerRole}, audit_signer_date=${signerDate} WHERE id=${recordId} AND farm_id=${farmId} RETURNING id, audit_signature, audit_signed_at, audit_signer_name, audit_signer_role, audit_signer_date`);
+  if (r.rows.length === 0) {
+    res.status(404).json({ error: "Record not found" });
+    return;
+  }
+  res.json({ record: r.rows[0] });
+});
+
+// ── Assign wine colour only — used by the Additions Report "Unspecified" shortcut ──
+// Updates a single column so the caller never has to resend (and risk clobbering)
+// the rest of the pressing record.
+const WINE_COLOUR_VALUES = new Set(["Red", "White", "Rosé", "Sparkling", "Orange", "Other"]);
+router.put("/farms/:farmId/winery-pressing/:id/wine-colour", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const recordId = parseInt(req.params.id as string);
+  const colour = n(sanitiseBody(req.body).wineColour);
+  if (!colour || !WINE_COLOUR_VALUES.has(colour)) {
+    res.status(400).json({ error: `wineColour must be one of: ${[...WINE_COLOUR_VALUES].join(", ")}` });
+    return;
+  }
+  // Same post-sign-off audit trail as the main pressing PUT: if the record is
+  // already signed, atomically append an edit-history entry attributed to the
+  // authenticated editor so a signed batch's colour can never change untracked.
+  const editEntry = buildAuditEditEntry(await resolveAuditEditor(req), `Wine colour set to ${colour}`);
+  const r = await db.execute(sql`UPDATE winery_pressing_records SET edit_history=CASE WHEN audit_signature IS NOT NULL THEN COALESCE(edit_history,'[]'::jsonb) || ${editEntry}::jsonb ELSE COALESCE(edit_history,'[]'::jsonb) END, wine_colour=${colour} WHERE id=${recordId} AND farm_id=${farmId} RETURNING id, batch_ref, wine_colour`);
   if (r.rows.length === 0) {
     res.status(404).json({ error: "Record not found" });
     return;

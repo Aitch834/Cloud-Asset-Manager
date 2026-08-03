@@ -47,6 +47,11 @@ export async function runWineryMigrations(): Promise<void> {
     WHERE batch_ref IS NOT NULL
   `);
 
+  // Wine colour declared directly on the pressing (batch) record — lets users assign a
+  // missing colour from the Additions Report's "Unspecified" rows even when the batch
+  // has no downstream fermentation/cellar/bottling record to carry the colour.
+  await db.execute(sql`ALTER TABLE winery_pressing_records ADD COLUMN IF NOT EXISTS wine_colour text`);
+
   // Certified organic flag on pressing records — drives automatic SO₂ limit enforcement
   await db.execute(sql`ALTER TABLE winery_pressing_records ADD COLUMN IF NOT EXISTS is_organic boolean NOT NULL DEFAULT false`);
 
