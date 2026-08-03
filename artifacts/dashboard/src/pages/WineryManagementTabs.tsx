@@ -457,7 +457,7 @@ const additiveCsvCol = (field: PressAdditiveField) => ({
   fmt: (r: Record<string, unknown>) => ADDITIVE_COL[field].csvValue(r),
 });
 // Batch-trail CSV header — the additive columns above map into these slots by name.
-const BATCH_TRAIL_CSV_HEADER = ["Stage", "Batch Ref", "Date", "Type / Additive", "Detail", "SO₂ / Dose", "Unit", "SO₂ Ceiling (mg/L)", "SO₂ Compliance", "pH", "TA (g/L)", "Vessel", "Operator", "Notes"];
+const BATCH_TRAIL_CSV_HEADER = ["Stage", "Batch Ref", "Date", "Type / Additive", "Detail", "SO₂ / Dose", "Unit", "SO₂ Ceiling (mg/L)", "SO₂ Compliance", "pH", "TA (g/L)", "Vessel", "Operator", "Notes", "Running SO₂ Total (mg/L)"];
 
 // ─── Harvest Reception columns — single source of truth ───────────────────────
 // The export CSV (harvestCsvCols), the import template headers
@@ -2648,10 +2648,20 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
     pushStageAttachmentRows("Fermentation", r, fermAttachments);
   }
 
-  // Cellar ops
+  // Cellar ops — per-op running SO₂ totals computed in chronological op order
+  // via the shared cellarSo2RunningTotals helper, matching the batch-trail PDF's
+  // "Running total after this op (cumulative mg/L)" column.
+  const csvCellarChrono = [...data.cellarOps].sort((a, b) => String(a.op_date ?? "").localeCompare(String(b.op_date ?? "")));
+  const { perOp: csvCellarPerOp } = cellarSo2RunningTotals(csvCellarChrono);
+  const csvRunningByOp = new Map<Record<string, unknown>, { contributed: boolean; runningMgL: number | null }>();
+  csvCellarChrono.forEach((op, i) => csvRunningByOp.set(op, csvCellarPerOp[i]));
   for (const r of data.cellarOps) {
     const soDetails = r.so2_quantity_g != null ? fmtNum(r.so2_quantity_g, 1) : (r.free_so2_after_mg_l != null ? fmtNum(r.free_so2_after_mg_l, 1) : "");
     const soUnit = r.so2_quantity_g != null ? "g" : (r.free_so2_after_mg_l != null ? "mg/L (after)" : "");
+    const running = csvRunningByOp.get(r);
+    const runningCell = String(r.op_type) === "sulfiting"
+      ? (running?.contributed && running.runningMgL != null ? `≈ ${running.runningMgL.toFixed(1)}` : "—")
+      : "";
     rows.push([
       "Cellar Operation",
       String(r.batch_ref ?? ""),
@@ -2667,6 +2677,7 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
       [r.from_vessel_ref, r.to_vessel_ref].filter(Boolean).join(" → "),
       String(r.operator_name ?? ""),
       String(r.notes ?? ""),
+      runningCell,
     ]);
     pushStageAttachmentRows("Cellar Operation", r, cellarAttachments);
   }
@@ -2786,7 +2797,13 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
   const prefixLine = isVintageScoped && vintageYear
     ? `"Full Vintage Trail — Vintage ${vintageYear} — ${farmName.replace(/"/g, '""')}"`
     : null;
-  const csv = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+  // Pad every row to the header width so rows built before the "Running SO₂
+  // Total (mg/L)" column was appended stay aligned with the header.
+  const csvWidth = BATCH_TRAIL_CSV_HEADER.length;
+  const csv = rows.map(row => {
+    const padded = row.length < csvWidth ? [...row, ...Array(csvWidth - row.length).fill("")] : row;
+    return padded.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",");
+  }).join("\n");
   const blob = new Blob([prefixLine ? prefixLine + "\n" + csv : csv], { type: "text/csv" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
