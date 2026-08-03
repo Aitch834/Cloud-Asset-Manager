@@ -2672,17 +2672,25 @@ async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unkn
   }
 
   // SO₂ tests
+  // Mirrors the batch-trail PDF so2Rows builder and the SO₂ register CSV
+  // "Limit Unverified" column: an organic-ceiling max_permitted with no
+  // batch_ref means the applicable limit can't be verified against a batch
+  // record, so the compliance cell carries the same caveat.
+  const so2OrganicLimitNumbers = new Set(Object.values(ORGANIC_MAX_SO2).map(v => parseFloat(v)));
   for (const r of data.so2Tests) {
+    const maxVal = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : null;
+    const unverifiedLimit = !r.batch_ref && maxVal != null && so2OrganicLimitNumbers.has(maxVal);
+    const compliance = r.so2_compliant === true || r.so2_compliant === "true" ? "Compliant" : r.so2_compliant === false || r.so2_compliant === "false" ? "Exceeds Limit" : "";
     rows.push([
       "SO₂ Test",
       String(r.batch_ref ?? ""),
       fmtDate(r.test_date),
       SO2_TEST_STAGE_LABELS[String(r.test_stage)] ?? String(r.test_stage ?? ""),
-      r.so2_compliant === true || r.so2_compliant === "true" ? "Compliant" : r.so2_compliant === false || r.so2_compliant === "false" ? "Exceeds Limit" : "",
+      "",
       r.free_so2_mg_l != null ? fmtNum(r.free_so2_mg_l, 1) : "",
       "mg/L (free)",
-      "",
-      "",
+      maxVal != null ? maxVal.toFixed(0) : "",
+      unverifiedLimit ? (compliance ? `${compliance} — Limit unverified (no batch ref)` : "Limit unverified (no batch ref)") : compliance,
       r.ph != null ? fmtNum(r.ph, 2) : "",
       r.titratable_acidity_gl != null ? fmtNum(r.titratable_acidity_gl, 1) : "",
       String(r.vessel_ref ?? ""),
