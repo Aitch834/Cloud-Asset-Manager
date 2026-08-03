@@ -8612,6 +8612,9 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
 
   const [isSo2BatchOrganic, setIsSo2BatchOrganic] = useState(false);
   const [so2WineColourAutoFilled, setSo2WineColourAutoFilled] = useState(false);
+  // Confirmation gate before saving a test whose total SO₂ exceeds the active
+  // ceiling — same pattern as CellarOpsTab / BottlingRecordsTab.
+  const [confirmOverCeiling, setConfirmOverCeiling] = useState(false);
 
   const handleSo2BatchRefChange = (val: string) => {
     sf("batchRef", val);
@@ -8669,7 +8672,15 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
     setIsSo2BatchOrganic(match?.isOrganic ?? false);
     setOpen(true);
   };
-  const save = async () => {
+  const save = async (ceilingConfirmed = false) => {
+    // Confirm before saving a test whose entered total SO₂ exceeds the max
+    // permitted ceiling in the form. Only fires when both values are actually
+    // available (autoCompliant is null otherwise) — saving proceeds normally
+    // when under the ceiling or when ceiling/SO₂ data is missing.
+    if (!ceilingConfirmed && autoCompliant === false) {
+      setConfirmOverCeiling(true);
+      return;
+    }
     const payload = { ...form, so2Compliant: autoCompliant != null ? String(autoCompliant) : form.so2Compliant };
     try {
       if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...payload } as Record<string, unknown> & { id: number });
@@ -9108,12 +9119,31 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setOpen(false); setFixingFlaggedSo2(false); }}>Cancel</Button>
-            <Button onClick={save} disabled={!form.testDate || crud.add.isPending || crud.edit.isPending}>
+            <Button onClick={() => save()} disabled={!form.testDate || crud.add.isPending || crud.edit.isPending}>
               {(crud.add.isPending || crud.edit.isPending) && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Save
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {confirmOverCeiling && (
+        <Dialog open onOpenChange={() => setConfirmOverCeiling(false)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-amber-600" />SO₂ ceiling exceeded</DialogTitle>
+              <DialogDescription>
+                Total SO₂ {form.totalSo2MgL && !isNaN(parseFloat(form.totalSo2MgL)) ? parseFloat(form.totalSo2MgL).toFixed(1) : "—"} mg/L exceeds the {form.maxPermittedMgL} mg/L {allSo2LimitValues.includes(form.maxPermittedMgL ?? "") ? (isSo2BatchOrganic ? "organic " : "conventional ") : ""}ceiling — save anyway?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setConfirmOverCeiling(false)}>Cancel</Button>
+              <Button variant="destructive" disabled={crud.add.isPending || crud.edit.isPending} onClick={() => { setConfirmOverCeiling(false); save(true); }}>
+                {(crud.add.isPending || crud.edit.isPending) && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Save anyway
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {view && (
         <Dialog open onOpenChange={() => setView(null)}>
