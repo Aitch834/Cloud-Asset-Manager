@@ -75,6 +75,30 @@ async function testRoute(name, route, makeBody, expectedCode = "DUPLICATE_BATCH_
   } else {
     check("setup record for PUT check created", false, `got ${other.status}`);
   }
+
+  // 4. Race: two truly simultaneous POSTs with the same ref. The pre-check
+  // SELECT can't catch this — both requests pass it before either inserts —
+  // so it exercises the DB unique index + err.cause.code → friendly 409 path.
+  const raceRef = `${ref}-RACE`;
+  const [a, b] = await Promise.all([
+    call("POST", route, makeBody(raceRef)),
+    call("POST", route, makeBody(raceRef)),
+  ]);
+  for (const r of [a, b]) {
+    if (r.status === 201 && r.json?.record?.id) created.push({ route, id: r.json.record.id });
+  }
+  const statuses = [a.status, b.status].sort((x, y) => x - y);
+  check(
+    "race: exactly one 201 and one 409",
+    statuses[0] === 201 && statuses[1] === 409,
+    `got ${a.status} & ${b.status}: ${JSON.stringify(a.json)} / ${JSON.stringify(b.json)}`,
+  );
+  const loser = a.status === 409 ? a : b;
+  check(
+    `race: 409 carries code "${expectedCode}"`,
+    loser.status === 409 && loser.json?.code === expectedCode,
+    `got code ${JSON.stringify(loser.json?.code)}`,
+  );
 }
 
 const base = `/farms/${FARM_ID}`;
