@@ -47,6 +47,10 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
   // by the field mapping, so surface them as a preview warning (mirrors the
   // Bottling importer's unknownHeaders behaviour).
   const [importUnknownHeaders, setImportUnknownHeaders] = useState<string[]>([]);
+  // WARNING: prefix rows our own exports prepend above the header — extracted
+  // and surfaced in the preview so users know they're skipped (mirrors the
+  // Bottling importer's warnings banner).
+  const [importWarnings, setImportWarnings] = useState<string[]>([]);
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const downloadHarvestTemplate = () => {
@@ -65,6 +69,7 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
     setImportResult(null);
     setImportParsed([]);
     setImportUnknownHeaders([]);
+    setImportWarnings([]);
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
@@ -79,6 +84,14 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
       // contains a recognised column header or alias.
       const knownHeaders = new Set(HARVEST_COLUMNS.flatMap(c => [c.header, c.dbKey]));
       const headerIdx = parsed.findIndex(cells => cells.some(cell => knownHeaders.has(cell)));
+      // Surface any "WARNING:" prefix rows above the header (our own exports
+      // prepend these) instead of silently dropping them — same as Bottling.
+      const warningLines: string[] = [];
+      for (const cells of parsed.slice(0, headerIdx === -1 ? 0 : headerIdx)) {
+        const joined = cells.join(" — ").trim();
+        if (/^WARNING:/i.test(joined)) warningLines.push(joined);
+      }
+      setImportWarnings(warningLines);
       if (headerIdx > 0) parsed = parsed.slice(headerIdx);
       if (headerIdx === -1 || parsed.length < 2) { setImportError("CSV must have a header row and at least one data row."); return; }
       const headers = parsed[0];
@@ -132,6 +145,7 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
   const resetHarvestImportDialog = () => {
     setImportParsed([]);
     setImportUnknownHeaders([]);
+    setImportWarnings([]);
     setImportError(null);
     setImportResult(null);
     setImportLoading(false);
@@ -423,6 +437,16 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
                 <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700 flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
                   <span>{importError}</span>
+                </div>
+              )}
+              {importWarnings.length > 0 && !importError && (
+                <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium">This file contains warning{importWarnings.length !== 1 ? "s" : ""} from a previous export:</p>
+                    {importWarnings.map((w, i) => <p key={i} className="text-xs mt-1">{w}</p>)}
+                    <p className="text-xs mt-1 text-amber-700">Warning lines are skipped on import — only data rows below the header will be imported.</p>
+                  </div>
                 </div>
               )}
               {importUnknownHeaders.length > 0 && !importError && (
