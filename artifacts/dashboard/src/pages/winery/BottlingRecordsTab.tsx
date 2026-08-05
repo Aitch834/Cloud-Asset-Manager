@@ -340,14 +340,23 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     [filteredByYear],
   );
 
-  const isBottlingRowNonCompliant = (r: Record<string, unknown>): boolean => {
+  // Single source of truth for the Bottling SO₂ compliance verdict — used by
+  // the non-compliant filter, the on-screen table badge, the CSV export
+  // columns AND the view dialog, so no surface can drift from the others
+  // (mirrors cellarSo2Verdict on the Cellar Ops tab). Ceiling comes from
+  // wine_colour + organic status; verdict compares it against total_so2_mg_l.
+  const bottlingSo2Verdict = (r: Record<string, unknown>): { ceiling: number; isOrganic: boolean; compliant: boolean | null } | null => {
     const colour = String(r.wine_colour ?? "");
-    const isOrg = r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
-    const total = r.total_so2_mg_l != null && r.total_so2_mg_l !== "" ? parseFloat(String(r.total_so2_mg_l)) : null;
-    const ceiling = colour ? (isOrg ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour]) : undefined;
-    if (total == null || !ceiling) return false;
-    return total > parseFloat(ceiling);
+    if (!colour) return null;
+    const isOrganic = r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
+    const ceiling = parseFloat((isOrganic ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour]) ?? "");
+    if (isNaN(ceiling)) return null;
+    const total = r.total_so2_mg_l != null && r.total_so2_mg_l !== "" ? parseFloat(String(r.total_so2_mg_l)) : NaN;
+    return { ceiling, isOrganic, compliant: isNaN(total) ? null : total <= ceiling };
   };
+
+  const isBottlingRowNonCompliant = (r: Record<string, unknown>): boolean =>
+    bottlingSo2Verdict(r)?.compliant === false;
 
   const nonCompliantCount = filtered.filter(isBottlingRowNonCompliant).length;
   const displayRows = nonCompliantOnly ? filtered.filter(isBottlingRowNonCompliant) : filtered;
@@ -358,21 +367,13 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const bottlingCsvCols = [
     ...BOTTLING_COLUMNS.map(c => ({ key: c.dbKey, label: c.header, fmt: c.exportValue })),
     { key: "so2_ceiling", label: "SO₂ ceiling (mg/L)", fmt: (r: Record<string, unknown>) => {
-      const colour = String(r.wine_colour ?? "");
-      if (!colour) return "";
-      const isOrg = r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
-      return (isOrg ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour]) ?? "";
+      const v = bottlingSo2Verdict(r);
+      return v ? String(v.ceiling) : "";
     }},
     { key: "so2_compliant", label: "Compliance", fmt: (r: Record<string, unknown>) => {
-      const colour = String(r.wine_colour ?? "");
-      const isOrg = r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
-      const rawTotal = r.total_so2_mg_l;
-      if (rawTotal == null || rawTotal === "") return "";
-      const total = parseFloat(String(rawTotal));
-      if (isNaN(total)) return "";
-      const ceiling = colour ? (isOrg ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour]) : undefined;
-      if (!ceiling) return "";
-      return total <= parseFloat(ceiling) ? "Compliant" : "Exceeds";
+      const v = bottlingSo2Verdict(r);
+      if (!v || v.compliant == null) return "";
+      return v.compliant ? "Compliant" : "Exceeds";
     }},
     { key: "certified_organic", label: "Certified Organic", fmt: (r: Record<string, unknown>) => r.certified_organic ? "Yes" : "No" },
     { key: "notes", label: "Notes" },
@@ -514,15 +515,12 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                   <td className="p-3 text-right">{r.free_so2_mg_l ? `${fmtNum(r.free_so2_mg_l, 0)} mg/L` : "—"}</td>
                   <td className="p-3 text-right">{r.total_so2_mg_l ? `${fmtNum(r.total_so2_mg_l, 0)} mg/L` : "—"}</td>
                   <td className="p-3">{(() => {
-                    const colour = String(r.wine_colour ?? "");
-                    const isOrg = r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
-                    const total = r.total_so2_mg_l != null ? parseFloat(String(r.total_so2_mg_l)) : null;
-                    const ceiling = colour ? (isOrg ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour]) : undefined;
-                    if (total == null || !ceiling) return <span className="text-muted-foreground text-xs">—</span>;
+                    const v = bottlingSo2Verdict(r);
+                    if (!v || v.compliant == null) return <span className="text-muted-foreground text-xs">—</span>;
                     return (
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <So2Badge compliant={total <= parseFloat(ceiling)} />
-                        <span className="text-xs text-muted-foreground whitespace-nowrap font-mono">{fmtNum(total, 0)} / {ceiling} mg/L</span>
+                        <So2Badge compliant={v.compliant} />
+                        <span className="text-xs text-muted-foreground whitespace-nowrap font-mono">{fmtNum(r.total_so2_mg_l, 0)} / {v.ceiling} mg/L</span>
                       </div>
                     );
                   })()}</td>
@@ -730,18 +728,13 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
               <ViewField label="Label Batch" value={fmt(view.label_batch)} />
               <ViewField label="Free SO₂" value={view.free_so2_mg_l ? `${fmtNum(view.free_so2_mg_l, 0)} mg/L` : "—"} />
               <ViewField label="Total SO₂" value={(() => {
-                const totalSo2 = view.total_so2_mg_l != null ? parseFloat(String(view.total_so2_mg_l)) : null;
-                const wc = view.wine_colour ? String(view.wine_colour) : null;
-                if (totalSo2 == null || !wc) return view.total_so2_mg_l ? `${fmtNum(view.total_so2_mg_l, 0)} mg/L` : "—";
-                const isOrg = view.is_organic === true || view.is_organic === "true" || view.is_organic === 1;
-                const ceiling = isOrg ? ORGANIC_MAX_SO2[wc] : CONVENTIONAL_MAX_SO2[wc];
-                if (!ceiling) return `${fmtNum(view.total_so2_mg_l, 0)} mg/L`;
-                const compliant = totalSo2 <= parseFloat(ceiling);
+                const v = bottlingSo2Verdict(view);
+                if (!v || v.compliant == null) return view.total_so2_mg_l ? `${fmtNum(view.total_so2_mg_l, 0)} mg/L` : "—";
                 return (
                   <span className="flex flex-wrap items-center gap-1.5">
-                    <span className="font-mono">{totalSo2.toFixed(0)} mg/L</span>
-                    <So2Badge compliant={compliant} />
-                    <span className="text-muted-foreground text-xs">(max {ceiling} mg/L{isOrg ? " organic" : ""})</span>
+                    <span className="font-mono">{parseFloat(String(view.total_so2_mg_l)).toFixed(0)} mg/L</span>
+                    <So2Badge compliant={v.compliant} />
+                    <span className="text-muted-foreground text-xs">(max {v.ceiling} mg/L{v.isOrganic ? " organic" : ""})</span>
                   </span>
                 );
               })()} />

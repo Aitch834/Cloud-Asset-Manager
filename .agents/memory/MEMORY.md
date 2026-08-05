@@ -60,4 +60,5 @@
 - [Signed winery record writes](winery-signed-record-writes.md) — every write route (even single-column) must append edit_history via buildAuditEditEntry when audit_signature exists, or review rejects
 - [Subagent jobs stale after pause](subagent-jobs-stale-after-pause.md) — background subagents die on session pause but waitForJob still says running; check file mtimes, cancel, redispatch remainder
 - [farm_task_assignments task_type default](task-type-default-custom.md) — task_type defaults to 'custom' (never NULL); backfills/queries for "untyped" tasks must match 'custom', not IS NULL
+- [SO₂ verdict helpers](so2-verdict-helpers.md) — winery tabs derive SO₂ verdicts via per-tab helpers, live total-vs-ceiling; reviews reject reading persisted compliance flags directly
 - [Persisted filter hook](persisted-filter-hook.md) — shared per-farm filter persistence; reviews demand FULL page coverage incl. split-out sections; dup-batch-ref check needs api-server running

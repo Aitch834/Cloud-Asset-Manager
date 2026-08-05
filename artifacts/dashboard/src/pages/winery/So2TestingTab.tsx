@@ -209,6 +209,22 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
     openEdit(firstFlagged);
   };
 
+  // Single source of truth for the SO₂ test compliance verdict — used by the
+  // on-screen table badge, the CSV "Compliant" column AND the view dialog, so
+  // no surface can drift from the others (mirrors cellarSo2Verdict on the
+  // Cellar Ops tab). Derives from total_so2_mg_l vs max_permitted_mg_l (the
+  // applicable ceiling saved on the row); falls back to the stored
+  // so2_compliant flag only when either value is missing/invalid, and returns
+  // null (no verdict) when nothing usable exists.
+  const so2TestVerdict = (r: Record<string, unknown>): boolean | null => {
+    const total = r.total_so2_mg_l != null && r.total_so2_mg_l !== "" ? parseFloat(String(r.total_so2_mg_l)) : NaN;
+    const max = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : NaN;
+    if (!isNaN(total) && !isNaN(max)) return total <= max;
+    if (r.so2_compliant === true || r.so2_compliant === "true" || r.so2_compliant === 1 || r.so2_compliant === "1") return true;
+    if (r.so2_compliant === false || r.so2_compliant === "false" || r.so2_compliant === 0 || r.so2_compliant === "0") return false;
+    return null;
+  };
+
   // Organic ceiling for a test row — only when the linked pressing batch is organic (mirrors view dialog logic)
   const so2OrganicCeiling = (r: Record<string, unknown>): number | null => {
     const wc = r.wine_colour ? String(r.wine_colour) : null;
@@ -228,7 +244,10 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
     { key: "free_so2_mg_l", label: "Free SO₂ (mg/L)" },
     { key: "total_so2_mg_l", label: "Total SO₂ (mg/L)" },
     { key: "max_permitted_mg_l", label: "Max Permitted (mg/L)" },
-    { key: "so2_compliant", label: "Compliant", fmt: (r: Record<string, unknown>) => r.so2_compliant ? "Yes" : "No" },
+    { key: "so2_compliant", label: "Compliant", fmt: (r: Record<string, unknown>) => {
+      const v = so2TestVerdict(r);
+      return v == null ? "" : v ? "Yes" : "No";
+    } },
     { key: "organic_ceiling_mg_l", label: "Organic Ceiling (mg/L)", fmt: (r: Record<string, unknown>) => { const c = so2OrganicCeiling(r); return c != null ? String(c) : ""; } },
     { key: "organic_pass_fail", label: "Organic Pass/Fail", fmt: (r: Record<string, unknown>) => {
       const c = so2OrganicCeiling(r);
@@ -439,7 +458,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
                   <td className="p-3 text-right">{r.free_so2_mg_l ? `${fmtNum(r.free_so2_mg_l, 0)}` : "—"}</td>
                   <td className="p-3 text-right font-semibold">{r.total_so2_mg_l ? `${fmtNum(r.total_so2_mg_l, 0)}` : "—"}</td>
                   <td className="p-3 text-right text-muted-foreground">{r.max_permitted_mg_l ? `${fmtNum(r.max_permitted_mg_l, 0)}` : "—"}</td>
-                  <td className="p-3"><So2Badge compliant={r.so2_compliant} /></td>
+                  <td className="p-3"><So2Badge compliant={so2TestVerdict(r)} /></td>
                   <NotesCell notes={r.notes} />
                   <td className="p-3 text-right whitespace-nowrap">
                     <BatchTrailButton batchRef={r.batch_ref} onClick={() => setTrailRecord(r)} />
@@ -607,16 +626,14 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
               <ViewField label="Free SO₂" value={view.free_so2_mg_l ? `${fmtNum(view.free_so2_mg_l, 0)} mg/L` : "—"} />
               <ViewField label="Total SO₂" value={view.total_so2_mg_l ? `${fmtNum(view.total_so2_mg_l, 0)} mg/L` : "—"} />
               <ViewField label="Max Permitted" value={view.max_permitted_mg_l ? `${fmtNum(view.max_permitted_mg_l, 0)} mg/L` : "—"} />
-              <ViewField label="Compliance" value={<So2Badge compliant={view.so2_compliant} />} />
+              <ViewField label="Compliance" value={<So2Badge compliant={so2TestVerdict(view as Record<string, unknown>)} />} />
               <ViewField label="pH" value={view.ph ? fmtNum(view.ph, 2) : "—"} />
               <ViewField label="TA" value={view.titratable_acidity_gl ? `${fmtNum(view.titratable_acidity_gl, 1)} g/L` : "—"} />
               {(() => {
-                const wc = view.wine_colour ? String(view.wine_colour) : null;
-                if (!wc || !ORGANIC_MAX_SO2[wc]) return null;
-                const batchRef = view.batch_ref ? String(view.batch_ref) : null;
-                const matchedPressing = batchRef ? so2PressingRefs.find(p => p.batchRef === batchRef) : null;
-                if (!matchedPressing?.isOrganic) return null;
-                const orgCeiling = parseFloat(ORGANIC_MAX_SO2[wc]);
+                // Shared so2OrganicCeiling helper — same rule as the CSV export
+                // columns, so the dialog and the download can't drift.
+                const orgCeiling = so2OrganicCeiling(view as Record<string, unknown>);
+                if (orgCeiling == null) return null;
                 const totalSo2 = view.total_so2_mg_l != null && view.total_so2_mg_l !== "" ? parseFloat(String(view.total_so2_mg_l)) : null;
                 const pass = totalSo2 != null ? totalSo2 <= orgCeiling : null;
                 return (
