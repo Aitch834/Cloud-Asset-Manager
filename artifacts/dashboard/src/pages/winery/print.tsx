@@ -1,5 +1,5 @@
 import { fmtDate, SO2_TEST_STAGE_LABELS, PRESS_ADDITIVE_COLUMNS, CELLAR_OP_LABELS, so2LimitUnverified, so2Ceiling, bottlingSo2Verdict, ADDITIVE_COL } from "./shared";
-import { BatchTrailData, fetchStageAttachments, TrailAttachment, computeSo2Summary, computeVintagePhTaComparisonRows } from "./BatchTrail";
+import { BatchTrailData, fetchStageAttachmentsWithStatus, TrailAttachment, computeSo2Summary, computeVintagePhTaComparisonRows } from "./BatchTrail";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -71,14 +71,31 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
     ? data.pressings
     : [pressing];
   // Fermentation / cellar op / SO₂ test / bottling attachments — same best-effort
-  // fetch, keyed per record so each stage section can list its own files.
-  const [pressingAttachmentsById, fermAttachments, cellarAttachments, so2Attachments, bottlingAttachments] = await Promise.all([
-    fetchStageAttachments(farmId, "winery-pressing", vintagePressings),
-    fetchStageAttachments(farmId, "winery-fermentation", data.fermentation),
-    fetchStageAttachments(farmId, "winery-cellar-op", data.cellarOps),
-    fetchStageAttachments(farmId, "winery-so2-test", data.so2Tests),
-    fetchStageAttachments(farmId, "winery-bottling", data.bottling),
+  // fetch, keyed per record so each stage section can list its own files. Lookup
+  // failures don't block printing, but they surface as a visible warning banner
+  // so users can tell "no attachments" apart from "lookup failed".
+  const [pressingResult, fermResult, cellarResult, so2Result, bottlingResult] = await Promise.all([
+    fetchStageAttachmentsWithStatus(farmId, "winery-pressing", vintagePressings),
+    fetchStageAttachmentsWithStatus(farmId, "winery-fermentation", data.fermentation),
+    fetchStageAttachmentsWithStatus(farmId, "winery-cellar-op", data.cellarOps),
+    fetchStageAttachmentsWithStatus(farmId, "winery-so2-test", data.so2Tests),
+    fetchStageAttachmentsWithStatus(farmId, "winery-bottling", data.bottling),
   ]);
+  const pressingAttachmentsById = pressingResult.map;
+  const fermAttachments = fermResult.map;
+  const cellarAttachments = cellarResult.map;
+  const so2Attachments = so2Result.map;
+  const bottlingAttachments = bottlingResult.map;
+  const attachmentLookupFailed = [pressingResult, fermResult, cellarResult, so2Result, bottlingResult].some(r => r.lookupFailed);
+  // Visible note in the printed report when any attachment lookup failed — the
+  // attachments sections below may be incomplete or missing, and the reader
+  // must not mistake that for "this batch has no attachments".
+  const attachmentWarningHtml = attachmentLookupFailed
+    ? `<div style="border:1px solid #f59e0b;background:#fef3c7;border-radius:6px;padding:8px 10px;margin:0 0 10px">
+        <p style="font-size:10px;font-weight:700;color:#92400e;margin:0 0 2px">⚠ Attachment list unavailable — lookup failed</p>
+        <p style="font-size:9px;color:#92400e;margin:0">Some or all attachment lists could not be retrieved while preparing this report, so attachment sections may be incomplete or missing. Reprint the report to include them.</p>
+      </div>`
+    : "";
   const pressAttachments: TrailAttachment[] = pressId != null ? (pressingAttachmentsById.get(pressId) ?? []) : [];
   const batchRef = String(pressing.batch_ref ?? "");
   const printedOn = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
@@ -611,6 +628,7 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
   ${(pressing.is_organic === true || pressing.is_organic === "true" || pressing.is_organic === 1) ? `<span style="color:#166534;font-weight:600">🌿 Organic batch — reduced SO₂ ceilings apply</span>` : ""}
   <span>Printed: ${escHtml(printedOn)}</span>
 </p>
+${attachmentWarningHtml}
 ${vintageScopeNote}
 ${vintageComparisonHtml}
 ${so2SummaryHtml}

@@ -1702,31 +1702,50 @@ export function computeVintagePhTaComparisonRows(data: BatchTrailData): { ref: s
 
 // ─── Batch-trail attachment fetch helpers ─────────────────────────────────────
 // Best-effort attachment lookups shared by the CSV export and the printed PDF —
-// a failed fetch never blocks the export, the stage section is simply omitted.
+// a failed fetch never blocks the export, but failures are surfaced (null /
+// lookupFailed) so exports can show a visible note instead of silently omitting
+// the attachments section.
 export type TrailAttachment = { fileName: string; uploadedAt: string };
 
-export async function fetchTrailAttachments(farmId: number, recordType: string, recordId: number): Promise<TrailAttachment[]> {
+// Returns null when the lookup itself failed (network error or non-OK response),
+// as distinct from an empty array meaning "record genuinely has no attachments".
+export async function fetchTrailAttachments(farmId: number, recordType: string, recordId: number): Promise<TrailAttachment[] | null> {
   try {
     const res = await fetch(api(`farms/${farmId}/record-attachments?recordType=${recordType}&recordId=${recordId}`), { credentials: "include" });
-    if (!res.ok) return [];
+    if (!res.ok) return null;
     const json = await res.json();
     return (Array.isArray(json) ? json : []) as TrailAttachment[];
   } catch {
-    return []; // best-effort — non-critical
+    return null; // best-effort — non-critical, but callers can tell it failed
   }
 }
 
+export type StageAttachmentsResult = {
+  /** record id → attachments, only for records that actually have attachments */
+  map: Map<number, TrailAttachment[]>;
+  /** true when at least one record's attachment lookup failed */
+  lookupFailed: boolean;
+};
+
 // Fetch attachments for every record of a stage; returns a map keyed by record id
-// containing only records that actually have attachments.
-export async function fetchStageAttachments(farmId: number, recordType: string, records: Record<string, unknown>[]): Promise<Map<number, TrailAttachment[]>> {
+// containing only records that actually have attachments, plus a flag telling
+// callers whether any individual lookup failed (so exports can warn the user).
+export async function fetchStageAttachmentsWithStatus(farmId: number, recordType: string, records: Record<string, unknown>[]): Promise<StageAttachmentsResult> {
   const map = new Map<number, TrailAttachment[]>();
+  let lookupFailed = false;
   await Promise.all(records.map(async r => {
     const id = r.id != null ? Number(r.id) : null;
     if (!id) return;
     const files = await fetchTrailAttachments(farmId, recordType, id);
+    if (files === null) { lookupFailed = true; return; }
     if (files.length > 0) map.set(id, files);
   }));
-  return map;
+  return { map, lookupFailed };
+}
+
+// Back-compat wrapper for callers that only need the map (on-screen dialog).
+export async function fetchStageAttachments(farmId: number, recordType: string, records: Record<string, unknown>[]): Promise<Map<number, TrailAttachment[]>> {
+  return (await fetchStageAttachmentsWithStatus(farmId, recordType, records)).map;
 }
 
 export async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unknown>, data: BatchTrailData, farmName: string) {
@@ -1741,14 +1760,22 @@ export async function exportBatchTrailCsv(farmId: number, pressing: Record<strin
     ? data.pressings
     : [pressing];
   // Fermentation / cellar op / SO₂ test / bottling attachments — same best-effort
-  // fetch, keyed per record so each stage row can list its own files.
-  const [pressingAttachmentsById, fermAttachments, cellarAttachments, so2Attachments, bottlingAttachments] = await Promise.all([
-    fetchStageAttachments(farmId, "winery-pressing", vintagePressings),
-    fetchStageAttachments(farmId, "winery-fermentation", data.fermentation),
-    fetchStageAttachments(farmId, "winery-cellar-op", data.cellarOps),
-    fetchStageAttachments(farmId, "winery-so2-test", data.so2Tests),
-    fetchStageAttachments(farmId, "winery-bottling", data.bottling),
+  // fetch, keyed per record so each stage row can list its own files. Lookup
+  // failures don't block the export, but they are surfaced as a visible note row
+  // so users can tell "no attachments" apart from "lookup failed".
+  const [pressingResult, fermResult, cellarResult, so2Result, bottlingResult] = await Promise.all([
+    fetchStageAttachmentsWithStatus(farmId, "winery-pressing", vintagePressings),
+    fetchStageAttachmentsWithStatus(farmId, "winery-fermentation", data.fermentation),
+    fetchStageAttachmentsWithStatus(farmId, "winery-cellar-op", data.cellarOps),
+    fetchStageAttachmentsWithStatus(farmId, "winery-so2-test", data.so2Tests),
+    fetchStageAttachmentsWithStatus(farmId, "winery-bottling", data.bottling),
   ]);
+  const pressingAttachmentsById = pressingResult.map;
+  const fermAttachments = fermResult.map;
+  const cellarAttachments = cellarResult.map;
+  const so2Attachments = so2Result.map;
+  const bottlingAttachments = bottlingResult.map;
+  const attachmentLookupFailed = [pressingResult, fermResult, cellarResult, so2Result, bottlingResult].some(r => r.lookupFailed);
   const pressAttachments: TrailAttachment[] = pressId != null ? (pressingAttachmentsById.get(pressId) ?? []) : [];
   const batchRef = String(pressing.batch_ref ?? "");
   const vintageYear = data.vintageYear ? String(data.vintageYear) : (pressing.vintage_year ? String(pressing.vintage_year) : null);
@@ -1763,6 +1790,16 @@ export async function exportBatchTrailCsv(farmId: number, pressing: Record<strin
 
   // Header
   rows.push([...BATCH_TRAIL_CSV_HEADER]);
+
+  // Attachment lookup failure note — placed right after the header so it can't
+  // be missed. Without this, a failed lookup is indistinguishable from a batch
+  // that genuinely has no attachments.
+  if (attachmentLookupFailed) {
+    pushRow({
+      "Stage": "⚠ Attachment list unavailable",
+      "Detail": "Attachment lookup failed — some or all attachment rows may be missing from this export. Retry the export to include them.",
+    });
+  }
 
   const pressingBatchRef = String(pressing.batch_ref ?? "");
 
