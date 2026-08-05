@@ -557,6 +557,28 @@ export default function ContractorsPage() {
     expandedForRams.current = true;
     setExpandedId(owner.id);
   }, [targetRamsId, contractors]);
+  // If the RAMS deep-link target isn't among active contractors (e.g. the contractor was
+  // deactivated after the task was raised), auto-enable the inactive view to find it.
+  const autoShowedInactiveForRams = useRef(false);
+  useEffect(() => {
+    if (targetRamsId == null || expandedForRams.current || autoShowedInactiveForRams.current) return;
+    if (!data || showInactive) return;
+    const foundInActive = (data.contractors ?? []).some(c => c.rams.some(r => r.id === targetRamsId));
+    if (foundInActive) return;
+    autoShowedInactiveForRams.current = true;
+    setShowInactive(true);
+    toast({ title: "Showing inactive contractors", description: "The contractor linked to this RAMS review is deactivated, so inactive contractors have been included." });
+  }, [targetRamsId, data, showInactive, toast]);
+  // If it's still not found even with inactive contractors included, tell the user why nothing opened.
+  const notifiedRamsMissing = useRef(false);
+  useEffect(() => {
+    if (targetRamsId == null || expandedForRams.current || notifiedRamsMissing.current) return;
+    if (!autoShowedInactiveForRams.current || !allData) return;
+    const found = (allData.contractors ?? []).some(c => c.rams.some(r => r.id === targetRamsId));
+    if (found) return;
+    notifiedRamsMissing.current = true;
+    toast({ title: "RAMS entry not found", description: "The RAMS record this task links to no longer exists — it may have been deleted.", variant: "destructive" });
+  }, [targetRamsId, allData, toast]);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Contractor | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
