@@ -1,0 +1,408 @@
+import { useFarmName } from "@/hooks/use-farm-name";
+import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { StaffSelect } from "@/components/ui/staff-select";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
+import {
+  Plus, Trash2, Loader2, Eye, Grape, Leaf, ClipboardList, Sprout,
+  BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
+  FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
+  Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
+  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge,
+} from "lucide-react";
+import {
+  ViticulturalAnalyticsTab,
+  VintageSeasonReportTab,
+  ViticulturalEnterpriseReport,
+} from "@/components/ViticulturalReports";
+import {
+  HarvestReceptionTab,
+  PressingRecordsTab,
+  FermentationRecordsTab,
+  VesselRegisterTab,
+  CellarOpsTab,
+  BottlingRecordsTab,
+  So2TestingTab,
+  EquipmentRegisterTab,
+  BatchTrailQuickSearch,
+  WINERY_VIEW_ADDITIONS_EVENT,
+} from "@/pages/WineryManagementTabs";
+import { sanitiseCsvCell } from "@/lib/csv";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TabBar, TabButton } from "@/components/ui/tab-button";
+import { useAppStore } from "@/hooks/use-app-store";
+import { useUserRole } from "@/hooks/use-user-role";
+import { useToast } from "@/hooks/use-toast";
+import { VineyardBlockBoundaryMapDialog } from "@/components/viticulture/VineyardBlockBoundaryMapDialog";
+import { VineyardBlockMapTab } from "@/components/viticulture/VineyardBlockMapTab";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useLookupStrings } from "@/hooks/use-lookup";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
+
+import { apiUrl as api } from "@/lib/api";
+
+export const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
+export const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
+export const fmtNum = (v: unknown, dp = 1) => (v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp));
+export const today = new Date().toISOString().split("T")[0];
+
+export function exportCSV(rows: Record<string, unknown>[], filename: string, cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]) {
+  if (!rows.length) return;
+  const header = cols.map(c => `"${c.label.replace(/"/g, '""')}"`).join(",");
+  const body = rows.map(r =>
+    cols.map(c => {
+      const raw = c.fmt ? c.fmt(r) : String(r[c.key] ?? "");
+      const safe = sanitiseCsvCell(raw);
+      return `"${safe.replace(/"/g, '""')}"`;
+    }).join(",")
+  ).join("\n");
+  const blob = new Blob(["\uFEFF" + header + "\n" + body], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
+}
+
+export function printExciseReturn(record: Record<string, unknown>, farmName: string, licenceNo?: string) {
+  const d = (v: unknown) => v ? new Date(v as string).toLocaleDateString("en-GB") : "—";
+  const n = (v: unknown, dp = 1) => v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp);
+  const spr = !!record.smallProducerRelief;
+  const dutiableL = (parseFloat(String(record.totalLitresRemovedUK ?? 0)) || 0)
+    + (parseFloat(String(record.totalLitresDomesticConsumption ?? 0)) || 0)
+    + (parseFloat(String(record.totalLitresTastings ?? 0)) || 0);
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+  <title>HMRC Alcohol Duty Return — ${farmName}</title>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #111; margin: 40px; }
+    h1 { font-size: 18px; margin-bottom: 2px; }
+    h2 { font-size: 13px; font-weight: 700; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin: 18px 0 8px; color: #333; text-transform: uppercase; letter-spacing: 0.04em; }
+    .header { display: flex; justify-content: space-between; border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 20px; }
+    .meta { font-size: 12px; color: #555; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+    td { padding: 5px 8px; border: 1px solid #ddd; }
+    td:first-child { font-weight: 500; width: 58%; background: #f7f7f7; }
+    td:last-child { text-align: right; }
+    .total-row td { font-weight: 700; background: #eef2ff; border-color: #a5b4fc; }
+    .duty-row td { font-weight: 700; background: #1e3a5f; color: #fff; border-color: #1e3a5f; font-size: 14px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+    .badge-spr { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+    .badge-std { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    .notice { background: #fffbeb; border: 1px solid #fde68a; padding: 8px 12px; border-radius: 4px; font-size: 12px; margin-bottom: 16px; }
+    .footer { margin-top: 28px; font-size: 11px; color: #666; border-top: 1px solid #ccc; padding-top: 8px; }
+    @media print { body { margin: 20px; } button { display: none; } }
+  </style></head><body>
+  <div class="header">
+    <div>
+      <h1>HMRC Alcohol Duty Return</h1>
+      <div class="meta">
+        <strong>${farmName}</strong>${licenceNo ? ` &nbsp;&middot;&nbsp; Winery Licence: ${licenceNo}` : ""}<br>
+        Return Period: <strong>${d(record.periodStart)} &ndash; ${d(record.periodEnd)}</strong>
+      </div>
+    </div>
+    <div style="text-align:right">
+      <div class="meta">Printed: ${new Date().toLocaleDateString("en-GB")}</div>
+      ${record.hmrcReturnRef ? `<div class="meta" style="margin-top:4px">HMRC Ref: <strong>${String(record.hmrcReturnRef)}</strong></div>` : ""}
+      <div class="meta" style="margin-top:6px;font-size:13px">Status: <strong>${String(record.status ?? "draft").toUpperCase()}</strong></div>
+    </div>
+  </div>
+
+  <div class="notice">
+    <strong>How to submit:</strong> Log in to your HMRC Business Tax Account at
+    <strong>https://www.tax.service.gov.uk/alcohol-duty</strong> and enter the figures below.
+    Excise Notice 163 applies. Payment is due by the last working day of the month following the return period.
+  </div>
+
+  <h2>Section 1 &mdash; Stock Account (litres)</h2>
+  <table>
+    <tr><td>Opening Stock (start of period)</td><td>${n(record.openingStockL)} L</td></tr>
+    <tr><td>Add: Total Produced This Period</td><td>+ ${n(record.totalLitresProduced)} L</td></tr>
+    <tr><td>Less: Removed to UK Market <em>(dutiable on removal)</em></td><td>&minus; ${n(record.totalLitresRemovedUK)} L</td></tr>
+    <tr><td>Less: Exported <em>(duty-suspended &mdash; not included in duty)</em></td><td>&minus; ${n(record.totalLitresExported)} L</td></tr>
+    <tr><td>Less: Domestic Consumption <em>(grower&rsquo;s own use &mdash; dutiable)</em></td><td>&minus; ${n(record.totalLitresDomesticConsumption)} L</td></tr>
+    <tr><td>Less: Tastings / Samples <em>(all tasting volumes are dutiable)</em></td><td>&minus; ${n(record.totalLitresTastings)} L</td></tr>
+    <tr class="total-row"><td>= Closing Stock (end of period)</td><td>${n(record.closingStockL)} L</td></tr>
+  </table>
+
+  <h2>Section 2 &mdash; Duty Calculation (HMRC August 2023 Rates)</h2>
+  <table>
+    <tr><td>Wine Type &amp; ABV</td><td>${n(record.nominalAbvPct, 2)}% ABV &mdash; Still wine</td></tr>
+    <tr><td>Rolling 12-Month Production</td><td>${record.annualProductionL ? `${n(record.annualProductionL, 0)} L &nbsp;(${(parseFloat(String(record.annualProductionL ?? 0)) / 100).toFixed(1)} hl)` : "&mdash;"}</td></tr>
+    <tr><td>Small Producer Relief (SPR)</td><td>${spr ? '<span class="badge badge-spr">&#10003; SPR Claimed &mdash; Reduced Rate</span>' : '<span class="badge badge-std">Not Claimed &mdash; Standard Rate</span>'}</td></tr>
+    <tr><td>Dutiable Litres <em>(UK removals + domestic + tastings)</em></td><td><strong>${dutiableL.toFixed(1)} L</strong></td></tr>
+    <tr><td>Effective Duty Rate</td><td>&pound;${n(record.dutyRatePer100L, 2)} per 100 L</td></tr>
+    <tr class="duty-row"><td>TOTAL ALCOHOL DUTY PAYABLE</td><td>&pound;${n(record.totalDutyPayable, 2)}</td></tr>
+  </table>
+
+  <h2>Section 3 &mdash; Filing Dates</h2>
+  <table>
+    <tr><td>Submitted to HMRC</td><td>${d(record.submittedDate)}</td></tr>
+    <tr><td>Duty Paid</td><td>${d(record.paidDate)}</td></tr>
+  </table>
+
+  ${record.notes ? `<h2>Notes</h2><p style="font-size:12px;color:#444;margin:0">${String(record.notes)}</p>` : ""}
+
+  <div class="footer">
+    Prepared by BDE Farm Trac &nbsp;&middot;&nbsp; Excise Notice 163 &nbsp;&middot;&nbsp;
+    Submit: https://www.tax.service.gov.uk/alcohol-duty &nbsp;&middot;&nbsp;
+    SPR threshold: 4,500 hl / year &nbsp;&middot;&nbsp; Standard still wine rate (8.5&ndash;22% ABV): &pound;28.50/LPA
+  </div>
+  </body></html>`;
+
+  const win = window.open("", "_blank", "width=820,height=1060");
+  if (!win) return;
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => { setTimeout(() => win.print(), 200); };
+}
+
+export function printOrganicWineRecords(records: Record<string, unknown>[], farmName: string) {
+  const n = (v: unknown, dp = 1) => v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp);
+  const vintages = [...new Set(records.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse().join(", ");
+  const rows = records.map(r => `
+    <tr>
+      <td>${String(r.vintageYear ?? "—")}</td>
+      <td>${String(r.wineColour ?? "—")}</td>
+      <td style="text-align:right">${r.volumeLitres ? `${n(r.volumeLitres, 0)} L` : "—"}</td>
+      <td style="text-align:center">${r.certifiedOrganic === 1 || r.certifiedOrganic === "1" ? "&#10003; Yes" : "No"}</td>
+      <td>${String(r.certifierRef ?? "—")}</td>
+      <td>${String(r.additiveName ?? "—")}</td>
+      <td>${String(r.additiveType ?? "—")}</td>
+      <td>${r.quantityUsed ? `${String(r.quantityUsed)} ${String(r.quantityUnit ?? "")}`.trim() : "—"}</td>
+      <td style="text-align:right">${r.actualSO2MgL ? `${n(r.actualSO2MgL, 0)}` : "—"}</td>
+      <td style="text-align:right">${r.maxSO2MgL ? `${n(r.maxSO2MgL, 0)}` : "—"}</td>
+      <td style="text-align:center;${r.so2Compliant === 1 || r.so2Compliant === "1" ? "color:#065f46;font-weight:600" : "color:#991b1b;font-weight:600"}">${r.so2Compliant === 1 || r.so2Compliant === "1" ? "&#10003; Compliant" : "&#10007; Exceeds"}</td>
+    </tr>
+  `).join("");
+
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+  <title>Organic Wine Production Register &mdash; ${farmName}</title>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 11.5px; color: #111; margin: 32px; }
+    h1 { font-size: 17px; margin-bottom: 4px; }
+    .meta { font-size: 12px; color: #555; margin-bottom: 14px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+    th { background: #3b1a6b; color: white; padding: 6px 5px; text-align: left; white-space: nowrap; }
+    td { padding: 5px 5px; border: 1px solid #ddd; vertical-align: top; }
+    tr:nth-child(even) td { background: #f9f7ff; }
+    .notice { background: #f5f3ff; border: 1px solid #c4b5fd; padding: 8px 12px; border-radius: 4px; font-size: 11.5px; margin-bottom: 14px; }
+    .footer { margin-top: 20px; font-size: 11px; color: #666; border-top: 1px solid #ccc; padding-top: 8px; }
+    @media print { body { margin: 15px; } }
+  </style></head><body>
+  <h1>Organic Wine Production Register</h1>
+  <div class="meta">
+    <strong>${farmName}</strong> &nbsp;&middot;&nbsp; Vintages: ${vintages || "All"} &nbsp;&middot;&nbsp; Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record(s)
+  </div>
+  <div class="notice">
+    <strong>SO&#8322; limits for organic wine (UK-retained Reg 203/2012):</strong>
+    Red wine &mdash; 100 mg/L total SO&#8322;. White &amp; ros&eacute; &mdash; 150 mg/L.
+    These limits are lower than for conventional wine.
+    This register supports organic certification audits and is required evidence for your certifying body.
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Vintage</th><th>Colour</th><th>Volume</th><th>Organic</th><th>Certifier Ref</th>
+        <th>Additive</th><th>Type</th><th>Quantity</th><th>SO&#8322; Actual (mg/L)</th><th>SO&#8322; Max (mg/L)</th><th>SO&#8322; Status</th>
+      </tr>
+    </thead>
+    <tbody>${rows || "<tr><td colspan='11' style='text-align:center;color:#888'>No records</td></tr>"}</tbody>
+  </table>
+  <div class="footer">
+    Prepared by BDE Farm Trac &nbsp;&middot;&nbsp; UK-retained EU Reg 203/2012 &nbsp;&middot;&nbsp; Retain for certification audit purposes
+  </div>
+  </body></html>`;
+
+  const win = window.open("", "_blank", "width=1100,height=900");
+  if (!win) return;
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => { setTimeout(() => win.print(), 200); };
+}
+
+export const PRESSURE_LABELS: Record<number, { label: string; color: string }> = {
+  0: { label: "None", color: "text-gray-400" },
+  1: { label: "Low", color: "text-green-600" },
+  2: { label: "Medium", color: "text-amber-600" },
+  3: { label: "High", color: "text-red-600" },
+};
+
+export const BBCH_STAGES = [
+  { code: "00", desc: "Dormancy — buds dormant" },
+  { code: "05", desc: "Wool stage — bud scales swelling" },
+  { code: "07", desc: "Burst bud — green tips visible" },
+  { code: "09", desc: "Two or three leaves unfolded" },
+  { code: "11", desc: "First leaf unfolded" },
+  { code: "13", desc: "Three leaves unfolded" },
+  { code: "15", desc: "Five leaves unfolded" },
+  { code: "53", desc: "Inflorescence visible — closed" },
+  { code: "55", desc: "Inflorescence clearly visible" },
+  { code: "57", desc: "Single flowers separating" },
+  { code: "60", desc: "Start of flowering — first caps fallen" },
+  { code: "65", desc: "Full flowering — 50% of caps fallen" },
+  { code: "68", desc: "End of flowering — nearly all caps fallen" },
+  { code: "71", desc: "Fruit set — berries pea-sized" },
+  { code: "73", desc: "Berries beginning to touch" },
+  { code: "75", desc: "Berries touching" },
+  { code: "77", desc: "Berries beginning to soften" },
+  { code: "81", desc: "Beginning of ripening — berries begin to colour" },
+  { code: "83", desc: "Berries developing variety colour" },
+  { code: "85", desc: "Berries softening" },
+  { code: "89", desc: "Berries ripe for harvest" },
+  { code: "93", desc: "Beginning of leaf colouration / fall" },
+  { code: "97", desc: "End of leaf fall" },
+];
+
+export const UK_GRAPE_VARIETIES = [
+  "Bacchus", "Chardonnay", "Dornfelder", "Huxelrebe",
+  "Madeleine Angevine", "Müller-Thurgau", "Ortega", "Phoenix",
+  "Pinot Blanc", "Pinot Gris", "Pinot Meunier", "Pinot Noir",
+  "Regent", "Reichensteiner", "Rondo", "Seyval Blanc",
+  "Siegerrebe", "Solaris", "Auxerrois", "Cabernet Cortis",
+  "Cabernet Blanc", "Johanniter", "Lakhta", "Sauvignon Blanc",
+  "Other",
+];
+
+export const UK_ROOTSTOCKS = [
+  "5C Teleki", "SO4", "3309 Couderc", "101-14 Millardet",
+  "5BB Kober", "125AA", "41B", "420A", "Gravesac",
+  "Riparia Gloire de Montpellier", "161-49 Couderc",
+  "Fercal", "Schwarzmann", "Own Rooted", "Other",
+];
+
+export const OPERATION_TYPES = [
+  "Winter Pruning", "Spur Thinning", "Bud Rubbing", "Shoot Thinning",
+  "Tie Down / Cane Laying", "Wire Lifting", "Leaf Removal", "Topping / Hedging",
+  "Green Harvest (Crop Thinning)", "Soil Cultivation", "Mulching", "Other",
+];
+
+export function StatCard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color?: "red" | "amber" | "green" | "purple" }) {
+  const cls = color === "red" ? "text-red-600" : color === "amber" ? "text-amber-600" : color === "green" ? "text-green-700" : color === "purple" ? "text-purple-700" : "text-foreground";
+  return (
+    <div className="bg-white rounded-lg border p-3 space-y-0.5">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={`text-xl font-bold ${cls}`}>{value}</p>
+      {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+    </div>
+  );
+}
+
+export function Empty({ msg }: { msg: string }) {
+  return <p className="text-sm text-muted-foreground italic py-6 text-center">{msg}</p>;
+}
+
+export function ConfirmDialog({ open, title, message, onConfirm, onCancel }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
+      <DialogContent style={{ maxWidth: "22rem" }}>
+        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">{message}</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button variant="destructive" onClick={onConfirm}>Delete</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function DataTable({ cols, rows, onEdit, onDelete, onView }: {
+  cols: { key: string; label: string; render?: (r: Record<string, unknown>) => ReactNode }[];
+  rows: Record<string, unknown>[];
+  onEdit?: (r: Record<string, unknown>) => void;
+  onDelete?: (r: Record<string, unknown>) => void;
+  onView?: (r: Record<string, unknown>) => void;
+}) {
+  const [pending, setPending] = useState<Record<string, unknown> | null>(null);
+  if (!rows.length) return <Empty msg="No records yet. Add one using the button above." />;
+  return (
+    <>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead><tr className="border-b">{cols.map(c => <th key={c.key} className="text-left py-2 pr-4 font-medium text-muted-foreground">{c.label}</th>)}{(onEdit || onDelete || onView) && <th />}</tr></thead>
+          <tbody>{rows.map((row, i) => (
+            <tr key={i} className="border-b last:border-0">
+              {cols.map(c => <td key={c.key} className="py-2 pr-4">{c.render ? c.render(row) : fmt(row[c.key])}</td>)}
+              {(onEdit || onDelete || onView) && (
+                <td className="py-2 text-right space-x-1 whitespace-nowrap">
+                  {onView && <Button size="icon" variant="ghost" onClick={() => onView(row)}><Eye className="w-3.5 h-3.5" /></Button>}
+                  {onEdit && <Button size="icon" variant="ghost" onClick={() => onEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>}
+                  {onDelete && <Button size="icon" variant="ghost" onClick={() => setPending(row)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>}
+                </td>
+              )}
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+      <ConfirmDialog open={!!pending} title="Delete Record" message="Are you sure you want to delete this record? This cannot be undone." onConfirm={() => { if (pending && onDelete) onDelete(pending); setPending(null); }} onCancel={() => setPending(null)} />
+    </>
+  );
+}
+
+export function useCrud<T extends Record<string, unknown>>(farmId: number, endpoint: string, key: string) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const q = useQuery<T[]>({
+    queryKey: [key, farmId],
+    queryFn: async () => {
+      const r = await fetch(api(`farms/${farmId}/${endpoint}`), { credentials: "include" });
+      const d = await r.json();
+      return d.records ?? [];
+    },
+    enabled: !!farmId,
+  });
+  const invalidate = () => qc.invalidateQueries({ queryKey: [key, farmId] });
+  const add = useMutation({
+    mutationFn: async (body: Partial<T>) => {
+      const r = await fetch(api(`farms/${farmId}/${endpoint}`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+      if (!r.ok) throw new Error("Save failed");
+      return r.json();
+    },
+    onSuccess: invalidate,
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
+  });
+  const edit = useMutation({
+    mutationFn: async ({ id, ...body }: Partial<T> & { id: number }) => {
+      const r = await fetch(api(`farms/${farmId}/${endpoint}/${id}`), { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+      if (!r.ok) throw new Error("Save failed");
+      return r.json();
+    },
+    onSuccess: invalidate,
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
+  });
+  const remove = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(api(`farms/${farmId}/${endpoint}/${id}`), { method: "DELETE", credentials: "include" });
+      if (!r.ok) throw new Error("Delete failed");
+    },
+    onSuccess: invalidate,
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
+  });
+  return { data: q.data ?? [], isLoading: q.isLoading, add, edit, remove };
+}
+
+export function ViewField({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground uppercase tracking-wide">{label}</p>
+      <p className="font-medium text-sm">{value ?? "—"}</p>
+    </div>
+  );
+}
+
+export function RaiseTaskBtn({ onClick }: { onClick: () => void }) {
+  return (
+    <Button size="sm" variant="outline" className="text-purple-700 border-purple-200 hover:bg-purple-50" onClick={onClick}>
+      <ClipboardList className="w-3.5 h-3.5 mr-1" />Raise Task
+    </Button>
+  );
+}
+
+// ─── Overview ─────────────────────────────────────────────────────────────────
