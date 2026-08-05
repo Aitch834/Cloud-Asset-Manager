@@ -542,6 +542,11 @@ export const winerySo2TestsTable = pgTable("winery_so2_tests", {
   actionTaken: text("action_taken"),
   operatorName: text("operator_name"),
   notes: text("notes"),
+  auditSignature: text("audit_signature"),
+  auditSignedAt: timestamp("audit_signed_at", { withTimezone: true }),
+  auditSignerName: text("audit_signer_name"),
+  auditSignerRole: text("audit_signer_role"),
+  auditSignerDate: date("audit_signer_date"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

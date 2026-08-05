@@ -37388,6 +37388,7 @@ const WINERY_SIGNOFF_TYPES: { path: string; table: string }[] = [
   { path: "winery-fermentation", table: "winery_fermentation_records" },
   { path: "winery-cellar-ops",   table: "winery_cellar_ops" },
   { path: "winery-bottling",     table: "winery_bottling_records" },
+  { path: "winery-so2-tests",    table: "winery_so2_tests" },
 ];
 for (const { path, table } of WINERY_SIGNOFF_TYPES) {
   router.put(`/farms/:farmId/${path}/:id/sign-off`, requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -37666,12 +37667,23 @@ router.post("/farms/:farmId/winery-so2-tests", requireAuth, requireTenant, requi
 router.put("/farms/:farmId/winery-so2-tests/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const b = sanitiseBody(req.body);
-  const r = await db.execute(sql`UPDATE winery_so2_tests SET test_date=${nd(b.testDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},wine_colour=${n(b.wineColour)},vessel_id=${ni(b.vesselId)},test_stage=${n(b.testStage)},test_method=${n(b.testMethod)},equipment_id=${ni(b.equipmentId)},lab_name=${n(b.labName)},lab_ref=${n(b.labRef)},free_so2_mg_l=${nf(b.freeSo2MgL)},total_so2_mg_l=${nf(b.totalSo2MgL)},max_permitted_mg_l=${nf(b.maxPermittedMgL)},so2_compliant=${nb(b.so2Compliant)},ph=${nf(b.ph)},titratable_acidity_gl=${nf(b.titratableAcidityGl)},action_taken=${n(b.actionTaken)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
+  // Post-sign-off audit trail — same pattern as the pressing PUT: if the record
+  // already carries an audit_signature, atomically append a timestamped entry to
+  // edit_history in the same UPDATE so no edit to a signed record goes unrecorded.
+  const so2EditEntry = buildAuditEditEntry(await resolveAuditEditor(req), "Edited");
+  const r = await db.execute(sql`UPDATE winery_so2_tests SET edit_history=CASE WHEN audit_signature IS NOT NULL THEN COALESCE(edit_history,'[]'::jsonb) || ${so2EditEntry}::jsonb ELSE COALESCE(edit_history,'[]'::jsonb) END,test_date=${nd(b.testDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},wine_colour=${n(b.wineColour)},vessel_id=${ni(b.vesselId)},test_stage=${n(b.testStage)},test_method=${n(b.testMethod)},equipment_id=${ni(b.equipmentId)},lab_name=${n(b.labName)},lab_ref=${n(b.labRef)},free_so2_mg_l=${nf(b.freeSo2MgL)},total_so2_mg_l=${nf(b.totalSo2MgL)},max_permitted_mg_l=${nf(b.maxPermittedMgL)},so2_compliant=${nb(b.so2Compliant)},ph=${nf(b.ph)},titratable_acidity_gl=${nf(b.titratableAcidityGl)},action_taken=${n(b.actionTaken)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
   res.json({ record: r.rows[0] });
 });
 router.delete("/farms/:farmId/winery-so2-tests/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  await db.execute(sql`DELETE FROM winery_so2_tests WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId}`);
+  const so2DelId = parseInt(req.params.id as string);
+  // Signed records are tamper-evident audit documents — block deletion (mirrors pressing).
+  const so2Signed = await db.execute(sql`SELECT audit_signature FROM winery_so2_tests WHERE id=${so2DelId} AND farm_id=${farmId}`);
+  if (so2Signed.rows.length && (so2Signed.rows[0] as { audit_signature: string | null }).audit_signature) {
+    res.status(409).json({ error: "This SO₂ test record has been signed off and cannot be deleted. Signed records form part of the audit trail.", code: "SIGNED_RECORD_LOCKED" });
+    return;
+  }
+  await db.execute(sql`DELETE FROM winery_so2_tests WHERE id=${so2DelId} AND farm_id=${farmId}`);
   res.json({ success: true });
 });
 

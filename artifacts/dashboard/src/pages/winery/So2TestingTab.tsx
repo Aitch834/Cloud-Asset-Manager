@@ -1,5 +1,5 @@
 import { BatchTrailDialog } from "./BatchTrail";
-import { useCrud, useVessels, useEquipment, usePressing, useStaff, usePersistedYearFilter, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, today, SO2_TEST_STAGE_LABELS, so2LimitUnverified, fmtDate, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmt, fmtNum, So2Badge, NotesCell, BatchTrailButton, ViewAdditionsButton, SectionLabel, WINE_COLOUR_OPTIONS, SO2_TEST_STAGES, SO2_TEST_METHODS, ViewField } from "./shared";
+import { useCrud, useVessels, useEquipment, usePressing, useStaff, usePersistedYearFilter, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, today, SO2_TEST_STAGE_LABELS, so2LimitUnverified, fmtDate, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmt, fmtNum, So2Badge, NotesCell, BatchTrailButton, ViewAdditionsButton, SectionLabel, WINE_COLOUR_OPTIONS, SO2_TEST_STAGES, SO2_TEST_METHODS, ViewField, SIGN_OFF_CSV_COLUMNS, SignOffBadge, SignOffButton, RecordSignOffDialog, AuditSignOffView, SignedEditWarning, EditHistorySection } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -40,6 +40,8 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
   const [yearFilter, setYearFilter] = usePersistedYearFilter("so2-testing", farmId);
   const [so2Search, setSo2Search] = useState("");
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
+  // Record currently being signed off via the shared signature-pad dialog.
+  const [signingRecord, setSigningRecord] = useState<Record<string, unknown> | null>(null);
   const [highlightedSo2RowId, setHighlightedSo2RowId] = useState<string | null>(null);
   // True while the operator is remediating flagged rows via the amber banner's
   // Fix button — after a save we auto-advance to the next flagged row.
@@ -261,6 +263,9 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
     { key: "limit_unverified", label: "Limit Unverified", fmt: (r: Record<string, unknown>) => so2LimitUnverified(r) ? "Yes — no batch ref" : "" },
     { key: "test_method", label: "Test Method" },
     { key: "notes", label: "Notes" },
+    // Shared sign-off columns — identical formatting to the pressing,
+    // fermentation, cellar-ops and bottling exports.
+    ...SIGN_OFF_CSV_COLUMNS,
   ];
 
   const so2ChartData = [...filtered]
@@ -424,6 +429,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
               <th className="text-right p-3 font-medium">Total SO₂</th>
               <th className="text-right p-3 font-medium">Max (mg/L)</th>
               <th className="text-left p-3 font-medium">Status</th>
+              <th className="text-left p-3 font-medium">Sign-off</th>
               <th className="text-left p-3 font-medium">Notes</th>
               <th className="p-3"></th>
             </tr></thead>
@@ -459,10 +465,12 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
                   <td className="p-3 text-right font-semibold">{r.total_so2_mg_l ? `${fmtNum(r.total_so2_mg_l, 0)}` : "—"}</td>
                   <td className="p-3 text-right text-muted-foreground">{r.max_permitted_mg_l ? `${fmtNum(r.max_permitted_mg_l, 0)}` : "—"}</td>
                   <td className="p-3"><So2Badge compliant={so2TestVerdict(r)} /></td>
+                  <td className="p-3"><SignOffBadge r={r} /></td>
                   <NotesCell notes={r.notes} />
                   <td className="p-3 text-right whitespace-nowrap">
                     <BatchTrailButton batchRef={r.batch_ref} onClick={() => setTrailRecord(r)} />
                     <ViewAdditionsButton farmId={farmId} record={r} />
+                    <SignOffButton record={r} onClick={() => setSigningRecord(r)} />
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
@@ -492,6 +500,7 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
             )}
           </DialogHeader>
           <div className="space-y-4">
+            {editing !== null && <SignedEditWarning signed={form.audit_signature} />}
             <SectionLabel>Sample identity</SectionLabel>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Test Date *</Label><Input type="date" max={today} value={form.testDate ?? ""} onChange={e => sf("testDate", e.target.value)} /></div>
@@ -649,6 +658,8 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
               <ViewField label="Operator" value={fmt(view.operator_name)} />
               {!!view.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>}
             </div>
+            <AuditSignOffView record={view} />
+            <EditHistorySection history={view.edit_history} />
             {typeof view.id === "number" && <div className="border-t pt-3 mt-1"><RecordAttachments farmId={farmId} recordType="winery-so2-test" recordId={view.id} /></div>}
             <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
           </DialogContent>
@@ -663,6 +674,16 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {signingRecord && (
+        <RecordSignOffDialog
+          farmId={farmId}
+          endpoint="winery-so2-tests"
+          queryKey="winery-so2-tests"
+          recordLabel="SO₂ Test"
+          record={signingRecord}
+          onClose={() => setSigningRecord(null)}
+        />
+      )}
       {trailRecord && (
         <BatchTrailDialog
           farmId={farmId}

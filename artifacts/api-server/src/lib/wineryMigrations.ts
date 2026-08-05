@@ -191,7 +191,7 @@ export async function runWineryMigrations(): Promise<void> {
   // ─── Audit sign-off + post-sign-off edit trail on the other signable record types ───
   // Mirrors the pressing-record columns so fermentation, cellar ops and bottling
   // records carry the same tamper-evident guarantees once signed.
-  for (const table of ["winery_fermentation_records", "winery_cellar_ops", "winery_bottling_records"]) {
+  for (const table of ["winery_fermentation_records", "winery_cellar_ops", "winery_bottling_records", "winery_so2_tests"]) {
     await db.execute(sql.raw(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS audit_signature text`));
     await db.execute(sql.raw(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS audit_signed_at timestamptz`));
     await db.execute(sql.raw(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS audit_signer_name text`));
