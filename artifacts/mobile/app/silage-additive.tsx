@@ -24,6 +24,7 @@ import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { SilageAdditiveRecord } from "@/lib/types";
 
+import { apiFetch } from "@/lib/apiFetch";
 const CROP_TYPES = ["Grass Silage", "Maize Silage", "Wholecrop", "Haylage", "Other"];
 const ADDITIVE_TYPES = ["Bacterial Inoculant", "Acid-based", "Enzyme", "Other"];
 
@@ -50,7 +51,7 @@ export default function SilageAdditiveScreen() {
 
   useEffect(() => {
     if (!currentFarm?.id) return;
-    fetch(`/api/farms/${currentFarm.id}/slurry-stores`, {
+    apiFetch(`/api/farms/${currentFarm.id}/slurry-stores`, {
       headers: { "Content-Type": "application/json" },
       credentials: "include",
     })

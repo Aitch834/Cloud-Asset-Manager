@@ -63,4 +63,5 @@
 - [SO₂ verdict helpers](so2-verdict-helpers.md) — winery tabs derive SO₂ verdicts via per-tab helpers, live total-vs-ceiling; reviews reject reading persisted compliance flags directly
 - [Shared ConfirmDialog for deletes](confirm-dialog-shared.md) — dashboard destructive confirms must use components/ui/confirm-dialog.tsx (mutation prop, close only onSuccess, reset onCancel); native confirm() is banned
 - [Batch-trail API projections](batch-trail-projection.md) — explicit SELECT lists in both scope blocks; new print/CSV fields must be added to both or they render empty; signed records are delete-locked
+- [Mobile root-relative /api fetches fail on device](mobile-root-relative-fetch.md) — mobile screens must use apiFetch (absolute base + Bearer token); fetch("/api/…") only works in web preview
 - [Persisted filter hook](persisted-filter-hook.md) — shared per-farm filter persistence; reviews demand FULL page coverage incl. split-out sections; dup-batch-ref check needs api-server running

@@ -16,6 +16,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 
+import { apiFetch } from "@/lib/apiFetch";
 interface SummaryStats {
   certifications: { total: number; certified: number; renewalDue: number };
   fieldConversion: { total: number; certifiedHa: number; conversionHa: number };
@@ -61,12 +62,12 @@ export default function OrganicArableOverviewScreen() {
     setLoading(true);
 
     Promise.allSettled([
-      fetch(`/api/farms/${farmId}/organic-arable/certification`, { credentials: "include" }).then(r => r.json()),
-      fetch(`/api/farms/${farmId}/organic-arable/field-conversion`, { credentials: "include" }).then(r => r.json()),
-      fetch(`/api/farms/${farmId}/organic-arable/seed-records`, { credentials: "include" }).then(r => r.json()),
-      fetch(`/api/farms/${farmId}/organic-arable/input-records`, { credentials: "include" }).then(r => r.json()),
-      fetch(`/api/farms/${farmId}/organic-arable/harvest-declarations`, { credentials: "include" }).then(r => r.json()),
-      fetch(`/api/farms/${farmId}/organic-arable/seed-stock`, { credentials: "include" }).then(r => r.json()),
+      apiFetch(`/api/farms/${farmId}/organic-arable/certification`, { credentials: "include" }).then(r => r.json()),
+      apiFetch(`/api/farms/${farmId}/organic-arable/field-conversion`, { credentials: "include" }).then(r => r.json()),
+      apiFetch(`/api/farms/${farmId}/organic-arable/seed-records`, { credentials: "include" }).then(r => r.json()),
+      apiFetch(`/api/farms/${farmId}/organic-arable/input-records`, { credentials: "include" }).then(r => r.json()),
+      apiFetch(`/api/farms/${farmId}/organic-arable/harvest-declarations`, { credentials: "include" }).then(r => r.json()),
+      apiFetch(`/api/farms/${farmId}/organic-arable/seed-stock`, { credentials: "include" }).then(r => r.json()),
     ]).then(results => {
       const [certsRes, convRes, seedRes, inputRes, harvestRes, stockRes] = results;
       const certs = certsRes.status === "fulfilled" ? (certsRes.value?.records ?? []) : [];

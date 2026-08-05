@@ -28,6 +28,7 @@ import { useApiFields } from "@/lib/hooks/useApiFields";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { SlurrySpreadingRecord } from "@/lib/types";
 
+import { apiFetch } from "@/lib/apiFetch";
 const SPREAD_MATERIALS = [
   "Cattle Slurry",
   "Pig Slurry",
@@ -94,7 +95,7 @@ export default function SlurrySpreadingScreen() {
 
   useEffect(() => {
     if (!currentFarm?.id) return;
-    fetch(`/api/farms/${currentFarm.id}/slurry-stores`, {
+    apiFetch(`/api/farms/${currentFarm.id}/slurry-stores`, {
       headers: { "Content-Type": "application/json" },
       credentials: "include",
     })

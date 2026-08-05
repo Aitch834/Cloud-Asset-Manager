@@ -22,6 +22,7 @@ import { spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 
+import { apiFetch } from "@/lib/apiFetch";
 interface SoilSensorProbe {
   id: number;
   name: string;
@@ -70,7 +71,7 @@ export default function SoilSensorReadingScreen() {
   useEffect(() => {
     if (!currentFarm?.id) return;
     setLoadingProbes(true);
-    fetch(`/api/farms/${currentFarm.id}/soil-sensors`)
+    apiFetch(`/api/farms/${currentFarm.id}/soil-sensors`)
       .then(r => r.ok ? r.json() : Promise.reject("Failed to load probes"))
       .then(d => {
         const active = (d.records as SoilSensorProbe[]).filter(p => p.isActive);
@@ -98,7 +99,7 @@ export default function SoilSensorReadingScreen() {
 
     setSaving(true);
     try {
-      const res = await fetch(`/api/farms/${currentFarm.id}/soil-sensors/${selectedProbeId}/readings`, {
+      const res = await apiFetch(`/api/farms/${currentFarm.id}/soil-sensors/${selectedProbeId}/readings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

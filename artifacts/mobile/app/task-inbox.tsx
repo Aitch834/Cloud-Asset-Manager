@@ -21,6 +21,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { MODULE_TO_TASK_TYPE, addDraftEntry } from "@/lib/timesheetDraft";
 
+import { apiFetch } from "@/lib/apiFetch";
 type Assignment = {
   id: number;
   title: string;
@@ -110,7 +111,7 @@ function AssignmentCard({
   const handleComplete = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/farms/${farmId}/task-assignments/${item.id}`, {
+      const res = await apiFetch(`/api/farms/${farmId}/task-assignments/${item.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -155,7 +156,7 @@ function AssignmentCard({
   const handleInProgress = async () => {
     setLoading(true);
     try {
-      await fetch(`/api/farms/${farmId}/task-assignments/${item.id}`, {
+      await apiFetch(`/api/farms/${farmId}/task-assignments/${item.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "in_progress" }),
@@ -343,7 +344,7 @@ export default function TaskInboxScreen() {
   const fetchAssignments = useCallback(async () => {
     if (!currentFarm) return;
     try {
-      const res = await fetch(`/api/farms/${currentFarm.id}/task-assignments/mine`);
+      const res = await apiFetch(`/api/farms/${currentFarm.id}/task-assignments/mine`);
       if (res.ok) {
         const data = await res.json() as { records?: Assignment[] };
         setAssignments(data.records ?? []);

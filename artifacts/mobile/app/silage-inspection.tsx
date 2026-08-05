@@ -26,6 +26,7 @@ import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { SlurryStoreInspection } from "@/lib/types";
 
+import { apiFetch } from "@/lib/apiFetch";
 type Outcome = SlurryStoreInspection["outcome"];
 
 const OUTCOMES: { key: Outcome; label: string; color: string; icon: string }[] = [
@@ -64,7 +65,7 @@ export default function SilageInspectionScreen() {
 
   useEffect(() => {
     if (!currentFarm?.id) return;
-    fetch(`/api/farms/${currentFarm.id}/slurry-stores`, {
+    apiFetch(`/api/farms/${currentFarm.id}/slurry-stores`, {
       headers: { "Content-Type": "application/json" },
       credentials: "include",
     })

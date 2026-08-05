@@ -24,6 +24,7 @@ import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { SilageQualityTest } from "@/lib/types";
 
+import { apiFetch } from "@/lib/apiFetch";
 export default function SilageQualityTestScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
@@ -47,7 +48,7 @@ export default function SilageQualityTestScreen() {
 
   useEffect(() => {
     if (!currentFarm?.id) return;
-    fetch(`/api/farms/${currentFarm.id}/slurry-stores`, {
+    apiFetch(`/api/farms/${currentFarm.id}/slurry-stores`, {
       headers: { "Content-Type": "application/json" },
       credentials: "include",
     })

@@ -23,6 +23,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 
+import { apiFetch } from "@/lib/apiFetch";
 const STATUS_COLORS: Record<string, string> = {
   planned: "#6b7280",
   active: "#2563eb",
@@ -67,7 +68,7 @@ export default function CropTrialsScreen() {
   useEffect(() => {
     if (!farmId) return;
     setLoading(true);
-    fetch(`/api/farms/${farmId}/crop-trials`, { credentials: "include" })
+    apiFetch(`/api/farms/${farmId}/crop-trials`, { credentials: "include" })
       .then(r => r.json())
       .then(d => setTrials((d.records ?? []).filter((t: Trial) => t.status === "active" || t.status === "planned")))
       .catch(() => Alert.alert("Error", "Could not load trials"))
@@ -100,7 +101,7 @@ export default function CropTrialsScreen() {
     }
     setSaving(true);
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/farms/${farmId}/crop-trials/${selectedTrial.id}/plots/${selectedPlot.id}`,
         {
           method: "PUT",
