@@ -646,7 +646,15 @@ function EquipmentAnalyticsTab({ farmId }: { farmId: number }) {
 
 export default function EquipmentPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = usePersistedTab<"equipment" | "defects" | "analytics">({ page: "equipment", farmId, validIds: ["equipment", "defects", "analytics"], defaultTab: "equipment" });
+  // Deep link from Task Board: /equipment?equipmentId=<id>
+  const targetEquipId = (() => {
+    const v = new URLSearchParams(window.location.search).get("equipmentId");
+    const n = v ? parseInt(v, 10) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : null;
+  })();
+  const [tab, setTab] = usePersistedTab<"equipment" | "defects" | "analytics">({ page: "equipment", farmId, validIds: ["equipment", "defects", "analytics"], defaultTab: "equipment", urlOverride: targetEquipId ? "equipment" : null });
+  const [highlightEquipId, setHighlightEquipId] = useState<number | null>(null);
+  const scrolledToTarget = useRef(false);
   const [viewRecord, setViewRecord] = useState<any>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [addGpsTracked, setAddGpsTracked] = useState(false);
@@ -876,11 +884,13 @@ export default function EquipmentPage() {
   };
 
   const allEquipment = (data?.records ?? []) as unknown as EquipmentRecord[];
-  const equipment = showDisposed ? allEquipment : allEquipment.filter(e => e.status !== "disposed");
+  // Never hide a deep-linked record — it must be visible to be highlighted.
+  const equipment = showDisposed ? allEquipment : allEquipment.filter(e => e.status !== "disposed" || e.id === targetEquipId);
   const disposedCount = allEquipment.filter(e => e.status === "disposed").length;
 
   const sq = search.trim().toLowerCase();
   const filtered = equipment.filter(e => {
+    if (e.id === targetEquipId) return true;
     const matchSearch = !sq
       || (e.name ?? "").toLowerCase().includes(sq)
       || (e.make ?? "").toLowerCase().includes(sq)
@@ -892,6 +902,19 @@ export default function EquipmentPage() {
     const matchGps = gpsFilter === "all" || (gpsFilter === "tracked" ? e.gpsTracked : !e.gpsTracked);
     return matchSearch && matchType && matchGps;
   });
+
+  // Scroll to and temporarily highlight a deep-linked equipment record once data loads.
+  useEffect(() => {
+    if (targetEquipId == null || scrolledToTarget.current || allEquipment.length === 0) return;
+    if (!allEquipment.some(e => e.id === targetEquipId)) return;
+    scrolledToTarget.current = true;
+    setHighlightEquipId(targetEquipId);
+    setTimeout(() => {
+      document.getElementById(`equipment-row-${targetEquipId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 150);
+    const t = setTimeout(() => setHighlightEquipId(null), 4000);
+    return () => clearTimeout(t);
+  }, [targetEquipId, allEquipment]);
 
   const availableTypes = EQUIPMENT_TYPES.filter(t => equipment.some(e => e.type === t.value));
 
@@ -1183,7 +1206,7 @@ export default function EquipmentPage() {
               const motSt = dueStatus(item.nextMotDue);
               const svcSt = dueStatus(item.nextServiceDue);
               return (
-              <tr key={item.id} className={`hover:bg-black/5 transition-colors ${isDisposed ? "opacity-60" : ""}`}>
+              <tr key={item.id} id={`equipment-row-${item.id}`} className={`transition-colors ${highlightEquipId === item.id ? "bg-indigo-50 ring-2 ring-inset ring-indigo-300" : "hover:bg-black/5"} ${isDisposed ? "opacity-60" : ""}`}>
                 <td className="px-4 py-3 whitespace-nowrap">
                   {item.assetNumber ? (
                     <div className="flex items-center gap-1.5">

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -195,12 +195,27 @@ function RamsUploadWidget({ documentUrl, documentName, onChange }: {
 }
 
 // ─── Expanded card section ───────────────────────────────────────────────────
-function ExpandedContractorSection({ contractor, farmId }: { contractor: Contractor; farmId: number }) {
+function ExpandedContractorSection({ contractor, farmId, targetRamsId }: { contractor: Contractor; farmId: number; targetRamsId?: number | null }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const base = `/api/farms/${farmId}/contractors/${contractor.id}`;
 
-  const [activeTab, setActiveTab] = useState<"contacts" | "rams">("contacts");
+  const hasTargetRams = targetRamsId != null && contractor.rams.some(r => r.id === targetRamsId);
+  const [activeTab, setActiveTab] = useState<"contacts" | "rams">(hasTargetRams ? "rams" : "contacts");
+
+  // Deep link from Task Board: scroll to and temporarily highlight the target RAMS entry.
+  const [highlightRamsId, setHighlightRamsId] = useState<number | null>(null);
+  const scrolledToRams = useRef(false);
+  useEffect(() => {
+    if (!hasTargetRams || scrolledToRams.current) return;
+    scrolledToRams.current = true;
+    setHighlightRamsId(targetRamsId!);
+    setTimeout(() => {
+      document.getElementById(`rams-entry-${targetRamsId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 200);
+    const t = setTimeout(() => setHighlightRamsId(null), 4000);
+    return () => clearTimeout(t);
+  }, [hasTargetRams, targetRamsId]);
 
   // ── Contacts ──
   const [showContactForm, setShowContactForm] = useState(false);
@@ -353,7 +368,7 @@ function ExpandedContractorSection({ contractor, farmId }: { contractor: Contrac
             const isReviewed = !!(r.reviewDate && r.reviewedBy);
             const hasPendingTask = !!(r.pendingReviewTaskId && r.pendingReviewTaskStaffName);
             return (
-              <div key={r.id} className={cn("p-3 bg-white rounded-lg border space-y-2", isReviewed ? "border-green-200" : hasPendingTask ? "border-amber-200" : "border-border")}>
+              <div key={r.id} id={`rams-entry-${r.id}`} className={cn("p-3 bg-white rounded-lg border space-y-2 transition-all", isReviewed ? "border-green-200" : hasPendingTask ? "border-amber-200" : "border-border", highlightRamsId === r.id && "ring-2 ring-indigo-300 bg-indigo-50")}>
                 <div className="flex items-start justify-between gap-2">
                   <span className="text-sm font-semibold text-foreground leading-snug">{r.activityDescription}</span>
                   <div className="flex gap-1 flex-shrink-0">
@@ -527,6 +542,21 @@ export default function ContractorsPage() {
   const suppliers: Supplier[] = suppliersData?.records ?? [];
 
   const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  // Deep link from Task Board: /contractors?ramsId=<id> — expand the owning contractor.
+  const targetRamsId = (() => {
+    const v = new URLSearchParams(window.location.search).get("ramsId");
+    const n = v ? parseInt(v, 10) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : null;
+  })();
+  const expandedForRams = useRef(false);
+  useEffect(() => {
+    if (targetRamsId == null || expandedForRams.current || contractors.length === 0) return;
+    const owner = contractors.find(c => c.rams.some(r => r.id === targetRamsId));
+    if (!owner) return;
+    expandedForRams.current = true;
+    setExpandedId(owner.id);
+  }, [targetRamsId, contractors]);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Contractor | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
@@ -721,7 +751,7 @@ export default function ContractorsPage() {
                 )}
 
                 {/* Expanded section */}
-                {expanded && <ExpandedContractorSection contractor={c} farmId={farmId} />}
+                {expanded && <ExpandedContractorSection contractor={c} farmId={farmId} targetRamsId={targetRamsId} />}
               </div>
             );
           })}

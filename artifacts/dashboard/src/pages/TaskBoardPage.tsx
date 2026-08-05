@@ -7,6 +7,7 @@ import {
   ClipboardList, CheckCircle2, Clock, XCircle, Loader2, Trash2, ChevronDown,
   UserCheck, AlertTriangle, MessageSquare, Send, History, ArrowRight, Search,
   BarChart3, Printer, ChevronRight, Building2, Users, ChevronUp, Plus,
+  Wrench, HardHat,
 } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { Link } from "wouter";
@@ -171,6 +172,26 @@ function AssignmentCard({ a, farmId, autoExpand, forceOpen }: { a: Assignment; f
               >
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 cursor-pointer hover:bg-amber-100 flex items-center gap-1 w-fit">
                   <Search className="w-2.5 h-2.5" />From Field Inspection
+                </span>
+              </Link>
+            )}
+            {a.taskSourceId?.startsWith("equipment-") && (
+              <Link
+                href={`/equipment?equipmentId=${encodeURIComponent(a.taskSourceId.slice("equipment-".length))}`}
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+              >
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200 cursor-pointer hover:bg-orange-100 flex items-center gap-1 w-fit">
+                  <Wrench className="w-2.5 h-2.5" />From Equipment
+                </span>
+              </Link>
+            )}
+            {a.taskSourceId?.startsWith("contractor-rams-") && (
+              <Link
+                href={`/contractors?ramsId=${encodeURIComponent(a.taskSourceId.slice("contractor-rams-".length))}`}
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+              >
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200 cursor-pointer hover:bg-teal-100 flex items-center gap-1 w-fit">
+                  <HardHat className="w-2.5 h-2.5" />From Contractor RAMS
                 </span>
               </Link>
             )}
