@@ -6,6 +6,7 @@ import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
 import { BOTTLING_COLUMNS, BOTTLING_IMPORT_HEADERS, resolveBottlingField, bottlingImportRecord, parseCsvText, parseBottlingCsv } from "@/lib/bottling-csv";
 import { computePrimaryPhTa, computePhTaStagePoints } from "@/lib/ph-ta-stages";
 import { StaffSelect } from "@/components/ui/staff-select";
+import { So2OverCeilingDialog } from "@/components/So2OverCeilingDialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf, Search, Upload, PenLine, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -699,24 +700,15 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      {confirmOverCeiling && (
-        <Dialog open onOpenChange={() => setConfirmOverCeiling(false)}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-amber-600" />SO₂ ceiling exceeded</DialogTitle>
-              <DialogDescription>
-                Total SO₂ {bottlingFormTotalSo2 != null && !isNaN(bottlingFormTotalSo2) ? bottlingFormTotalSo2.toFixed(1) : "—"} mg/L exceeds the {bottlingFormCeiling} mg/L {bottlingFormIsOrganic ? "organic" : "conventional"} ceiling — save anyway?
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setConfirmOverCeiling(false)}>Cancel</Button>
-              <Button variant="destructive" disabled={crud.add.isPending || crud.edit.isPending} onClick={() => { setConfirmOverCeiling(false); save(true); }}>
-                {(crud.add.isPending || crud.edit.isPending) && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Save anyway
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      <So2OverCeilingDialog
+        open={confirmOverCeiling}
+        valueMgL={bottlingFormTotalSo2}
+        ceilingMgL={bottlingFormCeiling}
+        ceilingLabel={bottlingFormIsOrganic ? "organic" : "conventional"}
+        pending={crud.add.isPending || crud.edit.isPending}
+        onCancel={() => setConfirmOverCeiling(false)}
+        onConfirm={() => { setConfirmOverCeiling(false); save(true); }}
+      />
 
       {view && (
         <Dialog open onOpenChange={() => setView(null)}>
