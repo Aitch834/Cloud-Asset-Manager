@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, ChevronUp, Printer, Pencil, ShieldAlert, Link2, ExternalLink, Loader2, MapPin, Truck, AlertTriangle, CheckCircle, History } from "lucide-react";
@@ -2437,6 +2438,7 @@ function IpmPlanTab({ farmId }: { farmId: number }) {
   const [logForm, setLogForm] = useState<any>({});
   const [detailTab, setDetailTab] = useState<"thresholds" | "monitoring">("thresholds");
   const [expandedLogId, setExpandedLogId] = useState<number | null>(null);
+  const [pendingDeletePlan, setPendingDeletePlan] = useState<number | null>(null);
   const setP = (k: string, v: any) => setPlanForm((f: any) => ({ ...f, [k]: v }));
   const setT = (k: string, v: any) => setThreshForm((f: any) => ({ ...f, [k]: v }));
   const setL = (k: string, v: any) => setLogForm((f: any) => ({ ...f, [k]: v }));
@@ -2504,13 +2506,16 @@ function IpmPlanTab({ farmId }: { farmId: number }) {
     toast({ title: editingPlan ? "Plan updated" : "IPM Plan created" });
   }
 
-  async function deletePlan(id: number) {
-    if (!confirm("Delete this IPM Plan? All threshold entries and monitoring logs will also be deleted.")) return;
-    await fetch(`/api/farms/${farmId}/ipm-plans/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
-    qc.invalidateQueries({ queryKey: ["ipm-plans", farmId] });
-    if (selectedPlan?.id === id) setSelectedPlan(null);
-    toast({ title: "IPM Plan deleted" });
-  }
+  const deletePlanMut = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`/api/farms/${farmId}/ipm-plans/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ["ipm-plans", farmId] });
+      if (selectedPlan?.id === id) setSelectedPlan(null);
+      toast({ title: "IPM Plan deleted" });
+    },
+    onError: () => toast({ title: "Failed to delete IPM Plan", variant: "destructive" }),
+  });
 
   async function saveThreshold() {
     const url = editingThresh
@@ -2665,7 +2670,7 @@ ${(monitoringLogs as any[]).length === 0 ? "<p style='font-style:italic;color:#8
                     <div className="flex gap-1 mt-1.5" onClick={e => e.stopPropagation()}>
                       <button className="text-xs text-blue-600 hover:underline" onClick={() => { setEditingPlan(p); setPlanForm({ ...p }); setPlanOpen(true); }}>Edit</button>
                       <span className="text-gray-300">|</span>
-                      <button className="text-xs text-red-600 hover:underline" onClick={() => deletePlan(p.id)}>Delete</button>
+                      <button className="text-xs text-red-600 hover:underline" onClick={() => setPendingDeletePlan(p.id)}>Delete</button>
                     </div>
                   </button>
                 );
@@ -3053,6 +3058,16 @@ ${(monitoringLogs as any[]).length === 0 ? "<p style='font-style:italic;color:#8
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ConfirmDialog
+        open={pendingDeletePlan !== null}
+        title="Delete IPM Plan"
+        message="Delete this IPM Plan? All threshold entries and monitoring logs will also be deleted."
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={deletePlanMut}
+        onConfirm={() => { if (pendingDeletePlan !== null) deletePlanMut.mutate(pendingDeletePlan, { onSuccess: () => setPendingDeletePlan(null) }); }}
+        onCancel={() => { setPendingDeletePlan(null); deletePlanMut.reset(); }}
+      />
     </div>
   );
 }
@@ -3091,6 +3106,7 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewRecord, setReviewRecord] = useState<any>(null);
   const [reviewForm, setReviewForm] = useState<{ confirmedOutcome: string; reviewNotes: string }>({ confirmedOutcome: "full_buffer_maintained", reviewNotes: "" });
+  const [pendingDelLerap, setPendingDelLerap] = useState<number | null>(null);
   const reviewMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: any }) =>
       fetch(`/api/farms/${farmId}/lerap-assessments/${id}/review`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
@@ -3164,12 +3180,15 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
     }
   }
 
-  async function del(id: number) {
-    if (!confirm("Delete this LERAP assessment?")) return;
-    await fetch(`/api/farms/${farmId}/lerap-assessments/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
-    qc.invalidateQueries({ queryKey: ["lerap-assessments", farmId] });
-    toast({ title: "Assessment deleted" });
-  }
+  const delMut = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`/api/farms/${farmId}/lerap-assessments/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["lerap-assessments", farmId] });
+      toast({ title: "Assessment deleted" });
+    },
+    onError: () => toast({ title: "Failed to delete assessment", variant: "destructive" }),
+  });
 
   function printLerapRegister() {
     const fmtD = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
@@ -3287,7 +3306,7 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
                         </Button>
                       )}
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => setPendingDelLerap(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   </td>
                 </tr>
@@ -3485,6 +3504,16 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ConfirmDialog
+        open={pendingDelLerap !== null}
+        title="Delete LERAP assessment"
+        message="Delete this LERAP assessment?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={delMut}
+        onConfirm={() => { if (pendingDelLerap !== null) delMut.mutate(pendingDelLerap, { onSuccess: () => setPendingDelLerap(null) }); }}
+        onCancel={() => { setPendingDelLerap(null); delMut.reset(); }}
+      />
     </div>
   );
 }

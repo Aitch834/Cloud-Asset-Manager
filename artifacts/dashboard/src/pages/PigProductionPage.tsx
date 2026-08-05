@@ -25,6 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useFarmMembers } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ConfirmDialog as SharedConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import { apiUrl as api } from "@/lib/api";
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
@@ -2812,11 +2813,12 @@ function SalmonellaMonitoringTab({ farmId }: { farmId: number }) {
     openPrintWindow(html);
   }
 
-  async function del(id: number) {
-    if (!confirm("Delete this Salmonella monitoring record?")) return;
-    await fetch(api(`farms/${farmId}/pig-salmonella-monitoring/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
-    qc.invalidateQueries({ queryKey: ["pig-salmonella-monitoring", farmId] });
-  }
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-salmonella-monitoring/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-salmonella-monitoring", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
+  });
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null);
 
   const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
   const catBadge = (cat: number | null) => {
@@ -2872,7 +2874,7 @@ function SalmonellaMonitoringTab({ farmId }: { farmId: number }) {
                   <td className="px-3 py-2">
                     <div className="flex gap-1">
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => setPendingDelete(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   </td>
                 </tr>
@@ -2938,6 +2940,16 @@ function SalmonellaMonitoringTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <SharedConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete Record"
+        message="Delete this Salmonella monitoring record?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={del}
+        onConfirm={() => { if (pendingDelete !== null) del.mutate(pendingDelete, { onSuccess: () => setPendingDelete(null) }); }}
+        onCancel={() => { setPendingDelete(null); del.reset(); }}
+      />
     </div>
   );
 }
@@ -2997,11 +3009,12 @@ function PigVaccinationTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
-  async function del(id: number) {
-    if (!confirm("Delete this vaccination record?")) return;
-    await fetch(api(`farms/${farmId}/pig-vaccination-records/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
-    qc.invalidateQueries({ queryKey: ["pig-vaccination-records", farmId] });
-  }
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-vaccination-records/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-vaccination-records", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
+  });
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null);
 
   const nextDueRecords = (records as any[]).filter((r: any) => r.nextDueDate);
 
@@ -3061,7 +3074,7 @@ function PigVaccinationTab({ farmId }: { farmId: number }) {
                   <td className="px-3 py-2">
                     <div className="flex gap-1">
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => setPendingDelete(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   </td>
                 </tr>
@@ -3133,6 +3146,16 @@ function PigVaccinationTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <SharedConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete Record"
+        message="Delete this vaccination record?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={del}
+        onConfirm={() => { if (pendingDelete !== null) del.mutate(pendingDelete, { onSuccess: () => setPendingDelete(null) }); }}
+        onCancel={() => { setPendingDelete(null); del.reset(); }}
+      />
     </div>
   );
 }
@@ -3190,11 +3213,12 @@ function PigDiseaseMonitoringTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
-  async function del(id: number) {
-    if (!confirm("Delete this monitoring record?")) return;
-    await fetch(api(`farms/${farmId}/pig-disease-monitoring/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
-    qc.invalidateQueries({ queryKey: ["pig-disease-monitoring", farmId] });
-  }
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-disease-monitoring/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-disease-monitoring", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
+  });
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null);
 
   function statusBadge(status: string | null) {
     if (!status) return <span className="text-gray-400">—</span>;
@@ -3242,7 +3266,7 @@ function PigDiseaseMonitoringTab({ farmId }: { farmId: number }) {
                   <td className="px-3 py-2">
                     <div className="flex gap-1">
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => setPendingDelete(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   </td>
                 </tr>
@@ -3300,6 +3324,16 @@ function PigDiseaseMonitoringTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <SharedConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete Record"
+        message="Delete this monitoring record?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={del}
+        onConfirm={() => { if (pendingDelete !== null) del.mutate(pendingDelete, { onSuccess: () => setPendingDelete(null) }); }}
+        onCancel={() => { setPendingDelete(null); del.reset(); }}
+      />
     </div>
   );
 }

@@ -30,7 +30,8 @@ import { LabSelector } from "@/components/ui/LabSelector";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 
-import { formatDate, formatDateLong, ConfirmDialog, PRODUCTION_TYPE_OPTIONS, EMPTY_SIRE, EMPTY_STRAW, EMPTY_HERD, EMPTY_PLAN, EMPTY_ANIMAL, PrintHerdRegisterDialog, PrintVetPlanDialog, getHerdNumberConfig, getBreedPlaceholder, getHerdNamePlaceholder, ANIMAL_SPECIES_FALLBACK, ANIMAL_STATUS_LABELS, MOVEMENT_TYPE_LABELS, OUTCOME_COLOURS, DOC_TYPE_LABELS } from "./shared";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { formatDate, formatDateLong, PRODUCTION_TYPE_OPTIONS, EMPTY_SIRE, EMPTY_STRAW, EMPTY_HERD, EMPTY_PLAN, EMPTY_ANIMAL, PrintHerdRegisterDialog, PrintVetPlanDialog, getHerdNumberConfig, getBreedPlaceholder, getHerdNamePlaceholder, ANIMAL_SPECIES_FALLBACK, ANIMAL_STATUS_LABELS, MOVEMENT_TYPE_LABELS, OUTCOME_COLOURS, DOC_TYPE_LABELS } from "./shared";
 import type { Farm, Herd, VetHealthPlan, VetHealthPlanActionCompletion, VetHealthPlanAction, MortalityRecord, FallenStockContractor, FeedRecord, WaterRecord, Animal, Sire, StrawInventory, AnimalDoc, VaccHistoryRecord, AnimalProfile } from "./shared";
 
 const CASUALTY_METHODS = [
@@ -53,7 +54,13 @@ export function CasualtySlaughterSection({ farmId }: { farmId: number }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null);
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/casualty-slaughter/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["casualty-slaughter", farmId] }); },
+  });
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["casualty-slaughter", farmId],
@@ -145,12 +152,6 @@ export function CasualtySlaughterSection({ farmId }: { farmId: number }) {
     setOpen(false);
   }
 
-  async function del(id: number) {
-    if (!confirm("Delete this casualty slaughter record?")) return;
-    await fetch(`/api/farms/${farmId}/casualty-slaughter/${id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
-    qc.invalidateQueries({ queryKey: ["casualty-slaughter", farmId] });
-  }
-
   const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
   const matchedAnimal = (tag: string) => animals.find(a => a.earTagNumber?.toLowerCase() === tag?.toLowerCase());
 
@@ -199,7 +200,7 @@ export function CasualtySlaughterSection({ farmId }: { farmId: number }) {
                   <td className="px-3 py-2">
                     <div className="flex gap-1">
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => setPendingDelete(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   </td>
                 </tr>
@@ -276,6 +277,17 @@ export function CasualtySlaughterSection({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete casualty slaughter record"
+        message="Delete this casualty slaughter record?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={deleteMut}
+        onConfirm={() => { if (pendingDelete !== null) deleteMut.mutate(pendingDelete, { onSuccess: () => setPendingDelete(null) }); }}
+        onCancel={() => { setPendingDelete(null); deleteMut.reset(); }}
+      />
     </div>
   );
 }

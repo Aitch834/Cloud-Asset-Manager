@@ -49,6 +49,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
@@ -820,6 +821,7 @@ export default function SeedStorePage() {
   const [poForm, setPoForm] = useState<any>({});
   const [poFilter, setPoFilter] = useState<"active" | "all">("active");
   const [deletePoTarget, setDeletePoTarget] = useState<any>(null);
+  const [pendingCancelPo, setPendingCancelPo] = useState<number | null>(null);
 
   const activePos = useMemo(() => pos.filter(p => !INACTIVE_PO_STATUSES.includes(String(p.status))), [pos]);
   const today = new Date().toISOString().slice(0, 10);
@@ -1236,7 +1238,7 @@ export default function SeedStorePage() {
                           {!isCancelled && !isReceived && (
                             <button
                               className="text-xs px-2 py-1 rounded border border-gray-200 text-gray-600 bg-white hover:bg-gray-50 flex items-center gap-1 transition-colors"
-                              onClick={() => { if (confirm("Cancel this seed order?")) cancelPoMut.mutate(Number(po.id)); }}
+                              onClick={() => setPendingCancelPo(Number(po.id))}
                             >
                               Cancel
                             </button>
@@ -1859,6 +1861,17 @@ export default function SeedStorePage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <ConfirmDialog
+          open={pendingCancelPo !== null}
+          title="Cancel seed order"
+          message="Cancel this seed order?"
+          confirmLabel="Cancel booking"
+          confirmVariant="destructive"
+          mutation={cancelPoMut}
+          onConfirm={() => { if (pendingCancelPo !== null) cancelPoMut.mutate(pendingCancelPo, { onSuccess: () => setPendingCancelPo(null) }); }}
+          onCancel={() => { setPendingCancelPo(null); cancelPoMut.reset(); }}
+        />
 
         {/* ── Field Allocation Tab ────────────────────────────────────── */}
         {tab === "allocation" && (

@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import {
   ShieldCheck, AlertTriangle, Package, Edit2, Printer,
@@ -512,6 +513,7 @@ export default function CompliancePage() {
   const [showTargetDialog, setShowTargetDialog] = useState(false);
   const [editTarget, setEditTarget] = useState<Record<string, unknown> | null>(null);
   const [targetForm, setTargetForm] = useState<Record<string, string>>({});
+  const [pendingDeleteTarget, setPendingDeleteTarget] = useState<Record<string, unknown> | null>(null);
 
   // ── Data queries
   const farmQ = useQuery({
@@ -1291,11 +1293,7 @@ export default function CompliancePage() {
                                   });
                                   setShowTargetDialog(true);
                                 }}
-                                onDelete={() => {
-                                  if (confirm(`Remove ${t.label ?? t.species} monitoring target?`)) {
-                                    deleteTargetM.mutate(Number(t.id));
-                                  }
-                                }}
+                                onDelete={() => setPendingDeleteTarget(t)}
                               />
                             ))}
                             <p className="text-xs text-gray-400">Based on live bin stock records. Only bins assigned to each species in Feed Management are counted.</p>
@@ -2383,6 +2381,17 @@ export default function CompliancePage() {
       </Dialog>
       {/* ══ TAB 5: RT AUDIT PACK ══════════════════════════════════════════════ */}
       {tab === "audit-pack" && farmId && <RedTractorAuditPack farmId={farmId} />}
+
+      <ConfirmDialog
+        open={pendingDeleteTarget !== null}
+        title="Remove monitoring target"
+        message={pendingDeleteTarget ? `Remove ${pendingDeleteTarget.label ?? pendingDeleteTarget.species} monitoring target?` : ""}
+        confirmLabel="Remove"
+        confirmVariant="destructive"
+        mutation={deleteTargetM}
+        onConfirm={() => { if (pendingDeleteTarget) deleteTargetM.mutate(Number(pendingDeleteTarget.id), { onSuccess: () => setPendingDeleteTarget(null) }); }}
+        onCancel={() => { setPendingDeleteTarget(null); deleteTargetM.reset(); }}
+      />
 
     </AppLayout>
   );

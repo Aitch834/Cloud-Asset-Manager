@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Building2, Plus, Pencil, Trash2, RefreshCw, Eye, Users, UserX } from "lucide-react";
@@ -297,6 +298,7 @@ export default function DepartmentsPage() {
   const { toast } = useToast();
   const [dialogDept, setDialogDept] = useState<Department | null | "new">(null);
   const [viewDept, setViewDept] = useState<Department | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Department | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery<{ departments: Department[] }>({
     queryKey: ["farm-departments", farmId],
@@ -436,11 +438,7 @@ export default function DepartmentsPage() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => {
-                        if (confirm(`Remove "${d.name}"? Any staff assigned to this department will be unlinked.`)) {
-                          deleteDept.mutate(d.id);
-                        }
-                      }}
+                      onClick={() => setPendingDelete(d)}
                       className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                       title="Delete"
                     >
@@ -473,6 +471,17 @@ export default function DepartmentsPage() {
           onClose={() => setViewDept(null)}
         />
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Remove department"
+        message={pendingDelete ? `Remove "${pendingDelete.name}"? Any staff assigned to this department will be unlinked.` : ""}
+        confirmLabel="Remove"
+        confirmVariant="destructive"
+        mutation={deleteDept}
+        onConfirm={() => { if (pendingDelete) deleteDept.mutate(pendingDelete.id, { onSuccess: () => setPendingDelete(null) }); }}
+        onCancel={() => { setPendingDelete(null); deleteDept.reset(); }}
+      />
     </AppLayout>
   );
 }

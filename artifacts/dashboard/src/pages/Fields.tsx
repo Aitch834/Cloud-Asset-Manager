@@ -15,6 +15,7 @@ import {
   DialogDescription, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useFields, useAddField, useUpdateField, useDeleteField } from "@/hooks/use-fields";
@@ -1557,12 +1558,14 @@ export default function FieldsPage() {
   const [addingVarietyCropId, setAddingVarietyCropId] = useState<number | null>(null);
   const [addVarietyForm, setAddVarietyForm] = useState({ variety: "", notes: "" });
   const [addVarietySaving, setAddVarietySaving] = useState(false);
-  const [deletingVarietyId, setDeletingVarietyId] = useState<number | null>(null);
   const [landUseForField, setLandUseForField] = useState<FieldRecord | null>(null);
   const [editingLandUseRecord, setEditingLandUseRecord] = useState<LandUseRecord | null>(null);
   const [comparisonVarietyId, setComparisonVarietyId] = useState<number | null>(null);
   const [comparisonAssignmentId, setComparisonAssignmentId] = useState<number | null>(null);
   const [reportAssignmentId, setReportAssignmentId] = useState<number | null>(null);
+  const [pendingDeleteVariety, setPendingDeleteVariety] = useState<number | null>(null);
+  const [pendingDeleteDoc, setPendingDeleteDoc] = useState<{ cropTypeId: number; docId: number } | null>(null);
+  const [pendingDeleteLandUse, setPendingDeleteLandUse] = useState<number | null>(null);
 
   // All hooks must be called unconditionally before any early return
   const safeFarmId = farmId ?? 0;
@@ -1733,6 +1736,20 @@ export default function FieldsPage() {
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
+  const deleteVarietyMut = useMutation({
+    mutationFn: (varietyId: number) =>
+      fetch(`/api/farms/${safeFarmId}/crop-varieties/${varietyId}`, { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Delete failed (${r.status})`); } return r; }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: getListCropsQueryKey(safeFarmId) }); },
+    onError: () => toast({ title: "Failed to delete variety", variant: "destructive" }),
+  });
+
+  const deleteCropDocMut = useMutation({
+    mutationFn: ({ cropTypeId, docId }: { cropTypeId: number; docId: number }) =>
+      fetch(`/api/farms/${safeFarmId}/crops/${cropTypeId}/documents/${docId}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
+    onSuccess: (_data, vars) => { queryClient.invalidateQueries({ queryKey: ["crop-docs", safeFarmId, vars.cropTypeId] }); },
+    onError: () => toast({ title: "Failed to remove document", variant: "destructive" }),
+  });
+
   const { uploadFile, isUploading: isUploadingTenureDoc } = useUpload();
 
   const createFieldMut = useAddField(safeFarmId);
@@ -1885,23 +1902,6 @@ export default function FieldsPage() {
       alert(`Could not add variety: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally {
       setAddVarietySaving(false);
-    }
-  }
-
-  async function handleDeleteVariety(varietyId: number) {
-    if (!confirm("Delete this variety? If it is the only variety for this crop, the entire crop record will be removed.")) return;
-    setDeletingVarietyId(varietyId);
-    try {
-      const res = await fetch(`/api/farms/${safeFarmId}/crop-varieties/${varietyId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(`Delete failed (${res.status})`);
-      await queryClient.invalidateQueries({ queryKey: getListCropsQueryKey(safeFarmId) });
-    } catch (err) {
-      alert(`Could not delete: ${err instanceof Error ? err.message : "Unknown error"}`);
-    } finally {
-      setDeletingVarietyId(null);
     }
   }
 
@@ -2471,8 +2471,8 @@ export default function FieldsPage() {
                                     <Pencil className="w-3.5 h-3.5" />
                                   </button>
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); handleDeleteVariety(crop.id); }}
-                                    disabled={deletingVarietyId === crop.id}
+                                    onClick={(e) => { e.stopPropagation(); setPendingDeleteVariety(crop.id); }}
+                                    disabled={deleteVarietyMut.isPending && pendingDeleteVariety === crop.id}
                                     className="p-1.5 rounded hover:bg-red-50 text-foreground/30 hover:text-red-500 transition-colors disabled:opacity-40"
                                     title="Delete variety"
                                   >
@@ -2595,12 +2595,10 @@ export default function FieldsPage() {
                                               <Download className="w-3.5 h-3.5" />
                                             </a>
                                             <button
-                                              onClick={async () => {
-                                                if (!confirm("Remove this document?")) return;
+                                              onClick={() => {
                                                 const cropTypeId = crop.cropId ?? null;
                                                 if (!cropTypeId) return;
-                                                await fetch(`/api/farms/${safeFarmId}/crops/${cropTypeId}/documents/${doc.id}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
-                                                queryClient.invalidateQueries({ queryKey: ["crop-docs", safeFarmId, cropTypeId] });
+                                                setPendingDeleteDoc({ cropTypeId, docId: doc.id });
                                               }}
                                               className="flex-shrink-0 p-1 rounded hover:bg-red-50 text-foreground/30 hover:text-red-500 transition-colors"
                                               title="Remove"
@@ -2891,7 +2889,7 @@ export default function FieldsPage() {
                               className="text-xs font-semibold text-stone-600 hover:text-stone-800 underline cursor-pointer"
                             >Edit record</button>
                             <button
-                              onClick={() => { if (confirm("Delete this land use record?")) deleteLandUseMut.mutate(currentLandUseForDrawer.id); }}
+                              onClick={() => setPendingDeleteLandUse(currentLandUseForDrawer.id)}
                               className="text-xs font-semibold text-red-500 hover:text-red-700 underline cursor-pointer"
                             >Delete</button>
                           </div>
@@ -3715,7 +3713,7 @@ export default function FieldsPage() {
                                   {r.managementNotes && <p className="text-xs text-foreground/50 italic mt-1">{r.managementNotes}</p>}
                                   <div className="flex gap-3 mt-2">
                                     <button onClick={() => { setEditingLandUseRecord(r); landUseForm.reset({ landUse: r.landUse, year: String(r.year), season: r.season ?? "", schemeActionCode: r.schemeActionCode ?? "", schemeReference: r.schemeReference ?? "", areaHectares: r.areaHectares ? String(r.areaHectares) : "", startDate: r.startDate ?? "", endDate: r.endDate ?? "", managementNotes: r.managementNotes ?? "" }); }} className="text-xs text-foreground/40 hover:text-foreground underline cursor-pointer">Edit</button>
-                                    <button onClick={() => { if (confirm("Delete this land use record?")) deleteLandUseMut.mutate(r.id); }} className="text-xs text-red-400 hover:text-red-600 underline cursor-pointer">Delete</button>
+                                    <button onClick={() => setPendingDeleteLandUse(r.id)} className="text-xs text-red-400 hover:text-red-600 underline cursor-pointer">Delete</button>
                                   </div>
                                 </div>
                               </div>
@@ -4596,6 +4594,36 @@ export default function FieldsPage() {
       <CropSeasonReport
         assignmentId={reportAssignmentId}
         onClose={() => setReportAssignmentId(null)}
+      />
+      <ConfirmDialog
+        open={pendingDeleteVariety !== null}
+        title="Delete variety"
+        message="Delete this variety? If it is the only variety for this crop, the entire crop record will be removed."
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={deleteVarietyMut}
+        onConfirm={() => { if (pendingDeleteVariety !== null) deleteVarietyMut.mutate(pendingDeleteVariety, { onSuccess: () => setPendingDeleteVariety(null) }); }}
+        onCancel={() => { setPendingDeleteVariety(null); deleteVarietyMut.reset(); }}
+      />
+      <ConfirmDialog
+        open={pendingDeleteDoc !== null}
+        title="Remove document"
+        message="Remove this document?"
+        confirmLabel="Remove"
+        confirmVariant="destructive"
+        mutation={deleteCropDocMut}
+        onConfirm={() => { if (pendingDeleteDoc) deleteCropDocMut.mutate(pendingDeleteDoc, { onSuccess: () => setPendingDeleteDoc(null) }); }}
+        onCancel={() => { setPendingDeleteDoc(null); deleteCropDocMut.reset(); }}
+      />
+      <ConfirmDialog
+        open={pendingDeleteLandUse !== null}
+        title="Delete land use record"
+        message="Delete this land use record?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={deleteLandUseMut}
+        onConfirm={() => { if (pendingDeleteLandUse !== null) deleteLandUseMut.mutate(pendingDeleteLandUse, { onSuccess: () => setPendingDeleteLandUse(null) }); }}
+        onCancel={() => { setPendingDeleteLandUse(null); deleteLandUseMut.reset(); }}
       />
     </AppLayout>
   );

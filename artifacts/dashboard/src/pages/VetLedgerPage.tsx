@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -474,6 +475,8 @@ ${hasHpCia ? '<p style="background:#fef3c7;border:1px solid #fcd34d;padding:8px 
   const [visitMeds, setVisitMeds] = useState<Med[]>([]);
   const [visitHerdIds, setVisitHerdIds] = useState<number[]>([]);
   const [visitAnimalIds, setVisitAnimalIds] = useState<number[]>([]);
+  const [pendingDeleteVisit, setPendingDeleteVisit] = useState<number | null>(null);
+  const [pendingDeleteInvoice, setPendingDeleteInvoice] = useState<number | null>(null);
 
   // ── Visit View State ──────────────────────────────────────
   const [showViewVisitDialog, setShowViewVisitDialog] = useState(false);
@@ -826,7 +829,7 @@ ${hasHpCia ? '<p style="background:#fef3c7;border:1px solid #fcd34d;padding:8px 
                     )}
                     <Button size="sm" variant="ghost" title="View" onClick={() => { setViewVisit(v); setShowViewVisitDialog(true); }} className="h-7 px-2 text-gray-500"><Eye className="w-3 h-3" /></Button>
                     <Button size="sm" variant="ghost" title="Edit" onClick={() => openVisitEdit(v)} className="h-7 px-2"><Edit2 className="w-3 h-3" /></Button>
-                    <Button size="sm" variant="ghost" title="Delete" onClick={() => { if (confirm("Delete this visit record?")) delVisitMut.mutate(Number(v.id)); }} className="h-7 px-2 text-red-600"><Trash2 className="w-3 h-3" /></Button>
+                    <Button size="sm" variant="ghost" title="Delete" onClick={() => setPendingDeleteVisit(Number(v.id))} className="h-7 px-2 text-red-600"><Trash2 className="w-3 h-3" /></Button>
                   </div>
                 </div>
               </div>
@@ -874,7 +877,7 @@ ${hasHpCia ? '<p style="background:#fef3c7;border:1px solid #fcd34d;padding:8px 
                       <Eye className="w-3 h-3" />
                     </Button>
                     <Button size="sm" variant="ghost" title="Edit" onClick={() => openInvoiceEdit(inv)} className="h-7 px-2"><Edit2 className="w-3 h-3" /></Button>
-                    <Button size="sm" variant="ghost" title="Delete" onClick={() => { if (confirm("Delete this invoice?")) delInvoiceMut.mutate(Number(inv.id)); }} className="h-7 px-2 text-red-600"><Trash2 className="w-3 h-3" /></Button>
+                    <Button size="sm" variant="ghost" title="Delete" onClick={() => setPendingDeleteInvoice(Number(inv.id))} className="h-7 px-2 text-red-600"><Trash2 className="w-3 h-3" /></Button>
                   </div>
                 </div>
               </div>
@@ -1366,6 +1369,27 @@ ${hasHpCia ? '<p style="background:#fef3c7;border:1px solid #fcd34d;padding:8px 
           module="Vet Ledger"
         />
       )}
+
+      <ConfirmDialog
+        open={pendingDeleteVisit !== null}
+        title="Delete visit record"
+        message="Delete this visit record?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={delVisitMut}
+        onConfirm={() => { if (pendingDeleteVisit !== null) delVisitMut.mutate(pendingDeleteVisit, { onSuccess: () => setPendingDeleteVisit(null) }); }}
+        onCancel={() => { setPendingDeleteVisit(null); delVisitMut.reset(); }}
+      />
+      <ConfirmDialog
+        open={pendingDeleteInvoice !== null}
+        title="Delete invoice"
+        message="Delete this invoice?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={delInvoiceMut}
+        onConfirm={() => { if (pendingDeleteInvoice !== null) delInvoiceMut.mutate(pendingDeleteInvoice, { onSuccess: () => setPendingDeleteInvoice(null) }); }}
+        onCancel={() => { setPendingDeleteInvoice(null); delInvoiceMut.reset(); }}
+      />
     </div>
     </AppLayout>
   );

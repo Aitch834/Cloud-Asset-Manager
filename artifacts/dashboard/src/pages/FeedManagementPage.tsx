@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Badge } from "@/components/ui/badge";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -171,6 +172,7 @@ export default function FeedManagementPage() {
   const [fpoFilter, setFpoFilter] = useState<"active" | "all">("active");
   const [receiveId, setReceiveId] = useState<number | null>(null);
   const [receiveDate, setReceiveDate] = useState(new Date().toISOString().substring(0, 10));
+  const [pendingDeleteFpo, setPendingDeleteFpo] = useState<number | null>(null);
 
   function openFpoAdd() {
     setEditFpo(null);
@@ -1354,7 +1356,7 @@ export default function FeedManagementPage() {
                         <button className="text-xs px-2 py-1 rounded border border-gray-200 text-gray-600 bg-white hover:bg-gray-50 flex items-center gap-1 transition-colors" onClick={() => openFpoEdit(fpo)}>
                           <Edit2 className="w-3 h-3" />Edit
                         </button>
-                        <button className="text-xs px-2 py-1 rounded border border-red-200 text-red-600 bg-white hover:bg-red-50 flex items-center transition-colors" onClick={() => { if (confirm("Remove this feed order?")) deleteFpoMut.mutate(Number(fpo.id)); }}>
+                        <button className="text-xs px-2 py-1 rounded border border-red-200 text-red-600 bg-white hover:bg-red-50 flex items-center transition-colors" onClick={() => setPendingDeleteFpo(Number(fpo.id))}>
                           <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
@@ -1731,6 +1733,17 @@ export default function FeedManagementPage() {
 
         {/* ── MEDICATED FEED TAB ── */}
         {tab === "medicated" && farmId && <MedicatedFeedTab farmId={farmId} />}
+
+      <ConfirmDialog
+        open={pendingDeleteFpo !== null}
+        title="Remove feed order"
+        message="Remove this feed order?"
+        confirmLabel="Remove"
+        confirmVariant="destructive"
+        mutation={deleteFpoMut}
+        onConfirm={() => { if (pendingDeleteFpo !== null) deleteFpoMut.mutate(pendingDeleteFpo, { onSuccess: () => setPendingDeleteFpo(null) }); }}
+        onCancel={() => { setPendingDeleteFpo(null); deleteFpoMut.reset(); }}
+      />
 
     </AppLayout>
   );

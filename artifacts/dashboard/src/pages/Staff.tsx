@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -421,6 +422,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
   const [stocktakeNewForm, setStocktakeNewForm] = useState({ stocktakeDate: new Date().toISOString().slice(0, 10), conductedBy: "", notes: "" });
   const [stocktakeItemEdits, setStocktakeItemEdits] = useState<Record<number, { countedQty: string; notes: string }>>({});
   const [stocktakeDeleteId, setStocktakeDeleteId] = useState<number | null>(null);
+  const [pendingCompleteStocktake, setPendingCompleteStocktake] = useState<number | null>(null);
 
   const createStocktakeMut = useMutation({
     mutationFn: (body: { stocktakeDate: string; conductedBy?: string; notes?: string }) =>
@@ -1457,7 +1459,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                       <Button variant="outline" onClick={() => setStocktakeDeleteId(activeStocktakeId)} className="text-red-500 hover:text-red-700">Discard Draft</Button>
                       <Button
                         disabled={activeStocktake.countedCount < activeStocktake.itemCount}
-                        onClick={() => { if (window.confirm(`Complete this stocktake? This will reconcile all counted quantities back into the stock register. This action cannot be undone.`)) completeStocktakeMut.mutate(activeStocktakeId!); }}
+                        onClick={() => setPendingCompleteStocktake(activeStocktakeId)}
                       >
                         Complete &amp; Reconcile ({activeStocktake.countedCount}/{activeStocktake.itemCount})
                       </Button>
@@ -1953,6 +1955,17 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
           </DialogContent>
         </Dialog>
       )}
+
+      <ConfirmDialog
+        open={pendingCompleteStocktake !== null}
+        title="Complete stocktake"
+        message="Complete this stocktake? This will reconcile all counted quantities back into the stock register. This action cannot be undone."
+        confirmLabel="Complete & Reconcile"
+        confirmVariant="destructive"
+        mutation={completeStocktakeMut}
+        onConfirm={() => { if (pendingCompleteStocktake !== null) completeStocktakeMut.mutate(pendingCompleteStocktake, { onSuccess: () => setPendingCompleteStocktake(null) }); }}
+        onCancel={() => { setPendingCompleteStocktake(null); completeStocktakeMut.reset(); }}
+      />
     </div>
   );
 }

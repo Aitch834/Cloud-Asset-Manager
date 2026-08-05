@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { JohnesDeclarationSection } from "@/components/dairy/JohnesTab";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useUpload } from "@workspace/object-storage-web";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -371,6 +372,7 @@ export function OrganicJohnesTab({ farmId }: { farmId: number }) {
   const [mode, setMode] = useState<"log" | "result" | "edit">("log");
   const [form, setForm] = useState<any>({});
   const [yearFilter, setYearFilter] = useState("all");
+  const [pendingDel, setPendingDel] = useState<number | null>(null);
 
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
@@ -445,14 +447,13 @@ export function OrganicJohnesTab({ farmId }: { farmId: number }) {
     setOpen(false);
   }
 
-  async function del(id: number) {
-    if (!confirm("Delete this Johne's monitoring record?")) return;
-    await fetch(`/api/farms/${farmId}/johnes-monitoring/${id}`, {
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/johnes-monitoring/${id}`, {
       method: "DELETE",
       credentials: "include",
-    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
-    qc.invalidateQueries({ queryKey: ["johnes-monitoring", farmId] });
-  }
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["johnes-monitoring", farmId] }),
+  });
 
   function printReport() {
     const printedDate = new Date().toLocaleDateString("en-GB", {
@@ -647,7 +648,7 @@ export function OrganicJohnesTab({ farmId }: { farmId: number }) {
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}>
                         <Pencil className="w-3.5 h-3.5" />
                       </Button>
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => setPendingDel(r.id)}>
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     </div>
@@ -927,6 +928,16 @@ export function OrganicJohnesTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
       <JohnesDeclarationSection farmId={farmId} allMonitoringRecords={allRecords} />
+      <ConfirmDialog
+        open={pendingDel !== null}
+        title="Delete monitoring record"
+        message="Delete this Johne's monitoring record?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={del}
+        onConfirm={() => { if (pendingDel !== null) del.mutate(pendingDel, { onSuccess: () => setPendingDel(null) }); }}
+        onCancel={() => { setPendingDel(null); del.reset(); }}
+      />
     </div>
   );
 }

@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
@@ -1595,6 +1596,7 @@ function WorkOrdersTab({ farmId, customers, onRaiseInvoice }: { farmId: number; 
   const [editWo, setEditWo] = useState<WorkOrder | null>(null);
   const [completionNote, setCompletionNote] = useState("");
   const [completingId, setCompletingId] = useState<number | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<WorkOrder | null>(null);
 
   const emptyWoForm = () => ({
     title: "", description: "", assignedToMemberId: "", dueDate: new Date().toISOString().slice(0, 10),
@@ -1824,7 +1826,7 @@ function WorkOrdersTab({ farmId, customers, onRaiseInvoice }: { farmId: number; 
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
                         <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                          onClick={() => { if (confirm(`Delete work order ${wo.workOrderRef ?? wo.title}?`)) deleteMut.mutate(wo.id); }}>
+                          onClick={() => setPendingDelete(wo)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
@@ -1907,6 +1909,17 @@ function WorkOrdersTab({ farmId, customers, onRaiseInvoice }: { farmId: number; 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete work order"
+        message={pendingDelete ? `Delete work order ${pendingDelete.workOrderRef ?? pendingDelete.title}?` : ""}
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={deleteMut}
+        onConfirm={() => { if (pendingDelete) deleteMut.mutate(pendingDelete.id, { onSuccess: () => setPendingDelete(null) }); }}
+        onCancel={() => { setPendingDelete(null); deleteMut.reset(); }}
+      />
     </div>
   );
 }
@@ -3429,6 +3442,7 @@ function EquipmentHireTab({
   const [editRow, setEditRow] = useState<HireBookingRow | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [showSummary, setShowSummary] = useState(false);
+  const [pendingCancel, setPendingCancel] = useState<number | null>(null);
 
   const bookingsQ = useQuery<{ records: HireBookingRow[] }>({
     queryKey: ["equipment-hire", farmId],
@@ -3453,7 +3467,7 @@ function EquipmentHireTab({
   });
 
   const cancelMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/equipment-hire/${id}`, { method: "DELETE", credentials: "include" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/equipment-hire/${id}`, { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["equipment-hire", farmId] }); toast({ title: "Booking cancelled" }); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -3624,7 +3638,7 @@ function EquipmentHireTab({
                         <Button variant="ghost" size="icon" title="View" onClick={() => setSelectedId(b.id)}><Eye className="h-3.5 w-3.5" /></Button>
                         <Button variant="ghost" size="icon" title="Edit" onClick={() => { setEditRow(row); setDialogOpen(true); }}><Pencil className="h-3.5 w-3.5" /></Button>
                         {!["cancelled", "invoiced"].includes(b.status) && (
-                          <Button variant="ghost" size="icon" title="Cancel" onClick={() => { if (confirm("Cancel this booking?")) cancelMut.mutate(b.id); }}>
+                          <Button variant="ghost" size="icon" title="Cancel" onClick={() => setPendingCancel(b.id)}>
                             <X className="h-3.5 w-3.5 text-red-500" />
                           </Button>
                         )}
@@ -3645,6 +3659,17 @@ function EquipmentHireTab({
         open={dialogOpen}
         onClose={() => { setDialogOpen(false); setEditRow(null); }}
         editBooking={editRow}
+      />
+
+      <ConfirmDialog
+        open={pendingCancel !== null}
+        title="Cancel booking"
+        message="Cancel this booking?"
+        confirmLabel="Cancel booking"
+        confirmVariant="destructive"
+        mutation={cancelMut}
+        onConfirm={() => { if (pendingCancel !== null) cancelMut.mutate(pendingCancel, { onSuccess: () => setPendingCancel(null) }); }}
+        onCancel={() => { setPendingCancel(null); cancelMut.reset(); }}
       />
     </div>
   );

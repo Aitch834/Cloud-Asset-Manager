@@ -20,6 +20,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -1692,6 +1693,9 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
   const [correspondences, setCorrespondences] = React.useState<Record<number, FpDerogCorrespondence[]>>({});
   const [documents, setDocuments] = React.useState<Record<number, FpDerogDocument[]>>({});
   const [raiseTaskFor, setRaiseTaskFor] = React.useState<{ title: string; description: string; dueDate?: string } | null>(null);
+  const [pendingDeleteCase, setPendingDeleteCase] = React.useState<number | null>(null);
+  const [pendingDeleteCorresp, setPendingDeleteCorresp] = React.useState<{ id: number; caseId: number } | null>(null);
+  const [pendingDeleteDoc, setPendingDeleteDoc] = React.useState<{ id: number; caseId: number } | null>(null);
 
   const { data: casesData, isLoading } = useQuery<{ cases: FpDerogCase[] }>({
     queryKey: ["ofp-input-derogations", farmId],
@@ -1887,7 +1891,7 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
                     </Button>
                   )}
                   <Button variant="ghost" size="icon" title="Edit" onClick={e => { e.stopPropagation(); openEditCase(c); }}><Pencil className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" title="Delete" onClick={e => { e.stopPropagation(); if (confirm("Delete this derogation case and all its correspondence?")) deleteCase.mutate(c.id); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  <Button variant="ghost" size="icon" title="Delete" onClick={e => { e.stopPropagation(); setPendingDeleteCase(c.id); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                   <Eye className={`h-4 w-4 text-muted-foreground transition-transform ${isExp ? "opacity-70" : ""}`} />
                 </div>
               </div>
@@ -1930,7 +1934,7 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
                           </div>
                           <div className="flex gap-1 shrink-0">
                             <Button variant="ghost" size="icon" onClick={() => openEditCorresp(cr, c.id)}><Pencil className="h-3 w-3" /></Button>
-                            <Button variant="ghost" size="icon" onClick={() => { if (confirm("Delete this correspondence entry?")) deleteCorresp.mutate({ id: cr.id, caseId: c.id }); }}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => setPendingDeleteCorresp({ id: cr.id, caseId: c.id })}><Trash2 className="h-3 w-3 text-destructive" /></Button>
                           </div>
                         </div>
                       ))}
@@ -1962,7 +1966,7 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
                           <span className="flex-1 truncate">{d.fileName}</span>
                           {d.notes && <span className="text-xs text-muted-foreground shrink-0">{d.notes}</span>}
                           {d.fileUrl && <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline shrink-0">View</a>}
-                          <Button variant="ghost" size="icon" onClick={() => { if (confirm("Delete this document?")) deleteDoc.mutate({ id: d.id, caseId: c.id }); }}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => setPendingDeleteDoc({ id: d.id, caseId: c.id })}><Trash2 className="h-3 w-3 text-destructive" /></Button>
                         </div>
                       ))}
                     </div>
@@ -2148,6 +2152,39 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
           onClose={() => setRaiseTaskFor(null)}
         />
       )}
+
+      <ConfirmDialog
+        open={pendingDeleteCase !== null}
+        title="Delete Derogation Case"
+        message="Delete this derogation case and all its correspondence?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={deleteCase}
+        onConfirm={() => { if (pendingDeleteCase !== null) deleteCase.mutate(pendingDeleteCase, { onSuccess: () => setPendingDeleteCase(null) }); }}
+        onCancel={() => { setPendingDeleteCase(null); deleteCase.reset(); }}
+      />
+
+      <ConfirmDialog
+        open={pendingDeleteCorresp !== null}
+        title="Delete Correspondence"
+        message="Delete this correspondence entry?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={deleteCorresp}
+        onConfirm={() => { if (pendingDeleteCorresp) deleteCorresp.mutate(pendingDeleteCorresp, { onSuccess: () => setPendingDeleteCorresp(null) }); }}
+        onCancel={() => { setPendingDeleteCorresp(null); deleteCorresp.reset(); }}
+      />
+
+      <ConfirmDialog
+        open={pendingDeleteDoc !== null}
+        title="Delete Document"
+        message="Delete this document?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={deleteDoc}
+        onConfirm={() => { if (pendingDeleteDoc) deleteDoc.mutate(pendingDeleteDoc, { onSuccess: () => setPendingDeleteDoc(null) }); }}
+        onCancel={() => { setPendingDeleteDoc(null); deleteDoc.reset(); }}
+      />
     </div>
   );
 }

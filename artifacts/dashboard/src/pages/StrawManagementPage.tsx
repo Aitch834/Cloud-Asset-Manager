@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -559,6 +560,7 @@ function CartageJourneysPanel({ farmId, balingOp, onAddJourney }: { farmId: numb
   const qc = useQueryClient();
   const { toast } = useToast();
   const [editJourney, setEditJourney] = useState<any>(null);
+  const [pendingDeleteJourney, setPendingDeleteJourney] = useState<number | null>(null);
 
   const { data: journeys = [], isLoading } = useQuery<any[]>({
     queryKey: ["straw-journeys", balingOp.id],
@@ -641,7 +643,7 @@ function CartageJourneysPanel({ farmId, balingOp, onAddJourney }: { farmId: numb
                     <td className="px-4 py-2">
                       <div className="flex gap-1">
                         <button onClick={() => setEditJourney(j)} className="p-1 rounded hover:bg-amber-200 text-gray-500"><Pencil size={12} /></button>
-                        <button onClick={() => { if (confirm("Delete this journey?")) delMut.mutate(j.id); }} className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600"><Trash2 size={12} /></button>
+                        <button onClick={() => setPendingDeleteJourney(j.id)} className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600"><Trash2 size={12} /></button>
                       </div>
                     </td>
                   </tr>
@@ -661,6 +663,17 @@ function CartageJourneysPanel({ farmId, balingOp, onAddJourney }: { farmId: numb
           editRow={editJourney}
         />
       )}
+
+      <ConfirmDialog
+        open={pendingDeleteJourney !== null}
+        title="Delete journey"
+        message="Delete this journey?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={delMut}
+        onConfirm={() => { if (pendingDeleteJourney !== null) delMut.mutate(pendingDeleteJourney, { onSuccess: () => setPendingDeleteJourney(null) }); }}
+        onCancel={() => { setPendingDeleteJourney(null); delMut.reset(); }}
+      />
     </div>
   );
 }
@@ -1590,10 +1603,12 @@ function SalesDialog({ open, onClose, farmId, editRow, inventory }: { open: bool
 }
 
 // ─── Meter Calibration History ────────────────────────────────────────────────
-function MeterCalHistory({ farmId, meter, onLogCal, onEdit, onDelete }: {
+function MeterCalHistory({ farmId, meter, onLogCal, onEdit, deleteMutation }: {
   farmId: number; meter: any;
-  onLogCal: () => void; onEdit: (row: any) => void; onDelete: (id: number) => void;
+  onLogCal: () => void; onEdit: (row: any) => void;
+  deleteMutation: { mutate: (id: number, opts?: { onSuccess?: () => void }) => void; reset: () => void; isError: boolean; isPending: boolean; error: unknown };
 }) {
+  const [pendingDeleteCal, setPendingDeleteCal] = useState<number | null>(null);
   const { data: cals = [], isLoading } = useQuery<any[]>({
     queryKey: ["straw-meter-cals", farmId, meter.id],
     queryFn: () => fetch(`/api/farms/${farmId}/straw-moisture-meters/${meter.id}/calibrations`, { credentials: "include" }).then(r => r.json()),
@@ -1625,7 +1640,7 @@ function MeterCalHistory({ farmId, meter, onLogCal, onEdit, onDelete }: {
                 <td className="py-1.5">
                   <div className="flex gap-1">
                     <button onClick={() => onEdit(c)} className="p-0.5 rounded hover:bg-gray-200 text-gray-500"><Pencil size={11} /></button>
-                    <button onClick={() => { if (confirm("Delete this calibration record?")) onDelete(c.id); }} className="p-0.5 rounded hover:bg-red-100 text-gray-400 hover:text-red-500"><Trash2 size={11} /></button>
+                    <button onClick={() => setPendingDeleteCal(c.id)} className="p-0.5 rounded hover:bg-red-100 text-gray-400 hover:text-red-500"><Trash2 size={11} /></button>
                   </div>
                 </td>
               </tr>
@@ -1633,6 +1648,17 @@ function MeterCalHistory({ farmId, meter, onLogCal, onEdit, onDelete }: {
           </tbody>
         </table>
       )}
+
+      <ConfirmDialog
+        open={pendingDeleteCal !== null}
+        title="Delete calibration record"
+        message="Delete this calibration record?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={deleteMutation}
+        onConfirm={() => { if (pendingDeleteCal !== null) deleteMutation.mutate(pendingDeleteCal, { onSuccess: () => setPendingDeleteCal(null) }); }}
+        onCancel={() => { setPendingDeleteCal(null); deleteMutation.reset(); }}
+      />
     </div>
   );
 }
@@ -2053,6 +2079,9 @@ export default function StrawManagementPage() {
   const [expandedOpId, setExpandedOpId] = useState<number | null>(null);
   const [expandedMeterId, setExpandedMeterId] = useState<number | null>(null);
   const [yearFilter, setYearFilter] = useState<string>("all");
+  const [pendingDelRecord, setPendingDelRecord] = useState<{ type: string; id: number; title: string; message: string; confirmLabel: string } | null>(null);
+  const [pendingDelEquip, setPendingDelEquip] = useState<number | null>(null);
+  const [pendingDelPermit, setPendingDelPermit] = useState<number | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -2411,7 +2440,7 @@ export default function StrawManagementPage() {
                                     <Package size={13} />
                                   </button>
                                   <button onClick={() => setBalingDlg({ open: true, row: op })} className="p-1.5 rounded hover:bg-gray-100 text-gray-500"><Pencil size={13} /></button>
-                                  <button onClick={() => { if (confirm("Delete this baling operation and all its journeys?")) delMut.mutate({ type: "straw-baling-operations", id: op.id }); }} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={13} /></button>
+                                  <button onClick={() => setPendingDelRecord({ type: "straw-baling-operations", id: op.id, title: "Delete baling operation", message: "Delete this baling operation and all its journeys?", confirmLabel: "Delete" })} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={13} /></button>
                                 </div>
                               </td>
                             </tr>
@@ -2488,7 +2517,7 @@ export default function StrawManagementPage() {
                             <div className="flex gap-1">
                               <button onClick={() => setPrintDlg({ open: true, row: r })} className="p-1.5 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600" title="Print batch sheet / label"><Printer size={14} /></button>
                               <button onClick={() => setInvDlg({ open: true, row: r })} className="p-1.5 rounded hover:bg-gray-100 text-gray-500"><Pencil size={14} /></button>
-                              <button onClick={() => { if (confirm("Delete this batch?")) delMut.mutate({ type: "straw-bale-inventory", id: r.id }); }} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
+                              <button onClick={() => setPendingDelRecord({ type: "straw-bale-inventory", id: r.id, title: "Delete batch", message: "Delete this batch?", confirmLabel: "Delete" })} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
                             </div>
                           </td>
                         </tr>
@@ -2547,7 +2576,7 @@ export default function StrawManagementPage() {
                           <td className="px-3 py-3">
                             <div className="flex gap-1">
                               <button onClick={() => setSaleDlg({ open: true, row: r })} className="p-1.5 rounded hover:bg-gray-100 text-gray-500"><Pencil size={14} /></button>
-                              <button onClick={() => { if (confirm("Delete this sale record?")) delMut.mutate({ type: "straw-sales", id: r.id }); }} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
+                              <button onClick={() => setPendingDelRecord({ type: "straw-sales", id: r.id, title: "Delete sale record", message: "Delete this sale record?", confirmLabel: "Delete" })} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
                             </div>
                           </td>
                         </tr>
@@ -2602,7 +2631,7 @@ export default function StrawManagementPage() {
                           <td className="px-4 py-3">
                             <div className="flex gap-1">
                               <button onClick={() => setMoistDlg({ open: true, row: r })} className="p-1.5 rounded hover:bg-gray-100 text-gray-500"><Pencil size={14} /></button>
-                              <button onClick={() => { if (confirm("Delete this check?")) delMut.mutate({ type: "straw-moisture-checks", id: r.id }); }} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
+                              <button onClick={() => setPendingDelRecord({ type: "straw-moisture-checks", id: r.id, title: "Delete check", message: "Delete this check?", confirmLabel: "Delete" })} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
                             </div>
                           </td>
                         </tr>
@@ -2644,7 +2673,7 @@ export default function StrawManagementPage() {
                           <div className="flex gap-1 shrink-0">
                             <button onClick={() => setCalDlg({ open: true, meter: mtr })} title="Log Calibration" className="p-1.5 rounded hover:bg-blue-50 text-blue-500"><BadgeCheck size={14} /></button>
                             <button onClick={() => setMeterDlg({ open: true, row: mtr })} className="p-1.5 rounded hover:bg-gray-100 text-gray-500"><Pencil size={14} /></button>
-                            <button onClick={() => { if (confirm("Remove this meter from the register?")) delMut.mutate({ type: "straw-moisture-meters", id: mtr.id }); }} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
+                            <button onClick={() => setPendingDelRecord({ type: "straw-moisture-meters", id: mtr.id, title: "Remove meter", message: "Remove this meter from the register?", confirmLabel: "Remove" })} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
                           </div>
                         </div>
                         {isExpanded && (
@@ -2653,7 +2682,7 @@ export default function StrawManagementPage() {
                             meter={mtr}
                             onLogCal={() => setCalDlg({ open: true, meter: mtr })}
                             onEdit={(row) => setCalDlg({ open: true, meter: mtr, editRow: row })}
-                            onDelete={(id) => delCalMut.mutate(id)}
+                            deleteMutation={delCalMut}
                           />
                         )}
                       </div>
@@ -2797,7 +2826,7 @@ export default function StrawManagementPage() {
                             <td className="px-4 py-3">
                               <div className="flex gap-1">
                                 <button onClick={() => setEquipDlg({ open: true, row: eq })} className="p-1.5 rounded hover:bg-gray-100 text-gray-500"><Pencil size={14} /></button>
-                                <button onClick={() => { if (confirm("Remove this equipment record?")) delEquipMut.mutate(eq.id); }} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
+                                <button onClick={() => setPendingDelEquip(eq.id)} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
                               </div>
                             </td>
                           </tr>
@@ -2839,7 +2868,7 @@ export default function StrawManagementPage() {
                           <td className="px-4 py-3">
                             <div className="flex gap-1">
                               <button onClick={() => setPermitDlg({ open: true, row: p })} className="p-1.5 rounded hover:bg-gray-100 text-gray-500"><Pencil size={14} /></button>
-                              <button onClick={() => { if (confirm("Delete this permit record?")) delPermitMut.mutate(p.id); }} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
+                              <button onClick={() => setPendingDelPermit(p.id)} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
                             </div>
                           </td>
                         </tr>
@@ -3052,6 +3081,39 @@ export default function StrawManagementPage() {
           farmId={farmId}
         />
       )}
+
+      <ConfirmDialog
+        open={pendingDelRecord !== null}
+        title={pendingDelRecord?.title ?? "Delete record"}
+        message={pendingDelRecord?.message ?? "Delete this record?"}
+        confirmLabel={pendingDelRecord?.confirmLabel ?? "Delete"}
+        confirmVariant="destructive"
+        mutation={delMut}
+        onConfirm={() => { if (pendingDelRecord) delMut.mutate({ type: pendingDelRecord.type, id: pendingDelRecord.id }, { onSuccess: () => setPendingDelRecord(null) }); }}
+        onCancel={() => { setPendingDelRecord(null); delMut.reset(); }}
+      />
+
+      <ConfirmDialog
+        open={pendingDelEquip !== null}
+        title="Remove equipment record"
+        message="Remove this equipment record?"
+        confirmLabel="Remove"
+        confirmVariant="destructive"
+        mutation={delEquipMut}
+        onConfirm={() => { if (pendingDelEquip !== null) delEquipMut.mutate(pendingDelEquip, { onSuccess: () => setPendingDelEquip(null) }); }}
+        onCancel={() => { setPendingDelEquip(null); delEquipMut.reset(); }}
+      />
+
+      <ConfirmDialog
+        open={pendingDelPermit !== null}
+        title="Delete permit record"
+        message="Delete this permit record?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={delPermitMut}
+        onConfirm={() => { if (pendingDelPermit !== null) delPermitMut.mutate(pendingDelPermit, { onSuccess: () => setPendingDelPermit(null) }); }}
+        onCancel={() => { setPendingDelPermit(null); delPermitMut.reset(); }}
+      />
     </AppLayout>
   );
 }
@@ -3064,6 +3126,7 @@ function FusariumKitStockSection({ farmId }: { farmId: number }) {
   const [editingItem, setEditingItem] = useState<any>(null);
   const [form, setForm] = useState<Record<string, any>>({});
   const [panelOpen, setPanelOpen] = useState(false);
+  const [pendingDelKit, setPendingDelKit] = useState<number | null>(null);
 
   const stockQ = useQuery<{ stock: any[] }>({
     queryKey: ["straw-fusarium-kit-stock", farmId],
@@ -3150,7 +3213,7 @@ function FusariumKitStockSection({ farmId }: { farmId: number }) {
                     </div>
                     <div className="flex gap-1 ml-2 shrink-0">
                       <button onClick={() => openEdit(s)} className="p-1.5 rounded hover:bg-gray-100 text-gray-500"><Pencil size={13} /></button>
-                      <button onClick={() => { if (confirm("Remove this kit batch?")) del.mutate(s.id); }} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={13} /></button>
+                      <button onClick={() => setPendingDelKit(s.id)} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 size={13} /></button>
                     </div>
                   </div>
                 );
@@ -3214,6 +3277,17 @@ function FusariumKitStockSection({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={pendingDelKit !== null}
+        title="Remove kit batch"
+        message="Remove this kit batch?"
+        confirmLabel="Remove"
+        confirmVariant="destructive"
+        mutation={del}
+        onConfirm={() => { if (pendingDelKit !== null) del.mutate(pendingDelKit, { onSuccess: () => setPendingDelKit(null) }); }}
+        onCancel={() => { setPendingDelKit(null); del.reset(); }}
+      />
     </div>
   );
 }

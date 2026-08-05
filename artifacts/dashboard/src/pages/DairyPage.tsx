@@ -23,6 +23,7 @@ import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { openPrintWindow } from "@/lib/print-report";
@@ -3267,6 +3268,7 @@ function TempBadge({ v }: { v?: string | null }) {
 export function BulkTankTab({ farmId, showCollections = true }: { farmId: number; showCollections?: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const [pendingDelColl, setPendingDelColl] = useState<number | null>(null);
 
   // ── Tank registry ──────────────────────────────────────────────────────────
   const [tanksOpen, setTanksOpen] = useState(true);
@@ -3816,7 +3818,7 @@ ${collRows ? `<h3>Milk Collections</h3><table><tr><th>Date</th><th>Tank</th><th>
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEditColl(c)}><Pencil className="h-3.5 w-3.5" /></Button>
-                    <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-700" onClick={() => { if (confirm("Delete this collection record?")) delColl.mutate(c.id); }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-700" onClick={() => setPendingDelColl(c.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>
                 </div>
               ))}
@@ -3889,6 +3891,17 @@ ${collRows ? `<h3>Milk Collections</h3><table><tr><th>Date</th><th>Tank</th><th>
       </Dialog>
 
       </>)}
+
+      <ConfirmDialog
+        open={pendingDelColl !== null}
+        title="Delete collection record"
+        message="Delete this collection record?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={delColl}
+        onConfirm={() => { if (pendingDelColl !== null) delColl.mutate(pendingDelColl, { onSuccess: () => setPendingDelColl(null) }); }}
+        onCancel={() => { setPendingDelColl(null); delColl.reset(); }}
+      />
 
     </div>
   );
@@ -4712,6 +4725,7 @@ export function RecordingVisitsTab({ farmId }: { farmId: number }) {
   const [viewRec, setViewRec] = useState<RecordingVisit | null>(null);
   const [form, setForm] = useState<Partial<RecordingVisit>>({});
   const [showChart, setShowChart] = useState(false);
+  const [pendingDel, setPendingDel] = useState<number | null>(null);
 
   const { data, isLoading } = useQuery<{ visits: RecordingVisit[] }>({
     queryKey: ["dairy-recording-visits", farmId],
@@ -4876,7 +4890,7 @@ export function RecordingVisitsTab({ farmId }: { farmId: number }) {
                     <div className="flex gap-1 justify-end">
                       <Button size="sm" variant="ghost" onClick={() => setViewRec(v)}><Eye className="h-3.5 w-3.5" /></Button>
                       <Button size="sm" variant="ghost" onClick={() => openEdit(v)}><Pencil className="h-3.5 w-3.5" /></Button>
-                      <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => { if (confirm("Delete this recording visit?")) del.mutate(v.id); }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => setPendingDel(v.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>
                   </td>
                 </tr>
@@ -5075,6 +5089,16 @@ export function RecordingVisitsTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ConfirmDialog
+        open={pendingDel !== null}
+        title="Delete recording visit"
+        message="Delete this recording visit?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={del}
+        onConfirm={() => { if (pendingDel !== null) del.mutate(pendingDel, { onSuccess: () => setPendingDel(null) }); }}
+        onCancel={() => { setPendingDel(null); del.reset(); }}
+      />
     </div>
   );
 }
@@ -6194,6 +6218,7 @@ export function SccEquipmentSection({ farmId, species }: { farmId: number; speci
   const [viewRec, setViewRec] = useState<SccEquipmentRecord | null>(null);
   const blank: Partial<SccEquipmentRecord> = { inService: true };
   const [form, setForm] = useState<Partial<SccEquipmentRecord>>(blank);
+  const [pendingDel, setPendingDel] = useState<number | null>(null);
   const set = (k: keyof SccEquipmentRecord, v: unknown) => setForm(p => ({ ...p, [k]: v }));
 
   const qKey = ["scc-equipment", farmId, species];
@@ -6308,7 +6333,7 @@ export function SccEquipmentSection({ farmId, species }: { farmId: number; speci
                     <div className="flex gap-1">
                       <Button variant="ghost" size="sm" onClick={() => setViewRec(r)}><Eye className="w-3.5 h-3.5" /></Button>
                       <Button variant="ghost" size="sm" onClick={() => { setEditing(r); setForm({ ...r }); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                      <Button variant="ghost" size="sm" className="text-red-500" onClick={() => { if (confirm("Delete this equipment record?")) del.mutate(r.id); }}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      <Button variant="ghost" size="sm" className="text-red-500" onClick={() => setPendingDel(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   </td>
                 </tr>
@@ -6386,6 +6411,16 @@ export function SccEquipmentSection({ farmId, species }: { farmId: number; speci
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ConfirmDialog
+        open={pendingDel !== null}
+        title="Delete equipment record"
+        message="Delete this equipment record?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={del}
+        onConfirm={() => { if (pendingDel !== null) del.mutate(pendingDel, { onSuccess: () => setPendingDel(null) }); }}
+        onCancel={() => { setPendingDel(null); del.reset(); }}
+      />
     </div>
   );
 }
@@ -6400,6 +6435,7 @@ function DairyJohnesDeclarationSection({ farmId, allMonitoringRecords }: { farmI
   const [ackRec, setAckRec] = useState<any>(null);
   const [ackForm, setAckForm] = useState<any>({});
   const [form, setForm] = useState<any>({});
+  const [pendingDelDec, setPendingDelDec] = useState<number | null>(null);
   const setF = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
   const qKey = ["johnes-declarations", farmId];
@@ -6439,11 +6475,10 @@ function DairyJohnesDeclarationSection({ farmId, allMonitoringRecords }: { farmI
     setOpen(false); setEditing(null);
   }
 
-  async function delDec(id: number) {
-    if (!confirm("Delete this declaration record?")) return;
-    await fetch(api(`farms/${farmId}/johnes-declarations/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
-    qc.invalidateQueries({ queryKey: qKey });
-  }
+  const delDec = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/johnes-declarations/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qKey }),
+  });
 
   async function saveAck() {
     await fetch(api(`farms/${farmId}/johnes-declarations/${ackRec.id}/acknowledge`), {
@@ -6550,7 +6585,7 @@ ${rec.notes ? `<p class="body-para"><em>Notes: ${rec.notes}</em></p>` : ""}
                         </Button>
                       )}
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { setEditing(d); setForm({ ...d }); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => delDec(d.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => setPendingDelDec(d.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   </td>
                 </tr>
@@ -6621,6 +6656,16 @@ ${rec.notes ? `<p class="body-para"><em>Notes: ${rec.notes}</em></p>` : ""}
           </DialogContent>
         </Dialog>
       )}
+      <ConfirmDialog
+        open={pendingDelDec !== null}
+        title="Delete declaration record"
+        message="Delete this declaration record?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={delDec}
+        onConfirm={() => { if (pendingDelDec !== null) delDec.mutate(pendingDelDec, { onSuccess: () => setPendingDelDec(null) }); }}
+        onCancel={() => { setPendingDelDec(null); delDec.reset(); }}
+      />
     </div>
   );
 }
@@ -6633,6 +6678,7 @@ function DairyJohnesTab({ farmId }: { farmId: number }) {
   const [mode, setMode] = useState<"log" | "result" | "edit">("log");
   const [form, setForm] = useState<any>({});
   const [yearFilter, setYearFilter] = useState("all");
+  const [pendingDel, setPendingDel] = useState<number | null>(null);
 
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
@@ -6710,14 +6756,13 @@ function DairyJohnesTab({ farmId }: { farmId: number }) {
     setOpen(false);
   }
 
-  async function del(id: number) {
-    if (!confirm("Delete this Johne's monitoring record?")) return;
-    await fetch(api(`farms/${farmId}/johnes-monitoring/${id}`), {
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/johnes-monitoring/${id}`), {
       method: "DELETE",
       credentials: "include",
-    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
-    qc.invalidateQueries({ queryKey: ["johnes-monitoring", farmId] });
-  }
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["johnes-monitoring", farmId] }),
+  });
 
   function printReport() {
     const printedDate = new Date().toLocaleDateString("en-GB", {
@@ -6922,7 +6967,7 @@ function DairyJohnesTab({ farmId }: { farmId: number }) {
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}>
                         <Pencil className="w-3.5 h-3.5" />
                       </Button>
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => setPendingDel(r.id)}>
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     </div>
@@ -7192,6 +7237,16 @@ function DairyJohnesTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
       <DairyJohnesDeclarationSection farmId={farmId} allMonitoringRecords={allRecords} />
+      <ConfirmDialog
+        open={pendingDel !== null}
+        title="Delete monitoring record"
+        message="Delete this Johne's monitoring record?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={del}
+        onConfirm={() => { if (pendingDel !== null) del.mutate(pendingDel, { onSuccess: () => setPendingDel(null) }); }}
+        onCancel={() => { setPendingDel(null); del.reset(); }}
+      />
     </div>
   );
 }

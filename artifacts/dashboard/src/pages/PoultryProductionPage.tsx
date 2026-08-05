@@ -26,6 +26,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useFarmMembers } from "@/hooks/use-farm-members";
 import { useToast } from "@/hooks/use-toast";
 import { StaffSelect } from "@/components/ui/staff-select";
+import { ConfirmDialog as SharedConfirmDialog } from "@/components/ui/confirm-dialog";
 import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 import { FlocksTab } from "./poultry/FlocksTab";
 import { PoultryFlockReport } from "@/components/PoultryFlockReport";
@@ -3296,6 +3297,7 @@ const FSA_BANDS = [
 
 function CampylobacterMonitoringTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [viewRec, setViewRec] = useState<any>(null);
@@ -3341,11 +3343,12 @@ function CampylobacterMonitoringTab({ farmId }: { farmId: number }) {
     setOpen(false);
   }
 
-  async function del(id: number) {
-    if (!confirm("Delete this Campylobacter monitoring record?")) return;
-    await fetch(api(`farms/${farmId}/campylobacter-monitoring/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
-    qc.invalidateQueries({ queryKey: ["campylobacter-monitoring", farmId] });
-  }
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/campylobacter-monitoring/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["campylobacter-monitoring", farmId] }),
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
+  });
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null);
 
   const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
   const resultBadge = (r: string) => {
@@ -3445,7 +3448,7 @@ function CampylobacterMonitoringTab({ farmId }: { farmId: number }) {
                       )}
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setViewRec(r)}><Eye className="w-3.5 h-3.5" /></Button>
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => setPendingDelete(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   </td>
                 </tr>
@@ -3553,6 +3556,16 @@ function CampylobacterMonitoringTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <SharedConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete Record"
+        message="Delete this Campylobacter monitoring record?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={del}
+        onConfirm={() => { if (pendingDelete !== null) del.mutate(pendingDelete, { onSuccess: () => setPendingDelete(null) }); }}
+        onCancel={() => { setPendingDelete(null); del.reset(); }}
+      />
     </div>
   );
 }

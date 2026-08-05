@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -537,6 +538,7 @@ function VensDerogCard({ farmId, c: rec, isExpanded, onToggle, qc }: {
   const [corrForm, setCorrForm] = useState<any>({ correspondenceDate: new Date().toISOString().slice(0,10), direction: "to-certifier", correspondenceType: "Application to Certifier", summary: "", reference: "", notes: "" });
   const [uploading, setUploading] = useState(false);
   const [uploadType, setUploadType] = useState("Approval Letter");
+  const [pendingDeleteDerog, setPendingDeleteDerog] = useState(false);
 
   const { data: corrData } = useQuery({
     queryKey: ["vens-derog-corr", rec.id],
@@ -639,7 +641,7 @@ function VensDerogCard({ farmId, c: rec, isExpanded, onToggle, qc }: {
             <button className="text-xs px-2 py-1 border border-amber-300 text-amber-700 rounded hover:bg-amber-50" onClick={() => setRecordDecisionOpen(true)}>Record Decision</button>
           )}
           <Button variant="ghost" size="icon" onClick={() => { setEditForm({ ...rec }); setEditOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" onClick={() => { if (confirm("Delete this derogation case and all its correspondence?")) delDerog.mutate(); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+          <Button variant="ghost" size="icon" onClick={() => setPendingDeleteDerog(true)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
         </div>
       </div>
 
@@ -851,6 +853,17 @@ function VensDerogCard({ farmId, c: rec, isExpanded, onToggle, qc }: {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={pendingDeleteDerog}
+        title="Delete Derogation Case"
+        message="Delete this derogation case and all its correspondence?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={delDerog}
+        onConfirm={() => delDerog.mutate(undefined, { onSuccess: () => setPendingDeleteDerog(false) })}
+        onCancel={() => { setPendingDeleteDerog(false); delDerog.reset(); }}
+      />
     </div>
   );
 }
