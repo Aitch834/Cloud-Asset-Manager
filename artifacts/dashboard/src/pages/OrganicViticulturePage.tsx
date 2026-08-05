@@ -62,6 +62,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { StaffSelect } from "@/components/ui/staff-select";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 
 function fmt(val: string | null | undefined): string {
   if (!val) return "—";
@@ -1732,35 +1733,27 @@ function CertificatesTab({ farmId }: { farmId: number }) {
 
 export default function OrganicViticulturePage() {
   const { farmId } = useAppStore();
-  // Persist the active tab in localStorage, scoped to the farm — same lazy
-  // initializer + wrapped setter + farmId re-sync pattern as
-  // usePersistedYearFilter in WineryManagementTabs.tsx, so auditors deep in a
-  // winery tab land back where they left off after a reload.
-  const tabStorageKey = `organic-viticulture-active-tab-${farmId ?? 0}`;
-  const readStoredTab = (): Tab => {
-    try {
-      const v = localStorage.getItem(tabStorageKey);
-      if (v && TABS.some(t => t.id === v)) return v as Tab;
-    } catch { /**/ }
-    return "block-conversion";
-  };
-  const [tab, setTabRaw] = useState<Tab>(readStoredTab);
-  useEffect(() => {
-    setTabRaw(readStoredTab());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabStorageKey]);
-  const setTab = (v: Tab) => { try { localStorage.setItem(tabStorageKey, v); } catch { /**/ } setTabRaw(v); };
+  // Persist the active tab in localStorage, scoped to the farm — shared
+  // usePersistedTab hook (same behaviour as all other tabbed pages); page key
+  // "organic-viticulture" keeps the historical
+  // `organic-viticulture-active-tab-${farmId}` storage key.
+  const [tab, setTab] = usePersistedTab<Tab>({
+    page: "organic-viticulture",
+    farmId,
+    validIds: TABS.map(t => t.id),
+    defaultTab: "block-conversion",
+  });
   // Cross-tab "view additions" shortcut: fermentation/cellar-ops/bottling rows
   // request the Pressing tab's Additions Report; switching tabs mounts
   // PressingRecordsTab, which consumes the stored scope and opens the report.
   useEffect(() => {
     // Persist via the wrapped setter so the shortcut writes to the *current*
-    // farm's storage key — re-registered whenever the farm (key) changes.
+    // farm's storage key — re-registered whenever the farm changes.
     const h = () => setTab("winery-pressing");
     window.addEventListener(WINERY_VIEW_ADDITIONS_EVENT, h);
     return () => window.removeEventListener(WINERY_VIEW_ADDITIONS_EVENT, h);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabStorageKey]);
+  }, [farmId]);
 
   const { data: vineyardBlocks = [] } = useQuery<Record<string, unknown>[]>({
     queryKey: ["vineyard-blocks", farmId],
