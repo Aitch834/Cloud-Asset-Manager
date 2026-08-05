@@ -1,5 +1,5 @@
 import { sanitiseSignatureForHtml, SignatureEmbed, NO_EMBED, printBatchTrail } from "./print";
-import { fetchWineryJson, usePressing, CONVENTIONAL_MAX_SO2, ORGANIC_MAX_SO2, fmtDate, today, fmtDDMonYYYY, AssignWineColourDialog, fmtNum, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SO2_TEST_STAGE_LABELS, EmptyState, CELLAR_OP_LABELS, fmt, So2Badge, BATCH_TRAIL_CSV_HEADER, PRESS_ADDITIVE_COLUMNS, so2LimitUnverified } from "./shared";
+import { fetchWineryJson, usePressing, CONVENTIONAL_MAX_SO2, ORGANIC_MAX_SO2, fmtDate, today, fmtDDMonYYYY, AssignWineColourDialog, type AssignColourTarget, fmtNum, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SO2_TEST_STAGE_LABELS, EmptyState, CELLAR_OP_LABELS, fmt, So2Badge, BATCH_TRAIL_CSV_HEADER, PRESS_ADDITIVE_COLUMNS, so2LimitUnverified } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -793,21 +793,41 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
 
   // ── Assign wine colour (vintage scope) ───────────────────────────────────────
   // Pressing sessions in this vintage whose batch has no derived colour anywhere
-  // (fermentation → bottling → pressing's own colour) — targets for the dialog.
-  const [assignColourRecords, setAssignColourRecords] = useState<{ id: number; batchRef: string; pressDate: string | null }[] | null>(null);
+  // (fermentation → cellar → bottling → pressing's own colour) — targets for the
+  // dialog. Batches that have NO pressing record at all are offered too, saving
+  // the colour directly onto the fermentation/cellar record instead.
+  const [assignColourRecords, setAssignColourRecords] = useState<AssignColourTarget[] | null>(null);
   const openAssignColours = () => {
     if (!data) return;
     const hasColour = (ref: string) =>
-      [data.fermentation, data.bottling, data.pressings ?? []].some(src =>
+      [data.fermentation, data.cellarOps, data.bottling, data.pressings ?? []].some(src =>
         src.some(r => r.batch_ref && String(r.batch_ref).trim() === ref && r.wine_colour));
-    const seen = new Set<number>();
-    const targets: { id: number; batchRef: string; pressDate: string | null }[] = [];
+    const seen = new Set<string>();
+    const targets: AssignColourTarget[] = [];
+    const pressedRefs = new Set((data.pressings ?? [])
+      .map(p => (p.batch_ref ? String(p.batch_ref).trim() : ""))
+      .filter(Boolean));
     for (const p of data.pressings ?? []) {
       const ref = p.batch_ref ? String(p.batch_ref).trim() : "";
       const id = Number(p.id);
-      if (!ref || seen.has(id) || hasColour(ref)) continue;
-      seen.add(id);
-      targets.push({ id, batchRef: ref, pressDate: p.press_date ? String(p.press_date) : null });
+      if (!ref || seen.has(`pressing:${id}`) || hasColour(ref)) continue;
+      seen.add(`pressing:${id}`);
+      targets.push({ id, kind: "pressing", batchRef: ref, pressDate: p.press_date ? String(p.press_date) : null });
+    }
+    // Colourless batches with no pressing record — target the source record itself.
+    const noPressingSources: { rows: Record<string, unknown>[]; kind: "fermentation" | "cellar"; dateField: string }[] = [
+      { rows: data.fermentation, kind: "fermentation", dateField: "start_date" },
+      { rows: data.cellarOps, kind: "cellar", dateField: "op_date" },
+    ];
+    for (const { rows, kind, dateField } of noPressingSources) {
+      for (const r of rows) {
+        const ref = r.batch_ref ? String(r.batch_ref).trim() : "";
+        const id = Number(r.id);
+        const key = `${kind}:${id}`;
+        if (!ref || pressedRefs.has(ref) || seen.has(key) || hasColour(ref)) continue;
+        seen.add(key);
+        targets.push({ id, kind, batchRef: ref, pressDate: r[dateField] ? String(r[dateField]) : null });
+      }
     }
     setAssignColourRecords(targets);
   };
@@ -972,7 +992,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
             vintageYear={vintageYear}
             highlightedBatch={highlightedBatch}
             onBatchClick={handleBatchHighlight}
-            onAssignColours={(data.pressings ?? []).length > 0 ? openAssignColours : undefined}
+            onAssignColours={(data.pressings ?? []).length > 0 || data.fermentation.length > 0 || data.cellarOps.length > 0 ? openAssignColours : undefined}
           />
         )}
         {assignColourRecords && (

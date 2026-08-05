@@ -507,24 +507,44 @@ export function ViewAdditionsButton({ farmId, record }: { farmId: number; record
 export const WINE_COLOUR_OPTIONS = ["Red", "White", "Rosé", "Sparkling", "Orange", "Other"];
 
 // ─── Assign wine colour dialog ────────────────────────────────────────────────
-// Inline colour picker for pressing batches whose derived wine colour is missing
+// Inline colour picker for batches whose derived wine colour is missing
 // ("Unspecified" in the Additions Report / vintage pH-TA chart). Each row saves
-// immediately via the single-column PUT .../wine-colour endpoint, so the rest of
-// the pressing record can never be clobbered. Saves invalidate every winery
-// query that groups by colour, so rows leave the Unspecified group without a
-// manual refresh.
+// immediately via a single-column PUT .../wine-colour endpoint, so the rest of
+// the record can never be clobbered. Rows normally target the batch's pressing
+// record; when a batch has NO pressing record the row targets the underlying
+// fermentation/cellar record directly (kind = "fermentation" | "cellar").
+// Saves invalidate every winery query that groups by colour, so rows leave the
+// Unspecified group without a manual refresh.
+export type AssignColourTarget = {
+  id: number;
+  batchRef: string;
+  pressDate: string | null;
+  // Which record the colour is saved onto. Defaults to "pressing".
+  kind?: "pressing" | "fermentation" | "cellar";
+};
+const COLOUR_ENDPOINT_BY_KIND: Record<string, string> = {
+  pressing: "winery-pressing",
+  fermentation: "winery-fermentation",
+  cellar: "winery-cellar-ops",
+};
+const COLOUR_DATE_LABEL_BY_KIND: Record<string, string> = {
+  pressing: "Pressed",
+  fermentation: "Fermentation started",
+  cellar: "Cellar op",
+};
+const targetKey = (rec: AssignColourTarget) => `${rec.kind ?? "pressing"}:${rec.id}`;
 export function AssignWineColourDialog({ farmId, records, onClose }: {
   farmId: number;
-  records: { id: number; batchRef: string; pressDate: string | null }[];
+  records: AssignColourTarget[];
   onClose: () => void;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [saved, setSaved] = useState<Record<number, string>>({});
-  const [pendingId, setPendingId] = useState<number | null>(null);
+  const [saved, setSaved] = useState<Record<string, string>>({});
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
   const assignMutation = useMutation({
-    mutationFn: async ({ id, colour }: { id: number; colour: string }) => {
-      const r = await fetch(api(`farms/${farmId}/winery-pressing/${id}/wine-colour`), {
+    mutationFn: async ({ id, kind, colour }: { id: number; kind: string; colour: string }) => {
+      const r = await fetch(api(`farms/${farmId}/${COLOUR_ENDPOINT_BY_KIND[kind]}/${id}/wine-colour`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -534,14 +554,16 @@ export function AssignWineColourDialog({ farmId, records, onClose }: {
       return r.json();
     },
     onSuccess: (_d, vars) => {
-      setSaved(s => ({ ...s, [vars.id]: vars.colour }));
+      setSaved(s => ({ ...s, [`${vars.kind}:${vars.id}`]: vars.colour }));
       qc.invalidateQueries({ queryKey: ["winery-pressing", farmId] });
+      qc.invalidateQueries({ queryKey: ["winery-fermentation", farmId] });
+      qc.invalidateQueries({ queryKey: ["winery-cellar-ops", farmId] });
       qc.invalidateQueries({ queryKey: ["winery-pressing-additions-summary", farmId] });
       qc.invalidateQueries({ queryKey: ["winery-pressing-all-additions", farmId] });
       qc.invalidateQueries({ queryKey: ["winery-batch-trail", farmId] });
       toast({ title: "Wine colour saved" });
     },
-    onSettled: () => setPendingId(null),
+    onSettled: () => setPendingKey(null),
   });
   const handleClose = () => { assignMutation.reset(); onClose(); };
   return (
@@ -550,7 +572,7 @@ export function AssignWineColourDialog({ farmId, records, onClose }: {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><Wine className="h-4 w-4" />Assign Wine Colour</DialogTitle>
           <DialogDescription>
-            These pressing batches have no recorded wine colour, so they appear as "Unspecified" in reports. Pick a colour to save it straight onto the batch record.
+            These batches have no recorded wine colour, so they appear as "Unspecified" in reports. Pick a colour to save it straight onto the batch's pressing record — or, where a batch has no pressing record, onto the fermentation/cellar record itself.
           </DialogDescription>
         </DialogHeader>
         {records.length === 0 ? (
@@ -558,12 +580,17 @@ export function AssignWineColourDialog({ farmId, records, onClose }: {
         ) : (
           <div className="max-h-80 overflow-y-auto divide-y rounded-md border">
             {records.map(rec => {
-              const savedColour = saved[rec.id];
+              const key = targetKey(rec);
+              const kind = rec.kind ?? "pressing";
+              const savedColour = saved[key];
               return (
-                <div key={rec.id} className="flex items-center gap-3 px-3 py-2" data-testid={`assign-colour-row-${rec.id}`}>
+                <div key={key} className="flex items-center gap-3 px-3 py-2" data-testid={`assign-colour-row-${key}`}>
                   <div className="min-w-0 flex-1">
                     <p className="font-mono text-xs font-medium truncate">{rec.batchRef || "(no batch ref)"}</p>
-                    {rec.pressDate && <p className="text-xs text-muted-foreground">Pressed {fmtDate(rec.pressDate)}</p>}
+                    <p className="text-xs text-muted-foreground">
+                      {kind !== "pressing" && <span className="mr-1 inline-flex px-1 py-0 rounded bg-slate-100 text-slate-600 not-italic">{kind === "fermentation" ? "Fermentation record — no pressing" : "Cellar record — no pressing"}</span>}
+                      {rec.pressDate && <>{COLOUR_DATE_LABEL_BY_KIND[kind]} {fmtDate(rec.pressDate)}</>}
+                    </p>
                   </div>
                   {savedColour ? (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
@@ -571,10 +598,10 @@ export function AssignWineColourDialog({ farmId, records, onClose }: {
                     </span>
                   ) : (
                     <div className="flex items-center gap-2">
-                      {pendingId === rec.id && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                      {pendingKey === key && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                       <Select
                         value=""
-                        onValueChange={colour => { setPendingId(rec.id); assignMutation.mutate({ id: rec.id, colour }); }}
+                        onValueChange={colour => { setPendingKey(key); assignMutation.mutate({ id: rec.id, kind, colour }); }}
                         disabled={assignMutation.isPending}
                       >
                         <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Select colour…" /></SelectTrigger>

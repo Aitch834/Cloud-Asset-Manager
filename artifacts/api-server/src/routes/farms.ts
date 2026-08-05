@@ -37010,7 +37010,8 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
            p.settling_vessel AS vessel_ref,
            NULL::numeric AS volume_moved_litres,
            NULL::numeric AS vessel_capacity_litres,
-           NULL::numeric AS so2_quantity_g
+           NULL::numeric AS so2_quantity_g,
+           p.id AS source_record_id
     FROM winery_pressing_additions a
     JOIN winery_pressing_records p ON p.id = a.pressing_record_id
     -- Pressing records carry no wine_colour column; derive it from the batch's
@@ -37047,7 +37048,8 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
            v.vessel_ref,
            NULL::numeric AS volume_moved_litres,
            NULL::numeric AS vessel_capacity_litres,
-           NULL::numeric AS so2_quantity_g
+           NULL::numeric AS so2_quantity_g,
+           f.id AS source_record_id
     FROM winery_fermentation_records f
     LEFT JOIN winery_vessels v ON v.id = f.vessel_id
     LEFT JOIN winery_pressing_records pf ON pf.farm_id = f.farm_id AND pf.batch_ref = f.batch_ref
@@ -37074,7 +37076,8 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
            END AS vessel_ref,
            o.volume_moved_litres,
            fv.capacity_litres AS vessel_capacity_litres,
-           o.so2_quantity_g
+           o.so2_quantity_g,
+           o.id AS source_record_id
     FROM winery_cellar_ops o
     LEFT JOIN winery_vessels fv ON fv.id = o.from_vessel_id
     LEFT JOIN winery_vessels tv ON tv.id = o.to_vessel_id
@@ -37347,6 +37350,35 @@ router.put("/farms/:farmId/winery-pressing/:id/wine-colour", requireAuth, requir
   }
   res.json({ record: r.rows[0] });
 });
+
+// ── Assign wine colour directly onto fermentation / cellar records ──────────────
+// Used by the Assign Wine Colour dialog when an Unspecified batch has NO pressing
+// record to save onto — the colour goes on the underlying record's own
+// wine_colour column instead. Single-column update mirroring the pressing route
+// above (same value whitelist, same post-sign-off edit-history append). Table
+// names come from this hardcoded whitelist only — never from request input.
+const WINERY_COLOUR_TYPES: { path: string; table: string }[] = [
+  { path: "winery-fermentation", table: "winery_fermentation_records" },
+  { path: "winery-cellar-ops",   table: "winery_cellar_ops" },
+];
+for (const { path, table } of WINERY_COLOUR_TYPES) {
+  router.put(`/farms/:farmId/${path}/:id/wine-colour`, requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+    const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+    const recordId = parseInt(req.params.id as string);
+    const colour = n(sanitiseBody(req.body).wineColour);
+    if (!colour || !WINE_COLOUR_VALUES.has(colour)) {
+      res.status(400).json({ error: `wineColour must be one of: ${[...WINE_COLOUR_VALUES].join(", ")}` });
+      return;
+    }
+    const editEntry = buildAuditEditEntry(await resolveAuditEditor(req), `Wine colour set to ${colour}`);
+    const r = await db.execute(sql`UPDATE ${sql.raw(table)} SET edit_history=CASE WHEN audit_signature IS NOT NULL THEN COALESCE(edit_history,'[]'::jsonb) || ${editEntry}::jsonb ELSE COALESCE(edit_history,'[]'::jsonb) END, wine_colour=${colour} WHERE id=${recordId} AND farm_id=${farmId} RETURNING id, batch_ref, wine_colour`);
+    if (r.rows.length === 0) {
+      res.status(404).json({ error: "Record not found" });
+      return;
+    }
+    res.json({ record: r.rows[0] });
+  });
+}
 
 // ── Sign-off routes for the other signable winery record types ──────────────────
 // Mirrors the pressing sign-off route (same PNG data-URL validation) for

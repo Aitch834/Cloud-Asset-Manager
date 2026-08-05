@@ -1,6 +1,6 @@
 import { SignatureEmbed, NO_EMBED, signatureEmbedFrom, computeSo2DominantUnitByVintage, SOURCE_LABELS, so2UnitOutlierDominant, printPressingReport, printAdditionsReport, printSo2TransactionLog } from "./print";
 import { useWineryBatchSettings, BatchTrailDialog } from "./BatchTrail";
-import { fetchWineryJson, useCrud, useVessels, useEquipment, useStaff, AdditionRow, additionsShortcutKey, WINERY_VIEW_ADDITIONS_EVENT, ADDITIVE_CATEGORY_LABELS, WINE_COLOUR_OPTIONS, UNSPECIFIED_COLOUR, useAdditionsSummary, useAllPressAdditions, PERMITTED_ADDITIVES, PRESS_TYPE_OPTIONS, today, rowMatchesColour, additiveCsvCol, fmtDate, colourFilterLabel, exportCSV, QueryErrorNotice, EmptyState, NotesCell, fmt, fmtNum, signOffTooltip, BatchTrailButton, ORGANIC_MAX_SO2, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SectionLabel, JUICE_TURBIDITY_OPTIONS, ALL_DOSE_UNITS, SETTLING_METHOD_OPTIONS, ViewField, AssignWineColourDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
+import { fetchWineryJson, useCrud, useVessels, useEquipment, useStaff, AdditionRow, additionsShortcutKey, WINERY_VIEW_ADDITIONS_EVENT, ADDITIVE_CATEGORY_LABELS, WINE_COLOUR_OPTIONS, UNSPECIFIED_COLOUR, useAdditionsSummary, useAllPressAdditions, PERMITTED_ADDITIVES, PRESS_TYPE_OPTIONS, today, rowMatchesColour, additiveCsvCol, fmtDate, colourFilterLabel, exportCSV, QueryErrorNotice, EmptyState, NotesCell, fmt, fmtNum, signOffTooltip, BatchTrailButton, ORGANIC_MAX_SO2, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SectionLabel, JUICE_TURBIDITY_OPTIONS, ALL_DOSE_UNITS, SETTLING_METHOD_OPTIONS, ViewField, AssignWineColourDialog, type AssignColourTarget, SIGN_OFF_CSV_COLUMNS } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -181,7 +181,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   // "Assign wine colour" shortcut for Unspecified report rows. Holds a snapshot
   // of the target pressing records while the dialog is open (null = closed) so
   // rows don't vanish mid-dialog when queries refresh after each save.
-  const [assignColourRecords, setAssignColourRecords] = useState<{ id: number; batchRef: string; pressDate: string | null }[] | null>(null);
+  const [assignColourRecords, setAssignColourRecords] = useState<AssignColourTarget[] | null>(null);
   const sf = (k: string, v: string | boolean) => {
     if (k === "batchRef") setBatchRefError(null);
     setForm(f => ({ ...f, [k]: v }));
@@ -240,23 +240,42 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
     return convMax !== undefined && doseVal > convMax;
   });
 
-  // Pressing batches whose derived wine colour is missing — targets for the
-  // Assign Wine Colour dialog. Report rows from fermentation/cellar sources are
-  // mapped back to the batch's pressing record via batch_ref (unique per farm).
+  // Batches whose derived wine colour is missing — targets for the Assign Wine
+  // Colour dialog. Report rows from fermentation/cellar sources are mapped back
+  // to the batch's pressing record via batch_ref (unique per farm). When the
+  // batch has NO pressing record at all, the target is the fermentation/cellar
+  // record itself (its own wine_colour column) via source_record_id.
   const colourlessPressings = useMemo(() => {
-    const out = new Map<number, { id: number; batchRef: string; pressDate: string | null; vintage: string }>();
+    const out = new Map<string, AssignColourTarget & { vintage: string }>();
     for (const a of allAdditions) {
       if (String(a.wine_colour ?? "") !== "") continue;
       let rec: Record<string, unknown> | undefined;
       if (a.pressing_record_id != null) rec = crud.data.find(r => r.id === a.pressing_record_id);
       else if (a.batch_ref) rec = crud.data.find(r => String(r.batch_ref ?? "") === String(a.batch_ref));
-      if (!rec) continue;
-      const id = rec.id as number;
-      if (!out.has(id)) out.set(id, {
-        id,
-        batchRef: String(rec.batch_ref ?? ""),
-        pressDate: rec.press_date ? String(rec.press_date) : null,
-        vintage: String(a.vintage_year ?? rec.vintage_year ?? ""),
+      if (rec) {
+        const id = rec.id as number;
+        const key = `pressing:${id}`;
+        if (!out.has(key)) out.set(key, {
+          id,
+          kind: "pressing",
+          batchRef: String(rec.batch_ref ?? ""),
+          pressDate: rec.press_date ? String(rec.press_date) : null,
+          vintage: String(a.vintage_year ?? rec.vintage_year ?? ""),
+        });
+        continue;
+      }
+      // No pressing record for this batch — offer to set the colour directly on
+      // the underlying fermentation/cellar record.
+      const source = String(a.source ?? "");
+      const srcId = Number(a.source_record_id);
+      if ((source !== "fermentation" && source !== "cellar") || !Number.isFinite(srcId)) continue;
+      const key = `${source}:${srcId}`;
+      if (!out.has(key)) out.set(key, {
+        id: srcId,
+        kind: source,
+        batchRef: String(a.batch_ref ?? ""),
+        pressDate: a.record_date ? String(a.record_date) : null,
+        vintage: String(a.vintage_year ?? ""),
       });
     }
     return Array.from(out.values());
@@ -266,7 +285,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const openAssignColours = (vintage: string) => {
     setAssignColourRecords(colourlessPressings
       .filter(p => vintage === "all" || p.vintage === vintage)
-      .map(({ id, batchRef, pressDate }) => ({ id, batchRef, pressDate })));
+      .map(({ id, kind, batchRef, pressDate }) => ({ id, kind, batchRef, pressDate })));
   };
 
   // Count of additive entries per pressing record, for the row badge
