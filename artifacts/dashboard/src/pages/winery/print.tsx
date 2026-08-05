@@ -1,4 +1,4 @@
-import { fmtDate, SO2_TEST_STAGE_LABELS, PRESS_ADDITIVE_COLUMNS, CELLAR_OP_LABELS, so2LimitUnverified, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, ADDITIVE_COL } from "./shared";
+import { fmtDate, SO2_TEST_STAGE_LABELS, PRESS_ADDITIVE_COLUMNS, CELLAR_OP_LABELS, so2LimitUnverified, so2Ceiling, bottlingSo2Verdict, ADDITIVE_COL } from "./shared";
 import { BatchTrailData, fetchStageAttachments, TrailAttachment, computeSo2Summary, computeVintagePhTaComparisonRows } from "./BatchTrail";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
@@ -499,12 +499,12 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
 
   // Bottling
   const bottlingRows = data.bottling.map(r => {
+    // Shared verdict helper — same logic as the Bottling tab and Batch Trail
+    const v = bottlingSo2Verdict(r as Record<string, unknown>);
     const isOrg = r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
-    const colour = String(r.wine_colour ?? "");
-    const ceiling = colour ? parseFloat(isOrg ? (ORGANIC_MAX_SO2[colour] ?? "") : (CONVENTIONAL_MAX_SO2[colour] ?? "")) : NaN;
     const totalSo2 = r.total_so2_mg_l != null ? parseFloat(String(r.total_so2_mg_l)) : null;
-    const hasCompliance = totalSo2 != null && !isNaN(ceiling);
-    const exceeds = hasCompliance && totalSo2! > ceiling;
+    const hasCompliance = v?.compliant != null;
+    const exceeds = v?.compliant === false;
     const complianceStyle = exceeds ? ' style="color:#b91c1c;font-weight:600"' : ' style="color:#166534"';
     const complianceText = hasCompliance ? (exceeds ? "⚠ Exceeds limit" : "✓ Compliant") : "—";
     return `<tr>
@@ -515,7 +515,7 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
     <td style="text-align:right">${r.bottles_produced != null ? String(r.bottles_produced) : "—"}</td>
     <td style="text-align:right;font-family:monospace">${r.free_so2_mg_l != null ? parseFloat(String(r.free_so2_mg_l)).toFixed(1) : "—"}</td>
     <td style="text-align:right;font-family:monospace">${totalSo2 != null ? totalSo2.toFixed(1) : "—"}</td>
-    <td style="text-align:right">${!isNaN(ceiling) ? `${ceiling.toFixed(0)} mg/L ${isOrg ? "organic" : "conventional"}` : "—"}</td>
+    <td style="text-align:right">${v ? `${v.ceiling.toFixed(0)} mg/L ${v.isOrganic ? "organic" : "conventional"}` : "—"}</td>
     <td${hasCompliance ? complianceStyle : ""}>${complianceText}</td>
     <td style="text-align:right;font-family:monospace">${r.ph != null ? parseFloat(String(r.ph)).toFixed(2) : "—"}</td>
     <td style="text-align:right;font-family:monospace">${r.titratable_acidity_gl != null ? parseFloat(String(r.titratable_acidity_gl)).toFixed(1) : "—"}</td>
@@ -750,7 +750,7 @@ export function printAdditionsReport(
     const avgDose = parseFloat(String(row.avg_dose ?? 0));
     const wineColour = String(row.wine_colour ?? "");
     // Use the per-colour organic limit when the colour is known; fall back to 90 (most conservative)
-    const organicLimit = parseInt(ORGANIC_MAX_SO2[wineColour] ?? "90", 10);
+    const organicLimit = so2Ceiling(wineColour, true) ?? 90;
     const warnConv  = row.category === "so2"          && avgDose > 200;
     const warnOrg   = row.category === "so2"          && !warnConv && avgDose > organicLimit;
     const warnAsc   = row.category === "ascorbic_acid" && avgDose > 250;

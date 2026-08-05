@@ -655,6 +655,33 @@ export function so2LimitUnverified(r: Record<string, unknown>): boolean {
 }
 // Conventional (non-organic) total SO₂ ceilings — UK-retained Reg 1308/2013 Annex VIII Part B
 export const CONVENTIONAL_MAX_SO2: Record<string, string> = { "Red": "150", "White": "200", "Rosé": "200", "Sparkling": "235", "Orange": "200" };
+
+// ─── Shared SO₂ ceiling / verdict helpers ─────────────────────────────────────
+// Single source of truth for turning a wine colour + organic status into the
+// applicable SO₂ ceiling. Batch trail, print/report and tab surfaces must all
+// derive ceilings through here (or a tab verdict helper built on it) rather
+// than reading ORGANIC_MAX_SO2/CONVENTIONAL_MAX_SO2 inline, so a rule change
+// can never leave one surface disagreeing with another.
+export function so2Ceiling(colour: string | null | undefined, isOrganic: boolean): number | null {
+  if (!colour) return null;
+  const ceiling = parseFloat((isOrganic ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour]) ?? "");
+  return isNaN(ceiling) ? null : ceiling;
+}
+
+// Single source of truth for the Bottling SO₂ compliance verdict — used by the
+// Bottling tab (badge, CSV, dialog, non-compliant filter), the Batch Trail
+// dialog/CSV and the printed report, so no surface can drift from the others.
+// Ceiling comes from wine_colour + the row's own organic flag; verdict
+// compares it against total_so2_mg_l (null = no verdict).
+export function bottlingSo2Verdict(r: Record<string, unknown>): { ceiling: number; isOrganic: boolean; compliant: boolean | null } | null {
+  const colour = String(r.wine_colour ?? "");
+  if (!colour) return null;
+  const isOrganic = r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
+  const ceiling = so2Ceiling(colour, isOrganic);
+  if (ceiling == null) return null;
+  const total = r.total_so2_mg_l != null && r.total_so2_mg_l !== "" ? parseFloat(String(r.total_so2_mg_l)) : NaN;
+  return { ceiling, isOrganic, compliant: isNaN(total) ? null : total <= ceiling };
+}
 export const SOURCE_TYPE_OPTIONS = ["Own vineyard", "Contract grower", "Purchased grapes"];
 export const GRAPE_CONDITION_OPTIONS = ["Excellent", "Good", "Fair", "Poor"];
 export const PRESS_TYPE_OPTIONS = ["Pneumatic bladder", "Basket press", "Continuous screw", "Membrane press", "Other"];

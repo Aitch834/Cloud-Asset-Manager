@@ -1,5 +1,5 @@
 import { BatchTrailDialog } from "./BatchTrail";
-import { fetchWineryJson, useCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, today, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, csvComment, csvSlug, exportCSV, QueryErrorNotice, EmptyState, fmtDate, fmt, fmtNum, So2Badge, NotesCell, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, SectionLabel, WINE_COLOUR_OPTIONS, CLOSURE_TYPE_OPTIONS, ViewField, AuditSignOffView, EditHistorySection, RecordSignOffDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
+import { fetchWineryJson, useCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, today, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, bottlingSo2Verdict, csvComment, csvSlug, exportCSV, QueryErrorNotice, EmptyState, fmtDate, fmt, fmtNum, So2Badge, NotesCell, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, SectionLabel, WINE_COLOUR_OPTIONS, CLOSURE_TYPE_OPTIONS, ViewField, AuditSignOffView, EditHistorySection, RecordSignOffDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -332,21 +332,9 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     [filteredByYear],
   );
 
-  // Single source of truth for the Bottling SO₂ compliance verdict — used by
-  // the non-compliant filter, the on-screen table badge, the CSV export
-  // columns AND the view dialog, so no surface can drift from the others
-  // (mirrors cellarSo2Verdict on the Cellar Ops tab). Ceiling comes from
-  // wine_colour + organic status; verdict compares it against total_so2_mg_l.
-  const bottlingSo2Verdict = (r: Record<string, unknown>): { ceiling: number; isOrganic: boolean; compliant: boolean | null } | null => {
-    const colour = String(r.wine_colour ?? "");
-    if (!colour) return null;
-    const isOrganic = r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
-    const ceiling = parseFloat((isOrganic ? ORGANIC_MAX_SO2[colour] : CONVENTIONAL_MAX_SO2[colour]) ?? "");
-    if (isNaN(ceiling)) return null;
-    const total = r.total_so2_mg_l != null && r.total_so2_mg_l !== "" ? parseFloat(String(r.total_so2_mg_l)) : NaN;
-    return { ceiling, isOrganic, compliant: isNaN(total) ? null : total <= ceiling };
-  };
-
+  // Bottling SO₂ compliance verdict now lives in shared.tsx (bottlingSo2Verdict)
+  // so the Batch Trail dialog and printed report use the exact same logic as
+  // this tab's badge, CSV, dialog and non-compliant filter.
   const isBottlingRowNonCompliant = (r: Record<string, unknown>): boolean =>
     bottlingSo2Verdict(r)?.compliant === false;
 

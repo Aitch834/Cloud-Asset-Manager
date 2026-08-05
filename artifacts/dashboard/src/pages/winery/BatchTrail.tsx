@@ -1,5 +1,5 @@
 import { sanitiseSignatureForHtml, SignatureEmbed, NO_EMBED, printBatchTrail } from "./print";
-import { fetchWineryJson, usePressing, CONVENTIONAL_MAX_SO2, ORGANIC_MAX_SO2, fmtDate, today, fmtDDMonYYYY, AssignWineColourDialog, type AssignColourTarget, fmtNum, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SO2_TEST_STAGE_LABELS, EmptyState, CELLAR_OP_LABELS, fmt, So2Badge, BATCH_TRAIL_CSV_HEADER, PRESS_ADDITIVE_COLUMNS, so2LimitUnverified } from "./shared";
+import { fetchWineryJson, usePressing, so2Ceiling, bottlingSo2Verdict, fmtDate, today, fmtDDMonYYYY, AssignWineColourDialog, type AssignColourTarget, fmtNum, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SO2_TEST_STAGE_LABELS, EmptyState, CELLAR_OP_LABELS, fmt, So2Badge, BATCH_TRAIL_CSV_HEADER, PRESS_ADDITIVE_COLUMNS, so2LimitUnverified } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -617,8 +617,8 @@ export function computeSo2Summary(pressing: Record<string, unknown>, data: Batch
   const isOrganic = pressing.is_organic === true || pressing.is_organic === "true" || pressing.is_organic === 1;
 
   // 7. Limits
-  const conventionalLimit = parseInt(CONVENTIONAL_MAX_SO2[colourStr] ?? "200", 10);
-  const organicLimit = parseInt(ORGANIC_MAX_SO2[colourStr] ?? "150", 10);
+  const conventionalLimit = so2Ceiling(colourStr, false) ?? 200;
+  const organicLimit = so2Ceiling(colourStr, true) ?? 150;
   const activeLimit = isOrganic ? organicLimit : conventionalLimit;
 
   // 8. Running estimate: press (mg/kg ≈ mg/L, density ≈ 1) + ferm + cellar estimate
@@ -1548,23 +1548,15 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                         {r.free_so2_mg_l != null && <span>Free SO₂: {fmtNum(r.free_so2_mg_l, 1)} mg/L</span>}
                         {r.total_so2_mg_l != null && <span className="font-medium text-foreground">Total SO₂: {fmtNum(r.total_so2_mg_l, 1)} mg/L</span>}
                         {(() => {
-                          const rowColour = r.wine_colour ? String(r.wine_colour) : null;
-                          if (!rowColour) return null;
-                          const rowOrganic = r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
-                          const ceiling = rowOrganic
-                            ? (ORGANIC_MAX_SO2[rowColour] ?? null)
-                            : (CONVENTIONAL_MAX_SO2[rowColour] ?? null);
-                          if (!ceiling) return null;
-                          const ceilingNum = parseInt(ceiling, 10);
+                          // Shared verdict helper — same logic as the Bottling tab and printed report
+                          const v = bottlingSo2Verdict(r as Record<string, unknown>);
+                          if (!v) return null;
                           return (
                             <>
-                              <span>Ceiling: {ceilingNum} mg/L{rowOrganic ? " (organic)" : ""}</span>
-                              {r.total_so2_mg_l != null && (() => {
-                                const totalVal = parseFloat(String(r.total_so2_mg_l));
-                                return totalVal <= ceilingNum
-                                  ? <span className="inline-flex items-center gap-0.5 text-green-700 font-medium"><CheckCircle2 className="w-3 h-3" />Compliant</span>
-                                  : <span className="inline-flex items-center gap-0.5 text-red-700 font-medium"><XCircle className="w-3 h-3" />Exceeds limit</span>;
-                              })()}
+                              <span>Ceiling: {v.ceiling.toFixed(0)} mg/L{v.isOrganic ? " (organic)" : ""}</span>
+                              {v.compliant != null && (v.compliant
+                                ? <span className="inline-flex items-center gap-0.5 text-green-700 font-medium"><CheckCircle2 className="w-3 h-3" />Compliant</span>
+                                : <span className="inline-flex items-center gap-0.5 text-red-700 font-medium"><XCircle className="w-3 h-3" />Exceeds limit</span>)}
                             </>
                           );
                         })()}
@@ -1931,13 +1923,10 @@ export async function exportBatchTrailCsv(farmId: number, pressing: Record<strin
     pushStageAttachmentRows("SO₂ Test", r, so2Attachments);
   }
 
-  // Bottling — includes SO₂ ceiling and compliance verdict, matching the PDF logic
+  // Bottling — SO₂ ceiling and compliance verdict via the shared helper,
+  // matching the Bottling tab and PDF logic
   for (const r of data.bottling) {
-    const isOrg = r.is_organic === true || r.is_organic === "true" || r.is_organic === 1;
-    const colour = String(r.wine_colour ?? "");
-    const ceiling = colour ? parseFloat(isOrg ? (ORGANIC_MAX_SO2[colour] ?? "") : (CONVENTIONAL_MAX_SO2[colour] ?? "")) : NaN;
-    const totalSo2 = r.total_so2_mg_l != null ? parseFloat(String(r.total_so2_mg_l)) : null;
-    const hasCompliance = totalSo2 != null && !isNaN(ceiling);
+    const v = bottlingSo2Verdict(r as Record<string, unknown>);
     pushRow({
       "Stage": "Bottling",
       "Batch Ref": String(r.batch_ref ?? ""),
@@ -1946,8 +1935,8 @@ export async function exportBatchTrailCsv(farmId: number, pressing: Record<strin
       "Detail": r.bottles_produced != null ? `${String(r.bottles_produced)} bottles` : "",
       "SO₂ / Dose": r.free_so2_mg_l != null ? fmtNum(r.free_so2_mg_l, 1) : "",
       "Unit": r.free_so2_mg_l != null ? "mg/L (free SO₂)" : "",
-      "SO₂ Ceiling (mg/L)": !isNaN(ceiling) ? `${ceiling.toFixed(0)} (${isOrg ? "organic" : "conventional"})` : "",
-      "SO₂ Compliance": hasCompliance ? (totalSo2! > ceiling ? "Exceeds Limit" : "Compliant") : "",
+      "SO₂ Ceiling (mg/L)": v ? `${v.ceiling.toFixed(0)} (${v.isOrganic ? "organic" : "conventional"})` : "",
+      "SO₂ Compliance": v?.compliant != null ? (v.compliant ? "Compliant" : "Exceeds Limit") : "",
       "pH": r.ph != null ? fmtNum(r.ph, 2) : "",
       "TA (g/L)": r.titratable_acidity_gl != null ? fmtNum(r.titratable_acidity_gl, 1) : "",
       "Vessel": String(r.source_vessel_ref ?? ""),
