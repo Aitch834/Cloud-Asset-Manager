@@ -113,16 +113,19 @@ export function parseCsvText(src: string): string[][] {
   return records;
 }
 
-// Parse a bottling CSV file's text into header-keyed rows, extracting any
+export type ImportCsvResult =
+  | { ok: true; rows: Record<string, string>[]; warnings: string[]; unknownHeaders: string[] }
+  | { ok: false; error: string; warnings: string[] };
+
+// Parse an import CSV file's text into header-keyed rows, extracting any
 // WARNING prefix records our own exports prepend. The real header row is the
 // first record containing a recognised column header or alias; anything above
 // it starting with "WARNING:" is surfaced as a warning, other prefix records
-// (e.g. farm-name comment rows) are skipped.
-export function parseBottlingCsv(text: string):
-  | { ok: true; rows: Record<string, string>[]; warnings: string[]; unknownHeaders: string[] }
-  | { ok: false; error: string; warnings: string[] } {
+// (e.g. farm-name comment rows) are skipped. Parameterised by the set of
+// recognised headers so both the Bottling and Harvest Reception importers
+// share one implementation and can't drift apart.
+export function parseImportCsv(text: string, knownHeaders: Set<string>): ImportCsvResult {
   const parsed = parseCsvText(text);
-  const knownHeaders = new Set(BOTTLING_COLUMNS.flatMap(c => [c.header, ...(c.aliases ?? []), c.dbKey]));
   const headerIdx = parsed.findIndex(cells => cells.some(cell => knownHeaders.has(cell)));
   const warnings: string[] = [];
   for (const cells of parsed.slice(0, headerIdx === -1 ? 0 : headerIdx)) {
@@ -134,10 +137,9 @@ export function parseBottlingCsv(text: string):
     return { ok: false, error: "CSV must have a header row and at least one data row.", warnings };
   }
   const headers = records[0];
-  // Headers not matching any BOTTLING_COLUMNS header, alias or dbKey are
-  // silently ignored by the field mapping — surface them so a typo'd header
-  // doesn't quietly drop the whole column (mirrors the Harvest importer's
-  // knownHeaders behaviour). Blank header cells are skipped.
+  // Headers not matching any known header, alias or dbKey are silently
+  // ignored by the field mapping — surface them so a typo'd header doesn't
+  // quietly drop the whole column. Blank header cells are skipped.
   const unknownHeaders = headers.filter(h => h.trim() !== "" && !knownHeaders.has(h));
   const rows: Record<string, string>[] = [];
   for (let i = 1; i < records.length; i++) {
@@ -148,4 +150,12 @@ export function parseBottlingCsv(text: string):
   }
   if (rows.length > 500) return { ok: false, error: "Maximum 500 rows per import.", warnings };
   return { ok: true, rows, warnings, unknownHeaders };
+}
+
+// Bottling-specific wrapper: recognises BOTTLING_COLUMNS headers, aliases and dbKeys.
+export function parseBottlingCsv(text: string): ImportCsvResult {
+  return parseImportCsv(
+    text,
+    new Set(BOTTLING_COLUMNS.flatMap(c => [c.header, ...(c.aliases ?? []), c.dbKey])),
+  );
 }

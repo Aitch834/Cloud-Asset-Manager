@@ -2,7 +2,7 @@ import { useCrud, usePersistedYearFilter, HARVEST_COLUMNS, HARVEST_IMPORT_HEADER
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
-import { BOTTLING_COLUMNS, BOTTLING_IMPORT_HEADERS, resolveBottlingField, bottlingImportRecord, parseCsvText, parseBottlingCsv } from "@/lib/bottling-csv";
+import { parseImportCsv } from "@/lib/bottling-csv";
 import { computePrimaryPhTa, computePhTaStagePoints } from "@/lib/ph-ta-stages";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -75,38 +75,15 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
-      // Full-file CSV state machine (shared with the Bottling importer):
-      // quoted fields may contain commas, escaped quotes ("") and embedded
-      // newlines — exports with multiline Notes round-trip cleanly.
-      let parsed = parseCsvText(text);
-      // Skip any leading comment/prefix rows (e.g. the farm-name + filter block
-      // our own exports prepend) — the real header row is the first row that
-      // contains a recognised column header or alias.
-      const knownHeaders = new Set(HARVEST_COLUMNS.flatMap(c => [c.header, c.dbKey]));
-      const headerIdx = parsed.findIndex(cells => cells.some(cell => knownHeaders.has(cell)));
-      // Surface any "WARNING:" prefix rows above the header (our own exports
-      // prepend these) instead of silently dropping them — same as Bottling.
-      const warningLines: string[] = [];
-      for (const cells of parsed.slice(0, headerIdx === -1 ? 0 : headerIdx)) {
-        const joined = cells.join(" — ").trim();
-        if (/^WARNING:/i.test(joined)) warningLines.push(joined);
-      }
-      setImportWarnings(warningLines);
-      if (headerIdx > 0) parsed = parsed.slice(headerIdx);
-      if (headerIdx === -1 || parsed.length < 2) { setImportError("CSV must have a header row and at least one data row."); return; }
-      const headers = parsed[0];
-      // Blank header cells are skipped; anything else not in knownHeaders would
-      // be silently dropped by resolveHarvestField — warn before importing.
-      setImportUnknownHeaders(headers.filter(h => h.trim() !== "" && !knownHeaders.has(h)));
-      const rows: Record<string, string>[] = [];
-      for (let i = 1; i < parsed.length; i++) {
-        const cells = parsed[i];
-        const row: Record<string, string> = {};
-        headers.forEach((h, idx) => { row[h] = cells[idx] ?? ""; });
-        rows.push(row);
-      }
-      if (rows.length > 500) { setImportError("Maximum 500 rows per import."); return; }
-      setImportParsed(rows);
+      // Shared column-list-parameterised parser (same implementation as the
+      // Bottling importer): full-file CSV state machine, WARNING-prefix
+      // extraction, header detection via known headers, unknown-header
+      // detection and the 500-row cap all live in one place.
+      const parsed = parseImportCsv(text, new Set(HARVEST_COLUMNS.flatMap(c => [c.header, c.dbKey])));
+      setImportWarnings(parsed.warnings);
+      if (!parsed.ok) { setImportError(parsed.error); return; }
+      setImportUnknownHeaders(parsed.unknownHeaders);
+      setImportParsed(parsed.rows);
     };
     reader.readAsText(file);
   };
