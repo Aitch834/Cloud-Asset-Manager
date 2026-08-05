@@ -1,5 +1,5 @@
 import { BatchTrailDialog } from "./BatchTrail";
-import { useCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, today, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, csvComment, csvSlug, exportCSV, QueryErrorNotice, EmptyState, fmtDate, fmt, fmtNum, So2Badge, NotesCell, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, SectionLabel, WINE_COLOUR_OPTIONS, CLOSURE_TYPE_OPTIONS, ViewField, AuditSignOffView, EditHistorySection, RecordSignOffDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
+import { fetchWineryJson, useCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, today, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, csvComment, csvSlug, exportCSV, QueryErrorNotice, EmptyState, fmtDate, fmt, fmtNum, So2Badge, NotesCell, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, SectionLabel, WINE_COLOUR_OPTIONS, CLOSURE_TYPE_OPTIONS, ViewField, AuditSignOffView, EditHistorySection, RecordSignOffDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -144,11 +144,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   // Read SO₂ test records to enable pre-fill on batch ref selection
   const { data: so2TestRecords = [] } = useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-so2-tests", farmId],
-    queryFn: async () => {
-      const r = await fetch(api(`farms/${farmId}/winery-so2-tests`), { credentials: "include" });
-      const d = await r.json();
-      return d.records ?? [];
-    },
+    queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-so2-tests`)).records ?? []) as Record<string, unknown>[],
     enabled: !!farmId,
     staleTime: 30_000,
   });
@@ -156,11 +152,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   // Fermentation records for organic-status lookup when a batch ref is selected
   const { data: fermentationRecords = [] } = useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-fermentation", farmId],
-    queryFn: async () => {
-      const r = await fetch(api(`farms/${farmId}/winery-fermentation`), { credentials: "include" });
-      const d = await r.json();
-      return d.records ?? [];
-    },
+    queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-fermentation`)).records ?? []) as Record<string, unknown>[],
     enabled: !!farmId,
     staleTime: 60_000,
   });

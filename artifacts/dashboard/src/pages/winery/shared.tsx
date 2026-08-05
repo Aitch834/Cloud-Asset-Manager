@@ -175,7 +175,7 @@ export function QueryErrorNotice({ label, error }: { label: string; error: unkno
 export function useStaff(farmId: number) {
   const { data, isLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
     queryKey: ["staff", farmId],
-    queryFn: () => fetch(api(`farms/${farmId}/staff`), { credentials: "include" }).then(r => r.json()),
+    queryFn: async () => (await fetchWineryJson(`farms/${farmId}/staff`)) as { staff: { id: string; name: string }[] },
     enabled: !!farmId,
     staleTime: 60_000,
   });

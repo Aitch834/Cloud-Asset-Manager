@@ -1,6 +1,6 @@
 import { SignatureEmbed, NO_EMBED, signatureEmbedFrom, computeSo2DominantUnitByVintage, SOURCE_LABELS, so2UnitOutlierDominant, printPressingReport, printAdditionsReport, printSo2TransactionLog } from "./print";
 import { useWineryBatchSettings, BatchTrailDialog } from "./BatchTrail";
-import { useCrud, useVessels, useEquipment, useStaff, AdditionRow, additionsShortcutKey, WINERY_VIEW_ADDITIONS_EVENT, ADDITIVE_CATEGORY_LABELS, WINE_COLOUR_OPTIONS, UNSPECIFIED_COLOUR, useAdditionsSummary, useAllPressAdditions, PERMITTED_ADDITIVES, PRESS_TYPE_OPTIONS, today, rowMatchesColour, additiveCsvCol, fmtDate, colourFilterLabel, exportCSV, QueryErrorNotice, EmptyState, NotesCell, fmt, fmtNum, signOffTooltip, BatchTrailButton, ORGANIC_MAX_SO2, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SectionLabel, JUICE_TURBIDITY_OPTIONS, ALL_DOSE_UNITS, SETTLING_METHOD_OPTIONS, ViewField, AssignWineColourDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
+import { fetchWineryJson, useCrud, useVessels, useEquipment, useStaff, AdditionRow, additionsShortcutKey, WINERY_VIEW_ADDITIONS_EVENT, ADDITIVE_CATEGORY_LABELS, WINE_COLOUR_OPTIONS, UNSPECIFIED_COLOUR, useAdditionsSummary, useAllPressAdditions, PERMITTED_ADDITIVES, PRESS_TYPE_OPTIONS, today, rowMatchesColour, additiveCsvCol, fmtDate, colourFilterLabel, exportCSV, QueryErrorNotice, EmptyState, NotesCell, fmt, fmtNum, signOffTooltip, BatchTrailButton, ORGANIC_MAX_SO2, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SectionLabel, JUICE_TURBIDITY_OPTIONS, ALL_DOSE_UNITS, SETTLING_METHOD_OPTIONS, ViewField, AssignWineColourDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -192,9 +192,8 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const { data: fetchedAdditions } = useQuery<AdditionRow[]>({
     queryKey: ["winery-pressing-additions", farmId, editing],
     queryFn: async () => {
-      const r = await fetch(api(`farms/${farmId}/winery-pressing/${editing}/additions`), { credentials: "include" });
-      const d = await r.json();
-      return (d.additions ?? []).map((a: Record<string, unknown>) => ({
+      const d = await fetchWineryJson(`farms/${farmId}/winery-pressing/${editing}/additions`);
+      return ((d.additions ?? []) as Record<string, unknown>[]).map((a: Record<string, unknown>) => ({
         tempId: ++addRowCounter.current,
         id: a.id as number,
         additiveName: String(a.additive_name ?? ""),
@@ -214,11 +213,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   // Fetch additions for the view dialog
   const { data: viewAdditions } = useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-pressing-additions-view", farmId, view?.id],
-    queryFn: async () => {
-      const r = await fetch(api(`farms/${farmId}/winery-pressing/${view!.id}/additions`), { credentials: "include" });
-      const d = await r.json();
-      return d.additions ?? [];
-    },
+    queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-pressing/${view!.id}/additions`)).additions ?? []) as Record<string, unknown>[],
     enabled: !!view?.id,
     staleTime: 0,
   });

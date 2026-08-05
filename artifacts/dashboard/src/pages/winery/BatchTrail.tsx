@@ -1,5 +1,5 @@
 import { sanitiseSignatureForHtml, SignatureEmbed, NO_EMBED, printBatchTrail } from "./print";
-import { usePressing, CONVENTIONAL_MAX_SO2, ORGANIC_MAX_SO2, fmtDate, today, fmtDDMonYYYY, AssignWineColourDialog, fmtNum, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SO2_TEST_STAGE_LABELS, EmptyState, CELLAR_OP_LABELS, fmt, So2Badge, BATCH_TRAIL_CSV_HEADER, PRESS_ADDITIVE_COLUMNS, so2LimitUnverified } from "./shared";
+import { fetchWineryJson, usePressing, CONVENTIONAL_MAX_SO2, ORGANIC_MAX_SO2, fmtDate, today, fmtDDMonYYYY, AssignWineColourDialog, fmtNum, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SO2_TEST_STAGE_LABELS, EmptyState, CELLAR_OP_LABELS, fmt, So2Badge, BATCH_TRAIL_CSV_HEADER, PRESS_ADDITIVE_COLUMNS, so2LimitUnverified } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -29,10 +29,7 @@ export function useWineryBatchSettings(farmId: number) {
   const { toast } = useToast();
   const q = useQuery<{ settings: Record<string, unknown>; nextRef: string }>({
     queryKey: ["winery-batch-settings", farmId],
-    queryFn: async () => {
-      const r = await fetch(api(`farms/${farmId}/winery-batch-settings`), { credentials: "include" });
-      return r.json();
-    },
+    queryFn: async () => (await fetchWineryJson(`farms/${farmId}/winery-batch-settings`)) as unknown as { settings: Record<string, unknown>; nextRef: string },
     enabled: !!farmId,
     staleTime: 30_000,
   });
@@ -76,11 +73,7 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
   // Reuse cached fermentation data (same queryKey used by the fermentation tab)
   const { data: fermentationData } = useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-fermentation", farmId],
-    queryFn: async () => {
-      const r = await fetch(api(`farms/${farmId}/winery-fermentation`), { credentials: "include" });
-      const d = await r.json();
-      return (d.records ?? []) as Record<string, unknown>[];
-    },
+    queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-fermentation`)).records ?? []) as Record<string, unknown>[],
     enabled: !!farmId,
     staleTime: 60_000,
   });
@@ -94,11 +87,7 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
   const useBatchRefSource = (endpoint: string, key: string) =>
     useQuery<Record<string, unknown>[]>({
       queryKey: [key, farmId],
-      queryFn: async () => {
-        const r = await fetch(api(`farms/${farmId}/${endpoint}`), { credentials: "include" });
-        const d = await r.json();
-        return (d.records ?? []) as Record<string, unknown>[];
-      },
+      queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/${endpoint}`)).records ?? []) as Record<string, unknown>[],
       enabled: !!farmId,
       staleTime: 60_000,
     });

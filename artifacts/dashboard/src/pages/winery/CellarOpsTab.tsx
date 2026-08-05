@@ -1,5 +1,5 @@
 import { BatchTrailDialog } from "./BatchTrail";
-import { useCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, today, fmtDate, CELLAR_OP_TYPES, CELLAR_OP_LABELS, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmtNum, fmt, So2Badge, NotesCell, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, WINE_COLOUR_OPTIONS, SectionLabel, ViewField, AuditSignOffView, EditHistorySection, RecordSignOffDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
+import { fetchWineryJson, useCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, today, fmtDate, CELLAR_OP_TYPES, CELLAR_OP_LABELS, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmtNum, fmt, So2Badge, NotesCell, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, WINE_COLOUR_OPTIONS, SectionLabel, ViewField, AuditSignOffView, EditHistorySection, RecordSignOffDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -31,11 +31,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const { data: pressingRecords = [] } = usePressing(farmId);
   const { data: cellarFermentationRecords = [] } = useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-fermentation", farmId],
-    queryFn: async () => {
-      const r = await fetch(api(`farms/${farmId}/winery-fermentation`), { credentials: "include" });
-      const d = await r.json();
-      return d.records ?? [];
-    },
+    queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-fermentation`)).records ?? []) as Record<string, unknown>[],
     enabled: !!farmId,
     staleTime: 60_000,
   });

@@ -1,4 +1,4 @@
-import { today, CALIBRATION_RESULT_OPTIONS, fmtDate, fmt, useCrud, exportCSV, csvComment, QueryErrorNotice, EmptyState, NotesCell, EQUIPMENT_TYPES, CALIBRATION_FREQ_OPTIONS, EQUIPMENT_STATUS_OPTIONS, ViewField } from "./shared";
+import { fetchWineryJson, today, CALIBRATION_RESULT_OPTIONS, fmtDate, fmt, useCrud, exportCSV, csvComment, QueryErrorNotice, EmptyState, NotesCell, EQUIPMENT_TYPES, CALIBRATION_FREQ_OPTIONS, EQUIPMENT_STATUS_OPTIONS, ViewField } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -26,9 +26,9 @@ import { apiUrl as api } from "@/lib/api";
 export function CalibrationRows({ farmId, equipmentId }: { farmId: number; equipmentId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data, isLoading } = useQuery<Record<string, unknown>[]>({
+  const { data, isLoading, isError, error } = useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-equipment-cals", farmId, equipmentId],
-    queryFn: async () => { const r = await fetch(api(`farms/${farmId}/winery-equipment/${equipmentId}/calibrations`), { credentials: "include" }); return (await r.json()).records ?? []; },
+    queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-equipment/${equipmentId}/calibrations`)).records ?? []) as Record<string, unknown>[],
     enabled: !!equipmentId,
   });
   const [showAdd, setShowAdd] = useState(false);
@@ -78,7 +78,7 @@ export function CalibrationRows({ farmId, equipmentId }: { farmId: number; equip
           </div>
         </div>
       )}
-      {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (data ?? []).length === 0 ? <p className="text-xs text-muted-foreground">No calibration records yet.</p> : (
+      {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : isError ? <QueryErrorNotice label="calibration records" error={error} /> : (data ?? []).length === 0 ? <p className="text-xs text-muted-foreground">No calibration records yet.</p> : (
         <div className="space-y-1">
           {(data ?? []).map(c => {
             const res = String(c.result ?? "pass");
