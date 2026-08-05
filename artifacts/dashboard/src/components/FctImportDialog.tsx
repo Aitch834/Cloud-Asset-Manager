@@ -173,6 +173,7 @@ export function FctImportDialog({ open, farmId, onClose }: Props) {
   const [dragOver, setDragOver] = useState(false);
   const [fileName, setFileName] = useState("");
   const [plan, setPlan] = useState<ImportPlan | null>(null);
+  const [ignoredRows, setIgnoredRows] = useState(0);
   const [parseError, setParseError] = useState("");
   const [conductedBy, setConductedBy] = useState("");
   const [auditDate, setAuditDate] = useState(new Date().toISOString().slice(0, 10));
@@ -184,7 +185,7 @@ export function FctImportDialog({ open, farmId, onClose }: Props) {
   const [savedCounts, setSavedCounts] = useState({ audit: 0, emissions: 0, seq: 0 });
 
   const reset = () => {
-    setStep("upload"); setFileName(""); setPlan(null); setParseError("");
+    setStep("upload"); setFileName(""); setPlan(null); setParseError(""); setIgnoredRows(0);
     setConductedBy(""); setAuditDate(new Date().toISOString().slice(0, 10));
     setSupplyChain(""); setNotes(""); setImportEmissions(true); setImportSeq(true);
     setSaving(false);
@@ -199,6 +200,9 @@ export function FctImportDialog({ open, farmId, onClose }: Props) {
       if (records.length < 2) throw new Error("CSV must have a header row and at least one data row.");
       const headers = records[0];
       const values = records[1];
+      const extraRows = records
+        .slice(2)
+        .filter(row => row.some(cell => cell != null && cell.trim() !== "")).length;
       const rawRow: Record<string, string> = {};
       headers.forEach((h, i) => { rawRow[h] = values[i] ?? ""; });
       const mapped = mapRow(rawRow);
@@ -208,6 +212,7 @@ export function FctImportDialog({ open, farmId, onClose }: Props) {
       }
       setFileName(name);
       setPlan(importPlan);
+      setIgnoredRows(extraRows);
       setStep("review");
     } catch (e) {
       setParseError(e instanceof Error ? e.message : "Unknown parse error");
@@ -364,6 +369,17 @@ export function FctImportDialog({ open, farmId, onClose }: Props) {
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>Parsed <strong>{fileName}</strong> successfully. Review the data below before importing.</span>
             </div>
+
+            {ignoredRows > 0 && (
+              <div className="flex items-start gap-2 text-sm text-amber-800 bg-amber-50 p-3 rounded-md">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>
+                  Only the first data row will be imported — {ignoredRows} additional data{" "}
+                  {ignoredRows === 1 ? "row was" : "rows were"} found in this CSV and will be ignored.
+                  To import another year, export it as a separate CSV and import it separately.
+                </span>
+              </div>
+            )}
 
             {/* Carbon Audit summary */}
             <div className="border rounded-lg p-4 space-y-3">
