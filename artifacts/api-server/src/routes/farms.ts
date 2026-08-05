@@ -37036,7 +37036,7 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
 
     SELECT 'fermentation' AS source,
            f.vintage_year, f.batch_ref,
-           COALESCE(NULLIF(f.wine_colour, ''), NULLIF(pf.wine_colour, '')) AS wine_colour,
+           COALESCE(NULLIF(f.wine_colour, ''), fc.wine_colour) AS wine_colour,
            f.start_date AS record_date,
            'SO₂ / Potassium metabisulphite (KMS)' AS additive_name,
            'so2' AS category,
@@ -37052,7 +37052,24 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
            f.id AS source_record_id
     FROM winery_fermentation_records f
     LEFT JOIN winery_vessels v ON v.id = f.vessel_id
-    LEFT JOIN winery_pressing_records pf ON pf.farm_id = f.farm_id AND pf.batch_ref = f.batch_ref
+    -- Derive colour from any sibling record on the same batch (fermentation →
+    -- cellar → bottling → pressing), so batches without a pressing record still
+    -- share one colour across all their rows.
+    LEFT JOIN LATERAL (
+      SELECT wc.wine_colour FROM (
+        SELECT f2.wine_colour, 1 AS pr FROM winery_fermentation_records f2
+          WHERE f2.farm_id = f.farm_id AND f2.batch_ref = f.batch_ref AND COALESCE(f2.wine_colour, '') <> ''
+        UNION ALL
+        SELECT o2.wine_colour, 2 FROM winery_cellar_ops o2
+          WHERE o2.farm_id = f.farm_id AND o2.batch_ref = f.batch_ref AND COALESCE(o2.wine_colour, '') <> ''
+        UNION ALL
+        SELECT b2.wine_colour, 3 FROM winery_bottling_records b2
+          WHERE b2.farm_id = f.farm_id AND b2.batch_ref = f.batch_ref AND COALESCE(b2.wine_colour, '') <> ''
+        UNION ALL
+        SELECT p2.wine_colour, 4 FROM winery_pressing_records p2
+          WHERE p2.farm_id = f.farm_id AND p2.batch_ref = f.batch_ref AND COALESCE(p2.wine_colour, '') <> ''
+      ) wc ORDER BY wc.pr LIMIT 1
+    ) fc ON TRUE
     WHERE f.farm_id = ${farmId}
       AND f.so2_at_fermentation_mg_l IS NOT NULL
 
@@ -37060,7 +37077,7 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
 
     SELECT 'cellar' AS source,
            o.vintage_year, o.batch_ref,
-           COALESCE(NULLIF(o.wine_colour, ''), NULLIF(po.wine_colour, '')) AS wine_colour,
+           COALESCE(NULLIF(o.wine_colour, ''), oc.wine_colour) AS wine_colour,
            o.op_date AS record_date,
            'SO₂ / Potassium metabisulphite (KMS)' AS additive_name,
            'so2' AS category,
@@ -37081,7 +37098,22 @@ router.get("/farms/:farmId/winery-pressing/all-additions", requireAuth, requireT
     FROM winery_cellar_ops o
     LEFT JOIN winery_vessels fv ON fv.id = o.from_vessel_id
     LEFT JOIN winery_vessels tv ON tv.id = o.to_vessel_id
-    LEFT JOIN winery_pressing_records po ON po.farm_id = o.farm_id AND po.batch_ref = o.batch_ref
+    -- Same sibling-record colour derivation as the fermentation branch above.
+    LEFT JOIN LATERAL (
+      SELECT wc.wine_colour FROM (
+        SELECT f2.wine_colour, 1 AS pr FROM winery_fermentation_records f2
+          WHERE f2.farm_id = o.farm_id AND f2.batch_ref = o.batch_ref AND COALESCE(f2.wine_colour, '') <> ''
+        UNION ALL
+        SELECT o2.wine_colour, 2 FROM winery_cellar_ops o2
+          WHERE o2.farm_id = o.farm_id AND o2.batch_ref = o.batch_ref AND COALESCE(o2.wine_colour, '') <> ''
+        UNION ALL
+        SELECT b2.wine_colour, 3 FROM winery_bottling_records b2
+          WHERE b2.farm_id = o.farm_id AND b2.batch_ref = o.batch_ref AND COALESCE(b2.wine_colour, '') <> ''
+        UNION ALL
+        SELECT p2.wine_colour, 4 FROM winery_pressing_records p2
+          WHERE p2.farm_id = o.farm_id AND p2.batch_ref = o.batch_ref AND COALESCE(p2.wine_colour, '') <> ''
+      ) wc ORDER BY wc.pr LIMIT 1
+    ) oc ON TRUE
     WHERE o.farm_id = ${farmId}
       AND o.op_type = 'sulfiting'
       AND o.so2_quantity_g IS NOT NULL

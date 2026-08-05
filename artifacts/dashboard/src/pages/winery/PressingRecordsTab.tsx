@@ -261,12 +261,16 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
         continue;
       }
       // No pressing record for this batch — offer to set the colour directly on
-      // the underlying fermentation/cellar record.
+      // the underlying fermentation/cellar record. The API derives colour from
+      // sibling records via batch_ref, so ONE target per batch is enough:
+      // prefer the fermentation record, replacing an earlier cellar target.
       const source = String(a.source ?? "");
       const srcId = Number(a.source_record_id);
       if ((source !== "fermentation" && source !== "cellar") || !Number.isFinite(srcId)) continue;
-      const key = `${source}:${srcId}`;
-      if (!out.has(key)) out.set(key, {
+      const key = `batch:${String(a.batch_ref ?? "")}`;
+      const existing = out.get(key);
+      if (existing && !(existing.kind === "cellar" && source === "fermentation")) continue;
+      out.set(key, {
         id: srcId,
         kind: source,
         batchRef: String(a.batch_ref ?? ""),
