@@ -609,10 +609,21 @@ export const ORGANIC_MAX_SO2: Record<string, string> = { "Red": "100", "White": 
 // batch-trail CSV export, and the batch-trail PDF so2Rows builder, so the rule
 // can never drift between surfaces.
 export const SO2_ORGANIC_LIMIT_NUMBERS = new Set(Object.values(ORGANIC_MAX_SO2).map(v => parseFloat(v)));
+// Colour-aware: the organic and conventional ceiling sets overlap numerically
+// (e.g. 150 is the organic White/Rosé/Orange ceiling AND the conventional Red
+// ceiling), so when the row records a wine colour we only flag a value that
+// matches THAT colour's organic ceiling. A conventional Red at 150 with no
+// batch ref is therefore no longer flagged. Rows without a colour keep the
+// original any-organic-number rule, since they are genuinely ambiguous.
 export function so2LimitUnverified(r: Record<string, unknown>): boolean {
   if (r.batch_ref) return false;
   const maxVal = r.max_permitted_mg_l != null && r.max_permitted_mg_l !== "" ? parseFloat(String(r.max_permitted_mg_l)) : null;
-  return maxVal != null && SO2_ORGANIC_LIMIT_NUMBERS.has(maxVal);
+  if (maxVal == null || isNaN(maxVal)) return false;
+  const colour = r.wine_colour != null ? String(r.wine_colour) : "";
+  if (colour && ORGANIC_MAX_SO2[colour] != null) {
+    return parseFloat(ORGANIC_MAX_SO2[colour]) === maxVal;
+  }
+  return SO2_ORGANIC_LIMIT_NUMBERS.has(maxVal);
 }
 // Conventional (non-organic) total SO₂ ceilings — UK-retained Reg 1308/2013 Annex VIII Part B
 export const CONVENTIONAL_MAX_SO2: Record<string, string> = { "Red": "150", "White": "200", "Rosé": "200", "Sparkling": "235", "Orange": "200" };
