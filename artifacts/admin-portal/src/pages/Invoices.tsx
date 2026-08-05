@@ -5,6 +5,7 @@ import { api, type Invoice, type Tenant } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
 import { FileText, Plus, Printer, CheckCircle, Send, XCircle, ChevronDown, AlertCircle, Clock, Loader2, Trash2, Mail, Users, PenLine } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Button } from "@/components/ui/button";
 
 function fmt(pence: number) {
@@ -20,15 +21,16 @@ function fmtPeriod(start: string, end: string) {
   return `${s.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })} – ${e.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`;
 }
 
-function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string; confirmVariant?: "default" | "destructive" }) {
+function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default", mutation }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string; confirmVariant?: "default" | "destructive"; mutation?: { isError: boolean; isPending: boolean; error: unknown } }) {
   return (
     <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
       <DialogContent style={{ maxWidth: "22rem" }}>
         <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
         <p className="text-sm text-muted-foreground">{message}</p>
+        {mutation && <DialogMutationError mutation={mutation} />}
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>
+          <Button variant={confirmVariant} onClick={onConfirm} disabled={mutation?.isPending}>{confirmLabel}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -678,7 +680,7 @@ const SEND_METHODS = [
   { value: "other", label: "Other" },
 ];
 
-function MarkSentDialog({ invoice, onClose, onDone }: { invoice: Invoice; onClose: () => void; onDone: (method: string) => void }) {
+function MarkSentDialog({ invoice, onClose, onDone, mutation }: { invoice: Invoice; onClose: () => void; onDone: (method: string) => void; mutation?: { isError: boolean; isPending: boolean; error: unknown } }) {
   const [method, setMethod] = useState("post");
   return (
     <Dialog open onOpenChange={onClose}>
@@ -695,9 +697,10 @@ function MarkSentDialog({ invoice, onClose, onDone }: { invoice: Invoice; onClos
             </label>
           ))}
         </div>
+        {mutation && <DialogMutationError mutation={mutation} message="Failed to mark this invoice as sent — its status is unchanged." />}
         <DialogFooter className="mt-4">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => onDone(method)} className="bg-green-800 hover:bg-green-900 text-white">Mark as Sent</Button>
+          <Button onClick={() => onDone(method)} disabled={mutation?.isPending} className="bg-green-800 hover:bg-green-900 text-white">Mark as Sent</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -984,6 +987,7 @@ export default function Invoices() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-invoices"] });
       qc.invalidateQueries({ queryKey: ["admin-invoices-all-drafts"] });
+      setPendingConfirm(null);
     },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
@@ -1199,10 +1203,11 @@ export default function Invoices() {
         open={!!pendingConfirm}
         title="Delete Invoice"
         message={pendingConfirm?.msg ?? ""}
-        onConfirm={() => { pendingConfirm?.fn(); setPendingConfirm(null); }}
-        onCancel={() => setPendingConfirm(null)}
+        onConfirm={() => { pendingConfirm?.fn(); }}
+        onCancel={() => { setPendingConfirm(null); deleteMut.reset(); }}
         confirmLabel="Delete"
         confirmVariant="destructive"
+        mutation={deleteMut}
       />
       {showGenerate && (
         <GenerateDialog
@@ -1226,11 +1231,14 @@ export default function Invoices() {
       {markSentInvoice && (
         <MarkSentDialog
           invoice={markSentInvoice}
-          onClose={() => setMarkSentInvoice(null)}
+          onClose={() => { setMarkSentInvoice(null); updateMut.reset(); }}
           onDone={(method) => {
-            updateMut.mutate({ id: markSentInvoice.id, updates: { status: "sent", sentMethod: method } });
-            setMarkSentInvoice(null);
+            updateMut.mutate(
+              { id: markSentInvoice.id, updates: { status: "sent", sentMethod: method } },
+              { onSuccess: () => setMarkSentInvoice(null) },
+            );
           }}
+          mutation={updateMut}
         />
       )}
       {showAdHoc && (

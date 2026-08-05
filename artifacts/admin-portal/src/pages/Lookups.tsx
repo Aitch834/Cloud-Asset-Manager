@@ -16,8 +16,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +35,7 @@ export default function Lookups() {
   const [addLabel, setAddLabel] = useState("");
   const [editItem, setEditItem] = useState<LookupMasterItem | null>(null);
   const [editLabel, setEditLabel] = useState("");
+  const [deleteItem, setDeleteItem] = useState<LookupMasterItem | null>(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [reviewedBy, setReviewedBy] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
@@ -65,7 +66,7 @@ export default function Lookups() {
 
   const deleteMut = useMutation({
     mutationFn: (id: number) => api.deleteLookupItem(selectedKey!, id, secret),
-    onSuccess: () => { invalidate(); toast({ title: "Item deleted" }); },
+    onSuccess: () => { invalidate(); setDeleteItem(null); toast({ title: "Item deleted" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
@@ -227,25 +228,12 @@ export default function Lookups() {
                     >
                       <PencilLine className="w-3.5 h-3.5" />
                     </button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <button className="text-muted-foreground hover:text-destructive">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete "{item.label}"?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This will permanently remove this option from the master list. Existing records using this value will be unaffected.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => deleteMut.mutate(item.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    <button
+                      onClick={() => setDeleteItem(item)}
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -311,7 +299,29 @@ export default function Lookups() {
         )}
       </div>
 
-      <Dialog open={!!editItem} onOpenChange={(open) => { if (!open) setEditItem(null); }}>
+      <AlertDialog open={!!deleteItem} onOpenChange={(open) => { if (!open) { setDeleteItem(null); deleteMut.reset(); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deleteItem?.label}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove this option from the master list. Existing records using this value will be unaffected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete this item — it has not been removed." />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); if (deleteItem) deleteMut.mutate(deleteItem.id); }}
+              disabled={deleteMut.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={!!editItem} onOpenChange={(open) => { if (!open) { setEditItem(null); updateMut.reset(); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Item</DialogTitle>
@@ -324,8 +334,9 @@ export default function Lookups() {
               onKeyDown={(e) => { if (e.key === "Enter" && editLabel.trim() && editItem) updateMut.mutate({ id: editItem.id, updates: { label: editLabel.trim() } }); }}
             />
           </div>
+          <DialogMutationError mutation={updateMut} message="Failed to save this item — your change has not been applied." />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditItem(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setEditItem(null); updateMut.reset(); }}>Cancel</Button>
             <Button
               disabled={!editLabel.trim() || updateMut.isPending}
               onClick={() => { if (editItem) updateMut.mutate({ id: editItem.id, updates: { label: editLabel.trim() } }); }}

@@ -17,8 +17,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { BookOpen, Plus, Trash2, Save, RefreshCw, Search, Eye, EyeOff } from "lucide-react";
 
 type DraftArticle = {
@@ -58,6 +58,7 @@ export default function HelpCentre() {
   const [selectedId, setSelectedId] = useState<number | "new" | null>(null);
   const [draft, setDraft] = useState<DraftArticle>(BLANK);
   const [search, setSearch] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-help-articles"],
@@ -100,6 +101,7 @@ export default function HelpCentre() {
       invalidate();
       setSelectedId(null);
       setDraft(BLANK);
+      setDeleteOpen(false);
       toast({ title: "Article deleted" });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -247,12 +249,15 @@ export default function HelpCentre() {
               </h1>
               <div className="flex items-center gap-2">
                 {!isNew && (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button size="sm" variant="outline" className="gap-1 text-destructive border-destructive/30 hover:bg-destructive/10">
-                        <Trash2 className="w-3.5 h-3.5" /> Delete
-                      </Button>
-                    </AlertDialogTrigger>
+                  <AlertDialog open={deleteOpen} onOpenChange={(open) => { setDeleteOpen(open); if (!open) deleteMut.reset(); }}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1 text-destructive border-destructive/30 hover:bg-destructive/10"
+                      onClick={() => setDeleteOpen(true)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Delete
+                    </Button>
                     <AlertDialogContent>
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete article?</AlertDialogTitle>
@@ -260,10 +265,12 @@ export default function HelpCentre() {
                           "{draft.title}" will be permanently deleted and removed from the Help Centre.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
+                      <DialogMutationError mutation={deleteMut} message="Failed to delete this article — it has not been removed." />
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction
-                          onClick={() => deleteMut.mutate()}
+                          onClick={(e) => { e.preventDefault(); deleteMut.mutate(); }}
+                          disabled={deleteMut.isPending}
                           className="bg-destructive hover:bg-destructive/90"
                         >
                           Delete
