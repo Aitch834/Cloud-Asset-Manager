@@ -53,6 +53,27 @@ function isIsoDateString(value: unknown): value is string {
 }
 
 /**
+ * Returns true only if the YYYY-MM-DD prefix of an ISO date/datetime string
+ * is a real calendar date. JS Date parsing silently rolls invalid dates
+ * (e.g. "2025-02-30" → 2 March), so we verify the parsed UTC components
+ * round-trip to the original year/month/day.
+ */
+export function isValidCalendarDate(value: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!m) return false;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+  const d = new Date(Date.UTC(year, month - 1, day));
+  return (
+    d.getUTCFullYear() === year &&
+    d.getUTCMonth() === month - 1 &&
+    d.getUTCDate() === day
+  );
+}
+
+/**
  * A Date that remembers the ISO string it was parsed from.
  *
  * - `instanceof Date` → true, `.toISOString()` etc. all work, so Drizzle
@@ -88,6 +109,13 @@ export function sanitiseBody(body: unknown): any {
       // columns, whose String() coercion still yields the original ISO string
       // so `date` columns are safe too.
       if (isIsoDateString(value)) {
+        // Reject calendar-invalid dates (Feb 30, month 13, ...) explicitly:
+        // JS Date parsing would either roll them forward or accept them as
+        // strings downstream, saving dates the user never intended.
+        if (!isValidCalendarDate(value)) {
+          result[key] = null;
+          continue;
+        }
         const d = new SafeDate(value);
         result[key] = isNaN(d.getTime()) ? null : d;
       } else {
