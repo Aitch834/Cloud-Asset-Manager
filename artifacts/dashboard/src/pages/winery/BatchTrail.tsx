@@ -937,6 +937,58 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
     staleTime: 30_000,
   });
 
+  // Attachments for the other stage records (fermentation, cellar ops, SO₂
+  // tests, bottling) — same best-effort fetchStageAttachments helper the
+  // CSV/PDF exports use, so the on-screen dialog lists the same files the
+  // downloads do. Records without attachments are simply omitted.
+  const stageRecordIds = [
+    ...(data?.fermentation ?? []), ...(data?.cellarOps ?? []),
+    ...(data?.so2Tests ?? []), ...(data?.bottling ?? []),
+  ].map(r => Number(r.id)).filter(n => Number.isFinite(n));
+  const { data: stageAttachments } = useQuery<{
+    ferm: Map<number, TrailAttachment[]>;
+    cellar: Map<number, TrailAttachment[]>;
+    so2: Map<number, TrailAttachment[]>;
+    bottling: Map<number, TrailAttachment[]>;
+  }>({
+    queryKey: ["winery-batch-trail-stage-attachments", farmId, batchRef, vintageYear, stageRecordIds.join(",")],
+    queryFn: async () => {
+      const [ferm, cellar, so2, bottling] = await Promise.all([
+        fetchStageAttachments(farmId, "winery-fermentation", data?.fermentation ?? []),
+        fetchStageAttachments(farmId, "winery-cellar-op", data?.cellarOps ?? []),
+        fetchStageAttachments(farmId, "winery-so2-test", data?.so2Tests ?? []),
+        fetchStageAttachments(farmId, "winery-bottling", data?.bottling ?? []),
+      ]);
+      return { ferm, cellar, so2, bottling };
+    },
+    enabled: !!data && stageRecordIds.length > 0,
+    staleTime: 30_000,
+  });
+  // Renders a row's attachment list — nothing when the record has no files
+  // (best-effort: while the query is loading or if it failed, rows simply
+  // show no attachment info, mirroring the exports' behaviour).
+  const rowAttachments = (map: Map<number, TrailAttachment[]> | undefined, r: Record<string, unknown>) => {
+    const id = r.id != null ? Number(r.id) : NaN;
+    const files = Number.isFinite(id) ? (map?.get(id) ?? []) : [];
+    if (files.length === 0) return null;
+    return (
+      <div className="pt-1">
+        <p className="text-muted-foreground uppercase tracking-wide font-semibold" style={{ fontSize: "10px" }}>
+          Attachments ({files.length})
+        </p>
+        <ul className="space-y-0.5 mt-0.5">
+          {files.map((f, i) => (
+            <li key={i} className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <Paperclip className="h-3 w-3 shrink-0" />
+              <span className="truncate">{String(f.fileName ?? "")}</span>
+              {!!f.uploadedAt && <span className="text-muted-foreground/70 shrink-0">· Uploaded {fmtDate(f.uploadedAt)}</span>}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  };
+
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1372,6 +1424,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                         {r.end_ta_gl != null && <span className="text-blue-700">End TA: {fmtNum(r.end_ta_gl, 1)} g/L</span>}
                       </div>
                       {!!r.notes && <p className="text-xs text-muted-foreground italic">{String(r.notes)}</p>}
+                      {rowAttachments(stageAttachments?.ferm, r)}
                     </div>
                     );
                   })}
@@ -1418,6 +1471,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                         )}
                       </div>
                       {!!r.notes && <p className="text-xs text-muted-foreground italic">{String(r.notes)}</p>}
+                      {rowAttachments(stageAttachments?.cellar, r)}
                     </div>
                       );
                     });
@@ -1449,6 +1503,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                       </div>
                       {!!r.action_taken && <p className="text-xs text-muted-foreground">Action: {String(r.action_taken)}</p>}
                       {!!r.notes && <p className="text-xs text-muted-foreground italic">{String(r.notes)}</p>}
+                      {rowAttachments(stageAttachments?.so2, r)}
                     </div>
                   ))}
                 </div>
@@ -1518,6 +1573,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                       </div>
                       {!!r.source_vessel_ref && <p className="text-xs text-muted-foreground">Source vessel: {String(r.source_vessel_ref)}</p>}
                       {!!r.notes && <p className="text-xs text-muted-foreground italic">{String(r.notes)}</p>}
+                      {rowAttachments(stageAttachments?.bottling, r)}
                     </div>
                     );
                   })}
