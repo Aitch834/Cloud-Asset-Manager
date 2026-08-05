@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 
-const api = (path: string) => `/api/${path}`;
+import { apiUrl as api } from "@/lib/api";
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const CERTIFYING_BODIES = ["Soil Association", "OF&G (Organic Farmers & Growers)", "Biodynamic Association", "OF&G Scotland", "Other"];

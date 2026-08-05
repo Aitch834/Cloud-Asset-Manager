@@ -22,7 +22,7 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { Checkbox } from "@/components/ui/checkbox";
 
-const api = (path: string) => `/api/${path}`;
+import { apiUrl as api } from "@/lib/api";
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 
 const UK_GOAT_ABATTOIRS = [

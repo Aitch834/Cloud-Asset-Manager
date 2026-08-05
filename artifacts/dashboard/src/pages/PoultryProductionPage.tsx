@@ -30,7 +30,7 @@ import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 import { FlocksTab } from "./poultry/FlocksTab";
 import { PoultryFlockReport } from "@/components/PoultryFlockReport";
 
-const api = (path: string) => `/api/${path}`;
+import { apiUrl as api } from "@/lib/api";
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
 function exportCSV(rows: Record<string, unknown>[], filename: string, cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]) {

@@ -51,7 +51,7 @@ function conversionProgress(startDate: string | null | undefined): number {
   return Math.min(100, Math.max(0, Math.round(((now - start) / (end - start)) * 100)));
 }
 
-const api = (path: string) => `/api/${path}`;
+import { apiUrl as api } from "@/lib/api";
 
 function yearRange(): number[] {
   const cur = new Date().getFullYear();

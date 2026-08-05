@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Map as MapIcon, AlertCircle } from "lucide-react";
 import { VineyardBlockBoundaryMapDialog } from "./VineyardBlockBoundaryMapDialog";
 
-const api = (path: string) => `/api/${path}`;
+import { apiUrl as api } from "@/lib/api";
 
 interface LatLng { lat: number; lng: number; }
 interface BlockBoundary { blockId: number; polygonPoints: LatLng[]; capturedAt: string; }

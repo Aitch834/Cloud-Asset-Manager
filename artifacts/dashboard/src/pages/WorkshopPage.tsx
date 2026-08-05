@@ -27,7 +27,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 
-const api = (path: string) => `/api/${path}`;
+import { apiUrl as api } from "@/lib/api";
 
 function assetNumber(equip: { id: number; assetNumber?: string | null }) {
   return equip.assetNumber || `EQ-${String(equip.id).padStart(4, "0")}`;

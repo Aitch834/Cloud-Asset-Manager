@@ -4,7 +4,7 @@ import { useUpload } from "@workspace/object-storage-web";
 import { FileText, Upload, Loader2, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const api = (path: string) => `/api/${path}`;
+import { apiUrl as api } from "@/lib/api";
 
 interface DocAttachProps {
   farmId: number;

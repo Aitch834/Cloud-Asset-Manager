@@ -45,7 +45,7 @@ type SprayRec = {
 };
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
-const api = (p: string) => `/api/${p}`;
+import { apiUrl as api } from "@/lib/api";
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
 const fmtN = (v: unknown, dp = 1) =>
