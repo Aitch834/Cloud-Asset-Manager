@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Pencil, Trash2, Printer, ChevronLeft, ChevronRight,
@@ -787,7 +788,7 @@ function TimesheetsTab({ farmId, staffNames, staffMembers }: { farmId: number; s
       )}
 
       {/* Add/Edit dialog */}
-      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditItem(null); setForm(emptyForm()); } }}>
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditItem(null); setForm(emptyForm()); addMut.reset(); editMut.reset(); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{editItem ? "Edit Timesheet Entry" : "Add Timesheet Entry"}</DialogTitle>
@@ -844,6 +845,8 @@ function TimesheetsTab({ farmId, staffNames, staffMembers }: { farmId: number; s
                 />
               </div>
             </div>
+            <DialogMutationError mutation={addMut} message="Failed to save — your entries are still here." />
+            <DialogMutationError mutation={editMut} message="Failed to save — your entries are still here." />
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => { setAddOpen(false); setEditItem(null); setForm(emptyForm()); }}>Cancel</Button>
               <Button onClick={save} disabled={!form.staffName || !form.date || !form.taskType || addMut.isPending || editMut.isPending}>
@@ -1131,13 +1134,14 @@ function RotaTab({ farmId, staffNames, staffMembers }: { farmId: number; staffNa
       )}
 
       {pendingHolidayLog && (
-        <Dialog open onOpenChange={o => { if (!o) setPendingHolidayLog(null); }}>
+        <Dialog open onOpenChange={o => { if (!o) { setPendingHolidayLog(null); logAbsenceMut.reset(); } }}>
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>Log against annual leave?</DialogTitle></DialogHeader>
             <p className="text-sm text-gray-600 mt-1">
               Count <strong>{fmtDate(pendingHolidayLog.date)}</strong> as 1 day of annual leave for{" "}
               <strong>{pendingHolidayLog.staffName}</strong>? This will deduct from their leave entitlement balance.
             </p>
+            <DialogMutationError mutation={logAbsenceMut} message="Failed to save — your entries are still here." />
             <DialogFooter className="mt-4 gap-2 flex-col sm:flex-row">
               <Button variant="outline" onClick={() => setPendingHolidayLog(null)} className="sm:order-first">
                 Just mark rota
@@ -1162,7 +1166,7 @@ function RotaTab({ farmId, staffNames, staffMembers }: { farmId: number; staffNa
       )}
 
       {quickLog && (
-        <Dialog open onOpenChange={o => { if (!o) setQuickLog(null); }}>
+        <Dialog open onOpenChange={o => { if (!o) { setQuickLog(null); logAttMut.reset(); } }}>
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>Log today's attendance</DialogTitle></DialogHeader>
             <div className="space-y-3 py-1">
@@ -1194,6 +1198,7 @@ function RotaTab({ farmId, staffNames, staffMembers }: { farmId: number; staffNa
                 <Input className="mt-1" value={qlNotes} onChange={e => setQlNotes(e.target.value)} placeholder="e.g. phoned in at 07:30, feeling unwell" />
               </div>
             </div>
+            <DialogMutationError mutation={logAttMut} message="Failed to save — your entries are still here." />
             <DialogFooter className="gap-2">
               <Button variant="outline" onClick={() => setQuickLog(null)}>Cancel</Button>
               <Button
@@ -1918,7 +1923,7 @@ function AbsenceTab({ farmId, staffNames, onPendingCount, staffMembers }: { farm
       })()}
 
       {/* Add/Edit dialog */}
-      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditItem(null); setForm(emptyForm()); } }}>
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditItem(null); setForm(emptyForm()); addMut.reset(); editMut.reset(); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editItem ? "Edit Absence" : "Record Absence"}</DialogTitle></DialogHeader>
           <div className="space-y-4 mt-2">
@@ -1990,6 +1995,8 @@ function AbsenceTab({ farmId, staffNames, onPendingCount, staffMembers }: { farm
                 <textarea className="mt-1 w-full border rounded-md px-3 py-2 text-sm min-h-[70px] resize-y focus:outline-none focus:ring-2 focus:ring-ring" value={form.notes} onChange={e => sf("notes", e.target.value)} placeholder="Optional details…" />
               </div>
             </div>
+            <DialogMutationError mutation={addMut} message="Failed to save — your entries are still here." />
+            <DialogMutationError mutation={editMut} message="Failed to save — your entries are still here." />
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => { setAddOpen(false); setEditItem(null); setForm(emptyForm()); setOverrideExceeded(false); }}>Cancel</Button>
               <Button
@@ -2032,7 +2039,7 @@ function AbsenceTab({ farmId, staffNames, onPendingCount, staffMembers }: { farm
       )}
 
       {/* ── Decline leave request dialog ── */}
-      <Dialog open={!!declineTarget} onOpenChange={o => { if (!o) setDeclineTarget(null); }}>
+      <Dialog open={!!declineTarget} onOpenChange={o => { if (!o) { setDeclineTarget(null); editMut.reset(); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Decline Leave Request</DialogTitle>
@@ -2053,6 +2060,7 @@ function AbsenceTab({ farmId, staffNames, onPendingCount, staffMembers }: { farm
                   placeholder="e.g. Farm too short-staffed during harvest period — please re-request after September."
                 />
               </div>
+              <DialogMutationError mutation={editMut} message="Failed to decline — please try again." />
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setDeclineTarget(null)}>Cancel</Button>
                 <Button
@@ -2076,7 +2084,7 @@ function AbsenceTab({ farmId, staffNames, onPendingCount, staffMembers }: { farm
       </Dialog>
 
       {/* ── Edit Entitlement dialog ── */}
-      <Dialog open={entEditOpen} onOpenChange={v => { if (!v) setEntEditOpen(false); }}>
+      <Dialog open={entEditOpen} onOpenChange={v => { if (!v) { setEntEditOpen(false); editEntMut.reset(); addEntMut.reset(); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Edit Leave Entitlement</DialogTitle>
@@ -2111,6 +2119,8 @@ function AbsenceTab({ farmId, staffNames, onPendingCount, staffMembers }: { farm
               </div>
             </div>
           )}
+          <DialogMutationError mutation={editEntMut} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={addEntMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setEntEditOpen(false)}>Cancel</Button>
             <Button
@@ -2664,7 +2674,7 @@ function PaySummaryTab({ farmId, staffNames, staffMembers }: { farmId: number; s
       )}
 
       {/* Rate dialog */}
-      <Dialog open={rateOpen} onOpenChange={o => { if (!o) { setRateOpen(false); setEditRate(null); setRateForm(emptyRate()); } }}>
+      <Dialog open={rateOpen} onOpenChange={o => { if (!o) { setRateOpen(false); setEditRate(null); setRateForm(emptyRate()); addRateMut.reset(); editRateMut.reset(); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>{editRate ? "Edit Pay Rate" : "Set Pay Rate"}</DialogTitle></DialogHeader>
           <div className="space-y-4 mt-2">
@@ -2689,6 +2699,8 @@ function PaySummaryTab({ farmId, staffNames, staffMembers }: { farmId: number; s
               <Label>Effective From</Label>
               <Input type="date" className="mt-1" value={rateForm.effectiveFrom} onChange={e => setRateForm(p => ({ ...p, effectiveFrom: e.target.value }))} />
             </div>
+            <DialogMutationError mutation={addRateMut} message="Failed to save — your entries are still here." />
+            <DialogMutationError mutation={editRateMut} message="Failed to save — your entries are still here." />
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => { setRateOpen(false); setEditRate(null); setRateForm(emptyRate()); }}>Cancel</Button>
               <Button
@@ -3191,7 +3203,7 @@ function StaffHoursCrossRefTab({ farmId, staffNames }: { farmId: number; staffNa
       </div>
 
       {/* Annotation Dialog */}
-      <Dialog open={!!annotating} onOpenChange={open => { if (!open) setAnnotating(null); }}>
+      <Dialog open={!!annotating} onOpenChange={open => { if (!open) { setAnnotating(null); saveAnnot.reset(); delAnnot.reset(); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -3239,6 +3251,8 @@ function StaffHoursCrossRefTab({ farmId, staffNames }: { farmId: number; staffNa
               )}
             </div>
           )}
+          <DialogMutationError mutation={saveAnnot} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={delAnnot} message="Failed to remove annotation — please try again." />
           <DialogFooter className="gap-2 flex-wrap">
             {annotating?.existing && (
               <Button

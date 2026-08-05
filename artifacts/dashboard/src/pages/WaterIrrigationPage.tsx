@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -126,7 +127,7 @@ function LicencesTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "48rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Water Source &amp; Abstraction Licence</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
@@ -159,6 +160,7 @@ function LicencesTab({ farmId }: { farmId: number }) {
             <div className="flex items-center gap-2"><Checkbox id="meter" checked={Boolean(form.meterRequired)} onCheckedChange={v => setForm(f => ({ ...f, meterRequired: Boolean(v) }))} /><Label htmlFor="meter">Meter required?</Label></div>
             <div className="flex items-center gap-2"><Checkbox id="ret" checked={Boolean(form.returnRequired)} onCheckedChange={v => setForm(f => ({ ...f, returnRequired: Boolean(v) }))} /><Label htmlFor="ret">Return required?</Label></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -240,7 +242,7 @@ function MeterReadingsTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "36rem" }}>
           <DialogHeader><DialogTitle>Meter Reading</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
@@ -257,6 +259,7 @@ function MeterReadingsTab({ farmId }: { farmId: number }) {
             <div><Label>% of Annual Allocation <span className="text-xs text-muted-foreground">(auto)</span></Label><Input type="number" step="0.1" value={form.percentOfAnnualAllocation ?? ""} onChange={e => setForm(f => ({ ...f, percentOfAnnualAllocation: e.target.value }))} placeholder="Auto-calculated" /></div>
             <div><Label>Read By</Label><Input value={form.readBy ?? ""} onChange={e => setForm(f => ({ ...f, readBy: e.target.value }))} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -364,7 +367,7 @@ function BoreholeTestsTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setEditing(null); } }}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setEditing(null); save.reset(); } }}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader>
             <DialogTitle>{mode === "log" ? "Log Borehole Test Sample" : mode === "result" ? "Enter Borehole Test Results" : "Edit Borehole Test Record"}</DialogTitle>
@@ -401,6 +404,7 @@ function BoreholeTestsTab({ farmId }: { farmId: number }) {
               <div className="col-span-2"><Label>Corrective Action</Label><Textarea value={form.correctiveAction ?? ""} onChange={e => setForm(f => ({ ...f, correctiveAction: e.target.value }))} rows={2} /></div>
             </>}
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setOpen(false); setEditing(null); }}>Cancel</Button>
             <Button onClick={() => save.mutate(form)} disabled={save.isPending}>{mode === "log" ? "Log Sample" : mode === "result" ? "Save Results" : "Save Changes"}</Button>
@@ -701,7 +705,7 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
       />
 
       {/* ── Add / Edit Dialog ────────────────────────────────────────────────── */}
-      <Dialog open={open} onOpenChange={v => { if (!v) { setOpen(false); setEditing(null); setForm({}); setEquipmentIds([]); } }}>
+      <Dialog open={open} onOpenChange={v => { if (!v) { setOpen(false); setEditing(null); setForm({}); setEquipmentIds([]); save.reset(); } }}>
         <DialogContent style={{ maxWidth: "52rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Irrigation Record" : "Log Irrigation Application"}</DialogTitle></DialogHeader>
           <div className="overflow-y-auto max-h-[70vh] space-y-4 pr-1">
@@ -867,6 +871,7 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
             </div>
 
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => { setOpen(false); setEditing(null); setForm({}); setEquipmentIds([]); }}>Cancel</Button>
             <Button onClick={handleSave} disabled={save.isPending}>
@@ -926,7 +931,7 @@ function IrrigationEquipmentTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "38rem" }}>
           <DialogHeader><DialogTitle>Irrigation Equipment</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
@@ -950,6 +955,7 @@ function IrrigationEquipmentTab({ farmId }: { farmId: number }) {
               </Select>
             </div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1014,7 +1020,7 @@ function SoilMoistureTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader><DialogTitle>Soil Moisture Reading</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
@@ -1041,6 +1047,7 @@ function SoilMoistureTab({ farmId }: { farmId: number }) {
             <div><Label>Recorded By</Label><StaffSelect value={form.recordedBy ?? ""} onChange={v => setForm(f => ({ ...f, recordedBy: v }))} staffNames={soilStaffNames} loading={soilMembersLoading} /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1110,7 +1117,7 @@ function DroughtManagementTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "44rem" }}>
           <DialogHeader><DialogTitle>Drought Management Plan</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
@@ -1143,6 +1150,7 @@ function DroughtManagementTab({ farmId }: { farmId: number }) {
             <div className="flex items-center gap-2"><Checkbox id="altSrc" checked={Boolean(form.alternativeSourceAvailable)} onCheckedChange={v => setForm(f => ({ ...f, alternativeSourceAvailable: Boolean(v) }))} /><Label htmlFor="altSrc">Alternative source available?</Label></div>
             <div className="flex items-center gap-2"><Checkbox id="isAct" checked={form.isActive !== "false" && form.isActive !== false} onCheckedChange={v => setForm(f => ({ ...f, isActive: Boolean(v) }))} /><Label htmlFor="isAct">Currently active?</Label></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1208,7 +1216,7 @@ function CamsReturnsTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader><DialogTitle>CAMS Annual Return</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
@@ -1234,6 +1242,7 @@ function CamsReturnsTab({ farmId }: { farmId: number }) {
             <div><Label>Submitted By</Label><Input value={String(form.submittedBy ?? "")} onChange={e => setForm(f => ({ ...f, submittedBy: e.target.value }))} /></div>
             <div className="col-span-2"><Label>Exceedance / Non-compliance Notes</Label><Textarea value={String(form.exceedanceNotes ?? "")} onChange={e => setForm(f => ({ ...f, exceedanceNotes: e.target.value }))} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>

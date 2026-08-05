@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { useGetMyTenants } from "@workspace/api-client-react/src/generated/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -76,7 +77,7 @@ export default function SelectContext() {
     enabled: !!tenantSlug,
   });
 
-  const { mutate: createFarm, isPending: isCreating } = useMutation({
+  const createFarmMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
       const res = await fetch("/api/tenants/current/farms", {
         method: "POST",
@@ -88,6 +89,7 @@ export default function SelectContext() {
     },
     onError: () => toast({ title: "Failed to create farm", variant: "destructive" }),
   });
+  const { mutate: createFarm, isPending: isCreating } = createFarmMutation;
 
   // If tenant and farm are already persisted from a previous visit, skip selection entirely.
   useEffect(() => {
@@ -288,7 +290,7 @@ export default function SelectContext() {
         )}
       </div>
 
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+      <Dialog open={showCreateDialog} onOpenChange={o => { setShowCreateDialog(o); if (!o) createFarmMutation.reset(); }}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create a New Farm</DialogTitle>
@@ -380,6 +382,7 @@ export default function SelectContext() {
             </div>
           </div>
 
+          <DialogMutationError mutation={createFarmMutation} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreateDialog(false)} disabled={isCreating}>
               Cancel

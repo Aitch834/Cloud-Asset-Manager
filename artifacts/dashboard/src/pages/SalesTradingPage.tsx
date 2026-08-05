@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
@@ -359,7 +360,7 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
       )}
 
       {/* Add/Edit Dialog */}
-      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditing(null); setForm(empty); } }}>
+      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditing(null); setForm(empty); postMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 700, maxHeight: "90vh", overflowY: "auto" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Grain Sale" : "Record Grain Sale"}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit}>
@@ -538,6 +539,7 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
                 </div>
               </div>
             </div>
+            <DialogMutationError mutation={postMut} message="Failed to save — your entries are still here." />
             <DialogFooter style={{ marginTop: 16 }}>
               <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); setForm(empty); }}>Cancel</Button>
               <Button type="submit" style={{ background: "#16a34a", color: "#fff" }} disabled={postMut.isPending}>
@@ -549,10 +551,11 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Delete Confirm */}
-      <Dialog open={deleteId !== null} onOpenChange={v => !v && setDeleteId(null)}>
+      <Dialog open={deleteId !== null} onOpenChange={v => { if (!v) { setDeleteId(null); delMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Grain Sale?</DialogTitle></DialogHeader>
           <p style={{ color: "#6b7280" }}>This cannot be undone.</p>
+          <DialogMutationError mutation={delMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button style={{ background: "#dc2626", color: "#fff" }} onClick={() => deleteId && delMut.mutate(deleteId)} disabled={delMut.isPending}>Delete</Button>
@@ -918,7 +921,7 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
       )}
 
       {/* Deadweight Dialog */}
-      <Dialog open={openDW} onOpenChange={v => { setOpenDW(v); if (!v) { setEditingDW(null); setFormDW(emptyDW); } }}>
+      <Dialog open={openDW} onOpenChange={v => { setOpenDW(v); if (!v) { setEditingDW(null); setFormDW(emptyDW); dwMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 700, maxHeight: "90vh", overflowY: "auto" }}>
           <DialogHeader><DialogTitle>{editingDW ? "Edit Kill Sheet" : "Add Kill Sheet"}</DialogTitle></DialogHeader>
           <form onSubmit={submitDW}>
@@ -996,6 +999,7 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
               </div>
               <div style={{ gridColumn: "1/-1" }}><Label>Notes</Label><Textarea value={formDW.notes} onChange={e => setFormDW((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
             </div>
+            <DialogMutationError mutation={dwMut} message="Failed to save — your entries are still here." />
             <DialogFooter style={{ marginTop: 16 }}>
               <Button type="button" variant="outline" onClick={() => { setOpenDW(false); setEditingDW(null); setFormDW(emptyDW); }}>Cancel</Button>
               <Button type="submit" style={{ background: "#15803d", color: "#fff" }} disabled={dwMut.isPending}>{dwMut.isPending ? "Saving…" : editingDW ? "Update" : "Save"}</Button>
@@ -1005,7 +1009,7 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Mart Dialog */}
-      <Dialog open={openMart} onOpenChange={v => { setOpenMart(v); if (!v) { setEditingMart(null); setFormMart(emptyMart); } }}>
+      <Dialog open={openMart} onOpenChange={v => { setOpenMart(v); if (!v) { setEditingMart(null); setFormMart(emptyMart); martMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 700, maxHeight: "90vh", overflowY: "auto" }}>
           <DialogHeader><DialogTitle>{editingMart ? "Edit Mart Sale" : "Add Mart Sale"}</DialogTitle></DialogHeader>
           <form onSubmit={submitMart}>
@@ -1085,6 +1089,7 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
               </div>
               <div style={{ gridColumn: "1/-1" }}><Label>Notes</Label><Textarea value={formMart.notes} onChange={e => setFormMart((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
             </div>
+            <DialogMutationError mutation={martMut} message="Failed to save — your entries are still here." />
             <DialogFooter style={{ marginTop: 16 }}>
               <Button type="button" variant="outline" onClick={() => { setOpenMart(false); setEditingMart(null); setFormMart(emptyMart); }}>Cancel</Button>
               <Button type="submit" style={{ background: "#2563eb", color: "#fff" }} disabled={martMut.isPending}>{martMut.isPending ? "Saving…" : editingMart ? "Update" : "Save"}</Button>
@@ -1094,20 +1099,22 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Delete confirms */}
-      <Dialog open={deleteDWId !== null} onOpenChange={v => !v && setDeleteDWId(null)}>
+      <Dialog open={deleteDWId !== null} onOpenChange={v => { if (!v) { setDeleteDWId(null); dwDelMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Kill Sheet?</DialogTitle></DialogHeader>
           <p style={{ color: "#6b7280" }}>This cannot be undone.</p>
+          <DialogMutationError mutation={dwDelMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteDWId(null)}>Cancel</Button>
             <Button style={{ background: "#dc2626", color: "#fff" }} onClick={() => deleteDWId && dwDelMut.mutate(deleteDWId)}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={deleteMartId !== null} onOpenChange={v => !v && setDeleteMartId(null)}>
+      <Dialog open={deleteMartId !== null} onOpenChange={v => { if (!v) { setDeleteMartId(null); martDelMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Mart Sale?</DialogTitle></DialogHeader>
           <p style={{ color: "#6b7280" }}>This cannot be undone.</p>
+          <DialogMutationError mutation={martDelMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteMartId(null)}>Cancel</Button>
             <Button style={{ background: "#dc2626", color: "#fff" }} onClick={() => deleteMartId && martDelMut.mutate(deleteMartId)}>Delete</Button>
@@ -1361,7 +1368,7 @@ function MilkSalesTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditing(null); setForm(empty); } }}>
+      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditing(null); setForm(empty); mut.reset(); } }}>
         <DialogContent style={{ maxWidth: 720, maxHeight: "90vh", overflowY: "auto" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Milk Statement" : "Add Milk Statement"}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit}>
@@ -1401,6 +1408,7 @@ function MilkSalesTab({ farmId }: { farmId: number }) {
               <div><Label>Sustainability Bonus (£)</Label><Input type="number" step="0.01" value={form.sustainabilityBonusPence ? (form.sustainabilityBonusPence / 100).toFixed(2) : ""} onChange={e => setForm((f: any) => ({ ...f, sustainabilityBonusPence: Math.round(parseFloat(e.target.value || "0") * 100) }))} /></div>
               <div style={{ gridColumn: "1/-1" }}><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
             </div>
+            <DialogMutationError mutation={mut} message="Failed to save — your entries are still here." />
             <DialogFooter style={{ marginTop: 16 }}>
               <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); setForm(empty); }}>Cancel</Button>
               <Button type="submit" style={{ background: "#1d4ed8", color: "#fff" }} disabled={mut.isPending}>{mut.isPending ? "Saving…" : editing ? "Update" : "Save"}</Button>
@@ -1408,10 +1416,11 @@ function MilkSalesTab({ farmId }: { farmId: number }) {
           </form>
         </DialogContent>
       </Dialog>
-      <Dialog open={deleteId !== null} onOpenChange={v => !v && setDeleteId(null)}>
+      <Dialog open={deleteId !== null} onOpenChange={v => { if (!v) { setDeleteId(null); delMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Milk Statement?</DialogTitle></DialogHeader>
           <p style={{ color: "#6b7280" }}>This cannot be undone.</p>
+          <DialogMutationError mutation={delMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button style={{ background: "#dc2626", color: "#fff" }} onClick={() => deleteId && delMut.mutate(deleteId)}>Delete</Button>
@@ -1696,7 +1705,7 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
       )}
 
       {/* Batch Dialog */}
-      <Dialog open={openBatch} onOpenChange={v => { setOpenBatch(v); if (!v) { setEditingBatch(null); setFormBatch(emptyBatch); } }}>
+      <Dialog open={openBatch} onOpenChange={v => { setOpenBatch(v); if (!v) { setEditingBatch(null); setFormBatch(emptyBatch); batchMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 720, maxHeight: "90vh", overflowY: "auto" }}>
           <DialogHeader><DialogTitle>{editingBatch ? "Edit Batch Settlement" : "Add Batch Settlement"}</DialogTitle></DialogHeader>
           <form onSubmit={submitBatch}>
@@ -1747,6 +1756,7 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
               <div><Label>Payment Date</Label><Input type="date" value={formBatch.paymentDate} onChange={e => setFormBatch((f: any) => ({ ...f, paymentDate: e.target.value }))} /></div>
               <div style={{ gridColumn: "1/-1" }}><Label>Notes</Label><Textarea value={formBatch.notes} onChange={e => setFormBatch((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
             </div>
+            <DialogMutationError mutation={batchMut} message="Failed to save — your entries are still here." />
             <DialogFooter style={{ marginTop: 16 }}>
               <Button type="button" variant="outline" onClick={() => { setOpenBatch(false); setEditingBatch(null); setFormBatch(emptyBatch); }}>Cancel</Button>
               <Button type="submit" style={{ background: "#b45309", color: "#fff" }} disabled={batchMut.isPending}>{batchMut.isPending ? "Saving…" : editingBatch ? "Update" : "Save"}</Button>
@@ -1756,7 +1766,7 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Egg Dialog */}
-      <Dialog open={openEgg} onOpenChange={v => { setOpenEgg(v); if (!v) { setEditingEgg(null); setFormEgg(emptyEgg); } }}>
+      <Dialog open={openEgg} onOpenChange={v => { setOpenEgg(v); if (!v) { setEditingEgg(null); setFormEgg(emptyEgg); eggMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 700, maxHeight: "90vh", overflowY: "auto" }}>
           <DialogHeader><DialogTitle>{editingEgg ? "Edit Egg Sale" : "Add Egg Sale"}</DialogTitle></DialogHeader>
           <form onSubmit={submitEgg}>
@@ -1814,6 +1824,7 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
               <div><Label>Payment Date</Label><Input type="date" value={formEgg.paymentDate} onChange={e => setFormEgg((f: any) => ({ ...f, paymentDate: e.target.value }))} /></div>
               <div style={{ gridColumn: "1/-1" }}><Label>Notes</Label><Textarea value={formEgg.notes} onChange={e => setFormEgg((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
             </div>
+            <DialogMutationError mutation={eggMut} message="Failed to save — your entries are still here." />
             <DialogFooter style={{ marginTop: 16 }}>
               <Button type="button" variant="outline" onClick={() => { setOpenEgg(false); setEditingEgg(null); setFormEgg(emptyEgg); }}>Cancel</Button>
               <Button type="submit" style={{ background: "#ea580c", color: "#fff" }} disabled={eggMut.isPending}>{eggMut.isPending ? "Saving…" : editingEgg ? "Update" : "Save"}</Button>
@@ -1822,18 +1833,20 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteBatchId !== null} onOpenChange={v => !v && setDeleteBatchId(null)}>
+      <Dialog open={deleteBatchId !== null} onOpenChange={v => { if (!v) { setDeleteBatchId(null); batchDelMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Batch Settlement?</DialogTitle></DialogHeader>
+          <DialogMutationError mutation={batchDelMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteBatchId(null)}>Cancel</Button>
             <Button style={{ background: "#dc2626", color: "#fff" }} onClick={() => deleteBatchId && batchDelMut.mutate(deleteBatchId)}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={deleteEggId !== null} onOpenChange={v => !v && setDeleteEggId(null)}>
+      <Dialog open={deleteEggId !== null} onOpenChange={v => { if (!v) { setDeleteEggId(null); eggDelMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Egg Sale?</DialogTitle></DialogHeader>
+          <DialogMutationError mutation={eggDelMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteEggId(null)}>Cancel</Button>
             <Button style={{ background: "#dc2626", color: "#fff" }} onClick={() => deleteEggId && eggDelMut.mutate(deleteEggId)}>Delete</Button>
@@ -2020,7 +2033,7 @@ function PigSalesTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditing(null); setForm(empty); } }}>
+      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditing(null); setForm(empty); mut.reset(); } }}>
         <DialogContent style={{ maxWidth: 720, maxHeight: "90vh", overflowY: "auto" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Kill Record" : "Add Kill Record"}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit}>
@@ -2061,6 +2074,7 @@ function PigSalesTab({ farmId }: { farmId: number }) {
               <div><Label>Premium Value (£)</Label><Input type="number" step="0.01" value={form.premiumPence ? (form.premiumPence / 100).toFixed(2) : ""} onChange={e => setForm((f: any) => ({ ...f, premiumPence: Math.round(parseFloat(e.target.value || "0") * 100) }))} /></div>
               <div style={{ gridColumn: "1/-1" }}><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
             </div>
+            <DialogMutationError mutation={mut} message="Failed to save — your entries are still here." />
             <DialogFooter style={{ marginTop: 16 }}>
               <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); setForm(empty); }}>Cancel</Button>
               <Button type="submit" style={{ background: "#86198f", color: "#fff" }} disabled={mut.isPending}>{mut.isPending ? "Saving…" : editing ? "Update" : "Save"}</Button>
@@ -2069,9 +2083,10 @@ function PigSalesTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={v => !v && setDeleteId(null)}>
+      <Dialog open={deleteId !== null} onOpenChange={v => { if (!v) { setDeleteId(null); delMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Kill Record?</DialogTitle></DialogHeader>
+          <DialogMutationError mutation={delMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button style={{ background: "#dc2626", color: "#fff" }} onClick={() => deleteId && delMut.mutate(deleteId)}>Delete</Button>
@@ -2255,7 +2270,7 @@ function DirectSalesTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditing(null); setForm(empty); } }}>
+      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditing(null); setForm(empty); mut.reset(); } }}>
         <DialogContent style={{ maxWidth: 700, maxHeight: "90vh", overflowY: "auto" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Sale" : "Record Direct Sale"}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit}>
@@ -2345,6 +2360,7 @@ function DirectSalesTab({ farmId }: { farmId: number }) {
               {form.channel === "farmers_market" && <div><Label>Market Name</Label><Input value={form.marketName} onChange={e => setForm((f: any) => ({ ...f, marketName: e.target.value }))} /></div>}
               <div style={{ gridColumn: "1/-1" }}><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
             </div>
+            <DialogMutationError mutation={mut} message="Failed to save — your entries are still here." />
             <DialogFooter style={{ marginTop: 16 }}>
               <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); setForm(empty); }}>Cancel</Button>
               <Button type="submit" style={{ background: "#0891b2", color: "#fff" }} disabled={mut.isPending}>{mut.isPending ? "Saving…" : editing ? "Update" : "Save"}</Button>
@@ -2353,9 +2369,10 @@ function DirectSalesTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={v => !v && setDeleteId(null)}>
+      <Dialog open={deleteId !== null} onOpenChange={v => { if (!v) { setDeleteId(null); delMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Sale Record?</DialogTitle></DialogHeader>
+          <DialogMutationError mutation={delMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button style={{ background: "#dc2626", color: "#fff" }} onClick={() => deleteId && delMut.mutate(deleteId)}>Delete</Button>
@@ -2975,7 +2992,7 @@ function GrainContractsTab({ farmId }: { farmId: number }) {
       </div>
 
       {/* Add / Edit dialog */}
-      <Dialog open={isOpen} onOpenChange={v => { if (!v) { setAddType(null); setEditing(null); setForm(emptyForward); } }}>
+      <Dialog open={isOpen} onOpenChange={v => { if (!v) { setAddType(null); setEditing(null); setForm(emptyForward); saveMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 600, maxHeight: "80vh", overflowY: "auto" }}>
           <DialogHeader>
             <DialogTitle>
@@ -3103,6 +3120,7 @@ function GrainContractsTab({ farmId }: { farmId: number }) {
                   rows={2} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: "0.875rem", resize: "vertical" }} />
               </div>
             </div>
+            <DialogMutationError mutation={saveMut} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setAddType(null); setEditing(null); }}>Cancel</Button>
               <Button type="submit" disabled={saveMut.isPending}
@@ -3115,10 +3133,11 @@ function GrainContractsTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Delete confirmation */}
-      <Dialog open={!!deleteId} onOpenChange={v => { if (!v) setDeleteId(null); }}>
+      <Dialog open={!!deleteId} onOpenChange={v => { if (!v) { setDeleteId(null); delMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Contract?</DialogTitle></DialogHeader>
           <p style={{ color: "#6b7280", fontSize: "0.875rem" }}>This will permanently delete this contract record. This action cannot be undone.</p>
+          <DialogMutationError mutation={delMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button onClick={() => deleteId && delMut.mutate(deleteId)} disabled={delMut.isPending}
@@ -3321,7 +3340,7 @@ function SettlementNotesTab({ farmId }: { farmId: number }) {
       )}
 
       {/* Add/Edit Livestock Dialog */}
-      <Dialog open={open && subTab === "livestock"} onOpenChange={o => { if (!o) setOpen(false); }}>
+      <Dialog open={open && subTab === "livestock"} onOpenChange={o => { if (!o) { setOpen(false); lsSaveMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 560 }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>{editItem ? "Edit" : "Add"} Livestock Settlement Note</DialogTitle></DialogHeader>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, paddingTop: 8, maxHeight: "70vh", overflowY: "auto", paddingRight: 4 }}>
@@ -3345,6 +3364,7 @@ function SettlementNotesTab({ farmId }: { farmId: number }) {
             <div style={{ gridColumn: "1/-1" }}><Label>Invoice Reference</Label><Input value={lsForm.invoiceReference} onChange={e => fl("invoiceReference")(e.target.value)} /></div>
             <div style={{ gridColumn: "1/-1" }}><Label>Notes</Label><Input value={lsForm.notes} onChange={e => fl("notes")(e.target.value)} /></div>
           </div>
+          <DialogMutationError mutation={lsSaveMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button disabled={!lsForm.settlementDate || !lsForm.buyerName || lsSaveMut.isPending} onClick={() => lsSaveMut.mutate(lsForm)}>
@@ -3355,7 +3375,7 @@ function SettlementNotesTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Add/Edit Grain Dialog */}
-      <Dialog open={open && subTab === "grain"} onOpenChange={o => { if (!o) setOpen(false); }}>
+      <Dialog open={open && subTab === "grain"} onOpenChange={o => { if (!o) { setOpen(false); grSaveMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 560 }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>{editItem ? "Edit" : "Add"} Grain Settlement Note</DialogTitle></DialogHeader>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, paddingTop: 8, maxHeight: "70vh", overflowY: "auto", paddingRight: 4 }}>
@@ -3374,6 +3394,7 @@ function SettlementNotesTab({ farmId }: { farmId: number }) {
             <div style={{ gridColumn: "1/-1" }}><Label>Invoice Reference</Label><Input value={grForm.invoiceReference} onChange={e => fg("invoiceReference")(e.target.value)} /></div>
             <div style={{ gridColumn: "1/-1" }}><Label>Notes</Label><Input value={grForm.notes} onChange={e => fg("notes")(e.target.value)} /></div>
           </div>
+          <DialogMutationError mutation={grSaveMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button disabled={!grForm.settlementDate || !grForm.buyerName || !grForm.cropType || grSaveMut.isPending} onClick={() => grSaveMut.mutate(grForm)}>
@@ -3422,10 +3443,11 @@ function SettlementNotesTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Delete Confirm */}
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); delMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 380 }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Delete Settlement Note?</DialogTitle></DialogHeader>
           <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>This cannot be undone.</p>
+          <DialogMutationError mutation={delMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" disabled={delMut.isPending} onClick={() => deleteId !== null && delMut.mutate(deleteId)}>

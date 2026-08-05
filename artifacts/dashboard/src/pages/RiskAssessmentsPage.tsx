@@ -18,6 +18,7 @@ import { ShieldAlert, Plus, Search, Pencil, Trash2, AlertTriangle, Clock, CheckC
 import { QRCodeSVG } from "qrcode.react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 
 type Tab = "risk" | "coshh" | "pat" | "fire";
 const RISK_ASSESSMENTS_TAB_IDS: Tab[] = ["risk", "coshh", "pat", "fire"];
@@ -373,7 +374,7 @@ function RiskAssessmentTab({ farmId, openId }: { farmId: number; openId?: number
         )}
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={v => { if (!v) closeDialog(); }}>
+      <Dialog open={dialogOpen} onOpenChange={v => { if (!v) { closeDialog(); saveMutation.reset(); } }}>
         <DialogContent style={{ maxWidth: "54rem" }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -465,6 +466,7 @@ function RiskAssessmentTab({ farmId, openId }: { farmId: number; openId?: number
               </div>
             </div>
           </div>
+          <DialogMutationError mutation={saveMutation} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="ghost" onClick={closeDialog}>Cancel</Button>
             <Button
@@ -510,10 +512,11 @@ function RiskAssessmentTab({ farmId, openId }: { farmId: number; openId?: number
         </Dialog>
       )}
 
-      <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMutation.reset(); } }}>
         <DialogContent style={{ maxWidth: "28rem" }}>
           <DialogHeader><DialogTitle>Delete Risk Assessment</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600">This will permanently delete this risk assessment record. This cannot be undone.</p>
+          <DialogMutationError mutation={deleteMutation} message="Failed to delete record — please try again." />
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" disabled={deleteMutation.isPending} onClick={() => deleteId && deleteMutation.mutate(deleteId)}>
@@ -745,7 +748,7 @@ function CoshhTab({ farmId, openId }: { farmId: number; openId?: number | null }
         </Dialog>
       )}
 
-      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); } }}>
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); saveMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 600 }}>
           <DialogHeader><DialogTitle className="flex items-center gap-2"><FlaskConical className="w-4 h-4 text-amber-600" />{editRecord ? "Edit COSHH Record" : "New COSHH Record"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
@@ -774,6 +777,7 @@ function CoshhTab({ farmId, openId }: { farmId: number; openId?: number | null }
             <div><Label>Review Date</Label><Input type="date" value={form.reviewDate} onChange={e => setForm((f: any) => ({ ...f, reviewDate: e.target.value }))} /></div>
             <div><Label>Notes</Label><Textarea placeholder="SDS sheet location, disposal instructions…" value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={saveMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }}>Cancel</Button>
             <Button onClick={() => saveMut.mutate(form)} disabled={!form.substanceName || !form.assessmentDate || saveMut.isPending}>
@@ -783,10 +787,11 @@ function CoshhTab({ farmId, openId }: { farmId: number; openId?: number | null }
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete COSHH Record</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Are you sure you want to delete this COSHH record?</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete record — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
@@ -1246,7 +1251,7 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
 
       {/* Add / Edit Appliance Dialog */}
       {showForm && (
-        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); createMut.reset(); updateMut.reset(); } }}>
           <DialogContent style={{ maxWidth: "44rem" }} aria-describedby={undefined}>
             <DialogHeader><DialogTitle>{editing ? "Edit Appliance" : "Add Appliance"}</DialogTitle></DialogHeader>
             <form onSubmit={e => { e.preventDefault(); editing ? updateMut.mutate(form) : createMut.mutate(form); }} className="space-y-4 mt-2">
@@ -1326,6 +1331,8 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
                 )}
                 <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
               </div>
+              <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+              <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
                 <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>{editing ? "Save Changes" : "Add Appliance"}</Button>
@@ -1337,7 +1344,7 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
 
       {/* Log Test Dialog */}
       {showTest && (
-        <Dialog open onOpenChange={o => { if (!o) { setShowTest(false); setEditingTest(null); } }}>
+        <Dialog open onOpenChange={o => { if (!o) { setShowTest(false); setEditingTest(null); createTestMut.reset(); updateTestMut.reset(); } }}>
           <DialogContent style={{ maxWidth: "38rem" }} aria-describedby={undefined}>
             <DialogHeader><DialogTitle>{editingTest ? "Edit Test Record" : "Log PAT Test"}</DialogTitle></DialogHeader>
             <form onSubmit={handleTestSubmit} className="space-y-4 mt-2">
@@ -1389,6 +1396,8 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
                 </div>
               </div>
               <p className="text-xs text-gray-400">After saving, use the paperclip icon on the test row to attach a copy of the PAT certificate.</p>
+              <DialogMutationError mutation={createTestMut} message="Failed to save — your entries are still here." />
+              <DialogMutationError mutation={updateTestMut} message="Failed to save — your entries are still here." />
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setShowTest(false)}>Cancel</Button>
                 <Button type="submit" disabled={createTestMut.isPending || updateTestMut.isPending}>{editingTest ? "Save Changes" : "Log Test"}</Button>
@@ -1399,10 +1408,11 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
       )}
 
       {/* Delete Appliance confirm */}
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: "22rem" }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Remove Appliance?</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-500">This will permanently remove this appliance and all its PAT test records. This cannot be undone.</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete record — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
@@ -1411,10 +1421,11 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
       </Dialog>
 
       {/* Delete Test Record confirm */}
-      <Dialog open={deleteTestId !== null} onOpenChange={o => { if (!o) setDeleteTestId(null); }}>
+      <Dialog open={deleteTestId !== null} onOpenChange={o => { if (!o) { setDeleteTestId(null); deleteTestMut.reset(); } }}>
         <DialogContent style={{ maxWidth: "22rem" }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Delete Test Record?</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-500">This will permanently remove this PAT test entry. This cannot be undone.</p>
+          <DialogMutationError mutation={deleteTestMut} message="Failed to delete record — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTestId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteTestId && deleteTestMut.mutate(deleteTestId)} disabled={deleteTestMut.isPending}>Delete</Button>
@@ -1867,7 +1878,7 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
 
       {/* Add / Edit Extinguisher Dialog */}
       {showForm && (
-        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); createMut.reset(); updateMut.reset(); } }}>
           <DialogContent style={{ maxWidth: "44rem" }} aria-describedby={undefined}>
             <DialogHeader><DialogTitle>{editing ? "Edit Extinguisher" : "Add Fire Extinguisher"}</DialogTitle></DialogHeader>
             <form onSubmit={e => { e.preventDefault(); editing ? updateMut.mutate(form) : createMut.mutate(form); }} className="space-y-4 mt-2">
@@ -1969,6 +1980,8 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
 
                 <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
               </div>
+              <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+              <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
                 <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>{editing ? "Save Changes" : "Add Extinguisher"}</Button>
@@ -1980,7 +1993,7 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
 
       {/* Log Service Dialog */}
       {showService && (
-        <Dialog open onOpenChange={o => { if (!o) { setShowService(false); setEditingService(null); } }}>
+        <Dialog open onOpenChange={o => { if (!o) { setShowService(false); setEditingService(null); createServiceMut.reset(); updateServiceMut.reset(); } }}>
           <DialogContent style={{ maxWidth: "38rem" }} aria-describedby={undefined}>
             <DialogHeader><DialogTitle>{editingService ? "Edit Service Record" : "Log Service"}</DialogTitle></DialogHeader>
             <form onSubmit={handleServiceSubmit} className="space-y-4 mt-2">
@@ -2038,6 +2051,8 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
                 </div>
               </div>
               <p className="text-xs text-gray-400">After saving, use the paperclip icon on the service row to attach a copy of the service certificate.</p>
+              <DialogMutationError mutation={createServiceMut} message="Failed to save — your entries are still here." />
+              <DialogMutationError mutation={updateServiceMut} message="Failed to save — your entries are still here." />
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setShowService(false)}>Cancel</Button>
                 <Button type="submit" disabled={createServiceMut.isPending || updateServiceMut.isPending}>{editingService ? "Save Changes" : "Log Service"}</Button>
@@ -2048,10 +2063,11 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
       )}
 
       {/* Delete Extinguisher confirm */}
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: "22rem" }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Remove Extinguisher?</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-500">This will permanently remove this extinguisher and all its service records. This cannot be undone.</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete record — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
@@ -2060,10 +2076,11 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
       </Dialog>
 
       {/* Delete Service confirm */}
-      <Dialog open={deleteServiceId !== null} onOpenChange={o => { if (!o) setDeleteServiceId(null); }}>
+      <Dialog open={deleteServiceId !== null} onOpenChange={o => { if (!o) { setDeleteServiceId(null); deleteServiceMut.reset(); } }}>
         <DialogContent style={{ maxWidth: "22rem" }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Delete Service Record?</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-500">This will permanently remove this service entry. This cannot be undone.</p>
+          <DialogMutationError mutation={deleteServiceMut} message="Failed to delete record — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteServiceId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteServiceId && deleteServiceMut.mutate(deleteServiceId)} disabled={deleteServiceMut.isPending}>Delete</Button>

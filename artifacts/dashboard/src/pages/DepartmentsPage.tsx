@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Building2, Plus, Pencil, Trash2, RefreshCw, Eye, Users, UserX } from "lucide-react";
@@ -220,7 +221,7 @@ function DeptFormDialog({ farmId, dept, open, onClose }: DeptFormDialogProps) {
   });
 
   return (
-    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+    <Dialog open={open} onOpenChange={v => { if (!v) { save.reset(); onClose(); } }}>
       <DialogContent style={{ maxWidth: "32rem" }}>
         <DialogHeader>
           <DialogTitle>{dept ? "Edit Department" : "Add Department"}</DialogTitle>
@@ -276,8 +277,9 @@ function DeptFormDialog({ farmId, dept, open, onClose }: DeptFormDialogProps) {
             </div>
           </div>
         </div>
+        <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
         <DialogFooter>
-          <Button variant="outline" onClick={() => { reset(); onClose(); }}>Cancel</Button>
+          <Button variant="outline" onClick={() => { reset(); save.reset(); onClose(); }}>Cancel</Button>
           <Button onClick={() => save.mutate()} disabled={!name.trim() || save.isPending}>
             {save.isPending ? "Saving…" : dept ? "Save Changes" : "Add Department"}
           </Button>

@@ -19,6 +19,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -670,7 +671,7 @@ function BlockStatusTab({ farmId, farmName }: { farmId: number; farmName: string
         );
       })()}
 
-      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setPendingHistory([]); } }}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setPendingHistory([]); save.reset(); } }}>
         <DialogContent style={{ maxWidth: "40rem", maxHeight: "90vh", overflowY: "auto" }}>
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Block Status" : "Add Block Conversion Record"}</DialogTitle>
@@ -733,6 +734,7 @@ function BlockStatusTab({ farmId, farmName }: { farmId: number; farmName: string
                 />
             }
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setOpen(false); setPendingHistory([]); }}>Cancel</Button>
             <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.blockName}>
@@ -986,7 +988,7 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
       )}
 
       {/* Add / Edit Dialog */}
-      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setEditing(null); } }}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setEditing(null); save.reset(); } }}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Input Record" : "Log Organic Input"}</DialogTitle>
@@ -1162,6 +1164,7 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
             </div>
           </div>
 
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setOpen(false); setEditing(null); }}>Cancel</Button>
             <Button
@@ -1298,7 +1301,7 @@ function CertificatesTab({ farmId, farmName }: { farmId: number; farmName: strin
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={o => { if (!o) setOpen(false); }}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); save.reset(); } }}>
         <DialogContent style={{ maxWidth: "36rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Certificate" : "Add Organic Certificate"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
@@ -1334,6 +1337,7 @@ function CertificatesTab({ farmId, farmName }: { farmId: number; farmName: strin
             <div className="col-span-2"><Label>Document Reference</Label><Input value={form.documentRef ?? ""} onChange={e => setForm(f => ({ ...f, documentRef: e.target.value }))} /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.certifyingBody || !form.certificateNumber || !form.issueDate}>
@@ -1464,7 +1468,7 @@ function BuyerDeclarationsTab({ farmId, farmName }: { farmId: number; farmName: 
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={o => { if (!o) setOpen(false); }}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); save.reset(); } }}>
         <DialogContent style={{ maxWidth: "36rem" }}>
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Declaration" : "Add Buyer Organic Declaration"}</DialogTitle>
@@ -1492,6 +1496,7 @@ function BuyerDeclarationsTab({ farmId, farmName }: { farmId: number; farmName: 
             <div><Label>Declared By</Label><Input value={form.declaredBy ?? ""} onChange={e => setForm(f => ({ ...f, declaredBy: e.target.value }))} /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.declarationDate || !form.buyerName || !form.productDescription}>
@@ -1623,7 +1628,7 @@ function FpRecordDecisionDialog({ farmId, derogCase, onClose, onSaved }: {
     onError: () => toast({ title: "Error saving decision", variant: "destructive" }),
   });
   return (
-    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+    <Dialog open onOpenChange={o => { if (!o) { onClose(); mut.reset(); } }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Record Certifier Decision</DialogTitle>
@@ -1659,6 +1664,7 @@ function FpRecordDecisionDialog({ farmId, derogCase, onClose, onSaved }: {
             </>
           )}
         </div>
+        <DialogMutationError mutation={mut} message="Failed to save — your entries are still here." />
         <DialogFooter className="mt-4">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => mut.mutate()} disabled={mut.isPending || !decisionDate}>{mut.isPending ? "Saving…" : "Save Decision"}</Button>
@@ -1968,7 +1974,7 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
         })}
       </div>
 
-      <Dialog open={caseOpen} onOpenChange={v => { if (!v) { setCaseOpen(false); setEditingCase(null); } }}>
+      <Dialog open={caseOpen} onOpenChange={v => { if (!v) { setCaseOpen(false); setEditingCase(null); saveCase.reset(); } }}>
         <DialogContent style={{ maxWidth: "44rem" }}>
           <DialogHeader>
             <DialogTitle>{editingCase ? "Edit Derogation Case" : "Add Derogation Case"}</DialogTitle>
@@ -2064,6 +2070,7 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
               <Textarea value={caseForm.notes} onChange={cf("notes")} rows={2} />
             </div>
           </div>
+          <DialogMutationError mutation={saveCase} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setCaseOpen(false)}>Cancel</Button>
             <Button onClick={() => saveCase.mutate(caseForm as unknown as Record<string, unknown>)} disabled={!caseForm.inputName || saveCase.isPending}>
@@ -2082,7 +2089,7 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
         />
       )}
 
-      <Dialog open={correspOpen} onOpenChange={v => { if (!v) { setCorrespOpen(false); setEditingCorresp(null); } }}>
+      <Dialog open={correspOpen} onOpenChange={v => { if (!v) { setCorrespOpen(false); setEditingCorresp(null); saveCorresp.reset(); } }}>
         <DialogContent style={{ maxWidth: "38rem" }}>
           <DialogHeader>
             <DialogTitle>{editingCorresp ? "Edit Correspondence" : "Add Correspondence"}</DialogTitle>
@@ -2119,6 +2126,7 @@ function InputDerogationsTab({ farmId, farmName: _farmName }: { farmId: number; 
               <Input value={correspForm.notes} onChange={e => setCorrespForm(p => ({ ...p, notes: e.target.value }))} />
             </div>
           </div>
+          <DialogMutationError mutation={saveCorresp} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setCorrespOpen(false)}>Cancel</Button>
             <Button onClick={() => saveCorresp.mutate(correspForm as unknown as Record<string, unknown>)} disabled={!correspForm.summary || !correspForm.correspondenceDate || saveCorresp.isPending}>

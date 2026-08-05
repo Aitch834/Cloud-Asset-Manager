@@ -22,6 +22,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { printProReport, openPrintWindow, buildProReport } from "@/lib/print-report";
 import { LabSelector } from "@/components/ui/LabSelector";
@@ -1058,10 +1059,11 @@ export function HerdsSection({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMutation.reset(); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Herd Record</DialogTitle></DialogHeader>
           <p className="text-foreground/70 text-sm">Are you sure? This action cannot be undone.</p>
+          <DialogMutationError mutation={deleteMutation} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId && deleteMutation.mutate(deleteId)} disabled={deleteMutation.isPending}>
@@ -1154,7 +1156,7 @@ function CompletionHistoryDialog({ farmId, action, onClose }: { farmId: number; 
   });
   const completions = data?.completions ?? [];
   return (
-    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+    <Dialog open onOpenChange={o => { if (!o) { onClose(); deleteMut.reset(); } }}>
       <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><BookOpen className="w-4 h-4 text-primary" /> Completion History</DialogTitle>
@@ -1192,6 +1194,7 @@ function CompletionHistoryDialog({ farmId, action, onClose }: { farmId: number; 
             ))}
           </div>
         )}
+        <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Close</Button>
         </DialogFooter>
@@ -1255,7 +1258,7 @@ function MarkCompleteDialog({ farmId, action, onClose }: { farmId: number; actio
   });
 
   return (
-    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+    <Dialog open onOpenChange={o => { if (!o) { onClose(); completeMut.reset(); } }}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -1339,6 +1342,7 @@ function MarkCompleteDialog({ farmId, action, onClose }: { farmId: number; actio
             </div>
           )}
         </div>
+        <DialogMutationError mutation={completeMut} message="Failed to save — your entries are still here." />
         <DialogFooter className="mt-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => completeMut.mutate()} disabled={completeMut.isPending || isUploading} className="bg-emerald-600 hover:bg-emerald-700">
@@ -1484,7 +1488,7 @@ td{border:1px solid #e5e7eb;padding:7px 6px;font-size:11px}.summary{display:grid
   const isSaving = createActionMut.isPending || updateActionMut.isPending;
 
   return (
-    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+    <Dialog open onOpenChange={o => { if (!o) { onClose(); createActionMut.reset(); updateActionMut.reset(); } }}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -1570,6 +1574,8 @@ td{border:1px solid #e5e7eb;padding:7px 6px;font-size:11px}.summary{display:grid
                     <Input value={actionForm.notes} onChange={e => setActionField("notes", e.target.value)} placeholder="Additional details…" />
                   </div>
                 </div>
+                <DialogMutationError mutation={createActionMut} message="Failed to save — your entries are still here." />
+                <DialogMutationError mutation={updateActionMut} message="Failed to save — your entries are still here." />
                 <div className="flex gap-2 pt-1">
                   <Button type="submit" size="sm" disabled={isSaving}>{isSaving ? <><Loader2 className="animate-spin w-3.5 h-3.5 mr-1" />Saving…</> : editingAction ? "Update" : "Add Action"}</Button>
                   <Button type="button" size="sm" variant="outline" onClick={() => { setShowAddForm(false); setEditingAction(null); setActionForm(EMPTY_ACTION); }}>Cancel</Button>
@@ -1657,9 +1663,10 @@ td{border:1px solid #e5e7eb;padding:7px 6px;font-size:11px}.summary{display:grid
         <CompletionHistoryDialog farmId={farmId} action={historyAction} onClose={() => setHistoryAction(null)} />
       )}
       {deletingActionId !== null && (
-        <Dialog open onOpenChange={o => { if (!o) setDeletingActionId(null); }}>
+        <Dialog open onOpenChange={o => { if (!o) { setDeletingActionId(null); deleteActionMut.reset(); } }}>
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>Delete Action Point?</DialogTitle><DialogDescription>This action point and its completion history will be removed. This cannot be undone.</DialogDescription></DialogHeader>
+            <DialogMutationError mutation={deleteActionMut} message="Failed to delete — please try again." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeletingActionId(null)}>Cancel</Button>
               <Button variant="destructive" onClick={() => deleteActionMut.mutate(deletingActionId!)} disabled={deleteActionMut.isPending}>
@@ -2009,10 +2016,11 @@ export function VetHealthPlansSection({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMutation.reset(); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Vet Health Plan</DialogTitle></DialogHeader>
           <p className="text-foreground/70 text-sm">Are you sure? This action cannot be undone.</p>
+          <DialogMutationError mutation={deleteMutation} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId && deleteMutation.mutate(deleteId)} disabled={deleteMutation.isPending}>
@@ -2175,7 +2183,7 @@ export function FallenStockContractorsSection({ farmId }: { farmId: number }) {
       )}
 
       {showForm && (
-        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); createMut.reset(); updateMut.reset(); } }}>
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>{editing ? "Edit Fallen Stock Collector" : "Add Fallen Stock Collector"}</DialogTitle>
@@ -2205,6 +2213,8 @@ export function FallenStockContractorsSection({ farmId }: { farmId: number }) {
               <div><Label>Email</Label><Input value={form.email} onChange={e => setF("email", e.target.value)} type="email" /></div>
               <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setF("notes", e.target.value)} rows={2} /></div>
             </div>
+            <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+            <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
               <Button onClick={() => editing ? updateMut.mutate({ ...form, id: editing.id }) : createMut.mutate(form)}
@@ -2218,9 +2228,10 @@ export function FallenStockContractorsSection({ farmId }: { farmId: number }) {
       )}
 
       {deleteId !== null && (
-        <Dialog open onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <Dialog open onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>Remove Fallen Stock Collector?</DialogTitle><DialogDescription>This will remove them from the register. Existing mortality records won't be affected.</DialogDescription></DialogHeader>
+            <DialogMutationError mutation={deleteMut} message="Failed to remove — please try again." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
               <Button variant="destructive" onClick={() => deleteMut.mutate(deleteId!)} disabled={deleteMut.isPending}>
@@ -2464,7 +2475,7 @@ export function FeedSection({ farmId }: { farmId: number }) {
       )}
 
       {showForm && (
-        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); createMut.reset(); updateMut.reset(); } }}>
           <DialogContent style={{ maxWidth: "42rem" }}>
             <DialogHeader>
               <DialogTitle>{editing ? "Edit Feed Record" : "Record Feeding Event"}</DialogTitle>
@@ -2532,6 +2543,8 @@ export function FeedSection({ farmId }: { farmId: number }) {
                 <div><Label>Batch / Lot Number</Label><Input value={form.batchNumber} onChange={e => setField("batchNumber", e.target.value)} placeholder="Auto-filled from delivery" /></div>
               </div>
               <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setField("notes", e.target.value)} placeholder="Ration changes, refusals, withdrawal periods, etc." rows={2} /></div>
+              <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+              <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
                 <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>
@@ -2544,9 +2557,10 @@ export function FeedSection({ farmId }: { farmId: number }) {
       )}
 
       {deleteId !== null && (
-        <Dialog open onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <Dialog open onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>Delete Feed Record?</DialogTitle><DialogDescription>This will also restore the consumed quantity to the source bin. This cannot be undone.</DialogDescription></DialogHeader>
+            <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
               <Button variant="destructive" onClick={() => deleteMut.mutate(deleteId!)} disabled={deleteMut.isPending}>
@@ -2637,7 +2651,7 @@ function WaterCertificatesDialog({
   const testDateStr = record.testDate ? new Date(record.testDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—";
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+    <Dialog open onOpenChange={(o) => { if (!o) { onClose(); deleteMut.reset(); } }}>
       <DialogContent style={{ maxWidth: "42rem" }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -2753,6 +2767,7 @@ function WaterCertificatesDialog({
           </p>
         </div>
 
+        <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Close</Button>
         </DialogFooter>
@@ -2934,7 +2949,7 @@ export function WaterSection({ farmId }: { farmId: number }) {
       )}
 
       {showForm && (
-        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); createMut.reset(); updateMut.reset(); } }}>
           <DialogContent style={{ maxWidth: "36rem" }}>
             <DialogHeader>
               <DialogTitle>
@@ -2999,6 +3014,8 @@ export function WaterSection({ farmId }: { farmId: number }) {
                 </div>
               )}
               <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setField("notes", e.target.value)} placeholder="Lab reference, remedial actions, retest date, etc." rows={2} /></div>
+              <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+              <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
                 <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>
@@ -3011,9 +3028,10 @@ export function WaterSection({ farmId }: { farmId: number }) {
       )}
 
       {deleteId !== null && (
-        <Dialog open onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <Dialog open onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>Delete Water Record?</DialogTitle><DialogDescription>This cannot be undone.</DialogDescription></DialogHeader>
+            <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
               <Button variant="destructive" onClick={() => deleteMut.mutate(deleteId!)} disabled={deleteMut.isPending}>
@@ -4157,7 +4175,7 @@ export function AnimalsSection({ farmId }: { farmId: number }) {
       })()}
 
       {showForm && (
-        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); createMut.reset(); updateMut.reset(); } }}>
           <DialogContent style={{ maxWidth: "48rem" }}>
             <DialogHeader>
               <DialogTitle>{editing ? "Edit Animal Record" : "Register Individual Animal"}</DialogTitle>
@@ -4238,6 +4256,8 @@ export function AnimalsSection({ farmId }: { farmId: number }) {
                 <Label>Notes</Label>
                 <Input value={form.notes} onChange={e => setField("notes", e.target.value)} placeholder="Any additional notes" />
               </div>
+              <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+              <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
                 <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>
@@ -4250,9 +4270,10 @@ export function AnimalsSection({ farmId }: { farmId: number }) {
       )}
 
       {deleteId !== null && (
-        <Dialog open onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <Dialog open onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>Remove Animal Record?</DialogTitle><DialogDescription>This will mark the record as removed. It cannot be undone.</DialogDescription></DialogHeader>
+            <DialogMutationError mutation={deleteMut} message="Failed to remove — please try again." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
               <Button variant="destructive" onClick={() => deleteMut.mutate(deleteId!)} disabled={deleteMut.isPending}>
@@ -4410,7 +4431,7 @@ export function SiresSection({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setEditing(null); setForm(EMPTY_SIRE); } }}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setEditing(null); setForm(EMPTY_SIRE); createMut.reset(); updateMut.reset(); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Sire / Ram" : "Add Sire / Ram"}</DialogTitle>
@@ -4475,6 +4496,8 @@ export function SiresSection({ farmId }: { farmId: number }) {
               <div><Label>Fertility Test Result</Label><Input value={form.fertilityTestResult} onChange={e => setForm(f => ({ ...f, fertilityTestResult: e.target.value }))} placeholder="e.g. Satisfactory" /></div>
               <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
             </div>
+            <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+            <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); setForm(EMPTY_SIRE); }}>Cancel</Button>
               <Button type="submit" disabled={saving || !form.name.trim()}>{saving ? <Loader2 className="animate-spin h-4 w-4" /> : editing ? "Save Changes" : "Add Sire"}</Button>
@@ -4484,10 +4507,11 @@ export function SiresSection({ farmId }: { farmId: number }) {
       </Dialog>
 
       {deleteId !== null && (
-        <Dialog open onOpenChange={() => setDeleteId(null)}>
+        <Dialog open onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
           <DialogContent>
             <DialogHeader><DialogTitle>Remove Sire from Register?</DialogTitle></DialogHeader>
             <p className="text-sm text-muted-foreground">This will deactivate the sire record. Existing AI/reproduction records linked to this sire are unaffected.</p>
+            <DialogMutationError mutation={deleteMut} message="Failed to remove — please try again." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
               <Button variant="destructive" onClick={() => deleteMut.mutate(deleteId!)} disabled={deleteMut.isPending}>
@@ -4729,7 +4753,7 @@ export function AIReproductionSection({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "44rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Record" : "Add AI / Reproduction Record"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 max-h-[75vh] overflow-y-auto pr-1">
@@ -4860,6 +4884,7 @@ export function AIReproductionSection({ farmId }: { farmId: number }) {
             <div><Label>Confirmation Date</Label><Input type="date" value={String(form.confirmationDate ?? "")} onChange={e => setForm(f => ({ ...f, confirmationDate: e.target.value }))} /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button>
@@ -5037,7 +5062,7 @@ export function VetPrescriptionsSection({ farmId }: { farmId: number }) {
         confirmLabel="Delete"
         confirmVariant="destructive"
       />
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "52rem" }}>
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Medicine Record" : "Add Prescription / Medicine Treatment Record"}</DialogTitle>
@@ -5096,6 +5121,7 @@ export function VetPrescriptionsSection({ farmId }: { farmId: number }) {
               <strong>Recording actual treatments?</strong> Once medicine has been administered, record each treatment event — ear tags, date given, who administered it, batch number used — in the <strong>Medicine</strong> module (sidebar). When creating a treatment entry there, you can link it back to this prescription for a full audit trail. Keeping prescription authorisation and treatment administration in separate registers is the VMR 2013 standard.
             </div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save Record</Button>
@@ -5286,10 +5312,11 @@ export function StrawInventorySection({ farmId }: { farmId: number }) {
       )}
 
       {/* Delete confirm */}
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); del.reset(); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Remove from inventory?</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">This will mark the batch as inactive. AI records linked to it will not be affected.</p>
+          <DialogMutationError mutation={del} message="Failed to remove — please try again." />
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId && del.mutate(deleteId)} disabled={del.isPending}>Remove</Button>
@@ -5298,7 +5325,7 @@ export function StrawInventorySection({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Add / Edit dialog */}
-      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setEditing(null); setForm(EMPTY_STRAW); } }}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setEditing(null); setForm(EMPTY_STRAW); save.reset(); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Straw Batch" : "Log Straw Delivery"}</DialogTitle>
@@ -5339,6 +5366,7 @@ export function StrawInventorySection({ farmId }: { farmId: number }) {
               <div><Label>Unit Cost (£)</Label><Input type="number" min={0} step={0.01} value={form.unitCostPence !== "" ? Number(form.unitCostPence) / 100 : ""} onChange={e => setForm(f => ({ ...f, unitCostPence: e.target.value !== "" ? Math.round(Number(e.target.value) * 100) : "" }))} placeholder="e.g. 18.50" /></div>
               <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Health cert reference, catalogue page, etc." /></div>
             </div>
+            <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); setForm(EMPTY_STRAW); }}>Cancel</Button>
               <Button type="submit" disabled={save.isPending}>Save</Button>
@@ -5530,7 +5558,7 @@ export function LambingSection({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
-  function closeDialog() { setOpen(false); setEditing(null); setForm(EMPTY); setShowManualEwe(false); setShowManualVet(false); }
+  function closeDialog() { setOpen(false); setEditing(null); setForm(EMPTY); setShowManualEwe(false); setShowManualVet(false); save.reset(); }
   function openAdd() { setEditing(null); setForm({ ...EMPTY, lambingDate: todayStr() }); setShowManualEwe(false); setShowManualVet(false); setOpen(true); }
   function openEdit(r: LambingRecord) {
     setEditing(r);
@@ -6172,6 +6200,7 @@ ${yearlyStats.length > 1 ? `<h3>Season-by-Season Perinatal Mortality Trend</h3>
             </div>
           )}
 
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <div className="flex justify-end gap-2 pt-2 border-t">
             <Button variant="outline" onClick={closeDialog}>Cancel</Button>
             <Button disabled={save.isPending || !form.lambingDate} onClick={() => save.mutate(form)}>
@@ -6344,7 +6373,7 @@ export function TbTestsSection({ farmId }: { farmId: number }) {
       )}
 
       {showForm && (
-        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); createMut.reset(); updateMut.reset(); } }}>
           <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editing ? "Edit TB Test Record" : "Log TB Test"}</DialogTitle><DialogDescription>Record bovine TB test results as required by APHA and Red Tractor standards.</DialogDescription></DialogHeader>
             <div className="grid grid-cols-2 gap-4 mt-2">
@@ -6473,6 +6502,8 @@ export function TbTestsSection({ farmId }: { farmId: number }) {
                 </div>
               <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setF("notes", e.target.value || null)} rows={2} /></div>
             </div>
+            <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+            <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
               <Button onClick={() => editing ? updateMut.mutate({ ...form, id: editing.id }) : createMut.mutate(form)} disabled={!form.testDate || !form.outcome || createMut.isPending || updateMut.isPending}>
@@ -6876,7 +6907,7 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
           </div>}
 
       {viewItem && (
-        <Dialog open onOpenChange={() => setViewItem(null)}>
+        <Dialog open onOpenChange={o => { if (!o) { setViewItem(null); applyWalkthroughMut.reset(); deleteWalkthroughMut.reset(); } }}>
           <DialogContent className="max-w-lg">
             <DialogHeader><DialogTitle>WOA — {formatDate(viewItem.assessmentDate)}</DialogTitle><DialogDescription>{viewItem.species} · {viewItem.assessorName} · {viewItem.assessorType === "internal" ? "Farm Staff" : "External Assessor"}</DialogDescription></DialogHeader>
             <div className="grid grid-cols-2 gap-3 mt-2 text-sm">
@@ -6936,6 +6967,8 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
               </div>
             )}
 
+            <DialogMutationError mutation={applyWalkthroughMut} message="Failed to apply — please try again." />
+            <DialogMutationError mutation={deleteWalkthroughMut} message="Failed to delete — please try again." />
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => { openEdit(viewItem); setViewItem(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
               <Button variant="ghost" onClick={() => setViewItem(null)}>Close</Button>
@@ -6946,7 +6979,7 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
 
       {/* ── Walkthrough Tally Dialog ─────────────────────────────────────────── */}
       {showWalkthrough && (
-        <Dialog open onOpenChange={o => { if (!o) setShowWalkthrough(false); }}>
+        <Dialog open onOpenChange={o => { if (!o) { setShowWalkthrough(false); walkthroughMut.reset(); } }}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Record Walkthrough Observations</DialogTitle>
@@ -7007,6 +7040,7 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
                 <strong>Apply to assessment:</strong> Calculated percentages will be copied to the welfare measures fields. You can still edit them manually before saving.
               </div>
             </div>
+            <DialogMutationError mutation={walkthroughMut} message="Failed to save — your entries are still here." />
             <DialogFooter className="mt-4 gap-2">
               <Button variant="ghost" onClick={() => setShowWalkthrough(false)}>Cancel</Button>
               <Button onClick={applyWalkthrough} disabled={!wt.observedBy}><CheckCircle2 className="h-4 w-4 mr-1" />Apply to Assessment</Button>
@@ -7016,7 +7050,7 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
       )}
 
       {showForm && (
-        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); createMut.reset(); updateMut.reset(); applyWalkthroughMut.reset(); deleteWalkthroughMut.reset(); } }}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editing ? "Edit Welfare Assessment" : "Record Welfare Outcome Assessment"}</DialogTitle><DialogDescription>Complete welfare outcome measures as required by Red Tractor and cross compliance.</DialogDescription></DialogHeader>
             <div className="space-y-5 mt-2">
@@ -7286,6 +7320,10 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
               <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setF("notes", e.target.value || null)} rows={2} /></div>
               </div>
             </div>
+            <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+            <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
+            <DialogMutationError mutation={applyWalkthroughMut} message="Failed to apply — please try again." />
+            <DialogMutationError mutation={deleteWalkthroughMut} message="Failed to delete — please try again." />
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
               <Button onClick={() => editing ? updateMut.mutate({ ...form, id: editing.id }) : createMut.mutate(form)} disabled={!form.assessmentDate || !form.assessorName || createMut.isPending || updateMut.isPending}>
@@ -7472,7 +7510,7 @@ export function SheepDippingSection({ farmId }: { farmId: number }) {
       )}
 
       {showForm && (
-        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); createMut.reset(); updateMut.reset(); } }}>
           <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editing ? "Edit Dipping Record" : "Log Sheep Dipping"}</DialogTitle><DialogDescription>Complete all fields required under Control of Pesticides Regulations and Red Tractor SAS.</DialogDescription></DialogHeader>
             <div className="grid grid-cols-2 gap-4 mt-2">
@@ -7653,6 +7691,8 @@ export function SheepDippingSection({ farmId }: { farmId: number }) {
 
               <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setF("notes", e.target.value || null)} rows={2} /></div>
             </div>
+            <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+            <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
               <Button onClick={() => editing ? updateMut.mutate({ ...form, id: editing.id }) : createMut.mutate(form)} disabled={!form.dipDate || !form.productName || !form.operatorName || !form.sheepCount || createMut.isPending || updateMut.isPending}>
@@ -8502,7 +8542,7 @@ function IsolationRegisterSection({ farmId }: { farmId: number }) {
         })}
       </div>
 
-      <Dialog open={addOpen || !!editRec} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRec(null); setForm({ ...emptyForm }); } }}>
+      <Dialog open={addOpen || !!editRec} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRec(null); setForm({ ...emptyForm }); createMut.reset(); updateMut.reset(); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editRec ? "Edit Isolation Record" : "New Isolation Record"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
@@ -8591,6 +8631,8 @@ function IsolationRegisterSection({ farmId }: { farmId: number }) {
               <div><Label className="text-xs">Salmonella NCP Biosecurity Notes</Label><Input className="mt-1" value={form.sourceSalmonellaNotes} onChange={e => setForm(f => ({ ...f, sourceSalmonellaNotes: e.target.value }))} placeholder="e.g. Source flock most recent NCP result June 2026 Category 1…" /></div>
             </div>
           </div>
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setAddOpen(false); setEditRec(null); setForm({ ...emptyForm }); }}>Cancel</Button>
             <Button disabled={!form.isolationStartDate || createMut.isPending || updateMut.isPending} onClick={() => editRec ? updateMut.mutate({ id: editRec.id, b: form }) : createMut.mutate(form)}>
@@ -8600,10 +8642,11 @@ function IsolationRegisterSection({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 380 }}>
           <DialogHeader><DialogTitle>Delete Isolation Record</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">This will permanently delete this isolation record and all associated health checks.</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>Delete</Button>
@@ -8611,7 +8654,7 @@ function IsolationRegisterSection({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={hcOpen !== null} onOpenChange={o => { if (!o) setHcOpen(null); }}>
+      <Dialog open={hcOpen !== null} onOpenChange={o => { if (!o) { setHcOpen(null); createHcMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 420 }}>
           <DialogHeader><DialogTitle>Add Daily Health Check</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
@@ -8633,6 +8676,7 @@ function IsolationRegisterSection({ farmId }: { farmId: number }) {
             <div><Label className="text-xs">Notes</Label><Textarea value={hcForm.notes} onChange={e => setHcForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
             <div><Label className="text-xs">Action Taken</Label><Input value={hcForm.actionTaken} onChange={e => setHcForm(f => ({ ...f, actionTaken: e.target.value }))} placeholder="e.g. Vet called, medication administered" /></div>
           </div>
+          <DialogMutationError mutation={createHcMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setHcOpen(null)}>Cancel</Button>
             <Button disabled={!hcForm.checkDate || createHcMut.isPending} onClick={() => hcOpen !== null && createHcMut.mutate({ recId: hcOpen, b: hcForm })}>
@@ -8642,10 +8686,11 @@ function IsolationRegisterSection({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteHcId !== null} onOpenChange={o => { if (!o) setDeleteHcId(null); }}>
+      <Dialog open={deleteHcId !== null} onOpenChange={o => { if (!o) { setDeleteHcId(null); deleteHcMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 360 }}>
           <DialogHeader><DialogTitle>Delete Health Check</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Permanently delete this health check entry?</p>
+          <DialogMutationError mutation={deleteHcMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteHcId(null)}>Cancel</Button>
             <Button variant="destructive" disabled={deleteHcMut.isPending} onClick={() => deleteHcId && deleteHcMut.mutate(deleteHcId)}>Delete</Button>

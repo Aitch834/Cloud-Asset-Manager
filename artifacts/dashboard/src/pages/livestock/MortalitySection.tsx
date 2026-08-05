@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import {
   Plus, Search, Loader2, Pencil, Trash2, AlertTriangle,
@@ -204,7 +205,7 @@ function ArrangeDisposalDialog({ farmId, record, contractors, onClose }: {
   });
 
   return (
-    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+    <Dialog open onOpenChange={o => { if (!o) { mut.reset(); onClose(); } }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -261,6 +262,7 @@ function ArrangeDisposalDialog({ farmId, record, contractors, onClose }: {
             )}
           </div>
         </div>
+        <DialogMutationError mutation={mut} message="Failed to save — your entries are still here." />
         <DialogFooter className="mt-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => mut.mutate()} disabled={mut.isPending}>
@@ -294,7 +296,7 @@ function LogCollectionDialog({ farmId, record, onClose }: {
   const contractorLabel = record.contractorName || record.disposalOperator || "Contractor";
 
   return (
-    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+    <Dialog open onOpenChange={o => { if (!o) { mut.reset(); onClose(); } }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -317,6 +319,7 @@ function LogCollectionDialog({ farmId, record, onClose }: {
             </p>
           </div>
         </div>
+        <DialogMutationError mutation={mut} message="Failed to save — your entries are still here." />
         <DialogFooter className="mt-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => mut.mutate()} disabled={mut.isPending || !disposalRef.trim()}>
@@ -364,7 +367,7 @@ function CloseRecordDialog({ farmId, record, vetOptions, onClose }: {
   });
 
   return (
-    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+    <Dialog open onOpenChange={o => { if (!o) { mut.reset(); onClose(); } }}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -449,6 +452,7 @@ function CloseRecordDialog({ farmId, record, vetOptions, onClose }: {
             )}
           </div>
         </div>
+        <DialogMutationError mutation={mut} message="Failed to save — your entries are still here." />
         <DialogFooter className="mt-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => mut.mutate()} disabled={mut.isPending} className="bg-green-600 hover:bg-green-700">
@@ -861,7 +865,7 @@ export function MortalitySection({ farmId }: { farmId: number }) {
 
       {/* Full Edit / New Record Dialog */}
       {showFullEdit && (
-        <Dialog open onOpenChange={o => { if (!o) { setShowFullEdit(false); setEditRecord(null); setUseOtherVet(false); } }}>
+        <Dialog open onOpenChange={o => { if (!o) { setShowFullEdit(false); setEditRecord(null); setUseOtherVet(false); createMut.reset(); updateMut.reset(); } }}>
           <DialogContent style={{ maxWidth: "42rem" }}>
             <DialogHeader>
               <DialogTitle>{editRecord ? "Edit Mortality Record" : "Report Animal Death"}</DialogTitle>
@@ -1020,6 +1024,8 @@ export function MortalitySection({ farmId }: { farmId: number }) {
                 </div>
               )}
 
+              <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+              <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => { setShowFullEdit(false); setEditRecord(null); setUseOtherVet(false); }}>Cancel</Button>
                 <Button type="submit" disabled={createMut.isPending || updateMut.isPending || !fullForm.animalId}>
@@ -1044,9 +1050,10 @@ export function MortalitySection({ farmId }: { farmId: number }) {
 
       {/* Delete confirmation */}
       {deleteId !== null && (
-        <Dialog open onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <Dialog open onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>Delete Mortality Record?</DialogTitle><DialogDescription>This cannot be undone.</DialogDescription></DialogHeader>
+            <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
               <Button variant="destructive" onClick={() => deleteMut.mutate(deleteId!)} disabled={deleteMut.isPending}>

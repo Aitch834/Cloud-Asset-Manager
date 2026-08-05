@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { useToast } from "@/hooks/use-toast";
 
 const BASE = import.meta.env.BASE_URL;
@@ -571,7 +572,7 @@ export default function DairyRestockPage() {
       </div>
 
       {/* ─── Mark Ordered Dialog ─────────────────────────────────────────────────── */}
-      <Dialog open={!!orderDialog} onOpenChange={(o) => { if (!o) { setOrderDialog(null); setOrderRef(""); } }}>
+      <Dialog open={!!orderDialog} onOpenChange={(o) => { if (!o) { setOrderDialog(null); setOrderRef(""); markOrdered.reset(); } }}>
         <DialogContent style={{ maxWidth: "28rem" }}>
           <DialogHeader><DialogTitle>Mark as Ordered</DialogTitle></DialogHeader>
           {orderDialog && (
@@ -586,8 +587,9 @@ export default function DairyRestockPage() {
               </div>
             </div>
           )}
+          <DialogMutationError mutation={markOrdered} message="Failed to update — your entries are still here." />
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setOrderDialog(null); setOrderRef(""); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setOrderDialog(null); setOrderRef(""); markOrdered.reset(); }}>Cancel</Button>
             <Button disabled={markOrdered.isPending} onClick={() => orderDialog && markOrdered.mutate({ id: orderDialog.id, supplierOrderRef: orderRef })}>
               {markOrdered.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm Ordered"}
             </Button>
@@ -596,7 +598,7 @@ export default function DairyRestockPage() {
       </Dialog>
 
       {/* ─── Mark Received Dialog ────────────────────────────────────────────────── */}
-      <Dialog open={!!receiveDialog} onOpenChange={(o) => { if (!o) { setReceiveDialog(null); setReceiveQty(""); setReceiveBy(""); } }}>
+      <Dialog open={!!receiveDialog} onOpenChange={(o) => { if (!o) { setReceiveDialog(null); setReceiveQty(""); setReceiveBy(""); markReceived.reset(); } }}>
         <DialogContent style={{ maxWidth: "28rem" }}>
           <DialogHeader><DialogTitle>Confirm Receipt</DialogTitle></DialogHeader>
           {receiveDialog && (
@@ -623,8 +625,9 @@ export default function DairyRestockPage() {
               </div>
             </div>
           )}
+          <DialogMutationError mutation={markReceived} message="Failed to update — your entries are still here." />
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setReceiveDialog(null); setReceiveQty(""); setReceiveBy(""); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setReceiveDialog(null); setReceiveQty(""); setReceiveBy(""); markReceived.reset(); }}>Cancel</Button>
             <Button disabled={markReceived.isPending || !receiveQty}
               onClick={() => receiveDialog && markReceived.mutate({ id: receiveDialog.id, qtyReceived: Number(receiveQty), receivedBy: receiveBy })}>
               {markReceived.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm Received"}

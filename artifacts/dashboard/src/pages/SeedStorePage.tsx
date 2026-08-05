@@ -48,6 +48,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
@@ -1392,7 +1393,7 @@ export default function SeedStorePage() {
         </Dialog>
 
         {/* ── LOG / EDIT SEGREGATION CHECK DIALOG ── */}
-        <Dialog open={showSegDialog} onOpenChange={v => { setShowSegDialog(v); if (!v) { setEditSeg(null); setSegForm(emptySegForm); } }}>
+        <Dialog open={showSegDialog} onOpenChange={v => { setShowSegDialog(v); if (!v) { setEditSeg(null); setSegForm(emptySegForm); segMut.reset(); } }}>
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>{editSeg ? "Edit Segregation Check" : "Log Segregation Check"}</DialogTitle>
@@ -1494,6 +1495,7 @@ export default function SeedStorePage() {
                 </div>
               )}
             </div>
+            <DialogMutationError mutation={segMut} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowSegDialog(false)}>Cancel</Button>
               <Button
@@ -1520,7 +1522,7 @@ export default function SeedStorePage() {
           </DialogContent>
         </Dialog>
 
-        <AlertDialog open={!!deleteSegTarget} onOpenChange={(v) => !v && setDeleteSegTarget(null)}>
+        <AlertDialog open={!!deleteSegTarget} onOpenChange={(v) => { if (!v) { setDeleteSegTarget(null); deleteSegMut.reset(); } }}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Segregation Check?</AlertDialogTitle>
@@ -1528,6 +1530,7 @@ export default function SeedStorePage() {
                 This will permanently remove this segregation check record. This cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
+            <DialogMutationError mutation={deleteSegMut} message="Failed to delete — please try again." />
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={() => deleteSegTarget && deleteSegMut.mutate(deleteSegTarget.id)}>Delete</AlertDialogAction>
@@ -1568,7 +1571,7 @@ export default function SeedStorePage() {
         </Dialog>
 
         {/* ── LOG / EDIT SEED BATCH DIALOG ── */}
-        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); setForm(emptyForm); } }}>
+        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); setForm(emptyForm); saveMut.reset(); } }}>
           <DialogContent style={{ maxWidth: 480 }} className="max-h-[85vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editing ? "Edit Seed Batch" : "Log Seed Batch (GRN)"}</DialogTitle></DialogHeader>
             <div className="space-y-3 py-2">
@@ -1659,6 +1662,7 @@ export default function SeedStorePage() {
                 <Textarea rows={2} value={form.treatmentNotes} onChange={e => setForm((f: any) => ({ ...f, treatmentNotes: e.target.value }))} placeholder="e.g. Redigo Deter treated" />
               </div>
             </div>
+            <DialogMutationError mutation={saveMut} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
               <Button onClick={handleSave} disabled={savingBatch}>
@@ -1669,7 +1673,7 @@ export default function SeedStorePage() {
           </DialogContent>
         </Dialog>
 
-        <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
+        <AlertDialog open={!!deleteTarget} onOpenChange={(v) => { if (!v) { setDeleteTarget(null); deleteMut.reset(); } }}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Seed Batch?</AlertDialogTitle>
@@ -1677,6 +1681,7 @@ export default function SeedStorePage() {
                 This will permanently remove batch "{deleteTarget?.batchNumber}". This cannot be undone. If field assignments still reference this batch, deletion may fail.
               </AlertDialogDescription>
             </AlertDialogHeader>
+            <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={() => deleteTarget && deleteMut.mutate(deleteTarget.id)}>Delete</AlertDialogAction>
@@ -1712,7 +1717,7 @@ export default function SeedStorePage() {
         </Dialog>
 
         {/* ── SEED ORDER DIALOG ── */}
-        <Dialog open={showPoDialog} onOpenChange={v => !v && setShowPoDialog(false)}>
+        <Dialog open={showPoDialog} onOpenChange={v => { if (!v) { setShowPoDialog(false); poMut.reset(); } }}>
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>{editPo ? "Edit Seed Order" : "Raise Seed Order"}</DialogTitle>
@@ -1786,6 +1791,7 @@ export default function SeedStorePage() {
                 <Textarea value={poForm.notes ?? ""} onChange={e => setPoForm((f: any) => ({ ...f, notes: e.target.value }))} placeholder="Any notes about this order…" rows={2} />
               </div>
             </div>
+            <DialogMutationError mutation={poMut} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowPoDialog(false)}>Cancel</Button>
               <Button
@@ -1813,7 +1819,7 @@ export default function SeedStorePage() {
         </Dialog>
 
         {/* ── MARK AS RECEIVED DIALOG ── */}
-        <Dialog open={receivePoId !== null} onOpenChange={v => !v && setReceivePoId(null)}>
+        <Dialog open={receivePoId !== null} onOpenChange={v => { if (!v) { setReceivePoId(null); receivePoMut.reset(); } }}>
           <DialogContent className="max-w-sm">
             <DialogHeader>
               <DialogTitle>Mark Order as Received</DialogTitle>
@@ -1825,6 +1831,7 @@ export default function SeedStorePage() {
                 <Input type="date" value={receivePoDate} onChange={e => setReceivePoDate(e.target.value)} />
               </div>
             </div>
+            <DialogMutationError mutation={receivePoMut} message="Failed to save — please try again." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setReceivePoId(null)}>Cancel</Button>
               <Button
@@ -1837,7 +1844,7 @@ export default function SeedStorePage() {
           </DialogContent>
         </Dialog>
 
-        <AlertDialog open={!!deletePoTarget} onOpenChange={(v) => !v && setDeletePoTarget(null)}>
+        <AlertDialog open={!!deletePoTarget} onOpenChange={(v) => { if (!v) { setDeletePoTarget(null); deletePoMut.reset(); } }}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Seed Order?</AlertDialogTitle>
@@ -1845,6 +1852,7 @@ export default function SeedStorePage() {
                 This will permanently remove order "{deletePoTarget?.poNumber}". This cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
+            <DialogMutationError mutation={deletePoMut} message="Failed to delete — please try again." />
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={() => deletePoTarget && deletePoMut.mutate(deletePoTarget.id)}>Delete</AlertDialogAction>
@@ -1969,7 +1977,7 @@ export default function SeedStorePage() {
             )}
 
             {/* Assign to Field dialog */}
-            <Dialog open={!!assignBatch} onOpenChange={(v) => !v && setAssignBatch(null)}>
+            <Dialog open={!!assignBatch} onOpenChange={(v) => { if (!v) { setAssignBatch(null); assignMut.reset(); } }}>
               <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle>Assign to Field</DialogTitle>
@@ -2013,6 +2021,7 @@ export default function SeedStorePage() {
                     <Input type="date" value={assignDate} onChange={e => setAssignDate(e.target.value)} />
                   </div>
                 </div>
+                <DialogMutationError mutation={assignMut} message="Failed to save — your entries are still here." />
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setAssignBatch(null)}>Cancel</Button>
                   <Button
@@ -2026,7 +2035,7 @@ export default function SeedStorePage() {
             </Dialog>
 
             {/* Edit allocation dialog */}
-            <Dialog open={!!editAlloc} onOpenChange={(v) => !v && setEditAlloc(null)}>
+            <Dialog open={!!editAlloc} onOpenChange={(v) => { if (!v) { setEditAlloc(null); editAllocMut.reset(); } }}>
               <DialogContent className="max-w-sm">
                 <DialogHeader>
                   <DialogTitle>Edit Allocation</DialogTitle>
@@ -2044,6 +2053,7 @@ export default function SeedStorePage() {
                     <Input type="date" value={editAllocDate} onChange={e => setEditAllocDate(e.target.value)} />
                   </div>
                 </div>
+                <DialogMutationError mutation={editAllocMut} message="Failed to save — your entries are still here." />
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setEditAlloc(null)}>Cancel</Button>
                   <Button
@@ -2117,7 +2127,7 @@ export default function SeedStorePage() {
             )}
 
             {/* Record Stocktake dialog */}
-            <Dialog open={showStocktakeDialog} onOpenChange={(v) => !v && setShowStocktakeDialog(false)}>
+            <Dialog open={showStocktakeDialog} onOpenChange={(v) => { if (!v) { setShowStocktakeDialog(false); stocktakeMut.reset(); } }}>
               <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle>Record Stocktake</DialogTitle>
@@ -2193,6 +2203,7 @@ export default function SeedStorePage() {
                     />
                   </div>
                 </div>
+                <DialogMutationError mutation={stocktakeMut} message="Failed to save — your entries are still here." />
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setShowStocktakeDialog(false)}>Cancel</Button>
                   <Button

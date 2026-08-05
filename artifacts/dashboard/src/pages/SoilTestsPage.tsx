@@ -29,6 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
@@ -636,7 +637,7 @@ function RegisterTab({ farmId }: { farmId: number }) {
       )}
 
       {/* Add / Edit dialog */}
-      <Dialog open={addTestOpen} onOpenChange={(o) => { if (!o) { setAddTestOpen(false); setEditTest(null); setTestForm(EMPTY_TEST); setSampleLat(""); setSampleLng(""); setSampleLocationDesc(""); } }}>
+      <Dialog open={addTestOpen} onOpenChange={(o) => { if (!o) { setAddTestOpen(false); setEditTest(null); setTestForm(EMPTY_TEST); setSampleLat(""); setSampleLng(""); setSampleLocationDesc(""); createTest.reset(); updateTest.reset(); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -758,6 +759,7 @@ function RegisterTab({ farmId }: { farmId: number }) {
             {editTest && (
               <RecordAttachments farmId={farmId} recordType="soil_test" recordId={editTest.id} />
             )}
+            <DialogMutationError mutation={editTest ? updateTest : createTest} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setAddTestOpen(false); setEditTest(null); setTestForm(EMPTY_TEST); }}>Cancel</Button>
               <Button type="submit" disabled={createTest.isPending || updateTest.isPending}>
@@ -770,10 +772,11 @@ function RegisterTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Delete test confirmation */}
-      <Dialog open={deleteTestId !== null} onOpenChange={() => setDeleteTestId(null)}>
+      <Dialog open={deleteTestId !== null} onOpenChange={(o) => { if (!o) { setDeleteTestId(null); deleteTest.reset(); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Soil Sample</DialogTitle></DialogHeader>
           <p className="text-foreground/70 text-sm">This will permanently delete this sample and all its lab results from the register. Cannot be undone.</p>
+          <DialogMutationError mutation={deleteTest} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTestId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteTestId && deleteTest.mutate(deleteTestId)} disabled={deleteTest.isPending}>
@@ -784,10 +787,11 @@ function RegisterTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Delete result confirmation */}
-      <Dialog open={deleteResultInfo !== null} onOpenChange={() => setDeleteResultInfo(null)}>
+      <Dialog open={deleteResultInfo !== null} onOpenChange={(o) => { if (!o) { setDeleteResultInfo(null); deleteResult.reset(); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Remove Lab Result</DialogTitle></DialogHeader>
           <p className="text-foreground/70 text-sm">Remove this nutrient reading from the sample record?</p>
+          <DialogMutationError mutation={deleteResult} message="Failed to remove — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteResultInfo(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteResultInfo && deleteResult.mutate(deleteResultInfo)} disabled={deleteResult.isPending}>

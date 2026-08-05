@@ -23,6 +23,7 @@ import { BcsTab, BulkTankTab, CaeTab, AssuranceTab } from "@/pages/GoatDairyPage
 import { SccEquipmentSection } from "@/pages/DairyPage";
 import { AbrProcurementSection } from "@/pages/dairy/AbrProcurementSection";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 
 const BASE = import.meta.env.BASE_URL;
 const api = (path: string) => `${BASE}api/${path}`;
@@ -287,7 +288,7 @@ function FlockConversionTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Flock Conversion" : "Add Flock Conversion Record"}</DialogTitle>
@@ -329,6 +330,7 @@ function FlockConversionTab({ farmId }: { farmId: number }) {
             </div>
             <div className="col-span-2 space-y-1"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={f("notes")} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate()} disabled={!form.flockName || !form.conversionStartDate || save.isPending}>
@@ -600,7 +602,7 @@ function OrganicCollectionsTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Collection" : "Add Milk Collection"}</DialogTitle>
@@ -733,6 +735,7 @@ function OrganicCollectionsTab({ farmId }: { farmId: number }) {
               </div>
             </TabsContent>
           </Tabs>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate()} disabled={save.isPending}>
@@ -866,7 +869,7 @@ function FeedNutritionTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit" : "Add"} Feed Record</DialogTitle>
@@ -897,6 +900,7 @@ function FeedNutritionTab({ farmId }: { farmId: number }) {
             <div className="space-y-1"><Label>Derogation Reference</Label><Input value={form.derogationReference ?? ""} onChange={f("derogationReference")} /></div>
             <div className="col-span-2 space-y-1"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={f("notes")} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate()} disabled={!form.feedType || !form.feedProductName || save.isPending}>
@@ -1023,7 +1027,7 @@ function MastitisTab({ farmId }: { farmId: number }) {
           </DialogContent>
         </Dialog>
       )}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "38rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Mastitis Record" : "Add Mastitis Record"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
@@ -1063,6 +1067,7 @@ function MastitisTab({ farmId }: { farmId: number }) {
             </div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>{save.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1201,7 +1206,7 @@ function KiddingTab({ farmId }: { farmId: number }) {
           </DialogContent>
         </Dialog>
       )}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? "Edit Kidding Record" : "Add Kidding Record"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
@@ -1266,6 +1271,7 @@ function KiddingTab({ farmId }: { farmId: number }) {
             {form.vetAttended && <div><Label>Vet Name</Label><Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} /></div>}
             <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>{save.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1409,7 +1415,7 @@ function TreatmentRegisterTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Treatment" : "Record Vet Treatment"}</DialogTitle>
@@ -1452,6 +1458,7 @@ function TreatmentRegisterTab({ farmId }: { farmId: number }) {
             </div>
             <div className="col-span-2 space-y-1"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={f("notes")} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate()} disabled={!form.productName || save.isPending}>

@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   FlaskConical, Plus, ChevronLeft, Printer, Trash2, PlusCircle,
@@ -543,7 +544,7 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
       )}
 
       {/* Add Communication dialog */}
-      <Dialog open={addCommOpen} onOpenChange={o => { if (!o) { setAddCommOpen(false); } }}>
+      <Dialog open={addCommOpen} onOpenChange={o => { if (!o) { setAddCommOpen(false); addCommMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 460 }}>
           <DialogHeader><DialogTitle>Log Communication</DialogTitle></DialogHeader>
           <div style={{ display: "grid", gap: 12 }}>
@@ -582,6 +583,7 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
             <div><Label>Subject *</Label><Input className="mt-1" value={commForm.subject} onChange={e => setCommForm(f => ({ ...f, subject: e.target.value }))} placeholder="e.g. Protocol agreement, Results summary" /></div>
             <div><Label>Notes / Summary</Label><Textarea className="mt-1" rows={3} value={commForm.summary} onChange={e => setCommForm(f => ({ ...f, summary: e.target.value }))} placeholder="Key points, decisions, action items…" /></div>
           </div>
+          <DialogMutationError mutation={addCommMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddCommOpen(false)}>Cancel</Button>
             <Button disabled={!commForm.commDate || !commForm.subject.trim() || addCommMut.isPending} onClick={() => addCommMut.mutate(commForm)}>
@@ -592,7 +594,7 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
       </Dialog>
 
       {/* Add Plot dialog */}
-      <Dialog open={addPlotOpen} onOpenChange={o => { if (!o) setAddPlotOpen(false); }}>
+      <Dialog open={addPlotOpen} onOpenChange={o => { if (!o) { setAddPlotOpen(false); addPlotMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 460 }}>
           <DialogHeader><DialogTitle>Add Trial Plot</DialogTitle></DialogHeader>
           <div style={{ display: "grid", gap: 12 }}>
@@ -633,6 +635,7 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
               <label htmlFor="isControl" style={{ fontWeight: 600, fontSize: "0.875rem", cursor: "pointer" }}>This is the control plot (untreated / standard practice)</label>
             </div>
           </div>
+          <DialogMutationError mutation={addPlotMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddPlotOpen(false)}>Cancel</Button>
             <Button disabled={!plotForm.plotNumber.trim()} onClick={() => addPlotMut.mutate(plotForm)}>Add Plot</Button>
@@ -642,10 +645,11 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
 
       {/* Delete plot confirm */}
       {deletePlotId !== null && (
-        <Dialog open onOpenChange={() => setDeletePlotId(null)}>
+        <Dialog open onOpenChange={o => { if (!o) { setDeletePlotId(null); deletePlotMut.reset(); } }}>
           <DialogContent style={{ maxWidth: 360 }}>
             <DialogHeader><DialogTitle>Delete Plot?</DialogTitle></DialogHeader>
             <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>This will permanently remove this plot and all its treatments, observations and yield data.</p>
+            <DialogMutationError mutation={deletePlotMut} message="Failed to delete — please try again." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeletePlotId(null)}>Cancel</Button>
               <Button style={{ background: "#dc2626", color: "#fff" }} onClick={() => deletePlotMut.mutate(deletePlotId!)}>Delete</Button>
@@ -655,7 +659,7 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
       )}
 
       {/* Add Treatment dialog */}
-      <Dialog open={addTreatmentOpen} onOpenChange={o => { if (!o) setAddTreatmentOpen(false); }}>
+      <Dialog open={addTreatmentOpen} onOpenChange={o => { if (!o) { setAddTreatmentOpen(false); addTreatmentMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 480 }}>
           <DialogHeader><DialogTitle>Log Treatment — Plot {selectedPlot?.plotNumber}</DialogTitle></DialogHeader>
           <div style={{ display: "grid", gap: 12 }}>
@@ -676,6 +680,7 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
             </div>
             <div><Label>Notes</Label><Textarea rows={2} className="mt-1" value={txForm.notes} onChange={e => setTxForm(f => ({ ...f, notes: e.target.value }))} /></div>
           </div>
+          <DialogMutationError mutation={addTreatmentMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddTreatmentOpen(false)}>Cancel</Button>
             <Button disabled={!txForm.treatmentDate || !txForm.treatmentType || addTreatmentMut.isPending} onClick={() => addTreatmentMut.mutate(txForm)}>Save Treatment</Button>
@@ -684,7 +689,7 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
       </Dialog>
 
       {/* Add Observation dialog */}
-      <Dialog open={addObsOpen} onOpenChange={o => { if (!o) setAddObsOpen(false); }}>
+      <Dialog open={addObsOpen} onOpenChange={o => { if (!o) { setAddObsOpen(false); addObsMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 480 }}>
           <DialogHeader><DialogTitle>Record Observation — Plot {selectedPlot?.plotNumber}</DialogTitle></DialogHeader>
           <div style={{ display: "grid", gap: 12 }}>
@@ -723,6 +728,7 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
             {obsForm.pestPresent && <div><Label>Pest Name</Label><Input className="mt-1" value={obsForm.pestName} onChange={e => setObsForm(f => ({ ...f, pestName: e.target.value }))} placeholder="e.g. BYDV aphids, Orange wheat blossom midge" /></div>}
             <div><Label>Notes</Label><Textarea rows={2} className="mt-1" value={obsForm.notes} onChange={e => setObsForm(f => ({ ...f, notes: e.target.value }))} /></div>
           </div>
+          <DialogMutationError mutation={addObsMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddObsOpen(false)}>Cancel</Button>
             <Button disabled={!obsForm.observationDate || addObsMut.isPending} onClick={() => addObsMut.mutate(obsForm)}>Save Observation</Button>
@@ -731,7 +737,7 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
       </Dialog>
 
       {/* Add Yield dialog */}
-      <Dialog open={addYieldOpen} onOpenChange={o => { if (!o) setAddYieldOpen(false); }}>
+      <Dialog open={addYieldOpen} onOpenChange={o => { if (!o) { setAddYieldOpen(false); addYieldMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 500 }}>
           <DialogHeader><DialogTitle>Record Harvest Yield — Plot {selectedPlot?.plotNumber}</DialogTitle></DialogHeader>
           <div style={{ display: "grid", gap: 12 }}>
@@ -754,6 +760,7 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
             </div>
             <div><Label>Notes</Label><Textarea rows={2} className="mt-1" value={yieldForm.notes} onChange={e => setYieldForm(f => ({ ...f, notes: e.target.value }))} /></div>
           </div>
+          <DialogMutationError mutation={addYieldMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddYieldOpen(false)}>Cancel</Button>
             <Button disabled={!yieldForm.harvestDate || addYieldMut.isPending} onClick={() => addYieldMut.mutate({ ...yieldForm, yieldTha: yieldForm.yieldTha || computeYieldTha() || null })}>Save Yield</Button>
@@ -1028,7 +1035,7 @@ export default function CropTrialsPage() {
 
         {/* Add / Edit Trial dialog */}
         {addOpen && (
-          <Dialog open onOpenChange={o => { if (!o) { setAddOpen(false); setEditItem(null); } }}>
+          <Dialog open onOpenChange={o => { if (!o) { setAddOpen(false); setEditItem(null); createMut.reset(); updateMut.reset(); } }}>
             <DialogContent style={{ maxWidth: 560, maxHeight: "85vh", overflowY: "auto" }}>
               <DialogHeader><DialogTitle>{editItem ? "Edit Trial" : "Create New Trial"}</DialogTitle></DialogHeader>
               <div style={{ display: "grid", gap: 14 }}>
@@ -1158,6 +1165,8 @@ export default function CropTrialsPage() {
 
                 <div><Label>Notes</Label><Textarea className="mt-1" rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
               </div>
+              <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+              <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setAddOpen(false); setEditItem(null); }}>Cancel</Button>
                 <Button disabled={!form.trialName.trim() || !form.trialPurpose || !form.trialsBody || (form.trialsBody === "__other__" && !form.trialsBodyOther.trim()) || createMut.isPending || updateMut.isPending} onClick={handleSave}>
@@ -1170,10 +1179,11 @@ export default function CropTrialsPage() {
 
         {/* Delete confirm */}
         {deleteId !== null && (
-          <Dialog open onOpenChange={() => setDeleteId(null)}>
+          <Dialog open onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
             <DialogContent style={{ maxWidth: 380 }}>
               <DialogHeader><DialogTitle>Delete Trial?</DialogTitle></DialogHeader>
               <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>This will permanently remove this trial and all its plots, treatments, observations and yield data. This cannot be undone.</p>
+              <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
               <DialogFooter>
                 <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
                 <Button style={{ background: "#dc2626", color: "#fff" }} onClick={() => deleteMut.mutate(deleteId!)}>Delete</Button>

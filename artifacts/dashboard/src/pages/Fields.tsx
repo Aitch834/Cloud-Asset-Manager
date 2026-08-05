@@ -14,6 +14,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useFields, useAddField, useUpdateField, useDeleteField } from "@/hooks/use-fields";
@@ -564,8 +565,10 @@ function FieldCardMenu({
   const [savedCode, setSavedCode] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
-  const { mutate: updateField, isPending: isUpdating } = useUpdateField(farmId);
-  const { mutate: deleteField, isPending: isDeleting } = useDeleteField(farmId);
+  const updateFieldMut = useUpdateField(farmId);
+  const { mutate: updateField, isPending: isUpdating } = updateFieldMut;
+  const deleteFieldMut = useDeleteField(farmId);
+  const { mutate: deleteField, isPending: isDeleting } = deleteFieldMut;
 
   const autoCode = `FLD-${String(field.id).padStart(4, "0")}`;
   const displayCode = savedCode || (field as any).fieldCode || null;
@@ -688,7 +691,7 @@ function FieldCardMenu({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+      <Dialog open={editOpen} onOpenChange={o => { setEditOpen(o); if (!o) updateFieldMut.reset(); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Field</DialogTitle>
@@ -729,6 +732,7 @@ function FieldCardMenu({
                 Tracks this field in the Black-grass Five-in-Five cultural control view (Crop History &amp; Season Reports).
               </p>
             </div>
+            <DialogMutationError mutation={updateFieldMut} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={isUpdating}>{isUpdating ? "Saving..." : "Save Changes"}</Button>
@@ -737,7 +741,7 @@ function FieldCardMenu({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <Dialog open={deleteOpen} onOpenChange={o => { setDeleteOpen(o); if (!o) deleteFieldMut.reset(); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -748,6 +752,7 @@ function FieldCardMenu({
               Are you sure you want to delete <strong>{field.name || `Field #${field.id}`}</strong>? All associated crop records will also be removed and this cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          <DialogMutationError mutation={deleteFieldMut} message="Failed to delete — please try again." />
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
             <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
@@ -1417,10 +1422,11 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
         </Dialog>
       )}
 
-      <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMutation.reset(); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Drilling Record</DialogTitle></DialogHeader>
           <p className="text-foreground/70 text-sm">Are you sure? This action cannot be undone.</p>
+          <DialogMutationError mutation={deleteMutation} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId && deleteMutation.mutate(deleteId)} disabled={deleteMutation.isPending}>
@@ -1729,9 +1735,12 @@ export default function FieldsPage() {
 
   const { uploadFile, isUploading: isUploadingTenureDoc } = useUpload();
 
-  const { mutate: createField, isPending: creatingField } = useAddField(safeFarmId);
-  const { mutate: createCrop, isPending: creatingCrop } = useAddCrop(safeFarmId);
-  const { mutate: assignCrop, isPending: assigningCrop } = useAssignCrop(safeFarmId);
+  const createFieldMut = useAddField(safeFarmId);
+  const { mutate: createField, isPending: creatingField } = createFieldMut;
+  const createCropMut = useAddCrop(safeFarmId);
+  const { mutate: createCrop, isPending: creatingCrop } = createCropMut;
+  const assignCropMut = useAssignCrop(safeFarmId);
+  const { mutate: assignCrop, isPending: assigningCrop } = assignCropMut;
 
   const fieldForm = useForm<FieldFormData>();
   const cropForm = useForm<CropFormData>();
@@ -2026,7 +2035,7 @@ export default function FieldsPage() {
               <Button variant="outline" onClick={() => setPrintOpen(true)} className="gap-2 flex-shrink-0">
                 <Printer className="w-4 h-4" /> Print Register
               </Button>
-            <Dialog open={isAddFieldOpen} onOpenChange={setIsAddFieldOpen}>
+            <Dialog open={isAddFieldOpen} onOpenChange={o => { setIsAddFieldOpen(o); if (!o) createFieldMut.reset(); }}>
               <DialogTrigger asChild>
                 <Button className="w-full sm:w-auto"><Plus className="w-4 h-4 mr-2" /> Add Field</Button>
               </DialogTrigger>
@@ -2070,6 +2079,7 @@ export default function FieldsPage() {
                       Tracks this field in the Black-grass Five-in-Five cultural control view (Crop History &amp; Season Reports).
                     </p>
                   </div>
+                  <DialogMutationError mutation={createFieldMut} message="Failed to save — your entries are still here." />
                   <DialogFooter>
                     <Button type="button" variant="outline" onClick={() => setIsAddFieldOpen(false)}>Cancel</Button>
                     <Button type="submit" disabled={creatingField}>{creatingField ? "Saving..." : "Save Field"}</Button>
@@ -2307,7 +2317,7 @@ export default function FieldsPage() {
               <Button variant="outline" className="gap-2" onClick={() => setPrintOpen(true)}>
                 <Printer className="w-4 h-4" /> Print Register
               </Button>
-            <Dialog open={isAddCropOpen} onOpenChange={setIsAddCropOpen}>
+            <Dialog open={isAddCropOpen} onOpenChange={o => { setIsAddCropOpen(o); if (!o) createCropMut.reset(); }}>
               <DialogTrigger asChild>
                 <Button><Plus className="w-4 h-4 mr-2" /> Add Crop</Button>
               </DialogTrigger>
@@ -2335,6 +2345,7 @@ export default function FieldsPage() {
                       {CROP_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
+                  <DialogMutationError mutation={createCropMut} message="Failed to save — your entries are still here." />
                   <DialogFooter>
                     <Button type="button" variant="outline" onClick={() => setIsAddCropOpen(false)}>Cancel</Button>
                     <Button type="submit" disabled={creatingCrop}>{creatingCrop ? "Saving..." : "Add Crop"}</Button>
@@ -3909,7 +3920,7 @@ export default function FieldsPage() {
       )}
 
       {/* ── ASSIGN CROP DIALOG ── */}
-      <Dialog open={!!assignForField} onOpenChange={(o) => { if (!o) setAssignForField(null); }}>
+      <Dialog open={!!assignForField} onOpenChange={(o) => { if (!o) { setAssignForField(null); assignCropMut.reset(); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -4139,6 +4150,7 @@ export default function FieldsPage() {
                 </div>
               </div>
 
+              <DialogMutationError mutation={assignCropMut} message="Failed to save — your entries are still here." />
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setAssignForField(null)}>Cancel</Button>
                 <Button type="submit" disabled={assigningCrop}>{assigningCrop ? "Saving..." : "Assign Crop"}</Button>
@@ -4156,7 +4168,7 @@ export default function FieldsPage() {
           : landUseForField;
         const isOpen = !!landUseForField || !!editingLandUseRecord;
         const watchedLandUse = landUseForm.watch("landUse");
-        const onClose = () => { setLandUseForField(null); setEditingLandUseRecord(null); landUseForm.reset(); };
+        const onClose = () => { setLandUseForField(null); setEditingLandUseRecord(null); landUseForm.reset(); createLandUseMut.reset(); updateLandUseMut.reset(); };
         const onSubmitLandUse = (values: LandUseFormData) => {
           const payload = {
             fieldId: targetField!.id,
@@ -4238,6 +4250,8 @@ export default function FieldsPage() {
                   <label className="text-sm font-medium mb-1.5 block">Management Notes</label>
                   <textarea {...landUseForm.register("managementNotes")} rows={3} placeholder="e.g. Wild bird seed mix sown April 2026. No cultivation or spraying until Aug." className="w-full border border-input rounded-md px-3 py-2 text-sm bg-white resize-none" />
                 </div>
+                <DialogMutationError mutation={createLandUseMut} message="Failed to save — your entries are still here." />
+                <DialogMutationError mutation={updateLandUseMut} message="Failed to save — your entries are still here." />
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
                   <Button type="submit" disabled={createLandUseMut.isPending || updateLandUseMut.isPending}>
@@ -5468,7 +5482,7 @@ function GrasslandSection({ farmId, fields }: { farmId: number; fields: any[] })
             })}
           </div>
 
-          <Dialog open={gAddOpen || !!gEditRec} onOpenChange={o => { if (!o) { setGAddOpen(false); setGEditRec(null); setGForm({ ...gEmpty }); } }}>
+          <Dialog open={gAddOpen || !!gEditRec} onOpenChange={o => { if (!o) { setGAddOpen(false); setGEditRec(null); setGForm({ ...gEmpty }); gCreateMut.reset(); gUpdateMut.reset(); } }}>
             <DialogContent className="max-w-lg">
               <DialogHeader><DialogTitle>{gEditRec ? "Edit Grazing Event" : "Log Grazing Event"}</DialogTitle></DialogHeader>
               <div className="space-y-3 py-2">
@@ -5501,6 +5515,8 @@ function GrasslandSection({ farmId, fields }: { farmId: number; fields: any[] })
                 </div>
                 <div><Label className="text-xs">Notes</Label><Textarea value={gForm.notes} onChange={e => setGForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
               </div>
+              <DialogMutationError mutation={gCreateMut} message="Failed to save — your entries are still here." />
+              <DialogMutationError mutation={gUpdateMut} message="Failed to save — your entries are still here." />
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setGAddOpen(false); setGEditRec(null); setGForm({ ...gEmpty }); }}>Cancel</Button>
                 <Button disabled={!gForm.fieldId || !gForm.entryDate || gCreateMut.isPending || gUpdateMut.isPending} onClick={() => gEditRec ? gUpdateMut.mutate({ id: gEditRec.id, b: gForm }) : gCreateMut.mutate(gForm)}>
@@ -5510,8 +5526,8 @@ function GrasslandSection({ farmId, fields }: { farmId: number; fields: any[] })
             </DialogContent>
           </Dialog>
 
-          <Dialog open={gDeleteId !== null} onOpenChange={o => { if (!o) setGDeleteId(null); }}>
-            <DialogContent style={{ maxWidth: 360 }}><DialogHeader><DialogTitle>Delete Grazing Event</DialogTitle></DialogHeader><p className="text-sm text-gray-600 py-2">Permanently delete this grazing event?</p><DialogFooter><Button variant="outline" onClick={() => setGDeleteId(null)}>Cancel</Button><Button variant="destructive" disabled={gDeleteMut.isPending} onClick={() => gDeleteId !== null && gDeleteMut.mutate(gDeleteId)}>Delete</Button></DialogFooter></DialogContent>
+          <Dialog open={gDeleteId !== null} onOpenChange={o => { if (!o) { setGDeleteId(null); gDeleteMut.reset(); } }}>
+            <DialogContent style={{ maxWidth: 360 }}><DialogHeader><DialogTitle>Delete Grazing Event</DialogTitle></DialogHeader><p className="text-sm text-gray-600 py-2">Permanently delete this grazing event?</p><DialogMutationError mutation={gDeleteMut} message="Failed to delete — please try again." /><DialogFooter><Button variant="outline" onClick={() => setGDeleteId(null)}>Cancel</Button><Button variant="destructive" disabled={gDeleteMut.isPending} onClick={() => gDeleteId !== null && gDeleteMut.mutate(gDeleteId)}>Delete</Button></DialogFooter></DialogContent>
           </Dialog>
         </div>
       )}
@@ -5551,7 +5567,7 @@ function GrasslandSection({ farmId, fields }: { farmId: number; fields: any[] })
             })}
           </div>
 
-          <Dialog open={rAddOpen || !!rEditRec} onOpenChange={o => { if (!o) { setRAddOpen(false); setREditRec(null); setRForm({ ...rEmpty }); } }}>
+          <Dialog open={rAddOpen || !!rEditRec} onOpenChange={o => { if (!o) { setRAddOpen(false); setREditRec(null); setRForm({ ...rEmpty }); rCreateMut.reset(); rUpdateMut.reset(); } }}>
             <DialogContent className="max-w-lg">
               <DialogHeader><DialogTitle>{rEditRec ? "Edit Reseeding Record" : "Add Reseeding Record"}</DialogTitle></DialogHeader>
               <div className="space-y-3 py-2">
@@ -5577,6 +5593,8 @@ function GrasslandSection({ farmId, fields }: { farmId: number; fields: any[] })
                 </div>
                 <div><Label className="text-xs">Notes</Label><Textarea value={rForm.notes} onChange={e => setRForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
               </div>
+              <DialogMutationError mutation={rCreateMut} message="Failed to save — your entries are still here." />
+              <DialogMutationError mutation={rUpdateMut} message="Failed to save — your entries are still here." />
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setRAddOpen(false); setREditRec(null); setRForm({ ...rEmpty }); }}>Cancel</Button>
                 <Button disabled={!rForm.fieldId || !rForm.reseedingDate || rCreateMut.isPending || rUpdateMut.isPending} onClick={() => rEditRec ? rUpdateMut.mutate({ id: rEditRec.id, b: rForm }) : rCreateMut.mutate(rForm)}>
@@ -5586,8 +5604,8 @@ function GrasslandSection({ farmId, fields }: { farmId: number; fields: any[] })
             </DialogContent>
           </Dialog>
 
-          <Dialog open={rDeleteId !== null} onOpenChange={o => { if (!o) setRDeleteId(null); }}>
-            <DialogContent style={{ maxWidth: 360 }}><DialogHeader><DialogTitle>Delete Reseeding Record</DialogTitle></DialogHeader><p className="text-sm text-gray-600 py-2">Permanently delete this reseeding record?</p><DialogFooter><Button variant="outline" onClick={() => setRDeleteId(null)}>Cancel</Button><Button variant="destructive" disabled={rDeleteMut.isPending} onClick={() => rDeleteId !== null && rDeleteMut.mutate(rDeleteId)}>Delete</Button></DialogFooter></DialogContent>
+          <Dialog open={rDeleteId !== null} onOpenChange={o => { if (!o) { setRDeleteId(null); rDeleteMut.reset(); } }}>
+            <DialogContent style={{ maxWidth: 360 }}><DialogHeader><DialogTitle>Delete Reseeding Record</DialogTitle></DialogHeader><p className="text-sm text-gray-600 py-2">Permanently delete this reseeding record?</p><DialogMutationError mutation={rDeleteMut} message="Failed to delete — please try again." /><DialogFooter><Button variant="outline" onClick={() => setRDeleteId(null)}>Cancel</Button><Button variant="destructive" disabled={rDeleteMut.isPending} onClick={() => rDeleteId !== null && rDeleteMut.mutate(rDeleteId)}>Delete</Button></DialogFooter></DialogContent>
           </Dialog>
         </div>
       )}

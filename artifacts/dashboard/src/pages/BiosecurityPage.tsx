@@ -22,6 +22,7 @@ import { useUpload } from "@workspace/object-storage-web";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -401,7 +402,7 @@ function VisitorTab({ farmId, farmName }: { farmId: number; farmName: string }) 
         </Dialog>
       )}
 
-      <Dialog open={formOpen} onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditing(null); setForm(EMPTY_VISITOR); } }}>
+      <Dialog open={formOpen} onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditing(null); setForm(EMPTY_VISITOR); createM.reset(); updateM.reset(); } }}>
         <DialogContent style={{ maxWidth: "56rem" }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -537,6 +538,7 @@ function VisitorTab({ farmId, farmName }: { farmId: number; farmName: string }) 
               </p>
             )}
 
+            <DialogMutationError mutation={editing ? updateM : createM} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setEditing(null); setForm(EMPTY_VISITOR); }}>Cancel</Button>
               <Button type="submit" disabled={isSubmitting}>
@@ -548,10 +550,11 @@ function VisitorTab({ farmId, farmName }: { farmId: number; farmName: string }) 
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteM.reset(); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Visitor Record</DialogTitle></DialogHeader>
           <p className="text-foreground/70 text-sm">Are you sure? This action cannot be undone.</p>
+          <DialogMutationError mutation={deleteM} message="Couldn't delete — the record is still here. Try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId && deleteM.mutate(deleteId)} disabled={deleteM.isPending}>
@@ -819,7 +822,7 @@ function PestControlTab({ farmId, farmName }: { farmId: number; farmName: string
         </Dialog>
       )}
 
-      <Dialog open={formOpen} onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditing(null); setForm(EMPTY_PEST); } }}>
+      <Dialog open={formOpen} onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditing(null); setForm(EMPTY_PEST); createM.reset(); updateM.reset(); } }}>
         <DialogContent style={{ maxWidth: "52rem" }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -873,6 +876,7 @@ function PestControlTab({ farmId, farmName }: { farmId: number; farmName: string
               <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
               <Input placeholder="Additional notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
+            <DialogMutationError mutation={editing ? updateM : createM} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setEditing(null); setForm(EMPTY_PEST); }}>Cancel</Button>
               <Button type="submit" disabled={isSubmitting}>
@@ -884,10 +888,11 @@ function PestControlTab({ farmId, farmName }: { farmId: number; farmName: string
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteM.reset(); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Pest Control Record</DialogTitle></DialogHeader>
           <p className="text-foreground/70 text-sm">Are you sure? This action cannot be undone.</p>
+          <DialogMutationError mutation={deleteM} message="Couldn't delete — the record is still here. Try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId && deleteM.mutate(deleteId)} disabled={deleteM.isPending}>
@@ -1378,7 +1383,7 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
       </div>
 
       {/* ── Add / Edit Cleaning Record Dialog ────────────────────────────── */}
-      <Dialog open={formOpen} onOpenChange={(o) => { if (!o) resetCleaningDialog(); }}>
+      <Dialog open={formOpen} onOpenChange={(o) => { if (!o) { resetCleaningDialog(); createM.reset(); updateM.reset(); } }}>
         <DialogContent style={{ maxWidth: "58rem" }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1636,6 +1641,7 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
               </p>
             )}
 
+            <DialogMutationError mutation={editing ? updateM : createM} message="Failed to save — your entries are still here." />
             <DialogFooter className="mt-4">
               <Button type="button" variant="outline" onClick={resetCleaningDialog}>Cancel</Button>
               <Button type="submit" disabled={isSubmitting}>
@@ -1734,10 +1740,11 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
       )}
 
       {/* ── Delete Record Dialog ──────────────────────────────────────────── */}
-      <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteM.reset(); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Cleaning Record</DialogTitle></DialogHeader>
           <p className="text-foreground/70 text-sm">Are you sure? This action cannot be undone.</p>
+          <DialogMutationError mutation={deleteM} message="Couldn't delete — the record is still here. Try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId && deleteM.mutate(deleteId)} disabled={deleteM.isPending}>
@@ -1748,7 +1755,7 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
       </Dialog>
 
       {/* ── Add / Edit Schedule Rule Dialog ──────────────────────────────── */}
-      <Dialog open={scheduleOpen} onOpenChange={o => { if (!o) { setScheduleOpen(false); setEditingSchedule(null); setScheduleForm(EMPTY_SCHEDULE); } }}>
+      <Dialog open={scheduleOpen} onOpenChange={o => { if (!o) { setScheduleOpen(false); setEditingSchedule(null); setScheduleForm(EMPTY_SCHEDULE); createScheduleM.reset(); updateScheduleM.reset(); } }}>
         <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Clock className="w-4 h-4 text-primary" />{editingSchedule ? "Edit Schedule Rule" : "Add Schedule Rule"}</DialogTitle>
@@ -1786,6 +1793,7 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
                 <Input placeholder="Optional — e.g. Red Tractor requirement, quarterly inspection" value={scheduleForm.notes} onChange={e => setScheduleForm(f => ({ ...f, notes: e.target.value }))} />
               </div>
             </div>
+            <DialogMutationError mutation={editingSchedule ? updateScheduleM : createScheduleM} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setScheduleOpen(false); setEditingSchedule(null); setScheduleForm(EMPTY_SCHEDULE); }}>Cancel</Button>
               <Button type="submit" disabled={createScheduleM.isPending || updateScheduleM.isPending}>
@@ -1798,10 +1806,11 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
       </Dialog>
 
       {/* ── Delete Schedule Rule Dialog ───────────────────────────────────── */}
-      <Dialog open={deleteScheduleId !== null} onOpenChange={() => setDeleteScheduleId(null)}>
+      <Dialog open={deleteScheduleId !== null} onOpenChange={o => { if (!o) { setDeleteScheduleId(null); deleteScheduleM.reset(); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Schedule Rule</DialogTitle></DialogHeader>
           <p className="text-foreground/70 text-sm">This rule will no longer auto-calculate Next Due Date. Existing records are not affected.</p>
+          <DialogMutationError mutation={deleteScheduleM} message="Couldn't delete — the rule is still here. Try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteScheduleId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteScheduleId && deleteScheduleM.mutate(deleteScheduleId)} disabled={deleteScheduleM.isPending}>
@@ -1987,7 +1996,7 @@ function CoshhTab({ farmId, farmName }: { farmId: number; farmName: string }) {
         </Dialog>
       )}
 
-      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) resetForm(); }}>
+      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) { resetForm(); createMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 560 }}>
           <DialogHeader><DialogTitle>Add COSHH Assessment</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
@@ -2011,6 +2020,7 @@ function CoshhTab({ farmId, farmName }: { farmId: number; farmName: string }) {
               <span>📎</span> Save the assessment first, then open it to attach the Safety Data Sheet or other documents.
             </p>
           </div>
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
             <Button onClick={() => createMut.mutate(form)} disabled={!form.substanceName || !form.assessmentDate || createMut.isPending}>Save Assessment</Button>
@@ -2018,10 +2028,11 @@ function CoshhTab({ farmId, farmName }: { farmId: number; farmName: string }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete COSHH Assessment</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Delete this COSHH assessment record?</p>
+          <DialogMutationError mutation={deleteMut} message="Couldn't delete — the record is still here. Try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>

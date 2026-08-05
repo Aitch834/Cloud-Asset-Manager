@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -169,7 +170,7 @@ function WeighTab({ farmId, onRaiseTask }: { farmId: number; onRaiseTask: (row: 
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Weigh Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
@@ -207,6 +208,7 @@ function WeighTab({ farmId, onRaiseTask }: { farmId: number; onRaiseTask: (row: 
             <Field label="Weighed By"><Input value={form.weighedBy ?? ""} onChange={e => sf("weighedBy", e.target.value)} /></Field>
             <div className="col-span-2"><Field label="Notes"><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></Field></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate({ ...form })} disabled={save.isPending}>{editing ? "Save" : "Add"}</Button>
@@ -297,7 +299,7 @@ function FinishingTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Finishing Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2"><Field label="Herd / Group">
@@ -346,6 +348,7 @@ function FinishingTab({ farmId }: { farmId: number }) {
             <div className="col-span-2"><Field label="Rations Description"><Textarea value={form.rationsDescription ?? ""} onChange={e => sf("rationsDescription", e.target.value)} rows={2} /></Field></div>
             <div className="col-span-2"><Field label="Notes"><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></Field></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate({ ...form })} disabled={save.isPending}>{editing ? "Save" : "Add"}</Button>
@@ -428,7 +431,7 @@ function DeadweightTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Settlement Note</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Kill Date *"><Input type="date" value={form.killDate ?? ""} onChange={e => sf("killDate", e.target.value)} /></Field>
@@ -452,6 +455,7 @@ function DeadweightTab({ farmId }: { farmId: number }) {
             <div className="flex items-center gap-2 mt-5"><Checkbox checked={form.paymentReceived === "true"} onCheckedChange={v => sf("paymentReceived", v ? "true" : "false")} id="pr" /><Label htmlFor="pr">Payment received</Label></div>
             <div className="col-span-2"><Field label="Notes"><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></Field></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate({ ...form })} disabled={save.isPending}>{editing ? "Save" : "Add"}</Button>
@@ -532,7 +536,7 @@ function RTChecklistTab({ farmId }: { farmId: number }) {
           <DialogFooter><Button variant="outline" onClick={() => setViewing(null)}>Close</Button></DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{editing ? "Edit" : "New"} RT Beef & Cattle Checklist</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Check Date *"><Input type="date" value={form.checkDate ?? ""} onChange={e => sf("checkDate", e.target.value)} /></Field>
@@ -553,6 +557,7 @@ function RTChecklistTab({ farmId }: { farmId: number }) {
             </Field>
             <div className="col-span-2"><Field label="Notes"><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></Field></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate({ ...form })} disabled={save.isPending}>{editing ? "Save" : "Add"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>

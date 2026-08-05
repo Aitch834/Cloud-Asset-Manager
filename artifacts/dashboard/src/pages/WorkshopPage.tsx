@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OtherSelect } from "@/components/ui/other-select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -675,7 +676,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
       )}
 
       {/* ── Workshop Settings Dialog ── */}
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+      <Dialog open={settingsOpen} onOpenChange={o => { setSettingsOpen(o); if (!o) saveWorkshopSettings.reset(); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Settings className="h-4 w-4" />Workshop Labour Settings</DialogTitle>
@@ -695,6 +696,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
               <p className="text-xs text-gray-400 mt-1">Labour is billed in multiples of this unit (e.g. 15 = quarter-hour billing)</p>
             </div>
           </div>
+          <DialogMutationError mutation={saveWorkshopSettings} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setSettingsOpen(false)}>Cancel</Button>
             <Button
@@ -712,7 +714,7 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
         </DialogContent>
       </Dialog>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "68rem" }} className="flex flex-col p-0 gap-0 max-h-[92vh]">
           {/* ── Header ── */}
           <div className="px-6 py-4 border-b flex items-center justify-between shrink-0">
@@ -1166,6 +1168,9 @@ function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId
           </div>
 
           {/* ── Footer ── */}
+          <div className="px-6 pt-3 shrink-0">
+            <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
+          </div>
           <div className="px-6 py-4 border-t flex items-center shrink-0">
             {editing && editing.status === "completed" && editing.customerId && !editing.serviceInvoiceId && (
               <Button
@@ -1349,7 +1354,7 @@ function ServiceScheduleTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Log Service Done dialog */}
-      <Dialog open={!!logEntry} onOpenChange={() => setLogEntry(null)}>
+      <Dialog open={!!logEntry} onOpenChange={o => { if (!o) { setLogEntry(null); logMut.reset(); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Log Service Done</DialogTitle>
@@ -1390,6 +1395,7 @@ function ServiceScheduleTab({ farmId }: { farmId: number }) {
               <textarea className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring" rows={2} placeholder="Any observations, issues noted, or follow-up required…" value={logForm.notes} onChange={e => setLogForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
+          <DialogMutationError mutation={logMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setLogEntry(null)}>Cancel</Button>
             <Button onClick={submitLog} disabled={!logForm.performedDate || logMut.isPending}>
@@ -1747,7 +1753,7 @@ function GoodsReturnsView({ farmId, parts, staffNames, membersLoading }: { farmI
       )}
 
       {/* ── New Return dialog ── */}
-      <Dialog open={newOpen} onOpenChange={setNewOpen}>
+      <Dialog open={newOpen} onOpenChange={o => { setNewOpen(o); if (!o) createReturn.reset(); }}>
         <DialogContent style={{ maxWidth: "48rem" }}>
           <DialogHeader><DialogTitle>Raise Goods Return</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
@@ -1816,6 +1822,7 @@ function GoodsReturnsView({ farmId, parts, staffNames, membersLoading }: { farmI
             </div>
           </div>
           <p className="text-xs text-gray-400">Stock level will be automatically decremented when the return is raised.</p>
+          <DialogMutationError mutation={createReturn} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewOpen(false)}>Cancel</Button>
             <Button onClick={() => createReturn.mutate({ ...form, unitCostPence: form.unitCostPence ? String(Math.round(parseFloat(form.unitCostPence) * 100)) : "" })}
@@ -1828,7 +1835,7 @@ function GoodsReturnsView({ farmId, parts, staffNames, membersLoading }: { farmI
       </Dialog>
 
       {/* ── Update Return dialog ── */}
-      <Dialog open={!!editReturn} onOpenChange={open => { if (!open) setEditReturn(null); }}>
+      <Dialog open={!!editReturn} onOpenChange={open => { if (!open) { setEditReturn(null); updateReturn.reset(); } }}>
         <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1879,6 +1886,7 @@ function GoodsReturnsView({ farmId, parts, staffNames, membersLoading }: { farmI
                   <Textarea value={editForm.notes} onChange={e => setEF("notes", e.target.value)} rows={2} />
                 </div>
               </div>
+              <DialogMutationError mutation={updateReturn} message="Failed to save — your entries are still here." />
               <DialogFooter>
                 <Button variant="outline" onClick={() => setEditReturn(null)}>Cancel</Button>
                 <Button onClick={() => updateReturn.mutate({ id: editReturn.id, body: {

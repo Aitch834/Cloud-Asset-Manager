@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OtherSelect } from "@/components/ui/other-select";
 import {
@@ -319,7 +320,7 @@ function InvestigateDialog({ farmId, record, onClose }: { farmId: number; record
   });
 
   return (
-    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+    <Dialog open onOpenChange={o => { if (!o) { mut.reset(); onClose(); } }}>
       <DialogContent style={{ maxWidth: 520 }}>
         <DialogHeader>
           <DialogTitle>Record Investigation</DialogTitle>
@@ -350,6 +351,7 @@ function InvestigateDialog({ farmId, record, onClose }: { farmId: number; record
             </div>
           )}
         </div>
+        <DialogMutationError mutation={mut} message="Failed to save — your entries are still here." />
         <DialogFooter style={{ marginTop: 12 }}>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => mut.mutate()} disabled={mut.isPending || !investigatedBy.trim()}>
@@ -385,7 +387,7 @@ function RecordCorrectiveActionDialog({ farmId, record, onClose }: { farmId: num
   });
 
   return (
-    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+    <Dialog open onOpenChange={o => { if (!o) { mut.reset(); onClose(); } }}>
       <DialogContent style={{ maxWidth: 480 }}>
         <DialogHeader>
           <DialogTitle>Record Corrective Action</DialogTitle>
@@ -398,6 +400,7 @@ function RecordCorrectiveActionDialog({ farmId, record, onClose }: { farmId: num
             <div><Label>Action Taken By</Label><Input className="mt-1" value={correctiveActionBy} onChange={e => setCorrectiveActionBy(e.target.value)} placeholder="Name" /></div>
           </div>
         </div>
+        <DialogMutationError mutation={mut} message="Failed to save — your entries are still here." />
         <DialogFooter style={{ marginTop: 12 }}>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => mut.mutate()} disabled={mut.isPending || !correctiveAction.trim()}>
@@ -427,7 +430,7 @@ function SignOffDialog({ farmId, record, onClose }: { farmId: number; record: Ac
   });
 
   return (
-    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+    <Dialog open onOpenChange={o => { if (!o) { mut.reset(); onClose(); } }}>
       <DialogContent style={{ maxWidth: 400 }}>
         <DialogHeader>
           <DialogTitle>Sign Off Record</DialogTitle>
@@ -437,6 +440,7 @@ function SignOffDialog({ farmId, record, onClose }: { farmId: number; record: Ac
           <div><Label>Signed Off By *</Label><Input className="mt-1" value={signedOffBy} onChange={e => setSignedOffBy(e.target.value)} placeholder="Manager's name" autoFocus /></div>
           <div><Label>Sign-Off Date</Label><Input type="date" className="mt-1" value={signOffDate} onChange={e => setSignOffDate(e.target.value)} /></div>
         </div>
+        <DialogMutationError mutation={mut} message="Failed to save — your entries are still here." />
         <DialogFooter style={{ marginTop: 12 }}>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => mut.mutate()} disabled={mut.isPending || !signedOffBy.trim()} style={{ background: "#16a34a", color: "#fff" }}>
@@ -781,7 +785,7 @@ export default function AccidentBookPage() {
 
         {/* Add / Edit Dialog */}
         {addOpen && (
-          <Dialog open onOpenChange={o => { if (!o) { setAddOpen(false); setEditItem(null); } }}>
+          <Dialog open onOpenChange={o => { if (!o) { setAddOpen(false); setEditItem(null); createMut.reset(); updateMut.reset(); } }}>
             <DialogContent style={{ maxWidth: 640, maxHeight: "88vh", overflowY: "auto" }}>
               <DialogHeader>
                 <DialogTitle>{editItem ? "Edit Accident Book Entry" : "New Accident Book Entry"}</DialogTitle>
@@ -898,6 +902,7 @@ export default function AccidentBookPage() {
                 )}
               </div>
 
+              <DialogMutationError mutation={editItem ? updateMut : createMut} message="Failed to save — your entries are still here." />
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setAddOpen(false); setEditItem(null); }}>Cancel</Button>
                 <Button
@@ -926,12 +931,13 @@ export default function AccidentBookPage() {
 
         {/* Delete confirm */}
         {deleteId !== null && (
-          <Dialog open onOpenChange={() => setDeleteId(null)}>
+          <Dialog open onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
             <DialogContent style={{ maxWidth: 380 }}>
               <DialogHeader><DialogTitle>Delete this entry?</DialogTitle></DialogHeader>
               <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>
                 This will permanently remove this accident record. If this incident was RIDDOR reportable, the HSE submission itself is not affected.
               </p>
+              <DialogMutationError mutation={deleteMut} message="Couldn't delete — the record is still here. Try again." />
               <DialogFooter>
                 <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
                 <Button style={{ background: "#dc2626", color: "#fff" }} onClick={() => deleteMut.mutate(deleteId!)} disabled={deleteMut.isPending}>Delete</Button>

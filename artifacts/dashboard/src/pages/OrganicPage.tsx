@@ -17,6 +17,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
@@ -406,7 +407,7 @@ function CertificationTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={adding || !!editRecord} onOpenChange={v => { if (!v) { setAdding(false); setEditRecord(null); } }}>
+      <Dialog open={adding || !!editRecord} onOpenChange={v => { if (!v) { setAdding(false); setEditRecord(null); createMut.reset(); updateMut.reset(); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{editRecord ? "Edit Certifier Registration" : "Add Certifier Registration"}</DialogTitle>
@@ -453,6 +454,7 @@ function CertificationTab({ farmId }: { farmId: number }) {
               <div><Label>Annual Renewal Date</Label><Input type="date" min={new Date().toISOString().slice(0, 10)} className={INPUT_CLS} value={form.renewalDate} onChange={e => setForm(f => ({ ...f, renewalDate: e.target.value }))} /></div>
             </div>
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3} /></div>
+            <DialogMutationError mutation={editRecord ? updateMut : createMut} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setAdding(false); setEditRecord(null); }}>Cancel</Button>
               <Button type="submit" disabled={(editRecord ? updateMut : createMut).isPending || !form.certifier}>
@@ -465,12 +467,13 @@ function CertificationTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {deleteId !== null && (
-        <Dialog open onOpenChange={() => setDeleteId(null)}>
+        <Dialog open onOpenChange={() => { setDeleteId(null); deleteMut.reset(); }}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Remove Certifier Registration</DialogTitle>
               <DialogDescription>This will permanently remove this certifier registration from your holding records. Are you sure?</DialogDescription>
             </DialogHeader>
+            <DialogMutationError mutation={deleteMut} message="Failed to remove — the record is still here." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
               <Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate(deleteId)}>
@@ -701,7 +704,7 @@ function FieldsTab({ farmId, farmName }: { farmId: number; farmName: string }) {
         </Dialog>
       )}
 
-      <Dialog open={formOpen} onOpenChange={v => { setFormOpen(v); if (!v) setEditing(null); }}>
+      <Dialog open={formOpen} onOpenChange={v => { setFormOpen(v); if (!v) { setEditing(null); createM.reset(); updateM.reset(); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Field" : "Add Field"}</DialogTitle>
@@ -736,6 +739,7 @@ function FieldsTab({ farmId, farmName }: { farmId: number; farmName: string }) {
               <Label htmlFor="parallel">Parallel production (part-organic, part-conventional enterprise)</Label>
             </div>
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+            <DialogMutationError mutation={editing ? updateM : createM} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setEditing(null); }}>Cancel</Button>
               <Button type="submit" disabled={createM.isPending || updateM.isPending || !form.fieldName.trim()}>{(createM.isPending || updateM.isPending) ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Save</Button>
@@ -744,9 +748,10 @@ function FieldsTab({ farmId, farmName }: { farmId: number; farmName: string }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={v => !v && setDeleteId(null)}>
+      <Dialog open={deleteId !== null} onOpenChange={v => { if (!v) { setDeleteId(null); deleteM.reset(); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Remove Field</DialogTitle><DialogDescription>Remove this field from the organic register? This cannot be undone.</DialogDescription></DialogHeader>
+          <DialogMutationError mutation={deleteM} message="Failed to remove — the record is still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" disabled={deleteM.isPending} onClick={() => deleteId && deleteM.mutate(deleteId)}>{deleteM.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Remove</Button>
@@ -899,7 +904,7 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
         </Dialog>
       )}
 
-      <Dialog open={formOpen} onOpenChange={v => { setFormOpen(v); if (!v) setEditing(null); }}>
+      <Dialog open={formOpen} onOpenChange={v => { setFormOpen(v); if (!v) { setEditing(null); createM.reset(); updateM.reset(); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing ? "Edit Inspection" : "Record Inspection"}</DialogTitle><DialogDescription>Log your annual certifier inspection visit.</DialogDescription></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -930,6 +935,7 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
               </>
             )}
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+            <DialogMutationError mutation={editing ? updateM : createM} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setEditing(null); }}>Cancel</Button>
               <Button type="submit" disabled={createM.isPending || updateM.isPending}>{(createM.isPending || updateM.isPending) ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Save</Button>
@@ -938,9 +944,10 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={v => !v && setDeleteId(null)}>
+      <Dialog open={deleteId !== null} onOpenChange={v => { if (!v) { setDeleteId(null); deleteM.reset(); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Delete Inspection</DialogTitle><DialogDescription>Delete this inspection record? This cannot be undone.</DialogDescription></DialogHeader>
+          <DialogMutationError mutation={deleteM} message="Failed to delete — the record is still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" disabled={deleteM.isPending} onClick={() => deleteId && deleteM.mutate(deleteId)}>{deleteM.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Delete</Button>
@@ -1493,7 +1500,7 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
         </Dialog>
       )}
 
-      <Dialog open={formOpen} onOpenChange={v => { setFormOpen(v); if (!v) setEditing(null); }}>
+      <Dialog open={formOpen} onOpenChange={v => { setFormOpen(v); if (!v) { setEditing(null); createM.reset(); updateM.reset(); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Input Record" : "Add Input"}</DialogTitle>
@@ -1610,6 +1617,7 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
               </>
             )}
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+            <DialogMutationError mutation={editing ? updateM : createM} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setEditing(null); }}>Cancel</Button>
               <Button type="submit" disabled={createM.isPending || updateM.isPending || !form.productName.trim()}>{(createM.isPending || updateM.isPending) ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Save</Button>
@@ -1618,9 +1626,10 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={v => !v && setDeleteId(null)}>
+      <Dialog open={deleteId !== null} onOpenChange={v => { if (!v) { setDeleteId(null); deleteM.reset(); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Delete Input</DialogTitle><DialogDescription>Delete this input record? This cannot be undone.</DialogDescription></DialogHeader>
+          <DialogMutationError mutation={deleteM} message="Failed to delete — the record is still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" disabled={deleteM.isPending} onClick={() => deleteId && deleteM.mutate(deleteId)}>{deleteM.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}Delete</Button>

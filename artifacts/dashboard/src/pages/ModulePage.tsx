@@ -13,6 +13,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter
 } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 
 interface ColumnDef {
   key: string;
@@ -329,12 +330,13 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
       )}
 
       {/* ── DELETE CONFIRM ── */}
-      <Dialog open={deleteConfirmId !== null} onOpenChange={() => setDeleteConfirmId(null)}>
+      <Dialog open={deleteConfirmId !== null} onOpenChange={(o) => { if (!o) { setDeleteConfirmId(null); deleteMutation.reset(); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Record</DialogTitle>
           </DialogHeader>
           <p className="text-foreground/70 text-sm">Are you sure you want to delete this record? This action cannot be undone.</p>
+          <DialogMutationError mutation={deleteMutation} message="Failed to delete — the record is still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteConfirmId && deleteMutation.mutate(deleteConfirmId)} disabled={deleteMutation.isPending}>

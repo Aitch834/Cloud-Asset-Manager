@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ClipboardCheck, Search, CheckCircle2, AlertTriangle, AlertCircle, Eye, Filter, Camera, File, Trash2, Loader2, Plus, Pencil, UserPlus, ClipboardList, MoreHorizontal, CheckSquare, ChevronUp } from "lucide-react";
@@ -243,7 +244,7 @@ function RaiseTaskDialog({
   }
 
   return (
-    <Dialog open onOpenChange={onClose}>
+    <Dialog open onOpenChange={o => { if (!o) { mut.reset(); onClose(); } }}>
       <DialogContent style={{ maxWidth: "32rem" }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -287,6 +288,7 @@ function RaiseTaskDialog({
             <Input value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Check North Field after rain…" />
           </div>
           {error && <p className="text-xs text-red-600">{error}</p>}
+          <DialogMutationError mutation={mut} message="Failed to raise task — your entries are still here." />
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
             <Button type="submit" disabled={mut.isPending} className="bg-indigo-700 hover:bg-indigo-800 text-white">
@@ -861,7 +863,7 @@ export default function FieldInspectionsPage() {
 
       {/* Resolve dialog */}
       {detailRecord && resolveOpen && (
-        <Dialog open onOpenChange={() => { setResolveOpen(false); setDetailRecord(null); }}>
+        <Dialog open onOpenChange={o => { if (!o) { setResolveOpen(false); setDetailRecord(null); resolveMutation.reset(); } }}>
           <DialogContent style={{ maxWidth: "36rem" }}>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -894,6 +896,7 @@ export default function FieldInspectionsPage() {
                 />
               </div>
             </div>
+            <DialogMutationError mutation={resolveMutation} message="Failed to resolve — your entries are still here." />
             <DialogFooter>
               <Button variant="ghost" onClick={() => { setResolveOpen(false); setDetailRecord(null); }}>Cancel</Button>
               <Button
@@ -908,7 +911,7 @@ export default function FieldInspectionsPage() {
         </Dialog>
       )}
       {/* Add / Edit Inspection dialog */}
-      <Dialog open={formOpen} onOpenChange={(o) => { if (!o) closeInspectionForm(); }}>
+      <Dialog open={formOpen} onOpenChange={(o) => { if (!o) { closeInspectionForm(); createInspMut.reset(); updateInspMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 640 }}>
           <DialogHeader>
             <DialogTitle>{editRecord ? "Edit Inspection" : "Log Field Inspection"}</DialogTitle>
@@ -1027,6 +1030,8 @@ export default function FieldInspectionsPage() {
               <Textarea rows={2} placeholder="Additional notes…" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
+          <DialogMutationError mutation={createInspMut} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={updateInspMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={closeInspectionForm}>Cancel</Button>
             {!editRecord && canRaiseTask && (

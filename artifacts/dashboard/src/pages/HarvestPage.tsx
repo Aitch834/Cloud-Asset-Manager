@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -278,7 +279,7 @@ function HarvestLogTab({ harvests, transports, storages, farmRecord, equipment, 
       salePricePerTonnePence: r.salePricePerTonnePence ?? "",
     });
   }
-  function closeForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }
+  function closeForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm); createMut.reset(); updateMut.reset(); }
 
   const [phiViolations, setPhiViolations] = useState<any[] | null>(null);
   const [pendingPhiBody, setPendingPhiBody] = useState<any>(null);
@@ -846,6 +847,7 @@ function HarvestLogTab({ harvests, transports, storages, farmRecord, equipment, 
           {editRecord && farmId && (
             <RecordAttachments farmId={farmId} recordType="harvest_record" recordId={editRecord.id} />
           )}
+          <DialogMutationError mutation={editRecord ? updateMut : createMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={closeForm}>Cancel</Button>
             <Button
@@ -858,10 +860,11 @@ function HarvestLogTab({ harvests, transports, storages, farmRecord, equipment, 
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Harvest Record</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">This will permanently delete the harvest record. Transport and storage records linked to it may also be affected.</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
@@ -870,7 +873,7 @@ function HarvestLogTab({ harvests, transports, storages, farmRecord, equipment, 
       </Dialog>
 
       {/* ── PHI Harvest Interval Warning ── */}
-      <Dialog open={phiViolations !== null} onOpenChange={o => { if (!o) { setPhiViolations(null); setPendingPhiBody(null); } }}>
+      <Dialog open={phiViolations !== null} onOpenChange={o => { if (!o) { setPhiViolations(null); setPendingPhiBody(null); createMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 540 }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-amber-600">
@@ -903,6 +906,7 @@ function HarvestLogTab({ harvests, transports, storages, farmRecord, equipment, 
             </div>
             <p className="text-xs text-gray-500">If you are certain this harvest is safe (e.g. different crop part, testing done), you may override and save. This will be flagged in your records.</p>
           </div>
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setPhiViolations(null); setPendingPhiBody(null); }}>Go Back</Button>
             <Button variant="destructive" onClick={() => { if (pendingPhiBody) { createMut.mutate({ ...pendingPhiBody, phiOverrideAcknowledged: true }); setPhiViolations(null); setPendingPhiBody(null); } }}>Override &amp; Save Anyway</Button>
@@ -1029,7 +1033,7 @@ function TransportTab({ transports, harvests, farmId, loading, onRefresh, toast 
         </div>
       )}
 
-      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) setForm(emptyForm); }}>
+      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) { setForm(emptyForm); createMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 520 }}>
           <DialogHeader><DialogTitle>Add Transport Leg</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
@@ -1075,6 +1079,7 @@ function TransportTab({ transports, harvests, farmId, loading, onRefresh, toast 
               <Textarea placeholder="Destination, haulier details, etc." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} />
             </div>
           </div>
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
             <Button onClick={() => createMut.mutate(form)} disabled={!form.harvestRecordId || createMut.isPending}>Save</Button>
@@ -1082,10 +1087,11 @@ function TransportTab({ transports, harvests, farmId, loading, onRefresh, toast 
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Transport Record</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Are you sure you want to delete this transport leg?</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
@@ -1216,7 +1222,7 @@ function StorageTab({ storages, harvests, farmId, loading, onRefresh, toast }: a
         </div>
       )}
 
-      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) setForm(emptyForm); }}>
+      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) { setForm(emptyForm); createMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 520 }}>
           <DialogHeader><DialogTitle>Add Storage Record</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
@@ -1300,6 +1306,7 @@ function StorageTab({ storages, harvests, farmId, loading, onRefresh, toast }: a
               <Textarea placeholder="Any treatment applied, pest observations, etc." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} />
             </div>
           </div>
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
             <Button onClick={() => createMut.mutate(form)} disabled={!form.storageFacility || !form.dateIn || createMut.isPending}>Save</Button>
@@ -1307,10 +1314,11 @@ function StorageTab({ storages, harvests, farmId, loading, onRefresh, toast }: a
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Storage Record</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Are you sure you want to delete this storage record?</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>

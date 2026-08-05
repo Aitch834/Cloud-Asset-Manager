@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
@@ -268,7 +269,7 @@ function CullRecordsTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      <Dialog open={dlg.open} onOpenChange={o => !o && setDlg({ open: false, mode: "add", row: {} })}>
+      <Dialog open={dlg.open} onOpenChange={o => { if (!o) { setDlg({ open: false, mode: "add", row: {} }); mutSave.reset(); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{dlg.mode === "view" ? "Cull Record" : dlg.mode === "edit" ? "Edit Cull Record" : "Add Cull Record"}</DialogTitle></DialogHeader>
           {dlg.mode === "view" ? (
@@ -365,6 +366,7 @@ function CullRecordsTab({ farmId }: { farmId: number }) {
               <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={String(form.notes || "")} onChange={e => sf("notes", e.target.value)} /></div>
             </div>
           )}
+          {dlg.mode !== "view" && <DialogMutationError mutation={mutSave} message="Failed to save — your entries are still here." />}
           <DialogFooter>
             {dlg.mode !== "view" && (
               <Button
@@ -491,7 +493,7 @@ function CarcassSalesTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      <Dialog open={dlg.open} onOpenChange={o => !o && setDlg({ open: false, mode: "add", row: {} })}>
+      <Dialog open={dlg.open} onOpenChange={o => { if (!o) { setDlg({ open: false, mode: "add", row: {} }); mutSave.reset(); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{dlg.mode === "view" ? "Carcass Sale Record" : dlg.mode === "edit" ? "Edit Sale Record" : "Add Sale Record"}</DialogTitle></DialogHeader>
           {dlg.mode === "view" ? (
@@ -554,6 +556,7 @@ function CarcassSalesTab({ farmId }: { farmId: number }) {
               <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={String(form.notes || "")} onChange={e => sf("notes", e.target.value)} /></div>
             </div>
           )}
+          {dlg.mode !== "view" && <DialogMutationError mutation={mutSave} message="Failed to save — your entries are still here." />}
           <DialogFooter>
             {dlg.mode !== "view" && (
               <Button
@@ -676,7 +679,7 @@ function HerdMonitoringTab({ farmId }: { farmId: number }) {
           </table>
         </div>
       )}
-      <Dialog open={dlg.open} onOpenChange={o => !o && setDlg({ open: false, mode: "add", row: {} })}>
+      <Dialog open={dlg.open} onOpenChange={o => { if (!o) { setDlg({ open: false, mode: "add", row: {} }); mutSave.reset(); } }}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{dlg.mode === "view" ? "Herd Survey" : dlg.mode === "edit" ? "Edit Survey" : "Add Herd Survey"}</DialogTitle></DialogHeader>
           {dlg.mode === "view" ? (
@@ -730,6 +733,7 @@ function HerdMonitoringTab({ farmId }: { farmId: number }) {
               <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={String(form.notes || "")} onChange={e => sf("notes", e.target.value)} /></div>
             </div>
           )}
+          {dlg.mode !== "view" && <DialogMutationError mutation={mutSave} message="Failed to save — your entries are still here." />}
           <DialogFooter>
             {dlg.mode !== "view" && (
               <Button onClick={() => mutSave.mutate({ ...form, id: dlg.row.id })} disabled={mutSave.isPending || !form.surveyDate || !form.surveyMethod}>
@@ -857,7 +861,7 @@ function HealthRecordsTab({ farmId }: { farmId: number }) {
           </table>
         </div>
       )}
-      <Dialog open={dlg.open} onOpenChange={o => !o && setDlg({ open: false, mode: "add", row: {} })}>
+      <Dialog open={dlg.open} onOpenChange={o => { if (!o) { setDlg({ open: false, mode: "add", row: {} }); mutSave.reset(); } }}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{dlg.mode === "view" ? "Health Record" : dlg.mode === "edit" ? "Edit Health Record" : "Add Health Record"}</DialogTitle></DialogHeader>
           {dlg.mode === "view" ? (
@@ -923,6 +927,7 @@ function HealthRecordsTab({ farmId }: { farmId: number }) {
               <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={String(form.notes || "")} onChange={e => sf("notes", e.target.value)} /></div>
             </div>
           )}
+          {dlg.mode !== "view" && <DialogMutationError mutation={mutSave} message="Failed to save — your entries are still here." />}
           <DialogFooter>
             {dlg.mode !== "view" && (
               <Button onClick={() => mutSave.mutate({ ...form, id: dlg.row.id })} disabled={mutSave.isPending || !form.eventDate || !form.healthEventType}>
@@ -1065,7 +1070,7 @@ function FirearmsRegisterTab({ farmId }: { farmId: number }) {
           </table>
         </div>
       )}
-      <Dialog open={dlg.open} onOpenChange={o => !o && setDlg({ open: false, mode: "add", row: {} })}>
+      <Dialog open={dlg.open} onOpenChange={o => { if (!o) { setDlg({ open: false, mode: "add", row: {} }); mutSave.reset(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{dlg.mode === "view" ? "Certificate Record" : dlg.mode === "edit" ? "Edit Certificate" : "Add Certificate"}</DialogTitle></DialogHeader>
           {dlg.mode === "view" ? (
@@ -1105,6 +1110,7 @@ function FirearmsRegisterTab({ farmId }: { farmId: number }) {
               <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={String(form.notes || "")} onChange={e => sf("notes", e.target.value)} /></div>
             </div>
           )}
+          {dlg.mode !== "view" && <DialogMutationError mutation={mutSave} message="Failed to save — your entries are still here." />}
           <DialogFooter>
             {dlg.mode !== "view" && (
               <Button onClick={() => mutSave.mutate({ ...form, id: dlg.row.id })} disabled={mutSave.isPending || !form.holderName || !form.certificateType}>

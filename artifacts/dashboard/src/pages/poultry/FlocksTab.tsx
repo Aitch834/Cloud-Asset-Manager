@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const api = (path: string) => `/api/${path}`;
@@ -238,7 +239,7 @@ export function FlocksTab({ farmId }: { farmId: number }) {
           </DialogContent>
         </Dialog>
       )}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader><DialogTitle>Flock Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
@@ -315,6 +316,7 @@ export function FlocksTab({ farmId }: { farmId: number }) {
               </Select>
             </div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>

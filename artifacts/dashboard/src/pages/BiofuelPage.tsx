@@ -36,6 +36,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -968,44 +969,49 @@ export default function BiofuelPage() {
 
       <CertificationDialog
         open={certDialog}
-        onClose={() => { setCertDialog(false); setEditingCert(null); }}
+        onClose={() => { setCertDialog(false); setEditingCert(null); certMut.reset(); }}
         initial={editingCert}
         onSave={(data) => certMut.mutate(data)}
         saving={certMut.isPending}
+        mutation={certMut}
       />
       <FieldDeclarationDialog
         open={fieldDialog}
-        onClose={() => { setFieldDialog(false); setEditingField(null); }}
+        onClose={() => { setFieldDialog(false); setEditingField(null); fieldMut.reset(); }}
         initial={editingField}
         onSave={(data) => fieldMut.mutate(data)}
         saving={fieldMut.isPending}
+        mutation={fieldMut}
         farmFieldNames={farmFieldNames}
         declaredByOptions={declaredByOptions}
       />
       <DeliveryDialog
         open={deliveryDialog}
-        onClose={() => { setDeliveryDialog(false); setEditingDelivery(null); }}
+        onClose={() => { setDeliveryDialog(false); setEditingDelivery(null); deliveryMut.reset(); }}
         initial={editingDelivery}
         buyers={buyers}
         storageLocations={storageLocations}
         eligibleFieldNames={eligibleFieldNames}
         onSave={(data) => deliveryMut.mutate(data)}
         saving={deliveryMut.isPending}
+        mutation={deliveryMut}
       />
       <BuyerDialog
         open={buyerDialog}
-        onClose={() => { setBuyerDialog(false); setEditingBuyer(null); }}
+        onClose={() => { setBuyerDialog(false); setEditingBuyer(null); buyerMut.reset(); }}
         initial={editingBuyer}
         onSave={(data) => buyerMut.mutate(data)}
         saving={buyerMut.isPending}
+        mutation={buyerMut}
       />
     </AppLayout>
   );
 }
 
-function CertificationDialog({ open, onClose, initial, onSave, saving }: {
+function CertificationDialog({ open, onClose, initial, onSave, saving, mutation }: {
   open: boolean; onClose: () => void; initial: Certification | null;
   onSave: (data: Partial<Certification>) => void; saving: boolean;
+  mutation: { isError: boolean; isPending: boolean; error: unknown };
 }) {
   const biofuelSchemes = useLookupStrings("biofuel_cert_schemes", ["ISCC EU", "ISCC UK", "Bonsucro", "RTRS", "REDcert", "RSB", "Other"]);
   const [form, setForm] = useState<Partial<Certification>>({});
@@ -1051,6 +1057,7 @@ function CertificationDialog({ open, onClose, initial, onSave, saving }: {
           </div>
           <div><Label>Notes</Label><Textarea value={val("notes")} onChange={e => set("notes", e.target.value)} rows={2} /></div>
         </div>
+        <DialogMutationError mutation={mutation} message="Failed to save — your entries are still here." />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => onSave(form)} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
@@ -1060,9 +1067,10 @@ function CertificationDialog({ open, onClose, initial, onSave, saving }: {
   );
 }
 
-function FieldDeclarationDialog({ open, onClose, initial, onSave, saving, farmFieldNames = [], declaredByOptions = [] }: {
+function FieldDeclarationDialog({ open, onClose, initial, onSave, saving, mutation, farmFieldNames = [], declaredByOptions = [] }: {
   open: boolean; onClose: () => void; initial: FieldDeclaration | null;
   onSave: (data: Partial<FieldDeclaration>) => void; saving: boolean;
+  mutation: { isError: boolean; isPending: boolean; error: unknown };
   farmFieldNames?: string[];
   declaredByOptions?: string[];
 }) {
@@ -1213,6 +1221,7 @@ function FieldDeclarationDialog({ open, onClose, initial, onSave, saving, farmFi
           </div>
           <div><Label>Notes</Label><Textarea value={val("notes") as string} onChange={e => set("notes", e.target.value)} rows={2} /></div>
         </div>
+        <DialogMutationError mutation={mutation} message="Failed to save — your entries are still here." />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => onSave(form)} disabled={saving}>{saving ? "Saving..." : "Save Declaration"}</Button>
@@ -1222,12 +1231,13 @@ function FieldDeclarationDialog({ open, onClose, initial, onSave, saving, farmFi
   );
 }
 
-function DeliveryDialog({ open, onClose, initial, buyers, storageLocations, eligibleFieldNames, onSave, saving }: {
+function DeliveryDialog({ open, onClose, initial, buyers, storageLocations, eligibleFieldNames, onSave, saving, mutation }: {
   open: boolean; onClose: () => void; initial: Delivery | null;
   buyers: Buyer[];
   storageLocations: StorageLocation[];
   eligibleFieldNames: string[];
   onSave: (data: Partial<Delivery>) => void; saving: boolean;
+  mutation: { isError: boolean; isPending: boolean; error: unknown };
 }) {
   const [form, setForm] = useState<Partial<Delivery>>({});
   const set = (k: keyof Delivery, v: string | number | undefined | null) => setForm(f => ({ ...f, [k]: v }));
@@ -1422,6 +1432,7 @@ function DeliveryDialog({ open, onClose, initial, buyers, storageLocations, elig
 
           <div><Label>Notes</Label><Textarea value={String(val("notes") || "")} onChange={e => set("notes", e.target.value)} rows={2} /></div>
         </div>
+        <DialogMutationError mutation={mutation} message="Failed to save — your entries are still here." />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => onSave({ ...form, sourceType })} disabled={saving}>{saving ? "Saving..." : "Save Delivery"}</Button>
@@ -1431,9 +1442,10 @@ function DeliveryDialog({ open, onClose, initial, buyers, storageLocations, elig
   );
 }
 
-function BuyerDialog({ open, onClose, initial, onSave, saving }: {
+function BuyerDialog({ open, onClose, initial, onSave, saving, mutation }: {
   open: boolean; onClose: () => void; initial: Buyer | null;
   onSave: (data: Partial<Buyer>) => void; saving: boolean;
+  mutation: { isError: boolean; isPending: boolean; error: unknown };
 }) {
   const [form, setForm] = useState<Partial<Buyer>>({});
   const set = (k: keyof Buyer, v: string) => setForm(f => ({ ...f, [k]: v }));
@@ -1496,6 +1508,7 @@ function BuyerDialog({ open, onClose, initial, onSave, saving }: {
 
           <div><Label>Notes</Label><Textarea value={val("notes")} onChange={e => set("notes", e.target.value)} rows={2} placeholder="Any additional notes about this buyer…" /></div>
         </div>
+        <DialogMutationError mutation={mutation} message="Failed to save — your entries are still here." />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => onSave(form)} disabled={saving}>{saving ? "Saving..." : "Save Buyer"}</Button>

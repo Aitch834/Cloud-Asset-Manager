@@ -20,6 +20,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { useUpload } from "@workspace/object-storage-web";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { printProReport, openPrintWindow } from "@/lib/print-report";
@@ -1027,10 +1028,11 @@ function MortalitySection({ farmId }: { farmId: number }) {
         )}
       </Card>
 
-      <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
+      <Dialog open={deleteId !== null} onOpenChange={(o) => { if (!o) { setDeleteId(null); deleteMutation.reset(); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Mortality Record</DialogTitle></DialogHeader>
           <p className="text-foreground/70 text-sm">Are you sure? This action cannot be undone.</p>
+          <DialogMutationError mutation={deleteMutation} message="Failed to delete — the record is still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId && deleteMutation.mutate(deleteId)} disabled={deleteMutation.isPending}>
@@ -2458,10 +2460,11 @@ export default function Movements() {
       )}
 
       {/* Delete confirmation */}
-      <Dialog open={deleteConfirmId !== null} onOpenChange={() => setDeleteConfirmId(null)}>
+      <Dialog open={deleteConfirmId !== null} onOpenChange={(o) => { if (!o) { setDeleteConfirmId(null); deleteMutation.reset(); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Movement Record</DialogTitle></DialogHeader>
           <p className="text-foreground/70 text-sm">Are you sure you want to delete this movement record? This action cannot be undone.</p>
+          <DialogMutationError mutation={deleteMutation} message="Failed to delete — the record is still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteConfirmId && deleteMutation.mutate(deleteConfirmId)} disabled={deleteMutation.isPending}>
@@ -2694,7 +2697,7 @@ export default function Movements() {
       </Card>
       </>)}
       {/* Submit to BCMS confirmation dialog */}
-      <Dialog open={submitConfirmId !== null} onOpenChange={o => { if (!o) setSubmitConfirmId(null); }}>
+      <Dialog open={submitConfirmId !== null} onOpenChange={o => { if (!o) { setSubmitConfirmId(null); submitBcmsMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 440 }}>
           <DialogHeader><DialogTitle>Submit to BCMS</DialogTitle></DialogHeader>
           {(() => {
@@ -2729,6 +2732,7 @@ export default function Movements() {
               </div>
             );
           })()}
+          <DialogMutationError mutation={submitBcmsMut} message="BCMS submission failed — nothing was sent." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setSubmitConfirmId(null)}>Cancel</Button>
             <Button
@@ -2744,7 +2748,7 @@ export default function Movements() {
       </Dialog>
 
       {/* Submit to LIS confirmation dialog */}
-      <Dialog open={lisSubmitConfirmId !== null} onOpenChange={o => { if (!o) setLisSubmitConfirmId(null); }}>
+      <Dialog open={lisSubmitConfirmId !== null} onOpenChange={o => { if (!o) { setLisSubmitConfirmId(null); submitLisMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 440 }}>
           <DialogHeader><DialogTitle>Submit to LIS</DialogTitle></DialogHeader>
           {(() => {
@@ -2781,6 +2785,7 @@ export default function Movements() {
               </div>
             );
           })()}
+          <DialogMutationError mutation={submitLisMut} message="LIS submission failed — nothing was sent." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setLisSubmitConfirmId(null)}>Cancel</Button>
             <Button
@@ -2796,7 +2801,7 @@ export default function Movements() {
       </Dialog>
 
       {/* Record BCMS Online Reference — all cattle movements (England) */}
-      <Dialog open={bcmsPortalRefId !== null} onOpenChange={o => { if (!o) { setBcmsPortalRefId(null); setBcmsPortalRefInput(""); } }}>
+      <Dialog open={bcmsPortalRefId !== null} onOpenChange={o => { if (!o) { setBcmsPortalRefId(null); setBcmsPortalRefInput(""); saveBcmsPortalRefMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 480 }}>
           <DialogHeader><DialogTitle>Record BCMS Reference</DialogTitle></DialogHeader>
           {(() => {
@@ -2850,6 +2855,7 @@ export default function Movements() {
               </div>
             );
           })()}
+          <DialogMutationError mutation={saveBcmsPortalRefMut} message="Failed to save — your reference is still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setBcmsPortalRefId(null); setBcmsPortalRefInput(""); }}>Cancel</Button>
             <Button
@@ -2866,7 +2872,7 @@ export default function Movements() {
       </Dialog>
 
       {/* Record LIS Keeper Portal Reference (births & deaths — England) */}
-      <Dialog open={lisPortalRefId !== null} onOpenChange={o => { if (!o) { setLisPortalRefId(null); setLisPortalRefInput(""); } }}>
+      <Dialog open={lisPortalRefId !== null} onOpenChange={o => { if (!o) { setLisPortalRefId(null); setLisPortalRefInput(""); saveLisPortalRefMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 480 }}>
           <DialogHeader><DialogTitle>Record LIS Portal Reference</DialogTitle></DialogHeader>
           {(() => {
@@ -2920,6 +2926,7 @@ export default function Movements() {
               </div>
             );
           })()}
+          <DialogMutationError mutation={saveLisPortalRefMut} message="Failed to save — your reference is still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setLisPortalRefId(null); setLisPortalRefInput(""); }}>Cancel</Button>
             <Button
@@ -2936,7 +2943,7 @@ export default function Movements() {
       </Dialog>
 
       {/* LIS Inbound Review Dialog */}
-      <Dialog open={lisReviewDialog !== null} onOpenChange={o => { if (!o) setLisReviewDialog(null); }}>
+      <Dialog open={lisReviewDialog !== null} onOpenChange={o => { if (!o) { setLisReviewDialog(null); lisReviewMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 460 }}>
           <DialogHeader><DialogTitle>Review Inbound Movement</DialogTitle></DialogHeader>
           {lisReviewDialog && (
@@ -2967,6 +2974,7 @@ export default function Movements() {
               </p>
             </div>
           )}
+          <DialogMutationError mutation={lisReviewMut} message="LIS review failed — please try again." />
           <DialogFooter style={{ gap: 8 }}>
             <Button variant="outline" onClick={() => setLisReviewDialog(null)} disabled={lisReviewMut.isPending}>Cancel</Button>
             <Button
@@ -2991,7 +2999,7 @@ export default function Movements() {
       </Dialog>
 
       {/* LIS Undo Confirm Dialog */}
-      <Dialog open={lisUndoConfirmId !== null} onOpenChange={o => { if (!o) setLisUndoConfirmId(null); }}>
+      <Dialog open={lisUndoConfirmId !== null} onOpenChange={o => { if (!o) { setLisUndoConfirmId(null); lisUndoMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 420 }}>
           <DialogHeader><DialogTitle>Withdraw LIS Transfer Request</DialogTitle></DialogHeader>
           <div className="space-y-3 py-1">
@@ -3004,6 +3012,7 @@ export default function Movements() {
               </p>
             </div>
           </div>
+          <DialogMutationError mutation={lisUndoMut} message="Withdrawal failed — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setLisUndoConfirmId(null)}>Cancel</Button>
             <Button
@@ -3772,7 +3781,7 @@ export default function Movements() {
       )}
 
       {/* LIP Submit Confirmation Dialog */}
-      <Dialog open={lipSubmitConfirmId !== null} onOpenChange={o => { if (!o) setLipSubmitConfirmId(null); }}>
+      <Dialog open={lipSubmitConfirmId !== null} onOpenChange={o => { if (!o) { setLipSubmitConfirmId(null); submitLipMut.reset(); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Submit to LIS LIP</DialogTitle>
@@ -3787,6 +3796,7 @@ export default function Movements() {
               )}
             </DialogDescription>
           </DialogHeader>
+          <DialogMutationError mutation={submitLipMut} message="LIP submission failed — nothing was sent." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setLipSubmitConfirmId(null)}>Cancel</Button>
             <Button
@@ -3801,7 +3811,7 @@ export default function Movements() {
       </Dialog>
 
       {/* LIP Accept / Reject Dialog */}
-      <Dialog open={lipActionDialog?.type === "confirm" || lipActionDialog?.type === "reject"} onOpenChange={o => { if (!o) { setLipActionDialog(null); setLipActionReason(""); setLipRejectionReasonId(""); } }}>
+      <Dialog open={lipActionDialog?.type === "confirm" || lipActionDialog?.type === "reject"} onOpenChange={o => { if (!o) { setLipActionDialog(null); setLipActionReason(""); setLipRejectionReasonId(""); confirmLipMut.reset(); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{lipActionDialog?.type === "confirm" ? "Accept Movement" : "Reject Movement"}</DialogTitle>
@@ -3853,6 +3863,7 @@ export default function Movements() {
               )}
             </div>
           )}
+          <DialogMutationError mutation={confirmLipMut} message="Action failed — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setLipActionDialog(null); setLipActionReason(""); setLipRejectionReasonId(""); }}>Cancel</Button>
             <Button
@@ -3877,7 +3888,7 @@ export default function Movements() {
       </Dialog>
 
       {/* LIP Cancel Movement Dialog */}
-      <Dialog open={lipActionDialog?.type === "cancel"} onOpenChange={o => { if (!o) setLipActionDialog(null); }}>
+      <Dialog open={lipActionDialog?.type === "cancel"} onOpenChange={o => { if (!o) { setLipActionDialog(null); cancelLipMut.reset(); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Cancel Movement Notification</DialogTitle>
@@ -3885,6 +3896,7 @@ export default function Movements() {
               This will send a cancellation request to LIP for movement reference <strong>{lipActionDialog?.lipReference}</strong>. The original submission will be marked as cancelled. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          <DialogMutationError mutation={cancelLipMut} message="Cancellation failed — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setLipActionDialog(null)}>Go Back</Button>
             <Button
@@ -4040,7 +4052,7 @@ export default function Movements() {
       )}
 
       {/* EIDCymru submit confirm dialog */}
-      <Dialog open={eidcymruSubmitConfirmId !== null} onOpenChange={o => { if (!o) setEidcymruSubmitConfirmId(null); }}>
+      <Dialog open={eidcymruSubmitConfirmId !== null} onOpenChange={o => { if (!o) { setEidcymruSubmitConfirmId(null); submitEidcymruMut.reset(); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Submit to EIDCymru</DialogTitle>
@@ -4050,6 +4062,7 @@ export default function Movements() {
                 : "This will submit the movement notification to the live EIDCymru service on behalf of this holding."}
             </DialogDescription>
           </DialogHeader>
+          <DialogMutationError mutation={submitEidcymruMut} message="EIDCymru submission failed — nothing was sent." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setEidcymruSubmitConfirmId(null)}>Cancel</Button>
             <Button
@@ -4065,7 +4078,7 @@ export default function Movements() {
       </Dialog>
 
       {/* ScotEID submit confirm dialog */}
-      <Dialog open={scoteidSubmitConfirmId !== null} onOpenChange={o => { if (!o) setScoteidSubmitConfirmId(null); }}>
+      <Dialog open={scoteidSubmitConfirmId !== null} onOpenChange={o => { if (!o) { setScoteidSubmitConfirmId(null); submitScoteidMut.reset(); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Submit to ScotEID</DialogTitle>
@@ -4075,6 +4088,7 @@ export default function Movements() {
                 : "This will submit the movement notification to the live ScotEID service on behalf of this holding."}
             </DialogDescription>
           </DialogHeader>
+          <DialogMutationError mutation={submitScoteidMut} message="ScotEID submission failed — nothing was sent." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setScoteidSubmitConfirmId(null)}>Cancel</Button>
             <Button

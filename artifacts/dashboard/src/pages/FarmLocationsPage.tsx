@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { StorageLocationMapPicker } from "@/components/storage/StorageLocationMapPicker";
 import {
   MapPin, Plus, Pencil, Trash2, Search, Building2, Warehouse, FlaskConical, Tractor, TreePine, Users, LayoutGrid, Map, Eye, QrCode, Printer,
@@ -181,6 +182,8 @@ export default function FarmLocationsPage() {
     setEditing(null);
     setForm(EMPTY_FORM);
     setShowMap(false);
+    createMut.reset();
+    updateMut.reset();
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -476,6 +479,8 @@ export default function FarmLocationsPage() {
                 Active (appears in dropdowns)
               </label>
             )}
+            <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+            <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={closeDialog}>Cancel</Button>
               <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>
@@ -527,7 +532,7 @@ export default function FarmLocationsPage() {
       })()}
 
       {/* Delete confirmation */}
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Delete Location?</DialogTitle>
@@ -535,6 +540,7 @@ export default function FarmLocationsPage() {
               This will remove the location from the registry. Existing records that referenced this location by name will not be affected.
             </DialogDescription>
           </DialogHeader>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button

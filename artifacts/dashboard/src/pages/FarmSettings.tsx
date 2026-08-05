@@ -21,6 +21,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Redirect } from "wouter";
 import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw, Phone, UserRound, Eye, EyeOff, ShieldCheck, Shield, Wifi, WifiOff, Trash2, Building2, CreditCard, Upload, ImageIcon, X, Cpu, LogIn, LogOut, Truck, Satellite, Key, Link2, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 
 const SECTORS = [
   { key: "sectorArable", label: "Arable" },
@@ -184,15 +185,16 @@ function SectionHeader({ title, description }: { title: string; description?: st
   );
 }
 
-function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string; confirmVariant?: "default" | "destructive" }) {
+function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default", mutation }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string; confirmVariant?: "default" | "destructive"; mutation?: { isError: boolean; isPending: boolean; error: unknown } }) {
   return (
     <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
       <DialogContent style={{ maxWidth: "22rem" }}>
         <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
         <p className="text-sm text-muted-foreground">{message}</p>
+        {mutation && <DialogMutationError mutation={mutation} message="Failed — please try again." />}
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>
+          <Button variant={confirmVariant} onClick={onConfirm} disabled={mutation?.isPending}>{confirmLabel}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -233,7 +235,7 @@ function BcmsCredentialsCard({ farmId, bcmsHoldingNumber }: { farmId: number; bc
   });
   const deleteMut = useMutation({
     mutationFn: () => fetch(`/api/farms/${farmId}/bcms-credentials`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
-    onSuccess: () => { toast({ title: "Credentials removed" }); credsQ.refetch(); setUsername(""); setPassword(""); setHolding(bcmsHoldingNumber ?? ""); },
+    onSuccess: () => { toast({ title: "Credentials removed" }); credsQ.refetch(); setUsername(""); setPassword(""); setHolding(bcmsHoldingNumber ?? ""); setPendingConfirm(null); },
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
@@ -366,10 +368,11 @@ function BcmsCredentialsCard({ farmId, bcmsHoldingNumber }: { farmId: number; bc
         open={!!pendingConfirm}
         title="Remove BCMS Credentials"
         message={pendingConfirm?.msg ?? ""}
-        onConfirm={() => { pendingConfirm?.fn(); setPendingConfirm(null); }}
-        onCancel={() => setPendingConfirm(null)}
+        onConfirm={() => { pendingConfirm?.fn(); }}
+        onCancel={() => { setPendingConfirm(null); deleteMut.reset(); }}
         confirmLabel="Remove"
         confirmVariant="destructive"
+        mutation={deleteMut}
       />
       </CardContent>
     </Card>
@@ -654,7 +657,7 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
       if (!r.ok) throw new Error("Delete failed");
       return r.json();
     },
-    onSuccess: () => { toast({ title: "LIS account disconnected" }); credsQ.refetch(); },
+    onSuccess: () => { toast({ title: "LIS account disconnected" }); credsQ.refetch(); setPendingConfirm(null); },
     onError: () => toast({ title: "Failed to disconnect", variant: "destructive" }),
   });
   const syncMut = useMutation({
@@ -900,10 +903,11 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
         open={!!pendingConfirm}
         title="Remove LIS Credentials"
         message={pendingConfirm?.msg ?? ""}
-        onConfirm={() => { pendingConfirm?.fn(); setPendingConfirm(null); }}
-        onCancel={() => setPendingConfirm(null)}
+        onConfirm={() => { pendingConfirm?.fn(); }}
+        onCancel={() => { setPendingConfirm(null); deleteMut.reset(); }}
         confirmLabel="Remove"
         confirmVariant="destructive"
+        mutation={deleteMut}
       />
       </CardContent>
     </Card>

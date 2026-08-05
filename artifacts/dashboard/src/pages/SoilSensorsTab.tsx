@@ -15,6 +15,7 @@ import { Card } from "@/components/ui/card";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -231,7 +232,7 @@ function ProbeDialog({
   });
 
   return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); save.reset(); } }}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{probe ? "Edit Sensor Probe" : "Register Sensor Probe"}</DialogTitle>
@@ -341,6 +342,7 @@ function ProbeDialog({
             />
           </div>
         </div>
+        <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => save.mutate()} disabled={!form.name || save.isPending}>
@@ -383,7 +385,7 @@ function AddReadingDialog({ open, onClose, probe, farmId }: { open: boolean; onC
   });
 
   return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); save.reset(); } }}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>Add Manual Reading</DialogTitle>
@@ -417,6 +419,7 @@ function AddReadingDialog({ open, onClose, probe, farmId }: { open: boolean; onC
             <Input value={form.notes} onChange={set("notes")} placeholder="Optional observation…" />
           </div>
         </div>
+        <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => save.mutate()} disabled={!form.readingAt || save.isPending}>

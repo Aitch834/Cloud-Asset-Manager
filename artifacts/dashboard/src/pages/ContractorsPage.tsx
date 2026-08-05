@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Redirect } from "wouter";
 import { useUpload } from "@workspace/object-storage-web";
 import {
@@ -447,7 +448,7 @@ function ExpandedContractorSection({ contractor, farmId }: { contractor: Contrac
       )}
 
       {/* Assign for Review dialog */}
-      <Dialog open={!!assignDialog?.open} onOpenChange={o => { if (!o) setAssignDialog(null); }}>
+      <Dialog open={!!assignDialog?.open} onOpenChange={o => { if (!o) { setAssignDialog(null); raiseTaskMut.reset(); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><ClipboardCheck className="h-4 w-4 text-primary" />Assign RAMS for Review</DialogTitle>
@@ -483,6 +484,7 @@ function ExpandedContractorSection({ contractor, farmId }: { contractor: Contrac
               <Textarea value={assignNote} onChange={e => setAssignNote(e.target.value)} placeholder="e.g. Please review before the contractor arrives on 15 May." className="text-sm mt-1 resize-none" rows={2} />
             </div>
           </div>
+          <DialogMutationError mutation={raiseTaskMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setAssignDialog(null)}>Cancel</Button>
             <Button size="sm" className="gap-1.5" disabled={!assignMemberId || raiseTaskMut.isPending}
@@ -728,7 +730,7 @@ export default function ContractorsPage() {
 
       {/* Add / Edit dialog */}
       {showForm && (
-        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); createMut.reset(); updateMut.reset(); } }}>
           <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editing ? "Edit Contractor" : "Add Contractor to H&S File"}</DialogTitle>
@@ -806,6 +808,7 @@ export default function ContractorsPage() {
               <div><Label>Last On-Site Date</Label><Input type="date" value={form.lastOnSiteDate ?? ""} onChange={e => setF("lastOnSiteDate", e.target.value || null)} /></div>
               <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setF("notes", e.target.value || null)} rows={2} /></div>
             </div>
+            <DialogMutationError mutation={editing ? updateMut : createMut} message="Failed to save — your entries are still here." />
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
               <Button onClick={() => editing ? updateMut.mutate({ ...form, id: editing.id }) : createMut.mutate(form)} disabled={!form.companyName || createMut.isPending || updateMut.isPending}>
@@ -819,12 +822,13 @@ export default function ContractorsPage() {
 
       {/* Deactivate confirm */}
       {deleteId !== null && (
-        <Dialog open onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <Dialog open onOpenChange={o => { if (!o) { setDeleteId(null); deactivateMut.reset(); } }}>
           <DialogContent className="max-w-sm">
             <DialogHeader>
               <DialogTitle>Deactivate Contractor?</DialogTitle>
               <DialogDescription>The contractor will be marked as inactive and hidden from the active list. All H&amp;S records, contacts, and RAMS are retained.</DialogDescription>
             </DialogHeader>
+            <DialogMutationError mutation={deactivateMut} message="Couldn't deactivate — please try again." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
               <Button variant="destructive" onClick={() => deactivateMut.mutate(deleteId!)} disabled={deactivateMut.isPending}>

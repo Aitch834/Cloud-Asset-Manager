@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Badge } from "@/components/ui/badge";
 import {
   Fuel, Plus, AlertTriangle, CheckCircle2, XCircle, Droplets,
@@ -1119,7 +1120,7 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
       })()}
 
       {/* ─── INSTALLATION DIALOG ─── */}
-      <Dialog open={showInstallDialog} onOpenChange={o => { if (!o) { setShowInstallDialog(false); setEditInstall(null); setInstallForm(EMPTY_INSTALL); } }}>
+      <Dialog open={showInstallDialog} onOpenChange={o => { if (!o) { setShowInstallDialog(false); setEditInstall(null); setInstallForm(EMPTY_INSTALL); createInstallMut.reset(); updateInstallMut.reset(); } }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader><DialogTitle>{editInstall ? "Edit Installation" : "Register New Installation"}</DialogTitle></DialogHeader>
           <div className="grid gap-3 py-2 max-h-[65vh] overflow-y-auto pr-1">
@@ -1285,7 +1286,7 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* ─── GENERATION DIALOG ─── */}
-      <Dialog open={showGenDialog} onOpenChange={o => { if (!o) { setShowGenDialog(false); setEditGen(null); setGenForm(EMPTY_GEN); } }}>
+      <Dialog open={showGenDialog} onOpenChange={o => { if (!o) { setShowGenDialog(false); setEditGen(null); setGenForm(EMPTY_GEN); createGenMut.reset(); updateGenMut.reset(); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editGen ? "Edit Reading" : "Log Generation Reading"}</DialogTitle></DialogHeader>
           <div className="grid gap-3 py-2">
@@ -1325,7 +1326,7 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* ─── PAYMENT DIALOG ─── */}
-      <Dialog open={showPaymentDialog} onOpenChange={o => { if (!o) { setShowPaymentDialog(false); setEditPayment(null); setPaymentForm(EMPTY_PAYMENT); } }}>
+      <Dialog open={showPaymentDialog} onOpenChange={o => { if (!o) { setShowPaymentDialog(false); setEditPayment(null); setPaymentForm(EMPTY_PAYMENT); createPaymentMut.reset(); updatePaymentMut.reset(); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editPayment ? "Edit SEG Payment" : "Record SEG Payment"}</DialogTitle></DialogHeader>
           <div className="grid gap-3 py-2">
@@ -1369,19 +1370,19 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Delete confirms */}
-      <Dialog open={deleteInstallId !== null} onOpenChange={o => { if (!o) setDeleteInstallId(null); }}>
+      <Dialog open={deleteInstallId !== null} onOpenChange={o => { if (!o) { setDeleteInstallId(null); deleteInstallMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}><DialogHeader><DialogTitle>Delete Installation</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">This will permanently delete this installation and all associated records.</p>
           <DialogFooter><Button variant="outline" onClick={() => setDeleteInstallId(null)}>Cancel</Button><Button variant="destructive" disabled={deleteInstallMut.isPending} onClick={() => deleteInstallId !== null && deleteInstallMut.mutate(deleteInstallId)}>Delete</Button></DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={deleteGenId !== null} onOpenChange={o => { if (!o) setDeleteGenId(null); }}>
+      <Dialog open={deleteGenId !== null} onOpenChange={o => { if (!o) { setDeleteGenId(null); deleteGenMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}><DialogHeader><DialogTitle>Delete Reading</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Delete this generation reading?</p>
           <DialogFooter><Button variant="outline" onClick={() => setDeleteGenId(null)}>Cancel</Button><Button variant="destructive" disabled={deleteGenMut.isPending} onClick={() => deleteGenId !== null && deleteGenMut.mutate(deleteGenId)}>Delete</Button></DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={deletePaymentId !== null} onOpenChange={o => { if (!o) setDeletePaymentId(null); }}>
+      <Dialog open={deletePaymentId !== null} onOpenChange={o => { if (!o) { setDeletePaymentId(null); deletePaymentMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}><DialogHeader><DialogTitle>Delete Payment</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Delete this SEG payment record?</p>
           <DialogFooter><Button variant="outline" onClick={() => setDeletePaymentId(null)}>Cancel</Button><Button variant="destructive" disabled={deletePaymentMut.isPending} onClick={() => deletePaymentId !== null && deletePaymentMut.mutate(deletePaymentId)}>Delete</Button></DialogFooter>

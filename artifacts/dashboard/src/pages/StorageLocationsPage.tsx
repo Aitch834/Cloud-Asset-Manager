@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
@@ -532,7 +533,7 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
     });
   }
 
-  function closeDialog() { setAddOpen(false); setEditMovement(null); setMovForm(emptyMovement()); setLinkType(""); setLinkId(null); }
+  function closeDialog() { setAddOpen(false); setEditMovement(null); setMovForm(emptyMovement()); setLinkType(""); setLinkId(null); saveMov.reset(); }
 
   return (
     <div className="space-y-3">
@@ -844,6 +845,7 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
               )}
             </div>
           </div>
+          <DialogMutationError mutation={saveMov} message="Failed to save — your entries are still here." />
           <DialogFooter className="pt-2">
             <Button variant="outline" onClick={closeDialog}>Cancel</Button>
             <Button disabled={!movForm.movementDate || !movForm.quantityTonnes || saveMov.isPending} onClick={handleSubmit}>
@@ -854,10 +856,11 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
       </Dialog>
 
       {/* Delete confirm */}
-      <Dialog open={deleteMovId !== null} onOpenChange={(o) => { if (!o) setDeleteMovId(null); }}>
+      <Dialog open={deleteMovId !== null} onOpenChange={(o) => { if (!o) { setDeleteMovId(null); deleteMov.reset(); } }}>
         <DialogContent style={{ maxWidth: 380 }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Delete Movement</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">Are you sure? This cannot be undone.</p>
+          <DialogMutationError mutation={deleteMov} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteMovId(null)}>Cancel</Button>
             <Button variant="destructive" disabled={deleteMov.isPending} onClick={() => deleteMovId !== null && deleteMov.mutate(deleteMovId)}>
@@ -1055,7 +1058,7 @@ function MerchantChargesPanel({ farmId, locationId, location }: { farmId: number
         )}
 
         {/* Add / Edit Charge Dialog */}
-        <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) { setEditCharge(null); setChargeForm(emptyCharge()); } }}>
+        <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) { setEditCharge(null); setChargeForm(emptyCharge()); saveCharge.reset(); } }}>
           <DialogContent style={{ maxWidth: 520 }} aria-describedby={undefined}>
             <DialogHeader><DialogTitle>{editCharge ? "Edit Charge" : "Add Manual Charge"}</DialogTitle></DialogHeader>
             <div className="space-y-3 pt-1">
@@ -1107,6 +1110,7 @@ function MerchantChargesPanel({ farmId, locationId, location }: { farmId: number
                 <Input placeholder="Any additional notes" value={chargeForm.notes} onChange={(e) => setChargeForm((f) => ({ ...f, notes: e.target.value }))} />
               </div>
             </div>
+            <DialogMutationError mutation={saveCharge} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
               <Button
@@ -1130,7 +1134,7 @@ function MerchantChargesPanel({ farmId, locationId, location }: { farmId: number
         </Dialog>
 
         {/* Auto-generate Dialog */}
-        <Dialog open={autoGenOpen} onOpenChange={(o) => { setAutoGenOpen(o); if (!o) setAutoGenForm(emptyAutoGen()); }}>
+        <Dialog open={autoGenOpen} onOpenChange={(o) => { setAutoGenOpen(o); if (!o) { setAutoGenForm(emptyAutoGen()); autoGenMut.reset(); } }}>
           <DialogContent style={{ maxWidth: 480 }} aria-describedby={undefined}>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2"><Calculator className="h-4 w-4 text-amber-600" /> Auto-generate Charges</DialogTitle>
@@ -1170,6 +1174,7 @@ function MerchantChargesPanel({ farmId, locationId, location }: { farmId: number
                 </div>
               </div>
             </div>
+            <DialogMutationError mutation={autoGenMut} message="Failed to generate charges — your entries are still here." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setAutoGenOpen(false)}>Cancel</Button>
               <Button
@@ -1183,10 +1188,11 @@ function MerchantChargesPanel({ farmId, locationId, location }: { farmId: number
         </Dialog>
 
         {/* Delete Charge Dialog */}
-        <Dialog open={deleteChargeId !== null} onOpenChange={(o) => { if (!o) setDeleteChargeId(null); }}>
+        <Dialog open={deleteChargeId !== null} onOpenChange={(o) => { if (!o) { setDeleteChargeId(null); deleteCharge.reset(); } }}>
           <DialogContent style={{ maxWidth: 360 }} aria-describedby={undefined}>
             <DialogHeader><DialogTitle>Delete Charge</DialogTitle></DialogHeader>
             <p className="text-sm text-muted-foreground">Are you sure? This cannot be undone.</p>
+            <DialogMutationError mutation={deleteCharge} message="Failed to delete — please try again." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteChargeId(null)}>Cancel</Button>
               <Button variant="destructive" disabled={deleteCharge.isPending} onClick={() => deleteChargeId !== null && deleteCharge.mutate(deleteChargeId)}>
@@ -1324,7 +1330,7 @@ function GrainDryingTab({ farmId, locationId }: { farmId: number; locationId: nu
       )}
 
       {/* Add/Edit Dialog */}
-      <Dialog open={open} onOpenChange={o => { if (!o) setOpen(false); }}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); saveMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 520 }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>{editItem ? "Edit" : "Log"} Drying Run</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
@@ -1338,6 +1344,7 @@ function GrainDryingTab({ farmId, locationId }: { farmId: number; locationId: nu
             <div><Label>Operator</Label><StaffSelect value={form.operatorName} onChange={f("operatorName")} staffNames={dryStaffNames} loading={dryMembersLoading} /></div>
             <div className="col-span-2"><Label>Notes</Label><Input value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
           </div>
+          <DialogMutationError mutation={saveMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button disabled={!form.dryingDate || !form.cropType || saveMut.isPending} onClick={() => saveMut.mutate(form)}>
@@ -1368,10 +1375,11 @@ function GrainDryingTab({ farmId, locationId }: { farmId: number; locationId: nu
       </Dialog>
 
       {/* Delete Confirm */}
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Delete Drying Record?</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">This cannot be undone.</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>
@@ -1476,7 +1484,7 @@ function GrainConditioningTab({ farmId, locationId }: { farmId: number; location
         </div>
       )}
 
-      <Dialog open={open} onOpenChange={o => { if (!o) setOpen(false); }}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); saveMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 520 }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>{editItem ? "Edit" : "Log"} Conditioning</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
@@ -1496,6 +1504,7 @@ function GrainConditioningTab({ farmId, locationId }: { farmId: number; location
             <div><Label>Operator</Label><StaffSelect value={form.operatorName} onChange={f("operatorName")} staffNames={condStaffNames} loading={condMembersLoading} /></div>
             <div className="col-span-2"><Label>Notes</Label><Input value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
           </div>
+          <DialogMutationError mutation={saveMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button disabled={!form.conditioningDate || !form.cropType || saveMut.isPending} onClick={() => saveMut.mutate(form)}>
@@ -1524,10 +1533,11 @@ function GrainConditioningTab({ farmId, locationId }: { farmId: number; location
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Delete Conditioning Record?</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">This cannot be undone.</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>
@@ -1861,7 +1871,7 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
       </Dialog>
 
       {/* Quality Test Dialog */}
-      <Dialog open={testOpen} onOpenChange={(o) => { setTestOpen(o); if (!o) { setEditTest(null); setTestForm(emptyQualityTest()); } }}>
+      <Dialog open={testOpen} onOpenChange={(o) => { setTestOpen(o); if (!o) { setEditTest(null); setTestForm(emptyQualityTest()); saveTest.reset(); } }}>
         <DialogContent style={{ maxWidth: 580 }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>{editTest ? "Edit Quality Test" : "Record Quality Test"}</DialogTitle></DialogHeader>
           <div className="space-y-3 pt-2 max-h-[70vh] overflow-y-auto pr-1">
@@ -1923,6 +1933,7 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
               </div>
             </div>
           </div>
+          <DialogMutationError mutation={saveTest} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setTestOpen(false)}>Cancel</Button>
             <Button
@@ -1949,10 +1960,11 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteTestId !== null} onOpenChange={(o) => { if (!o) setDeleteTestId(null); }}>
+      <Dialog open={deleteTestId !== null} onOpenChange={(o) => { if (!o) { setDeleteTestId(null); deleteTest.reset(); } }}>
         <DialogContent style={{ maxWidth: 380 }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Delete Quality Test</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">Are you sure? This cannot be undone.</p>
+          <DialogMutationError mutation={deleteTest} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTestId(null)}>Cancel</Button>
             <Button variant="destructive" disabled={deleteTest.isPending} onClick={() => deleteTestId !== null && deleteTest.mutate(deleteTestId)}>
@@ -1963,7 +1975,7 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
       </Dialog>
 
       {/* Temperature Log Dialog */}
-      <Dialog open={tempOpen} onOpenChange={(o) => { setTempOpen(o); if (!o) { setEditTemp(null); setTempForm(emptyTempLog()); } }}>
+      <Dialog open={tempOpen} onOpenChange={(o) => { setTempOpen(o); if (!o) { setEditTemp(null); setTempForm(emptyTempLog()); saveTemp.reset(); } }}>
         <DialogContent style={{ maxWidth: 520 }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>{editTemp ? "Edit Temperature Log" : "Log Temperature Reading"}</DialogTitle></DialogHeader>
           <div className="space-y-3 pt-2 max-h-[70vh] overflow-y-auto pr-1">
@@ -2004,6 +2016,7 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
               </div>
             </div>
           </div>
+          <DialogMutationError mutation={saveTemp} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setTempOpen(false)}>Cancel</Button>
             <Button
@@ -2026,10 +2039,11 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteTempId !== null} onOpenChange={(o) => { if (!o) setDeleteTempId(null); }}>
+      <Dialog open={deleteTempId !== null} onOpenChange={(o) => { if (!o) { setDeleteTempId(null); deleteTemp.reset(); } }}>
         <DialogContent style={{ maxWidth: 380 }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Delete Temperature Log</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">Are you sure? This cannot be undone.</p>
+          <DialogMutationError mutation={deleteTemp} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTempId(null)}>Cancel</Button>
             <Button variant="destructive" disabled={deleteTemp.isPending} onClick={() => deleteTempId !== null && deleteTemp.mutate(deleteTempId)}>
@@ -2460,7 +2474,7 @@ export default function StorageLocationsPage() {
         })()}
 
         {/* Add / Edit Location Dialog */}
-        <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditId(null); setForm(emptyForm()); } }}>
+        <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditId(null); setForm(emptyForm()); saveMut.reset(); } }}>
           <DialogContent style={{ maxWidth: 640 }} aria-describedby={undefined}>
             <DialogHeader>
               <DialogTitle>{editId ? "Edit Storage Location" : "Add Storage Location"}</DialogTitle>
@@ -2627,6 +2641,7 @@ export default function StorageLocationsPage() {
                 <Label htmlFor="isActive" className="cursor-pointer">Active (available for harvest transport runs)</Label>
               </div>
 
+              <DialogMutationError mutation={saveMut} message="Failed to save — your entries are still here." />
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
                 <Button type="submit" disabled={saveMut.isPending}>
@@ -2638,12 +2653,13 @@ export default function StorageLocationsPage() {
         </Dialog>
 
         {/* Delete Dialog */}
-        <Dialog open={deleteId !== null} onOpenChange={(o) => { if (!o) setDeleteId(null); }}>
+        <Dialog open={deleteId !== null} onOpenChange={(o) => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
           <DialogContent style={{ maxWidth: 400 }} aria-describedby={undefined}>
             <DialogHeader><DialogTitle>Delete Storage Location</DialogTitle></DialogHeader>
             <p className="text-sm text-muted-foreground">
               Are you sure you want to delete this storage location? This cannot be undone. Associated quality tests and temperature logs will remain in the database but will no longer be linked.
             </p>
+            <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
               <Button

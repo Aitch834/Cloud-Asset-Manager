@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OtherSelect } from "@/components/ui/other-select";
 import { Trash2, Plus, Search, Pencil, Eye, FileText, Truck, Recycle, Printer, ExternalLink, Paperclip, X, Upload, AlertTriangle, ClipboardList, History } from "lucide-react";
@@ -690,7 +691,7 @@ export default function WasteDisposalPage() {
         )}
 
         {/* ─── Add / Edit Dialog ─────────────────────────── */}
-        <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); setSelectedFile(null); resetEaSearch(); } }}>
+        <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); setSelectedFile(null); resetEaSearch(); saveMut.reset(); } }}>
           <DialogContent style={{ maxWidth: 620 }}>
             <DialogHeader><DialogTitle>{editRecord ? "Edit Waste Record" : "Add Waste Disposal Record"}</DialogTitle></DialogHeader>
             <div className="space-y-3 py-2">
@@ -1034,6 +1035,7 @@ export default function WasteDisposalPage() {
                 )}
               </div>
             </div>
+            <DialogMutationError mutation={saveMut} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm); setSelectedFile(null); }}>Cancel</Button>
               <Button onClick={handleSave} disabled={!form.disposalDate || !form.wasteType || !form.disposalMethod || saveMut.isPending || uploading}>
@@ -1143,10 +1145,11 @@ export default function WasteDisposalPage() {
         </Dialog>
 
         {/* ─── Delete Dialog ─────────────────────────────── */}
-        <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
           <DialogContent style={{ maxWidth: 400 }}>
             <DialogHeader><DialogTitle>Delete Waste Record</DialogTitle></DialogHeader>
             <p className="text-sm text-gray-600 py-2">Are you sure you want to delete this waste disposal record?</p>
+            <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
               <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>

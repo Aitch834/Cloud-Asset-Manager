@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -1000,7 +1001,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
 
       {/* ── Stock Form Dialog ── */}
       {showStockForm && (
-        <Dialog open onOpenChange={o => { if (!o) { setShowStockForm(false); setEditStock(null); } }}>
+        <Dialog open onOpenChange={o => { if (!o) { setShowStockForm(false); setEditStock(null); createStockMut.reset(); updateStockMut.reset(); } }}>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editStock ? "Edit Stock Item" : "Add PPE to Stock"}</DialogTitle></DialogHeader>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 8 }}>
@@ -1091,6 +1092,8 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
               <div><Label>Batch Number</Label><Input value={stockForm.batchNumber} onChange={e => setSF("batchNumber", e.target.value)} /></div>
               <div style={{ gridColumn: "1 / -1" }}><Label>Notes</Label><Textarea value={stockForm.notes} onChange={e => setSF("notes", e.target.value)} rows={2} /></div>
             </div>
+            <DialogMutationError mutation={createStockMut} message="Failed to save — your entries are still here." />
+            <DialogMutationError mutation={updateStockMut} message="Failed to save — your entries are still here." />
             <DialogFooter style={{ marginTop: 16 }}>
               <Button variant="outline" onClick={() => { setShowStockForm(false); setEditStock(null); }}>Cancel</Button>
               <Button onClick={() => editStock ? updateStockMut.mutate({ ...stockForm, id: editStock.id }) : createStockMut.mutate(stockForm)} disabled={!stockForm.ppeType || createStockMut.isPending || updateStockMut.isPending}>
@@ -1104,7 +1107,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
 
       {/* ── Issue PPE Form Dialog ── */}
       {showIssueForm && (
-        <Dialog open onOpenChange={o => { if (!o) { setShowIssueForm(false); setEditIssue(null); } }}>
+        <Dialog open onOpenChange={o => { if (!o) { setShowIssueForm(false); setEditIssue(null); createIssueMut.reset(); updateIssueMut.reset(); } }}>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editIssue ? "Edit PPE Issue Record" : "Issue PPE to Staff Member"}</DialogTitle></DialogHeader>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 8 }}>
@@ -1242,6 +1245,8 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                 <Label htmlFor="issueActive">Item currently active / in use</Label>
               </div>
             </div>
+            <DialogMutationError mutation={createIssueMut} message="Failed to save — your entries are still here." />
+            <DialogMutationError mutation={updateIssueMut} message="Failed to save — your entries are still here." />
             <DialogFooter style={{ marginTop: 16 }}>
               <Button variant="outline" onClick={() => { setShowIssueForm(false); setEditIssue(null); }}>Cancel</Button>
               <Button onClick={() => editIssue ? updateIssueMut.mutate({ ...issueForm, id: editIssue.id }) : createIssueMut.mutate(issueForm)} disabled={!issueForm.staffName || !issueForm.dateIssued || createIssueMut.isPending || updateIssueMut.isPending}>
@@ -1255,10 +1260,11 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
 
       {/* ── Delete Stock Confirm ── */}
       {deleteStockId !== null && (
-        <Dialog open onOpenChange={o => { if (!o) setDeleteStockId(null); }}>
+        <Dialog open onOpenChange={o => { if (!o) { setDeleteStockId(null); deleteStockMut.reset(); } }}>
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>Remove Stock Item?</DialogTitle></DialogHeader>
             <p className="text-sm text-muted-foreground">This stock record will be permanently removed. Any issue records linked to it will retain their stock reference.</p>
+            <DialogMutationError mutation={deleteStockMut} message="Failed to remove — please try again." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteStockId(null)}>Cancel</Button>
               <Button variant="destructive" onClick={() => deleteStockMut.mutate(deleteStockId!)} disabled={deleteStockMut.isPending}>{deleteStockMut.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : "Remove"}</Button>
@@ -1269,10 +1275,11 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
 
       {/* ── Delete Issue Confirm ── */}
       {deleteIssueId !== null && (
-        <Dialog open onOpenChange={o => { if (!o) setDeleteIssueId(null); }}>
+        <Dialog open onOpenChange={o => { if (!o) { setDeleteIssueId(null); deleteIssueMut.reset(); } }}>
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>Remove PPE Record?</DialogTitle></DialogHeader>
             <p className="text-sm text-muted-foreground">This PPE issue record will be permanently removed from the register.</p>
+            <DialogMutationError mutation={deleteIssueMut} message="Failed to remove — please try again." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteIssueId(null)}>Cancel</Button>
               <Button variant="destructive" onClick={() => deleteIssueMut.mutate(deleteIssueId!)} disabled={deleteIssueMut.isPending}>{deleteIssueMut.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : "Remove"}</Button>
@@ -1525,7 +1532,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
 
           {/* New Stocktake Dialog */}
           {stocktakeNewOpen && (
-            <Dialog open onOpenChange={o => { if (!o) setStocktakeNewOpen(false); }}>
+            <Dialog open onOpenChange={o => { if (!o) { setStocktakeNewOpen(false); createStocktakeMut.reset(); } }}>
               <DialogContent className="max-w-md">
                 <DialogHeader><DialogTitle>Start New PPE Stocktake</DialogTitle></DialogHeader>
                 <p className="text-sm text-muted-foreground">A snapshot of current system quantities will be taken. Enter actual physical counts for each item.</p>
@@ -1543,6 +1550,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                   </div>
                   <div><Label>Notes</Label><Textarea value={stocktakeNewForm.notes} onChange={e => setStocktakeNewForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="e.g. Routine quarterly stocktake" /></div>
                 </div>
+                <DialogMutationError mutation={createStocktakeMut} message="Failed to start stocktake — please try again." />
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setStocktakeNewOpen(false)}>Cancel</Button>
                   <Button disabled={!stocktakeNewForm.stocktakeDate || createStocktakeMut.isPending} onClick={() => createStocktakeMut.mutate({ stocktakeDate: stocktakeNewForm.stocktakeDate, conductedBy: stocktakeNewForm.conductedBy || undefined, notes: stocktakeNewForm.notes || undefined })}>
@@ -1555,10 +1563,11 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
 
           {/* Delete Confirm */}
           {stocktakeDeleteId !== null && (
-            <Dialog open onOpenChange={o => { if (!o) setStocktakeDeleteId(null); }}>
+            <Dialog open onOpenChange={o => { if (!o) { setStocktakeDeleteId(null); deleteStocktakeMut.reset(); } }}>
               <DialogContent className="max-w-sm">
                 <DialogHeader><DialogTitle>Discard Stocktake?</DialogTitle></DialogHeader>
                 <p className="text-sm text-gray-600">This will permanently delete this draft stocktake. Stock quantities will not be affected.</p>
+                <DialogMutationError mutation={deleteStocktakeMut} message="Failed to delete — please try again." />
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setStocktakeDeleteId(null)}>Cancel</Button>
                   <Button variant="destructive" onClick={() => deleteStocktakeMut.mutate(stocktakeDeleteId!)}>Delete</Button>
@@ -1653,7 +1662,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
 
           {/* ── Add / Edit Risk Assessment Dialog ── */}
           {showRiskForm && (
-            <Dialog open onOpenChange={o => { if (!o) { setShowRiskForm(false); setEditRisk(null); } }}>
+            <Dialog open onOpenChange={o => { if (!o) { setShowRiskForm(false); setEditRisk(null); createRiskMut.reset(); updateRiskMut.reset(); } }}>
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader><DialogTitle>{editRisk ? "Edit PPE Risk Assessment" : "New PPE Risk Assessment"}</DialogTitle></DialogHeader>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
@@ -1733,6 +1742,8 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                     <div style={{ gridColumn: "1 / -1" }}><Label>Notes</Label><Textarea value={riskForm.notes} onChange={e => setRF("notes", e.target.value)} placeholder="Any additional notes…" rows={2} /></div>
                   </div>
                 </div>
+                <DialogMutationError mutation={createRiskMut} message="Failed to save — your entries are still here." />
+                <DialogMutationError mutation={updateRiskMut} message="Failed to save — your entries are still here." />
                 <DialogFooter>
                   <Button variant="outline" onClick={() => { setShowRiskForm(false); setEditRisk(null); }}>Cancel</Button>
                   <Button
@@ -1781,10 +1792,11 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
 
           {/* ── Delete Risk Assessment Confirmation ── */}
           {deleteRiskId !== null && (
-            <Dialog open onOpenChange={o => { if (!o) setDeleteRiskId(null); }}>
+            <Dialog open onOpenChange={o => { if (!o) { setDeleteRiskId(null); deleteRiskMut.reset(); } }}>
               <DialogContent className="max-w-sm">
                 <DialogHeader><DialogTitle>Delete Risk Assessment?</DialogTitle></DialogHeader>
                 <p className="text-sm text-muted-foreground">This PPE risk assessment record will be permanently deleted.</p>
+                <DialogMutationError mutation={deleteRiskMut} message="Failed to delete — please try again." />
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setDeleteRiskId(null)}>Cancel</Button>
                   <Button variant="destructive" onClick={() => deleteRiskMut.mutate(deleteRiskId!)} disabled={deleteRiskMut.isPending}>{deleteRiskMut.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : "Delete"}</Button>
@@ -1797,7 +1809,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
 
       {/* ── PPE PO Form Dialog ── */}
       {showPoForm && (
-        <Dialog open onOpenChange={o => { if (!o) { setShowPoForm(false); setEditPo(null); } }}>
+        <Dialog open onOpenChange={o => { if (!o) { setShowPoForm(false); setEditPo(null); createPoMut.reset(); updatePoMut.reset(); } }}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editPo ? "Edit PPE Order" : "Raise PPE Purchase Order"}</DialogTitle></DialogHeader>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 8 }}>
@@ -1882,6 +1894,8 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                 </div>
               </div>
             )}
+            <DialogMutationError mutation={createPoMut} message="Failed to save — your entries are still here." />
+            <DialogMutationError mutation={updatePoMut} message="Failed to save — your entries are still here." />
             <DialogFooter style={{ marginTop: 16 }}>
               <Button variant="outline" onClick={() => { setShowPoForm(false); setEditPo(null); }}>Cancel</Button>
               <Button
@@ -1902,7 +1916,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
 
       {/* ── GRN — Record Goods Receipt ── */}
       {showGrnDialog && (
-        <Dialog open onOpenChange={o => { if (!o) setShowGrnDialog(null); }}>
+        <Dialog open onOpenChange={o => { if (!o) { setShowGrnDialog(null); receivePoMut.reset(); } }}>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Receive Goods — {showGrnDialog.poNumber}</DialogTitle></DialogHeader>
             <p className="text-sm text-muted-foreground mb-3">A PPE-GRN reference is auto-generated. Items received are added to the PPE Stock Register automatically.</p>
@@ -1921,6 +1935,7 @@ function PpeRegisterSection({ farmId, members }: { farmId: number; members: Farm
                 </div>
               ))}
             </div>
+            <DialogMutationError mutation={receivePoMut} message="Failed to record receipt — your entries are still here." />
             <DialogFooter style={{ marginTop: 16 }}>
               <Button variant="outline" onClick={() => setShowGrnDialog(null)}>Cancel</Button>
               <Button
@@ -2069,7 +2084,7 @@ function AddMemberDialog({ farmId, open, onClose, departments }: { farmId: numbe
   });
 
   return (
-    <Dialog open={open} onOpenChange={v => { if (!v) { reset(); onClose(); } }}>
+    <Dialog open={open} onOpenChange={v => { if (!v) { reset(); create.reset(); onClose(); } }}>
       <DialogContent style={{ maxWidth: "32rem" }}>
         {step === "form" ? (
           <>
@@ -2213,8 +2228,9 @@ function AddMemberDialog({ farmId, open, onClose, departments }: { farmId: numbe
             <p className="text-xs text-muted-foreground">
               This creates a staff record only — no system login is created yet. You can invite them to log in from their record at any time.
             </p>
+            <DialogMutationError mutation={create} message="Failed to save — your entries are still here." />
             <DialogFooter>
-              <Button variant="outline" onClick={() => { reset(); onClose(); }}>Cancel</Button>
+              <Button variant="outline" onClick={() => { reset(); create.reset(); onClose(); }}>Cancel</Button>
               <Button onClick={() => create.mutate()} disabled={!firstName.trim() || !lastName.trim() || create.isPending}>
                 {create.isPending ? "Saving…" : "Add Staff Member"}
               </Button>
@@ -2289,7 +2305,7 @@ function InviteDialog({
   if (!member) return null;
 
   return (
-    <Dialog open={open} onOpenChange={v => { if (!v) { reset(); onClose(); } }}>
+    <Dialog open={open} onOpenChange={v => { if (!v) { reset(); invite.reset(); onClose(); } }}>
       <DialogContent style={{ maxWidth: "28rem" }}>
         {step === "form" ? (
           <>
@@ -2334,8 +2350,9 @@ function InviteDialog({
                 They will receive an email to set their password. The invitation expires in 7 days.
               </p>
             </div>
+            <DialogMutationError mutation={invite} message="Failed to send invitation — please try again." />
             <DialogFooter>
-              <Button variant="outline" onClick={() => { reset(); onClose(); }}>Cancel</Button>
+              <Button variant="outline" onClick={() => { reset(); invite.reset(); onClose(); }}>Cancel</Button>
               <Button onClick={() => invite.mutate()} disabled={invite.isPending}>
                 <Send className="w-3.5 h-3.5 mr-1.5" />
                 {invite.isPending ? "Sending…" : "Send Invitation"}
@@ -2407,7 +2424,7 @@ function EditMemberDialog({
   if (!member) return null;
 
   return (
-    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+    <Dialog open={open} onOpenChange={v => { if (!v) { save.reset(); onClose(); } }}>
       <DialogContent style={{ maxWidth: "26rem" }}>
         <DialogHeader>
           <DialogTitle>Edit — {member.firstName} {member.lastName}</DialogTitle>
@@ -2527,6 +2544,7 @@ function EditMemberDialog({
             </div>
           </div>
         </div>
+        <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => save.mutate()} disabled={save.isPending}>{save.isPending ? "Saving…" : "Save Changes"}</Button>

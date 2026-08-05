@@ -37,6 +37,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -662,7 +663,7 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
       )}
 
       {/* Edit Dialog */}
-      <Dialog open={open} onOpenChange={o => { if (!o) setOpen(false); }}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); add.reset(); edit.reset(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{current ? "Edit" : "Add"} Vine Register Entry</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -767,6 +768,8 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
             )}
             <div><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={add} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={edit} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={save} disabled={add.isPending || edit.isPending}>{(add.isPending || edit.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Save</Button>
@@ -1154,7 +1157,7 @@ export function BlocksTab({ farmId }: { farmId: number }) {
       )}
 
       {/* ── Retire Dialog ───────────────────────────────────────────────────── */}
-      <Dialog open={retireOpen} onOpenChange={o => { if (!o) { setRetireOpen(false); setRetirePlanting(null); } }}>
+      <Dialog open={retireOpen} onOpenChange={o => { if (!o) { setRetireOpen(false); setRetirePlanting(null); retireMutation.reset(); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Retire / Take Out of Production</DialogTitle>
@@ -1194,6 +1197,7 @@ export function BlocksTab({ farmId }: { farmId: number }) {
               <div><Label>Additional Notes</Label><Textarea value={retireForm.deactivationNotes} onChange={e => setRetireForm(p => ({ ...p, deactivationNotes: e.target.value }))} rows={2} placeholder="Any supporting detail for the audit trail…" /></div>
             </div>
           )}
+          <DialogMutationError mutation={retireMutation} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setRetireOpen(false); setRetirePlanting(null); }}>Cancel</Button>
             <Button
@@ -1208,7 +1212,7 @@ export function BlocksTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* ── Replant Dialog ──────────────────────────────────────────────────── */}
-      <Dialog open={replantOpen} onOpenChange={o => { if (!o) { setReplantOpen(false); setReplantBlock(null); } }}>
+      <Dialog open={replantOpen} onOpenChange={o => { if (!o) { setReplantOpen(false); setReplantBlock(null); replantMutation.reset(); } }}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>New Planting — {fmt(replantBlock?.blockName)}</DialogTitle>
@@ -1218,6 +1222,7 @@ export function BlocksTab({ farmId }: { farmId: number }) {
             <PlantingFormFields form={replantForm} sf={sfr} />
             <div><Label>Notes (optional)</Label><Textarea value={String(replantForm.notes ?? "")} onChange={e => sfr("notes", e.target.value)} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={replantMutation} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setReplantOpen(false); setReplantBlock(null); }}>Cancel</Button>
             <Button
@@ -1231,7 +1236,7 @@ export function BlocksTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* ── Add / Edit Dialog ───────────────────────────────────────────────── */}
-      <Dialog open={open} onOpenChange={o => { if (!o) setOpen(false); }}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); add.reset(); edit.reset(); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{current ? "Edit" : "Add"} Vineyard Block</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -1258,6 +1263,8 @@ export function BlocksTab({ farmId }: { farmId: number }) {
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide border-t pt-3">{current ? "Current Planting" : "Initial Planting"}</p>
             <PlantingFormFields form={form} sf={sf} />
           </div>
+          <DialogMutationError mutation={add} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={edit} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={save} disabled={add.isPending || edit.isPending}>{(add.isPending || edit.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Save</Button>
@@ -1399,7 +1406,7 @@ export function PhenologyTab({ farmId, blocks }: { farmId: number; blocks: Recor
       )}
 
       {/* Edit Dialog */}
-      <Dialog open={open} onOpenChange={o => { if (!o) setOpen(false); }}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); add.reset(); edit.reset(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{current ? "Edit" : "Add"} Phenology Observation</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -1432,6 +1439,8 @@ export function PhenologyTab({ farmId, blocks }: { farmId: number; blocks: Recor
             </div>
             <div><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={add} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={edit} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={save} disabled={add.isPending || edit.isPending}>{(add.isPending || edit.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Save</Button>
@@ -1582,7 +1591,7 @@ export function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Reco
       )}
 
       {/* Edit Dialog */}
-      <Dialog open={open} onOpenChange={o => { if (!o) setOpen(false); }}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); add.reset(); edit.reset(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{current ? "Edit" : "Add"} Vineyard Operation</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -1641,6 +1650,8 @@ export function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Reco
             </div>
             <div><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={add} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={edit} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={save} disabled={add.isPending || edit.isPending}>{(add.isPending || edit.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Save</Button>
@@ -1814,7 +1825,7 @@ export function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<
       )}
 
       {/* Edit Dialog */}
-      <Dialog open={open} onOpenChange={o => { if (!o) setOpen(false); }}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); add.reset(); edit.reset(); } }}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{current ? "Edit" : "Add"} Harvest Record</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -1925,6 +1936,8 @@ export function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<
             <div><Label>Operator</Label><StaffSelect value={String(form.operatorName ?? "")} onChange={v => sf("operatorName", v)} staffNames={staffNames} loading={staffLoading} /></div>
             <div><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={add} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={edit} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={save} disabled={add.isPending || edit.isPending}>{(add.isPending || edit.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Save</Button>
@@ -2114,7 +2127,7 @@ export function ScoutingTab({ farmId, blocks }: { farmId: number; blocks: Record
       )}
 
       {/* Edit Dialog */}
-      <Dialog open={open} onOpenChange={o => { if (!o) setOpen(false); }}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); add.reset(); edit.reset(); } }}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{current ? "Edit" : "Add"} Scouting Record</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -2174,6 +2187,8 @@ export function ScoutingTab({ farmId, blocks }: { farmId: number; blocks: Record
             <div><Label>Next Scout Date</Label><Input type="date" min={today} value={String(form.nextScoutDate ?? "")} onChange={e => sf("nextScoutDate", e.target.value)} /></div>
             <div><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={add} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={edit} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={save} disabled={add.isPending || edit.isPending}>{(add.isPending || edit.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Save</Button>
@@ -2413,7 +2428,7 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      <Dialog open={showAdd || !!editing} onOpenChange={() => { setShowAdd(false); setEditing(null); }}>
+      <Dialog open={showAdd || !!editing} onOpenChange={() => { setShowAdd(false); setEditing(null); saveMutation.reset(); }}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Wine Production Record" : "Add Wine Production Record"}</DialogTitle>
@@ -2532,6 +2547,7 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
               <RecordAttachments farmId={farmId} recordType="wine-production" recordId={(editing as Record<string, unknown>).id as number} />
             </div>
           )}
+          <DialogMutationError mutation={saveMutation} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowAdd(false); setEditing(null); }}>Cancel</Button>
             <Button onClick={() => saveMutation.mutate()} disabled={!form.vintageYear || saveMutation.isPending}>
@@ -2541,9 +2557,10 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
+      <Dialog open={!!deleting} onOpenChange={() => { setDeleting(null); deleteMutation.reset(); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Wine Production Record</DialogTitle><DialogDescription>Remove the record for vintage <strong>{String(deleting?.vintageYear ?? "")}</strong>? This cannot be undone.</DialogDescription></DialogHeader>
+          <DialogMutationError mutation={deleteMutation} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteMutation.mutate(Number(deleting!.id))} disabled={deleteMutation.isPending}>Delete</Button>
@@ -2650,7 +2667,7 @@ export function LicensingTab({ farmId }: { farmId: number }) {
           </DialogContent>
         </Dialog>
       )}
-      <Dialog open={open} onOpenChange={o => !o && setOpen(false)}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); crud.add.reset(); crud.edit.reset(); } }}>
         <DialogContent style={{ maxWidth: "38rem" }}>
           <DialogHeader><DialogTitle>{editing !== null ? "Edit" : "Add"} Premises Licence</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
@@ -2684,6 +2701,8 @@ export function LicensingTab({ farmId }: { farmId: number }) {
             <div className="col-span-2"><Label>Licence Conditions</Label><Textarea value={String(form.conditions ?? "")} onChange={e => sf("conditions", e.target.value)} rows={2} placeholder="e.g. No off-sales after 22:00, Challenge 25 policy required…" /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={crud.add} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={crud.edit} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={save} disabled={crud.add.isPending || crud.edit.isPending}>{(crud.add.isPending || crud.edit.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Save</Button>
@@ -2891,7 +2910,7 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
       )}
 
       {/* ── Add / Edit dialog ── */}
-      <Dialog open={open} onOpenChange={o => !o && setOpen(false)}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); crud.add.reset(); crud.edit.reset(); } }}>
         <DialogContent style={{ maxWidth: "40rem" }} className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing !== null ? "Edit" : "Add"} Excise Return</DialogTitle>
@@ -3043,6 +3062,8 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
 
           <div className="mt-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
 
+          <DialogMutationError mutation={crud.add} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={crud.edit} message="Failed to save — your entries are still here." />
           <DialogFooter className="mt-2">
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={save} disabled={crud.add.isPending || crud.edit.isPending || !form.periodStart || !form.periodEnd}>
@@ -3132,7 +3153,7 @@ export function TastingsToursTab({ farmId }: { farmId: number }) {
           </DialogContent>
         </Dialog>
       )}
-      <Dialog open={open} onOpenChange={o => !o && setOpen(false)}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); crud.add.reset(); crud.edit.reset(); } }}>
         <DialogContent style={{ maxWidth: "38rem" }}>
           <DialogHeader><DialogTitle>{editing !== null ? "Edit" : "Log"} Tasting Session</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
@@ -3153,6 +3174,8 @@ export function TastingsToursTab({ farmId }: { farmId: number }) {
             <div><Label>Revenue (£)</Label><Input type="number" step="0.01" value={String(form.revenueGbp ?? "")} onChange={e => sf("revenueGbp", e.target.value)} /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={crud.add} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={crud.edit} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={save} disabled={crud.add.isPending || crud.edit.isPending || !form.sessionDate}>{(crud.add.isPending || crud.edit.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Save</Button>
@@ -3362,7 +3385,7 @@ export function AgeVerificationTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={o => !o && setOpen(false)}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); crud.add.reset(); crud.edit.reset(); } }}>
         <DialogContent style={{ maxWidth: "36rem" }}>
           <DialogHeader>
             <DialogTitle>{editing !== null ? "Edit Record" : form.recordType === "training" ? "Add Training Record" : "Log Refusal"}</DialogTitle>
@@ -3430,6 +3453,8 @@ export function AgeVerificationTab({ farmId }: { farmId: number }) {
             </>}
             <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={crud.add} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={crud.edit} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={save} disabled={crud.add.isPending || crud.edit.isPending || !form.recordDate}>
@@ -3729,7 +3754,7 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
       )}
 
       {/* ── Add / Edit dialog ── */}
-      <Dialog open={open} onOpenChange={o => !o && setOpen(false)}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); crud.add.reset(); crud.edit.reset(); } }}>
         <DialogContent style={{ maxWidth: "40rem" }} className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing !== null ? "Edit" : "Add"} Spray Application</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
@@ -3928,6 +3953,8 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
             </div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={sf("notes")} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={crud.add} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={crud.edit} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={save} disabled={crud.add.isPending || crud.edit.isPending || !form.applicationDate || !form.productName || seasonLimitReached}>
@@ -4148,7 +4175,7 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
       )}
 
       {/* ── Request Dialog ──────────────────────────────────────────── */}
-      <Dialog open={mode === "request"} onOpenChange={o => !o && close()}>
+      <Dialog open={mode === "request"} onOpenChange={o => { if (!o) { close(); add.reset(); } }}>
         <DialogContent style={{ maxWidth: "32rem" }}>
           <DialogHeader>
             <DialogTitle>Request Soil / Leaf Analysis</DialogTitle>
@@ -4176,6 +4203,7 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
             <div><Label>Requested By</Label><Input placeholder="Name of manager / agronomist" value={String(form.requestedBy ?? "")} onChange={sf("requestedBy")} /></div>
             <div className="col-span-2"><Label>Instructions for Collector</Label><Textarea placeholder="Where to sample, depth, method, any special notes…" value={String(form.notes ?? "")} onChange={sf("notes")} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={add} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={close}>Cancel</Button>
             <Button onClick={saveRequest} disabled={!form.analysisType || add.isPending}>
@@ -4187,7 +4215,7 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
       </Dialog>
 
       {/* ── Collect Dialog ──────────────────────────────────────────── */}
-      <Dialog open={mode === "collect"} onOpenChange={o => !o && close()}>
+      <Dialog open={mode === "collect"} onOpenChange={o => { if (!o) { close(); edit.reset(); } }}>
         <DialogContent style={{ maxWidth: "32rem" }}>
           <DialogHeader>
             <DialogTitle>Record Sample Collection</DialogTitle>
@@ -4201,6 +4229,7 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
             <div><Label>GPS Longitude</Label><Input type="number" step="any" placeholder="-1.2278" value={String(form.collectionGpsLng ?? "")} onChange={sf("collectionGpsLng")} /></div>
             <div className="col-span-2"><Label>Collection Notes</Label><Textarea placeholder="Exact location, sample depth, soil conditions…" value={String(form.collectionNotes ?? "")} onChange={sf("collectionNotes")} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={edit} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={close}>Cancel</Button>
             <Button onClick={saveCollect} disabled={!form.collectionDate || !form.collectedBy || edit.isPending}>
@@ -4212,7 +4241,7 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
       </Dialog>
 
       {/* ── Dispatch Dialog ─────────────────────────────────────────── */}
-      <Dialog open={mode === "dispatch"} onOpenChange={o => !o && close()}>
+      <Dialog open={mode === "dispatch"} onOpenChange={o => { if (!o) { close(); edit.reset(); } }}>
         <DialogContent style={{ maxWidth: "32rem" }}>
           <DialogHeader>
             <DialogTitle>Mark Sample as Dispatched to Lab</DialogTitle>
@@ -4230,6 +4259,7 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
             </div>
             <div className="col-span-2"><Label>Sample Reference / Barcode</Label><Input placeholder="Lab submission reference or barcode number" value={String(form.sampleReference ?? "")} onChange={sf("sampleReference")} /></div>
           </div>
+          <DialogMutationError mutation={edit} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={close}>Cancel</Button>
             <Button onClick={saveDispatch} disabled={!form.dispatchDate || edit.isPending}>
@@ -4241,7 +4271,7 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
       </Dialog>
 
       {/* ── Results Dialog ──────────────────────────────────────────── */}
-      <Dialog open={mode === "results"} onOpenChange={o => !o && close()}>
+      <Dialog open={mode === "results"} onOpenChange={o => { if (!o) { close(); edit.reset(); } }}>
         <DialogContent style={{ maxWidth: "40rem" }} className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{active?.status === "complete" ? "Edit Lab Results" : "Record Lab Results"}</DialogTitle>
@@ -4269,6 +4299,7 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
             <div className="col-span-2"><Label>Lab Recommendations</Label><Textarea value={String(form.recommendations ?? "")} onChange={sf("recommendations")} rows={2} placeholder="Recommendations from the lab report" /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={sf("notes")} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={edit} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={close}>Cancel</Button>
             <Button onClick={saveResults} disabled={!form.resultsReceivedDate || edit.isPending}>
@@ -4601,7 +4632,7 @@ export function WineryStockTab({ farmId }: { farmId: number }) {
       )}
 
       {/* ── Add / Edit Item Dialog ─────────────────────────────────────────────── */}
-      <Dialog open={!!itemDialog} onOpenChange={() => { setItemDialog(null); setEditingItem(null); }}>
+      <Dialog open={!!itemDialog} onOpenChange={() => { setItemDialog(null); setEditingItem(null); itemSave.reset(); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{editingItem ? "Edit Stock Item" : "Add Winery Stock Item"}</DialogTitle>
@@ -4625,6 +4656,7 @@ export function WineryStockTab({ farmId }: { farmId: number }) {
             <div><Label>Low Stock Alert (optional)</Label><Input type="number" value={itemForm.minimumStock ?? ""} onChange={sfi("minimumStock")} placeholder="Alert when balance reaches or falls below…" /></div>
             <div><Label>Notes</Label><Textarea value={itemForm.notes ?? ""} onChange={sfi("notes")} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={itemSave} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setItemDialog(null); setEditingItem(null); }}>Cancel</Button>
             <Button onClick={() => itemSave.mutate()} disabled={!itemForm.name || !itemForm.category || !itemForm.unit || itemSave.isPending}>
@@ -4635,7 +4667,7 @@ export function WineryStockTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* ── Add Movement Dialog ────────────────────────────────────────────────── */}
-      <Dialog open={!!movDialog} onOpenChange={() => setMovDialog(null)}>
+      <Dialog open={!!movDialog} onOpenChange={() => { setMovDialog(null); movSave.reset(); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Record Movement — {movDialog?.name}</DialogTitle>
@@ -4671,6 +4703,7 @@ export function WineryStockTab({ farmId }: { farmId: number }) {
             <div><Label>Reference</Label><Input value={movForm.reference ?? ""} onChange={sfm("reference")} placeholder="Vintage year, batch ref, invoice no…" /></div>
             <div><Label>Notes</Label><Textarea value={movForm.notes ?? ""} onChange={sfm("notes")} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={movSave} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setMovDialog(null)}>Cancel</Button>
             <Button onClick={() => movSave.mutate()} disabled={!movCanSave || movSave.isPending}>
@@ -4734,10 +4767,11 @@ export function WineryStockTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* ── Delete Item Confirm ────────────────────────────────────────────────── */}
-      <Dialog open={!!deletingItem} onOpenChange={() => setDeletingItem(null)}>
+      <Dialog open={!!deletingItem} onOpenChange={() => { setDeletingItem(null); itemDelete.reset(); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Stock Item</DialogTitle>
             <DialogDescription>Remove <strong>{deletingItem?.name}</strong> and all its movement history? This cannot be undone.</DialogDescription></DialogHeader>
+          <DialogMutationError mutation={itemDelete} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeletingItem(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => itemDelete.mutate(deletingItem!)} disabled={itemDelete.isPending}>Delete</Button>
@@ -4746,10 +4780,11 @@ export function WineryStockTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* ── Delete Movement Confirm ────────────────────────────────────────────── */}
-      <Dialog open={!!deletingMov} onOpenChange={() => setDeletingMov(null)}>
+      <Dialog open={!!deletingMov} onOpenChange={() => { setDeletingMov(null); movDelete.reset(); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Movement</DialogTitle>
             <DialogDescription>Remove this movement record? The running balance will be recalculated. This cannot be undone.</DialogDescription></DialogHeader>
+          <DialogMutationError mutation={movDelete} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeletingMov(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => movDelete.mutate(deletingMov!)} disabled={movDelete.isPending}>Delete</Button>
@@ -4939,7 +4974,7 @@ function GiDesignationsSection({ farmId: _farmId, desigs }: { farmId: number; de
           </div>
         </DialogContent>
       </Dialog>
-      <Dialog open={editing !== null} onOpenChange={() => setEditing(null)}>
+      <Dialog open={editing !== null} onOpenChange={() => { setEditing(null); desigs.add.reset(); desigs.edit.reset(); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing?.id ? "Edit Designation" : "Add GI Designation"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -4978,6 +5013,8 @@ function GiDesignationsSection({ farmId: _farmId, desigs }: { farmId: number; de
             </div>
             <div><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={desigs.add} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={desigs.edit} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
             <Button onClick={save} disabled={!form.designationName || !form.designationType}>Save</Button>
@@ -5156,7 +5193,7 @@ function GiCertificationsSection({ farmId: _farmId, certs, designations }: { far
           </div>
         </DialogContent>
       </Dialog>
-      <Dialog open={editing !== null} onOpenChange={() => setEditing(null)}>
+      <Dialog open={editing !== null} onOpenChange={() => { setEditing(null); certs.add.reset(); certs.edit.reset(); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing?.id ? "Edit Certification" : "Add Certification Record"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -5218,6 +5255,8 @@ function GiCertificationsSection({ farmId: _farmId, certs, designations }: { far
             </div>
             <div><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={certs.add} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={certs.edit} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
             <Button onClick={save} disabled={!form.vintageYear}>Save</Button>
@@ -5339,7 +5378,7 @@ function GiDeclarationsSection({ farmId: _farmId, decls, designations, harvestRo
           </div>
         </DialogContent>
       </Dialog>
-      <Dialog open={editing !== null} onOpenChange={() => setEditing(null)}>
+      <Dialog open={editing !== null} onOpenChange={() => { setEditing(null); decls.edit.reset(); decls.add.reset(); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing?.id ? "Edit Declaration" : "Add Harvest Declaration"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -5389,6 +5428,8 @@ function GiDeclarationsSection({ farmId: _farmId, decls, designations, harvestRo
             <div><Label>APHA Acknowledgement Reference</Label><Input value={String(form.aphaAcknowledgementRef ?? "")} onChange={e => sf("aphaAcknowledgementRef", e.target.value)} /></div>
             <div><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={decls.edit} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={decls.add} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
             <Button onClick={async () => { if (editing?.id) { await decls.edit.mutateAsync({ id: Number(editing.id), ...form }); toast({ title: "Declaration updated" }); } else { await decls.add.mutateAsync(form); toast({ title: "Declaration added" }); } setEditing(null); }} disabled={!form.vintageYear}>Save</Button>

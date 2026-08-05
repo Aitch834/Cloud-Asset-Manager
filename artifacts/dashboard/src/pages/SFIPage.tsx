@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { printProReport } from "@/lib/print-report";
@@ -684,7 +685,7 @@ export default function SFIPage() {
         </div>
 
         {/* ── AGREEMENT DIALOG (Add/Edit) ── */}
-        <Dialog open={addAgreementOpen || !!editAgreement} onOpenChange={o => { if (!o) { setAddAgreementOpen(false); setEditAgreement(null); setAgreementForm(emptyAgreement); } }}>
+        <Dialog open={addAgreementOpen || !!editAgreement} onOpenChange={o => { if (!o) { setAddAgreementOpen(false); setEditAgreement(null); setAgreementForm(emptyAgreement); createAgreement.reset(); updateAgreement.reset(); } }}>
           <DialogContent style={{ maxWidth: 540 }}>
             <DialogHeader><DialogTitle>{editAgreement ? "Edit Agreement" : "Add SFI / CS Agreement"}</DialogTitle></DialogHeader>
             <div className="space-y-3 py-1">
@@ -716,6 +717,7 @@ export default function SFIPage() {
               </div>
               <div><Label>Notes</Label><Textarea rows={2} value={agreementForm.notes} onChange={e => setAgreementForm((f: any) => ({ ...f, notes: e.target.value }))} /></div>
             </div>
+            <DialogMutationError mutation={editAgreement ? updateAgreement : createAgreement} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button variant="outline" onClick={() => { setAddAgreementOpen(false); setEditAgreement(null); setAgreementForm(emptyAgreement); }}>Cancel</Button>
               <Button onClick={() => {
@@ -732,7 +734,7 @@ export default function SFIPage() {
         </Dialog>
 
         {/* ── ACTION DIALOG (Add/Edit) ── */}
-        <Dialog open={addActionOpen || !!editAction} onOpenChange={o => { if (!o) { setAddActionOpen(false); setEditAction(null); setActionForm(emptyAction); } }}>
+        <Dialog open={addActionOpen || !!editAction} onOpenChange={o => { if (!o) { setAddActionOpen(false); setEditAction(null); setActionForm(emptyAction); createAction.reset(); updateAction.reset(); } }}>
           <DialogContent style={{ maxWidth: 600 }}>
             <DialogHeader><DialogTitle>{editAction ? "Edit SFI Action" : "Add SFI / CS Action"}</DialogTitle></DialogHeader>
             <div className="space-y-3 py-1">
@@ -779,6 +781,7 @@ export default function SFIPage() {
               </div>
               <div><Label>Notes</Label><Textarea rows={2} value={actionForm.notes} onChange={e => setActionForm((f: any) => ({ ...f, notes: e.target.value }))} /></div>
             </div>
+            <DialogMutationError mutation={editAction ? updateAction : createAction} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button variant="outline" onClick={() => { setAddActionOpen(false); setEditAction(null); setActionForm(emptyAction); }}>Cancel</Button>
               <Button onClick={() => {
@@ -796,11 +799,12 @@ export default function SFIPage() {
         </Dialog>
 
         {/* Delete Agreement */}
-        <AlertDialog open={!!deleteAgreementId} onOpenChange={o => { if (!o) setDeleteAgreementId(null); }}>
+        <AlertDialog open={!!deleteAgreementId} onOpenChange={o => { if (!o) { setDeleteAgreementId(null); deleteAgreement.reset(); } }}>
           <AlertDialogContent>
             <AlertDialogHeader><AlertDialogTitle>Delete Agreement?</AlertDialogTitle>
               <AlertDialogDescription>This will permanently remove this SFI / CS agreement record.</AlertDialogDescription>
             </AlertDialogHeader>
+            <DialogMutationError mutation={deleteAgreement} message="Failed to delete — please try again." />
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={() => deleteAgreementId && deleteAgreement.mutate(deleteAgreementId)} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction>
@@ -809,11 +813,12 @@ export default function SFIPage() {
         </AlertDialog>
 
         {/* Delete Action */}
-        <AlertDialog open={!!deleteActionId} onOpenChange={o => { if (!o) setDeleteActionId(null); }}>
+        <AlertDialog open={!!deleteActionId} onOpenChange={o => { if (!o) { setDeleteActionId(null); deleteAction.reset(); } }}>
           <AlertDialogContent>
             <AlertDialogHeader><AlertDialogTitle>Delete Action?</AlertDialogTitle>
               <AlertDialogDescription>This will permanently remove this SFI action from your record.</AlertDialogDescription>
             </AlertDialogHeader>
+            <DialogMutationError mutation={deleteAction} message="Failed to delete — please try again." />
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={() => deleteActionId && deleteAction.mutate(deleteActionId)} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction>

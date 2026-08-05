@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Plus, Trash2, Leaf, TreePine, MapPin, Printer, ClipboardCheck, CalendarDays, Pencil, Eye, AlertTriangle, Droplets, MessageSquare } from "lucide-react";
@@ -561,7 +562,7 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
       )}
 
       {/* Add / Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm()); setPin(null); } }}>
+      <Dialog open={dialogOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm()); setPin(null); createMut.reset(); updateMut.reset(); } }}>
         <DialogContent style={{ maxWidth: "56rem" }}>
           <DialogHeader><DialogTitle>{editRecord ? "Edit Environmental Feature" : "Add Environmental Feature"}</DialogTitle></DialogHeader>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem" }}>
@@ -623,6 +624,8 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
               <StorageLocationMapPicker key={dialogOpen ? "open" : "closed"} value={pin} onChange={setPin} mapHeight={400} />
             </div>
           </div>
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm()); setPin(null); }}>Cancel</Button>
             <Button onClick={handleSubmit} disabled={!form.featureType || !form.dateRecorded || createMut.isPending || updateMut.isPending}>
@@ -668,10 +671,11 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
         </Dialog>
       )}
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Feature</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Delete this environmental feature record? This cannot be undone.</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
@@ -806,7 +810,7 @@ function AgriEnvSchemesTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) resetForm(); }}>
+      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) { resetForm(); createMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 520 }}>
           <DialogHeader><DialogTitle>Add Agri-Environment Scheme</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
@@ -835,6 +839,7 @@ function AgriEnvSchemesTab({ farmId }: { farmId: number }) {
             <div><Label>Obligations</Label><Textarea placeholder="Key obligations and actions required under this scheme..." value={form.obligations} onChange={e => setForm((f: any) => ({ ...f, obligations: e.target.value }))} rows={3} /></div>
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
             <Button onClick={() => createMut.mutate(form)} disabled={!form.schemeName || !form.startDate || createMut.isPending}>Save Scheme</Button>
@@ -842,10 +847,11 @@ function AgriEnvSchemesTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Scheme Record</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Delete this agri-environment scheme record?</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
@@ -931,7 +937,7 @@ function AgriEnvSchemesTab({ farmId }: { farmId: number }) {
       )}
 
       {schemeCommOpen && (
-        <Dialog open onOpenChange={o => { setSchemeCommOpen(o); }}>
+        <Dialog open onOpenChange={o => { setSchemeCommOpen(o); if (!o) addSchemeCommMut.reset(); }}>
           <DialogContent style={{ maxWidth: 480 }}>
             <DialogHeader><DialogTitle>Log Communication</DialogTitle></DialogHeader>
             <div className="space-y-3 py-2">
@@ -958,6 +964,7 @@ function AgriEnvSchemesTab({ farmId }: { farmId: number }) {
               <div><Label>Subject <span style={{ color: "#ef4444" }}>*</span></Label><Input placeholder="e.g. Annual payment query" value={schemeCommForm.subject} onChange={e => setSchemeCommForm((f: any) => ({ ...f, subject: e.target.value }))} /></div>
               <div><Label>Notes / Summary</Label><Textarea rows={3} value={schemeCommForm.summary} onChange={e => setSchemeCommForm((f: any) => ({ ...f, summary: e.target.value }))} /></div>
             </div>
+            <DialogMutationError mutation={addSchemeCommMut} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setSchemeCommOpen(false)}>Cancel</Button>
               <Button onClick={() => addSchemeCommMut.mutate(schemeCommForm)} disabled={!schemeCommForm.subject || !schemeCommForm.commType || addSchemeCommMut.isPending}>Save</Button>
@@ -1184,7 +1191,7 @@ function AssessmentsTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) setForm(emptyForm()); }}>
+      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) { setForm(emptyForm()); createMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 520 }}>
           <DialogHeader><DialogTitle>Log Assessment Visit</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
@@ -1241,6 +1248,7 @@ function AssessmentsTab({ farmId }: { farmId: number }) {
               <Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} />
             </div>
           </div>
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
             <Button onClick={() => createMut.mutate(form)} disabled={!form.assessorName || !form.assessmentDate || createMut.isPending}>
@@ -1250,10 +1258,11 @@ function AssessmentsTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Assessment Record</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Delete this assessment record? This cannot be undone.</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
@@ -1261,7 +1270,7 @@ function AssessmentsTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={raiseTaskOpen} onOpenChange={o => { if (!o) { setRaiseTaskOpen(false); setPendingTask(null); } }}>
+      <Dialog open={raiseTaskOpen} onOpenChange={o => { if (!o) { setRaiseTaskOpen(false); setPendingTask(null); raiseMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 480 }}>
           <DialogHeader>
             <DialogTitle>Raise a Task for Remedial Actions?</DialogTitle>
@@ -1292,6 +1301,7 @@ function AssessmentsTab({ farmId }: { farmId: number }) {
               The assignee will receive an SMS notification. The task will appear on the Task Board and stay open until marked complete.
             </p>
           </div>
+          <DialogMutationError mutation={raiseMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setRaiseTaskOpen(false); setPendingTask(null); }}>Skip for now</Button>
             <Button
@@ -1698,7 +1708,7 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
         </Dialog>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm()); } }}>
+      <Dialog open={dialogOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm()); createMut.reset(); updateMut.reset(); } }}>
         <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader><DialogTitle>{dialogTitle}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-1">
@@ -1846,6 +1856,8 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
             </div>
           </div>
 
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm()); }}>Cancel</Button>
             <Button onClick={handleSubmit} disabled={createMut.isPending || updateMut.isPending}>
@@ -1856,10 +1868,11 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
       </Dialog>
 
       {/* Delete confirm */}
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Event</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Delete this management event record? This cannot be undone.</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
@@ -1867,7 +1880,7 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
         </DialogContent>
       </Dialog>
 
-      <Dialog open={raiseTaskOpen} onOpenChange={o => { if (!o) { setRaiseTaskOpen(false); setPendingTask(null); } }}>
+      <Dialog open={raiseTaskOpen} onOpenChange={o => { if (!o) { setRaiseTaskOpen(false); setPendingTask(null); raiseMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 480 }}>
           <DialogHeader>
             <DialogTitle>Raise a Task for Follow-up Actions?</DialogTitle>
@@ -1898,6 +1911,7 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
               The assignee will receive an SMS notification. The task will appear on the Task Board and stay open until marked complete.
             </p>
           </div>
+          <DialogMutationError mutation={raiseMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setRaiseTaskOpen(false); setPendingTask(null); }}>Skip for now</Button>
             <Button
@@ -2229,7 +2243,7 @@ function SFIActionsTab({ farmId, openId }: { farmId: number; openId?: number | n
       )}
 
       {/* Add / Edit Dialog */}
-      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setEditing(null); setForm({ status: "Active" }); setActions([]); setDeletedActionIds([]); } }}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setEditing(null); setForm({ status: "Active" }); setActions([]); setDeletedActionIds([]); save.reset(); } }}>
         <DialogContent style={{ maxWidth: "56rem", maxHeight: "90vh", overflow: "auto" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit SFI / ELMs Agreement" : "Add SFI / ELMs Agreement"}</DialogTitle></DialogHeader>
 
@@ -2361,6 +2375,7 @@ function SFIActionsTab({ farmId, openId }: { farmId: number; openId?: number | n
             )}
           </div>
 
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => { setOpen(false); setEditing(null); setForm({ status: "Active" }); setActions([]); setDeletedActionIds([]); }}>Cancel</Button>
             <Button
@@ -2378,7 +2393,7 @@ function SFIActionsTab({ farmId, openId }: { farmId: number; openId?: number | n
       </Dialog>
 
       {/* Planner offer dialog */}
-      <Dialog open={plannerOpen} onOpenChange={o => { if (!o) setPlannerOpen(false); }}>
+      <Dialog open={plannerOpen} onOpenChange={o => { if (!o) { setPlannerOpen(false); plannerMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 420 }}>
           <DialogHeader><DialogTitle className="flex items-center gap-2"><CalendarDays className="w-4 h-4 text-blue-600" />Add Dates to Week Ahead Planner?</DialogTitle></DialogHeader>
           <div className="space-y-2 py-1 text-sm text-muted-foreground">
@@ -2396,6 +2411,7 @@ function SFIActionsTab({ farmId, openId }: { farmId: number; openId?: number | n
               </div>
             )}
           </div>
+          <DialogMutationError mutation={plannerMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="ghost" onClick={() => setPlannerOpen(false)}>Done</Button>
           </DialogFooter>
@@ -3566,7 +3582,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
       </div>
 
       {/* ══ Add / Edit Store dialog ═══════════════════════════════════════════ */}
-      <Dialog open={storeOpen} onOpenChange={setStoreOpen}>
+      <Dialog open={storeOpen} onOpenChange={o => { setStoreOpen(o); if (!o) saveStoreMut.reset(); }}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader>
             <DialogTitle>{editingStore ? "Edit Store" : "Add Slurry / Manure Store"}</DialogTitle>
@@ -3677,6 +3693,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
               />
             </div>
           </div>
+          <DialogMutationError mutation={saveStoreMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setStoreOpen(false)}>
               Cancel
@@ -3692,7 +3709,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
       </Dialog>
 
       {/* ══ Spreading dialog ══════════════════════════════════════════════════ */}
-      <Dialog open={spreadOpen} onOpenChange={setSpreadOpen}>
+      <Dialog open={spreadOpen} onOpenChange={o => { setSpreadOpen(o); if (!o) saveSpreadMut.reset(); }}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader>
             <DialogTitle>Log Slurry / Manure Spreading</DialogTitle>
@@ -3933,6 +3950,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
               />
             </div>
           </div>
+          <DialogMutationError mutation={saveSpreadMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setSpreadOpen(false)}>
               Cancel
@@ -3955,6 +3973,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
             setInspOpen(false);
             setEditingInsp(null);
             setInspForm({});
+            saveInspMut.reset();
           }
         }}
       >
@@ -4207,6 +4226,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
               />
             </div>
           </div>
+          <DialogMutationError mutation={saveInspMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button
               variant="outline"
@@ -4239,7 +4259,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
       </Dialog>
 
       {/* ══ Fill event dialog ════════════════════════════════════════════════ */}
-      <Dialog open={fillOpen} onOpenChange={(o) => { if (!o) { setFillOpen(false); setFillForm({}); } }}>
+      <Dialog open={fillOpen} onOpenChange={(o) => { if (!o) { setFillOpen(false); setFillForm({}); saveFillMut.reset(); } }}>
         <DialogContent style={{ maxWidth: "34rem" }}>
           <DialogHeader>
             <DialogTitle>Log Slurry / Manure Fill Event</DialogTitle>
@@ -4379,6 +4399,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
               />
             </div>
           </div>
+          <DialogMutationError mutation={saveFillMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setFillOpen(false); setFillForm({}); }}>
               Cancel
@@ -4413,6 +4434,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
           if (!o) {
             setRaiseTaskOpen(false);
             setPendingTask(null);
+            raiseTaskMut.reset();
           }
         }}
       >
@@ -4468,6 +4490,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
               and stay open until marked complete.
             </p>
           </div>
+          <DialogMutationError mutation={raiseTaskMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button
               variant="outline"
@@ -4503,7 +4526,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
       <Dialog
         open={deleteInspId !== null}
         onOpenChange={(o) => {
-          if (!o) setDeleteInspId(null);
+          if (!o) { setDeleteInspId(null); deleteInspMut.reset(); }
         }}
       >
         <DialogContent style={{ maxWidth: 400 }}>
@@ -4513,6 +4536,7 @@ function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null 
           <p className="text-sm text-gray-600 py-2">
             Delete this inspection record? This cannot be undone.
           </p>
+          <DialogMutationError mutation={deleteInspMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteInspId(null)}>
               Cancel
@@ -4972,6 +4996,7 @@ function SilageTab({ farmId }: { farmId: number }) {
           if (!o) {
             setEditingAdditive(null);
             setAdditiveForm({});
+            saveAdditiveMut.reset();
           }
         }}
       >
@@ -5083,6 +5108,7 @@ function SilageTab({ farmId }: { farmId: number }) {
               />
             </div>
           </div>
+          <DialogMutationError mutation={saveAdditiveMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAdditiveOpen(false)}>
               Cancel
@@ -5105,6 +5131,7 @@ function SilageTab({ farmId }: { farmId: number }) {
           if (!o) {
             setEditingQuality(null);
             setQualityForm({});
+            saveQualityMut.reset();
           }
         }}
       >
@@ -5230,6 +5257,7 @@ function SilageTab({ farmId }: { farmId: number }) {
               );
             })()}
           </div>
+          <DialogMutationError mutation={saveQualityMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setQualityOpen(false)}>
               Cancel
@@ -5245,7 +5273,7 @@ function SilageTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* ══ Stock Log / Edit Dialog ═══════════════════════════════════════════ */}
-      <Dialog open={stockOpen} onOpenChange={v => { if (!v) { setStockOpen(false); setEditingStock(null); setStockForm({}); } }}>
+      <Dialog open={stockOpen} onOpenChange={v => { if (!v) { setStockOpen(false); setEditingStock(null); setStockForm({}); saveStockMut.reset(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingStock ? "Edit Batch" : "Log Silage / Haylage Batch"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
@@ -5274,6 +5302,7 @@ function SilageTab({ farmId }: { farmId: number }) {
             <div className="col-span-2"><Label>Clamp / Store Name</Label><Input placeholder="e.g. Main clamp, North yard" value={stockForm.storeName ?? ""} onChange={e => setStockForm((p: any) => ({ ...p, storeName: e.target.value }))} /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={stockForm.notes ?? ""} onChange={e => setStockForm((p: any) => ({ ...p, notes: e.target.value }))} /></div>
           </div>
+          <DialogMutationError mutation={saveStockMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setStockOpen(false); setEditingStock(null); setStockForm({}); }}>Cancel</Button>
             <Button disabled={saveStockMut.isPending || !stockForm.cropType} onClick={() => saveStockMut.mutate({ cropType: stockForm.cropType, cutNumber: stockForm.cutNumber ? Number(stockForm.cutNumber) : null, harvestDate: stockForm.harvestDate || null, fieldOfOrigin: stockForm.fieldOfOrigin || null, quantityTonnes: stockForm.quantityTonnes ? parseFloat(stockForm.quantityTonnes) : null, quantityBales: stockForm.quantityBales ? parseInt(stockForm.quantityBales) : null, baleWeightKg: stockForm.baleWeightKg ? parseFloat(stockForm.baleWeightKg) : null, dryMatterPercent: stockForm.dryMatterPercent ? parseFloat(stockForm.dryMatterPercent) : null, storeName: stockForm.storeName || null, status: stockForm.status || "in-store", notes: stockForm.notes || null })}>
@@ -5284,7 +5313,7 @@ function SilageTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* ══ Drawdown Dialog ═══════════════════════════════════════════════════ */}
-      <Dialog open={usageOpen} onOpenChange={v => { if (!v) { setUsageOpen(false); setUsageForStock(null); setUsageForm({}); } }}>
+      <Dialog open={usageOpen} onOpenChange={v => { if (!v) { setUsageOpen(false); setUsageForStock(null); setUsageForm({}); saveUsageMut.reset(); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Record Drawdown — {usageForStock?.cropType ?? "Batch"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
@@ -5302,6 +5331,7 @@ function SilageTab({ farmId }: { farmId: number }) {
             <div className="col-span-2"><Label>Herd / Livestock Group</Label><Input placeholder="e.g. Dairy herd, Flock 1" value={usageForm.herdName ?? ""} onChange={e => setUsageForm((p: any) => ({ ...p, herdName: e.target.value }))} /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={usageForm.notes ?? ""} onChange={e => setUsageForm((p: any) => ({ ...p, notes: e.target.value }))} /></div>
           </div>
+          <DialogMutationError mutation={saveUsageMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setUsageOpen(false); setUsageForStock(null); setUsageForm({}); }}>Cancel</Button>
             <Button disabled={saveUsageMut.isPending} onClick={() => saveUsageMut.mutate({ stockId: usageForStock?.id, usageDate: usageForm.usageDate || null, quantityTonnes: usageForm.quantityTonnes ? parseFloat(usageForm.quantityTonnes) : null, quantityBales: usageForm.quantityBales ? parseInt(usageForm.quantityBales) : null, purpose: usageForm.purpose || null, herdName: usageForm.herdName || null, notes: usageForm.notes || null })}>Record Drawdown</Button>
@@ -5310,10 +5340,11 @@ function SilageTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* ══ Delete Stock confirm ══════════════════════════════════════════════ */}
-      <Dialog open={deleteStockId !== null} onOpenChange={o => { if (!o) setDeleteStockId(null); }}>
+      <Dialog open={deleteStockId !== null} onOpenChange={o => { if (!o) { setDeleteStockId(null); deleteStockMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Stock Batch</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Delete this silage / haylage batch? All drawdown records for this batch will also be removed.</p>
+          <DialogMutationError mutation={deleteStockMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteStockId(null)}>Cancel</Button>
             <Button variant="destructive" disabled={deleteStockMut.isPending} onClick={() => deleteStockId !== null && deleteStockMut.mutate(deleteStockId)}>Delete</Button>
@@ -5322,12 +5353,13 @@ function SilageTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* ══ Delete confirms ═══════════════════════════════════════════════════ */}
-      <Dialog open={deleteAdditiveId !== null} onOpenChange={(o) => { if (!o) setDeleteAdditiveId(null); }}>
+      <Dialog open={deleteAdditiveId !== null} onOpenChange={(o) => { if (!o) { setDeleteAdditiveId(null); deleteAdditiveMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader>
             <DialogTitle>Delete Additive Record</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-gray-600 py-2">Delete this additive record? This cannot be undone.</p>
+          <DialogMutationError mutation={deleteAdditiveMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteAdditiveId(null)}>
               Cancel
@@ -5342,12 +5374,13 @@ function SilageTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={deleteQualityId !== null} onOpenChange={(o) => { if (!o) setDeleteQualityId(null); }}>
+      <Dialog open={deleteQualityId !== null} onOpenChange={(o) => { if (!o) { setDeleteQualityId(null); deleteQualityMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader>
             <DialogTitle>Delete Quality Test</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-gray-600 py-2">Delete this quality test record? This cannot be undone.</p>
+          <DialogMutationError mutation={deleteQualityMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteQualityId(null)}>
               Cancel

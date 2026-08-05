@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useUpload } from "@workspace/object-storage-web";
@@ -713,7 +714,7 @@ export default function GrantsPage() {
         )}
 
         {/* Add / Edit dialog */}
-        <Dialog open={showForm} onOpenChange={v => { if (!v) { setShowForm(false); setEditing(null); } }}>
+        <Dialog open={showForm} onOpenChange={v => { if (!v) { setShowForm(false); setEditing(null); saveMut.reset(); } }}>
           <DialogContent style={{ maxWidth: 680, maxHeight: "90vh", overflowY: "auto" }}>
             <DialogHeader>
               <DialogTitle>{editing ? "Edit Grant" : "Add Grant / Funding Application"}</DialogTitle>
@@ -856,6 +857,7 @@ export default function GrantsPage() {
                   style={{ width: "100%", padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: "0.875rem", resize: "vertical", boxSizing: "border-box" }} />
               </div>
 
+              <DialogMutationError mutation={saveMut} message="Failed to save — your entries are still here." />
               <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", paddingTop: 4 }}>
                 <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
                 <Button type="submit" disabled={saveMut.isPending}>
@@ -899,7 +901,7 @@ export default function GrantsPage() {
         </Dialog>
 
         {/* Delete confirmation */}
-        <AlertDialog open={!!deleting} onOpenChange={v => { if (!v) setDeleting(null); }}>
+        <AlertDialog open={!!deleting} onOpenChange={v => { if (!v) { setDeleting(null); deleteMut.reset(); } }}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Remove Grant?</AlertDialogTitle>
@@ -907,6 +909,7 @@ export default function GrantsPage() {
                 This will permanently delete the record for <strong>{deleting?.schemeName}</strong>. This cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
+            <DialogMutationError mutation={deleteMut} message="Failed to remove — please try again." />
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={() => deleting && deleteMut.mutate(deleting.id)}

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Flame, Plus, Printer, Download, ChevronDown, ChevronUp, Trash2, Pencil, Eye,
@@ -974,12 +975,13 @@ export default function FarmIncidentsPage() {
       )}
 
       {/* Add dialog */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) createMut.reset(); }}>
         <DialogContent style={{ maxWidth: 680, maxHeight: "90vh", overflowY: "auto" }}>
           <DialogHeader>
             <DialogTitle>Log New Incident</DialogTitle>
           </DialogHeader>
           {renderForm()}
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
           <DialogFooter style={{ marginTop: 16 }}>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
             <Button
@@ -993,7 +995,7 @@ export default function FarmIncidentsPage() {
       </Dialog>
 
       {/* Edit dialog */}
-      <Dialog open={editId !== null} onOpenChange={() => setEditId(null)}>
+      <Dialog open={editId !== null} onOpenChange={o => { if (!o) { setEditId(null); updateMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 680, maxHeight: "90vh", overflowY: "auto" }}>
           <DialogHeader>
             <DialogTitle>Edit Incident</DialogTitle>
@@ -1005,6 +1007,7 @@ export default function FarmIncidentsPage() {
                 resource="incidents" queryKey={["farm-incidents", farmId!]} />
             </div>
           )}
+          <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
           <DialogFooter style={{ marginTop: 16 }}>
             <Button variant="outline" onClick={() => setEditId(null)}>Cancel</Button>
             <Button
@@ -1034,12 +1037,13 @@ export default function FarmIncidentsPage() {
       />
 
       {/* Delete confirm */}
-      <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 420 }}>
           <DialogHeader>
             <DialogTitle>Delete Incident?</DialogTitle>
           </DialogHeader>
           <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>This will permanently remove the incident record. This action cannot be undone.</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>

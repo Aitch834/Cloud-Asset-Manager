@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -264,7 +265,7 @@ function ClinicalEventDialog({ open, onClose, farmId, herds, editRecord, onSaved
   const canSave = form.eventType && form.title && form.eventDate;
 
   return (
-    <Dialog open={open} onOpenChange={o => { if (!o) onClose(); }}>
+    <Dialog open={open} onOpenChange={o => { if (!o) { onClose(); saveMut.reset(); } }}>
       <DialogContent style={{ maxWidth: 580 }}>
         <DialogHeader><DialogTitle>{editRecord ? "Edit Clinical Event" : "Log Clinical Event"}</DialogTitle></DialogHeader>
         <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "4px 0" }}>
@@ -334,6 +335,7 @@ function ClinicalEventDialog({ open, onClose, farmId, herds, editRecord, onSaved
             <Input placeholder="Your name" value={form.recordedBy} onChange={e => set("recordedBy", e.target.value)} />
           </div>
         </div>
+        <DialogMutationError mutation={saveMut} message="Failed to save — your entries are still here." />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => saveMut.mutate()} disabled={!canSave || saveMut.isPending}>
@@ -354,10 +356,11 @@ function DeleteDialog({ record, farmId, onClose, onDeleted }: { record: any; far
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
   return (
-    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+    <Dialog open onOpenChange={o => { if (!o) { onClose(); deleteMut.reset(); } }}>
       <DialogContent style={{ maxWidth: 400 }}>
         <DialogHeader><DialogTitle>Delete Clinical Event</DialogTitle></DialogHeader>
         <p className="text-sm text-gray-600 py-2">Remove "<strong>{record?.title}</strong>" from the herd health register? This cannot be undone.</p>
+        <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button variant="destructive" onClick={() => deleteMut.mutate()} disabled={deleteMut.isPending}>Delete</Button>

@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { AlertTriangle, Plus, MapPin, Printer, ChevronDown, ChevronUp, Camera, ClipboardList, ExternalLink } from "lucide-react";
 import { PhotoPanel } from "./fly-tipping/PhotoPanel";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -516,7 +517,7 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
 
         {/* Add / Edit dialog */}
         {(addOpen) && (
-          <Dialog open onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); } }}>
+          <Dialog open onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); mut.reset(); } }}>
             <DialogContent style={{ maxWidth: 580, maxHeight: "85vh", overflowY: "auto" }}>
               <DialogHeader>
                 <DialogTitle>{editItem ? "Edit Incident" : "Report Fly-Tipping Incident"}</DialogTitle>
@@ -776,6 +777,7 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
                 </div>
               </div>
 
+              <DialogMutationError mutation={mut} message="Failed to save — your entries are still here." />
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setAddOpen(false); setEditItem(null); }}>Cancel</Button>
                 <Button
@@ -791,10 +793,11 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
 
         {/* Delete confirm */}
         {deleteId !== null && (
-          <Dialog open onOpenChange={() => setDeleteId(null)}>
+          <Dialog open onOpenChange={o => { if (!o) { setDeleteId(null); mut.reset(); } }}>
             <DialogContent style={{ maxWidth: 380 }}>
               <DialogHeader><DialogTitle>Delete Incident Record?</DialogTitle></DialogHeader>
               <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>This will permanently remove this fly-tipping incident and all associated photos. This action cannot be undone.</p>
+              <DialogMutationError mutation={mut} message="Failed to delete — please try again." />
               <DialogFooter>
                 <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
                 <Button style={{ background: "#dc2626", color: "#fff" }} onClick={() => mut.mutate({ action: "delete", id: deleteId! })}>Delete</Button>

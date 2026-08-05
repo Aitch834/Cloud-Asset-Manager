@@ -30,6 +30,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
@@ -434,7 +435,7 @@ export default function AdvisorsAccessPage() {
       </div>
 
       {/* Add Advisor Dialog */}
-      <Dialog open={showAdvisorDialog} onOpenChange={setShowAdvisorDialog}>
+      <Dialog open={showAdvisorDialog} onOpenChange={o => { setShowAdvisorDialog(o); if (!o) inviteAdvisor.reset(); }}>
         <DialogContent style={{ maxWidth: "44rem" }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><UserCheck className="w-4 h-4" /> Add Advisor Account</DialogTitle>
@@ -472,6 +473,7 @@ export default function AdvisorsAccessPage() {
               <span>Once added, a secure link will be copied to your clipboard. Share it with the advisor by email. Access is permanent until you revoke it.</span>
             </div>
           </div>
+          <DialogMutationError mutation={inviteAdvisor} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAdvisorDialog(false)}>Cancel</Button>
             <Button
@@ -485,7 +487,7 @@ export default function AdvisorsAccessPage() {
       </Dialog>
 
       {/* Create Inspection Session Dialog */}
-      <Dialog open={showSessionDialog} onOpenChange={setShowSessionDialog}>
+      <Dialog open={showSessionDialog} onOpenChange={o => { setShowSessionDialog(o); if (!o) createSession.reset(); }}>
         <DialogContent style={{ maxWidth: "44rem" }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Clock className="w-4 h-4" /> Create Inspection Session</DialogTitle>
@@ -528,6 +530,7 @@ export default function AdvisorsAccessPage() {
               <span>The secure link will be copied to your clipboard. No account is needed — the link alone grants read-only access until the expiry date or until you revoke it.</span>
             </div>
           </div>
+          <DialogMutationError mutation={createSession} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowSessionDialog(false)}>Cancel</Button>
             <Button
@@ -541,7 +544,7 @@ export default function AdvisorsAccessPage() {
       </Dialog>
 
       {/* Revoke confirmation */}
-      <AlertDialog open={!!revokeTarget} onOpenChange={() => setRevokeTarget(null)}>
+      <AlertDialog open={!!revokeTarget} onOpenChange={o => { if (!o) { setRevokeTarget(null); revokeAdvisor.reset(); revokeSession.reset(); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Revoke access?</AlertDialogTitle>
@@ -549,6 +552,8 @@ export default function AdvisorsAccessPage() {
               This will immediately invalidate the access link. The advisor or inspector will no longer be able to view your farm data.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <DialogMutationError mutation={revokeAdvisor} message="Couldn't revoke access — please try again." />
+          <DialogMutationError mutation={revokeSession} message="Couldn't revoke access — please try again." />
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction

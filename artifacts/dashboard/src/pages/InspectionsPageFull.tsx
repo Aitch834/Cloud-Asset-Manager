@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OtherSelect } from "@/components/ui/other-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Plus, Trash2, AlertTriangle, CheckCircle2, ClipboardList, Wrench, Award, Pencil, Eye, Paperclip, File as FileIcon, Loader2, ExternalLink, ChevronDown, ChevronRight, ChevronUp, Printer, RefreshCw, MessageSquare } from "lucide-react";
@@ -414,7 +415,7 @@ function InspectionsTab({ farmId, openInspId, onSwitchToIssues }: { farmId: numb
       )}
 
       {inspCommOpen && (
-        <Dialog open onOpenChange={o => { setInspCommOpen(o); }}>
+        <Dialog open onOpenChange={o => { setInspCommOpen(o); if (!o) addCommMut.reset(); }}>
           <DialogContent style={{ maxWidth: 480 }}>
             <DialogHeader><DialogTitle>Log Communication</DialogTitle></DialogHeader>
             <div className="space-y-3 py-2">
@@ -441,6 +442,7 @@ function InspectionsTab({ farmId, openInspId, onSwitchToIssues }: { farmId: numb
               <div><Label>Subject <span style={{ color: "#ef4444" }}>*</span></Label><Input placeholder="e.g. Response to inspection report" value={inspCommForm.subject} onChange={e => setInspCommForm((f: any) => ({ ...f, subject: e.target.value }))} /></div>
               <div><Label>Notes / Summary</Label><Textarea rows={3} value={inspCommForm.summary} onChange={e => setInspCommForm((f: any) => ({ ...f, summary: e.target.value }))} /></div>
             </div>
+            <DialogMutationError mutation={addCommMut} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setInspCommOpen(false)}>Cancel</Button>
               <Button onClick={() => addCommMut.mutate(inspCommForm)} disabled={!inspCommForm.subject || !inspCommForm.commType || addCommMut.isPending}>Save</Button>
@@ -449,7 +451,7 @@ function InspectionsTab({ farmId, openInspId, onSwitchToIssues }: { farmId: numb
         </Dialog>
       )}
 
-      <Dialog open={formOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); } }}>
+      <Dialog open={formOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); createMut.reset(); updateMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 520 }}>
           <DialogHeader><DialogTitle>{editRecord ? "Edit Inspection" : "Record Inspection"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
@@ -551,6 +553,7 @@ function InspectionsTab({ farmId, openInspId, onSwitchToIssues }: { farmId: numb
               )}
             </div>
           </div>
+          <DialogMutationError mutation={editRecord ? updateMut : createMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm); setPendingFile(null); }}>Cancel</Button>
             <Button
@@ -561,10 +564,11 @@ function InspectionsTab({ farmId, openInspId, onSwitchToIssues }: { farmId: numb
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Inspection</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Are you sure you want to delete this inspection record?</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
@@ -1082,7 +1086,7 @@ function IssuesRegisterTab({ farmId, openCaId }: { farmId: number; openCaId?: nu
       )}
 
       {/* ── Log / Edit NC Dialog ── */}
-      <Dialog open={ncFormOpen} onOpenChange={o => { if (!o) { setNcAddOpen(false); setNcEdit(null); setNcForm(emptyNcForm); } }}>
+      <Dialog open={ncFormOpen} onOpenChange={o => { if (!o) { setNcAddOpen(false); setNcEdit(null); setNcForm(emptyNcForm); createNc.reset(); updateNc.reset(); } }}>
         <DialogContent style={{ maxWidth: 520 }}>
           <DialogHeader><DialogTitle>{ncEdit ? "Edit Non-Conformance" : "Log Non-Conformance"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
@@ -1134,6 +1138,7 @@ function IssuesRegisterTab({ farmId, openCaId }: { farmId: number; openCaId?: nu
             <div><Label>Description <span style={{ color: "#ef4444" }}>*</span></Label><Textarea placeholder="Describe the non-conformance in detail..." value={ncForm.description} onChange={e => setNcForm((f: any) => ({ ...f, description: e.target.value }))} rows={3} /></div>
             <div><Label>Notes</Label><Textarea placeholder="Additional context..." value={ncForm.notes} onChange={e => setNcForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={ncEdit ? updateNc : createNc} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setNcAddOpen(false); setNcEdit(null); setNcForm(emptyNcForm); }}>Cancel</Button>
             <Button onClick={() => ncEdit ? updateNc.mutate({ id: ncEdit.id, body: ncForm }) : createNc.mutate(ncForm)} disabled={!ncForm.identifiedDate || !ncForm.category || !ncForm.description || createNc.isPending || updateNc.isPending}>
@@ -1144,7 +1149,7 @@ function IssuesRegisterTab({ farmId, openCaId }: { farmId: number; openCaId?: nu
       </Dialog>
 
       {/* ── Add / Edit CA Dialog ── */}
-      <Dialog open={caFormOpen} onOpenChange={o => { if (!o) { setCaAddForNc(null); setCaEdit(null); setCaForm(emptyCaForm); } }}>
+      <Dialog open={caFormOpen} onOpenChange={o => { if (!o) { setCaAddForNc(null); setCaEdit(null); setCaForm(emptyCaForm); createCa.reset(); updateCa.reset(); } }}>
         <DialogContent style={{ maxWidth: 500 }}>
           <DialogHeader>
             <DialogTitle>{caEdit ? "Edit Corrective Action" : "Add Corrective Action"}</DialogTitle>
@@ -1179,6 +1184,7 @@ function IssuesRegisterTab({ farmId, openCaId }: { farmId: number; openCaId?: nu
             )}
             <div><Label>Notes</Label><Textarea placeholder="Additional notes..." value={caForm.notes} onChange={e => setCaForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={caEdit ? updateCa : createCa} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setCaAddForNc(null); setCaEdit(null); setCaForm(emptyCaForm); }}>Cancel</Button>
             <Button
@@ -1195,10 +1201,11 @@ function IssuesRegisterTab({ farmId, openCaId }: { farmId: number; openCaId?: nu
       </Dialog>
 
       {/* ── Delete NC confirm ── */}
-      <Dialog open={ncDeleteId !== null} onOpenChange={o => { if (!o) setNcDeleteId(null); }}>
+      <Dialog open={ncDeleteId !== null} onOpenChange={o => { if (!o) { setNcDeleteId(null); deleteNc.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Non-Conformance</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Are you sure? This will also permanently delete all linked corrective actions.</p>
+          <DialogMutationError mutation={deleteNc} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setNcDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => ncDeleteId !== null && deleteNc.mutate(ncDeleteId)} disabled={deleteNc.isPending}>Delete</Button>
@@ -1207,10 +1214,11 @@ function IssuesRegisterTab({ farmId, openCaId }: { farmId: number; openCaId?: nu
       </Dialog>
 
       {/* ── Delete CA confirm ── */}
-      <Dialog open={caDeleteId !== null} onOpenChange={o => { if (!o) setCaDeleteId(null); }}>
+      <Dialog open={caDeleteId !== null} onOpenChange={o => { if (!o) { setCaDeleteId(null); deleteCa.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Corrective Action</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Are you sure you want to delete this corrective action?</p>
+          <DialogMutationError mutation={deleteCa} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setCaDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => caDeleteId !== null && deleteCa.mutate(caDeleteId)} disabled={deleteCa.isPending}>Delete</Button>
@@ -1408,7 +1416,7 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["assurance-certs", farmId] });
-  const closeForm = () => { setAddOpen(false); setEditRecord(null); setRenewingFrom(null); setForm(emptyForm); };
+  const closeForm = () => { setAddOpen(false); setEditRecord(null); setRenewingFrom(null); setForm(emptyForm); saveMut.reset(); };
 
   const saveMut = useMutation({
     mutationFn: async (body: any) => {
@@ -1719,6 +1727,7 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
             <div><Label>Next Visit Due</Label><Input className="mt-1" type="date" value={form.nextVisitDue} onChange={e => setForm((f: any) => ({ ...f, nextVisitDue: e.target.value }))} /></div>
             <div><Label>Notes</Label><Textarea className="mt-1" placeholder="Location of certificate, renewal actions, etc." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={saveMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={closeForm}>Cancel</Button>
             <Button onClick={() => saveMut.mutate(form)} disabled={!form.certificationBody || saveMut.isPending}>
@@ -1729,10 +1738,11 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* ── Delete dialog ── */}
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Certificate</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Are you sure you want to remove this certificate record?</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>

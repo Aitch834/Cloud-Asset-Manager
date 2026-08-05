@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Badge } from "@/components/ui/badge";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -756,7 +757,7 @@ export default function FeedManagementPage() {
       </div>
 
       {/* ── DELIVERY DIALOG ── */}
-      <Dialog open={showDeliveryDialog} onOpenChange={setShowDeliveryDialog}>
+      <Dialog open={showDeliveryDialog} onOpenChange={o => { setShowDeliveryDialog(o); if (!o) deliveryMut.reset(); }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editDelivery ? "Edit Delivery" : "Record Feed Delivery"}</DialogTitle></DialogHeader>
           <div className="grid gap-3 py-2">
@@ -900,6 +901,7 @@ export default function FeedManagementPage() {
           {editDelivery && farmId && (
             <RecordAttachments farmId={farmId} recordType="feed_delivery" recordId={editDelivery.id as number} />
           )}
+          <DialogMutationError mutation={deliveryMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDeliveryDialog(false)}>Cancel</Button>
             <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => {
@@ -925,7 +927,7 @@ export default function FeedManagementPage() {
       </Dialog>
 
       {/* ── STOCK / BIN DIALOG ── */}
-      <Dialog open={showStockDialog} onOpenChange={setShowStockDialog}>
+      <Dialog open={showStockDialog} onOpenChange={o => { setShowStockDialog(o); if (!o) stockMut.reset(); }}>
         <DialogContent className="max-w-xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editStock ? "Edit Feed Bin" : "Register Feed Bin"}</DialogTitle>
@@ -1112,6 +1114,7 @@ export default function FeedManagementPage() {
             <div><Label>Notes</Label><Textarea value={stockForm.notes ?? ""} onChange={e => setStockForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Any notes about this bin or feed type" /></div>
           </div>
 
+          <DialogMutationError mutation={stockMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowStockDialog(false)}>Cancel</Button>
             <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => {
@@ -1473,7 +1476,7 @@ export default function FeedManagementPage() {
       )}
 
       {/* Raise Reorder dialog */}
-      <Dialog open={!!reorderBin} onOpenChange={open => { if (!open) { setReorderBin(null); setReorderMemberId("__none__"); setReorderDueDate(""); setReorderAssignNote(""); } }}>
+      <Dialog open={!!reorderBin} onOpenChange={open => { if (!open) { setReorderBin(null); setReorderMemberId("__none__"); setReorderDueDate(""); setReorderAssignNote(""); reorderMut.reset(); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1554,6 +1557,7 @@ export default function FeedManagementPage() {
               </div>
             );
           })()}
+          <DialogMutationError mutation={reorderMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setReorderBin(null); setReorderMemberId("__none__"); setReorderDueDate(""); setReorderAssignNote(""); }}>Cancel</Button>
             <Button
@@ -1582,7 +1586,7 @@ export default function FeedManagementPage() {
 
 
       {/* ── FEED ORDER DIALOG ── */}
-      <Dialog open={showFpoDialog} onOpenChange={v => !v && setShowFpoDialog(false)}>
+      <Dialog open={showFpoDialog} onOpenChange={v => { if (!v) { setShowFpoDialog(false); fpoMut.reset(); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{editFpo ? "Edit Feed Order" : "Raise Feed Order"}</DialogTitle>
@@ -1671,6 +1675,7 @@ export default function FeedManagementPage() {
               <Textarea value={fpoForm.notes ?? ""} onChange={e => setFpoForm(f => ({ ...f, notes: e.target.value }))} placeholder="Any notes about this order…" rows={2} />
             </div>
           </div>
+          <DialogMutationError mutation={fpoMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowFpoDialog(false)}>Cancel</Button>
             <Button
@@ -1699,7 +1704,7 @@ export default function FeedManagementPage() {
       </Dialog>
 
       {/* ── MARK AS RECEIVED DIALOG ── */}
-      <Dialog open={receiveId !== null} onOpenChange={v => !v && setReceiveId(null)}>
+      <Dialog open={receiveId !== null} onOpenChange={v => { if (!v) { setReceiveId(null); receiveFpoMut.reset(); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Mark Order as Received</DialogTitle>
@@ -1711,6 +1716,7 @@ export default function FeedManagementPage() {
               <Input type="date" value={receiveDate} onChange={e => setReceiveDate(e.target.value)} />
             </div>
           </div>
+          <DialogMutationError mutation={receiveFpoMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setReceiveId(null)}>Cancel</Button>
             <Button
@@ -1870,7 +1876,7 @@ function MedicatedFeedTab({ farmId }: { farmId: number }) {
       )}
 
       {/* Add/Edit Dialog */}
-      <Dialog open={open} onOpenChange={o => { if (!o) setOpen(false); }}>
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); saveMut.reset(); } }}>
         <DialogContent className="max-w-xl" aria-describedby={undefined}>
           <DialogHeader><DialogTitle>{editItem ? "Edit" : "Add"} Medicated Feed Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2 max-h-[70vh] overflow-y-auto pr-1">
@@ -1898,6 +1904,7 @@ function MedicatedFeedTab({ farmId }: { farmId: number }) {
             <div><Label>Prescribing Vet</Label><Input value={form.prescribingVet} onChange={e => f("prescribingVet")(e.target.value)} /></div>
             <div className="col-span-2"><Label>Notes</Label><Input value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
           </div>
+          <DialogMutationError mutation={saveMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button disabled={!form.startDate || !form.species || !form.medicament || saveMut.isPending} onClick={() => saveMut.mutate(form)}>
@@ -1933,10 +1940,11 @@ function MedicatedFeedTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Delete Confirm */}
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent className="max-w-sm" aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Delete Record?</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-500">This cannot be undone.</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>

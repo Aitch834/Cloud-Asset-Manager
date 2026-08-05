@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Tent, Plus, Trash2, Camera, File, Upload, Loader2, MapPin, Phone, Printer, ChevronDown, ChevronUp, ClipboardList, ExternalLink } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -613,7 +614,7 @@ export default function EncampmentPage() {
         )}
 
         {/* Add / Edit Dialog */}
-        <Dialog open={isDialogOpen} onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); } }}>
+        <Dialog open={isDialogOpen} onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); createMut.reset(); updateMut.reset(); } }}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editItem ? "Edit Encampment Record" : "Log Unauthorized Encampment"}</DialogTitle>
@@ -874,6 +875,8 @@ export default function EncampmentPage() {
                 <Textarea rows={3} value={form.notes ?? ""} onChange={e => ff("notes", e.target.value)} placeholder="Any further details about the incident, interactions with occupants, etc." />
               </Section>
             </div>
+            <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+            <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button variant="outline" onClick={() => { setAddOpen(false); setEditItem(null); }}>Cancel</Button>
               <Button onClick={handleSave} disabled={!form.locationDescription || !form.discoveredAt || isSaving}>
@@ -884,10 +887,11 @@ export default function EncampmentPage() {
         </Dialog>
 
         {/* Delete confirm */}
-        <Dialog open={!!deleteId} onOpenChange={open => { if (!open) setDeleteId(null); }}>
+        <Dialog open={!!deleteId} onOpenChange={open => { if (!open) { setDeleteId(null); deleteMut.reset(); } }}>
           <DialogContent>
             <DialogHeader><DialogTitle>Delete Encampment Record?</DialogTitle></DialogHeader>
             <p className="text-sm text-muted-foreground">This will permanently remove this record and all associated photos.</p>
+            <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
               <Button variant="destructive" onClick={() => deleteId && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>

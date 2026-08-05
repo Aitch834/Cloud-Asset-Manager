@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -583,7 +584,7 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
       )}
 
       {[addOpen, !!editItem].includes(true) && (
-        <Dialog open={addOpen || !!editItem} onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); } }}>
+        <Dialog open={addOpen || !!editItem} onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); createMut.reset(); updateMut.reset(); } }}>
           <DialogContent style={{ maxWidth: 540 }}>
             <DialogHeader><DialogTitle>{editItem ? "Edit Training Record" : "Add Training Record"}</DialogTitle></DialogHeader>
             <div style={{ display: "grid", gap: 12 }}>
@@ -690,6 +691,8 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
               <div><Label>Assessor Name</Label><Input className="mt-1" value={form.assessorName} onChange={e => setForm(f => ({ ...f, assessorName: e.target.value }))} /></div>
               <div><Label>Notes</Label><Textarea className="mt-1" rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
             </div>
+            <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+            <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button variant="outline" onClick={() => { setAddOpen(false); setEditItem(null); setCourseSearch(""); }}>Cancel</Button>
               <Button onClick={() => handleSubmit(!!editItem)} disabled={!form.trainingTitle || !form.trainingDate || !form.userId}>Save Record</Button>
@@ -698,10 +701,11 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
         </Dialog>
       )}
 
-      <Dialog open={deleteId !== null} onOpenChange={open => { if (!open) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={open => { if (!open) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Training Record</DialogTitle></DialogHeader>
           <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Are you sure you want to delete this training record? This cannot be undone.</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>Delete</Button>
@@ -1004,7 +1008,7 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
         </Dialog>
       )}
 
-      <Dialog open={addOpen || !!editItem} onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); setRenewMode(false); setIssuerOtherMode(false); } }}>
+      <Dialog open={addOpen || !!editItem} onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); setRenewMode(false); setIssuerOtherMode(false); createMut.reset(); updateMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 520 }}>
           <DialogHeader>
             <DialogTitle>{editItem ? "Edit Certificate" : renewMode ? "Renew Certificate" : "Add Certificate"}</DialogTitle>
@@ -1079,6 +1083,8 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
             </div>
             <div><Label>Notes</Label><Textarea className="mt-1" rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
           </div>
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setAddOpen(false); setEditItem(null); setRenewMode(false); }}>Cancel</Button>
             <Button onClick={() => {
@@ -1090,10 +1096,11 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={open => { if (!open) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={open => { if (!open) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Certificate</DialogTitle></DialogHeader>
           <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Are you sure? This cannot be undone.</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>Delete</Button>
@@ -1410,7 +1417,7 @@ function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { f
         </div>
       )}
 
-      <Dialog open={addOpen || !!editItem} onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); setCheckedByOther(false); } }}>
+      <Dialog open={addOpen || !!editItem} onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); setCheckedByOther(false); createMut.reset(); updateMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 540 }}>
           <DialogHeader><DialogTitle>{editItem ? "Edit RTW Record" : "Record Right to Work Check"}</DialogTitle></DialogHeader>
           <div style={{ display: "grid", gap: 12 }}>
@@ -1475,6 +1482,8 @@ function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { f
             </div>
             <div><Label>Notes</Label><Textarea className="mt-1" rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
           </div>
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setAddOpen(false); setEditItem(null); }}>Cancel</Button>
             <Button onClick={() => {
@@ -1486,10 +1495,11 @@ function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { f
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={open => { if (!open) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={open => { if (!open) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete RTW Record</DialogTitle></DialogHeader>
           <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Are you sure? This cannot be undone.</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>Delete</Button>
@@ -2065,7 +2075,7 @@ function CoursesTab({ farmId }: { farmId: number }) {
 
       {/* Add / Edit dialog */}
       {(addOpen || !!editItem) && (
-        <Dialog open={addOpen || !!editItem} onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); } }}>
+        <Dialog open={addOpen || !!editItem} onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); createMut.reset(); updateMut.reset(); } }}>
           <DialogContent style={{ maxWidth: 480 }}>
             <DialogHeader><DialogTitle>{editItem ? "Edit Course" : "Add Course"}</DialogTitle></DialogHeader>
             <div style={{ display: "grid", gap: 12 }}>
@@ -2106,6 +2116,8 @@ function CoursesTab({ farmId }: { farmId: number }) {
                 </div>
               )}
             </div>
+            <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+            <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button variant="outline" onClick={() => { setAddOpen(false); setEditItem(null); }}>Cancel</Button>
               <Button onClick={() => handleSubmit(!!editItem)} disabled={!form.name}>Save Course</Button>
@@ -2116,10 +2128,11 @@ function CoursesTab({ farmId }: { farmId: number }) {
 
       {/* Delete confirm */}
       {deleteId !== null && (
-        <Dialog open onOpenChange={() => setDeleteId(null)}>
+        <Dialog open onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
           <DialogContent style={{ maxWidth: 380 }}>
             <DialogHeader><DialogTitle>Delete Course?</DialogTitle></DialogHeader>
             <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>This will remove the course from your register. Existing training records that reference this course will not be deleted.</p>
+            <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
               <Button style={{ background: "#dc2626", color: "#fff" }} onClick={() => deleteMut.mutate(deleteId!)}>Delete</Button>

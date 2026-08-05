@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -963,7 +964,7 @@ ${hasHpCia ? '<p style="background:#fef3c7;border:1px solid #fcd34d;padding:8px 
       {/* ══════════════════════════════════════════════════════════════════
           VET VISIT DIALOG (add / edit)
       ══════════════════════════════════════════════════════════════════ */}
-      <Dialog open={showVisitDialog} onOpenChange={setShowVisitDialog}>
+      <Dialog open={showVisitDialog} onOpenChange={o => { setShowVisitDialog(o); if (!o) visitMut.reset(); }}>
         <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editVisit ? "Edit Vet Visit" : "Log Vet Visit"}</DialogTitle>
@@ -1147,6 +1148,7 @@ ${hasHpCia ? '<p style="background:#fef3c7;border:1px solid #fcd34d;padding:8px 
               <Textarea rows={2} className="text-sm mt-1" value={visitForm.notes ?? ""} onChange={e => setVisitForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
+          <DialogMutationError mutation={visitMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowVisitDialog(false)}>Cancel</Button>
             <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={saveVisit} disabled={visitMut.isPending}>
@@ -1183,7 +1185,7 @@ ${hasHpCia ? '<p style="background:#fef3c7;border:1px solid #fcd34d;padding:8px 
       {/* ══════════════════════════════════════════════════════════════════
           INVOICE DIALOG (add / edit)
       ══════════════════════════════════════════════════════════════════ */}
-      <Dialog open={showInvoiceDialog} onOpenChange={setShowInvoiceDialog}>
+      <Dialog open={showInvoiceDialog} onOpenChange={o => { setShowInvoiceDialog(o); if (!o) invoiceMut.reset(); }}>
         <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editInvoice ? "Edit Invoice" : "Add Vet Invoice"}</DialogTitle>
@@ -1318,6 +1320,7 @@ ${hasHpCia ? '<p style="background:#fef3c7;border:1px solid #fcd34d;padding:8px 
               <Textarea rows={2} className="text-sm mt-1" value={invoiceForm.notes ?? ""} onChange={e => setInvoiceForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
+          <DialogMutationError mutation={invoiceMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowInvoiceDialog(false)}>Cancel</Button>
             <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={saveInvoice} disabled={invoiceMut.isPending}>

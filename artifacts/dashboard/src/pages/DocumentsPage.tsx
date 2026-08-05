@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Badge } from "@/components/ui/badge";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import {
@@ -990,7 +991,7 @@ export default function DocumentsPage() {
         )}
 
         {/* ── Add Document Dialog ─────────────────────────────────────────── */}
-        <Dialog open={addOpen} onOpenChange={closeAdd}>
+        <Dialog open={addOpen} onOpenChange={o => { closeAdd(o); if (!o) createMut.reset(); }}>
           <DialogContent style={{ maxWidth: 560 }}>
             <DialogHeader><DialogTitle>Add Document</DialogTitle></DialogHeader>
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxHeight: "70vh", overflowY: "auto", paddingRight: 4 }}>
@@ -1042,6 +1043,7 @@ export default function DocumentsPage() {
                 )}
               </div>
             </div>
+            <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button variant="outline" onClick={() => closeAdd(false)}>Cancel</Button>
               <Button onClick={handleSave} disabled={!canSave}>
@@ -1053,10 +1055,11 @@ export default function DocumentsPage() {
         </Dialog>
 
         {/* ── Delete Confirm ─────────────────────────────────────────────── */}
-        <Dialog open={!!deleteId} onOpenChange={o => !o && setDeleteId(null)}>
+        <Dialog open={!!deleteId} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
           <DialogContent style={{ maxWidth: 380 }}>
             <DialogHeader><DialogTitle>Delete Document?</DialogTitle></DialogHeader>
             <p className="text-sm text-gray-600">This document record will be permanently removed. Any uploaded file attached to it will also be deleted.</p>
+            <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
               <Button variant="destructive" onClick={() => deleteId && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>

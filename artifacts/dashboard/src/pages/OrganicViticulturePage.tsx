@@ -55,6 +55,7 @@ import {
 } from "@/pages/WineryManagementTabs";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -348,7 +349,7 @@ function BlockConversionTab({ farmId }: { farmId: number }) {
       )}
 
       {/* Add / Edit Dialog */}
-      <Dialog open={showAdd || !!editing} onOpenChange={() => { setShowAdd(false); setEditing(null); }}>
+      <Dialog open={showAdd || !!editing} onOpenChange={() => { setShowAdd(false); setEditing(null); saveMutation.reset(); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Block Conversion Record" : "Add Block Conversion Record"}</DialogTitle>
@@ -381,6 +382,7 @@ function BlockConversionTab({ farmId }: { farmId: number }) {
               <RecordAttachments farmId={farmId} recordType="organic-block-conversion" recordId={(editing as any).id} />
             </div>
           )}
+          <DialogMutationError mutation={saveMutation} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowAdd(false); setEditing(null); }}>Cancel</Button>
             <Button onClick={() => saveMutation.mutate()} disabled={!form.blockName || saveMutation.isPending}>
@@ -391,9 +393,10 @@ function BlockConversionTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Delete Dialog */}
-      <Dialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
+      <Dialog open={!!deleting} onOpenChange={() => { setDeleting(null); deleteMutation.reset(); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Block Record</DialogTitle><DialogDescription>Remove <strong>{deleting?.blockName}</strong> from the conversion register? This cannot be undone.</DialogDescription></DialogHeader>
+          <DialogMutationError mutation={deleteMutation} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteMutation.mutate(deleting.id)} disabled={deleteMutation.isPending}>Delete</Button>
@@ -598,7 +601,7 @@ function InputLogTab({ farmId, blocks }: { farmId: number; blocks: Record<string
         </div>
       )}
 
-      <Dialog open={showAdd || !!editing} onOpenChange={() => { setShowAdd(false); setEditing(null); }}>
+      <Dialog open={showAdd || !!editing} onOpenChange={() => { setShowAdd(false); setEditing(null); saveMutation.reset(); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing ? "Edit Input Record" : "Add Input Record"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -675,6 +678,7 @@ function InputLogTab({ farmId, blocks }: { farmId: number; blocks: Record<string
               <RecordAttachments farmId={farmId} recordType="organic-input-log" recordId={(editing as any).id} />
             </div>
           )}
+          <DialogMutationError mutation={saveMutation} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowAdd(false); setEditing(null); }}>Cancel</Button>
             <Button onClick={() => saveMutation.mutate()} disabled={!form.productName || !form.inputType || !form.dateApplied || saveMutation.isPending}>
@@ -684,9 +688,10 @@ function InputLogTab({ farmId, blocks }: { farmId: number; blocks: Record<string
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
+      <Dialog open={!!deleting} onOpenChange={() => { setDeleting(null); deleteMutation.reset(); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Input Record</DialogTitle><DialogDescription>Remove <strong>{deleting?.productName}</strong>? This cannot be undone.</DialogDescription></DialogHeader>
+          <DialogMutationError mutation={deleteMutation} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteMutation.mutate(deleting.id)} disabled={deleteMutation.isPending}>Delete</Button>
@@ -861,7 +866,7 @@ function CopperRegisterTab({ farmId, blocks }: { farmId: number; blocks: Record<
         </div>
       )}
 
-      <Dialog open={showAdd || !!editing} onOpenChange={() => { setShowAdd(false); setEditing(null); }}>
+      <Dialog open={showAdd || !!editing} onOpenChange={() => { setShowAdd(false); setEditing(null); saveMutation.reset(); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing ? "Edit Copper Application" : "Add Copper Application"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -919,6 +924,7 @@ function CopperRegisterTab({ farmId, blocks }: { farmId: number; blocks: Record<
               <RecordAttachments farmId={farmId} recordType="organic-copper-log" recordId={(editing as any).id} />
             </div>
           )}
+          <DialogMutationError mutation={saveMutation} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowAdd(false); setEditing(null); }}>Cancel</Button>
             <Button onClick={() => saveMutation.mutate()} disabled={!form.applicationDate || !form.productName || !form.copperKgApplied || saveMutation.isPending}>
@@ -928,9 +934,10 @@ function CopperRegisterTab({ farmId, blocks }: { farmId: number; blocks: Record<
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
+      <Dialog open={!!deleting} onOpenChange={() => { setDeleting(null); deleteMutation.reset(); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Copper Application</DialogTitle><DialogDescription>Remove <strong>{deleting?.productName}</strong> on {fmtDate(deleting?.applicationDate)}? This cannot be undone.</DialogDescription></DialogHeader>
+          <DialogMutationError mutation={deleteMutation} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteMutation.mutate(deleting.id)} disabled={deleteMutation.isPending}>Delete</Button>
@@ -987,7 +994,7 @@ function RecordDecisionDialog({ farmId, derogCase, onClose }: { farmId: number; 
   });
 
   return (
-    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+    <Dialog open onOpenChange={o => { if (!o) { onClose(); mut.reset(); } }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -1021,6 +1028,7 @@ function RecordDecisionDialog({ farmId, derogCase, onClose }: { farmId: number; 
             </>
           )}
         </div>
+        <DialogMutationError mutation={mut} message="Failed to save — your entries are still here." />
         <DialogFooter className="mt-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => mut.mutate()} disabled={mut.isPending || !decisionDate}>
@@ -1340,7 +1348,7 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
       )}
 
       {/* Add/Edit Case Dialog */}
-      <Dialog open={showAdd || !!editing} onOpenChange={() => { setShowAdd(false); setEditing(null); }}>
+      <Dialog open={showAdd || !!editing} onOpenChange={() => { setShowAdd(false); setEditing(null); saveMutation.reset(); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? "Edit Derogation Case" : "New Derogation Case"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -1418,6 +1426,7 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
               <RecordAttachments farmId={farmId} recordType="organic-input-derogation" recordId={(editing as any).id} />
             </div>
           )}
+          <DialogMutationError mutation={saveMutation} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowAdd(false); setEditing(null); }}>Cancel</Button>
             <Button onClick={() => saveMutation.mutate()} disabled={!form.inputName || !form.inputType || saveMutation.isPending}>
@@ -1428,7 +1437,7 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Add/Edit Correspondence Dialog */}
-      <Dialog open={showAddCorr || !!editingCorr} onOpenChange={() => { setShowAddCorr(false); setEditingCorr(null); }}>
+      <Dialog open={showAddCorr || !!editingCorr} onOpenChange={() => { setShowAddCorr(false); setEditingCorr(null); saveCorr.reset(); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editingCorr ? "Edit Correspondence" : "Add Correspondence"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -1453,6 +1462,7 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
             <div><Label>Reference</Label><Input value={corrForm.reference ?? ""} onChange={csf("reference")} placeholder="Letter/email reference" /></div>
             <div><Label>Notes</Label><Textarea value={corrForm.notes ?? ""} onChange={csf("notes")} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={saveCorr} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowAddCorr(false); setEditingCorr(null); }}>Cancel</Button>
             <Button onClick={() => saveCorr.mutate()} disabled={!corrForm.correspondenceDate || !corrForm.correspondenceType || !corrForm.summary || saveCorr.isPending}>
@@ -1463,9 +1473,10 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Delete Case Dialog */}
-      <Dialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
+      <Dialog open={!!deleting} onOpenChange={() => { setDeleting(null); deleteMutation.reset(); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Derogation Case</DialogTitle><DialogDescription>Remove the derogation case for <strong>{deleting?.inputName}</strong>? All correspondence will also be deleted. This cannot be undone.</DialogDescription></DialogHeader>
+          <DialogMutationError mutation={deleteMutation} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteMutation.mutate(deleting!.id)} disabled={deleteMutation.isPending}>Delete</Button>
@@ -1474,9 +1485,10 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Delete Correspondence Dialog */}
-      <Dialog open={!!deletingCorr} onOpenChange={() => setDeletingCorr(null)}>
+      <Dialog open={!!deletingCorr} onOpenChange={() => { setDeletingCorr(null); deleteCorr.reset(); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Correspondence</DialogTitle><DialogDescription>Remove this correspondence entry? This cannot be undone.</DialogDescription></DialogHeader>
+          <DialogMutationError mutation={deleteCorr} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeletingCorr(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteCorr.mutate(deletingCorr!.id)} disabled={deleteCorr.isPending}>Delete</Button>
@@ -1639,7 +1651,7 @@ function CertificatesTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      <Dialog open={showAdd || !!editing} onOpenChange={() => { setShowAdd(false); setEditing(null); }}>
+      <Dialog open={showAdd || !!editing} onOpenChange={() => { setShowAdd(false); setEditing(null); saveMutation.reset(); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing ? "Edit Certificate" : "Add Certificate"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -1679,6 +1691,7 @@ function CertificatesTab({ farmId }: { farmId: number }) {
               <RecordAttachments farmId={farmId} recordType="organic-certificate" recordId={(editing as any).id} />
             </div>
           )}
+          <DialogMutationError mutation={saveMutation} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowAdd(false); setEditing(null); }}>Cancel</Button>
             <Button onClick={() => saveMutation.mutate()} disabled={!form.certifyingBody || saveMutation.isPending}>
@@ -1688,9 +1701,10 @@ function CertificatesTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
+      <Dialog open={!!deleting} onOpenChange={() => { setDeleting(null); deleteMutation.reset(); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete Certificate</DialogTitle><DialogDescription>Remove the certificate from <strong>{deleting?.certifyingBody}</strong>? This cannot be undone.</DialogDescription></DialogHeader>
+          <DialogMutationError mutation={deleteMutation} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteMutation.mutate(deleting.id)} disabled={deleteMutation.isPending}>Delete</Button>

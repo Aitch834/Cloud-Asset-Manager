@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Badge } from "@/components/ui/badge";
 import { TabButton } from "@/components/ui/tab-button";
 import {
@@ -435,7 +436,7 @@ export default function NVZPage() {
       lotNumber: r.lotNumber ?? "",
     });
   }
-  function closeAppForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }
+  function closeAppForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm); addMut.reset(); updateMut.reset(); }
   const [nvzEditField, setNvzEditField] = useState<FieldSummary | null>(null);
   const [nvzEditForm, setNvzEditForm] = useState({ isNvz: false, nvzLandType: "" });
 
@@ -1150,6 +1151,7 @@ export default function NVZPage() {
               <p className="text-xs text-foreground/40 mt-1">Manual override — leave blank if using delivery-linked costing above.</p>
             </div>
           </div>
+          <DialogMutationError mutation={editRecord ? updateMut : addMut} message="Failed to save — your entries are still here." />
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={closeAppForm}>Cancel</Button>
             <Button onClick={handleAdd} disabled={addMut.isPending || updateMut.isPending}>
@@ -1160,7 +1162,7 @@ export default function NVZPage() {
       </Dialog>
 
       {/* ── DELETE CONFIRM ── */}
-      <Dialog open={deleteId !== null} onOpenChange={(o) => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={(o) => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1171,6 +1173,7 @@ export default function NVZPage() {
               This application record will be permanently removed from the NVZ compliance log. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — the record is still here." />
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" disabled={deleteMut.isPending} onClick={() => { if (deleteId) deleteMut.mutate(deleteId); }}>
@@ -1355,7 +1358,7 @@ export default function NVZPage() {
       </Dialog>
 
       {/* ── RISK ASSESSMENT ADD/EDIT DIALOG ── */}
-      <Dialog open={raAddOpen || !!raEditItem} onOpenChange={open => { if (!open) { setRaAddOpen(false); setRaEditItem(null); setRaFieldIds([]); } }}>
+      <Dialog open={raAddOpen || !!raEditItem} onOpenChange={open => { if (!open) { setRaAddOpen(false); setRaEditItem(null); setRaFieldIds([]); raCreateMut.reset(); raUpdateMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 620 }}>
           <DialogHeader><DialogTitle>{raEditItem ? "Edit Risk Assessment" : "Add NVZ Risk Assessment"}</DialogTitle></DialogHeader>
           <div style={{ display: "grid", gap: 12, maxHeight: "70vh", overflowY: "auto", paddingRight: 4 }}>
@@ -1448,6 +1451,7 @@ export default function NVZPage() {
             </div>
             <div><label className="text-sm font-medium mb-1.5 block">Notes</label><Input value={raForm.notes} onChange={e => setRaForm(f => ({ ...f, notes: e.target.value }))} /></div>
           </div>
+          <DialogMutationError mutation={raEditItem ? raUpdateMut : raCreateMut} message="Failed to save — your entries are still here." />
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => { setRaAddOpen(false); setRaEditItem(null); setRaFieldIds([]); }}>Cancel</Button>
             <Button onClick={() => {
@@ -1458,9 +1462,10 @@ export default function NVZPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={raDeleteId !== null} onOpenChange={open => { if (!open) setRaDeleteId(null); }}>
+      <Dialog open={raDeleteId !== null} onOpenChange={open => { if (!open) { setRaDeleteId(null); raDeleteMut.reset(); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Delete Risk Assessment</DialogTitle><DialogDescription>This cannot be undone.</DialogDescription></DialogHeader>
+          <DialogMutationError mutation={raDeleteMut} message="Failed to delete — the record is still here." />
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setRaDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => raDeleteId !== null && raDeleteMut.mutate(raDeleteId)}>Delete</Button>
@@ -1528,7 +1533,7 @@ export default function NVZPage() {
       )}
 
       {/* ── CONTACT ADD/EDIT DIALOG ── */}
-      <Dialog open={contactAddOpen || !!contactEditItem} onOpenChange={open => { if (!open) { setContactAddOpen(false); setContactEditItem(null); } }}>
+      <Dialog open={contactAddOpen || !!contactEditItem} onOpenChange={open => { if (!open) { setContactAddOpen(false); setContactEditItem(null); contactCreateMut.reset(); contactUpdateMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 520 }}>
           <DialogHeader><DialogTitle>{contactEditItem ? "Edit Contact" : "Add Contact"}</DialogTitle></DialogHeader>
           <div style={{ display: "grid", gap: 12 }}>
@@ -1544,6 +1549,7 @@ export default function NVZPage() {
             <div><label className="text-sm font-medium mb-1.5 block">Qualifications</label><Input value={contactForm.qualifications} onChange={e => setContactForm(f => ({ ...f, qualifications: e.target.value }))} placeholder="e.g. FACTS qualified, BASIS registered" /></div>
             <div><label className="text-sm font-medium mb-1.5 block">Notes</label><Input value={contactForm.notes} onChange={e => setContactForm(f => ({ ...f, notes: e.target.value }))} /></div>
           </div>
+          <DialogMutationError mutation={contactEditItem ? contactUpdateMut : contactCreateMut} message="Failed to save — your entries are still here." />
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => { setContactAddOpen(false); setContactEditItem(null); }}>Cancel</Button>
             <Button onClick={() => {
@@ -1554,9 +1560,10 @@ export default function NVZPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={contactDeleteId !== null} onOpenChange={open => { if (!open) setContactDeleteId(null); }}>
+      <Dialog open={contactDeleteId !== null} onOpenChange={open => { if (!open) { setContactDeleteId(null); contactDeleteMut.reset(); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Remove Contact</DialogTitle><DialogDescription>This will remove the contact from the register. Existing risk assessments are not affected.</DialogDescription></DialogHeader>
+          <DialogMutationError mutation={contactDeleteMut} message="Failed to remove — the contact is still here." />
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setContactDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => contactDeleteId !== null && contactDeleteMut.mutate(contactDeleteId)}>Remove</Button>
@@ -1580,7 +1587,7 @@ export default function NVZPage() {
       )}
 
       {/* ── NVZ FIELD SETTINGS DIALOG ── */}
-      <Dialog open={nvzEditField !== null} onOpenChange={(o) => { if (!o) setNvzEditField(null); }}>
+      <Dialog open={nvzEditField !== null} onOpenChange={(o) => { if (!o) { setNvzEditField(null); nvzEditMut.reset(); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>NVZ Settings — {nvzEditField?.fieldName}</DialogTitle>
@@ -1619,6 +1626,7 @@ export default function NVZPage() {
               </div>
             </div>
           )}
+          <DialogMutationError mutation={nvzEditMut} message="Failed to save — your entries are still here." />
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setNvzEditField(null)}>Cancel</Button>
             <Button

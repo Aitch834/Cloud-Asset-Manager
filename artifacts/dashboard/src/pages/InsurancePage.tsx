@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useUpload } from "@workspace/object-storage-web";
@@ -241,7 +242,7 @@ function InsuranceDialog({ open, onClose, initial, farmId, onSaved, renewalOfId 
   const isBusy = saveMut.isPending || uploading;
 
   return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); saveMut.reset(); } }}>
       <DialogContent style={{ maxWidth: 520 }}>
         <DialogHeader>
           <DialogTitle>{renewalOfId ? "Renew Insurance Policy" : initial ? "Edit Insurance Policy" : "Add Insurance Policy"}</DialogTitle>

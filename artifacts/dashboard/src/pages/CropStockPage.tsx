@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
@@ -644,7 +645,7 @@ function LogCleanDialog({ farmId, bin, onClose, onSaved }: { farmId: number; bin
     onError: () => toast({ title: "Failed to save cleaning record", variant: "destructive" }),
   });
   return (
-    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+    <Dialog open onOpenChange={o => { if (!o) { mut.reset(); onClose(); } }}>
       <DialogContent style={{ maxWidth: 480 }}>
         <DialogHeader>
           <DialogTitle>
@@ -723,6 +724,7 @@ function LogCleanDialog({ farmId, bin, onClose, onSaved }: { farmId: number; bin
             </div>
           );
         })()}
+        <DialogMutationError mutation={mut} message="Failed to save — your entries are still here." />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button
@@ -1223,7 +1225,7 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
       )}
 
       {/* Record Harvest In */}
-      <Dialog open={harvestOpen} onOpenChange={o => { if (!o) setHarvestOpen(false); }}>
+      <Dialog open={harvestOpen} onOpenChange={o => { if (!o) { setHarvestOpen(false); harvestMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 500 }}>
           <DialogHeader><DialogTitle>Record Harvest In</DialogTitle></DialogHeader>
           <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Records incoming grain and updates the live stock level for the destination bin.</p>

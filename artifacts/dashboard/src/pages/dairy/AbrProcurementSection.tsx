@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import {
   Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2,
   ChevronRight, ChevronDown, Building2, ShoppingCart, PackageCheck,
@@ -230,7 +231,7 @@ function SupplierSubsection({ farmId, suppliers, loading, qc }: {
         </div>
       )}
 
-      <Dialog open={dlgOpen} onOpenChange={setDlgOpen}>
+      <Dialog open={dlgOpen} onOpenChange={o => { setDlgOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "44rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Supplier" : "Add Supplier"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
@@ -246,6 +247,7 @@ function SupplierSubsection({ farmId, suppliers, loading, qc }: {
             <div><Label>Payment Terms (days)</Label><Input type="number" min="0" placeholder="30" value={form.paymentTermsDays ?? ""} onChange={e => set("paymentTermsDays", e.target.value ? parseInt(e.target.value) : null)} /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes || ""} onChange={e => set("notes", e.target.value)} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDlgOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.companyName?.trim()}>
@@ -412,7 +414,7 @@ function PurchaseOrderSubsection({ farmId, orders, suppliers, loading, qc, suppl
       )}
 
       {/* PO Add/Edit dialog */}
-      <Dialog open={dlgOpen} onOpenChange={setDlgOpen}>
+      <Dialog open={dlgOpen} onOpenChange={o => { setDlgOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "46rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Purchase Order" : "New Purchase Order"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-1">
@@ -471,6 +473,7 @@ function PurchaseOrderSubsection({ farmId, orders, suppliers, loading, qc, suppl
 
             <div><Label>Notes</Label><Textarea rows={2} value={form.notes || ""} onChange={e => set("notes", e.target.value)} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDlgOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate({ ...form, items: editing ? undefined : lineItems.filter(it => it.productName?.trim()) })} disabled={save.isPending || !form.poNumber?.trim() || !form.orderDate}>
@@ -482,7 +485,7 @@ function PurchaseOrderSubsection({ farmId, orders, suppliers, loading, qc, suppl
       </Dialog>
 
       {/* Line item add/edit dialog */}
-      <Dialog open={!!itemDlg} onOpenChange={o => { if (!o) { setItemDlg(null); setItemForm({}); } }}>
+      <Dialog open={!!itemDlg} onOpenChange={o => { if (!o) { setItemDlg(null); setItemForm({}); saveItem.reset(); } }}>
         <DialogContent style={{ maxWidth: "36rem" }}>
           <DialogHeader><DialogTitle>{itemDlg?.item ? "Edit Line Item" : "Add Line Item"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
@@ -491,6 +494,7 @@ function PurchaseOrderSubsection({ farmId, orders, suppliers, loading, qc, suppl
             <div><Label>Unit Price (£)</Label><Input type="number" min="0" step="0.01" placeholder="0.00" value={itemForm.unitPricePence != null ? (itemForm.unitPricePence / 100).toFixed(2) : ""} onChange={e => setItemForm(f => ({ ...f, unitPricePence: e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null }))} /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={itemForm.notes || ""} onChange={e => setItemForm(f => ({ ...f, notes: e.target.value }))} /></div>
           </div>
+          <DialogMutationError mutation={saveItem} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setItemDlg(null); setItemForm({}); }}>Cancel</Button>
             <Button onClick={() => saveItem.mutate({ ...itemForm, poId: itemDlg!.poId, id: itemDlg?.item?.id } as PoItem & { poId: number })} disabled={saveItem.isPending || !itemForm.productName?.trim()}>
@@ -578,7 +582,7 @@ function GrnSubsection({ farmId, grns, orders, loading, qc, poRef }: {
         </div>
       )}
 
-      <Dialog open={dlgOpen} onOpenChange={setDlgOpen}>
+      <Dialog open={dlgOpen} onOpenChange={o => { setDlgOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit GRN" : "Add Goods Received Note"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
@@ -607,6 +611,7 @@ function GrnSubsection({ farmId, grns, orders, loading, qc, poRef }: {
             </div>
             <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes || ""} onChange={e => set("notes", e.target.value)} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDlgOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.receivedDate}>
@@ -718,7 +723,7 @@ function InvoiceSubsection({ farmId, invoices, suppliers, orders, loading, qc, s
         </div>
       )}
 
-      <Dialog open={dlgOpen} onOpenChange={setDlgOpen}>
+      <Dialog open={dlgOpen} onOpenChange={o => { setDlgOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "46rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Invoice" : "Add Invoice"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
@@ -765,6 +770,7 @@ function InvoiceSubsection({ farmId, invoices, suppliers, orders, loading, qc, s
             )}
             <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes || ""} onChange={e => set("notes", e.target.value)} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDlgOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.invoiceNumber?.trim() || !form.invoiceDate}>

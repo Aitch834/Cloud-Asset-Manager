@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Plus, Trash2, Cloud, TrendingUp, Truck, Loader2, MapPin, Cpu, AlertTriangle, Pencil, Eye, Printer } from "lucide-react";
 import {
@@ -157,7 +158,7 @@ function ReadingsTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) resetForm(); }}>
+      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) { resetForm(); createMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 480 }}>
           <DialogHeader><DialogTitle>Add Weather Reading</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
@@ -201,6 +202,7 @@ function ReadingsTab({ farmId }: { farmId: number }) {
             )}
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
             <Button onClick={() => createMut.mutate({ ...form, linkedSprayApplicationId: form.linkedSprayApplicationId ? parseInt(form.linkedSprayApplicationId) : null })} disabled={!form.readingTimestamp || createMut.isPending}>Save Reading</Button>
@@ -208,10 +210,11 @@ function ReadingsTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Reading</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Are you sure you want to delete this weather reading?</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
@@ -443,7 +446,7 @@ function VehicleReadingsTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Add dialog */}
-      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) setForm(EMPTY_VEH_FORM); }}>
+      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) { setForm(EMPTY_VEH_FORM); createMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 520 }}>
           <DialogHeader><DialogTitle>Add Vehicle Weather Reading</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2" style={{ maxHeight: "70vh", overflowY: "auto", paddingRight: 4 }}>
@@ -548,6 +551,7 @@ function VehicleReadingsTab({ farmId }: { farmId: number }) {
             )}
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
             <Button onClick={() => createMut.mutate(buildPayload())} disabled={!form.vehicleName || !form.readingTimestamp || createMut.isPending}>Save Reading</Button>
@@ -555,10 +559,11 @@ function VehicleReadingsTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 360 }}>
           <DialogHeader><DialogTitle>Delete Reading</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Are you sure you want to delete this reading?</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
@@ -845,10 +850,11 @@ function DevicesTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Add dialog */}
-      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) { setForm(EMPTY_DEV_FORM); setMfgSel(""); setMdlSel(""); } }}>
+      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) { setForm(EMPTY_DEV_FORM); setMfgSel(""); setMdlSel(""); createMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 480 }}>
           <DialogHeader><DialogTitle>Add Weather Device</DialogTitle></DialogHeader>
           <DeviceFormFields />
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
             <Button onClick={() => createMut.mutate(formPayload())} disabled={!form.name || createMut.isPending}>Add Device</Button>
@@ -857,10 +863,11 @@ function DevicesTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* Edit dialog */}
-      <Dialog open={!!editRecord} onOpenChange={o => { if (!o) { setEditRecord(null); setForm(EMPTY_DEV_FORM); setMfgSel(""); setMdlSel(""); } }}>
+      <Dialog open={!!editRecord} onOpenChange={o => { if (!o) { setEditRecord(null); setForm(EMPTY_DEV_FORM); setMfgSel(""); setMdlSel(""); updateMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 480 }}>
           <DialogHeader><DialogTitle>Edit Device</DialogTitle></DialogHeader>
           <DeviceFormFields />
+          <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setEditRecord(null); setForm(EMPTY_DEV_FORM); }}>Cancel</Button>
             <Button onClick={() => updateMut.mutate({ id: editRecord.id, body: formPayload() })} disabled={!form.name || updateMut.isPending}>Save Changes</Button>
@@ -868,10 +875,11 @@ function DevicesTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 360 }}>
           <DialogHeader><DialogTitle>Remove Device</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">This will remove the device from your register. Existing readings linked to this device will retain their data.</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Remove</Button>

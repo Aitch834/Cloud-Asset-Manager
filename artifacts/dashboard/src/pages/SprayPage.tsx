@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, ChevronUp, Printer, Pencil, ShieldAlert, Link2, ExternalLink, Loader2, MapPin, Truck, AlertTriangle, CheckCircle, History } from "lucide-react";
@@ -965,7 +966,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
         </div>
       )}
 
-      <Dialog open={formOpen} onOpenChange={o => { if (!o) closeForm(); }}>
+      <Dialog open={formOpen} onOpenChange={o => { if (!o) { closeForm(); createMut.reset(); updateMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 600 }}>
           <DialogHeader><DialogTitle>{editRecord ? "Edit Spray Application" : "Log Spray Application"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2" style={{ maxHeight: "70vh", overflowY: "auto" }}>
@@ -1475,6 +1476,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
           {editRecord && farmId && (
             <RecordAttachments farmId={farmId} recordType="spray_application" recordId={editRecord.id} />
           )}
+          <DialogMutationError mutation={editRecord ? updateMut : createMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={closeForm}>Cancel</Button>
             <Button
@@ -1487,10 +1489,11 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Spray Record</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">This will permanently delete this spray application record. Note: any stock that was automatically deducted will not be reversed.</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
@@ -1763,7 +1766,7 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
       </Dialog>
 
       {/* Add / Edit dialog */}
-      <Dialog open={dialogOpen} onOpenChange={o => { if (!o) closeDialog(); }}>
+      <Dialog open={dialogOpen} onOpenChange={o => { if (!o) { closeDialog(); createMut.reset(); updateMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 520 }}>
           <DialogHeader><DialogTitle>{editRecord ? "Edit Spray Product" : "Add Spray Product"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
@@ -1914,6 +1917,7 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
               </Select>
             </div>
           </div>
+          <DialogMutationError mutation={editRecord ? updateMut : createMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={closeDialog}>Cancel</Button>
             {editRecord
@@ -1924,10 +1928,11 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Product</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Are you sure? Existing spray application records linked to this product will retain the product name but lose the product details.</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -170,7 +171,7 @@ function CertificationTab({ farmId }: { farmId: number }) {
           </table>
         </div>
       )}
-      <Dialog open={dlg.open} onOpenChange={o => !o && setDlg({ open: false, mode: "add", row: {} })}>
+      <Dialog open={dlg.open} onOpenChange={o => { if (!o) { setDlg({ open: false, mode: "add", row: {} }); mutSave.reset(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{dlg.mode === "view" ? "Organic Certificate" : dlg.mode === "edit" ? "Edit Certificate" : "Add Certificate"}</DialogTitle></DialogHeader>
           {dlg.mode === "view" ? (
@@ -214,6 +215,7 @@ function CertificationTab({ farmId }: { farmId: number }) {
               <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={String(form.notes || "")} onChange={e => sf("notes", e.target.value)} /></div>
             </div>
           )}
+          {dlg.mode !== "view" && <DialogMutationError mutation={mutSave} message="Failed to save — your entries are still here." />}
           <DialogFooter>
             {dlg.mode !== "view" && (
               <Button onClick={() => mutSave.mutate({ ...form, id: dlg.row.id })} disabled={mutSave.isPending || !form.certifyingBody}>
@@ -319,7 +321,7 @@ function LandRegisterTab({ farmId }: { farmId: number }) {
           </table>
         </div>
       )}
-      <Dialog open={dlg.open} onOpenChange={o => !o && setDlg({ open: false, mode: "add", row: {} })}>
+      <Dialog open={dlg.open} onOpenChange={o => { if (!o) { setDlg({ open: false, mode: "add", row: {} }); mutSave.reset(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{dlg.mode === "view" ? "Compartment" : dlg.mode === "edit" ? "Edit Compartment" : "Add Compartment"}</DialogTitle></DialogHeader>
           {dlg.mode === "view" ? (
@@ -359,6 +361,7 @@ function LandRegisterTab({ farmId }: { farmId: number }) {
               <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={String(form.notes || "")} onChange={e => sf("notes", e.target.value)} /></div>
             </div>
           )}
+          {dlg.mode !== "view" && <DialogMutationError mutation={mutSave} message="Failed to save — your entries are still here." />}
           <DialogFooter>
             {dlg.mode !== "view" && (
               <Button onClick={() => mutSave.mutate({ ...form, id: dlg.row.id })} disabled={mutSave.isPending || !form.compartmentName}>
@@ -457,7 +460,7 @@ function FeedSupplementsTab({ farmId }: { farmId: number }) {
           </table>
         </div>
       )}
-      <Dialog open={dlg.open} onOpenChange={o => !o && setDlg({ open: false, mode: "add", row: {} })}>
+      <Dialog open={dlg.open} onOpenChange={o => { if (!o) { setDlg({ open: false, mode: "add", row: {} }); mutSave.reset(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{dlg.mode === "view" ? "Feed / Supplement Record" : dlg.mode === "edit" ? "Edit Record" : "Add Feed / Supplement"}</DialogTitle></DialogHeader>
           {dlg.mode === "view" ? (
@@ -497,6 +500,7 @@ function FeedSupplementsTab({ farmId }: { farmId: number }) {
               <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={String(form.notes || "")} onChange={e => sf("notes", e.target.value)} /></div>
             </div>
           )}
+          {dlg.mode !== "view" && <DialogMutationError mutation={mutSave} message="Failed to save — your entries are still here." />}
           <DialogFooter>
             {dlg.mode !== "view" && (
               <Button onClick={() => mutSave.mutate({ ...form, id: dlg.row.id })} disabled={mutSave.isPending || !form.applicationDate || !form.productName}>
@@ -718,7 +722,7 @@ function VensDerogCard({ farmId, c: rec, isExpanded, onToggle, qc }: {
       )}
 
       {/* Record Decision Dialog */}
-      <Dialog open={recordDecisionOpen} onOpenChange={o => { if (!o) setRecordDecisionOpen(false); }}>
+      <Dialog open={recordDecisionOpen} onOpenChange={o => { if (!o) { setRecordDecisionOpen(false); saveDecision.reset(); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Record Certifier Decision</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -751,6 +755,7 @@ function VensDerogCard({ farmId, c: rec, isExpanded, onToggle, qc }: {
               </>
             )}
           </div>
+          <DialogMutationError mutation={saveDecision} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setRecordDecisionOpen(false)}>Cancel</Button>
             <Button onClick={() => saveDecision.mutate({ ...rec, status: decisionStatus, decisionDate: decisionDate || null, certifierRef: decisionCertRef || null, approvalConditions: decisionConditions || null, expiryDate: decisionExpiry || null, rejectionReason: decisionRejReason || null, rejectionRef: decisionRejRef || null })} disabled={saveDecision.isPending}>
@@ -761,7 +766,7 @@ function VensDerogCard({ farmId, c: rec, isExpanded, onToggle, qc }: {
       </Dialog>
 
       {/* Edit Case Dialog */}
-      <Dialog open={editOpen} onOpenChange={o => { if (!o) setEditOpen(false); }}>
+      <Dialog open={editOpen} onOpenChange={o => { if (!o) { setEditOpen(false); saveEdit.reset(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Edit Derogation Case</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
@@ -801,6 +806,7 @@ function VensDerogCard({ farmId, c: rec, isExpanded, onToggle, qc }: {
             )}
             <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={String(editForm.notes || "")} onChange={e => setEditForm((f:any) => ({ ...f, notes: e.target.value }))} /></div>
           </div>
+          <DialogMutationError mutation={saveEdit} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
             <Button onClick={() => saveEdit.mutate(editForm)} disabled={saveEdit.isPending || !editForm.inputName}>{saveEdit.isPending ? "Saving…" : "Save"}</Button>
@@ -809,7 +815,7 @@ function VensDerogCard({ farmId, c: rec, isExpanded, onToggle, qc }: {
       </Dialog>
 
       {/* Correspondence Dialog */}
-      <Dialog open={corrOpen} onOpenChange={o => { if (!o) { setCorrOpen(false); setEditCorr(null); } }}>
+      <Dialog open={corrOpen} onOpenChange={o => { if (!o) { setCorrOpen(false); setEditCorr(null); saveCorr.reset(); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>{editCorr ? "Edit Correspondence" : "Add Correspondence"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -838,6 +844,7 @@ function VensDerogCard({ farmId, c: rec, isExpanded, onToggle, qc }: {
             <div><Label>Reference</Label><Input value={corrForm.reference ?? ""} onChange={e => setCorrForm((f:any) => ({ ...f, reference: e.target.value }))} /></div>
             <div><Label>Notes</Label><Textarea value={corrForm.notes ?? ""} onChange={e => setCorrForm((f:any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={saveCorr} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setCorrOpen(false); setEditCorr(null); }}>Cancel</Button>
             <Button onClick={() => saveCorr.mutate(corrForm)} disabled={!corrForm.correspondenceDate || !corrForm.correspondenceType || !corrForm.summary || saveCorr.isPending}>Save</Button>
@@ -899,7 +906,7 @@ function DerogationsTab({ farmId }: { farmId: number }) {
       </div>
 
       {/* New Case Dialog */}
-      <Dialog open={addOpen} onOpenChange={o => { if (!o) setAddOpen(false); }}>
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); mutAdd.reset(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>New Derogation Case</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
@@ -928,6 +935,7 @@ function DerogationsTab({ farmId }: { farmId: number }) {
             <div className="col-span-2"><Label>Justification</Label><Textarea rows={2} value={addForm.justification || ""} onChange={e => sf("justification", e.target.value)} placeholder="Why no organic alternative is available" /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={addForm.notes || ""} onChange={e => sf("notes", e.target.value)} /></div>
           </div>
+          <DialogMutationError mutation={mutAdd} message="Failed to create case — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
             <Button onClick={() => mutAdd.mutate(addForm)} disabled={mutAdd.isPending || !addForm.inputName}>{mutAdd.isPending ? "Saving…" : "Create Case"}</Button>

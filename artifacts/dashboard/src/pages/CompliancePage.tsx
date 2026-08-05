@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Badge } from "@/components/ui/badge";
 import {
   ShieldCheck, AlertTriangle, Package, Edit2, Printer,
@@ -1628,7 +1629,7 @@ export default function CompliancePage() {
       )}
 
       {/* ══ DISEASE INCIDENT DIALOG ════════════════════════════════════════ */}
-      <Dialog open={showDiseaseDialog} onOpenChange={setShowDiseaseDialog}>
+      <Dialog open={showDiseaseDialog} onOpenChange={o => { setShowDiseaseDialog(o); if (!o) diseaseMut.reset(); }}>
         <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editDisease ? "Edit Incident Record" : "Log Disease / Health Incident"}</DialogTitle>
@@ -1912,6 +1913,7 @@ export default function CompliancePage() {
 
             <div><Label>Notes</Label><Textarea rows={2} value={diseaseForm.notes ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, notes: e.target.value }))} /></div>
           </div>
+          <DialogMutationError mutation={diseaseMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDiseaseDialog(false)}>Cancel</Button>
             <Button className="bg-green-800 hover:bg-green-900 text-white" disabled={diseaseMut.isPending} onClick={() => {
@@ -1938,7 +1940,7 @@ export default function CompliancePage() {
       </Dialog>
 
       {/* ══ FEED RECALL DIALOG ════════════════════════════════════════════ */}
-      <Dialog open={showRecallDialog} onOpenChange={setShowRecallDialog}>
+      <Dialog open={showRecallDialog} onOpenChange={o => { setShowRecallDialog(o); if (!o) recallMut.reset(); }}>
         <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editRecall ? "Edit Recall / Withdrawal Record" : "Raise Feed Recall Incident"}</DialogTitle>
@@ -2268,6 +2270,7 @@ export default function CompliancePage() {
             )}
             <div><Label>Notes</Label><Textarea rows={2} value={recallForm.notes ?? ""} onChange={e => setRecallForm(f => ({ ...f, notes: e.target.value }))} /></div>
           </div>
+          <DialogMutationError mutation={recallMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowRecallDialog(false)}>Cancel</Button>
             <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => {
@@ -2311,7 +2314,7 @@ export default function CompliancePage() {
       </Dialog>
 
       {/* Species stock target dialog */}
-      <Dialog open={showTargetDialog} onOpenChange={setShowTargetDialog}>
+      <Dialog open={showTargetDialog} onOpenChange={o => { setShowTargetDialog(o); if (!o) { addTargetM.reset(); updateTargetM.reset(); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{editTarget ? "Edit Species Target" : "Add Species Monitoring Target"}</DialogTitle>
@@ -2351,6 +2354,7 @@ export default function CompliancePage() {
               <Textarea className="mt-1" rows={2} value={targetForm.notes ?? ""} onChange={e => setTargetForm(f => ({ ...f, notes: e.target.value }))} placeholder="e.g. Includes finisher nuts, soya blend and molasses — order threshold is 2 pallets" />
             </div>
           </div>
+          <DialogMutationError mutation={editTarget ? updateTargetM : addTargetM} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTargetDialog(false)}>Cancel</Button>
             <Button

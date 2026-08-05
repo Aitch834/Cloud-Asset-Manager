@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Badge } from "@/components/ui/badge";
 import {
   Package,
@@ -373,7 +374,7 @@ function StockLevelsTab({ levels, products, loading, farmId, onRefresh, toast, q
         </div>
       )}
 
-      <Dialog open={adjOpen} onOpenChange={setAdjOpen}>
+      <Dialog open={adjOpen} onOpenChange={o => { setAdjOpen(o); if (!o) adjMut.reset(); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Manual Stock Adjustment</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
@@ -403,6 +404,7 @@ function StockLevelsTab({ levels, products, loading, farmId, onRefresh, toast, q
               <Textarea placeholder="Optional reason..." value={adjForm.notes} onChange={e => setAdjForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
             </div>
           </div>
+          <DialogMutationError mutation={adjMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAdjOpen(false)}>Cancel</Button>
             <Button onClick={() => adjMut.mutate(adjForm)} disabled={!adjForm.stockItemId || !adjForm.quantityChange || adjMut.isPending}>Save Adjustment</Button>
@@ -553,7 +555,7 @@ function GoodsReceivedTab({ deliveries, products, suppliers, purchaseOrders, loa
         </div>
       )}
 
-      <Dialog open={invoiceDelivery !== null} onOpenChange={o => { if (!o) setInvoiceDelivery(null); }}>
+      <Dialog open={invoiceDelivery !== null} onOpenChange={o => { if (!o) { setInvoiceDelivery(null); invoiceMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 520 }}>
           <DialogHeader>
             <DialogTitle>Raise Invoice — Link to Financial Records</DialogTitle>
@@ -606,6 +608,7 @@ function GoodsReceivedTab({ deliveries, products, suppliers, purchaseOrders, loa
               <Textarea rows={2} value={invoiceForm.notes || ""} onChange={e => setInvoiceForm((f: any) => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
+          <DialogMutationError mutation={invoiceMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setInvoiceDelivery(null)}>Cancel</Button>
             <Button
@@ -618,7 +621,7 @@ function GoodsReceivedTab({ deliveries, products, suppliers, purchaseOrders, loa
         </DialogContent>
       </Dialog>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) createMut.reset(); }}>
         <DialogContent style={{ maxWidth: 520 }}>
           <DialogHeader><DialogTitle>Log Goods Received</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
@@ -694,6 +697,7 @@ function GoodsReceivedTab({ deliveries, products, suppliers, purchaseOrders, loa
               <Textarea placeholder="Optional notes..." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} />
             </div>
           </div>
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => createMut.mutate(form)} disabled={!form.stockItemId || !form.deliveryDate || !form.quantity || createMut.isPending}>Save</Button>
@@ -889,7 +893,7 @@ function ProductsTab({ products, suppliers, loading, farmId, onRefresh, toast }:
         </div>
       )}
 
-      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditItem(null); resetForm(); } }}>
+      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditItem(null); resetForm(); createMut.reset(); updateMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 520 }}>
           <DialogHeader><DialogTitle>{editItem ? "Edit Product" : "Add Product"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
@@ -993,6 +997,7 @@ function ProductsTab({ products, suppliers, loading, farmId, onRefresh, toast }:
               )}
             </div>
           </div>
+          <DialogMutationError mutation={editItem ? updateMut : createMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setOpen(false); setEditItem(null); resetForm(); }}>Cancel</Button>
             <Button onClick={() => {
@@ -1265,7 +1270,7 @@ function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, fa
         </div>
       )}
 
-      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setForm(emptyForm); setLines([{ ...emptyLine }]); } }}>
+      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setForm(emptyForm); setLines([{ ...emptyLine }]); createMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 860, maxHeight: "92vh", overflowY: "auto" }}>
           <DialogHeader>
             <DialogTitle style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1492,6 +1497,7 @@ function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, fa
             )}
           </div>
 
+          <DialogMutationError mutation={createMut} message="Failed to create PO — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={handleCreate} disabled={!form.orderDate || createMut.isPending}>
@@ -1501,7 +1507,7 @@ function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, fa
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!viewPo} onOpenChange={o => { if (!o) setViewPo(null); }}>
+      <Dialog open={!!viewPo} onOpenChange={o => { if (!o) { setViewPo(null); updateStatusMut.reset(); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 740 }}>
           <DialogHeader>
             <DialogTitle style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1636,6 +1642,8 @@ function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, fa
                   </div>
                 </div>
               )}
+              <DialogMutationError mutation={updateStatusMut} message="Failed to update status — please try again." />
+              <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {viewPo?.status === "draft" && (
                   <Button size="sm" variant="outline" style={{ background: "#ede9fe", color: "#6d28d9", borderColor: "#c4b5fd" }} onClick={() => updateStatusMut.mutate({ poId: viewPo.id, status: "submitted" })} disabled={updateStatusMut.isPending}>
@@ -1857,7 +1865,7 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
         </div>
       )}
 
-      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditItem(null); resetForm(); } }}>
+      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditItem(null); resetForm(); createMut.reset(); updateMut.reset(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editItem ? "Edit Trade Contact" : "Add Trade Contact"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
@@ -1948,6 +1956,7 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
               <Textarea rows={2} value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
+          <DialogMutationError mutation={editItem ? updateMut : createMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setOpen(false); setEditItem(null); resetForm(); }}>Cancel</Button>
             <Button onClick={() => {
@@ -2287,7 +2296,7 @@ function StocktakeTab({ farmId }: { farmId: number }) {
         </>
       )}
 
-      <Dialog open={newOpen} onOpenChange={o => { if (!o) setNewOpen(false); }}>
+      <Dialog open={newOpen} onOpenChange={o => { if (!o) { setNewOpen(false); createMut.reset(); } }}>
         <DialogContent style={{ maxWidth: "22rem" }}>
           <DialogHeader><DialogTitle>New Stocktake</DialogTitle></DialogHeader>
           <p className="text-xs text-muted-foreground -mt-1">Snaps the current system stock for all active farm inputs (excl. workshop parts). You'll then count and enter physical quantities.</p>
@@ -2295,6 +2304,7 @@ function StocktakeTab({ farmId }: { farmId: number }) {
             <div><Label>Stocktake Date *</Label><Input type="date" value={newForm.stocktakeDate} onChange={e => setNewForm(f => ({ ...f, stocktakeDate: e.target.value }))} /></div>
             <div><Label>Notes</Label><Input value={newForm.notes} placeholder="e.g. Monthly Red Tractor count" onChange={e => setNewForm(f => ({ ...f, notes: e.target.value }))} /></div>
           </div>
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewOpen(false)}>Cancel</Button>
             <Button disabled={!newForm.stocktakeDate || createMut.isPending}

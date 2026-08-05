@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Badge } from "@/components/ui/badge";
 import { Shovel, Plus, Search, Trash2, Pencil, Eye, Filter, CalendarDays, MapPin, Wrench, Printer, Tractor, Clock, PoundSterling, UserCheck, ChevronDown, ChevronUp } from "lucide-react";
 import { printProReport } from "@/lib/print-report";
@@ -867,7 +868,7 @@ export default function FieldOperationsPage() {
       )}
 
       {/* Add / Edit Dialog */}
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+      <Dialog open={showDialog} onOpenChange={o => { setShowDialog(o); if (!o) { createMut.reset(); updateMut.reset(); } }}>
         <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader>
             <DialogTitle>{editId !== null ? "Edit Operation" : "Log Field Operation"}</DialogTitle>
@@ -1231,6 +1232,8 @@ export default function FieldOperationsPage() {
               />
             </div>
           </div>
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>
               Cancel
@@ -1243,12 +1246,13 @@ export default function FieldOperationsPage() {
       </Dialog>
 
       {/* Delete confirm */}
-      <Dialog open={confirmDelete !== null} onOpenChange={() => setConfirmDelete(null)}>
+      <Dialog open={confirmDelete !== null} onOpenChange={o => { if (!o) { setConfirmDelete(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: "24rem" }}>
           <DialogHeader>
             <DialogTitle>Delete Operation?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-gray-600">This will permanently remove this field operation record. This cannot be undone.</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancel</Button>
             <Button

@@ -14,6 +14,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
   DialogFooter, DialogTrigger
 } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -461,7 +462,7 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      <Dialog open={formOpen} onOpenChange={o => { if (!o) { setFormOpen(false); setForm(emptyDefectForm); } }}>
+      <Dialog open={formOpen} onOpenChange={o => { if (!o) { setFormOpen(false); setForm(emptyDefectForm); createM.reset(); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Wrench className="w-5 h-5 text-primary" />Report Equipment Defect</DialogTitle>
@@ -502,6 +503,7 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
                 <Textarea placeholder="Additional notes, repair instructions, contractor details..." value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} className="min-h-[60px]" />
               </div>
             </div>
+            <DialogMutationError mutation={createM} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setForm(emptyDefectForm); }}>Cancel</Button>
               <Button type="submit" disabled={createM.isPending}>
@@ -680,7 +682,8 @@ export default function EquipmentPage() {
     enabled: !!farmId,
   });
   const farm = farmData?.record;
-  const { mutate: createEquip, isPending } = useAddEquipment(farmId ?? 0);
+  const addEquipMut = useAddEquipment(farmId ?? 0);
+  const { mutate: createEquip, isPending } = addEquipMut;
   const { register, handleSubmit, reset } = useForm<EquipmentFormData>();
   const { register: regEdit, handleSubmit: handleEditSubmit, reset: resetEdit } = useForm<EquipmentFormData>();
 
@@ -1005,7 +1008,7 @@ export default function EquipmentPage() {
             <Printer className="w-4 h-4 mr-2" /> Print Register
           </Button>
 
-        <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) { reset(); setAddPhotos([]); } }}>
+        <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) { reset(); setAddPhotos([]); addEquipMut.reset(); } }}>
           <DialogTrigger asChild>
             <Button><Plus className="w-4 h-4 mr-2" /> Add Equipment</Button>
           </DialogTrigger>
@@ -1090,6 +1093,7 @@ export default function EquipmentPage() {
                   <PhotoUploader photos={addPhotos} onChange={setAddPhotos} />
                 </div>
               </div>
+              <DialogMutationError mutation={addEquipMut} message="Failed to save — your entries are still here." />
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
                 <Button type="submit" disabled={isPending}>
@@ -1282,7 +1286,7 @@ export default function EquipmentPage() {
         </table>
       </div>
 
-      <Dialog open={!!managingItem} onOpenChange={(open) => { if (!open) { setManagingItem(null); setServiceFormOpen(false); setEditingLog(null); setDeletingLogId(null); } }}>
+      <Dialog open={!!managingItem} onOpenChange={(open) => { if (!open) { setManagingItem(null); setServiceFormOpen(false); setEditingLog(null); setDeletingLogId(null); updateMutation.reset(); addMaintMut.reset(); editMaintMut.reset(); deleteMaintMut.reset(); } }}>
         <DialogContent style={{ maxWidth: "58rem" }}>
           <DialogHeader>
             <DialogTitle>Manage Equipment — {managingItem?.name}</DialogTitle>
@@ -1416,6 +1420,7 @@ export default function EquipmentPage() {
               {farmId && managingItem && (
                 <RecordAttachments farmId={farmId} recordType="equipment_item" recordId={managingItem.id} />
               )}
+              <DialogMutationError mutation={updateMutation} message="Failed to save — your entries are still here." />
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setManagingItem(null)}>Cancel</Button>
                 <Button type="submit" disabled={updateMutation.isPending}>
@@ -1493,6 +1498,8 @@ export default function EquipmentPage() {
                       <Textarea className="mt-1" placeholder="Additional observations, defects noted, etc." rows={2} value={serviceForm.notes} onChange={e => setServiceForm(f => ({ ...f, notes: e.target.value }))} />
                     </div>
                   </div>
+                  <DialogMutationError mutation={addMaintMut} message="Failed to save — your entries are still here." />
+                  <DialogMutationError mutation={editMaintMut} message="Failed to save — your entries are still here." />
                   <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
                     <Button variant="outline" size="sm" onClick={() => { setServiceFormOpen(false); setEditingLog(null); setServiceForm(EMPTY_SERVICE_FORM); }}>Cancel</Button>
                     <Button size="sm" onClick={submitServiceForm} disabled={!serviceForm.description || !serviceForm.performedDate || addMaintMut.isPending || editMaintMut.isPending}>
@@ -1892,7 +1899,7 @@ export default function EquipmentPage() {
 
       {/* ── RECORD DISPOSAL DIALOG ── */}
       {disposeItem && (
-        <Dialog open onOpenChange={(o) => { if (!o) { setDisposeItem(null); setDisposeForm(EMPTY_DISPOSE_FORM); } }}>
+        <Dialog open onOpenChange={(o) => { if (!o) { setDisposeItem(null); setDisposeForm(EMPTY_DISPOSE_FORM); disposeMutation.reset(); } }}>
           <DialogContent style={{ maxWidth: "36rem" }}>
             <DialogHeader>
               <DialogTitle style={{ display: "flex", alignItems: "center", gap: 8 }}>

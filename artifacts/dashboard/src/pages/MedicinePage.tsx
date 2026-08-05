@@ -22,6 +22,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { useToast } from "@/hooks/use-toast";
 import { VMD_MEDICINES, DOSE_UNITS, findVmdMedicine, type VmdMedicine } from "@/data/vmdMedicines";
 
@@ -1014,6 +1015,8 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
     setTagValidations([]);
     setPendingBodyWithUnmatched(null);
     setVmdMatch(null);
+    createM.reset();
+    updateM.reset();
   }
 
   const yearRecords = allRecords.filter(r => isInCropYear(r.administeredDate, cropYear));
@@ -1974,6 +1977,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
               </div>
             )}
 
+            <DialogMutationError mutation={editing ? updateM : createM} message="Failed to save — your entries are still here." />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={closeForm}>Cancel</Button>
               <Button type="submit" disabled={isSubmitting}>
@@ -1986,7 +1990,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* ── Unmatched tags confirmation dialog ───────────── */}
-      <Dialog open={!!pendingBodyWithUnmatched} onOpenChange={() => setPendingBodyWithUnmatched(null)}>
+      <Dialog open={!!pendingBodyWithUnmatched} onOpenChange={(o) => { if (!o) { setPendingBodyWithUnmatched(null); createM.reset(); updateM.reset(); } }}>
         <DialogContent style={{ maxWidth: "30rem" }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -2000,6 +2004,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
           <p className="text-sm text-foreground/70 px-1">
             You can go back and correct the tags, or save now. The unmatched tags will be discarded from the record — only the verified animals will be linked.
           </p>
+          <DialogMutationError mutation={editing ? updateM : createM} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setPendingBodyWithUnmatched(null)}>Go back and fix</Button>
             <Button variant="destructive" onClick={confirmSaveWithUnmatched} disabled={isSubmitting}>
@@ -2011,12 +2016,13 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
       </Dialog>
 
       {/* ── Delete confirmation ───────────────────────────── */}
-      <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+      <Dialog open={!!deleteId} onOpenChange={(o) => { if (!o) { setDeleteId(null); deleteM.reset(); } }}>
         <DialogContent style={{ maxWidth: "28rem" }}>
           <DialogHeader>
             <DialogTitle>Delete Medicine Record</DialogTitle>
             <DialogDescription>This will permanently remove the record from the medicine register. This action cannot be undone.</DialogDescription>
           </DialogHeader>
+          <DialogMutationError mutation={deleteM} message="Failed to delete — the record is still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId && deleteM.mutate(deleteId)} disabled={deleteM.isPending}>

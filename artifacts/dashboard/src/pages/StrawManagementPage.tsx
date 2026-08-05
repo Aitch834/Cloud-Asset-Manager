@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -254,7 +255,7 @@ function BalingDialog({ open, onClose, farmId, editRow }: { open: boolean; onClo
   };
 
   return (
-    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); mut.reset(); } }}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{isEdit ? "Edit" : "Record"} Baling Operation</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-4">
@@ -375,6 +376,7 @@ function BalingDialog({ open, onClose, farmId, editRow }: { open: boolean; onClo
 
           <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
         </div>
+        <DialogMutationError mutation={mut} message="Failed to save — your entries are still here." />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={submit} disabled={mut.isPending || !form.operationDate || !form.totalBalesProduced}>
@@ -472,7 +474,7 @@ function CartageDialog({ open, onClose, farmId, balingOp, editRow }: { open: boo
   };
 
   return (
-    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); mut.reset(); } }}>
       <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit" : "Record"} Cartage Journey</DialogTitle>
@@ -540,6 +542,7 @@ function CartageDialog({ open, onClose, farmId, balingOp, editRow }: { open: boo
 
           <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
         </div>
+        <DialogMutationError mutation={mut} message="Failed to save — your entries are still here." />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={submit} disabled={mut.isPending || !form.balesMoved || !form.toLocation}>
@@ -840,7 +843,7 @@ function InventoryDialog({ open, onClose, farmId, editRow, existingInventory, ba
   });
 
   return (
-    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); mut.reset(); } }}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit" : "Add"} Straw Bale Batch</DialogTitle>
@@ -1093,6 +1096,7 @@ function InventoryDialog({ open, onClose, farmId, editRow, existingInventory, ba
 
           <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
         </div>
+        <DialogMutationError mutation={mut} message="Failed to save — your entries are still here." />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={submit} disabled={mut.isPending}>{mut.isPending && <Loader2 size={14} className="mr-1 animate-spin" />}{isEdit ? "Save Changes" : "Add Batch"}</Button>
@@ -1340,7 +1344,7 @@ function SalesDialog({ open, onClose, farmId, editRow, inventory }: { open: bool
 
   return (
     <>
-      <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); mut.reset(); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{isEdit ? "Edit" : "Record"} Straw Sale</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4">
@@ -1564,6 +1568,7 @@ function SalesDialog({ open, onClose, farmId, editRow, inventory }: { open: bool
             {form.paymentStatus === "paid" && <div><Label>Payment Date</Label><Input type="date" value={form.paymentDate} onChange={e => f("paymentDate")(e.target.value)} /></div>}
             <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
           </div>
+          <DialogMutationError mutation={mut} message="Failed to save — your entries are still here." />
           <DialogFooter className="gap-2">
             {isEdit && editRow?.invoiceRef && (
               <Button variant="outline" type="button" onClick={() => setShowPrint(true)}>
@@ -1693,7 +1698,7 @@ function MeterDialog({ open, onClose, farmId, editRow }: { open: boolean; onClos
   };
 
   return (
-    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); mut.reset(); } }}>
       <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle>{isEdit ? "Edit" : "Add"} Moisture Meter</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-3">
@@ -1714,6 +1719,7 @@ function MeterDialog({ open, onClose, farmId, editRow }: { open: boolean; onClos
             <Label htmlFor="mtr-active" className="cursor-pointer">Active (available for selection in moisture checks)</Label>
           </div>
         </div>
+        <DialogMutationError mutation={mut} message="Failed to save — your entries are still here." />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={submit} disabled={mut.isPending}>{mut.isPending && <Loader2 size={14} className="mr-1 animate-spin" />}{isEdit ? "Save" : "Add Meter"}</Button>
@@ -1774,7 +1780,7 @@ function CalibrationDialog({ open, onClose, farmId, meter, editRow }: {
   });
 
   return (
-    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); mut.reset(); } }}>
       <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle>{isEdit ? "Edit" : "Log"} Calibration{meter ? ` — ${meter.deviceName}` : ""}</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-3">
@@ -1798,6 +1804,7 @@ function CalibrationDialog({ open, onClose, farmId, meter, editRow }: {
           <div><Label>Next Due</Label><Input type="date" value={form.nextDue} onChange={e => f("nextDue")(e.target.value)} /></div>
           <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
         </div>
+        <DialogMutationError mutation={mut} message="Failed to save — your entries are still here." />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={submit} disabled={mut.isPending}>{mut.isPending && <Loader2 size={14} className="mr-1 animate-spin" />}{isEdit ? "Save" : "Log Calibration"}</Button>
@@ -1915,7 +1922,7 @@ function MoistureDialog({ open, onClose, farmId, editRow, inventory, activeMeter
   });
 
   return (
-    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); mut.reset(); } }}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{isEdit ? "Edit" : "Record"} Moisture / Condition Check</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-4">
@@ -2014,6 +2021,7 @@ function MoistureDialog({ open, onClose, farmId, editRow, inventory, activeMeter
 
           <div className="col-span-2"><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={e => f("notes")(e.target.value)} /></div>
         </div>
+        <DialogMutationError mutation={mut} message="Failed to save — your entries are still here." />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={submit} disabled={mut.isPending}>{mut.isPending && <Loader2 size={14} className="mr-1 animate-spin" />}{isEdit ? "Save" : "Record Check"}</Button>
@@ -3154,7 +3162,7 @@ function FusariumKitStockSection({ farmId }: { farmId: number }) {
       )}
 
       {/* Add / Edit Dialog */}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader><DialogTitle>{editingItem ? "Edit Kit Batch" : "Add Fusarium Test Kit Batch"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
@@ -3196,6 +3204,7 @@ function FusariumKitStockSection({ farmId }: { farmId: number }) {
               <Input placeholder="Storage conditions, approved test result range, etc." value={form.notes || ""} onChange={e => set("notes", e.target.value)} />
             </div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.productName?.trim()}>

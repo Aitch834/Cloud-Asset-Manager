@@ -16,6 +16,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -278,11 +279,12 @@ function EmptyState({ icon: Icon, message }: { icon: React.ElementType; message:
   );
 }
 
-function DeleteConfirmDialog({ open, onClose, onConfirm, saving }: {
+function DeleteConfirmDialog({ open, onClose, onConfirm, saving, mutation }: {
   open: boolean; onClose: () => void; onConfirm: () => void; saving: boolean;
+  mutation?: { isError: boolean; isPending: boolean; error: unknown; reset: () => void };
 }) {
   return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); mutation?.reset(); } }}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -290,6 +292,7 @@ function DeleteConfirmDialog({ open, onClose, onConfirm, saving }: {
           </DialogTitle>
           <DialogDescription>This action cannot be undone. Are you sure?</DialogDescription>
         </DialogHeader>
+        {mutation && <DialogMutationError mutation={mutation} message="Failed to delete — the record is still here." />}
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
           <Button variant="destructive" onClick={onConfirm} disabled={saving}>
@@ -1725,7 +1728,7 @@ export default function OrganicArablePage() {
       ════════════════════════════════════════════════ */}
 
       {/* Form: Certification */}
-      <Dialog open={certOpen} onOpenChange={v => !v && setCertOpen(false)}>
+      <Dialog open={certOpen} onOpenChange={v => { if (!v) { setCertOpen(false); certMut.save.reset(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{certEditing ? "Edit" : "Add"} Certification Record</DialogTitle>
@@ -1807,6 +1810,7 @@ export default function OrganicArablePage() {
               <Textarea rows={2} value={certForm.notes || ""} onChange={e => setCertForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
+          <DialogMutationError mutation={certMut.save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setCertOpen(false)}>Cancel</Button>
             <Button onClick={saveCert} disabled={certMut.save.isPending || !certForm.certifier}>
@@ -1817,7 +1821,7 @@ export default function OrganicArablePage() {
       </Dialog>
 
       {/* Form: Field Conversion */}
-      <Dialog open={convOpen} onOpenChange={v => !v && setConvOpen(false)}>
+      <Dialog open={convOpen} onOpenChange={v => { if (!v) { setConvOpen(false); convMut.save.reset(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{convEditing ? "Edit" : "Add"} Field Conversion Record</DialogTitle>
@@ -1874,6 +1878,7 @@ export default function OrganicArablePage() {
               <Textarea rows={2} value={convForm.notes || ""} onChange={e => setConvForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
+          <DialogMutationError mutation={convMut.save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setConvOpen(false)}>Cancel</Button>
             <Button onClick={saveConv} disabled={convMut.save.isPending || !convForm.fieldName || !convForm.conversionStartDate}>
@@ -1884,7 +1889,7 @@ export default function OrganicArablePage() {
       </Dialog>
 
       {/* Form: Seed Stock Line */}
-      <Dialog open={stockOpen} onOpenChange={v => !v && setStockOpen(false)}>
+      <Dialog open={stockOpen} onOpenChange={v => { if (!v) { setStockOpen(false); stockMut.save.reset(); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{stockEditing ? "Edit" : "New"} Seed Stock Line</DialogTitle>
@@ -1940,6 +1945,7 @@ export default function OrganicArablePage() {
               <Textarea rows={2} value={stockForm.notes || ""} onChange={e => setStockForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
+          <DialogMutationError mutation={stockMut.save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setStockOpen(false)}>Cancel</Button>
             <Button disabled={!stockForm.cropName || stockMut.save.isPending} onClick={() => {
@@ -1952,7 +1958,7 @@ export default function OrganicArablePage() {
       </Dialog>
 
       {/* Form: Seed Movement */}
-      <Dialog open={moveOpen} onOpenChange={v => !v && setMoveOpen(false)}>
+      <Dialog open={moveOpen} onOpenChange={v => { if (!v) { setMoveOpen(false); moveSaveMut.reset(); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
@@ -2044,6 +2050,7 @@ export default function OrganicArablePage() {
               <Textarea rows={2} value={moveForm.notes || ""} onChange={e => setMoveForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
+          <DialogMutationError mutation={moveSaveMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setMoveOpen(false)}>Cancel</Button>
             <Button disabled={!moveForm.quantityKg || !moveStockId || moveSaveMut.isPending} onClick={() => {
@@ -2071,7 +2078,7 @@ export default function OrganicArablePage() {
       </Dialog>
 
       {/* Form: Seed Sourcing */}
-      <Dialog open={seedOpen} onOpenChange={v => !v && setSeedOpen(false)}>
+      <Dialog open={seedOpen} onOpenChange={v => { if (!v) { setSeedOpen(false); seedMut.save.reset(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{seedEditing ? "Edit" : "Add"} Seed Record</DialogTitle>
@@ -2200,6 +2207,7 @@ export default function OrganicArablePage() {
               <Textarea rows={2} value={seedForm.notes || ""} onChange={e => setSeedForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
+          <DialogMutationError mutation={seedMut.save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setSeedOpen(false)}>Cancel</Button>
             <Button onClick={saveSeed} disabled={seedMut.save.isPending || !seedForm.purchaseDate || !seedForm.cropName}>
@@ -2210,7 +2218,7 @@ export default function OrganicArablePage() {
       </Dialog>
 
       {/* Form: Input Log */}
-      <Dialog open={inputOpen} onOpenChange={v => !v && setInputOpen(false)}>
+      <Dialog open={inputOpen} onOpenChange={v => { if (!v) { setInputOpen(false); inputMut.save.reset(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{inputEditing ? "Edit" : "Log"} Input Application</DialogTitle>
@@ -2398,6 +2406,7 @@ export default function OrganicArablePage() {
               <Textarea rows={2} value={inputForm.notes || ""} onChange={e => setInputForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
+          <DialogMutationError mutation={inputMut.save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setInputOpen(false)}>Cancel</Button>
             <Button onClick={saveInput} disabled={inputMut.save.isPending || !inputForm.applicationDate || !inputForm.productName || !inputForm.inputType}>
@@ -2408,7 +2417,7 @@ export default function OrganicArablePage() {
       </Dialog>
 
       {/* Form: Harvest Details */}
-      <Dialog open={harvestOpen} onOpenChange={v => !v && setHarvestOpen(false)}>
+      <Dialog open={harvestOpen} onOpenChange={v => { if (!v) { setHarvestOpen(false); harvestMut.save.reset(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{harvestEditing ? "Edit" : "Log"} Harvest</DialogTitle>
@@ -2484,6 +2493,7 @@ export default function OrganicArablePage() {
               <Textarea rows={2} value={harvestForm.notes || ""} onChange={e => setHarvestForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
+          <DialogMutationError mutation={harvestMut.save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setHarvestOpen(false)}>Cancel</Button>
             <Button onClick={saveHarvest} disabled={harvestMut.save.isPending || !harvestForm.harvestDate || !harvestForm.cropName}>
@@ -2494,7 +2504,7 @@ export default function OrganicArablePage() {
       </Dialog>
 
       {/* Form: Buyer Declaration */}
-      <Dialog open={buyerOpen} onOpenChange={v => !v && setBuyerOpen(false)}>
+      <Dialog open={buyerOpen} onOpenChange={v => { if (!v) { setBuyerOpen(false); harvestMut.save.reset(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{buyerRecord?.buyerName ? "Edit" : "Add"} Buyer Declaration</DialogTitle>
@@ -2541,6 +2551,7 @@ export default function OrganicArablePage() {
               <Input value={buyerForm.declarationReference || ""} onChange={e => setBuyerForm(f => ({ ...f, declarationReference: e.target.value }))} placeholder="e.g. DEC-2025-001" />
             </div>
           </div>
+          <DialogMutationError mutation={harvestMut.save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setBuyerOpen(false)}>Cancel</Button>
             <Button onClick={saveBuyer} disabled={harvestMut.save.isPending}>
@@ -2551,19 +2562,19 @@ export default function OrganicArablePage() {
       </Dialog>
 
       {/* Delete confirmations */}
-      <DeleteConfirmDialog open={certDeleting !== null} onClose={() => setCertDeleting(null)} saving={certMut.del.isPending}
+      <DeleteConfirmDialog open={certDeleting !== null} onClose={() => setCertDeleting(null)} saving={certMut.del.isPending} mutation={certMut.del}
         onConfirm={() => certMut.del.mutate(certDeleting!, { onSuccess: () => setCertDeleting(null) })} />
-      <DeleteConfirmDialog open={convDeleting !== null} onClose={() => setConvDeleting(null)} saving={convMut.del.isPending}
+      <DeleteConfirmDialog open={convDeleting !== null} onClose={() => setConvDeleting(null)} saving={convMut.del.isPending} mutation={convMut.del}
         onConfirm={() => convMut.del.mutate(convDeleting!, { onSuccess: () => setConvDeleting(null) })} />
-      <DeleteConfirmDialog open={seedDeleting !== null} onClose={() => setSeedDeleting(null)} saving={seedMut.del.isPending}
+      <DeleteConfirmDialog open={seedDeleting !== null} onClose={() => setSeedDeleting(null)} saving={seedMut.del.isPending} mutation={seedMut.del}
         onConfirm={() => seedMut.del.mutate(seedDeleting!, { onSuccess: () => setSeedDeleting(null) })} />
-      <DeleteConfirmDialog open={stockDeleting !== null} onClose={() => setStockDeleting(null)} saving={stockMut.del.isPending}
+      <DeleteConfirmDialog open={stockDeleting !== null} onClose={() => setStockDeleting(null)} saving={stockMut.del.isPending} mutation={stockMut.del}
         onConfirm={() => stockMut.del.mutate(stockDeleting!, { onSuccess: () => setStockDeleting(null) })} />
-      <DeleteConfirmDialog open={moveDeleting !== null} onClose={() => setMoveDeleting(null)} saving={moveDelMut.isPending}
+      <DeleteConfirmDialog open={moveDeleting !== null} onClose={() => setMoveDeleting(null)} saving={moveDelMut.isPending} mutation={moveDelMut}
         onConfirm={() => moveDelMut.mutate(moveDeleting!)} />
-      <DeleteConfirmDialog open={inputDeleting !== null} onClose={() => setInputDeleting(null)} saving={inputMut.del.isPending}
+      <DeleteConfirmDialog open={inputDeleting !== null} onClose={() => setInputDeleting(null)} saving={inputMut.del.isPending} mutation={inputMut.del}
         onConfirm={() => inputMut.del.mutate(inputDeleting!, { onSuccess: () => setInputDeleting(null) })} />
-      <DeleteConfirmDialog open={harvestDeleting !== null} onClose={() => setHarvestDeleting(null)} saving={harvestMut.del.isPending}
+      <DeleteConfirmDialog open={harvestDeleting !== null} onClose={() => setHarvestDeleting(null)} saving={harvestMut.del.isPending} mutation={harvestMut.del}
         onConfirm={() => harvestMut.del.mutate(harvestDeleting!, { onSuccess: () => setHarvestDeleting(null) })} />
     </AppLayout>
   );

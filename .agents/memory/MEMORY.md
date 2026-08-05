@@ -58,4 +58,5 @@
 - [Persisted tab hook](persisted-tab-hook.md) — dashboard pages persist their main tab per farm; new tabbed pages should reuse the shared hook with a unique page key
 - [Dashboard API URL base](dashboard-api-url-base.md) — dashboard fetches must use apiUrl() (root /api); BASE_URL}api hits the SPA fallback and returns HTML with HTTP 200
 - [Signed winery record writes](winery-signed-record-writes.md) — every write route (even single-column) must append edit_history via buildAuditEditEntry when audit_signature exists, or review rejects
+- [Subagent jobs stale after pause](subagent-jobs-stale-after-pause.md) — background subagents die on session pause but waitForJob still says running; check file mtimes, cancel, redispatch remainder
 - [farm_task_assignments task_type default](task-type-default-custom.md) — task_type defaults to 'custom' (never NULL); backfills/queries for "untyped" tasks must match 'custom', not IS NULL

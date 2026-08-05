@@ -414,7 +414,7 @@ function HousesTab({ farmId }: { farmId: number }) {
           </DialogContent>
         </Dialog>
       )}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader>
             <DialogTitle>{editing ? "Edit House" : "Add Poultry House"}</DialogTitle>
@@ -475,6 +475,7 @@ function HousesTab({ farmId }: { farmId: number }) {
               </Select>
             </div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -631,7 +632,7 @@ function ChickPurchasesTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "46rem" }}>
           <DialogHeader><DialogTitle>Chick Purchase Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
@@ -684,6 +685,7 @@ function ChickPurchasesTab({ farmId }: { farmId: number }) {
             <div><Label>Payment Date</Label><Input type="date" value={String(form.paymentDate ?? "")} onChange={e => setForm(f => ({ ...f, paymentDate: e.target.value }))} /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => {
@@ -959,7 +961,7 @@ function MortalityTab({ farmId }: { farmId: number }) {
           module="poultry"
         />
       )}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "36rem" }}>
           <DialogHeader><DialogTitle>Daily Mortality</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
@@ -1026,6 +1028,7 @@ function MortalityTab({ farmId }: { farmId: number }) {
             </div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate({ ...form, flockId: form.flockId ? Number(form.flockId) : null })} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1239,7 +1242,7 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
           </DialogContent>
         </Dialog>
       )}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "44rem" }} className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? "Edit Treatment Record" : "Record Medicine Treatment"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
@@ -1370,6 +1373,7 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
 
             <div><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter className="mt-2">
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.treatmentDate || !form.productName || !form.condition || !form.routeOfAdministration || !form.flockId || form.flockId === "__none__"}>Save Record</Button>
@@ -1577,7 +1581,7 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={v => { if (!v) handleClose(); else setOpen(true); }}>
+      <Dialog open={open} onOpenChange={v => { if (!v) { handleClose(); save.reset(); } else setOpen(true); }}>
         <DialogContent style={{ maxWidth: "48rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} House Cleanout Record</DialogTitle></DialogHeader>
           <div className="space-y-4 max-h-[72vh] overflow-y-auto pr-1">
@@ -1731,6 +1735,7 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
             )}
             {!editing && <p className="text-xs text-muted-foreground flex items-center gap-1"><span>📎</span> Save first, then re-open to attach photos or documents.</p>}
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={handleClose}>Cancel</Button>
             <Button onClick={doSave} disabled={save.isPending}>{save.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}Save</Button>
@@ -1871,7 +1876,7 @@ function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
           </DialogContent>
         </Dialog>
       )}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader><DialogTitle>Environmental Log</DialogTitle></DialogHeader>
           <div className="grid grid-cols-3 gap-3">
@@ -1894,6 +1899,7 @@ function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
               </div>
             )}
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate({ ...form, flockId: form.flockId ? Number(form.flockId) : null })} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1987,7 +1993,7 @@ function FciTab({ farmId }: { farmId: number }) {
           </DialogContent>
         </Dialog>
       )}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "38rem" }}>
           <DialogHeader><DialogTitle>Poultry FCI Document</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
@@ -2004,6 +2010,7 @@ function FciTab({ farmId }: { farmId: number }) {
               ))}
             </div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate({ ...form, flockId: form.flockId ? Number(form.flockId) : null })} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2129,7 +2136,7 @@ function BroilerWelfareTab({ farmId }: { farmId: number }) {
           </DialogContent>
         </Dialog>
       )}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "44rem" }}>
           <DialogHeader><DialogTitle>Broiler Welfare Indicators Assessment</DialogTitle></DialogHeader>
           <div className="grid grid-cols-3 gap-3 max-h-[70vh] overflow-y-auto pr-1">
@@ -2180,6 +2187,7 @@ function BroilerWelfareTab({ farmId }: { farmId: number }) {
             <div className="col-span-3"><Label>Actions Taken</Label><Textarea value={String(form.actionsTaken ?? "")} onChange={e => setForm(f => ({ ...f, actionsTaken: e.target.value }))} rows={2} placeholder="e.g. Increased litter depth, adjusted drinker height, improved ventilation" /></div>
             <div className="col-span-3"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate({ ...form, flockId: form.flockId ? Number(form.flockId) : null })} disabled={save.isPending}>Save Assessment</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2303,7 +2311,7 @@ function ThinningRecordsTab({ farmId }: { farmId: number }) {
           </DialogContent>
         </Dialog>
       )}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader><DialogTitle>Thinning Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
@@ -2347,6 +2355,7 @@ function ThinningRecordsTab({ farmId }: { farmId: number }) {
             </div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate({ ...form, flockId: form.flockId ? Number(form.flockId) : null })} disabled={save.isPending}>Save Record</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2534,7 +2543,7 @@ function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
           onAssigned={() => setRaiseTaskFor(null)}
         />
       )}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "52rem" }} className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Biosecurity Checklist</DialogTitle></DialogHeader>
           <div className="grid grid-cols-3 gap-3">
@@ -2638,6 +2647,7 @@ function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
             </div>
             <div className="col-span-2"><Label>Notes / Deficiencies</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2761,7 +2771,7 @@ function SchemeRecordsTab({ farmId }: { farmId: number }) {
           </DialogContent>
         </Dialog>
       )}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader><DialogTitle>Assurance Scheme Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
@@ -2787,6 +2797,7 @@ function SchemeRecordsTab({ farmId }: { farmId: number }) {
             <div><Label>Actions Completed By Date</Label><Input type="date" value={String(form.actionsCompletedByDate ?? "")} onChange={e => setForm(f => ({ ...f, actionsCompletedByDate: e.target.value }))} /></div>
             <div><Label>Next Assessment Due</Label><Input type="date" value={String(form.nextAssessmentDate ?? "")} onChange={e => setForm(f => ({ ...f, nextAssessmentDate: e.target.value }))} /></div>
           </div>
+          <DialogMutationError mutation={save} message="Failed to save — your entries are still here." />
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3474,7 +3485,7 @@ function CampylobacterMonitoringTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{mode === "log" ? "Log Campylobacter Sample" : mode === "result" ? "Enter Campylobacter Results" : "Edit Campylobacter Sample Record"}</DialogTitle>
@@ -3643,7 +3654,7 @@ function PlacementQualityTab({ farmId }: { farmId: number }) {
         })}
       </div>
 
-      <Dialog open={addOpen || !!editRec} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRec(null); setForm({ ...empty }); } }}>
+      <Dialog open={addOpen || !!editRec} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRec(null); setForm({ ...empty }); createMut.reset(); updateMut.reset(); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editRec ? "Edit Quality Assessment" : "Quality Assessment at Placement"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
@@ -3683,6 +3694,8 @@ function PlacementQualityTab({ farmId }: { farmId: number }) {
             </div>
             <div><Label className="text-xs">Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setAddOpen(false); setEditRec(null); setForm({ ...empty }); }}>Cancel</Button>
             <Button disabled={!form.flockId || !form.assessmentDate || createMut.isPending || updateMut.isPending} onClick={() => editRec ? updateMut.mutate({ id: editRec.id, b: form }) : createMut.mutate(form)}>
@@ -3692,10 +3705,11 @@ function PlacementQualityTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 360 }}>
           <DialogHeader><DialogTitle>Delete Assessment</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Permanently delete this quality assessment?</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>Delete</Button>
@@ -3803,7 +3817,7 @@ function PoultryVaccinationTab({ farmId }: { farmId: number }) {
         </table>
       )}
 
-      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRec(null); setForm({ ...empty }); } }}>
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRec(null); setForm({ ...empty }); createMut.reset(); updateMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 560 }} className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editRec ? "Edit Vaccination Record" : "Add Vaccination Record"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
@@ -3853,6 +3867,8 @@ function PoultryVaccinationTab({ farmId }: { farmId: number }) {
             <div className="flex items-center gap-2"><input type="checkbox" id="pv-vet" checked={form.vetPrescribed} onChange={e => setForm(f => ({ ...f, vetPrescribed: e.target.checked }))} /><label htmlFor="pv-vet" className="text-sm cursor-pointer">Vet prescribed (POM-V product)</label></div>
             <div><Label className="text-xs">Notes</Label><textarea className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
           </div>
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setAddOpen(false); setEditRec(null); setForm({ ...empty }); }}>Cancel</Button>
             <Button disabled={!form.vaccinationDate || !form.vaccinationCategory || (!form.vaccineProduct || (isCustomProduct && !form.customProduct)) || createMut.isPending || updateMut.isPending} onClick={() => editRec ? updateMut.mutate({ id: editRec.id, b: form }) : createMut.mutate(form)}>
@@ -3862,9 +3878,10 @@ function PoultryVaccinationTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 360 }}><DialogHeader><DialogTitle>Delete Vaccination Record</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Permanently delete this vaccination record?</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter><Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button><Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>Delete</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3956,7 +3973,7 @@ function PoultryDiseaseMonitoringTab({ farmId }: { farmId: number }) {
         </table>
       )}
 
-      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRec(null); setForm({ ...empty }); } }}>
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRec(null); setForm({ ...empty }); createMut.reset(); updateMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 560 }} className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editRec ? "Edit Monitoring Record" : "Add Monitoring Record"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
@@ -3997,6 +4014,8 @@ function PoultryDiseaseMonitoringTab({ farmId }: { farmId: number }) {
             <div><Label className="text-xs">Actions Taken</Label><textarea className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" rows={2} value={form.actionsTaken} onChange={e => setForm(f => ({ ...f, actionsTaken: e.target.value }))} /></div>
             <div><Label className="text-xs">Notes</Label><textarea className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background mt-1" rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
           </div>
+          <DialogMutationError mutation={createMut} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={updateMut} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setAddOpen(false); setEditRec(null); setForm({ ...empty }); }}>Cancel</Button>
             <Button disabled={!form.monitoringDate || !form.monitoringType || createMut.isPending || updateMut.isPending} onClick={() => editRec ? updateMut.mutate({ id: editRec.id, b: form }) : createMut.mutate(form)}>
@@ -4006,9 +4025,10 @@ function PoultryDiseaseMonitoringTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut.reset(); } }}>
         <DialogContent style={{ maxWidth: 360 }}><DialogHeader><DialogTitle>Delete Monitoring Record</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Permanently delete this disease monitoring record?</p>
+          <DialogMutationError mutation={deleteMut} message="Failed to delete — please try again." />
           <DialogFooter><Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button><Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>Delete</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -4179,10 +4199,11 @@ function InterSiteTransfersTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut2.reset(); } }}>
         <DialogContent style={{ maxWidth: 360 }}>
           <DialogHeader><DialogTitle>Delete Transfer Record</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Permanently delete this inter-site transfer record?</p>
+          <DialogMutationError mutation={deleteMut2} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" disabled={deleteMut2.isPending} onClick={() => deleteId !== null && deleteMut2.mutate(deleteId)}>Delete</Button>
@@ -4394,10 +4415,11 @@ function TransportWelfareTab({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) { setDeleteId(null); deleteMut3.reset(); } }}>
         <DialogContent style={{ maxWidth: 360 }}>
           <DialogHeader><DialogTitle>Delete Transport Welfare Log</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Permanently delete this transport welfare log?</p>
+          <DialogMutationError mutation={deleteMut3} message="Failed to delete — please try again." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" disabled={deleteMut3.isPending} onClick={() => deleteId !== null && deleteMut3.mutate(deleteId)}>Delete</Button>
