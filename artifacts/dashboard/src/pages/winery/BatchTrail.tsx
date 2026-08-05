@@ -980,7 +980,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
           {files.map((f, i) => (
             <li key={i} className="text-xs text-muted-foreground flex items-center gap-1.5">
               <Paperclip className="h-3 w-3 shrink-0" />
-              <span className="truncate">{String(f.fileName ?? "")}</span>
+              <TrailAttachmentName file={f} />
               {!!f.uploadedAt && <span className="text-muted-foreground/70 shrink-0">· Uploaded {fmtDate(f.uploadedAt)}</span>}
             </li>
           ))}
@@ -1217,7 +1217,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                                 {files.map((f, i) => (
                                   <li key={i} className="text-xs text-muted-foreground flex items-center gap-1.5">
                                     <Paperclip className="h-3 w-3 shrink-0" />
-                                    <span className="truncate">{String(f.fileName ?? "")}</span>
+                                    <TrailAttachmentName file={f} />
                                     {!!f.uploadedAt && <span className="text-muted-foreground/70 shrink-0">· Uploaded {fmtDate(f.uploadedAt)}</span>}
                                   </li>
                                 ))}
@@ -1700,12 +1700,31 @@ export function computeVintagePhTaComparisonRows(data: BatchTrailData): { ref: s
     .sort((a, b) => a.ref.localeCompare(b.ref));
 }
 
+// Renders an attachment's file name as a link that opens/downloads the file in
+// a new tab — same fileUrl the RecordAttachments component's download icon uses.
+// Falls back to plain text if the record predates fileUrl being returned.
+function TrailAttachmentName({ file }: { file: TrailAttachment }) {
+  const name = String(file.fileName ?? "");
+  if (!file.fileUrl) return <span className="truncate">{name}</span>;
+  return (
+    <a
+      href={file.fileUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="truncate underline underline-offset-2 hover:text-foreground"
+      title="Download / view"
+    >
+      {name}
+    </a>
+  );
+}
+
 // ─── Batch-trail attachment fetch helpers ─────────────────────────────────────
 // Best-effort attachment lookups shared by the CSV export and the printed PDF —
 // a failed fetch never blocks the export, but failures are surfaced (null /
 // lookupFailed) so exports can show a visible note instead of silently omitting
 // the attachments section.
-export type TrailAttachment = { fileName: string; uploadedAt: string };
+export type TrailAttachment = { fileName: string; uploadedAt: string; fileUrl?: string };
 
 // Returns null when the lookup itself failed (network error or non-OK response),
 // as distinct from an empty array meaning "record genuinely has no attachments".
