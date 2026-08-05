@@ -1,6 +1,6 @@
 import { SignatureEmbed, NO_EMBED, signatureEmbedFrom, computeSo2DominantUnitByVintage, SOURCE_LABELS, so2UnitOutlierDominant, printPressingReport, printAdditionsReport, printSo2TransactionLog } from "./print";
 import { useWineryBatchSettings, BatchTrailDialog } from "./BatchTrail";
-import { fetchWineryJson, useCrud, useVessels, useEquipment, useStaff, AdditionRow, additionsShortcutKey, WINERY_VIEW_ADDITIONS_EVENT, ADDITIVE_CATEGORY_LABELS, WINE_COLOUR_OPTIONS, UNSPECIFIED_COLOUR, useAdditionsSummary, useAllPressAdditions, PERMITTED_ADDITIVES, PRESS_TYPE_OPTIONS, today, rowMatchesColour, additiveCsvCol, fmtDate, colourFilterLabel, exportCSV, QueryErrorNotice, EmptyState, NotesCell, fmt, fmtNum, signOffTooltip, BatchTrailButton, ORGANIC_MAX_SO2, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SectionLabel, JUICE_TURBIDITY_OPTIONS, ALL_DOSE_UNITS, SETTLING_METHOD_OPTIONS, ViewField, AssignWineColourDialog, type AssignColourTarget, SIGN_OFF_CSV_COLUMNS } from "./shared";
+import { fetchWineryJson, useCrud, useVessels, useEquipment, useStaff, AdditionRow, additionsShortcutKey, WINERY_VIEW_ADDITIONS_EVENT, ADDITIVE_CATEGORY_LABELS, WINE_COLOUR_OPTIONS, UNSPECIFIED_COLOUR, useAdditionsSummary, useAllPressAdditions, PERMITTED_ADDITIVES, PRESS_TYPE_OPTIONS, today, rowMatchesColour, additiveCsvCol, fmtDate, colourFilterLabel, exportCSV, QueryErrorNotice, EmptyState, NotesCell, fmt, fmtNum, signOffTooltip, BatchTrailButton, ORGANIC_MAX_SO2, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SectionLabel, JUICE_TURBIDITY_OPTIONS, ALL_DOSE_UNITS, SETTLING_METHOD_OPTIONS, ViewField, AssignWineColourDialog, type AssignColourTarget, SIGN_OFF_CSV_COLUMNS, usePersistedYearFilter } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -38,11 +38,8 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [view, setView] = useState<Record<string, unknown> | null>(null);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
-  const pressingYearFilterKey = `pressing-year-filter-${farmId}`;
-  const [yearFilter, setYearFilterRaw] = useState(() => {
-    try { return localStorage.getItem(`pressing-year-filter-${farmId}`) ?? String(new Date().getFullYear()); } catch { return String(new Date().getFullYear()); }
-  });
-  const setYearFilter = (v: string) => { try { localStorage.setItem(pressingYearFilterKey, v); } catch { /**/ } setYearFilterRaw(v); };
+  // Shared hook keeps the original `pressing-year-filter-${farmId}` key.
+  const [yearFilter, setYearFilter] = usePersistedYearFilter("pressing", farmId);
   const [pressingSearch, setPressingSearch] = useState("");
   const [pressingNonCompliantOnly, setPressingNonCompliantOnly] = useState(false);
   const [signedFilter, setSignedFilter] = useState<"all" | "signed" | "unsigned">("all");
@@ -62,9 +59,8 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
       setPressingSortColRaw((PRESSING_SORT_COLS as readonly string[]).includes(col ?? "") ? col as PressingSort : "date");
       const dir = localStorage.getItem(`${pressingSortKey}-dir`);
       setPressingSortDirRaw(dir === "asc" ? "asc" : "desc");
-      setYearFilterRaw(localStorage.getItem(pressingYearFilterKey) ?? String(new Date().getFullYear()));
     } catch { /**/ }
-  }, [pressingSortKey, pressingYearFilterKey]);
+  }, [pressingSortKey]);
   const setPressingSortCol = (col: PressingSort) => { try { localStorage.setItem(`${pressingSortKey}-col`, col); } catch { /**/ } setPressingSortColRaw(col); };
   const setPressingSortDir = (dir: "asc" | "desc") => { try { localStorage.setItem(`${pressingSortKey}-dir`, dir); } catch { /**/ } setPressingSortDirRaw(dir); };
   const [pressTypeOther, setPressTypeOther] = useState(false);

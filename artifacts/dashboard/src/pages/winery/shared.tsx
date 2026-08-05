@@ -22,6 +22,7 @@ import SignatureCanvas from "react-signature-canvas";
 
 // ─── Local helpers ─────────────────────────────────────────────────────────────
 import { apiUrl as api } from "@/lib/api";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 export const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 export const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
 export const fmtNum = (v: unknown, dp = 1) => (v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp));
@@ -186,19 +187,19 @@ export function useStaff(farmId: number) {
 }
 
 // Persist a tab's vintage year filter in localStorage, scoped to the farm.
-// Same pattern as PressingRecordsTab's `pressing-year-filter-${farmId}` key:
-// lazy initializer, wrapped setter, and a farmId re-sync effect (the component
-// may stay mounted across farm switches).
+// Thin wrapper over the shared usePersistedFilter hook: with page=prefix and
+// filter="year" the storage key is `${prefix}-year-filter-${farmId}` — the
+// exact key scheme this hook has always used, so users' stored choices survive.
+// Valid values are "all" or a 4-digit year; anything stale falls back to the
+// current year.
 export function usePersistedYearFilter(prefix: string, farmId: number): [string, (v: string) => void] {
-  const storageKey = `${prefix}-year-filter-${farmId}`;
-  const [yearFilter, setYearFilterRaw] = useState(() => {
-    try { return localStorage.getItem(storageKey) ?? String(new Date().getFullYear()); } catch { return String(new Date().getFullYear()); }
+  return usePersistedFilter({
+    page: prefix,
+    filter: "year",
+    farmId,
+    defaultValue: String(new Date().getFullYear()),
+    isValid: (v) => v === "all" || /^\d{4}$/.test(v),
   });
-  useEffect(() => {
-    try { setYearFilterRaw(localStorage.getItem(storageKey) ?? String(new Date().getFullYear())); } catch { /**/ }
-  }, [storageKey]);
-  const setYearFilter = (v: string) => { try { localStorage.setItem(storageKey, v); } catch { /**/ } setYearFilterRaw(v); };
-  return [yearFilter, setYearFilter];
 }
 
 export function ViewField({ label, value }: { label: string; value: React.ReactNode }) {
