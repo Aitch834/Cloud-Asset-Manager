@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useLookupStrings } from "@/hooks/use-lookup";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -232,7 +233,7 @@ function TransactionsTab({ farmId }: { farmId: number }) {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
-  const [yearFilter, setYearFilter] = useState(String(CURRENT_YEAR));
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "financial-transactions", filter: "year", farmId, defaultValue: String(CURRENT_YEAR), isValid: v => v === "all" || /^\d{4}$/.test(v) });
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
@@ -1465,7 +1466,7 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
 const PIE_COLOURS = ["#16a34a","#3b82f6","#f59e0b","#ef4444","#8b5cf6","#14b8a6","#f97316","#ec4899","#6366f1","#84cc16","#06b6d4","#a855f7"];
 
 function FinancialAnalyticsTab({ farmId }: { farmId: number }) {
-  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "financial-analytics", filter: "year", farmId, defaultValue: String(new Date().getFullYear()), isValid: v => v === "all" || /^\d{4}$/.test(v) });
   const txQ = useQuery({
     queryKey: ["financial-transactions", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/financial-transactions`).then(r => r.json()),
@@ -1629,7 +1630,7 @@ function FinancialAnalyticsTab({ farmId }: { farmId: number }) {
 
 // ── Accountant's Pack Tab ─────────────────────────────────────────────────────
 function AccountantPackTab({ farmId }: { farmId: number }) {
-  const [yearFilter, setYearFilter] = useState<string>(String(CURRENT_YEAR));
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "financial-accountant-pack", filter: "year", farmId, defaultValue: String(CURRENT_YEAR), isValid: v => v === "all" || /^\d{4}$/.test(v) });
 
   const farmQ = useQuery({
     queryKey: ["farm-detail", farmId],

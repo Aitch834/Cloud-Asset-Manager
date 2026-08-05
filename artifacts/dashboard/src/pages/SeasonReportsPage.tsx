@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { herdSpeciesDisplayLabel, herdProductionSubtype } from "@/lib/herd-utils";
 import { gradeLabel } from "@/lib/harvestGrades";
 import { useQuery } from "@tanstack/react-query";
@@ -426,7 +427,7 @@ export default function SeasonReportsPage() {
   const { farmId: currentFarmId } = useAppStore();
   const farmId = currentFarmId;
   const [tab, setTab] = usePersistedTab<Tab>({ page: "season-reports", farmId, validIds: SEASON_REPORTS_TAB_IDS, defaultTab: "arable" });
-  const [year, setYear] = useState<number>(new Date().getFullYear());
+  const [year, setYear] = usePersistedNumberFilter({ page: "season-reports", filter: "year", farmId, defaultValue: new Date().getFullYear(), isValid: n => n >= 2000 && n <= 2100 });
 
   const { data: yearsData } = useQuery<{ years: number[] }>({
     queryKey: ["season-report-years", farmId],

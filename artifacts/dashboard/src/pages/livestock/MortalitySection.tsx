@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -603,7 +604,7 @@ export function MortalitySection({ farmId }: { farmId: number }) {
   const awaitingCollection = records.filter(r => r.status === "disposal_arranged").length;
   const awaitingCloseOut = records.filter(r => r.status === "disposed").length;
 
-  const [yearFilterMort, setYearFilterMort] = useState("all");
+  const [yearFilterMort, setYearFilterMort] = usePersistedFilter({ page: "livestock-mortality", filter: "year", farmId, defaultValue: "all", isValid: v => v === "all" || /^\d{4}$/.test(v) });
   const yearsMort = useMemo(() => Array.from(new Set(records.map(r => String(r.dateOfDeath ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [records]);
 
   const filtered = records.filter(r => {
