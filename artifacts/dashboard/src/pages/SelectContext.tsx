@@ -25,6 +25,8 @@ const SECTORS = [
   { key: "sectorEquine", label: "Equine" },
   { key: "sectorHorticulture", label: "Horticulture" },
   { key: "sectorViticulture", label: "Viticulture" },
+  { key: "sectorFreshProduce", label: "Fresh Produce" },
+  { key: "sectorDeer", label: "Deer / Venison" },
 ] as const;
 
 type SectorKey = typeof SECTORS[number]["key"];
@@ -58,6 +60,8 @@ const emptyFormData: FarmFormData = {
     sectorEquine: false,
     sectorHorticulture: false,
     sectorViticulture: false,
+    sectorFreshProduce: false,
+    sectorDeer: false,
   },
 };
 

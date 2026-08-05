@@ -147,11 +147,32 @@ router.get("/tenants/current/farms", requireAuth, requireTenant, async (req: Req
 
 router.put("/tenants/current/farms/:farmId", requireAuth, requireTenant, requireClientAdmin, async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId as string, 10);
-  const { name, address, postcode, cphNumber, gridReference, totalAcreage, sectorArable, sectorBeef, sectorDairy, sectorPigs, sectorPoultry, sectorHorticulture, redTractorId } = req.body;
+
+  // Only apply fields that were actually provided in the body. Setting
+  // omitted fields to undefined would make Drizzle skip them anyway, but
+  // being explicit here guarantees no sector flag (or other field) can be
+  // silently reset when a caller sends a partial payload.
+  const updatableFields = [
+    "name", "address", "postcode", "cphNumber", "gridReference", "totalAcreage",
+    "sectorArable", "sectorBeef", "sectorSheep", "sectorDairy", "sectorPigs", "sectorPoultry",
+    "sectorEggs", "sectorGoats", "sectorEquine", "sectorHorticulture", "sectorViticulture",
+    "sectorFreshProduce", "sectorDeer",
+  ] as const;
+
+  const updates: Record<string, unknown> = {};
+  for (const field of updatableFields) {
+    if (req.body[field] !== undefined) updates[field] = req.body[field];
+  }
+  if (req.body.redTractorId !== undefined) updates.redTractorId = req.body.redTractorId || null;
+
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: "No updatable fields provided" });
+    return;
+  }
 
   const [updated] = await db
     .update(farmsTable)
-    .set({ name, address, postcode, cphNumber, gridReference, totalAcreage, sectorArable, sectorBeef, sectorDairy, sectorPigs, sectorPoultry, sectorHorticulture, redTractorId: redTractorId || null })
+    .set(updates)
     .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, req.tenantId!)))
     .returning();
 
