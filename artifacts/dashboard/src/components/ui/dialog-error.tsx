@@ -19,7 +19,16 @@ export function DialogMutationError({
   message?: string;
 }) {
   if (!mutation.isError || mutation.isPending) return null;
-  const raw = mutation.error instanceof Error ? mutation.error.message : "";
+  let raw = mutation.error instanceof Error ? mutation.error.message : "";
+  // Server error bodies are often JSON like {"error":"..."} — unwrap them.
+  if (raw.trimStart().startsWith("{")) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.error === "string") raw = parsed.error;
+    } catch {
+      // not JSON — leave as-is
+    }
+  }
   // Server bodies can be long HTML/JSON blobs — keep it readable.
   const detail = raw && raw.length <= 200 && !raw.trimStart().startsWith("<") ? raw : "";
   return (

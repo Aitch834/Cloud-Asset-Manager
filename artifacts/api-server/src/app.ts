@@ -10,6 +10,7 @@ import { tenantMiddleware } from "./middlewares/tenantMiddleware";
 import { devBypassMiddleware } from "./middlewares/devBypassMiddleware";
 import { adminPortalMiddleware } from "./middlewares/adminPortalMiddleware";
 import router from "./routes";
+import { InvalidDateFieldError } from "./lib/sanitise";
 
 const app: Express = express();
 
@@ -167,6 +168,10 @@ app.use("/api", authLimiter);
 app.use("/api", router);
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  if (err instanceof InvalidDateFieldError) {
+    res.status(400).json({ error: err.message, field: err.field });
+    return;
+  }
   console.error("Unhandled error:", err.message, err.stack);
   res.status(500).json({ error: "Internal server error" });
 });

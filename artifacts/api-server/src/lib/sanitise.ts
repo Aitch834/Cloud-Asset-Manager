@@ -99,6 +99,36 @@ export class SafeDate extends Date {
   }
 }
 
+/**
+ * Thrown by sanitiseBody when a date-looking field is not a real calendar
+ * date (e.g. "2025-02-30"). The central error handler in app.ts converts
+ * this into a 400 response naming the field, so the user learns their date
+ * was rejected instead of the record silently saving with a blank field.
+ */
+export class InvalidDateFieldError extends Error {
+  readonly field: string;
+  readonly value: string;
+
+  constructor(field: string, value: string) {
+    const label = humaniseFieldName(field);
+    super(
+      `"${value.slice(0, 10)}" is not a real calendar date — please correct the ${label} field.`,
+    );
+    this.name = "InvalidDateFieldError";
+    this.field = field;
+    this.value = value;
+  }
+}
+
+/** "harvestDate" → "harvest date"; "due_date" → "due date". */
+function humaniseFieldName(field: string): string {
+  return field
+    .replace(/_/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .toLowerCase()
+    .trim();
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function sanitiseBody(body: unknown): any {
   if (!body || typeof body !== "object" || Array.isArray(body)) return {};
@@ -111,10 +141,11 @@ export function sanitiseBody(body: unknown): any {
       if (isIsoDateString(value)) {
         // Reject calendar-invalid dates (Feb 30, month 13, ...) explicitly:
         // JS Date parsing would either roll them forward or accept them as
-        // strings downstream, saving dates the user never intended.
+        // strings downstream, saving dates the user never intended. Throwing
+        // (instead of nulling) surfaces a 400 to the user via the central
+        // error handler, rather than silently saving the field blank.
         if (!isValidCalendarDate(value)) {
-          result[key] = null;
-          continue;
+          throw new InvalidDateFieldError(key, value);
         }
         const d = new SafeDate(value);
         result[key] = isNaN(d.getTime()) ? null : d;
