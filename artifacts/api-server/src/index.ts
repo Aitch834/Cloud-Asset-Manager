@@ -17,6 +17,7 @@ import { runReportBuilderMigrations } from "./lib/reportBuilderMigrations";
 import { runAnalyticsMigrations } from "./lib/analyticsMigrations";
 import { runWineryMigrations } from "./lib/wineryMigrations";
 import { runFarmIncidentsMigrations } from "./lib/farmIncidentsMigrations";
+import { runTaskLinkMigrations } from "./lib/taskLinkMigrations";
 
 interface EnvSpec {
   key: string;
@@ -130,5 +131,8 @@ app.listen(port, () => {
   });
   runFarmIncidentsMigrations().catch((err) => {
     console.error("[FARM-INCIDENTS-MIGRATE] Failed:", err);
+  });
+  runTaskLinkMigrations().catch((err) => {
+    console.error("[TASK-LINK-MIGRATE] Failed:", err);
   });
 });
