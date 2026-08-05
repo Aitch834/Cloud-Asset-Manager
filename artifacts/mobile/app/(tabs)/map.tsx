@@ -221,16 +221,19 @@ export default function MapScreen() {
           headers,
           body: JSON.stringify({ name, areaHectares: area > 0 ? String(area.toFixed(4)) : null }),
         });
-        if (fieldRes.ok) {
-          const { record } = await fieldRes.json() as { record: { id: number } };
-          const polygonPoints = recordedPoints.map((p) => ({ lat: p.latitude, lng: p.longitude }));
-          await fetch(`https://${apiDomain}/api/farms/${currentFarm.id}/fields/${record.id}/boundary`, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ polygonPoints, areaHectares: area, capturedBy: "mobile-gps" }),
-          });
+        if (!fieldRes.ok) {
+          const t = await fieldRes.text().catch(() => "");
+          throw new Error(t || `Request failed (${fieldRes.status})`);
         }
+        const { record } = await fieldRes.json() as { record: { id: number } };
+        const polygonPoints = recordedPoints.map((p) => ({ lat: p.latitude, lng: p.longitude }));
+        await fetch(`https://${apiDomain}/api/farms/${currentFarm.id}/fields/${record.id}/boundary`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ polygonPoints, areaHectares: area, capturedBy: "mobile-gps" }),
+        }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       } catch {
+        Alert.alert("Sync Failed", "The field boundary was saved on this device but could not be sent to the server. It will remain marked as unsynced.");
       } finally {
         setSyncing(false);
       }
@@ -266,8 +269,9 @@ export default function MapScreen() {
           method: "POST",
           headers,
           body: JSON.stringify({ polygonPoints, areaHectares: area, capturedBy: "mobile-gps" }),
-        });
+        }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       } catch {
+        Alert.alert("Sync Failed", "The block boundary was saved on this device but could not be sent to the server. It will remain marked as unsynced.");
       } finally {
         setSyncing(false);
       }
@@ -292,8 +296,9 @@ export default function MapScreen() {
           method: "POST",
           headers,
           body: JSON.stringify({ polygonPoints, areaHectares: area, capturedBy: "mobile-gps" }),
-        });
+        }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       } catch {
+        Alert.alert("Sync Failed", "The vineyard block boundary could not be sent to the server. Please try recording it again.");
       } finally {
         setSyncing(false);
       }

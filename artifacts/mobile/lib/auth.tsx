@@ -180,7 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await fetch(`${apiBase}/api/mobile-auth/logout`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
-        });
+        }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       }
     } catch (logoutErr: unknown) {
       console.warn("Logout API call failed:", logoutErr instanceof Error ? logoutErr.message : "unknown");

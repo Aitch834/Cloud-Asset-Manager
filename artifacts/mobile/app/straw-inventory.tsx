@@ -121,7 +121,7 @@ export default function StrawInventoryScreen() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify(body),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       Alert.alert("Saved", "Straw delivery logged successfully.");
       setForm(EMPTY_FORM);
       setShowForm(false);

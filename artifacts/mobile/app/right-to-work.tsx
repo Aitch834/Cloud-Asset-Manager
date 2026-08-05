@@ -206,7 +206,7 @@ export default function RightToWorkScreen() {
                   fileName: "rtw-document.jpg",
                   objectPath,
                 }),
-              });
+              }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
             }
             savedOnline = true;
           }

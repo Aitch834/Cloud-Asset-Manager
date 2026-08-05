@@ -78,7 +78,7 @@ export default function MoreScreen() {
     }
     await fetch(`${getApiBase()}/api/farms/${currentFarm.id}/staff-location-ping`, {
       method: "POST", headers, body: JSON.stringify(body),
-    });
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
   }
 
   useEffect(() => {

@@ -159,7 +159,7 @@ function AssignmentCard({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "in_progress" }),
-      });
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       onUpdated();
     } catch {

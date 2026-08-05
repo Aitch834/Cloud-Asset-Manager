@@ -109,7 +109,7 @@ async function registerPushToken(token: string | null, farmId: string): Promise<
       method: "POST",
       headers: buildApiHeaders(token),
       body: JSON.stringify({ expoPushToken, platform: Platform.OS }),
-    });
+    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
     console.log("[PUSH] Token registered:", expoPushToken);
   } catch (err) {
     console.warn("[PUSH] Token registration failed:", err);
