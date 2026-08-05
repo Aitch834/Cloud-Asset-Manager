@@ -8,22 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 import { apiUrl as api } from "@/lib/api";
+import { parseCsvText } from "@/lib/bottling-csv";
 
 /* ─── CSV parsing helpers ──────────────────────────────────────────────── */
-
-function parseRow(line: string): string[] {
-  const result: string[] = [];
-  let current = "";
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') { inQuotes = !inQuotes; }
-    else if (ch === "," && !inQuotes) { result.push(current.trim().replace(/^"|"$/g, "")); current = ""; }
-    else { current += ch; }
-  }
-  result.push(current.trim().replace(/^"|"$/g, ""));
-  return result;
-}
 
 function normKey(k: string): string {
   return k.toLowerCase().trim().replace(/[\s\-–]+/g, "_").replace(/[^a-z0-9_]/g, "");
@@ -208,10 +195,10 @@ export function FctImportDialog({ open, farmId, onClose }: Props) {
   const processCsv = (text: string, name: string) => {
     setParseError("");
     try {
-      const lines = text.trim().split(/\r?\n/);
-      if (lines.length < 2) throw new Error("CSV must have a header row and at least one data row.");
-      const headers = parseRow(lines[0]);
-      const values = parseRow(lines[1]);
+      const records = parseCsvText(text);
+      if (records.length < 2) throw new Error("CSV must have a header row and at least one data row.");
+      const headers = records[0];
+      const values = records[1];
       const rawRow: Record<string, string> = {};
       headers.forEach((h, i) => { rawRow[h] = values[i] ?? ""; });
       const mapped = mapRow(rawRow);
