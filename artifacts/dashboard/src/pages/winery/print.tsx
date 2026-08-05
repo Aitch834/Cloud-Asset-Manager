@@ -490,7 +490,44 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
 
   const cellarHeader = `<tr class="header-row"><th>Date</th><th>Operation</th><th>Vessel(s)</th><th style="text-align:right">Volume (L)</th><th>SO₂ detail</th><th style="text-align:right">Running total after this op (cumulative mg/L)</th><th>Fining agent</th><th>Operator</th><th>Batch Ref</th></tr>`;
 
-  // SO₂ tests
+  // SO₂ tests — per-row sign-off presentation. Each signed test row shows a
+  // green "✓ Signed" cell and, beneath it, a full-width signature sub-row with
+  // the signature image + signer name/role/date — the same details the
+  // batch-trail "Reviewed by (auditor)" signature block presents for the
+  // pressing sign-off, so an auditor working from the printout can see who
+  // verified each test. The signature is sanitised per-row (strict PNG data-URL
+  // check) before any HTML injection, same guard as the report-level signature.
+  const so2SignerDateStr = (r: Record<string, unknown>): string => {
+    // Prefer the auditor-declared declaration date (date-only, parsed as a
+    // local calendar date to avoid UTC day-shift), falling back to the
+    // digital signature timestamp — same precedence as signOffTooltip / the
+    // report signature block.
+    if (r.audit_signer_date) {
+      const s = String(r.audit_signer_date);
+      const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(s);
+      if (!isNaN(d.getTime())) return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+    }
+    if (r.audit_signed_at) {
+      const d = new Date(String(r.audit_signed_at));
+      if (!isNaN(d.getTime())) return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+    }
+    return "";
+  };
+  const so2SignOffPdfRow = (r: Record<string, unknown>, colCount: number): string => {
+    if (r.audit_signature == null || r.audit_signature === "") return "";
+    const rowSig = sanitiseSignatureForHtml(String(r.audit_signature));
+    const name = r.audit_signer_name ? String(r.audit_signer_name) : "";
+    const role = r.audit_signer_role ? String(r.audit_signer_role) : "";
+    const dateStr = so2SignerDateStr(r);
+    return `<tr>
+      <td colspan="${colCount}" style="padding:4px 7px 7px 20px;background:#f0fdf4;border-bottom:1px solid #e5e7eb">
+        <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#166534;margin-right:10px;vertical-align:middle">Audit sign-off:</span>
+        ${rowSig ? `<img src="${rowSig}" alt="Audit signature" style="max-height:32px;border:1px solid #d1d5db;border-radius:3px;background:#fff;vertical-align:middle;margin-right:10px" />` : ""}
+        <span style="font-size:10px;color:#166534;vertical-align:middle">${name ? `Signed by <strong>${escHtml(name)}</strong>` : "Signed"}${role ? ` (${escHtml(role)})` : ""}${dateStr ? ` on ${escHtml(dateStr)}` : ""}${rowSig ? "" : name || dateStr ? " — signed digitally" : " digitally"}</span>
+      </td>
+    </tr>`;
+  };
   let so2HasUnverifiedLimit = false;
   const so2Rows = data.so2Tests.map(r => {
     const compliant = r.so2_compliant === true || r.so2_compliant === "true" || r.so2_compliant === 1;
@@ -509,10 +546,11 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
     <td${complianceStyle}>${nonCompliant ? "⚠ Exceeds limit" : compliant ? "✓ Compliant" : "—"}</td>
     <td>${escHtml(r.test_method)}</td>
     <td>${batchRefBadge(r as Record<string, unknown>)}</td>
-  </tr>`;
+    <td>${(r.audit_signature != null && r.audit_signature !== "") ? '<span style="color:#166534;font-weight:600;white-space:nowrap">✓ Signed</span>' : '<span style="color:#9ca3af">Unsigned</span>'}</td>
+  </tr>${so2SignOffPdfRow(r as Record<string, unknown>, 10)}${editHistoryPdfRow(r as Record<string, unknown>, 10)}`;
   }).join("");
 
-  const so2Header = `<tr class="header-row"><th>Date</th><th>Stage</th><th>Vessel</th><th style="text-align:right">Free SO₂ (mg/L)</th><th style="text-align:right">Total SO₂ (mg/L)</th><th style="text-align:right">Max permitted</th><th>Compliance</th><th>Method</th><th>Batch Ref</th></tr>`;
+  const so2Header = `<tr class="header-row"><th>Date</th><th>Stage</th><th>Vessel</th><th style="text-align:right">Free SO₂ (mg/L)</th><th style="text-align:right">Total SO₂ (mg/L)</th><th style="text-align:right">Max permitted</th><th>Compliance</th><th>Method</th><th>Batch Ref</th><th>Sign-off</th></tr>`;
 
   // Bottling
   const bottlingRows = data.bottling.map(r => {

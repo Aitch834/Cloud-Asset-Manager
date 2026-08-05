@@ -37168,7 +37168,9 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
         SELECT t.id, t.test_date, t.batch_ref, t.vintage_year, t.wine_colour,
                t.test_stage, t.test_method, t.free_so2_mg_l, t.total_so2_mg_l,
                t.max_permitted_mg_l, t.so2_compliant, t.ph, t.titratable_acidity_gl,
-               t.action_taken, t.operator_name, t.notes,
+               t.action_taken, t.operator_name, t.notes, t.edit_history,
+               t.audit_signature, t.audit_signer_name, t.audit_signer_role,
+               t.audit_signer_date, t.audit_signed_at,
                v.vessel_ref
         FROM winery_so2_tests t
         LEFT JOIN winery_vessels v ON v.id = t.vessel_id
@@ -37228,7 +37230,9 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
         SELECT t.id, t.test_date, t.batch_ref, t.vintage_year, t.wine_colour,
                t.test_stage, t.test_method, t.free_so2_mg_l, t.total_so2_mg_l,
                t.max_permitted_mg_l, t.so2_compliant, t.ph, t.titratable_acidity_gl,
-               t.action_taken, t.operator_name, t.notes,
+               t.action_taken, t.operator_name, t.notes, t.edit_history,
+               t.audit_signature, t.audit_signer_name, t.audit_signer_role,
+               t.audit_signer_date, t.audit_signed_at,
                v.vessel_ref
         FROM winery_so2_tests t
         LEFT JOIN winery_vessels v ON v.id = t.vessel_id
