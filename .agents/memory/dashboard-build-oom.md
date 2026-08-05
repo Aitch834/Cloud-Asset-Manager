@@ -41,7 +41,9 @@ Root cause: the container has 8 GB total RAM but ~7 GB is consumed by the runnin
 
 ## Update (Aug 2026)
 
-WineryManagementTabs.tsx was split into `src/pages/winery/` modules (shared.tsx, print.tsx, BatchTrail.tsx, one file per tab) with WineryManagementTabs.tsx as an `export *` barrel; the build now completes in ~36s with no memory flag. Remaining oversized chunks: ViticulturePage (~1.28 MB), index (~1.14 MB), LivestockPage (~840 KB) — split those next if OOM recurs.
+WineryManagementTabs.tsx was split into `src/pages/winery/` modules (shared.tsx, print.tsx, BatchTrail.tsx, one file per tab) with WineryManagementTabs.tsx as an `export *` barrel; the build now completes in ~36s with no memory flag. Dairy, Fields, Poultry, and livestock/MortalitySection have since been split the same way (per-tab dirs `dairy/`, `fields/`, `poultry/`, `livestock/mortality/`, originals kept as barrels); build ~42s. Remaining oversized chunks: VineyardBlockMapTab (~1.29 MB, leaflet-heavy), index (~1.15 MB), generateCategoricalChart (~805 KB recharts) — vendor-dominated, split only if OOM recurs.
+
+Lesson from the Dairy/Poultry split: when subagents split a shared.tsx mechanically, check for duplicated `export const` blocks (`grep '^export const' shared.tsx | sort | uniq -d`) — esbuild only fails at build time, tsc may pass late. Also note DairyPage intentionally keeps an inlined copy of AbrProcurementSection (proxy-cache workaround) as `dairy/DairyAbrProcurementSection.tsx`, separate from `dairy/AbrProcurementSection.tsx` used by other dairy pages — not an accidental duplicate.
 
 ## Long-term fix required
 
