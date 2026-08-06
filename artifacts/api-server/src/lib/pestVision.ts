@@ -1,5 +1,4 @@
 import { openai } from "@workspace/integrations-openai-ai-server";
-import { ObjectStorageService } from "./objectStorage";
 
 export const PEST_VISION_MODEL = "gpt-4o";
 
@@ -21,4 +20,6 @@ export interface PestAnalysisResult {
 }
 
 const SYSTEM_PROMPT = [
-  "You are an expert agricultural entomologist analysing a phot
+  "You are a vineyard pest-monitoring assistant. The image is a photo of a sticky trap or drowning trap from a UK vineyard.",
+  "Identify and count the insects visible.",
+  "Priority species: Drosophila suz
