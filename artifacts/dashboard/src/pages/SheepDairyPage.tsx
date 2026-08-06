@@ -1,6 +1,8 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
+import { YearCompareSelector, COMPARE_COLORS } from "@/components/analytics/YearCompareSelector";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -462,32 +464,58 @@ export function MastitisTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
+  const currentYear = new Date().getFullYear();
   const mastiYears = useMemo(() => {
-    const s = new Set<string>(records.map(r => String(r.incidentDate || "").slice(0, 4)).filter(Boolean));
-    return Array.from(s).sort((a, b) => b.localeCompare(a));
+    const s = new Set<number>(records.map(r => Number(String(r.incidentDate || "").slice(0, 4))).filter(y => y > 2000));
+    return Array.from(s).sort((a, b) => b - a);
   }, [records]);
-  const [mastiYear, setMastiYear] = useState("all");
-  const filtered = useMemo(() => mastiYear === "all" ? records : records.filter(r => String(r.incidentDate || "").startsWith(mastiYear)), [records, mastiYear]);
+  const [selectedYear, setSelectedYear] = usePersistedNumberFilter({
+    page: "sheep-dairy-mastitis",
+    filter: "year",
+    farmId,
+    defaultValue: currentYear,
+    isValid: (y) => y > 2000 && y <= currentYear + 1,
+  });
+  const [compareYear, setCompareYear] = useState<number | null>(null);
+  useEffect(() => { setCompareYear(prev => (prev === selectedYear ? null : prev)); }, [selectedYear]);
 
+  const filtered = useMemo(
+    () => records.filter(r => String(r.incidentDate || "").startsWith(String(selectedYear))),
+    [records, selectedYear]
+  );
+  const filteredCompare = useMemo(
+    () => compareYear ? records.filter(r => String(r.incidentDate || "").startsWith(String(compareYear))) : [],
+    [records, compareYear]
+  );
+
+  const MASTI_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const analytics = useMemo(() => {
-    const monthMap: Record<string, number> = {};
-    filtered.forEach(r => { const key = String(r.incidentDate || "").slice(0, 7); if (key.length === 7) monthMap[key] = (monthMap[key] || 0) + 1; });
-    const trend = Object.keys(monthMap).sort().map(k => ({ label: new Date(k + "-01").toLocaleDateString("en-GB", { month: "short", year: "2-digit" }), cases: monthMap[k] }));
+    const trend = MASTI_MONTHS.map((label, i) => {
+      const m = String(i + 1).padStart(2, "0");
+      const cases = filtered.filter(r => String(r.incidentDate || "").slice(5, 7) === m).length;
+      const cases_cmp = filteredCompare.filter(r => String(r.incidentDate || "").slice(5, 7) === m).length;
+      return { label, cases, cases_cmp };
+    }).filter(d => d.cases > 0 || d.cases_cmp > 0);
     const outcomeMap: Record<string, number> = {};
     filtered.forEach(r => { const o = r.outcome || "ongoing"; outcomeMap[o] = (outcomeMap[o] || 0) + 1; });
     const outcomeData = Object.entries(outcomeMap).map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1).replace(/-/g, " "), value }));
-    const pathMap: Record<string, number> = {};
-    filtered.forEach(r => { if (r.pathogenIdentified?.trim()) { const p = r.pathogenIdentified.trim(); pathMap[p] = (pathMap[p] || 0) + 1; } });
-    const pathData = Object.entries(pathMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8);
+    const pathPrimary: Record<string, number> = {};
+    filtered.forEach(r => { if (r.pathogenIdentified?.trim()) { const p = r.pathogenIdentified.trim(); pathPrimary[p] = (pathPrimary[p] || 0) + 1; } });
+    const pathCompare: Record<string, number> = {};
+    filteredCompare.forEach(r => { if (r.pathogenIdentified?.trim()) { const p = r.pathogenIdentified.trim(); pathCompare[p] = (pathCompare[p] || 0) + 1; } });
+    const pathNames = new Set([...Object.keys(pathPrimary), ...Object.keys(pathCompare)]);
+    const pathData = Array.from(pathNames)
+      .map(name => ({ name, value: pathPrimary[name] ?? 0, value_cmp: pathCompare[name] ?? 0 }))
+      .sort((a, b) => b.value - a.value).slice(0, 8);
     const animalMap: Record<string, number> = {};
     filtered.forEach(r => { if (r.eweLisTag) animalMap[r.eweLisTag] = (animalMap[r.eweLisTag] || 0) + 1; });
     const repeatAnimals = Object.entries(animalMap).filter(([, c]) => c >= 2).map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count);
     return { trend, outcomeData, pathData, repeatAnimals };
-  }, [filtered]);
+  }, [filtered, filteredCompare]);
 
   const printCompliance = () => {
     const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-    const period = mastiYear === "all" ? "All records" : mastiYear;
+    const period = String(selectedYear);
     const pathRows = analytics.pathData.map(p => `<tr><td>${p.name}</td><td>${p.value}</td><td>${filtered.length > 0 ? ((p.value / filtered.length) * 100).toFixed(0) : 0}%</td></tr>`).join("");
     const repeatRows = analytics.repeatAnimals.map(a => `<tr><td>${a.tag}</td><td>${a.count}</td></tr>`).join("");
     const rows = filtered.map(r => `<tr><td>${r.incidentDate ? new Date(r.incidentDate).toLocaleDateString("en-GB") : "—"}</td><td>${r.eweLisTag || "—"}</td><td>${r.quarterAffected || "—"}</td><td>${r.pathogenIdentified || "—"}</td><td>${r.treatmentProduct || "—"}</td><td>${r.outcome || "Ongoing"}</td></tr>`).join("");
@@ -501,14 +529,27 @@ export function MastitisTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
+      {mastiYears.length > 0 && (
+        <YearCompareSelector
+          availableYears={mastiYears}
+          selectedYear={selectedYear}
+          onYearChange={setSelectedYear}
+          compareYear={compareYear}
+          onCompareYearChange={setCompareYear}
+        />
+      )}
       <div className="grid grid-cols-3 gap-3">
-        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Total Cases</p><p className="text-2xl font-bold text-gray-800">{filtered.length}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Total Cases ({selectedYear})</p><p className="text-2xl font-bold text-gray-800">{filtered.length}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Chronic Cases</p><p className="text-2xl font-bold text-amber-700">{filtered.filter(r => r.chronicCase).length}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 mb-1">Culled Due to Mastitis</p><p className="text-2xl font-bold text-red-700">{filtered.filter(r => r.culledDueToMastitis).length}</p></CardContent></Card>
       </div>
-      {analytics.trend.length > 1 && (
+      {analytics.trend.length > 0 && (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
-          <div className="px-4 py-3 border-b border-border bg-muted/30"><h3 className="text-sm font-semibold">Monthly Case Trend</h3></div>
+          <div className="px-4 py-3 border-b border-border bg-muted/30">
+            <h3 className="text-sm font-semibold">
+              Monthly Case Trend{compareYear ? ` — ${selectedYear} vs ${compareYear}` : ` — ${selectedYear}`}
+            </h3>
+          </div>
           <div className="p-4">
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={analytics.trend} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
@@ -516,7 +557,9 @@ export function MastitisTab({ farmId }: { farmId: number }) {
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                 <Tooltip />
-                <Bar dataKey="cases" name="Cases" fill="#f59e0b" radius={[3, 3, 0, 0]} maxBarSize={40} />
+                {compareYear && <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />}
+                <Bar dataKey="cases" name={compareYear ? String(selectedYear) : "Cases"} fill={COMPARE_COLORS[0]} radius={[3, 3, 0, 0]} maxBarSize={32} />
+                {compareYear && <Bar dataKey="cases_cmp" name={String(compareYear)} fill={COMPARE_COLORS[1]} radius={[3, 3, 0, 0]} maxBarSize={32} />}
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -526,7 +569,7 @@ export function MastitisTab({ farmId }: { farmId: number }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {analytics.outcomeData.length > 0 && (
             <div className="rounded-xl border border-border bg-card overflow-hidden">
-              <div className="px-4 py-3 border-b border-border bg-muted/30"><h3 className="text-sm font-semibold">Outcome Distribution</h3></div>
+              <div className="px-4 py-3 border-b border-border bg-muted/30"><h3 className="text-sm font-semibold">Outcome Distribution ({selectedYear})</h3></div>
               <div className="p-4 flex justify-center">
                 <PieChart width={220} height={160}>
                   <Pie data={analytics.outcomeData} cx={110} cy={75} innerRadius={40} outerRadius={70} dataKey="value" label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false} style={{ fontSize: 9 }}>
@@ -539,15 +582,21 @@ export function MastitisTab({ farmId }: { farmId: number }) {
           )}
           {analytics.pathData.length > 0 && (
             <div className="rounded-xl border border-border bg-card overflow-hidden">
-              <div className="px-4 py-3 border-b border-border bg-muted/30"><h3 className="text-sm font-semibold">Pathogen Breakdown</h3></div>
+              <div className="px-4 py-3 border-b border-border bg-muted/30">
+                <h3 className="text-sm font-semibold">
+                  Pathogen Breakdown{compareYear ? ` — ${selectedYear} vs ${compareYear}` : ""}
+                </h3>
+              </div>
               <div className="p-4">
-                <ResponsiveContainer width="100%" height={160}>
+                <ResponsiveContainer width="100%" height={Math.max(160, analytics.pathData.length * 28)}>
                   <BarChart data={analytics.pathData} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
                     <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={110} />
                     <Tooltip />
-                    <Bar dataKey="value" name="Cases" fill="#3b82f6" radius={[0, 3, 3, 0]} maxBarSize={20} />
+                    {compareYear && <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />}
+                    <Bar dataKey="value" name={compareYear ? String(selectedYear) : "Cases"} fill={COMPARE_COLORS[0]} radius={[0, 3, 3, 0]} maxBarSize={18} />
+                    {compareYear && <Bar dataKey="value_cmp" name={String(compareYear)} fill={COMPARE_COLORS[1]} radius={[0, 3, 3, 0]} maxBarSize={18} />}
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -557,7 +606,7 @@ export function MastitisTab({ farmId }: { farmId: number }) {
       )}
       {analytics.repeatAnimals.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
-          <div className="px-4 py-3 border-b border-amber-200"><h3 className="text-sm font-semibold text-amber-800">⚠ Repeat Mastitis Ewes — {analytics.repeatAnimals.length} ewe{analytics.repeatAnimals.length !== 1 ? "s" : ""} with ≥2 episodes</h3></div>
+          <div className="px-4 py-3 border-b border-amber-200"><h3 className="text-sm font-semibold text-amber-800">⚠ Repeat Mastitis Ewes — {analytics.repeatAnimals.length} ewe{analytics.repeatAnimals.length !== 1 ? "s" : ""} with ≥2 episodes ({selectedYear})</h3></div>
           <div className="px-4 py-2 flex flex-wrap gap-2">
             {analytics.repeatAnimals.map((a: { tag: string; count: number }) => (
               <span key={a.tag} className="inline-flex items-center gap-1.5 px-2 py-1 bg-amber-100 border border-amber-300 rounded-md text-xs font-mono font-medium text-amber-900">{a.tag} <span className="font-bold text-amber-700">× {a.count}</span></span>
@@ -566,12 +615,8 @@ export function MastitisTab({ farmId }: { farmId: number }) {
         </div>
       )}
       <div className="flex flex-wrap justify-between items-center gap-2">
-        <h2 className="text-base font-semibold text-gray-800">Mastitis Records</h2>
+        <h2 className="text-base font-semibold text-gray-800">Mastitis Records — {selectedYear}</h2>
         <div className="flex items-center gap-2 flex-wrap">
-          <Select value={mastiYear} onValueChange={setMastiYear}>
-            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">All years</SelectItem>{mastiYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
-          </Select>
           <Button size="sm" variant="outline" onClick={printCompliance}><Printer className="w-3.5 h-3.5 mr-1" />Print Report</Button>
           <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
         </div>

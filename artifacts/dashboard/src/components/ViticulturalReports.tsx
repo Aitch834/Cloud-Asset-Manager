@@ -1,4 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
+import { YearCompareSelector, COMPARE_COLORS } from "@/components/analytics/YearCompareSelector";
 import { useQuery } from "@tanstack/react-query";
 import {
   TrendingUp, TrendingDown, Printer, ChevronDown, ChevronUp, Grape,
@@ -135,11 +137,30 @@ const ChartTooltip = ({ active, payload, label }: {
 // ─── Analytics Tab ────────────────────────────────────────────────────────────
 export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
   const currentYear = new Date().getFullYear();
-  const [diseaseYear, setDiseaseYear] = useState(currentYear);
   const { blocks, harvests, scouts, ops, loading } = useVitData(farmId);
 
-  // ── Vintage yield + Brix trend ───────────────────────────────────────────
-  const vintageData = useMemo(() => {
+  // ── Available years (union of harvest vintages + scout years + op years) ──
+  const availableYears = useMemo(() => {
+    const s = new Set<number>();
+    harvests.forEach(h => { const y = Number(h.vintageYear); if (y > 2000) s.add(y); });
+    scouts.forEach(sc => { const y = new Date(sc.scoutDate).getFullYear(); if (y > 2000) s.add(y); });
+    ops.forEach(o => { const y = new Date(o.operationDate).getFullYear(); if (y > 2000) s.add(y); });
+    if (!s.has(currentYear)) s.add(currentYear);
+    return [...s].sort((a, b) => b - a);
+  }, [harvests, scouts, ops, currentYear]);
+
+  const [selectedYear, setSelectedYear] = usePersistedNumberFilter({
+    page: "viticulture-analytics",
+    filter: "year",
+    farmId,
+    defaultValue: currentYear,
+    isValid: (y) => y > 2000 && y <= currentYear + 1,
+  });
+  const [compareYear, setCompareYear] = useState<number | null>(null);
+  useEffect(() => { setCompareYear(prev => (prev === selectedYear ? null : prev)); }, [selectedYear]);
+
+  // ── Vintage yield + Brix trend (filtered to selected/compare years) ───────
+  const allVintageMap = useMemo(() => {
     const map: Record<string, {
       totalKg: number; totalHa: number; brixSum: number; brixCount: number;
       phSum: number; phCount: number; potAlcSum: number; potAlcCount: number;
@@ -151,7 +172,6 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
       if (!map[yr]) map[yr] = { totalKg: 0, totalHa: 0, brixSum: 0, brixCount: 0, phSum: 0, phCount: 0, potAlcSum: 0, potAlcCount: 0, records: 0 };
       const m = map[yr];
       m.totalKg += n(h.yieldKg);
-      // Compute ha from block if yieldTonnesPerHa not set
       const tha = n(h.yieldTonnesPerHa);
       if (tha > 0 && n(h.yieldKg) > 0) m.totalHa += n(h.yieldKg) / 1000 / tha;
       if (h.brix != null && h.brix !== "") { m.brixSum += n(h.brix); m.brixCount++; }
@@ -159,26 +179,36 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
       if (h.potentialAlcohol != null && h.potentialAlcohol !== "") { m.potAlcSum += n(h.potentialAlcohol); m.potAlcCount++; }
       m.records++;
     });
-    return Object.entries(map)
-      .sort(([a], [b]) => Number(a) - Number(b))
-      .map(([yr, v]) => ({
-        vintage: yr,
-        "Yield (t)": v.totalKg > 0 ? parseFloat((v.totalKg / 1000).toFixed(2)) : 0,
-        "Yield (t/ha)": v.totalHa > 0 ? parseFloat((v.totalKg / 1000 / v.totalHa).toFixed(2)) : 0,
-        "Avg Brix °": v.brixCount > 0 ? parseFloat((v.brixSum / v.brixCount).toFixed(1)) : null,
-        "Avg pH": v.phCount > 0 ? parseFloat((v.phSum / v.phCount).toFixed(2)) : null,
-        "Potential Alcohol %": v.potAlcCount > 0 ? parseFloat((v.potAlcSum / v.potAlcCount).toFixed(1)) : null,
-        records: v.records,
-      }));
+    return map;
   }, [harvests]);
 
-  // ── Disease pressure season (by scout date for selected year) ────────────
+  const vintageData = useMemo(() => {
+    const activeYears = compareYear
+      ? [String(Math.min(selectedYear, compareYear)), String(Math.max(selectedYear, compareYear))]
+      : [String(selectedYear)];
+    return activeYears
+      .filter(yr => allVintageMap[yr])
+      .map(yr => {
+        const v = allVintageMap[yr];
+        return {
+          vintage: yr,
+          "Yield (t)": v.totalKg > 0 ? parseFloat((v.totalKg / 1000).toFixed(2)) : 0,
+          "Yield (t/ha)": v.totalHa > 0 ? parseFloat((v.totalKg / 1000 / v.totalHa).toFixed(2)) : 0,
+          "Avg Brix °": v.brixCount > 0 ? parseFloat((v.brixSum / v.brixCount).toFixed(1)) : null,
+          "Avg pH": v.phCount > 0 ? parseFloat((v.phSum / v.phCount).toFixed(2)) : null,
+          "Potential Alcohol %": v.potAlcCount > 0 ? parseFloat((v.potAlcSum / v.potAlcCount).toFixed(1)) : null,
+          records: v.records,
+        };
+      });
+  }, [allVintageMap, selectedYear, compareYear]);
+
+  // ── Disease pressure season ────────────────────────────────────────────────
   const diseaseData = useMemo(() => {
     const yearScouts = scouts
-      .filter(s => new Date(s.scoutDate).getFullYear() === diseaseYear)
+      .filter(s => new Date(s.scoutDate).getFullYear() === selectedYear)
       .sort((a, b) => a.scoutDate.localeCompare(b.scoutDate));
     return yearScouts.map(s => ({
-      date: fmtDate(s.scoutDate).slice(0, 5), // DD/MM
+      date: fmtDate(s.scoutDate).slice(0, 5),
       "Downy Mildew": n(s.downyMildewPressure),
       "Powdery Mildew": n(s.powderyMildewPressure),
       "Botrytis": n(s.botrytisPressure),
@@ -186,25 +216,52 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
       "Leafhopper": n(s.leafhopperPressure),
       "Spider Mite": n(s.spiderMitePressure),
     }));
-  }, [scouts, diseaseYear]);
+  }, [scouts, selectedYear]);
 
-  // ── Operations hours by type ─────────────────────────────────────────────
+  const diseaseDataCompare = useMemo(() => {
+    if (!compareYear) return [];
+    return scouts
+      .filter(s => new Date(s.scoutDate).getFullYear() === compareYear)
+      .sort((a, b) => a.scoutDate.localeCompare(b.scoutDate))
+      .map(s => ({
+        date: fmtDate(s.scoutDate).slice(0, 5),
+        "Downy Mildew": n(s.downyMildewPressure),
+        "Powdery Mildew": n(s.powderyMildewPressure),
+        "Botrytis": n(s.botrytisPressure),
+        "Phomopsis": n(s.phomopsisPressure),
+        "Leafhopper": n(s.leafhopperPressure),
+        "Spider Mite": n(s.spiderMitePressure),
+      }));
+  }, [scouts, compareYear]);
+
+  // ── Operations hours by type (filtered to selected year) ─────────────────
   const opsHoursData = useMemo(() => {
-    const map: Record<string, number> = {};
-    ops.forEach(o => {
+    const primary: Record<string, number> = {};
+    ops.filter(o => new Date(o.operationDate).getFullYear() === selectedYear).forEach(o => {
       const t = o.operationType ?? "Unknown";
-      map[t] = (map[t] ?? 0) + n(o.hoursWorked);
+      primary[t] = (primary[t] ?? 0) + n(o.hoursWorked);
     });
-    return Object.entries(map)
-      .filter(([, h]) => h > 0)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 8)
-      .map(([type, hours]) => ({ type, "Hours": parseFloat(hours.toFixed(1)) }));
-  }, [ops]);
+    const compare: Record<string, number> = {};
+    if (compareYear) {
+      ops.filter(o => new Date(o.operationDate).getFullYear() === compareYear).forEach(o => {
+        const t = o.operationType ?? "Unknown";
+        compare[t] = (compare[t] ?? 0) + n(o.hoursWorked);
+      });
+    }
+    const types = new Set([...Object.keys(primary), ...Object.keys(compare)]);
+    return [...types]
+      .map(type => ({ type, "Hours": parseFloat((primary[type] ?? 0).toFixed(1)), "Hours (cmp)": parseFloat((compare[type] ?? 0).toFixed(1)) }))
+      .filter(d => d["Hours"] > 0 || d["Hours (cmp)"] > 0)
+      .sort((a, b) => b["Hours"] - a["Hours"])
+      .slice(0, 8);
+  }, [ops, selectedYear, compareYear]);
 
-  // ── Block performance table (t/ha by vintage) ────────────────────────────
+  // ── Block performance table (vintages filtered to selected/compare years) ──
   const blockPerfData = useMemo(() => {
-    const vintages = [...new Set(harvests.map(h => String(h.vintageYear)).filter(Boolean))].sort();
+    const allVintages = [...new Set(harvests.map(h => String(h.vintageYear)).filter(Boolean))].sort();
+    const vintages = compareYear
+      ? allVintages.filter(yr => yr === String(selectedYear) || yr === String(compareYear))
+      : allVintages.filter(yr => yr === String(selectedYear));
     const activeBlocks = blocks.filter(b => b.isActive !== false);
     const rows = activeBlocks.map(bl => {
       const row: Record<string, unknown> = {
@@ -220,10 +277,7 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
       return row;
     });
     return { rows, vintages };
-  }, [blocks, harvests]);
-
-  const scoutYears = [...new Set(scouts.map(s => new Date(s.scoutDate).getFullYear()))].sort((a, b) => b - a);
-  if (!scoutYears.includes(currentYear)) scoutYears.unshift(currentYear);
+  }, [blocks, harvests, selectedYear, compareYear]);
 
   if (loading) {
     return (
@@ -244,90 +298,92 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-lg font-semibold">Viticulture Analytics</h2>
-        <p className="text-sm text-foreground/50">
-          Year-on-year yield &amp; chemistry trends · Disease pressure · Block performance
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Viticulture Analytics</h2>
+          <p className="text-sm text-foreground/50">
+            Vintage yield &amp; chemistry · Disease pressure · Block performance · Operations
+          </p>
+        </div>
+        <YearCompareSelector
+          availableYears={availableYears}
+          selectedYear={selectedYear}
+          onYearChange={setSelectedYear}
+          compareYear={compareYear}
+          onCompareYearChange={setCompareYear}
+        />
       </div>
 
-      {/* ── Vintage yield & Brix trend ─── */}
-      {vintageData.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Yield trend */}
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="px-4 py-3 border-b border-border bg-muted/30">
-              <h3 className="text-sm font-semibold">Vintage Yield — Year on Year</h3>
-              <p className="text-xs text-foreground/40">Total tonnes picked per vintage</p>
-            </div>
-            <div className="p-4">
-              {vintageData.length === 0 ? (
-                <p className="text-sm text-foreground/40 text-center py-6">No harvest records</p>
-              ) : (
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={vintageData} margin={{ top: 4, right: 8, bottom: 4, left: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis dataKey="vintage" tick={{ fontSize: 11 }} />
-                    <YAxis yAxisId="t" tick={{ fontSize: 11 }} width={46} label={{ value: "t", position: "insideTop", offset: -4, fontSize: 10 }} />
-                    <YAxis yAxisId="tha" orientation="right" tick={{ fontSize: 11 }} width={46} label={{ value: "t/ha", position: "insideTop", offset: -4, fontSize: 10 }} />
-                    <Tooltip content={<ChartTooltip />} />
-                    <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-                    <Bar yAxisId="t" dataKey="Yield (t)" fill="#7c3aed" radius={[3, 3, 0, 0]} maxBarSize={40} />
-                    <Line yAxisId="tha" type="monotone" dataKey="Yield (t/ha)" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
+      {/* ── Vintage yield & Brix ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Yield */}
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted/30">
+            <h3 className="text-sm font-semibold">
+              Vintage Yield{compareYear ? ` — ${selectedYear} vs ${compareYear}` : ` — ${selectedYear}`}
+            </h3>
+            <p className="text-xs text-foreground/40">Total tonnes picked per vintage</p>
           </div>
-
-          {/* Brix & chemistry trend */}
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="px-4 py-3 border-b border-border bg-muted/30">
-              <h3 className="text-sm font-semibold">Must Chemistry — Year on Year</h3>
-              <p className="text-xs text-foreground/40">Average Brix, pH, and potential alcohol per vintage</p>
-            </div>
-            <div className="p-4">
-              {vintageData.filter(d => d["Avg Brix °"] != null).length === 0 ? (
-                <p className="text-sm text-foreground/40 text-center py-6">No chemistry data recorded</p>
-              ) : (
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={vintageData} margin={{ top: 4, right: 8, bottom: 4, left: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis dataKey="vintage" tick={{ fontSize: 11 }} />
-                    <YAxis yAxisId="brix" tick={{ fontSize: 11 }} width={40} domain={["auto", "auto"]} />
-                    <YAxis yAxisId="alc" orientation="right" tick={{ fontSize: 11 }} width={40} domain={["auto", "auto"]} />
-                    <Tooltip content={<ChartTooltip />} />
-                    <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-                    <Line yAxisId="brix" type="monotone" dataKey="Avg Brix °" stroke="#7c3aed" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                    <Line yAxisId="brix" type="monotone" dataKey="Avg pH" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} strokeDasharray="4 2" connectNulls />
-                    <Line yAxisId="alc" type="monotone" dataKey="Potential Alcohol %" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </div>
+          <div className="p-4">
+            {vintageData.length === 0 ? (
+              <p className="text-sm text-foreground/40 text-center py-6">No harvest records for {selectedYear}</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={vintageData} margin={{ top: 4, right: 8, bottom: 4, left: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="vintage" tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="t" tick={{ fontSize: 11 }} width={46} label={{ value: "t", position: "insideTop", offset: -4, fontSize: 10 }} />
+                  <YAxis yAxisId="tha" orientation="right" tick={{ fontSize: 11 }} width={46} label={{ value: "t/ha", position: "insideTop", offset: -4, fontSize: 10 }} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                  <Bar yAxisId="t" dataKey="Yield (t)" fill={COMPARE_COLORS[0]} radius={[3, 3, 0, 0]} maxBarSize={60} />
+                  <Line yAxisId="tha" type="monotone" dataKey="Yield (t/ha)" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
-      )}
+
+        {/* Brix & chemistry */}
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted/30">
+            <h3 className="text-sm font-semibold">
+              Must Chemistry{compareYear ? ` — ${selectedYear} vs ${compareYear}` : ` — ${selectedYear}`}
+            </h3>
+            <p className="text-xs text-foreground/40">Average Brix, pH, and potential alcohol per vintage</p>
+          </div>
+          <div className="p-4">
+            {vintageData.filter(d => d["Avg Brix °"] != null).length === 0 ? (
+              <p className="text-sm text-foreground/40 text-center py-6">No chemistry data recorded for {selectedYear}</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={vintageData} margin={{ top: 4, right: 8, bottom: 4, left: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="vintage" tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="brix" tick={{ fontSize: 11 }} width={40} domain={["auto", "auto"]} />
+                  <YAxis yAxisId="alc" orientation="right" tick={{ fontSize: 11 }} width={40} domain={["auto", "auto"]} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                  <Line yAxisId="brix" type="monotone" dataKey="Avg Brix °" stroke="#7c3aed" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                  <Line yAxisId="brix" type="monotone" dataKey="Avg pH" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} strokeDasharray="4 2" connectNulls />
+                  <Line yAxisId="alc" type="monotone" dataKey="Potential Alcohol %" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* ── Disease pressure ─── */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center justify-between flex-wrap gap-2">
-          <div>
-            <h3 className="text-sm font-semibold">Disease &amp; Pest Pressure — Season Progression</h3>
-            <p className="text-xs text-foreground/40">0 = None · 1 = Low · 2 = Medium · 3 = High</p>
-          </div>
-          <select
-            className="h-8 rounded-lg border border-border bg-background px-2 text-xs"
-            value={diseaseYear}
-            onChange={e => setDiseaseYear(Number(e.target.value))}
-          >
-            {scoutYears.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
+        <div className="px-4 py-3 border-b border-border bg-muted/30">
+          <h3 className="text-sm font-semibold">Disease &amp; Pest Pressure — {selectedYear}</h3>
+          <p className="text-xs text-foreground/40">0 = None · 1 = Low · 2 = Medium · 3 = High</p>
         </div>
         <div className="p-4">
           {diseaseData.length === 0 ? (
             <p className="text-sm text-foreground/40 text-center py-6">
-              No scouting records for {diseaseYear}. Add records in the Disease Scouting tab.
+              No scouting records for {selectedYear}. Add records in the Disease Scouting tab.
             </p>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
@@ -339,27 +395,49 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
                 <Tooltip content={<ChartTooltip />} />
                 <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
                 {DISEASE_SERIES.map(d => (
-                  <Line
-                    key={d.key}
-                    type="monotone"
-                    dataKey={d.label}
-                    stroke={d.color}
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                    connectNulls
-                  />
+                  <Line key={d.key} type="monotone" dataKey={d.label} stroke={d.color} strokeWidth={2} dot={{ r: 3 }} connectNulls />
                 ))}
               </LineChart>
             </ResponsiveContainer>
           )}
         </div>
+        {compareYear && (
+          <div className="border-t border-border">
+            <div className="px-4 py-2 bg-muted/20">
+              <p className="text-xs font-medium text-foreground/60">Compare: {compareYear}</p>
+            </div>
+            <div className="p-4">
+              {diseaseDataCompare.length === 0 ? (
+                <p className="text-sm text-foreground/40 text-center py-4">
+                  No scouting records for {compareYear}.
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <LineChart data={diseaseDataCompare} margin={{ top: 4, right: 8, bottom: 4, left: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 11 }} domain={[0, 3]} ticks={[0, 1, 2, 3]}
+                      tickFormatter={v => PRESSURE_LABEL[v] ?? String(v)} width={58} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                    {DISEASE_SERIES.map(d => (
+                      <Line key={d.key} type="monotone" dataKey={d.label} stroke={d.color} strokeWidth={2} strokeDasharray="5 3" dot={{ r: 3 }} connectNulls />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Block performance table ─── */}
       {blockPerfData.rows.length > 0 && blockPerfData.vintages.length > 0 && (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="px-4 py-3 border-b border-border bg-muted/30">
-            <h3 className="text-sm font-semibold">Block Performance — Yield (t/ha) by Vintage</h3>
+            <h3 className="text-sm font-semibold">
+              Block Performance — Yield (t/ha){compareYear ? ` · ${selectedYear} vs ${compareYear}` : ` · ${selectedYear}`}
+            </h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -396,10 +474,12 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
       {opsHoursData.length > 0 && (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="px-4 py-3 border-b border-border bg-muted/30">
-            <h3 className="text-sm font-semibold">Canopy Operations — Total Hours by Type (all time)</h3>
+            <h3 className="text-sm font-semibold">
+              Canopy Operations — Hours by Type{compareYear ? ` · ${selectedYear} vs ${compareYear}` : ` · ${selectedYear}`}
+            </h3>
           </div>
           <div className="p-4">
-            <ResponsiveContainer width="100%" height={180}>
+            <ResponsiveContainer width="100%" height={Math.max(180, opsHoursData.length * 28)}>
               <BarChart
                 data={opsHoursData}
                 layout="vertical"
@@ -409,7 +489,9 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
                 <XAxis type="number" tick={{ fontSize: 11 }} unit=" h" />
                 <YAxis type="category" dataKey="type" tick={{ fontSize: 10 }} width={140} />
                 <Tooltip content={<ChartTooltip />} />
-                <Bar dataKey="Hours" fill="#7c3aed" radius={[0, 3, 3, 0]} maxBarSize={20} />
+                {compareYear && <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />}
+                <Bar dataKey="Hours" name={compareYear ? String(selectedYear) : "Hours"} fill={COMPARE_COLORS[0]} radius={[0, 3, 3, 0]} maxBarSize={18} />
+                {compareYear && <Bar dataKey="Hours (cmp)" name={String(compareYear)} fill={COMPARE_COLORS[1]} radius={[0, 3, 3, 0]} maxBarSize={18} />}
               </BarChart>
             </ResponsiveContainer>
           </div>
