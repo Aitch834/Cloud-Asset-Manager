@@ -45,6 +45,10 @@ WineryManagementTabs.tsx was split into `src/pages/winery/` modules (shared.tsx,
 
 Lesson from the Dairy/Poultry split: when subagents split a shared.tsx mechanically, check for duplicated `export const` blocks (`grep '^export const' shared.tsx | sort | uniq -d`) — esbuild only fails at build time, tsc may pass late. Also note DairyPage intentionally keeps an inlined copy of AbrProcurementSection (proxy-cache workaround) as `dairy/DairyAbrProcurementSection.tsx`, separate from `dairy/AbrProcurementSection.tsx` used by other dairy pages — not an accidental duplicate.
 
+## Update (6 Aug 2026) — OOM recurred under workflow memory pressure
+
+The build (now 3447 modules) was repeatedly killed with 137 while all dev-server workflows were running (~2.4 GB available). Waiting/retrying in parallel with the workflows never succeeds — do NOT loop on it. Recipe that works: `pkill` the vite dev servers for test-dashboard/admin-portal/website + expo + mockup-sandbox (workflow supervisor restarts them, or restart via workflows tool after), confirm ~3 GB+ available, then run ONE build with `NODE_ENV=production` (skips cartographer/dev-banner plugins, which otherwise load during builds because they're gated on NODE_ENV, not command) and `--max-old-space-size=3584`. Completed in 47 s. Also: `pgrep -f "vite build"` false-positives on your own shell whose command line contains the string — verify with `ps aux | grep vite.js` before concluding a build is still running. Expo may come back stuck on an interactive "use another port?" prompt after a pkill — restart its workflow.
+
 ## Long-term fix required
 
 The root cause is that WineryManagementTabs.tsx and LivestockPage.tsx have grown to 500 KB+ each. Rollup holds all source in memory during chunk rendering, and these files dominate the total.
