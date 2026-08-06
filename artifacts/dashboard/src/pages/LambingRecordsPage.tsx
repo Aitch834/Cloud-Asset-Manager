@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
+import { YearCompareSelector, COMPARE_COLORS } from "@/components/analytics/YearCompareSelector";
 import { api } from "@/lib/api";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -96,27 +98,65 @@ export default function LambingRecordsPage() {
     !search || (r.eweEarTag ?? "").toLowerCase().includes(search.toLowerCase()) || r.lambingDate.includes(search)
   );
 
-  const totalLambs = records.reduce((s, r) => s + r.numberOfLambs, 0);
-  const totalMortalities = records.reduce((s, r) => s + r.mortalityCount, 0);
-  const assisted = records.filter(r => r.assistanceRequired).length;
+  const currentYear = new Date().getFullYear();
+
+  const availableYears = useMemo(() => {
+    const years = new Set<number>();
+    records.forEach(r => {
+      const y = Number(r.lambingDate.slice(0, 4));
+      if (y > 2000) years.add(y);
+    });
+    return [...years].sort((a, b) => b - a);
+  }, [records]);
+
+  const [selectedYear, setSelectedYear] = usePersistedNumberFilter({ page: "lambing-analytics", filter: "year", farmId, defaultValue: currentYear, isValid: (y) => y > 2000 && y <= currentYear + 1 });
+  const [compareYear, setCompareYear] = useState<number | null>(null);
+
+  // Reset comparison if it collides with the newly-selected primary year
+  useEffect(() => {
+    setCompareYear(prev => (prev === selectedYear ? null : prev));
+  }, [selectedYear]);
+
+  const recordsFiltered = useMemo(
+    () => records.filter(r => r.lambingDate.startsWith(String(selectedYear))),
+    [records, selectedYear]
+  );
+
+  const recordsCompare = useMemo(
+    () => compareYear ? records.filter(r => r.lambingDate.startsWith(String(compareYear))) : [],
+    [records, compareYear]
+  );
+
+  const totalLambs = useMemo(() => recordsFiltered.reduce((s, r) => s + r.numberOfLambs, 0), [recordsFiltered]);
+  const totalMortalities = useMemo(() => recordsFiltered.reduce((s, r) => s + r.mortalityCount, 0), [recordsFiltered]);
+  const assisted = useMemo(() => recordsFiltered.filter(r => r.assistanceRequired).length, [recordsFiltered]);
   const survivalRate = totalLambs > 0 ? Math.round(((totalLambs - totalMortalities) / totalLambs) * 100) : null;
 
-  const easeData = [1, 2, 3, 4, 5].map(e => ({
+  const easeData = useMemo(() => [1, 2, 3, 4, 5].map(e => ({
     ease: EASE_LABELS[e],
-    count: records.filter(r => r.lambingEase === e).length,
+    count: recordsFiltered.filter(r => r.lambingEase === e).length,
     fill: EASE_COLOURS[e],
-  })).filter(d => d.count > 0);
+  })).filter(d => d.count > 0), [recordsFiltered]);
 
-  const sexData = [
-    { name: "All Male", value: records.filter(r => r.sexOfLambs === "all_male").length },
-    { name: "All Female", value: records.filter(r => r.sexOfLambs === "all_female").length },
-    { name: "Mixed", value: records.filter(r => r.sexOfLambs === "mixed").length },
-  ].filter(d => d.value > 0);
+  const sexData = useMemo(() => [
+    { name: "All Male", value: recordsFiltered.filter(r => r.sexOfLambs === "all_male").length },
+    { name: "All Female", value: recordsFiltered.filter(r => r.sexOfLambs === "all_female").length },
+    { name: "Mixed", value: recordsFiltered.filter(r => r.sexOfLambs === "mixed").length },
+  ].filter(d => d.value > 0), [recordsFiltered]);
 
-  const lambsPerEwe = [1, 2, 3, 4].map(n => ({
+  const lambsPerEwe = useMemo(() => [1, 2, 3, 4].map(n => ({
     lambs: `${n} lamb${n > 1 ? "s" : ""}`,
-    count: records.filter(r => r.numberOfLambs === n).length,
-  })).filter(d => d.count > 0);
+    count: recordsFiltered.filter(r => r.numberOfLambs === n).length,
+  })).filter(d => d.count > 0), [recordsFiltered]);
+
+  const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  const lambingsByMonth = useMemo(() => MONTH_LABELS.map((label, i) => {
+    const m = String(i + 1).padStart(2, "0");
+    const count = recordsFiltered.filter(r => r.lambingDate.slice(5, 7) === m).length;
+    const count_cmp = recordsCompare.filter(r => r.lambingDate.slice(5, 7) === m).length;
+    return { month: label, count, count_cmp };
+  }).filter(d => d.count > 0 || d.count_cmp > 0), [recordsFiltered, recordsCompare]);
 
   const openAdd = () => { setEditing(null); setForm({ ...EMPTY }); setOpen(true); };
   const openEdit = (r: LambingRecord) => { setEditing(r); setForm({ ...r }); setOpen(true); };
@@ -186,19 +226,48 @@ export default function LambingRecordsPage() {
 
       {tab === "analytics" && (
         <div className="space-y-4">
+          {availableYears.length > 0 && (
+            <YearCompareSelector
+              availableYears={availableYears}
+              selectedYear={selectedYear}
+              onYearChange={setSelectedYear}
+              compareYear={compareYear}
+              onCompareYearChange={setCompareYear}
+            />
+          )}
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: "Total Lambings", value: records.length },
+              { label: `Lambings (${selectedYear})`, value: recordsFiltered.length },
               { label: "Total Lambs", value: totalLambs },
               { label: "Mortalities", value: totalMortalities, red: totalMortalities > 0 },
               { label: "Survival Rate", value: survivalRate != null ? `${survivalRate}%` : "—", green: survivalRate != null && survivalRate >= 90 },
             ].map((s, i) => (
               <div key={i} className="bg-white border rounded-lg p-4 text-center">
-                <div className={`text-2xl font-bold ${s.red ? "text-red-600" : s.green ? "text-green-600" : ""}`}>{s.value}</div>
+                <div className={`text-2xl font-bold ${(s as any).red ? "text-red-600" : (s as any).green ? "text-green-600" : ""}`}>{s.value}</div>
                 <div className="text-xs text-muted-foreground">{s.label}</div>
               </div>
             ))}
           </div>
+
+          {lambingsByMonth.length > 0 && (
+            <div className="bg-white border rounded-lg p-4">
+              <div className="text-sm font-medium mb-3">
+                Monthly Lambings{compareYear ? ` — ${selectedYear} vs ${compareYear}` : ` — ${selectedYear}`}
+              </div>
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={lambingsByMonth}>
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  {compareYear && <Legend iconSize={10} />}
+                  <Bar dataKey="count" fill={COMPARE_COLORS[0]} radius={[4, 4, 0, 0]} name={compareYear ? String(selectedYear) : "Lambings"} />
+                  {compareYear && <Bar dataKey="count_cmp" fill={COMPARE_COLORS[1]} radius={[4, 4, 0, 0]} name={String(compareYear)} />}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {easeData.length > 0 && (
               <div className="bg-white border rounded-lg p-4">
@@ -244,10 +313,10 @@ export default function LambingRecordsPage() {
             )}
           </div>
           <div className="bg-white border rounded-lg p-4">
-            <div className="text-sm font-medium mb-2">Season Summary</div>
+            <div className="text-sm font-medium mb-2">Season Summary ({selectedYear})</div>
             <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-              <div>Assisted deliveries: <strong>{assisted} ({records.length > 0 ? Math.round((assisted / records.length) * 100) : 0}%)</strong></div>
-              <div>Avg lambs/ewe: <strong>{records.length > 0 ? (totalLambs / records.length).toFixed(2) : "—"}</strong></div>
+              <div>Assisted deliveries: <strong>{assisted} ({recordsFiltered.length > 0 ? Math.round((assisted / recordsFiltered.length) * 100) : 0}%)</strong></div>
+              <div>Avg lambs/ewe: <strong>{recordsFiltered.length > 0 ? (totalLambs / recordsFiltered.length).toFixed(2) : "—"}</strong></div>
             </div>
           </div>
         </div>

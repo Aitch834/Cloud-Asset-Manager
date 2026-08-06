@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
+import { YearCompareSelector, COMPARE_COLORS } from "@/components/analytics/YearCompareSelector";
 import { openPrintWindow } from "@/lib/print-report";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
@@ -2570,34 +2572,64 @@ function PigAnalyticsTab({ farmId }: { farmId: number }) {
   const movements: Record<string, unknown>[] = useMemo(() => movementsRaw?.records ?? movementsRaw ?? [], [movementsRaw]);
   const feed: Record<string, unknown>[] = useMemo(() => feedRaw?.records ?? feedRaw ?? [], [feedRaw]);
 
-  const avgBornAlive = useMemo(() => {
-    const valid = farrowing.filter(r => r.pigletsBornAlive);
-    return valid.length ? (valid.reduce((s, r) => s + Number(r.pigletsBornAlive), 0) / valid.length).toFixed(1) : null;
+  const currentYear = new Date().getFullYear();
+
+  const availableYears = useMemo(() => {
+    const years = new Set<number>();
+    farrowing.forEach(r => {
+      const y = Number(String(r.farrowingDate || r.date || "").slice(0, 4));
+      if (y > 2000) years.add(y);
+    });
+    return [...years].sort((a, b) => b - a);
   }, [farrowing]);
+
+  const [selectedYear, setSelectedYear] = usePersistedNumberFilter({ page: "pig-analytics", filter: "year", farmId, defaultValue: currentYear, isValid: (y) => y > 2000 && y <= currentYear + 1 });
+  const [compareYear, setCompareYear] = useState<number | null>(null);
+
+  // Reset comparison if it collides with the newly-selected primary year
+  useEffect(() => {
+    setCompareYear(prev => (prev === selectedYear ? null : prev));
+  }, [selectedYear]);
+
+  const farrowingFiltered = useMemo(
+    () => farrowing.filter(r => String(r.farrowingDate || r.date || "").startsWith(String(selectedYear))),
+    [farrowing, selectedYear]
+  );
+
+  const farrowingCompare = useMemo(
+    () => compareYear ? farrowing.filter(r => String(r.farrowingDate || r.date || "").startsWith(String(compareYear))) : [],
+    [farrowing, compareYear]
+  );
+
+  const avgBornAlive = useMemo(() => {
+    const valid = farrowingFiltered.filter(r => r.totalBornAlive);
+    return valid.length ? (valid.reduce((s, r) => s + Number(r.totalBornAlive), 0) / valid.length).toFixed(1) : null;
+  }, [farrowingFiltered]);
 
   const avgWeaned = useMemo(() => {
-    const valid = farrowing.filter(r => r.pigletsWeaned);
-    return valid.length ? (valid.reduce((s, r) => s + Number(r.pigletsWeaned), 0) / valid.length).toFixed(1) : null;
-  }, [farrowing]);
+    const valid = farrowingFiltered.filter(r => r.pigletsWeanedCount);
+    return valid.length ? (valid.reduce((s, r) => s + Number(r.pigletsWeanedCount), 0) / valid.length).toFixed(1) : null;
+  }, [farrowingFiltered]);
 
   const preWeanMortPct = useMemo(() => {
-    const bornAliveTotal = farrowing.reduce((s, r) => s + (Number(r.pigletsBornAlive) || 0), 0);
-    const weanedTotal = farrowing.reduce((s, r) => s + (Number(r.pigletsWeaned) || 0), 0);
+    const bornAliveTotal = farrowingFiltered.reduce((s, r) => s + (Number(r.totalBornAlive) || 0), 0);
+    const weanedTotal = farrowingFiltered.reduce((s, r) => s + (Number(r.pigletsWeanedCount) || 0), 0);
     return bornAliveTotal > 0 ? (((bornAliveTotal - weanedTotal) / bornAliveTotal) * 100).toFixed(1) : null;
-  }, [farrowing]);
+  }, [farrowingFiltered]);
 
   const farrowingByMonth = useMemo(() => {
-    const map: Record<string, { farrowings: number; bornAlive: number; weaned: number }> = {};
-    farrowing.forEach(r => {
-      const d = String(r.farrowingDate || r.date || "");
-      const k = d.slice(0, 7); if (!k || k.length < 7) return;
-      if (!map[k]) map[k] = { farrowings: 0, bornAlive: 0, weaned: 0 };
-      map[k].farrowings++;
-      map[k].bornAlive += Number(r.pigletsBornAlive) || 0;
-      map[k].weaned += Number(r.pigletsWeaned) || 0;
-    });
-    return Object.entries(map).sort().slice(-12).map(([m, d]) => ({ month: m.slice(5), ...d }));
-  }, [farrowing]);
+    const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return MONTH_LABELS.map((label, i) => {
+      const m = String(i + 1).padStart(2, "0");
+      const primary = farrowingFiltered.filter(r => String(r.farrowingDate || r.date || "").slice(5, 7) === m);
+      const cmp = farrowingCompare.filter(r => String(r.farrowingDate || r.date || "").slice(5, 7) === m);
+      const bornAlive = primary.reduce((s, r) => s + (Number(r.totalBornAlive) || 0), 0);
+      const weaned = primary.reduce((s, r) => s + (Number(r.pigletsWeanedCount) || 0), 0);
+      const bornAlive_cmp = cmp.reduce((s, r) => s + (Number(r.totalBornAlive) || 0), 0);
+      const weaned_cmp = cmp.reduce((s, r) => s + (Number(r.pigletsWeanedCount) || 0), 0);
+      return { month: label, bornAlive, weaned, bornAlive_cmp, weaned_cmp };
+    }).filter(d => d.bornAlive > 0 || d.weaned > 0 || d.bornAlive_cmp > 0 || d.weaned_cmp > 0);
+  }, [farrowingFiltered, farrowingCompare]);
 
   const movementTypes = useMemo(() => {
     const map: Record<string, number> = {};
@@ -2616,9 +2648,19 @@ function PigAnalyticsTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-6">
+      {availableYears.length > 0 && (
+        <YearCompareSelector
+          availableYears={availableYears}
+          selectedYear={selectedYear}
+          onYearChange={setSelectedYear}
+          compareYear={compareYear}
+          onCompareYearChange={setCompareYear}
+        />
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Farrowing Records", value: farrowing.length, bg: "bg-pink-50 border-pink-100", text: "text-pink-800", sub: "text-pink-700" },
+          { label: "Farrowing Records", value: farrowingFiltered.length, bg: "bg-pink-50 border-pink-100", text: "text-pink-800", sub: "text-pink-700" },
           { label: "Avg Born Alive", value: avgBornAlive ?? "—", bg: "bg-green-50 border-green-100", text: "text-green-800", sub: "text-green-700" },
           { label: "Avg Pigs Weaned", value: avgWeaned ?? "—", bg: "bg-blue-50 border-blue-100", text: "text-blue-800", sub: "text-blue-700" },
           { label: "Pre-wean Mortality", value: preWeanMortPct ? `${preWeanMortPct}%` : "—", bg: "bg-red-50 border-red-100", text: "text-red-800", sub: "text-red-700" },
@@ -2633,7 +2675,9 @@ function PigAnalyticsTab({ farmId }: { farmId: number }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {farrowingByMonth.length > 0 && (
           <div className="bg-white border border-gray-200 rounded-xl p-5">
-            <h3 className="font-semibold text-sm mb-4">Monthly Farrowings</h3>
+            <h3 className="font-semibold text-sm mb-4">
+              Monthly Farrowings{compareYear ? ` — ${selectedYear} vs ${compareYear}` : ` — ${selectedYear}`}
+            </h3>
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={farrowingByMonth} margin={{ left: 0, right: 8, top: 4, bottom: 4 }}>
@@ -2643,8 +2687,10 @@ function PigAnalyticsTab({ farmId }: { farmId: number }) {
                   <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} allowDecimals={false} />
                   <Tooltip />
                   <Legend iconSize={10} />
-                  <Bar yAxisId="left" dataKey="bornAlive" name="Born Alive" fill="#15803d" radius={[3,3,0,0]} />
-                  <Bar yAxisId="left" dataKey="weaned" name="Weaned" fill="#a16207" radius={[3,3,0,0]} />
+                  <Bar yAxisId="left" dataKey="bornAlive" name={`${selectedYear} Born Alive`} fill={COMPARE_COLORS[0]} radius={[3,3,0,0]} />
+                  <Bar yAxisId="left" dataKey="weaned" name={`${selectedYear} Weaned`} fill="#a16207" radius={[3,3,0,0]} />
+                  {compareYear && <Bar yAxisId="left" dataKey="bornAlive_cmp" name={`${compareYear} Born Alive`} fill={COMPARE_COLORS[1]} radius={[3,3,0,0]} />}
+                  {compareYear && <Bar yAxisId="left" dataKey="weaned_cmp" name={`${compareYear} Weaned`} fill="#fb923c" radius={[3,3,0,0]} />}
                 </BarChart>
               </ResponsiveContainer>
             </div>

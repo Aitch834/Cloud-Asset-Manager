@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
+import { YearCompareSelector, COMPARE_COLORS } from "@/components/analytics/YearCompareSelector";
 import { api } from "@/lib/api";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -132,24 +134,56 @@ export default function EquinePage() {
   const fe = (field: string, val: any) => setEventForm((p: any) => ({ ...p, [field]: val }));
 
   const today = new Date().toISOString().slice(0, 10);
+  const currentYear = new Date().getFullYear();
   const activeHorses = horses.filter(h => h.status === "active").length;
   const onWithdrawal = events.filter(e => e.withdrawalPeriodDays && e.withdrawalPeriodDays > 0 &&
     new Date(e.eventDate).getTime() + e.withdrawalPeriodDays * 86400000 > Date.now()).length;
 
-  const eventTypeData = EVENT_TYPES.map(t => ({
+  const availableYears = useMemo(() => {
+    const years = new Set<number>();
+    events.forEach(e => {
+      const y = Number(e.eventDate.slice(0, 4));
+      if (y > 2000) years.add(y);
+    });
+    return [...years].sort((a, b) => b - a);
+  }, [events]);
+
+  const [selectedYear, setSelectedYear] = usePersistedNumberFilter({ page: "equine-analytics", filter: "year", farmId, defaultValue: currentYear, isValid: (y) => y > 2000 && y <= currentYear + 1 });
+  const [compareYear, setCompareYear] = useState<number | null>(null);
+
+  // Reset comparison if it collides with the newly-selected primary year
+  useEffect(() => {
+    setCompareYear(prev => (prev === selectedYear ? null : prev));
+  }, [selectedYear]);
+
+  const eventsFiltered = useMemo(
+    () => events.filter(e => e.eventDate.startsWith(String(selectedYear))),
+    [events, selectedYear]
+  );
+
+  const eventsCompare = useMemo(
+    () => compareYear ? events.filter(e => e.eventDate.startsWith(String(compareYear))) : [],
+    [events, compareYear]
+  );
+
+  const eventTypeData = useMemo(() => EVENT_TYPES.map(t => ({
     type: t.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
-    count: events.filter(e => e.eventType === t).length,
-  })).filter(d => d.count > 0);
+    count: eventsFiltered.filter(e => e.eventType === t).length,
+  })).filter(d => d.count > 0), [eventsFiltered]);
 
-  const monthlyEvents = Array.from({ length: 12 }, (_, i) => {
+  const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  const monthlyEvents = useMemo(() => MONTH_LABELS.map((label, i) => {
     const m = String(i + 1).padStart(2, "0");
-    return {
-      month: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][i],
-      count: events.filter(e => e.eventDate.slice(5, 7) === m).length,
-    };
-  });
+    const count = eventsFiltered.filter(e => e.eventDate.slice(5, 7) === m).length;
+    const count_cmp = eventsCompare.filter(e => e.eventDate.slice(5, 7) === m).length;
+    return { month: label, count, count_cmp };
+  }).filter(d => d.count > 0 || d.count_cmp > 0), [eventsFiltered, eventsCompare]);
 
-  const totalCost = events.reduce((s, e) => s + (parseFloat(e.cost ?? "0") || 0), 0);
+  const totalCost = useMemo(
+    () => eventsFiltered.reduce((s, e) => s + (parseFloat(e.cost ?? "0") || 0), 0),
+    [eventsFiltered]
+  );
 
   return (
     <AppLayout title="Equine Register">
@@ -257,12 +291,22 @@ export default function EquinePage() {
 
       {tab === "analytics" && (
         <div className="space-y-4">
+          {availableYears.length > 0 && (
+            <YearCompareSelector
+              availableYears={availableYears}
+              selectedYear={selectedYear}
+              onYearChange={setSelectedYear}
+              compareYear={compareYear}
+              onCompareYearChange={setCompareYear}
+            />
+          )}
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
               { label: "Total Horses", value: horses.length },
               { label: "Active", value: activeHorses, green: activeHorses > 0 },
-              { label: "Health Events", value: events.length },
-              { label: "Total Vet/Farrier Cost", value: totalCost > 0 ? `£${totalCost.toFixed(2)}` : "—" },
+              { label: `Health Events (${selectedYear})`, value: eventsFiltered.length },
+              { label: `Vet/Farrier Cost (${selectedYear})`, value: totalCost > 0 ? `£${totalCost.toFixed(2)}` : "—" },
             ].map((s, i) => (
               <div key={i} className="bg-white border rounded-lg p-4 text-center">
                 <div className={`text-2xl font-bold ${(s as any).green ? "text-green-600" : ""}`}>{s.value}</div>
@@ -280,7 +324,7 @@ export default function EquinePage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {eventTypeData.length > 0 && (
                 <div className="bg-white border rounded-lg p-4">
-                  <div className="text-sm font-medium mb-3">Events by Type</div>
+                  <div className="text-sm font-medium mb-3">Events by Type ({selectedYear})</div>
                   <ResponsiveContainer width="100%" height={180}>
                     <PieChart>
                       <Pie data={eventTypeData} dataKey="count" nameKey="type" cx="50%" cy="50%" outerRadius={65}>
@@ -293,13 +337,17 @@ export default function EquinePage() {
                 </div>
               )}
               <div className="bg-white border rounded-lg p-4">
-                <div className="text-sm font-medium mb-3">Monthly Event Frequency</div>
+                <div className="text-sm font-medium mb-3">
+                  Monthly Event Frequency{compareYear ? ` — ${selectedYear} vs ${compareYear}` : ` — ${selectedYear}`}
+                </div>
                 <ResponsiveContainer width="100%" height={180}>
                   <BarChart data={monthlyEvents}>
                     <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                     <Tooltip />
-                    <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Events" />
+                    {compareYear && <Legend iconSize={10} />}
+                    <Bar dataKey="count" fill={COMPARE_COLORS[0]} radius={[4, 4, 0, 0]} name={compareYear ? String(selectedYear) : "Events"} />
+                    {compareYear && <Bar dataKey="count_cmp" fill={COMPARE_COLORS[1]} radius={[4, 4, 0, 0]} name={String(compareYear)} />}
                   </BarChart>
                 </ResponsiveContainer>
               </div>
