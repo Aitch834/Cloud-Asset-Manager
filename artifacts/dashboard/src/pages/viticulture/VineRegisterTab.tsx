@@ -50,12 +50,13 @@ import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, VIVC_VARIETY_MAP, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printVineRegister, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, VIVC_VARIETY_MAP, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 type VineReg = Record<string, unknown>;
 
 export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
   const { data, isLoading, add, edit, remove } = useCrud<VineReg>(farmId, "vine-register", "vine-register");
+  const farmName = useFarmName(farmId);
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState<VineReg | null>(null);
   const [form, setForm] = useState<VineReg>({});
@@ -129,6 +130,7 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
         </div>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => exportCSV(data, "vine-register.csv", csvCols)} disabled={!data.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => printVineRegister(data, farmName, farmFsaVineRef || undefined)} disabled={!data.length}><Printer className="w-4 h-4 mr-1" />Print Register</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Entry</Button>
         </div>
       </div>

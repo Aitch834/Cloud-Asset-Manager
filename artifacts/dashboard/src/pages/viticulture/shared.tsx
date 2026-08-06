@@ -227,6 +227,143 @@ export function printOrganicWineRecords(records: Record<string, unknown>[], farm
   win.onload = () => { setTimeout(() => win.print(), 200); };
 }
 
+/** Escape a plain-text value for safe insertion into an HTML document. */
+function escHtml(v: unknown): string {
+  if (v == null || v === "") return "—";
+  return String(v)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
+export function printVineRegister(
+  records: Record<string, unknown>[],
+  farmName: string,
+  fsaVineRef?: string,
+) {
+  const d = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
+  const n = (v: unknown, dp = 4) =>
+    v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp);
+
+  const rows = records
+    .map(r => {
+      // Status uses only fixed markup — no user data interpolated inside it
+      const status = r.isRemovedFromRegister
+        ? '<span style="color:#991b1b;font-weight:600">Removed</span>'
+        : '<span style="color:#065f46;font-weight:600">Active</span>';
+      return `<tr>
+        <td>${escHtml(r.registeredVariety)}</td>
+        <td>${escHtml(r.vivcNumber)}</td>
+        <td style="text-align:right">${n(r.registeredAreaHa)} ha</td>
+        <td>${escHtml(r.giClassification)}</td>
+        <td>${escHtml(r.wineColour)}</td>
+        <td>${d(r.dateRegistered)}</td>
+        <td>${d(r.dateAmended)}</td>
+        <td>${status}</td>
+      </tr>`;
+    })
+    .join("");
+
+  const totalHa = records.reduce(
+    (sum, r) => sum + (parseFloat(String(r.registeredAreaHa ?? 0)) || 0),
+    0,
+  );
+  const activeCount = records.filter(r => !r.isRemovedFromRegister).length;
+
+  // Header fields — escaped separately so the surrounding fixed markup stays literal
+  const safeFarmName = escHtml(farmName);
+  const safeFsaRef = fsaVineRef ? escHtml(fsaVineRef) : "";
+
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+  <title>FSA Vine Register &mdash; ${safeFarmName}</title>
+  <style>
+    @page { size: A4 landscape; margin: 18mm 14mm; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 11.5px; color: #111; margin: 0; }
+    h1 { font-size: 18px; margin: 0 0 2px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #2d6a4f; padding-bottom: 10px; margin-bottom: 16px; }
+    .header-left h1 { color: #2d6a4f; }
+    .meta { font-size: 11px; color: #555; margin-top: 3px; line-height: 1.5; }
+    .badges { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 10.5px; font-weight: 600; }
+    .badge-green { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+    .badge-blue  { background: #dbeafe; color: #1e3a8a; border: 1px solid #93c5fd; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; page-break-inside: auto; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    th { background: #2d6a4f; color: white; padding: 6px 6px; text-align: left; white-space: nowrap; }
+    td { padding: 5px 6px; border: 1px solid #d1d5db; vertical-align: top; }
+    tr:nth-child(even) td { background: #f0fdf4; }
+    .tfoot td { font-weight: 700; background: #d1fae5; border-color: #6ee7b7; }
+    .notice { background: #f0fdf4; border: 1px solid #6ee7b7; padding: 8px 12px; border-radius: 4px; font-size: 11px; margin-bottom: 14px; }
+    .footer { margin-top: 18px; font-size: 10.5px; color: #666; border-top: 1px solid #ccc; padding-top: 7px; display: flex; justify-content: space-between; }
+    @media print { body { margin: 0; } button { display: none !important; } }
+  </style></head><body>
+  <div class="header">
+    <div class="header-left">
+      <h1>FSA Vine Register</h1>
+      <div class="meta">
+        <strong>${safeFarmName}</strong>${safeFsaRef ? ` &nbsp;&middot;&nbsp; FSA Ref: <strong>${safeFsaRef}</strong>` : ""}<br>
+        Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} entr${records.length === 1 ? "y" : "ies"}
+      </div>
+      <div class="badges">
+        <span class="badge badge-green">Active: ${activeCount}</span>
+        ${records.length - activeCount > 0 ? `<span class="badge" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5">Removed: ${records.length - activeCount}</span>` : ""}
+        <span class="badge badge-blue">Total Area: ${totalHa.toFixed(4)} ha</span>
+      </div>
+    </div>
+    <div style="text-align:right;font-size:11px;color:#555">
+      <div style="font-size:13px;font-weight:700;color:#2d6a4f">Food Standards Agency</div>
+      <div>Vine Register &mdash; UK Viticulture</div>
+      <div style="margin-top:4px">Mandatory for vineyards &gt; 0.01 ha</div>
+    </div>
+  </div>
+
+  <div class="notice">
+    <strong>Statutory requirement:</strong> All UK vineyards exceeding 0.01 ha must maintain a Vine Register and notify the Food Standards Agency of changes within 30 days.
+    This report may be submitted or retained as your official register record.
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Registered Variety</th>
+        <th>VIVC No.</th>
+        <th style="text-align:right">Area (ha)</th>
+        <th>GI / PDO</th>
+        <th>Wine Colour</th>
+        <th>Date Registered</th>
+        <th>Date Amended</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows || "<tr><td colspan='8' style='text-align:center;color:#888;padding:14px'>No register entries</td></tr>"}
+    </tbody>
+    ${records.length > 0 ? `
+    <tfoot>
+      <tr class="tfoot">
+        <td colspan="2"><strong>Totals</strong></td>
+        <td style="text-align:right"><strong>${totalHa.toFixed(4)} ha</strong></td>
+        <td colspan="5"></td>
+      </tr>
+    </tfoot>` : ""}
+  </table>
+
+  <div class="footer">
+    <span>Prepared by BDE Farm Trac &nbsp;&middot;&nbsp; FSA Vine Register &nbsp;&middot;&nbsp; Report any changes to the FSA within 30 days</span>
+    <span>https://www.food.gov.uk/business-guidance/vine-register</span>
+  </div>
+  </body></html>`;
+
+  const win = window.open("", "_blank", "width=1100,height=850");
+  if (!win) return;
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => { setTimeout(() => win.print(), 200); };
+}
+
 export const PRESSURE_LABELS: Record<number, { label: string; color: string }> = {
   0: { label: "None", color: "text-gray-400" },
   1: { label: "Low", color: "text-green-600" },
