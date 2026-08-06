@@ -336,7 +336,7 @@ export function TbTestsSection({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      {deleteId !== null && <ConfirmDialog open title="Delete TB Test Record?" message="This record will be permanently removed from your TB register." onConfirm={() => deleteMut.mutate(deleteId!)} onCancel={() => setDeleteId(null)} confirmLabel="Delete" confirmVariant="destructive" />}
+      {deleteId !== null && <ConfirmDialog open title="Delete TB Test Record?" message="This record will be permanently removed from your TB register." mutation={deleteMut} onConfirm={() => deleteMut.mutate(deleteId!)} onCancel={() => { setDeleteId(null); deleteMut.reset(); }} confirmLabel="Delete" confirmVariant="destructive" />}
     </>
   );
 }

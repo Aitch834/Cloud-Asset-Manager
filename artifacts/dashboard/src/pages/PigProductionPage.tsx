@@ -1,4 +1,4 @@
-import { useState, useMemo, type ReactNode } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { openPrintWindow } from "@/lib/print-report";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
@@ -25,7 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useFarmMembers } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { DialogMutationError } from "@/components/ui/dialog-error";
-import { ConfirmDialog as SharedConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import { apiUrl as api } from "@/lib/api";
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
@@ -35,23 +35,10 @@ const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("e
 function Empty({ msg }: { msg: string }) {
   return <p className="text-sm text-muted-foreground italic py-6 text-center">{msg}</p>;
 }
-function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string; confirmVariant?: "default" | "destructive" }) {
-  return (
-    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
-      <DialogContent style={{ maxWidth: "22rem" }}>
-        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground">{message}</p>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 // ─── Simple table ──────────────────────────────────────────────────────────────
-function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string; render?: (r: Record<string, unknown>) => ReactNode }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void; onView?: (r: Record<string, unknown>) => void }) {
+function DataTable({ cols, rows, onEdit, onDelete, onView, deleteMutation }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string; render?: (r: Record<string, unknown>) => ReactNode }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void; onView?: (r: Record<string, unknown>) => void; deleteMutation?: { isError: boolean; isPending: boolean; isSuccess: boolean; error: unknown; reset: () => void } }) {
   const [pendingDelete, setPendingDelete] = useState<Record<string, unknown> | null>(null);
+  useEffect(() => { if (deleteMutation?.isSuccess) setPendingDelete(null); }, [deleteMutation?.isSuccess]);
   if (!rows.length) return <Empty msg="No records yet. Add one using the button above." />;
   return (
     <>
@@ -76,8 +63,9 @@ function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: stri
         open={!!pendingDelete}
         title="Delete Record"
         message="Are you sure you want to delete this record? This cannot be undone."
-        onConfirm={() => { if (pendingDelete && onDelete) { onDelete(pendingDelete); } setPendingDelete(null); }}
-        onCancel={() => setPendingDelete(null)}
+        mutation={deleteMutation}
+        onConfirm={() => { if (pendingDelete && onDelete) { onDelete(pendingDelete); if (!deleteMutation) setPendingDelete(null); } }}
+        onCancel={() => { setPendingDelete(null); deleteMutation?.reset(); }}
         confirmLabel="Delete"
         confirmVariant="destructive"
       />
@@ -178,7 +166,7 @@ function MovementsTab({ farmId }: { farmId: number }) {
           ]}
           rows={filtered}
           onEdit={openEdit}
-          onDelete={r => del.mutate(r.id as number)}
+          onDelete={r => del.mutate(r.id as number)} deleteMutation={del}
           onView={setViewRecord}
         />
       )}
@@ -281,7 +269,7 @@ function FciDocumentsTab({ farmId }: { farmId: number }) {
           ]}
           rows={docs}
           onEdit={openEdit}
-          onDelete={r => del.mutate(r.id as number)}
+          onDelete={r => del.mutate(r.id as number)} deleteMutation={del}
           onView={setViewRecord}
         />
       )}
@@ -709,7 +697,7 @@ function VetAssessmentsTab({ farmId }: { farmId: number }) {
           ]}
           rows={assessments}
           onEdit={openEdit}
-          onDelete={r => del.mutate(r.id as number)}
+          onDelete={r => del.mutate(r.id as number)} deleteMutation={del}
           onView={setViewRecord}
         />
       )}
@@ -843,7 +831,7 @@ function StockmanshipChecksTab({ farmId }: { farmId: number }) {
           ]}
           rows={checks as Record<string, unknown>[]}
           onEdit={openEdit}
-          onDelete={r => del.mutate(r.id as number)}
+          onDelete={r => del.mutate(r.id as number)} deleteMutation={del}
           onView={setViewRecord}
         />
       )}
@@ -968,7 +956,7 @@ function TailBitingRisksTab({ farmId }: { farmId: number }) {
           ]}
           rows={records as Record<string, unknown>[]}
           onEdit={openEdit}
-          onDelete={r => del.mutate(r.id as number)}
+          onDelete={r => del.mutate(r.id as number)} deleteMutation={del}
           onView={setViewRecord}
         />
       )}
@@ -1784,7 +1772,7 @@ function PigRedTractorChecklistTab({ farmId }: { farmId: number }) {
         ]}
         rows={records as Record<string, unknown>[]}
         onEdit={openEdit}
-        onDelete={r => del.mutate(r.id as number)}
+        onDelete={r => del.mutate(r.id as number)} deleteMutation={del}
         onView={setViewRecord}
       />}
 
@@ -2490,7 +2478,7 @@ function KillRecordsTab({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <ConfirmDialog open={confirmDelete !== null} title="Delete Kill Record" message="Delete this kill record? This cannot be undone." confirmLabel="Delete" confirmVariant="destructive" onConfirm={() => { if (confirmDelete) del.mutate(confirmDelete); }} onCancel={() => setConfirmDelete(null)} />
+      <ConfirmDialog open={confirmDelete !== null} title="Delete Kill Record" message="Delete this kill record? This cannot be undone." confirmLabel="Delete" confirmVariant="destructive" mutation={del} onConfirm={() => { if (confirmDelete) del.mutate(confirmDelete); }} onCancel={() => { setConfirmDelete(null); del.reset(); }} />
     </div>
   );
 }
@@ -2940,7 +2928,7 @@ function SalmonellaMonitoringTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <SharedConfirmDialog
+      <ConfirmDialog
         open={pendingDelete !== null}
         title="Delete Record"
         message="Delete this Salmonella monitoring record?"
@@ -3146,7 +3134,7 @@ function PigVaccinationTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <SharedConfirmDialog
+      <ConfirmDialog
         open={pendingDelete !== null}
         title="Delete Record"
         message="Delete this vaccination record?"
@@ -3324,7 +3312,7 @@ function PigDiseaseMonitoringTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <SharedConfirmDialog
+      <ConfirmDialog
         open={pendingDelete !== null}
         title="Delete Record"
         message="Delete this monitoring record?"

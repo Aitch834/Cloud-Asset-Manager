@@ -254,7 +254,7 @@ export function MortalityTab({ farmId }: { farmId: number }) {
         { key: "runningTotalMortality", label: "Running Total" },
         { key: "mortalityPercentage", label: "Mortality %", fmt: r => r.mortalityPercentage ? `${Number(r.mortalityPercentage).toFixed(2)}%` : "—" },
         { key: "mainCause", label: "Main Cause" },
-      ]} rows={filteredList} onEdit={r => openEdit(r)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
+      ]} rows={filteredList} onEdit={r => openEdit(r)} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} onView={setViewRecord} />}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "38rem" }}>

@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useMemo, type ReactNode } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2, Loader2, Eye, Scale, Bug, ClipboardList, AlertTriangle, Printer, BarChart3, Paperclip } from "lucide-react";
@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { GoatEnterpriseReport } from "@/components/GoatEnterpriseReport";
@@ -72,29 +73,16 @@ function Empty({ msg }: { msg: string }) {
   return <p className="text-sm text-muted-foreground italic py-6 text-center">{msg}</p>;
 }
 
-function ConfirmDialog({ open, title, message, onConfirm, onCancel }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void }) {
-  return (
-    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
-      <DialogContent style={{ maxWidth: "22rem" }}>
-        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground">{message}</p>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button variant="destructive" onClick={onConfirm}>Delete</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function DataTable({ cols, rows, onEdit, onDelete, onView }: {
+function DataTable({ cols, rows, onEdit, onDelete, onView, deleteMutation }: {
   cols: { key: string; label: string; render?: (r: Record<string, unknown>) => ReactNode }[];
   rows: Record<string, unknown>[];
   onEdit?: (r: Record<string, unknown>) => void;
   onDelete?: (r: Record<string, unknown>) => void;
   onView?: (r: Record<string, unknown>) => void;
+  deleteMutation?: { isError: boolean; isPending: boolean; isSuccess: boolean; error: unknown; reset: () => void };
 }) {
   const [pending, setPending] = useState<Record<string, unknown> | null>(null);
+  useEffect(() => { if (deleteMutation?.isSuccess) setPending(null); }, [deleteMutation?.isSuccess]);
   if (!rows.length) return <Empty msg="No records yet. Add one using the button above." />;
   return (
     <>
@@ -115,7 +103,7 @@ function DataTable({ cols, rows, onEdit, onDelete, onView }: {
           ))}</tbody>
         </table>
       </div>
-      <ConfirmDialog open={!!pending} title="Delete Record" message="Are you sure? This cannot be undone." onConfirm={() => { if (pending && onDelete) onDelete(pending); setPending(null); }} onCancel={() => setPending(null)} />
+      <ConfirmDialog open={!!pending} title="Delete Record" message="Are you sure? This cannot be undone." confirmLabel="Delete" confirmVariant="destructive" mutation={deleteMutation} onConfirm={() => { if (pending && onDelete) { onDelete(pending); if (!deleteMutation) setPending(null); } }} onCancel={() => { setPending(null); deleteMutation?.reset(); }} />
     </>
   );
 }
@@ -220,6 +208,7 @@ function MatingTab({ farmId }: { farmId: number }) {
           onView={setViewing}
           onEdit={openEdit}
           onDelete={r => del.mutate(r.id as number)}
+          deleteMutation={del}
         />
       )}
 
@@ -344,6 +333,7 @@ function ScanningTab({ farmId }: { farmId: number }) {
           onView={setViewing}
           onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
           onDelete={r => del.mutate(r.id as number)}
+          deleteMutation={del}
         />
       )}
 
@@ -444,6 +434,7 @@ function WeighTab({ farmId }: { farmId: number }) {
           onView={setViewing}
           onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
           onDelete={r => del.mutate(r.id as number)}
+          deleteMutation={del}
         />
       )}
 
@@ -583,6 +574,7 @@ function CullTab({ farmId }: { farmId: number }) {
           onView={setViewing}
           onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
           onDelete={r => del.mutate(r.id as number)}
+          deleteMutation={del}
         />
       )}
 
@@ -745,6 +737,7 @@ function HealthTab({ farmId }: { farmId: number }) {
             onView={setViewing}
             onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
             onDelete={r => delVacc.mutate(r.id as number)}
+            deleteMutation={delVacc}
           />
         )}
         <Dialog open={!!viewing && subTab === "vaccinations"} onOpenChange={o => { if (!o) setViewing(null); }}>
@@ -832,6 +825,7 @@ function HealthTab({ farmId }: { farmId: number }) {
             onView={setViewing}
             onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
             onDelete={r => delDisease.mutate(r.id as number)}
+            deleteMutation={delDisease}
           />
         )}
         <Dialog open={!!viewing && subTab === "disease"} onOpenChange={o => { if (!o) setViewing(null); }}>

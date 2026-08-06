@@ -163,7 +163,7 @@ export function CleanoutsTab({ farmId }: { farmId: number }) {
         { key: "standingTimeDays", label: "Standing (days)" },
         { key: "verifiedBy", label: "Verified By" },
         { key: "_attach", label: "", render: r => r.id ? <RecordAttachments farmId={farmId} recordType="poultry-house-cleanout" recordId={r.id as number} compact /> : null },
-      ]} rows={filteredCoList} onEdit={r => openEditCO(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
+      ]} rows={filteredCoList} onEdit={r => openEditCO(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} onView={setViewRecord} />}
 
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>

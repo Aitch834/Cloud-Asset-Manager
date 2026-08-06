@@ -114,7 +114,7 @@ export function ThinningRecordsTab({ farmId }: { farmId: number }) {
           { key: "doc", label: "Doc", render: (r: Record<string, unknown>) => <DocAttach farmId={farmId} endpoint="poultry-thinning-records" recordId={r.id as number} documentPath={(r as any).documentPath ?? null} documentName={(r as any).documentName ?? null} queryKey={["poultry-thinning", farmId]} compact /> },
         ]}
         rows={filteredThinList}
-        onDelete={r => del.mutate(r.id as number)}
+        onDelete={r => del.mutate(r.id as number)} deleteMutation={del}
         onView={setViewRecord}
       />}
       {viewRecord && (

@@ -253,7 +253,7 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
           ]}
           rows={filteredSoil}
           onView={openView}
-          onDelete={r => remove.mutate(r.id as number)}
+          onDelete={r => remove.mutate(r.id as number)} deleteMutation={remove}
         />
       )}
 

@@ -398,7 +398,7 @@ export function SheepDippingSection({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      {deleteId !== null && <ConfirmDialog open title="Delete Dipping Record?" message="This sheep dipping record will be permanently deleted." onConfirm={() => deleteMut.mutate(deleteId!)} onCancel={() => setDeleteId(null)} confirmLabel="Delete" confirmVariant="destructive" />}
+      {deleteId !== null && <ConfirmDialog open title="Delete Dipping Record?" message="This sheep dipping record will be permanently deleted." mutation={deleteMut} onConfirm={() => deleteMut.mutate(deleteId!)} onCancel={() => { setDeleteId(null); deleteMut.reset(); }} confirmLabel="Delete" confirmVariant="destructive" />}
     </>
   );
 }

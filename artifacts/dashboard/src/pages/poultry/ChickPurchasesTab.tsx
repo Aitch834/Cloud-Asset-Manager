@@ -118,7 +118,7 @@ export function ChickPurchasesTab({ farmId }: { farmId: number }) {
         { key: "invoiceReference", label: "Invoice Ref" },
         { key: "paymentStatus", label: "Status", render: r => <span className={`capitalize font-medium text-xs ${payStatusClass(r.paymentStatus)}`}>{String(r.paymentStatus ?? "—")}</span> },
         { key: "_attach", label: "", render: r => r.id ? <RecordAttachments farmId={farmId} recordType="poultry-chick-purchases" recordId={r.id as number} compact /> : null },
-      ]} rows={filteredPurchases} onEdit={r => openEdit(r)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
+      ]} rows={filteredPurchases} onEdit={r => openEdit(r)} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} onView={setViewRecord} />}
 
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>

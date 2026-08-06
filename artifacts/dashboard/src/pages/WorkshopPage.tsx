@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OtherSelect } from "@/components/ui/other-select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -3696,24 +3697,6 @@ export default function WorkshopPage() {
 
 // ─── Workshop Parts Stocktake ────────────────────────────────────────────────
 
-function ConfirmDialogWorkshop({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: {
-  open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void;
-  confirmLabel?: string; confirmVariant?: "default" | "destructive";
-}) {
-  return (
-    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
-      <DialogContent style={{ maxWidth: "22rem" }}>
-        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground">{message}</p>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button variant={confirmVariant} onClick={() => { onConfirm(); onCancel(); }}>{confirmLabel}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function WorkshopStocktakeView({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -3722,10 +3705,12 @@ function WorkshopStocktakeView({ farmId }: { farmId: number }) {
   const [newOpen, setNewOpen] = useState(false);
   const [newForm, setNewForm] = useState({ stocktakeDate: new Date().toISOString().slice(0, 10), notes: "" });
 
-  type ConfirmState = { open: boolean; title: string; message: string; onConfirm: () => void; confirmLabel?: string; variant?: "default" | "destructive" };
-  const [confirmState, setConfirmState] = useState<ConfirmState>({ open: false, title: "", message: "", onConfirm: () => {} });
-  const showConfirm = (title: string, message: string, onConfirm: () => void, opts?: { confirmLabel?: string; variant?: "default" | "destructive" }) =>
-    setConfirmState({ open: true, title, message, onConfirm, ...opts });
+  type ConfirmMutation = { isError: boolean; isPending: boolean; error: unknown; reset: () => void };
+  type ConfirmState = { open: boolean; title: string; message: string; run: (onSuccess: () => void) => void; mutation?: ConfirmMutation; confirmLabel?: string; variant?: "default" | "destructive" };
+  const [confirmState, setConfirmState] = useState<ConfirmState>({ open: false, title: "", message: "", run: () => {} });
+  const closeConfirm = () => { confirmState.mutation?.reset(); setConfirmState(s => ({ ...s, open: false })); };
+  const showConfirm = (title: string, message: string, run: (onSuccess: () => void) => void, opts?: { mutation?: ConfirmMutation; confirmLabel?: string; variant?: "default" | "destructive" }) =>
+    setConfirmState({ open: true, title, message, run, ...opts });
 
   type StocktakeItem = { id: number; stockItemId: number | null; partName: string; partNumber: string | null; unit: string | null; location: string | null; expectedQty: string; countedQty: string | null; variance: string | null; varianceValue: string | null; notes: string | null; unitCostPence: number | null };
   type StocktakeSession = { id: number; stocktakeDate: string; status: string; itemCount: number; countedCount: number; totalVarianceValue: string | null; notes?: string; completedAt?: string; items?: StocktakeItem[] };
@@ -3781,12 +3766,13 @@ function WorkshopStocktakeView({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
-      <ConfirmDialogWorkshop
+      <ConfirmDialog
         open={confirmState.open}
         title={confirmState.title}
         message={confirmState.message}
-        onConfirm={confirmState.onConfirm}
-        onCancel={() => setConfirmState(s => ({ ...s, open: false }))}
+        mutation={confirmState.mutation}
+        onConfirm={() => confirmState.run(() => setConfirmState(s => ({ ...s, open: false })))}
+        onCancel={closeConfirm}
         confirmLabel={confirmState.confirmLabel}
         confirmVariant={confirmState.variant}
       />
@@ -3841,7 +3827,7 @@ function WorkshopStocktakeView({ farmId }: { farmId: number }) {
                               {isDraft ? "Continue" : "View"}
                             </Button>
                             {isDraft && (
-                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => showConfirm("Delete Stocktake", "Delete this draft? All counts entered so far will be lost.", () => deleteMut.mutate(s.id), { confirmLabel: "Delete", variant: "destructive" })}>
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => showConfirm("Delete Stocktake", "Delete this draft? All counts entered so far will be lost.", (onSuccess) => deleteMut.mutate(s.id, { onSuccess }), { mutation: deleteMut, confirmLabel: "Delete", variant: "destructive" })}>
                                 <Trash2 className="h-3.5 w-3.5 text-red-400" />
                               </Button>
                             )}
@@ -3878,7 +3864,7 @@ function WorkshopStocktakeView({ farmId }: { farmId: number }) {
                       <Printer className="h-3.5 w-3.5" />Print Blank Sheet
                     </Button>
                     <Button size="sm" disabled={!canComplete || completeMut.isPending}
-                      onClick={() => showConfirm("Complete Stocktake", "Workshop part stock levels will be updated to match your physical counts. This cannot be undone.", () => completeMut.mutate(activeSession.id), { confirmLabel: "Complete Stocktake" })}>
+                      onClick={() => showConfirm("Complete Stocktake", "Workshop part stock levels will be updated to match your physical counts. This cannot be undone.", (onSuccess) => completeMut.mutate(activeSession.id, { onSuccess }), { mutation: completeMut, confirmLabel: "Complete Stocktake" })}>
                       {completeMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
                       Complete Stocktake
                     </Button>

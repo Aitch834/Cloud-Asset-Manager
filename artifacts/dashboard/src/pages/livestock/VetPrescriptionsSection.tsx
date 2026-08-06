@@ -137,7 +137,7 @@ export function VetPrescriptionsSection({ farmId }: { farmId: number }) {
                       <td className="py-2 text-right space-x-1 whitespace-nowrap">
                         <Button size="icon" variant="ghost" title="View" onClick={() => setViewRecord(r)}><Eye className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""])) as Record<string, string | boolean>); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                        <Button size="icon" variant="ghost" onClick={() => setPendingConfirm({ msg: "Delete this prescription record? This cannot be undone.", fn: () => del.mutate(r.id as number) })}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                        <Button size="icon" variant="ghost" onClick={() => setPendingConfirm({ msg: "Delete this prescription record? This cannot be undone.", fn: () => del.mutate(r.id as number, { onSuccess: () => setPendingConfirm(null) }) })}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
                       </td>
                     </tr>
                   );
@@ -194,8 +194,9 @@ export function VetPrescriptionsSection({ farmId }: { farmId: number }) {
         open={!!pendingConfirm}
         title="Delete Prescription Record"
         message={pendingConfirm?.msg ?? ""}
-        onConfirm={() => { pendingConfirm?.fn(); setPendingConfirm(null); }}
-        onCancel={() => setPendingConfirm(null)}
+        mutation={del}
+        onConfirm={() => { pendingConfirm?.fn(); }}
+        onCancel={() => { setPendingConfirm(null); del.reset(); }}
         confirmLabel="Delete"
         confirmVariant="destructive"
       />

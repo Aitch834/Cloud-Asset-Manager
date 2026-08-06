@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, Eye, Pencil, Trash2 } from "lucide-react";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { apiUrl as api } from "@/lib/api";
@@ -103,31 +104,16 @@ function Empty({ msg }: { msg: string }) {
   return <p className="text-sm text-muted-foreground italic py-6 text-center">{msg}</p>;
 }
 
-function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: {
-  open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string; confirmVariant?: "default" | "destructive";
-}) {
-  return (
-    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
-      <DialogContent style={{ maxWidth: "22rem" }}>
-        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground">{message}</p>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function DataTable({ cols, rows, onEdit, onDelete, onView }: {
+function DataTable({ cols, rows, onEdit, onDelete, onView, deleteMutation }: {
   cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string; render?: (r: Record<string, unknown>) => ReactNode }[];
   rows: Record<string, unknown>[];
   onEdit?: (r: Record<string, unknown>) => void;
   onDelete?: (r: Record<string, unknown>) => void;
   onView?: (r: Record<string, unknown>) => void;
+  deleteMutation?: { isError: boolean; isPending: boolean; isSuccess: boolean; error: unknown; reset: () => void };
 }) {
   const [pendingDelete, setPendingDelete] = useState<Record<string, unknown> | null>(null);
+  useEffect(() => { if (deleteMutation?.isSuccess) setPendingDelete(null); }, [deleteMutation?.isSuccess]);
   if (!rows.length) return <Empty msg="No records yet. Add one using the button above." />;
   return (
     <>
@@ -152,8 +138,9 @@ function DataTable({ cols, rows, onEdit, onDelete, onView }: {
         open={!!pendingDelete}
         title="Delete Record"
         message="Are you sure you want to delete this record? This cannot be undone."
-        onConfirm={() => { if (pendingDelete && onDelete) { onDelete(pendingDelete); } setPendingDelete(null); }}
-        onCancel={() => setPendingDelete(null)}
+        mutation={deleteMutation}
+        onConfirm={() => { if (pendingDelete && onDelete) { onDelete(pendingDelete); if (!deleteMutation) setPendingDelete(null); } }}
+        onCancel={() => { setPendingDelete(null); deleteMutation?.reset(); }}
         confirmLabel="Delete"
         confirmVariant="destructive"
       />
@@ -215,7 +202,7 @@ export function FlocksTab({ farmId }: { farmId: number }) {
         { key: "placementDate", label: "Placed", fmt: r => fmtDate(r.placementDate) },
         { key: "placementCount", label: "Placed" },
         { key: "status", label: "Status" },
-      ]} rows={filteredFlocks as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
+      ]} rows={filteredFlocks as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} onView={setViewRecord} />}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>

@@ -117,7 +117,7 @@ export function LicensingTab({ farmId }: { farmId: number }) {
             { key: "status", label: "Status", render: r => <span className={`text-xs rounded-full px-2 py-0.5 ${LICENCE_STATUS_COLORS[String(r.status)] ?? "bg-gray-100 text-gray-600"}`}>{fmt(r.status)}</span> },
           ]}
           rows={licenceFiltered}
-          onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)}
+          onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)} deleteMutation={crud.remove}
         />
       )}
       {view && (

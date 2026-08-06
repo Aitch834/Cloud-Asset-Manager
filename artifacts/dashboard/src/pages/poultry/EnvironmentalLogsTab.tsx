@@ -131,7 +131,7 @@ export function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
         { key: "ammoniaPpm", label: "Ammonia ppm" },
         { key: "stockingDensity", label: "kg/m²" },
       { key: "_attach", label: "", render: r => r.id ? <RecordAttachments recordType="poultry-environmental-logs" recordId={r.id as number} farmId={farmId} compact /> : null },
-      ]} rows={filteredEnvList} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
+      ]} rows={filteredEnvList} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} onView={setViewRecord} />}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>

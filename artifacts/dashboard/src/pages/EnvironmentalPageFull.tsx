@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Plus, Trash2, Leaf, TreePine, MapPin, Printer, ClipboardCheck, CalendarDays, Pencil, Eye, AlertTriangle, Droplets, MessageSquare } from "lucide-react";
@@ -32,21 +33,6 @@ const fmtAmt = (pence: number | null | undefined) => {
   if (pence == null) return "—";
   return `£${(pence / 100).toFixed(2)}`;
 };
-
-function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string; confirmVariant?: "default" | "destructive" }) {
-  return (
-    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
-      <DialogContent style={{ maxWidth: "22rem" }}>
-        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground">{message}</p>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { bg: string; color: string }> = {
@@ -2004,7 +1990,7 @@ function SFIActionsTab({ farmId, openId }: { farmId: number; openId?: number | n
   const [form, setForm] = useState<Record<string, string>>({ status: "Active" });
   const [actions, setActions] = useState<SFIActionRow[]>([]);
   const [deletedActionIds, setDeletedActionIds] = useState<number[]>([]);
-  const [pendingConfirm, setPendingConfirm] = useState<{ msg: string; fn: () => void } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null);
   const [hlId, setHlId] = useState<number | null>(openId ?? null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [plannerOpen, setPlannerOpen] = useState(false);
@@ -2175,7 +2161,7 @@ function SFIActionsTab({ farmId, openId }: { farmId: number; openId?: number | n
                         <td className="px-4 py-3 text-right space-x-1">
                           <Button size="icon" variant="ghost" onClick={() => setViewRecord(r)} title="View"><Eye className="w-3.5 h-3.5" /></Button>
                           <Button size="icon" variant="ghost" onClick={() => openEdit(r)} title="Edit"><Pencil className="w-3.5 h-3.5" /></Button>
-                          <Button size="icon" variant="ghost" onClick={() => setPendingConfirm({ msg: "Delete this SFI/ELMs agreement and all its action codes? This cannot be undone.", fn: () => del.mutate(r.id as number) })}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                          <Button size="icon" variant="ghost" onClick={() => setPendingDelete(r.id as number)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
                         </td>
                       </tr>
                     );
@@ -2419,11 +2405,12 @@ function SFIActionsTab({ farmId, openId }: { farmId: number; openId?: number | n
       </Dialog>
 
       <ConfirmDialog
-        open={!!pendingConfirm}
+        open={pendingDelete !== null}
         title="Delete Agreement"
-        message={pendingConfirm?.msg ?? ""}
-        onConfirm={() => { pendingConfirm?.fn(); setPendingConfirm(null); }}
-        onCancel={() => setPendingConfirm(null)}
+        message="Delete this SFI/ELMs agreement and all its action codes? This cannot be undone."
+        mutation={del}
+        onConfirm={() => { if (pendingDelete !== null) del.mutate(pendingDelete, { onSuccess: () => setPendingDelete(null) }); }}
+        onCancel={() => { setPendingDelete(null); del.reset(); }}
         confirmLabel="Delete"
         confirmVariant="destructive"
       />

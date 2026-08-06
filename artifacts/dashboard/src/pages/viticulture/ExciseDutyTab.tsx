@@ -201,7 +201,7 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
             { key: "paidDate", label: "Paid", render: r => fmtDate(r.paidDate) },
           ]}
           rows={crud.data}
-          onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)}
+          onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)} deleteMutation={crud.remove}
         />
       )}
 

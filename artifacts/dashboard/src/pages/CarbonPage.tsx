@@ -7,6 +7,7 @@ import { printProReport } from "@/lib/print-report";
 import { FctImportDialog } from "@/components/FctImportDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,22 +28,10 @@ import { apiUrl as api } from "@/lib/api";
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
 function Empty({ msg }: { msg: string }) { return <p className="text-sm text-muted-foreground italic py-6 text-center">{msg}</p>; }
-function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string; confirmVariant?: "default" | "destructive" }) {
-  return (
-    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
-      <DialogContent style={{ maxWidth: "22rem" }}>
-        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground">{message}</p>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void; onView?: (r: Record<string, unknown>) => void }) {
+type DeleteMutation = { isError: boolean; isPending: boolean; error: unknown; isSuccess: boolean; reset: () => void };
+function DataTable({ cols, rows, onEdit, onDelete, onView, deleteMutation }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void; onView?: (r: Record<string, unknown>) => void; deleteMutation?: DeleteMutation }) {
   const [pendingDelete, setPendingDelete] = useState<Record<string, unknown> | null>(null);
+  useEffect(() => { if (deleteMutation?.isSuccess) setPendingDelete(null); }, [deleteMutation?.isSuccess]);
   if (!rows.length) return <Empty msg="No records yet." />;
   return (
     <>
@@ -55,7 +44,7 @@ function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: stri
               {(onEdit || onDelete || onView) && <td className="py-2 text-right space-x-1">
                 {onView && <Button size="icon" variant="ghost" onClick={() => onView(row)}><Eye className="w-3.5 h-3.5" /></Button>}
                 {onEdit && <Button size="icon" variant="ghost" onClick={() => onEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>}
-                {onDelete && <Button size="icon" variant="ghost" onClick={() => setPendingDelete(row)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>}
+                {onDelete && <Button size="icon" variant="ghost" onClick={() => { deleteMutation?.reset(); setPendingDelete(row); }}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>}
               </td>}
             </tr>
           ))}</tbody>
@@ -65,8 +54,9 @@ function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: stri
         open={!!pendingDelete}
         title="Delete Record"
         message="Are you sure you want to delete this record? This cannot be undone."
-        onConfirm={() => { if (pendingDelete && onDelete) { onDelete(pendingDelete); } setPendingDelete(null); }}
-        onCancel={() => setPendingDelete(null)}
+        mutation={deleteMutation}
+        onConfirm={() => { if (pendingDelete && onDelete) { onDelete(pendingDelete); if (!deleteMutation) setPendingDelete(null); } }}
+        onCancel={() => { setPendingDelete(null); deleteMutation?.reset(); }}
         confirmLabel="Delete"
         confirmVariant="destructive"
       />
@@ -231,7 +221,7 @@ function AuditsTab({ farmId, prefillAudit, onPrefillUsed }: { farmId: number; pr
             setCertBodyMode(r.certificationBody && certBodies.includes(String(r.certificationBody)) ? "list" : "other");
             setOpen(true);
           }}
-          onDelete={r => del.mutate(r.id as number)}
+          onDelete={r => del.mutate(r.id as number)} deleteMutation={del}
         />
       )}
 
@@ -1067,7 +1057,7 @@ function EmissionsTab({ farmId }: { farmId: number }) {
           ]}
           rows={filteredRows}
           onView={setViewRecord}
-          onDelete={r => del.mutate(r.id as number)}
+          onDelete={r => del.mutate(r.id as number)} deleteMutation={del}
         />
       )}
 
@@ -1621,7 +1611,7 @@ function SequestrationTab({ farmId }: { farmId: number }) {
           { key: "areaHaOrLengthM", label: "Area/Length" },
           { key: "unit", label: "Unit" },
           { key: "tonnesCo2eSequestered", label: "tCO₂e Sequestered" },
-        ]} rows={filteredSeqRows} onView={setViewRecord} onEdit={r => handleOpen(r)} onDelete={r => del.mutate(r.id as number)} />
+        ]} rows={filteredSeqRows} onView={setViewRecord} onEdit={r => handleOpen(r)} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} />
       )}
 
       {viewRecord && (
@@ -1918,7 +1908,7 @@ function ReductionActionsTab({ farmId }: { farmId: number }) {
           rows={filteredActions}
           onView={setViewRecord}
           onEdit={r => handleOpen(r)}
-          onDelete={r => del.mutate(r.id as number)}
+          onDelete={r => del.mutate(r.id as number)} deleteMutation={del}
         />
       )}
 
@@ -2374,7 +2364,7 @@ function ReportsTab({ farmId }: { farmId: number }) {
           rows={reports as Record<string, unknown>[]}
           onView={setViewRecord}
           onEdit={r => handleOpen(r)}
-          onDelete={r => del.mutate(r.id as number)}
+          onDelete={r => del.mutate(r.id as number)} deleteMutation={del}
         />
       )}
 
@@ -2858,7 +2848,7 @@ function RenewableEnergyTab({ farmId }: { farmId: number }) {
           ]}
           rows={records as Record<string, unknown>[]}
           onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
-          onDelete={r => del.mutate(r.id as number)}
+          onDelete={r => del.mutate(r.id as number)} deleteMutation={del}
         />
       )}
 
@@ -3043,7 +3033,7 @@ function BngTab({ farmId }: { farmId: number }) {
           ]}
           rows={records as Record<string, unknown>[]}
           onEdit={r => handleOpen(r)}
-          onDelete={r => del.mutate(r.id as number)}
+          onDelete={r => del.mutate(r.id as number)} deleteMutation={del}
         />
       )}
 

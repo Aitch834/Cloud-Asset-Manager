@@ -146,7 +146,7 @@ export function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Reco
         rows={filteredOperations}
         onView={setViewing}
         onEdit={openEdit}
-        onDelete={r => remove.mutateAsync(r.id as number)}
+        onDelete={r => remove.mutateAsync(r.id as number)} deleteMutation={remove}
       />
 
       {/* View Dialog */}

@@ -98,7 +98,7 @@ export function TastingsToursTab({ farmId }: { farmId: number }) {
             { key: "staffName", label: "Staff" },
           ]}
           rows={crud.data}
-          onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)}
+          onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)} deleteMutation={crud.remove}
         />
       )}
       {view && (

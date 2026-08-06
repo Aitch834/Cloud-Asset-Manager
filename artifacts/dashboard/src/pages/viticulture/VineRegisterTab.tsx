@@ -123,7 +123,7 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
         rows={data}
         onView={setViewing}
         onEdit={openEdit}
-        onDelete={r => remove.mutateAsync(r.id as number)}
+        onDelete={r => remove.mutateAsync(r.id as number)} deleteMutation={remove}
       />
 
       {/* View Dialog */}

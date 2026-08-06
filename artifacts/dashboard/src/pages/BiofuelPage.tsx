@@ -28,6 +28,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -162,21 +163,6 @@ function eligibilityBadge(status: string) {
   return <Badge className="bg-yellow-100 text-yellow-700"><Clock className="w-3 h-3 mr-1" />Requires Verification</Badge>;
 }
 
-function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string; confirmVariant?: "default" | "destructive" }) {
-  return (
-    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
-      <DialogContent style={{ maxWidth: "22rem" }}>
-        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground">{message}</p>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 export default function BiofuelPage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
@@ -196,7 +182,8 @@ export default function BiofuelPage() {
   const [viewDelivery, setViewDelivery] = useState<Delivery | null>(null);
   const [declarationDownloading, setDeclarationDownloading] = useState<number | null>(null);
   const [auditPackDownloading, setAuditPackDownloading] = useState(false);
-  const [pendingConfirm, setPendingConfirm] = useState<{ title: string; msg: string; fn: () => void } | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<{ title: string; msg: string; fn: () => void; mutation?: { isError: boolean; isPending: boolean; error: unknown; isSuccess: boolean; reset: () => void } } | null>(null);
+  useEffect(() => { if (pendingConfirm?.mutation?.isSuccess) setPendingConfirm(null); }, [pendingConfirm?.mutation?.isSuccess]);
 
   const certsQ = useQuery<{ records: Certification[] }>({
     queryKey: ["biofuel-certs", farmId],
@@ -416,8 +403,9 @@ export default function BiofuelPage() {
         open={!!pendingConfirm}
         title={pendingConfirm?.title ?? "Confirm"}
         message={pendingConfirm?.msg ?? ""}
-        onConfirm={() => { pendingConfirm?.fn(); setPendingConfirm(null); }}
-        onCancel={() => setPendingConfirm(null)}
+        mutation={pendingConfirm?.mutation}
+        onConfirm={() => { pendingConfirm?.fn(); }}
+        onCancel={() => { pendingConfirm?.mutation?.reset(); setPendingConfirm(null); }}
         confirmLabel="Delete"
         confirmVariant="destructive"
       />
@@ -562,7 +550,7 @@ export default function BiofuelPage() {
                     <div style={{ display: "flex", gap: 8 }}>
                       <Button size="sm" variant="outline" onClick={() => setViewCert(cert)}><Eye size={14} /></Button>
                       <Button size="sm" variant="outline" onClick={() => { setEditingCert(cert); setCertDialog(true); }}><Edit size={14} /></Button>
-                      <Button size="sm" variant="outline" onClick={() => setPendingConfirm({ title: "Delete Certification", msg: "Delete this certification record? This cannot be undone.", fn: () => deleteCertMut.mutate(cert.id) })} style={{ color: "#dc2626" }}><Trash2 size={14} /></Button>
+                      <Button size="sm" variant="outline" onClick={() => { deleteCertMut.reset(); setPendingConfirm({ title: "Delete Certification", msg: "Delete this certification record? This cannot be undone.", fn: () => deleteCertMut.mutate(cert.id), mutation: deleteCertMut }); }} style={{ color: "#dc2626" }}><Trash2 size={14} /></Button>
                     </div>
                   </div>
                 ))}
@@ -624,7 +612,7 @@ export default function BiofuelPage() {
                           <div style={{ display: "flex", gap: 6 }}>
                             <Button size="sm" variant="outline" onClick={() => setViewField(f)}><Eye size={13} /></Button>
                             <Button size="sm" variant="outline" onClick={() => { setEditingField(f); setFieldDialog(true); }}><Edit size={13} /></Button>
-                            <Button size="sm" variant="outline" style={{ color: "#dc2626" }} onClick={() => setPendingConfirm({ title: "Delete Declaration", msg: "Delete this field land eligibility declaration? This cannot be undone.", fn: () => deleteFieldMut.mutate(f.id) })}><Trash2 size={13} /></Button>
+                            <Button size="sm" variant="outline" style={{ color: "#dc2626" }} onClick={() => { deleteFieldMut.reset(); setPendingConfirm({ title: "Delete Declaration", msg: "Delete this field land eligibility declaration? This cannot be undone.", fn: () => deleteFieldMut.mutate(f.id), mutation: deleteFieldMut }); }}><Trash2 size={13} /></Button>
                           </div>
                         </td>
                       </tr>
@@ -806,7 +794,7 @@ export default function BiofuelPage() {
                         <span style={{ fontSize: 12 }}>{declarationDownloading === d.id ? "Generating…" : "Declaration"}</span>
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => { setEditingDelivery(d); setDeliveryDialog(true); }}><Edit size={14} /></Button>
-                      <Button size="sm" variant="outline" style={{ color: "#dc2626" }} onClick={() => setPendingConfirm({ title: "Delete Delivery", msg: "Delete this delivery record? This cannot be undone.", fn: () => deleteDeliveryMut.mutate(d.id) })}><Trash2 size={14} /></Button>
+                      <Button size="sm" variant="outline" style={{ color: "#dc2626" }} onClick={() => { deleteDeliveryMut.reset(); setPendingConfirm({ title: "Delete Delivery", msg: "Delete this delivery record? This cannot be undone.", fn: () => deleteDeliveryMut.mutate(d.id), mutation: deleteDeliveryMut }); }}><Trash2 size={14} /></Button>
                     </div>
                   </div>
                 ))}

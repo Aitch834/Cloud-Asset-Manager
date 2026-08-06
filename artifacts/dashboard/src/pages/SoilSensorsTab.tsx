@@ -16,6 +16,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -128,21 +129,6 @@ function parseNum(s: string | null | undefined): number | null {
   if (!s) return null;
   const n = parseFloat(s);
   return isNaN(n) ? null : n;
-}
-
-function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string; confirmVariant?: "default" | "destructive" }) {
-  return (
-    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
-      <DialogContent style={{ maxWidth: "22rem" }}>
-        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground">{message}</p>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
 }
 
 // ─── Empty state ─────────────────────────────────────────────────────────────
@@ -662,7 +648,7 @@ function ProbePanel({ probe, farmId, fields }: { probe: SoilSensorProbe; farmId:
   const [range, setRange] = useState<"30" | "90" | "180" | "365">("90");
   const [showAddReading, setShowAddReading] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [pendingConfirm, setPendingConfirm] = useState<{ msg: string; fn: () => void } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null);
 
   const fromDate = new Date();
   fromDate.setDate(fromDate.getDate() - parseInt(range, 10));
@@ -797,7 +783,7 @@ function ProbePanel({ probe, farmId, fields }: { probe: SoilSensorProbe; farmId:
                     </span>
                   </td>
                   <td className="px-3 py-2 text-right">
-                    <button onClick={() => setPendingConfirm({ msg: "Delete this soil moisture reading? This cannot be undone.", fn: () => deleteReading.mutate(r.id) })}
+                    <button onClick={() => setPendingDelete(r.id)}
                       className="text-gray-300 hover:text-red-500 transition-colors">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -819,11 +805,12 @@ function ProbePanel({ probe, farmId, fields }: { probe: SoilSensorProbe; farmId:
       {showAddReading && <AddReadingDialog open probe={probe} farmId={farmId} onClose={() => { setShowAddReading(false); qc.invalidateQueries({ queryKey: ["soil-readings", probe.id] }); }} />}
       {showImport && <CsvImportDialog open probe={probe} farmId={farmId} onClose={() => setShowImport(false)} />}
       <ConfirmDialog
-        open={!!pendingConfirm}
+        open={pendingDelete !== null}
         title="Delete Reading"
-        message={pendingConfirm?.msg ?? ""}
-        onConfirm={() => { pendingConfirm?.fn(); setPendingConfirm(null); }}
-        onCancel={() => setPendingConfirm(null)}
+        message="Delete this soil moisture reading? This cannot be undone."
+        mutation={deleteReading}
+        onConfirm={() => { if (pendingDelete !== null) deleteReading.mutate(pendingDelete, { onSuccess: () => setPendingDelete(null) }); }}
+        onCancel={() => { setPendingDelete(null); deleteReading.reset(); }}
         confirmLabel="Delete"
         confirmVariant="destructive"
       />
@@ -1039,7 +1026,7 @@ export function SoilSensorsTab({ farmId }: { farmId: number }) {
   const [showAdd, setShowAdd] = useState(false);
   const [editProbe, setEditProbe] = useState<SoilSensorProbe | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
-  const [pendingConfirm, setPendingConfirm] = useState<{ msg: string; fn: () => void } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<SoilSensorProbe | null>(null);
 
   const { data, isLoading } = useQuery<{ records: SoilSensorProbe[] }>({
     queryKey: ["soil-sensors", farmId],
@@ -1071,11 +1058,12 @@ export function SoilSensorsTab({ farmId }: { farmId: number }) {
   return (
     <div>
       <ConfirmDialog
-        open={!!pendingConfirm}
+        open={pendingDelete !== null}
         title="Delete Probe"
-        message={pendingConfirm?.msg ?? ""}
-        onConfirm={() => { pendingConfirm?.fn(); setPendingConfirm(null); }}
-        onCancel={() => setPendingConfirm(null)}
+        message={pendingDelete ? `Delete "${pendingDelete.name}" and all its readings? This cannot be undone.` : ""}
+        mutation={deleteProbe}
+        onConfirm={() => { if (pendingDelete) deleteProbe.mutate(pendingDelete.id, { onSuccess: () => setPendingDelete(null) }); }}
+        onCancel={() => { setPendingDelete(null); deleteProbe.reset(); }}
         confirmLabel="Delete"
         confirmVariant="destructive"
       />
@@ -1152,7 +1140,7 @@ export function SoilSensorsTab({ farmId }: { farmId: number }) {
                     <button onClick={() => setEditProbe(probe)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700" title="Edit">
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
-                    <button onClick={() => setPendingConfirm({ msg: `Delete "${probe.name}" and all its readings? This cannot be undone.`, fn: () => deleteProbe.mutate(probe.id) })}
+                    <button onClick={() => setPendingDelete(probe)}
                       className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600" title="Delete">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>

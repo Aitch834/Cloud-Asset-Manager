@@ -117,7 +117,7 @@ export function SchemeRecordsTab({ farmId }: { farmId: number }) {
         ]}
         rows={filteredSchList}
         onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
-        onDelete={r => del.mutate(r.id as number)}
+        onDelete={r => del.mutate(r.id as number)} deleteMutation={del}
         onView={setViewRecord}
       />}
       {viewRecord && (

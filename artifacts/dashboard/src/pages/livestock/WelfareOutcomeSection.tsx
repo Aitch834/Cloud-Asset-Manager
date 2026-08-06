@@ -849,7 +849,7 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      {deleteId !== null && <ConfirmDialog open title="Delete Assessment?" message="This welfare outcome assessment will be permanently deleted." onConfirm={() => deleteMut.mutate(deleteId!)} onCancel={() => setDeleteId(null)} confirmLabel="Delete" confirmVariant="destructive" />}
+      {deleteId !== null && <ConfirmDialog open title="Delete Assessment?" message="This welfare outcome assessment will be permanently deleted." mutation={deleteMut} onConfirm={() => deleteMut.mutate(deleteId!)} onCancel={() => { setDeleteId(null); deleteMut.reset(); }} confirmLabel="Delete" confirmVariant="destructive" />}
     </>
   );
 }

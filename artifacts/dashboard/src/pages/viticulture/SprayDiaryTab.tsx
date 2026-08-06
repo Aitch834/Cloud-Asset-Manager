@@ -296,7 +296,7 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
             { key: "operatorName", label: "Operator" },
           ]}
           rows={filteredSpray}
-          onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)}
+          onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)} deleteMutation={crud.remove}
         />
       )}
 

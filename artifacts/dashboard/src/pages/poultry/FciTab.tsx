@@ -92,7 +92,7 @@ export function FciTab({ farmId }: { farmId: number }) {
         { key: "catchingContractor", label: "Catching Contractor" },
         { key: "withdrawalPeriodClear", label: "Withdrawal Clear", fmt: r => r.withdrawalPeriodClear ? "✓ Yes" : "No" },
         { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="poultry-fci-documents" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["poultry-fci", farmId]} /> },
-      ]} rows={filteredFciList} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} />}
+      ]} rows={filteredFciList} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} onView={setViewRecord} />}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>

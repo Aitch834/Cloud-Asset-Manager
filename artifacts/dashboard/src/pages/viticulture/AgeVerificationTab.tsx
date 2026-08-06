@@ -213,7 +213,7 @@ export function AgeVerificationTab({ farmId }: { farmId: number }) {
               : <span className="text-xs text-muted-foreground">Est. age {fmt(r.estimatedAge)} — ID {r.idProduced ? "produced" : "not produced"}</span> },
           ]}
           rows={crud.data}
-          onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)}
+          onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)} deleteMutation={crud.remove}
         />
       )}
 

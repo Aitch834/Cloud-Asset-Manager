@@ -112,7 +112,7 @@ export function HousesTab({ farmId }: { farmId: number }) {
         { key: "approvedCapacity", label: "Capacity (birds)" },
         { key: "floorArea", label: "Floor Area", fmt: r => (r.lengthM && r.widthM) ? `${(Number(r.lengthM) * Number(r.widthM)).toFixed(0)} m²` : "—" },
         { key: "density", label: "Density (birds/m²)", fmt: r => (r.lengthM && r.widthM && r.approvedCapacity) ? (Number(r.approvedCapacity) / (Number(r.lengthM) * Number(r.widthM))).toFixed(1) : "—" },
-      ]} rows={houses as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} onView={setViewRecord} onQr={setQrItem} />}
+      ]} rows={houses as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} onView={setViewRecord} onQr={setQrItem} />}
       {qrItem && (
         <PoultryHouseQRDialog
           house={{ id: Number(qrItem.id), houseName: qrItem.houseName as string, species: qrItem.species as string, houseType: qrItem.houseType as string }}

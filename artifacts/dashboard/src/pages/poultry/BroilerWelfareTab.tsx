@@ -119,7 +119,7 @@ export function BroilerWelfareTab({ farmId }: { farmId: number }) {
           { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="poultry-broiler-welfare" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["poultry-bwi", farmId]} /> },
         ]}
         rows={filteredBwiList}
-        onDelete={r => del.mutate(r.id as number)}
+        onDelete={r => del.mutate(r.id as number)} deleteMutation={del}
         onView={setViewRecord}
       />}
       {viewRecord && (

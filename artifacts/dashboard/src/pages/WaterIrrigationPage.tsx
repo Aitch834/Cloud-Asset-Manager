@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,22 +26,10 @@ import { apiUrl as api } from "@/lib/api";
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
 function Empty({ msg }: { msg: string }) { return <p className="text-sm text-muted-foreground italic py-6 text-center">{msg}</p>; }
-function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string; confirmVariant?: "default" | "destructive" }) {
-  return (
-    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
-      <DialogContent style={{ maxWidth: "22rem" }}>
-        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground">{message}</p>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void; onView?: (r: Record<string, unknown>) => void }) {
+type DeleteMutation = { isError: boolean; isPending: boolean; error: unknown; isSuccess: boolean; reset: () => void };
+function DataTable({ cols, rows, onEdit, onDelete, onView, deleteMutation }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void; onView?: (r: Record<string, unknown>) => void; deleteMutation?: DeleteMutation }) {
   const [pendingDelete, setPendingDelete] = useState<Record<string, unknown> | null>(null);
+  useEffect(() => { if (deleteMutation?.isSuccess) setPendingDelete(null); }, [deleteMutation?.isSuccess]);
   if (!rows.length) return <Empty msg="No records yet." />;
   return (
     <>
@@ -51,7 +40,7 @@ function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: stri
           {(onEdit || onDelete || onView) && <td className="py-2 text-right space-x-1 whitespace-nowrap">
             {onView && <Button size="icon" variant="ghost" onClick={() => onView(row)}><Eye className="w-3.5 h-3.5" /></Button>}
             {onEdit && <Button size="icon" variant="ghost" onClick={() => onEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>}
-            {onDelete && <Button size="icon" variant="ghost" onClick={() => setPendingDelete(row)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>}
+            {onDelete && <Button size="icon" variant="ghost" onClick={() => { deleteMutation?.reset(); setPendingDelete(row); }}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>}
           </td>}
         </tr>)}</tbody>
       </table></div>
@@ -59,8 +48,9 @@ function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: stri
         open={!!pendingDelete}
         title="Delete Record"
         message="Are you sure you want to delete this record? This cannot be undone."
-        onConfirm={() => { if (pendingDelete && onDelete) { onDelete(pendingDelete); } setPendingDelete(null); }}
-        onCancel={() => setPendingDelete(null)}
+        mutation={deleteMutation}
+        onConfirm={() => { if (pendingDelete && onDelete) { onDelete(pendingDelete); if (!deleteMutation) setPendingDelete(null); } }}
+        onCancel={() => { setPendingDelete(null); deleteMutation?.reset(); }}
         confirmLabel="Delete"
         confirmVariant="destructive"
       />
@@ -95,7 +85,7 @@ function LicencesTab({ farmId }: { farmId: number }) {
         </div>
         <Button size="sm" onClick={() => { setEditing(null); setForm({ meterRequired: true, returnRequired: true, issuingAuthority: "Environment Agency" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Source / Licence</Button>
       </div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "licenceNumber", label: "Licence No." }, { key: "sourceType", label: "Source Type" }, { key: "waterSource", label: "Source Description" }, { key: "purposeOfUse", label: "Purpose" }, { key: "annualLicencedVolumeM3", label: "Annual m³" }, { key: "costPerM3", label: "£/m³" }, { key: "licenceExpiryDate", label: "Expiry", fmt: r => fmtDate(r.licenceExpiryDate) }]} rows={licences as Record<string, unknown>[]} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "licenceNumber", label: "Licence No." }, { key: "sourceType", label: "Source Type" }, { key: "waterSource", label: "Source Description" }, { key: "purposeOfUse", label: "Purpose" }, { key: "annualLicencedVolumeM3", label: "Annual m³" }, { key: "costPerM3", label: "£/m³" }, { key: "licenceExpiryDate", label: "Expiry", fmt: r => fmtDate(r.licenceExpiryDate) }]} rows={licences as Record<string, unknown>[]} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} />}
       
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
@@ -220,7 +210,7 @@ function MeterReadingsTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold text-sm">Abstraction Meter Readings</h3><div className="flex items-center gap-2"><Select value={yearFilter} onValueChange={setYearFilter}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={() => { setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Log Reading</Button></div></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "readingDate", label: "Date", fmt: r => fmtDate(r.readingDate) }, { key: "meterReading", label: "Meter Reading" }, { key: "volumeAbstractedM3", label: "Abstracted (m³)" }, { key: "cumulativeYtdM3", label: "YTD (m³)" }, { key: "percentOfAnnualAllocation", label: "% of Allocation" }, { key: "readBy", label: "Read By" }]} rows={filteredReadings} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "readingDate", label: "Date", fmt: r => fmtDate(r.readingDate) }, { key: "meterReading", label: "Meter Reading" }, { key: "volumeAbstractedM3", label: "Abstracted (m³)" }, { key: "cumulativeYtdM3", label: "YTD (m³)" }, { key: "percentOfAnnualAllocation", label: "% of Allocation" }, { key: "readBy", label: "Read By" }]} rows={filteredReadings} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} />}
       
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
@@ -626,7 +616,7 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
                       <Button size="icon" variant="ghost" onClick={() => { setViewRecord(r); setViewTab("details"); }}><Eye className="w-3.5 h-3.5" /></Button>
                       <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
                       {r.status === "open" && (
-                        <Button size="icon" variant="ghost" title="Mark complete" onClick={() => setConfirmClose(r)}><FileCheck className="w-3.5 h-3.5 text-green-600" /></Button>
+                        <Button size="icon" variant="ghost" title="Mark complete" onClick={() => { closeEvent.reset(); setConfirmClose(r); }}><FileCheck className="w-3.5 h-3.5 text-green-600" /></Button>
                       )}
                       <Button size="icon" variant="ghost" onClick={() => del.mutate(r.id as number)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
                     </td>
@@ -683,7 +673,7 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
             )}
             <DialogFooter className="mt-4">
               {viewRecord.status === "open" && (
-                <Button variant="outline" className="mr-auto text-green-700 border-green-300" onClick={() => { setViewRecord(null); setConfirmClose(viewRecord); }}>
+                <Button variant="outline" className="mr-auto text-green-700 border-green-300" onClick={() => { setViewRecord(null); closeEvent.reset(); setConfirmClose(viewRecord); }}>
                   <FileCheck className="w-4 h-4 mr-1" />Mark Complete
                 </Button>
               )}
@@ -700,8 +690,9 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
         title="Mark irrigation complete?"
         message={`This will set the record for ${fmtDate(confirmClose?.irrigationDate)} to "Complete" and record today as the end date.`}
         confirmLabel="Mark Complete"
+        mutation={closeEvent}
         onConfirm={() => closeEvent.mutate(confirmClose!.id as number)}
-        onCancel={() => setConfirmClose(null)}
+        onCancel={() => { setConfirmClose(null); closeEvent.reset(); }}
       />
 
       {/* ── Add / Edit Dialog ────────────────────────────────────────────────── */}
@@ -905,7 +896,7 @@ function IrrigationEquipmentTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Irrigation Equipment Register</h3><Button size="sm" onClick={() => { setEditing(null); setForm({ status: "active" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Equipment</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "equipmentName", label: "Name" }, { key: "equipmentType", label: "Type" }, { key: "manufacturer", label: "Manufacturer" }, { key: "applicationRateLph", label: "Rate (L/hr)" }, { key: "lastCalibrationDate", label: "Last Calibration", fmt: r => fmtDate(r.lastCalibrationDate) }, { key: "nextCalibrationDue", label: "Next Due", fmt: r => fmtDate(r.nextCalibrationDue) }, { key: "status", label: "Status" }]} rows={equipment as Record<string, unknown>[]} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "equipmentName", label: "Name" }, { key: "equipmentType", label: "Type" }, { key: "manufacturer", label: "Manufacturer" }, { key: "applicationRateLph", label: "Rate (L/hr)" }, { key: "lastCalibrationDate", label: "Last Calibration", fmt: r => fmtDate(r.lastCalibrationDate) }, { key: "nextCalibrationDue", label: "Next Due", fmt: r => fmtDate(r.nextCalibrationDue) }, { key: "status", label: "Status" }]} rows={equipment as Record<string, unknown>[]} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} />}
       
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
@@ -995,7 +986,7 @@ function SoilMoistureTab({ farmId }: { farmId: number }) {
         </div>
         <div className="flex items-center gap-2"><Select value={yearFilterSoil} onValueChange={setYearFilterSoil}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsSoil.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={() => { setEditing(null); setForm({ readingMethod: "manual" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Reading</Button></div>
       </div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "readingDate", label: "Date", fmt: r => fmtDate(r.readingDate) }, { key: "fieldOrBlockDescription", label: "Field / Block" }, { key: "sensorType", label: "Sensor Type" }, { key: "depthCm", label: "Depth (cm)" }, { key: "moisturePercent", label: "Moisture %" }, { key: "soilMoistureDeficitMm", label: "SMD (mm)" }, { key: "readingMethod", label: "Method" }, { key: "recordedBy", label: "Recorded By" }]} rows={filteredSoilRecords} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "readingDate", label: "Date", fmt: r => fmtDate(r.readingDate) }, { key: "fieldOrBlockDescription", label: "Field / Block" }, { key: "sensorType", label: "Sensor Type" }, { key: "depthCm", label: "Depth (cm)" }, { key: "moisturePercent", label: "Moisture %" }, { key: "soilMoistureDeficitMm", label: "SMD (mm)" }, { key: "readingMethod", label: "Method" }, { key: "recordedBy", label: "Recorded By" }]} rows={filteredSoilRecords} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} />}
       
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
@@ -1088,7 +1079,7 @@ function DroughtManagementTab({ farmId }: { farmId: number }) {
         </div>
         <div className="flex items-center gap-2"><Select value={yearFilterDrought} onValueChange={setYearFilterDrought}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsDrought.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={() => { setEditing(null); setForm({ droughtStage: "normal", restrictionLevel: "none", isActive: true }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Plan</Button></div>
       </div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "planYear", label: "Year" }, { key: "planTitle", label: "Plan Title" }, { key: "droughtStage", label: "Drought Stage" }, { key: "restrictionLevel", label: "Restriction Level" }, { key: "isActive", label: "Active", fmt: r => r.isActive ? "Yes" : "No" }, { key: "reviewDate", label: "Review Date", fmt: r => fmtDate(r.reviewDate) }]} rows={filteredDroughtRecords} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "planYear", label: "Year" }, { key: "planTitle", label: "Plan Title" }, { key: "droughtStage", label: "Drought Stage" }, { key: "restrictionLevel", label: "Restriction Level" }, { key: "isActive", label: "Active", fmt: r => r.isActive ? "Yes" : "No" }, { key: "reviewDate", label: "Review Date", fmt: r => fmtDate(r.reviewDate) }]} rows={filteredDroughtRecords} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} />}
       
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
@@ -1189,7 +1180,7 @@ function CamsReturnsTab({ farmId }: { farmId: number }) {
         </div>
         <div className="flex items-center gap-2"><Select value={yearFilterCams} onValueChange={setYearFilterCams}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsCams.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={() => { setEditing(null); setForm({ submittedToEa: false, complianceStatus: "compliant", returnYear: String(new Date().getFullYear()) }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Return</Button></div>
       </div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "returnYear", label: "Year" }, { key: "licenceId", label: "Licence", fmt: r => { const l = (licences as Record<string, unknown>[]).find(x => String(x.id) === String(r.licenceId)); return l ? String(l.licenceNumber) : fmt(r.licenceId); } }, { key: "totalAbstractedM3", label: "Total (m³)" }, { key: "submittedToEa", label: "Submitted", fmt: r => r.submittedToEa ? "Yes" : "No" }, { key: "submissionDate", label: "Submission Date", fmt: r => fmtDate(r.submissionDate) }, { key: "eaReturnReference", label: "EA Ref" }, { key: "complianceStatus", label: "Compliance" }]} rows={filteredCamsRecords} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "returnYear", label: "Year" }, { key: "licenceId", label: "Licence", fmt: r => { const l = (licences as Record<string, unknown>[]).find(x => String(x.id) === String(r.licenceId)); return l ? String(l.licenceNumber) : fmt(r.licenceId); } }, { key: "totalAbstractedM3", label: "Total (m³)" }, { key: "submittedToEa", label: "Submitted", fmt: r => r.submittedToEa ? "Yes" : "No" }, { key: "submissionDate", label: "Submission Date", fmt: r => fmtDate(r.submissionDate) }, { key: "eaReturnReference", label: "EA Ref" }, { key: "complianceStatus", label: "Compliance" }]} rows={filteredCamsRecords} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} />}
       
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>

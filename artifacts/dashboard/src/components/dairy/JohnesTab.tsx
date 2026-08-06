@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Plus, Pencil, Trash2, Eye, Printer } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DocAttach } from "@/components/DocAttach";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { openPrintWindow } from "@/lib/print-report";
@@ -78,6 +79,7 @@ export function JohnesDeclarationSection({ farmId, allMonitoringRecords }: { far
   const [ackRec, setAckRec] = useState<any>(null);
   const [ackForm, setAckForm] = useState<any>({});
   const [form, setForm] = useState<any>({});
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null);
   const setF = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
   const qKey = ["johnes-declarations", farmId];
@@ -117,11 +119,11 @@ export function JohnesDeclarationSection({ farmId, allMonitoringRecords }: { far
     setOpen(false); setEditing(null);
   }
 
-  async function del(id: number) {
-    if (!confirm("Delete this declaration record?")) return;
-    await fetch(api(`farms/${farmId}/johnes-declarations/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
-    qc.invalidateQueries({ queryKey: qKey });
-  }
+  const delMut = useMutation({
+    mutationFn: (id: number) =>
+      fetch(api(`farms/${farmId}/johnes-declarations/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qKey }); },
+  });
 
   async function saveAck() {
     await fetch(api(`farms/${farmId}/johnes-declarations/${ackRec.id}/acknowledge`), {
@@ -229,7 +231,7 @@ ${rec.notes ? `<p class="body-para"><em>Notes: ${rec.notes}</em></p>` : ""}
                         </Button>
                       )}
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { setEditing(d); setForm({ ...d }); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(d.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => setPendingDelete(d.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   </td>
                 </tr>
@@ -339,6 +341,17 @@ ${rec.notes ? `<p class="body-para"><em>Notes: ${rec.notes}</em></p>` : ""}
           </DialogContent>
         </Dialog>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete Declaration"
+        message="Delete this declaration record?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={delMut}
+        onConfirm={() => { if (pendingDelete !== null) delMut.mutate(pendingDelete, { onSuccess: () => setPendingDelete(null) }); }}
+        onCancel={() => { setPendingDelete(null); delMut.reset(); }}
+      />
     </div>
   );
 }
@@ -350,6 +363,7 @@ export function JohnesTab({ farmId }: { farmId: number }) {
   const [viewRec, setViewRec] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const [yearFilter, setYearFilter] = useState("all");
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null);
 
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
@@ -418,14 +432,14 @@ export function JohnesTab({ farmId }: { farmId: number }) {
     setOpen(false);
   }
 
-  async function del(id: number) {
-    if (!confirm("Delete this Johne's monitoring record?")) return;
-    await fetch(api(`farms/${farmId}/johnes-monitoring/${id}`), {
-      method: "DELETE",
-      credentials: "include",
-    }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
-    qc.invalidateQueries({ queryKey: ["johnes-monitoring", farmId] });
-  }
+  const delMut = useMutation({
+    mutationFn: (id: number) =>
+      fetch(api(`farms/${farmId}/johnes-monitoring/${id}`), {
+        method: "DELETE",
+        credentials: "include",
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["johnes-monitoring", farmId] }); },
+  });
 
   function printReport() {
     const printedDate = new Date().toLocaleDateString("en-GB", {
@@ -625,7 +639,7 @@ export function JohnesTab({ farmId }: { farmId: number }) {
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openEdit(r)}>
                         <Pencil className="w-3.5 h-3.5" />
                       </Button>
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => del(r.id)}>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500" onClick={() => setPendingDelete(r.id)}>
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     </div>
@@ -899,6 +913,17 @@ export function JohnesTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete Monitoring Record"
+        message="Delete this Johne's monitoring record?"
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={delMut}
+        onConfirm={() => { if (pendingDelete !== null) delMut.mutate(pendingDelete, { onSuccess: () => setPendingDelete(null) }); }}
+        onCancel={() => { setPendingDelete(null); delMut.reset(); }}
+      />
       <JohnesDeclarationSection farmId={farmId} allMonitoringRecords={allRecords} />
     </div>
   );

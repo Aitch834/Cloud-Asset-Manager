@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -31,23 +32,9 @@ function Empty({ msg }: { msg: string }) {
   return <p className="text-sm text-muted-foreground italic py-6 text-center">{msg}</p>;
 }
 
-function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string; confirmVariant?: "default" | "destructive" }) {
-  return (
-    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
-      <DialogContent style={{ maxWidth: "22rem" }}>
-        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground">{message}</p>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void; onView?: (r: Record<string, unknown>) => void }) {
+function DataTable({ cols, rows, onEdit, onDelete, onView, deleteMutation }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void; onView?: (r: Record<string, unknown>) => void; deleteMutation?: { isError: boolean; isPending: boolean; isSuccess: boolean; error: unknown; reset: () => void } }) {
   const [pendingDelete, setPendingDelete] = useState<Record<string, unknown> | null>(null);
+  useEffect(() => { if (deleteMutation?.isSuccess) setPendingDelete(null); }, [deleteMutation?.isSuccess]);
   if (!rows.length) return <Empty msg="No records yet. Add one using the button above." />;
   return (
     <>
@@ -70,8 +57,9 @@ function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: stri
         open={!!pendingDelete}
         title="Delete Record"
         message="Are you sure you want to delete this record? This cannot be undone."
-        onConfirm={() => { if (pendingDelete && onDelete) { onDelete(pendingDelete); } setPendingDelete(null); }}
-        onCancel={() => setPendingDelete(null)}
+        mutation={deleteMutation}
+        onConfirm={() => { if (pendingDelete && onDelete) { onDelete(pendingDelete); if (!deleteMutation) setPendingDelete(null); } }}
+        onCancel={() => { setPendingDelete(null); deleteMutation?.reset(); }}
         confirmLabel="Delete"
         confirmVariant="destructive"
       />
@@ -418,8 +406,9 @@ function BlocksTab({ farmId }: { farmId: number }) {
           open
           title={`Reactivate Block — ${fmt(reactivateRecord.blockName)}`}
           message="This will mark the block as active again, making it available in all crop and record selectors."
+          mutation={reactivate}
           onConfirm={() => reactivate.mutate(reactivateRecord.id as number)}
-          onCancel={() => setReactivateRecord(null)}
+          onCancel={() => { setReactivateRecord(null); reactivate.reset(); }}
           confirmLabel="Reactivate"
         />
       )}
@@ -539,7 +528,7 @@ export function CropsTab({ farmId }: { farmId: number }) {
           { key: "expectedHarvestDate", label: "Expected Harvest", fmt: r => fmtDate(r.expectedHarvestDate) },
           { key: "status", label: "Status" },
         ]}
-        rows={crops as Record<string, unknown>[]} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
+        rows={crops as Record<string, unknown>[]} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} />}
 
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
@@ -806,7 +795,7 @@ export function HarvestTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold text-sm">Harvest Records</h3><div className="flex items-center gap-2"><Select value={yearFilterHarvest} onValueChange={setYearFilterHarvest}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsHarvest.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Harvest</Button></div></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "harvestDate", label: "Date", fmt: r => fmtDate(r.harvestDate) }, { key: "harvestBatchRef", label: "Batch Ref" }, { key: "quantityKg", label: "Total (kg)" }, { key: "gradeA", label: "Grade A (kg)" }, { key: "gradeB", label: "Grade B (kg)" }, { key: "preHarvestInterval", label: "PHI (days)" }, { key: "destination", label: "Destination" }]} rows={filteredHarvestRecords} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "harvestDate", label: "Date", fmt: r => fmtDate(r.harvestDate) }, { key: "harvestBatchRef", label: "Batch Ref" }, { key: "quantityKg", label: "Total (kg)" }, { key: "gradeA", label: "Grade A (kg)" }, { key: "gradeB", label: "Grade B (kg)" }, { key: "preHarvestInterval", label: "PHI (days)" }, { key: "destination", label: "Destination" }]} rows={filteredHarvestRecords} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} />}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>
@@ -1336,6 +1325,7 @@ export function PackhouseTab({ farmId }: { farmId: number }) {
           rows={filteredPackhouseRecords}
           onView={setViewRecord}
           onDelete={r => del.mutate(r.id as number)}
+          deleteMutation={del}
         />
       )}
 
@@ -1439,7 +1429,7 @@ export function AllergenTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold text-sm">Allergen Management Reviews</h3><div className="flex items-center gap-2"><Select value={yearFilterAllergen} onValueChange={setYearFilterAllergen}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{yearsAllergen.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={() => { setForm({ labellingVerified: false }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Review</Button></div></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "reviewDate", label: "Review Date", fmt: r => fmtDate(r.reviewDate) }, { key: "reviewedBy", label: "Reviewed By" }, { key: "crossContaminationRisk", label: "Cross-Contamination Risk" }, { key: "nextReviewDate", label: "Next Review", fmt: r => fmtDate(r.nextReviewDate) }, { key: "labellingVerified", label: "Labelling Verified", fmt: r => r.labellingVerified ? "Yes" : "No" }]} rows={filteredAllergenRecords} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "reviewDate", label: "Review Date", fmt: r => fmtDate(r.reviewDate) }, { key: "reviewedBy", label: "Reviewed By" }, { key: "crossContaminationRisk", label: "Cross-Contamination Risk" }, { key: "nextReviewDate", label: "Next Review", fmt: r => fmtDate(r.nextReviewDate) }, { key: "labellingVerified", label: "Labelling Verified", fmt: r => r.labellingVerified ? "Yes" : "No" }]} rows={filteredAllergenRecords} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} />}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: "42rem" }}>

@@ -245,7 +245,7 @@ function GiDesignationsSection({ farmId: _farmId, desigs }: { farmId: number; de
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {deleting && <ConfirmDialog open title="Delete Designation" message={`Delete "${fmt(deleting.designationName)}"? This cannot be undone.`} onConfirm={async () => { await desigs.remove.mutateAsync(Number(deleting.id)); setDeleting(null); }} onCancel={() => setDeleting(null)} />}
+      {deleting && <ConfirmDialog open title="Delete Designation" message={`Delete "${fmt(deleting.designationName)}"? This cannot be undone.`} confirmLabel="Delete" confirmVariant="destructive" mutation={desigs.remove} onConfirm={() => { desigs.remove.mutate(Number(deleting.id), { onSuccess: () => setDeleting(null) }); }} onCancel={() => { setDeleting(null); desigs.remove.reset(); }} />}
     </div>
   );
 }
@@ -487,7 +487,7 @@ function GiCertificationsSection({ farmId: _farmId, certs, designations }: { far
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {deleting && <ConfirmDialog open title="Delete Certification" message={`Delete ${fmt(deleting.vintageYear)} certification? This cannot be undone.`} onConfirm={async () => { await certs.remove.mutateAsync(Number(deleting.id)); setDeleting(null); }} onCancel={() => setDeleting(null)} />}
+      {deleting && <ConfirmDialog open title="Delete Certification" message={`Delete ${fmt(deleting.vintageYear)} certification? This cannot be undone.`} confirmLabel="Delete" confirmVariant="destructive" mutation={certs.remove} onConfirm={() => { certs.remove.mutate(Number(deleting.id), { onSuccess: () => setDeleting(null) }); }} onCancel={() => { setDeleting(null); certs.remove.reset(); }} />}
     </div>
   );
 }
@@ -660,7 +660,7 @@ function GiDeclarationsSection({ farmId: _farmId, decls, designations, harvestRo
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {deleting && <ConfirmDialog open title="Delete Declaration" message={`Delete ${fmt(deleting.vintageYear)} declaration? This cannot be undone.`} onConfirm={async () => { await decls.remove.mutateAsync(Number(deleting.id)); setDeleting(null); }} onCancel={() => setDeleting(null)} />}
+      {deleting && <ConfirmDialog open title="Delete Declaration" message={`Delete ${fmt(deleting.vintageYear)} declaration? This cannot be undone.`} confirmLabel="Delete" confirmVariant="destructive" mutation={decls.remove} onConfirm={() => { decls.remove.mutate(Number(deleting.id), { onSuccess: () => setDeleting(null) }); }} onCancel={() => { setDeleting(null); decls.remove.reset(); }} />}
     </div>
   );
 }

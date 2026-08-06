@@ -149,7 +149,7 @@ export function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<
         rows={filteredHarvest}
         onView={setViewing}
         onEdit={openEdit}
-        onDelete={r => remove.mutateAsync(r.id as number)}
+        onDelete={r => remove.mutateAsync(r.id as number)} deleteMutation={remove}
       />
 
       {/* View Dialog */}

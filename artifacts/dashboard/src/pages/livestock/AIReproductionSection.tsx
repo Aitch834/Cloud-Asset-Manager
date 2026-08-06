@@ -210,7 +210,7 @@ export function AIReproductionSection({ farmId }: { farmId: number }) {
                         )}
                         <Button size="icon" variant="ghost" onClick={() => setViewAIRecord(r)}><Eye className="w-3.5 h-3.5" /></Button>
                         <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""])) as Record<string, string | boolean>); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                        <Button size="icon" variant="ghost" onClick={() => setPendingConfirm({ msg: "Delete this AI/Reproduction record? This cannot be undone.", fn: () => del.mutate(r.id as number) })}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                        <Button size="icon" variant="ghost" onClick={() => setPendingConfirm({ msg: "Delete this AI/Reproduction record? This cannot be undone.", fn: () => del.mutate(r.id as number, { onSuccess: () => setPendingConfirm(null) }) })}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
                       </div>
                     </td>
                   </tr>
@@ -225,8 +225,9 @@ export function AIReproductionSection({ farmId }: { farmId: number }) {
         open={!!pendingConfirm}
         title="Delete Record"
         message={pendingConfirm?.msg ?? ""}
-        onConfirm={() => { pendingConfirm?.fn(); setPendingConfirm(null); }}
-        onCancel={() => setPendingConfirm(null)}
+        mutation={del}
+        onConfirm={() => { pendingConfirm?.fn(); }}
+        onCancel={() => { setPendingConfirm(null); del.reset(); }}
         confirmLabel="Delete"
         confirmVariant="destructive"
       />

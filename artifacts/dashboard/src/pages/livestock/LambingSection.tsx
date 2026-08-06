@@ -554,8 +554,9 @@ ${yearlyStats.length > 1 ? `<h3>Season-by-Season Perinatal Mortality Trend</h3>
         message="This will permanently remove this lambing record. Live lamb livestock register entries will be kept."
         confirmLabel="Delete"
         confirmVariant="destructive"
-        onConfirm={() => confirmDelete !== null && del.mutate(confirmDelete)}
-        onCancel={() => setConfirmDelete(null)}
+        mutation={del}
+        onConfirm={() => { if (confirmDelete !== null) del.mutate(confirmDelete); }}
+        onCancel={() => { setConfirmDelete(null); del.reset(); }}
       />
 
       {/* Add / Edit dialog */}

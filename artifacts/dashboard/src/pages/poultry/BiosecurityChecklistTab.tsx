@@ -138,7 +138,7 @@ export function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
         ]}
         rows={filteredBioList}
         onEdit={r => { setEditing(r); setForm({ ...r, houseId: r.houseId ? String(r.houseId) : "__none__", previousFlockId: r.previousFlockId ? String(r.previousFlockId) : "__none__" }); setOpen(true); }}
-        onDelete={r => del.mutate(r.id as number)}
+        onDelete={r => del.mutate(r.id as number)} deleteMutation={del}
         onView={setViewRecord}
       />}
       {viewRecord && (

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -7,6 +7,7 @@ import { Plus, Pencil, Trash2, Eye, Loader2, LayoutList, ShoppingBag, ClipboardC
 import { openPrintWindow } from "@/lib/print-report";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,26 +25,10 @@ const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
 function Empty({ msg }: { msg: string }) { return <p className="text-sm text-muted-foreground italic py-6 text-center">{msg}</p>; }
 
-function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: {
-  open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void;
-  confirmLabel?: string; confirmVariant?: "default" | "destructive";
-}) {
-  return (
-    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
-      <DialogContent style={{ maxWidth: "22rem" }}>
-        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground">{message}</p>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void; onView?: (r: Record<string, unknown>) => void }) {
+type DeleteMutation = { isError: boolean; isPending: boolean; error: unknown; isSuccess: boolean; reset: () => void };
+function DataTable({ cols, rows, onEdit, onDelete, onView, deleteMutation }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void; onView?: (r: Record<string, unknown>) => void; deleteMutation?: DeleteMutation }) {
   const [pendingDelete, setPendingDelete] = useState<Record<string, unknown> | null>(null);
+  useEffect(() => { if (deleteMutation?.isSuccess) setPendingDelete(null); }, [deleteMutation?.isSuccess]);
   if (!rows.length) return <Empty msg="No records yet." />;
   return (
     <>
@@ -54,7 +39,7 @@ function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: stri
           {(onEdit || onDelete || onView) && <td className="py-2 text-right space-x-1">
             {onView && <Button size="icon" variant="ghost" onClick={() => onView(row)}><Eye className="w-3.5 h-3.5" /></Button>}
             {onEdit && <Button size="icon" variant="ghost" onClick={() => onEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>}
-            {onDelete && <Button size="icon" variant="ghost" onClick={() => setPendingDelete(row)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>}
+            {onDelete && <Button size="icon" variant="ghost" onClick={() => { deleteMutation?.reset(); setPendingDelete(row); }}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>}
           </td>}
         </tr>)}</tbody>
       </table></div>
@@ -62,8 +47,9 @@ function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: stri
         open={!!pendingDelete}
         title="Delete Record"
         message="Are you sure you want to delete this record? This cannot be undone."
-        onConfirm={() => { if (pendingDelete && onDelete) { onDelete(pendingDelete); } setPendingDelete(null); }}
-        onCancel={() => setPendingDelete(null)}
+        mutation={deleteMutation}
+        onConfirm={() => { if (pendingDelete && onDelete) { onDelete(pendingDelete); if (!deleteMutation) setPendingDelete(null); } }}
+        onCancel={() => { setPendingDelete(null); deleteMutation?.reset(); }}
         confirmLabel="Delete"
         confirmVariant="destructive"
       />
@@ -92,7 +78,7 @@ function ActivitiesTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Diversification Activities</h3><Button size="sm" onClick={() => openAdd({ status: "active" })}><Plus className="w-4 h-4 mr-1" />Add Activity</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "activityName", label: "Activity" }, { key: "activityType", label: "Type" }, { key: "startDate", label: "Start Date", fmt: r => fmtDate(r.startDate) }, { key: "planningPermissionRef", label: "Planning Ref" }, { key: "status", label: "Status" }, { key: "annualTurnover", label: "Annual Turnover (£)" }]} rows={acts as Record<string, unknown>[]} onView={setViewRecord} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "activityName", label: "Activity" }, { key: "activityType", label: "Type" }, { key: "startDate", label: "Start Date", fmt: r => fmtDate(r.startDate) }, { key: "planningPermissionRef", label: "Planning Ref" }, { key: "status", label: "Status" }, { key: "annualTurnover", label: "Annual Turnover (£)" }]} rows={acts as Record<string, unknown>[]} onView={setViewRecord} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} />}
 
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
@@ -163,10 +149,12 @@ function FarmShopTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const [shopTab, setShopTab] = useState<"products" | "sales" | "history" | "suppliers" | "purchases" | "stocktakes">("products");
 
-  type ConfirmState = { open: boolean; title: string; message: string; onConfirm: () => void; confirmLabel?: string; variant?: "default" | "destructive" };
+  type ConfirmMutation = { isError: boolean; isPending: boolean; error: unknown; isSuccess: boolean; reset: () => void };
+  type ConfirmState = { open: boolean; title: string; message: string; onConfirm: () => void; confirmLabel?: string; variant?: "default" | "destructive"; mutation?: ConfirmMutation };
   const [confirmState, setConfirmState] = useState<ConfirmState>({ open: false, title: "", message: "", onConfirm: () => {} });
-  const showConfirm = (title: string, message: string, onConfirm: () => void, opts?: { confirmLabel?: string; variant?: "default" | "destructive" }) =>
+  const showConfirm = (title: string, message: string, onConfirm: () => void, opts?: { confirmLabel?: string; variant?: "default" | "destructive"; mutation?: ConfirmMutation }) =>
     setConfirmState({ open: true, title, message, onConfirm, ...opts });
+  useEffect(() => { if (confirmState.mutation?.isSuccess) setConfirmState(s => ({ ...s, open: false })); }, [confirmState.mutation?.isSuccess]);
 
   // ── Products state ──────────────────────────────────────────────────────────
   const { data: products = [], isLoading: prodLoading } = useQuery<Record<string, unknown>[]>({
@@ -434,7 +422,7 @@ function FarmShopTab({ farmId }: { farmId: number }) {
                           <Button size="icon" variant="ghost" onClick={() => setViewRecord(p)}><Eye className="w-3.5 h-3.5" /></Button>
                           <Button size="icon" variant="ghost" title="Stock In" onClick={() => { setStockTarget(p); setStockQty(""); }}><PackagePlus className="w-3.5 h-3.5 text-emerald-600" /></Button>
                           <Button size="icon" variant="ghost" onClick={() => { setProdEditing(p); setProdForm(Object.fromEntries(Object.entries(p).map(([k, v]) => [k, v ?? ""]))); setProdOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                          <Button size="icon" variant="ghost" onClick={() => showConfirm("Delete Product", "Remove this product from the catalogue? Stock history and purchase records will be retained.", () => delProd.mutate(p.id as number), { confirmLabel: "Delete", variant: "destructive" })}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                          <Button size="icon" variant="ghost" onClick={() => { delProd.reset(); showConfirm("Delete Product", "Remove this product from the catalogue? Stock history and purchase records will be retained.", () => delProd.mutate(p.id as number), { confirmLabel: "Delete", variant: "destructive", mutation: delProd }); }}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
                         </td>
                       </tr>
                     );
@@ -543,7 +531,7 @@ function FarmShopTab({ farmId }: { farmId: number }) {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-emerald-700">£{parseFloat(sess.totalNet).toFixed(2)}</span>
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={e => { e.stopPropagation(); showConfirm("Delete Sales Session", "This session and all its line items will be removed. Stock levels will be restored to pre-sale quantities.", () => delSession.mutate(sess.id), { confirmLabel: "Delete", variant: "destructive" }); }}><Trash2 className="w-3.5 h-3.5 text-red-400" /></Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={e => { e.stopPropagation(); delSession.reset(); showConfirm("Delete Sales Session", "This session and all its line items will be removed. Stock levels will be restored to pre-sale quantities.", () => delSession.mutate(sess.id), { confirmLabel: "Delete", variant: "destructive", mutation: delSession }); }}><Trash2 className="w-3.5 h-3.5 text-red-400" /></Button>
                   </div>
                 </div>
                 {expanded && (
@@ -695,7 +683,7 @@ function FarmShopTab({ farmId }: { farmId: number }) {
                         <div className="flex gap-1">
                           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setViewRecord(p)}><Eye className="w-3.5 h-3.5" /></Button>
                           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setPurchEditing(p); setPurchForm({ purchaseDate: String(p.purchaseDate ?? "").slice(0, 10), supplierId: p.supplierId ? String(p.supplierId) : "__none__", productId: p.productId ? String(p.productId) : "__none__", quantityPurchased: String(p.quantity ?? ""), costPerUnit: String(p.costPerUnit ?? ""), totalCost: String(p.totalCost ?? ""), invoiceRef: String(p.invoiceRef ?? ""), notes: String(p.notes ?? ""), updateCostPrice: false }); setPurchOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => showConfirm("Delete Purchase", "Remove this purchase record? Note: any stock that was added when this was logged will not be automatically reversed.", () => delPurch.mutate(p.id as number), { confirmLabel: "Delete", variant: "destructive" })}><Trash2 className="w-3.5 h-3.5 text-red-400" /></Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { delPurch.reset(); showConfirm("Delete Purchase", "Remove this purchase record? Note: any stock that was added when this was logged will not be automatically reversed.", () => delPurch.mutate(p.id as number), { confirmLabel: "Delete", variant: "destructive", mutation: delPurch }); }}><Trash2 className="w-3.5 h-3.5 text-red-400" /></Button>
                         </div>
                       </td>
                     </tr>
@@ -777,7 +765,7 @@ function FarmShopTab({ farmId }: { farmId: number }) {
                                   {isDraft ? "Continue" : "View"}
                                 </Button>
                                 {isDraft && (
-                                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => showConfirm("Delete Stocktake", "Delete this draft stocktake? All counts entered so far will be lost.", () => deleteStocktakeMut.mutate(s.id), { confirmLabel: "Delete", variant: "destructive" })}>
+                                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { deleteStocktakeMut.reset(); showConfirm("Delete Stocktake", "Delete this draft stocktake? All counts entered so far will be lost.", () => deleteStocktakeMut.mutate(s.id), { confirmLabel: "Delete", variant: "destructive", mutation: deleteStocktakeMut }); }}>
                                     <Trash2 className="w-3.5 h-3.5 text-red-400" />
                                   </Button>
                                 )}
@@ -813,7 +801,7 @@ function FarmShopTab({ farmId }: { farmId: number }) {
                     {activeStocktake.status === "draft" && (
                       <Button size="sm"
                         disabled={(activeStocktake.countedCount ?? 0) < (activeStocktake.itemCount ?? 0) || completeStocktakeMut.isPending}
-                        onClick={() => showConfirm("Complete Stocktake", "Stock levels will be updated to match your physical counts. This cannot be undone.", () => completeStocktakeMut.mutate(activeStocktake.id), { confirmLabel: "Complete Stocktake" })}>
+                        onClick={() => { completeStocktakeMut.reset(); showConfirm("Complete Stocktake", "Stock levels will be updated to match your physical counts. This cannot be undone.", () => completeStocktakeMut.mutate(activeStocktake.id), { confirmLabel: "Complete Stocktake", mutation: completeStocktakeMut }); }}>
                         {completeStocktakeMut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
                         Complete Stocktake
                       </Button>
@@ -1049,8 +1037,9 @@ function FarmShopTab({ farmId }: { farmId: number }) {
         open={confirmState.open}
         title={confirmState.title}
         message={confirmState.message}
-        onConfirm={() => { confirmState.onConfirm(); setConfirmState(s => ({ ...s, open: false })); }}
-        onCancel={() => setConfirmState(s => ({ ...s, open: false }))}
+        mutation={confirmState.mutation}
+        onConfirm={() => { confirmState.onConfirm(); if (!confirmState.mutation) setConfirmState(s => ({ ...s, open: false })); }}
+        onCancel={() => { confirmState.mutation?.reset(); setConfirmState(s => ({ ...s, open: false })); }}
         confirmLabel={confirmState.confirmLabel ?? "Confirm"}
         confirmVariant={confirmState.variant ?? "default"}
       />
@@ -1146,7 +1135,7 @@ function HygieneInspectionsTab({ farmId }: { farmId: number }) {
           rows={records as Record<string, unknown>[]}
           onView={setViewRecord}
           onEdit={r => openEdit(r as Record<string, unknown>)}
-          onDelete={r => del.mutate(r.id as number)}
+          onDelete={r => del.mutate(r.id as number)} deleteMutation={del}
         />
       )}
 
@@ -1221,11 +1210,11 @@ function EquineTab({ farmId }: { farmId: number }) {
     <div className="space-y-6">
       <div>
         <div className="flex justify-between items-center mb-3"><h3 className="font-semibold text-sm">Equine Register</h3><Button size="sm" onClick={() => openAdd({ status: "active" })}><Plus className="w-4 h-4 mr-1" />Add Horse</Button></div>
-        {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "horseName", label: "Name" }, { key: "breed", label: "Breed" }, { key: "sex", label: "Sex" }, { key: "passportNumber", label: "Passport No." }, { key: "microchipNumber", label: "Microchip" }, { key: "ownerName", label: "Owner" }, { key: "liveryType", label: "Livery Type" }, { key: "box", label: "Box" }]} rows={horses as Record<string, unknown>[]} onView={setViewRecord} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
+        {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "horseName", label: "Name" }, { key: "breed", label: "Breed" }, { key: "sex", label: "Sex" }, { key: "passportNumber", label: "Passport No." }, { key: "microchipNumber", label: "Microchip" }, { key: "ownerName", label: "Owner" }, { key: "liveryType", label: "Livery Type" }, { key: "box", label: "Box" }]} rows={horses as Record<string, unknown>[]} onView={setViewRecord} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} />}
       </div>
       <div>
         <div className="flex justify-between items-center mb-3"><h3 className="font-semibold text-sm">Health Events (Worming, Farrier, Vaccination)</h3><Button size="sm" onClick={() => evOpenAdd()}><Plus className="w-4 h-4 mr-1" />Log Event</Button></div>
-        {evL ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "eventDate", label: "Date", fmt: r => fmtDate(r.eventDate) }, { key: "eventType", label: "Type" }, { key: "vetOrFarrierName", label: "Vet / Farrier" }, { key: "treatmentGiven", label: "Treatment" }, { key: "productUsed", label: "Product" }, { key: "cost", label: "Cost (£)" }]} rows={events as Record<string, unknown>[]} onView={setViewEvent} onDelete={r => evDel.mutate(r.id as number)} />}
+        {evL ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "eventDate", label: "Date", fmt: r => fmtDate(r.eventDate) }, { key: "eventType", label: "Type" }, { key: "vetOrFarrierName", label: "Vet / Farrier" }, { key: "treatmentGiven", label: "Treatment" }, { key: "productUsed", label: "Product" }, { key: "cost", label: "Cost (£)" }]} rows={events as Record<string, unknown>[]} onView={setViewEvent} onDelete={r => evDel.mutate(r.id as number)} deleteMutation={evDel} />}
       </div>
 
       {viewRecord && (
@@ -1369,7 +1358,7 @@ function ShootingTab({ farmId }: { farmId: number }) {
           <Button size="sm" onClick={() => openAdd({ bagsPheasant: "0", bagsPartridge: "0", bagsGrouse: "0", bagsDuck: "0", bagsWoodcock: "0", bagsOther: "0", totalBag: "0" })}><Plus className="w-4 h-4 mr-1" />Log Shoot</Button>
         </div>
       </div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "shootDate", label: "Date", fmt: r => fmtDate(r.shootDate) }, { key: "shootType", label: "Type" }, { key: "organiser", label: "Organiser" }, { key: "numberOfGuns", label: "Guns" }, { key: "totalBag", label: "Total Bag" }, { key: "gameDealer", label: "Game Dealer" }, { key: "incomeLeaseFee", label: "Income (£)" }]} rows={records as Record<string, unknown>[]} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "shootDate", label: "Date", fmt: r => fmtDate(r.shootDate) }, { key: "shootType", label: "Type" }, { key: "organiser", label: "Organiser" }, { key: "numberOfGuns", label: "Guns" }, { key: "totalBag", label: "Total Bag" }, { key: "gameDealer", label: "Game Dealer" }, { key: "incomeLeaseFee", label: "Income (£)" }]} rows={records as Record<string, unknown>[]} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} />}
 
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
@@ -1740,7 +1729,7 @@ function IncomeTab({ farmId }: { farmId: number }) {
             rows={displayRecords}
             onView={setViewRecord}
             onEdit={r => openEdit(r)}
-            onDelete={r => del.mutate(r.id as number)}
+            onDelete={r => del.mutate(r.id as number)} deleteMutation={del}
           />
         </>
       )}
