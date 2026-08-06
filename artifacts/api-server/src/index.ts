@@ -19,6 +19,7 @@ import { runWineryMigrations } from "./lib/wineryMigrations";
 import { runFarmIncidentsMigrations } from "./lib/farmIncidentsMigrations";
 import { runTaskLinkMigrations } from "./lib/taskLinkMigrations";
 import { runWoodlandRegenMigrations } from "./lib/woodlandRegenMigrations";
+import { runPestTrapMigrations } from "./lib/pestTrapMigrations";
 
 interface EnvSpec {
   key: string;
@@ -138,5 +139,8 @@ app.listen(port, () => {
   });
   runWoodlandRegenMigrations().catch((err) => {
     console.error("[WOODLAND-REGEN-MIGRATE] Failed:", err);
+  });
+  runPestTrapMigrations().catch((err) => {
+    console.error("[PEST-TRAP-MIGRATE] Failed:", err);
   });
 });

@@ -5,6 +5,8 @@ import { sendSms } from "../lib/sms";
 import { sendAdminEmail, sendCustomerReplyAlert } from "../lib/mailer";
 import { sanitiseBody } from "../lib/sanitise";
 import { encryptCredential, decryptCredential } from "../lib/encrypt";
+import { analysePestTrapImage } from "../lib/pestVision";
+import { objectStorageClient } from "../lib/objectStorage";
 
 // Decrypt a LIP OAuth token stored in lip_farm_tokens.
 // Handles both new enc:v1: format and plaintext (existing rows — transition safe).
@@ -484,6 +486,8 @@ import {
   treeFellingRecordsTable,
   regenPracticeRecordsTable,
   regenSoilIndicatorsTable,
+  pestTrapCapturesTable,
+  vineyardBlocksTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { drizzle as drizzleNode } from "drizzle-orm/node-postgres";
@@ -41098,5 +41102,139 @@ router.delete("/farms/:farmId/regen-soil-indicators/:id", requireAuth, requireTe
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(regenSoilIndicatorsTable).where(and(eq(regenSoilIndicatorsTable.id, id), eq(regenSoilIndicatorsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── AI Pest Trap Captures ───────────────────────────────────────────────────
+// Mobile submits a base64 photo of a sticky/drowning trap; the API stores it
+// in object storage, runs GPT-4o vision analysis, and returns the full result.
+
+router.get("/farms/:farmId/pest-trap-captures", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(pestTrapCapturesTable)
+    .where(eq(pestTrapCapturesTable.farmId, farmId))
+    .orderBy(desc(pestTrapCapturesTable.captureDate));
+  res.json({ captures: rows });
+});
+
+router.get("/farms/:farmId/pest-trap-captures/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.select().from(pestTrapCapturesTable)
+    .where(and(eq(pestTrapCapturesTable.id, id), eq(pestTrapCapturesTable.farmId, farmId)));
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ capture: row });
+});
+
+router.post("/farms/:farmId/pest-trap-captures", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+
+  const {
+    captureDate,
+    blockId,
+    trapRef,
+    trapType,
+    recordedBy,
+    notes,
+    latitude,
+    longitude,
+    photoBase64,
+    photoFileName,
+  } = req.body as {
+    captureDate?: string;
+    blockId?: number | null;
+    trapRef?: string;
+    trapType?: string;
+    recordedBy?: string;
+    notes?: string;
+    latitude?: number | null;
+    longitude?: number | null;
+    photoBase64?: string;
+    photoFileName?: string;
+  };
+
+  if (!captureDate) { res.status(400).json({ error: "captureDate is required" }); return; }
+
+  // ── Store photo in object storage ──────────────────────────────────────────
+  let photoObjectPath: string | undefined;
+  let resolvedFileName: string | undefined;
+
+  if (photoBase64) {
+    const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+    if (bucketId) {
+      try {
+        const { randomUUID } = await import("crypto");
+        resolvedFileName = photoFileName ?? `trap-${Date.now()}.jpg`;
+        photoObjectPath = `pest-traps/${farmId}/${randomUUID()}-${resolvedFileName}`;
+        const buf = Buffer.from(photoBase64, "base64");
+        const bucket = objectStorageClient.bucket(bucketId);
+        await bucket.file(photoObjectPath).save(buf, { contentType: "image/jpeg", resumable: false });
+      } catch (storageErr: unknown) {
+        console.warn("[PEST-TRAP] Object storage failed, continuing without photo store:", storageErr instanceof Error ? storageErr.message : storageErr);
+        photoObjectPath = undefined;
+      }
+    }
+  }
+
+  // ── AI vision analysis ────────────────────────────────────────────────────
+  let analysisStatus = "skipped";
+  let swdMaleCount: number | undefined;
+  let swdFemaleCount: number | undefined;
+  let otherPests: unknown[] = [];
+  let totalInsectCount: number | undefined;
+  let pestPressure: string | undefined;
+  let aiSummary: string | undefined;
+  let aiModel: string | undefined;
+  let analysisError: string | undefined;
+
+  if (photoBase64) {
+    try {
+      const analysis = await analysePestTrapImage(photoBase64, "image/jpeg");
+      swdMaleCount = analysis.swdMaleCount;
+      swdFemaleCount = analysis.swdFemaleCount;
+      otherPests = analysis.otherPests;
+      totalInsectCount = analysis.totalInsectCount;
+      pestPressure = analysis.pestPressure;
+      aiSummary = analysis.summary;
+      aiModel = "gpt-4o";
+      analysisStatus = "complete";
+    } catch (aiErr: unknown) {
+      analysisError = aiErr instanceof Error ? aiErr.message : String(aiErr);
+      analysisStatus = "failed";
+      console.warn("[PEST-TRAP] AI analysis failed:", analysisError);
+    }
+  }
+
+  // ── Insert record ─────────────────────────────────────────────────────────
+  const [row] = await db.insert(pestTrapCapturesTable).values({
+    farmId,
+    blockId: blockId ?? null,
+    captureDate,
+    trapRef: trapRef ?? null,
+    trapType: trapType ?? null,
+    recordedBy: recordedBy ?? null,
+    latitude: latitude != null ? String(latitude) : null,
+    longitude: longitude != null ? String(longitude) : null,
+    photoObjectPath: photoObjectPath ?? null,
+    photoFileName: resolvedFileName ?? photoFileName ?? null,
+    analysisStatus,
+    swdMaleCount: swdMaleCount ?? null,
+    swdFemaleCount: swdFemaleCount ?? null,
+    otherPests: otherPests as any,
+    totalInsectCount: totalInsectCount ?? null,
+    pestPressure: pestPressure ?? null,
+    aiSummary: aiSummary ?? null,
+    aiModel: aiModel ?? null,
+    analysisError: analysisError ?? null,
+    notes: notes ?? null,
+  } as any).returning();
+
+  res.status(201).json({ capture: row });
+});
+
+router.delete("/farms/:farmId/pest-trap-captures/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(pestTrapCapturesTable).where(and(eq(pestTrapCapturesTable.id, id), eq(pestTrapCapturesTable.farmId, farmId)));
   res.json({ success: true });
 });

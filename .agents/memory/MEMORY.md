@@ -65,3 +65,5 @@
 - [Batch-trail API projections](batch-trail-projection.md) — explicit SELECT lists in both scope blocks; new print/CSV fields must be added to both or they render empty; signed records are delete-locked
 - [Mobile root-relative /api fetches fail on device](mobile-root-relative-fetch.md) — mobile screens must use apiFetch (absolute base + Bearer token); fetch("/api/…") only works in web preview
 - [Persisted filter hook](persisted-filter-hook.md) — shared per-farm filter persistence; reviews demand FULL page coverage incl. split-out sections; dup-batch-ref check needs api-server running
+- [ImagePicker base64 — no expo-file-system](imagepicker-base64.md) — use launchCameraAsync/launchImageLibraryAsync with base64:true option; expo-file-system is not in the mobile package and causes TS2307; read from result.assets[0].base64
+- [lib/db schema barrel — viticulture added late](lib-db-viticulture-barrel.md) — pestTrapCapturesTable and vineyardBlocksTable ARE in schema/index.ts (export * from "./viticulture"), but compiled declarations go stale; always run `cd lib/db && npx tsc --build tsconfig.json` after any schema change before api typecheck
