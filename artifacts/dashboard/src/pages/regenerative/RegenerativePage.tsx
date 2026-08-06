@@ -14,7 +14,16 @@ import { DialogMutationError } from "@/components/ui/dialog-error";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Sprout, Plus, Pencil, Trash2 } from "lucide-react";
+import { Sprout, Plus, Pencil, Trash2, Printer } from "lucide-react";
+
+const PRINT_ID = "regen-evidence-pack-print";
+function ensurePrintStyle() {
+  if (document.getElementById(PRINT_ID + "-css")) return;
+  const s = document.createElement("style");
+  s.id = PRINT_ID + "-css";
+  s.textContent = `@media print{body>*{display:none!important}#${PRINT_ID}{display:block!important;position:fixed;inset:0;overflow:auto;background:#fff;z-index:99999;padding:32px 40px}.no-print{display:none!important}.print-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px}.print-table th{background:#f3f4f6;text-align:left;padding:6px 8px;font-weight:600;border:1px solid #d1d5db}.print-table td{padding:5px 8px;border:1px solid #e5e7eb}.print-section{margin-bottom:24px}.print-section h3{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#374151;border-bottom:2px solid #d1d5db;padding-bottom:4px;margin-bottom:8px}}`;
+  document.head.appendChild(s);
+}
 
 const TAB_IDS = ["practices", "soil", "summary"] as const;
 type RegenTab = (typeof TAB_IDS)[number];
@@ -190,6 +199,13 @@ export default function RegenerativePage() {
   const qc = useQueryClient();
   const [tab, setTab] = usePersistedTab<RegenTab>({ page: "regenerative", farmId: rawFarmId, validIds: TAB_IDS, defaultTab: "practices" });
 
+  const farmQ = useQuery({
+    queryKey: ["farm", farmId],
+    queryFn: () => api.get(`/farms/${farmId}`),
+    enabled: !!farmId,
+  });
+  const farmName: string = (farmQ.data as any)?.name ?? (farmQ.data as any)?.farmName ?? `Farm ${farmId}`;
+
   const practicesQ = useQuery({
     queryKey: ["regen-practices", farmId],
     queryFn: () => api.get(`/farms/${farmId}/regen-practices`),
@@ -281,7 +297,7 @@ export default function RegenerativePage() {
         {tab === "practices" && (
           <div className="bg-white rounded-lg border overflow-x-auto">
             {practicesQ.isError ? <p className="p-4 text-sm text-red-600">Failed to load practice records — please refresh.</p> :
-            practices.length === 0 ? <p className="p-6 text-sm text-gray-500">No practices recorded yet. Log each cover crop, no-till pass, grazing integration or input cut against one of the six principles — this builds the evidence pack verification schemes ask for.</p> : (
+            practices.length === 0 ? <p className="p-6 text-sm text-gray-500">No practices recorded yet. Log each cover crop, no-till pass, grazing integration or input cut against one of the six principles — then use the <strong>Summary</strong> tab to review your evidence and print it as an evidence pack for verification schemes.</p> : (
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
                   <tr>
@@ -354,6 +370,9 @@ export default function RegenerativePage() {
                 <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
                 <SelectContent>{years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
               </Select>
+              <Button variant="outline" size="sm" className="ml-2" onClick={() => { ensurePrintStyle(); window.print(); }}>
+                <Printer size={14} className="mr-1" />Print Evidence Pack
+              </Button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
               {summary.map(p => (
@@ -389,6 +408,93 @@ export default function RegenerativePage() {
             </div>
           </div>
         )}
+
+        {/* ── Hidden evidence pack — visible only at print time ── */}
+        <div id={PRINT_ID} style={{ display: "none" }}>
+          <div style={{ marginBottom: 24 }}>
+            <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Regenerative Farming Evidence Pack</h1>
+            <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 2px" }}>{farmName}</p>
+            <p style={{ fontSize: 12, color: "#9ca3af", margin: 0 }}>Season year: {selYear} &nbsp;·&nbsp; Printed: {new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}</p>
+          </div>
+
+          {/* Practices by principle */}
+          {PRINCIPLES.map(p => {
+            const rows = practices.filter((r: any) => r.principle === p.value && yearOf(r) === selYear);
+            return (
+              <div key={p.value} className="print-section">
+                <h3>{p.label}</h3>
+                <p style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>{p.hint}</p>
+                {rows.length === 0 ? (
+                  <p style={{ fontSize: 12, color: "#9ca3af", fontStyle: "italic" }}>No records for {selYear}</p>
+                ) : (
+                  <table className="print-table">
+                    <thead>
+                      <tr><th>Date</th><th>Field</th><th>Practice</th><th>Area (ha)</th><th>Details / evidence</th></tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((r: any) => (
+                        <tr key={r.id}>
+                          <td style={{ whiteSpace: "nowrap" }}>{fmtDate(r.recordDate)}</td>
+                          <td>{r.fieldName || (r.fieldId ? fields.find((fd: any) => fd.id === r.fieldId)?.name : null) || "—"}</td>
+                          <td>{r.practice}</td>
+                          <td>{r.areaHectares ? parseFloat(String(r.areaHectares)).toFixed(2) : "—"}</td>
+                          <td>{r.details || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Soil health indicators */}
+          <div className="print-section" style={{ marginTop: 8 }}>
+            <h3>Soil Health Indicators</h3>
+            {soil.length === 0 ? (
+              <p style={{ fontSize: 12, color: "#9ca3af", fontStyle: "italic" }}>No soil indicator records.</p>
+            ) : (
+              <table className="print-table">
+                <thead>
+                  <tr><th>Date</th><th>Field</th><th>OM %</th><th>Worm count</th><th>VESS score</th><th>Infiltration (s)</th><th>Bulk density</th><th>Lab / method</th></tr>
+                </thead>
+                <tbody>
+                  {soil.map((r: any) => (
+                    <tr key={r.id}>
+                      <td style={{ whiteSpace: "nowrap" }}>{fmtDate(r.testDate)}</td>
+                      <td>{r.fieldName || (r.fieldId ? fields.find((fd: any) => fd.id === r.fieldId)?.name : null) || "—"}</td>
+                      <td>{r.organicMatterPercent ? parseFloat(String(r.organicMatterPercent)).toFixed(2) : "—"}</td>
+                      <td>{r.wormCount ?? "—"}</td>
+                      <td>{r.vessScore ?? "—"}</td>
+                      <td>{r.infiltrationSeconds ?? "—"}</td>
+                      <td>{r.bulkDensityGCm3 ? parseFloat(String(r.bulkDensityGCm3)).toFixed(2) : "—"}</td>
+                      <td>{r.labName || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* SOM trend */}
+          {somTrend.length > 0 && (
+            <div className="print-section">
+              <h3>Soil Organic Matter Trend (farm average)</h3>
+              <table className="print-table" style={{ width: "auto" }}>
+                <thead><tr><th style={{ paddingRight: 32 }}>Year</th><th style={{ paddingRight: 32 }}>Avg OM %</th><th>Samples</th></tr></thead>
+                <tbody>
+                  {somTrend.map(t => (
+                    <tr key={t.year}><td>{t.year}</td><td style={{ fontWeight: 600 }}>{t.avg.toFixed(2)}</td><td>{t.n}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 32, borderTop: "1px solid #e5e7eb", paddingTop: 8 }}>
+            Generated by BDE Farm Trac · Regenerative Farming module · {new Date().toLocaleDateString("en-GB")}
+          </p>
+        </div>
 
         {pracDlg.open && <PracticeDialog farmId={farmId} editRow={pracDlg.row} fields={fields} onClose={() => setPracDlg({ open: false })} />}
         {soilDlg.open && <SoilDialog farmId={farmId} editRow={soilDlg.row} fields={fields} onClose={() => setSoilDlg({ open: false })} />}

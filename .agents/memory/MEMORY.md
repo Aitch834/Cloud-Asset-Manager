@@ -50,7 +50,7 @@
 - [Recharts same-side Y axes](recharts-same-side-axes.md) — same-orientation YAxis components auto-offset side by side, no overlap; prove via SSR renderToStaticMarkup if a review disputes it
 - [Drizzle 23505 catch needs err.cause.code](drizzle-23505-err-cause.md) — drizzle wraps pg errors; `err.code` is undefined, unique-violation code is on `err.cause.code`; verify with a live duplicate request
 - [Silent mutation failures](mutation-fetch-no-ok-check.md) — bare fetch() in mutationFn never rejects on 500; ~480 dashboard write-mutations lack res.ok checks, so error toasts never fire
-- [Dashboard build OOM](dashboard-build-oom.md) — winery/viticulture/livestock pages all split into per-tab subdirectory modules with barrel re-export; build passes; pattern documented for future oversized pages
+- [Dashboard build OOM](dashboard-build-oom.md) — build script needs NODE_OPTIONS=--max-old-space-size=4096; run inline (not via WorkflowsRestart) when index.html is missing — workflow timeout OOM-kills it; setsid background attempts produce no log (Vite buffers until complete); just run directly with a 290s ShellExec timeout
 - [CSV re-import safety pattern](csv-reimport-safety.md) — shared column list + ISO/Yes-No values + full-file CSV state-machine parser required; line-split parsers get review-rejected
 - [RLS middleware commits after response](rls-middleware-commit-after-response.md) — farm-scoped tx COMMITs in res.on("finish"); fast sequential requests can see 0 rows for a just-created record — retry in scripts
 - [serve.mjs ?v= token double-React #321](serve-token-double-react.md) — never add query tokens to content-hashed JS asset URLs; lazy chunks import plain filenames → two React instances
