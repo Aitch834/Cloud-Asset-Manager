@@ -8,8 +8,9 @@ import {
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
-  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, Users, UserCheck,
+  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, Users, UserCheck, MapPin,
 } from "lucide-react";
+import { printSoilSampleLabel } from "@/lib/print-labels";
 import {
   ViticulturalAnalyticsTab,
   VintageSeasonReportTab,
@@ -133,6 +134,24 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
   // Task dialog state — opened after a request is created
   const [taskRecord, setTaskRecord] = useState<Record<string, unknown> | null>(null);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+
+  const farmName = useFarmName(farmId);
+
+  // ── Sample points — fetched when viewing a record ──────────────────────────
+  const activeId = active && typeof active.id === "number" ? active.id : null;
+  const { data: samplePointsData, refetch: refetchPoints } = useQuery<{
+    points: { id: number; lat: string; lng: string; label: string | null; capturedBy: string | null; capturedAt: string }[];
+  }>({
+    queryKey: ["soil-sample-points", farmId, activeId],
+    queryFn: () => fetch(api(`farms/${farmId}/vineyard-soil-analysis/${activeId}/sample-points`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!activeId && mode === "view",
+  });
+  const samplePoints = samplePointsData?.points ?? [];
+
+  const deletePoint = useMutation({
+    mutationFn: (pointId: number) => fetch(api(`farms/${farmId}/vineyard-soil-analysis/${activeId}/sample-points/${pointId}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => refetchPoints(),
+  });
 
   const close = () => { setMode(null); setActive(null); setForm({}); setRequestedBySource("staff"); };
 
@@ -553,14 +572,32 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
         <Dialog open onOpenChange={close}>
           <DialogContent style={{ maxWidth: "44rem" }} className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
+              <div className="flex items-start justify-between gap-3">
+                <DialogTitle className="flex items-center gap-2">
+                  {!!active.requestReference && (
+                    <span className="font-mono text-xs bg-gray-100 border border-gray-200 px-2 py-0.5 rounded text-gray-700">
+                      {String(active.requestReference)}
+                    </span>
+                  )}
+                  {fmt(blockName(active.blockId))} — {fmt(active.analysisType)}
+                </DialogTitle>
                 {!!active.requestReference && (
-                  <span className="font-mono text-xs bg-gray-100 border border-gray-200 px-2 py-0.5 rounded text-gray-700">
-                    {String(active.requestReference)}
-                  </span>
+                  <button
+                    onClick={() => printSoilSampleLabel({
+                      requestReference: String(active.requestReference),
+                      analysisType: String(active.analysisType ?? "Analysis"),
+                      blockName: active.blockId ? String(blockName(active.blockId)) : null,
+                      farmName,
+                      requestedBy: active.requestedBy ? String(active.requestedBy) : null,
+                      requestDate: active.requestDate ? new Date(String(active.requestDate)).toLocaleDateString("en-GB") : null,
+                      instructions: active.notes ? String(active.notes) : null,
+                    }, 4)}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 text-xs font-medium shrink-0 transition-colors"
+                  >
+                    <Printer className="w-3.5 h-3.5" />Print Label
+                  </button>
                 )}
-                {fmt(blockName(active.blockId))} — {fmt(active.analysisType)}
-              </DialogTitle>
+              </div>
             </DialogHeader>
             <SoilStepper status={(active.status as string) ?? "complete"} />
 
@@ -584,11 +621,45 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
                   <div className="grid grid-cols-2 gap-3">
                     <ViewField label="Collected On" value={fmtDate(active.collectionDate)} />
                     <ViewField label="Collected By" value={fmt(active.collectedBy)} />
-                    {!!(active.collectionGpsLat || active.collectionGpsLng) && (
-                      <ViewField label="GPS Coordinates" value={`${fmt(active.collectionGpsLat)}, ${fmt(active.collectionGpsLng)}`} />
-                    )}
                     {!!active.collectionNotes && <div className="col-span-2"><ViewField label="Collection Notes" value={fmt(active.collectionNotes)} /></div>}
                   </div>
+                  {/* Multi-point GPS locations */}
+                  {samplePoints.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1">
+                        <MapPin className="w-3 h-3" />GPS Sample Points ({samplePoints.length})
+                      </p>
+                      <div className="space-y-1.5">
+                        {samplePoints.map((pt, i) => (
+                          <div key={pt.id} className="flex items-center justify-between gap-2 bg-muted/40 rounded-md px-3 py-2 text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0">{i + 1}</span>
+                              <div>
+                                <span className="font-mono text-gray-600">{Number(pt.lat).toFixed(6)}, {Number(pt.lng).toFixed(6)}</span>
+                                {pt.label && <span className="ml-2 text-muted-foreground">— {pt.label}</span>}
+                                {pt.capturedBy && <span className="text-muted-foreground/70 ml-1">(by {pt.capturedBy})</span>}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => deletePoint.mutate(pt.id)}
+                              className="text-muted-foreground hover:text-destructive transition-colors"
+                              title="Remove point"
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${samplePoints[0].lat},${samplePoints[0].lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 mt-2 text-xs text-blue-600 hover:underline"
+                      >
+                        <Map className="w-3 h-3" />View first point on map
+                      </a>
+                    </div>
+                  )}
                 </div>
               )}
 

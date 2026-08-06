@@ -319,6 +319,20 @@ export const vineyardSoilAnalysisTable = pgTable("vineyard_soil_analysis", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// ─── Vineyard Soil Sample Points (Multi-point GPS) ───────────────────────────
+export const vineyardSoilSamplePointsTable = pgTable("vineyard_soil_sample_points", {
+  id: serial("id").primaryKey(),
+  soilAnalysisId: integer("soil_analysis_id").notNull().references(() => vineyardSoilAnalysisTable.id, { onDelete: "cascade" }),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  lat: numeric("lat", { precision: 10, scale: 6 }).notNull(),
+  lng: numeric("lng", { precision: 10, scale: 6 }).notNull(),
+  label: text("label"),
+  capturedAt: timestamp("captured_at", { withTimezone: true }).defaultNow().notNull(),
+  capturedBy: text("captured_by"),
+  accuracy: numeric("accuracy", { precision: 8, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // ─── Disease & Pest Scouting ──────────────────────────────────────────────────
 export const vineyardScoutingTable = pgTable("vineyard_scouting", {
   id: serial("id").primaryKey(),

@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as Location from "expo-location";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -102,6 +103,40 @@ function AssignmentCard({
   const [loading, setLoading] = useState(false);
   const [timesheetAdded, setTimesheetAdded] = useState(false);
 
+  // GPS sample points — only used for soil_analysis_collection tasks
+  const isSoilCollection = item.taskType === "soil_analysis_collection";
+  type GpsPoint = { lat: number; lng: number; label: string; capturedAt: string };
+  const [samplePoints, setSamplePoints] = useState<GpsPoint[]>([]);
+  const [gpsCapturing, setGpsCapturing] = useState(false);
+  const [pointLabel, setPointLabel] = useState("");
+
+  const captureGpsPoint = async () => {
+    setGpsCapturing(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission denied", "Location access is needed to capture GPS points.");
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setSamplePoints(prev => [
+        ...prev,
+        {
+          lat: loc.coords.latitude,
+          lng: loc.coords.longitude,
+          label: pointLabel.trim() || `Point ${prev.length + 1}`,
+          capturedAt: new Date().toISOString(),
+        },
+      ]);
+      setPointLabel("");
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch {
+      Alert.alert("GPS Error", "Could not get your location. Please try again.");
+    } finally {
+      setGpsCapturing(false);
+    }
+  };
+
   const overdue = isOverdue(item.dueDate, item.status);
   const isDone = item.status === "completed" || item.status === "cancelled";
 
@@ -122,6 +157,39 @@ function AssignmentCard({
 
       if (res.ok) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+        // If soil collection task and GPS points captured — submit them
+        if (isSoilCollection && samplePoints.length > 0) {
+          // Parse request reference from title: "Collect soil sample — SLA-2026-0001"
+          const titleParts = item.title.split("—");
+          const rawRef = titleParts.length > 1 ? titleParts[titleParts.length - 1].trim() : null;
+          if (rawRef) {
+            try {
+              const refRes = await apiFetch(`/api/farms/${farmId}/vineyard-soil-analysis/by-ref/${encodeURIComponent(rawRef)}`);
+              if (refRes.ok) {
+                const { record } = await refRes.json() as { record: { id: number } };
+                // POST each GPS point
+                await Promise.allSettled(
+                  samplePoints.map(pt =>
+                    apiFetch(`/api/farms/${farmId}/vineyard-soil-analysis/${record.id}/sample-points`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        lat: pt.lat,
+                        lng: pt.lng,
+                        label: pt.label,
+                        capturedBy: userName,
+                        capturedAt: pt.capturedAt,
+                      }),
+                    })
+                  )
+                );
+              }
+            } catch {
+              // GPS point submission failed silently — task still completes
+            }
+          }
+        }
 
         // Auto-create a draft timesheet entry if hours were entered
         const hours = parseFloat(hoursInput);
@@ -255,6 +323,69 @@ function AssignmentCard({
               <Text style={styles.timesheetConfirmText}>
                 Added to today's timesheet — submit at end of day
               </Text>
+            </View>
+          )}
+
+          {/* GPS sample points panel — only for soil collection tasks */}
+          {isSoilCollection && !isDone && (
+            <View style={styles.gpsPanel}>
+              <View style={styles.gpsPanelHeader}>
+                <Feather name="map-pin" size={14} color="#15803d" />
+                <Text style={styles.gpsPanelTitle}>GPS Sample Points</Text>
+                <Text style={styles.gpsPanelCount}>{samplePoints.length} captured</Text>
+              </View>
+              <Text style={styles.gpsPanelHint}>
+                Capture the GPS location of each sub-sample point before marking complete.
+              </Text>
+
+              {samplePoints.length > 0 && (
+                <View style={styles.gpsPointList}>
+                  {samplePoints.map((pt, i) => (
+                    <View key={i} style={styles.gpsPointRow}>
+                      <View style={styles.gpsPointBadge}>
+                        <Text style={styles.gpsPointBadgeText}>{i + 1}</Text>
+                      </View>
+                      <View style={styles.gpsPointInfo}>
+                        <Text style={styles.gpsPointCoords}>
+                          {pt.lat.toFixed(6)}, {pt.lng.toFixed(6)}
+                        </Text>
+                        {pt.label !== `Point ${i + 1}` && (
+                          <Text style={styles.gpsPointLabel}>{pt.label}</Text>
+                        )}
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => setSamplePoints(prev => prev.filter((_, idx) => idx !== i))}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Feather name="x-circle" size={15} color="#9ca3af" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              <TextInput
+                value={pointLabel}
+                onChangeText={setPointLabel}
+                placeholder="Point label (optional, e.g. NW corner)"
+                placeholderTextColor="#9ca3af"
+                style={styles.gpsLabelInput}
+              />
+              <TouchableOpacity
+                onPress={captureGpsPoint}
+                disabled={gpsCapturing}
+                style={[styles.gpsCaptureBtn, gpsCapturing && styles.btnDisabled]}
+                activeOpacity={0.8}
+              >
+                {gpsCapturing ? (
+                  <ActivityIndicator size="small" color="#15803d" />
+                ) : (
+                  <Feather name="crosshair" size={14} color="#15803d" />
+                )}
+                <Text style={styles.gpsCaptureBtnText}>
+                  {gpsCapturing ? "Getting location…" : "Capture GPS Point"}
+                </Text>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -592,4 +723,112 @@ const styles = StyleSheet.create({
   },
   btnCompleteText: { fontFamily: fonts.bold, fontSize: fontSize.sm, color: "#fff" },
   btnDisabled: { opacity: 0.5 },
+
+  // GPS sample points panel
+  gpsPanel: {
+    backgroundColor: "#f0fdf4",
+    borderRadius: radius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+    marginTop: spacing.sm,
+    gap: spacing.sm,
+  },
+  gpsPanelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  gpsPanelTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: "#15803d",
+    flex: 1,
+  },
+  gpsPanelCount: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: "#16a34a",
+    backgroundColor: "#dcfce7",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  gpsPanelHint: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: "#166534",
+    lineHeight: 16,
+  },
+  gpsPointList: {
+    gap: spacing.xs,
+  },
+  gpsPointRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+  },
+  gpsPointBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#16a34a",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  gpsPointBadgeText: {
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    color: "#fff",
+  },
+  gpsPointInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  gpsPointCoords: {
+    fontFamily: fonts.medium,
+    fontSize: 11,
+    color: "#374151",
+    letterSpacing: 0.2,
+  },
+  gpsPointLabel: {
+    fontFamily: fonts.regular,
+    fontSize: 10,
+    color: "#6b7280",
+    marginTop: 1,
+  },
+  gpsLabelInput: {
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+    borderRadius: 8,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 7,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: "#374151",
+    backgroundColor: "#fff",
+  },
+  gpsCaptureBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    backgroundColor: "#dcfce7",
+    borderWidth: 1,
+    borderColor: "#86efac",
+    borderRadius: 8,
+    paddingVertical: spacing.sm,
+  },
+  gpsCaptureBtnText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: "#15803d",
+  },
 });

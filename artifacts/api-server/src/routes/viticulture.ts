@@ -24,6 +24,7 @@ import {
   wineryAgeVerificationTable,
   vineyardSprayDiaryTable,
   vineyardSoilAnalysisTable,
+  vineyardSoilSamplePointsTable,
   suppliersTable,
   wineGiDesignationsTable,
   wineGiCertificationsTable,
@@ -890,6 +891,53 @@ router.put("/farms/:farmId/vineyard-soil-analysis/:id", requireAuth, requireTena
 router.delete("/farms/:farmId/vineyard-soil-analysis/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId); const id = Number(req.params.id);
   await db.delete(vineyardSoilAnalysisTable).where(and(eq(vineyardSoilAnalysisTable.id, id), eq(vineyardSoilAnalysisTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Soil Analysis — lookup by request reference (used by mobile GPS flow) ────
+router.get("/farms/:farmId/vineyard-soil-analysis/by-ref/:ref", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const ref = String(req.params.ref);
+  const [record] = await db.select().from(vineyardSoilAnalysisTable)
+    .where(and(eq(vineyardSoilAnalysisTable.farmId, farmId), eq(vineyardSoilAnalysisTable.requestReference, ref)))
+    .limit(1);
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+// ─── Soil Analysis Sample Points (multi-point GPS collection) ─────────────────
+router.get("/farms/:farmId/vineyard-soil-analysis/:id/sample-points", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const id = Number(req.params.id);
+  const points = await db.select().from(vineyardSoilSamplePointsTable)
+    .where(and(eq(vineyardSoilSamplePointsTable.soilAnalysisId, id), eq(vineyardSoilSamplePointsTable.farmId, farmId)))
+    .orderBy(vineyardSoilSamplePointsTable.capturedAt);
+  res.json({ points });
+});
+
+router.post("/farms/:farmId/vineyard-soil-analysis/:id/sample-points", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const soilAnalysisId = Number(req.params.id);
+  const { lat, lng, label, capturedBy, accuracy, capturedAt } = req.body as Record<string, unknown>;
+  if (!lat || !lng) { res.status(400).json({ error: "lat and lng are required" }); return; }
+  const [point] = await db.insert(vineyardSoilSamplePointsTable).values({
+    soilAnalysisId,
+    farmId,
+    lat: String(lat),
+    lng: String(lng),
+    label: label ? String(label) : null,
+    capturedBy: capturedBy ? String(capturedBy) : null,
+    accuracy: accuracy ? String(accuracy) : null,
+    capturedAt: capturedAt ? new Date(String(capturedAt)) : new Date(),
+  }).returning();
+  res.status(201).json({ point });
+});
+
+router.delete("/farms/:farmId/vineyard-soil-analysis/:id/sample-points/:pointId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const pointId = Number(req.params.pointId);
+  await db.delete(vineyardSoilSamplePointsTable)
+    .where(and(eq(vineyardSoilSamplePointsTable.id, pointId), eq(vineyardSoilSamplePointsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
