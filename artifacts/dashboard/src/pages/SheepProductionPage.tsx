@@ -21,6 +21,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
+import { YearCompareSelector, COMPARE_COLORS } from "@/components/analytics/YearCompareSelector";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFarmMembers } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -1405,22 +1407,100 @@ function SheepAnalyticsTab({ farmId }: { farmId: number }) {
   const { data: shearing = [] } = useQuery<Record<string, unknown>[]>({ queryKey: ["sheep-shearing", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-shearing-records`), { credentials: "include" }).then(r => r.json()) });
   const { data: tupping = [] } = useQuery<Record<string, unknown>[]>({ queryKey: ["sheep-tupping", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-tupping-records`), { credentials: "include" }).then(r => r.json()) });
 
-  const totalScanned = useMemo(() => scanning.reduce((s, r) => s + (Number(r.ewesScanned) || 0), 0), [scanning]);
-  const totalInLamb = useMemo(() => scanning.reduce((s, r) => s + (Number(r.ewesInLamb) || 0), 0), [scanning]);
+  // ── Year filter ─────────────────────────────────────────────────────────────
+  const currentYear = new Date().getFullYear();
+
+  const availableYears = useMemo(() => {
+    const s = new Set<number>();
+    const addYear = (r: Record<string, unknown>, ...fields: string[]) => {
+      for (const f of fields) {
+        const v = String(r[f] ?? ""); if (!v || v === "undefined" || v === "null") continue;
+        const d = new Date(v); if (!isNaN(d.getTime())) { s.add(d.getFullYear()); break; }
+      }
+    };
+    scanning.forEach(r => addYear(r, "scanningDate", "date"));
+    weigh.forEach(r => addYear(r, "weighDate", "date"));
+    shearing.forEach(r => addYear(r, "shearingDate", "date"));
+    tupping.forEach(r => addYear(r, "tuppingDate", "startDate", "date"));
+    return Array.from(s).sort((a, b) => b - a);
+  }, [scanning, weigh, shearing, tupping]);
+
+  const [selectedYear, setSelectedYear] = usePersistedNumberFilter({
+    page: "sheep-analytics",
+    filter: "year",
+    farmId,
+    defaultValue: currentYear,
+    isValid: (v) => v > 2000 && v <= currentYear + 1,
+  });
+  const [compareYear, setCompareYear] = useState<number | null>(null);
+
+  // ── Filtered records ────────────────────────────────────────────────────────
+  const filterByYear = (records: Record<string, unknown>[], yr: number, ...fields: string[]) =>
+    records.filter(r => {
+      for (const f of fields) {
+        const v = String(r[f] ?? ""); if (!v || v === "undefined" || v === "null") continue;
+        const d = new Date(v); if (!isNaN(d.getTime())) return d.getFullYear() === yr;
+      }
+      return false;
+    });
+
+  const scanFiltered = useMemo(() => filterByYear(scanning, selectedYear, "scanningDate", "date"), [scanning, selectedYear]);
+  const weighFiltered = useMemo(() => filterByYear(weigh, selectedYear, "weighDate", "date"), [weigh, selectedYear]);
+  const shearFiltered = useMemo(() => filterByYear(shearing, selectedYear, "shearingDate", "date"), [shearing, selectedYear]);
+  const tuppingFiltered = useMemo(() => filterByYear(tupping, selectedYear, "tuppingDate", "startDate", "date"), [tupping, selectedYear]);
+
+  const scanCompare = useMemo(() => compareYear !== null ? filterByYear(scanning, compareYear, "scanningDate", "date") : [], [scanning, compareYear]);
+  const shearCompare = useMemo(() => compareYear !== null ? filterByYear(shearing, compareYear, "shearingDate", "date") : [], [shearing, compareYear]);
+
+  // ── Derived metrics ─────────────────────────────────────────────────────────
+  const totalScanned = useMemo(() => scanFiltered.reduce((s, r) => s + (Number(r.ewesScanned) || 0), 0), [scanFiltered]);
+  const totalInLamb = useMemo(() => scanFiltered.reduce((s, r) => s + (Number(r.ewesInLamb) || 0), 0), [scanFiltered]);
   const scanPct = totalScanned > 0 ? ((totalInLamb / totalScanned) * 100).toFixed(1) : null;
 
-  const litterData = useMemo(() => [
-    { name: "Singles", value: scanning.reduce((s, r) => s + (Number(r.singles) || 0), 0) },
-    { name: "Twins", value: scanning.reduce((s, r) => s + (Number(r.twins) || 0), 0) },
-    { name: "Triplets", value: scanning.reduce((s, r) => s + (Number(r.triplets) || 0), 0) },
-    { name: "Quads+", value: scanning.reduce((s, r) => s + (Number(r.quads) || 0), 0) },
-  ].filter(d => d.value > 0), [scanning]);
+  const compareScanned = useMemo(() => scanCompare.reduce((s, r) => s + (Number(r.ewesScanned) || 0), 0), [scanCompare]);
+  const compareInLamb = useMemo(() => scanCompare.reduce((s, r) => s + (Number(r.ewesInLamb) || 0), 0), [scanCompare]);
+  const compareScanPct = compareScanned > 0 ? ((compareInLamb / compareScanned) * 100).toFixed(1) : null;
 
-  const dlwgData = useMemo(() => weigh.filter(r => r.dlwgGPerDay).slice(-10).map(r => ({
+  const litterData = useMemo(() => [
+    { name: "Singles", value: scanFiltered.reduce((s, r) => s + (Number(r.singles) || 0), 0) },
+    { name: "Twins", value: scanFiltered.reduce((s, r) => s + (Number(r.twins) || 0), 0) },
+    { name: "Triplets", value: scanFiltered.reduce((s, r) => s + (Number(r.triplets) || 0), 0) },
+    { name: "Quads+", value: scanFiltered.reduce((s, r) => s + (Number(r.quads) || 0), 0) },
+  ].filter(d => d.value > 0), [scanFiltered]);
+
+  const dlwgData = useMemo(() => weighFiltered.filter(r => r.dlwgGPerDay).slice(-10).map(r => ({
     name: String(r.batchRef || r.animalCategory || "Batch").slice(0, 12),
     dlwg: Math.round(Number(r.dlwgGPerDay)),
-  })), [weigh]);
+  })), [weighFiltered]);
 
+  const avgDlwg = useMemo(() => {
+    const valid = weighFiltered.filter(r => r.dlwgGPerDay);
+    return valid.length ? Math.round(valid.reduce((s, r) => s + Number(r.dlwgGPerDay), 0) / valid.length) : null;
+  }, [weighFiltered]);
+
+  // Shearing chart: show selected year vs compare year side-by-side across months
+  const shearByMonth = useMemo(() => {
+    const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const primary = Array(12).fill(0);
+    const compare = Array(12).fill(0);
+    shearFiltered.forEach(r => {
+      const d = new Date(String(r.shearingDate || "")); if (isNaN(d.getTime())) return;
+      primary[d.getMonth()] += Number(r.headSheared) || 0;
+    });
+    if (compareYear !== null) {
+      shearCompare.forEach(r => {
+        const d = new Date(String(r.shearingDate || "")); if (isNaN(d.getTime())) return;
+        compare[d.getMonth()] += Number(r.headSheared) || 0;
+      });
+    }
+    return MONTHS.map((label, i) => ({
+      month: label,
+      [String(selectedYear)]: primary[i],
+      ...(compareYear !== null ? { [String(compareYear)]: compare[i] } : {}),
+    })).filter(d => (d[String(selectedYear)] as number) > 0 || (compareYear !== null && (d[String(compareYear)] as number) > 0));
+  }, [shearFiltered, shearCompare, selectedYear, compareYear]);
+
+  // All-years shearing summary (kept as multi-year bar)
   const shearData = useMemo(() => {
     const byYear: Record<string, { wool: number; head: number; value: number }> = {};
     shearing.forEach(r => {
@@ -1433,11 +1513,6 @@ function SheepAnalyticsTab({ farmId }: { farmId: number }) {
     return Object.entries(byYear).sort().map(([yr, d]) => ({ year: yr, wool: +d.wool.toFixed(1), head: d.head, value: +d.value.toFixed(2) }));
   }, [shearing]);
 
-  const avgDlwg = useMemo(() => {
-    const valid = weigh.filter(r => r.dlwgGPerDay);
-    return valid.length ? Math.round(valid.reduce((s, r) => s + Number(r.dlwgGPerDay), 0) / valid.length) : null;
-  }, [weigh]);
-
   const noData = scanning.length === 0 && weigh.length === 0 && shearing.length === 0;
   if (noData) return (
     <div className="text-center py-16 text-muted-foreground text-sm">
@@ -1449,15 +1524,45 @@ function SheepAnalyticsTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-6">
+      {/* Year filter */}
+      {availableYears.length > 0 && (
+        <YearCompareSelector
+          availableYears={availableYears}
+          selectedYear={selectedYear}
+          onYearChange={setSelectedYear}
+          compareYear={compareYear}
+          onCompareYearChange={setCompareYear}
+        />
+      )}
+
+      {/* KPI cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Scanning Records", value: scanning.length, bg: "bg-green-50 border-green-100", text: "text-green-800", sub: "text-green-700" },
-          { label: "Overall Scanning %", value: scanPct ? `${scanPct}%` : "—", bg: "bg-amber-50 border-amber-100", text: "text-amber-800", sub: "text-amber-700" },
-          { label: "Avg DLWG (g/day)", value: avgDlwg ?? "—", bg: "bg-blue-50 border-blue-100", text: "text-blue-800", sub: "text-blue-700" },
-          { label: "Shearing Records", value: shearing.length, bg: "bg-purple-50 border-purple-100", text: "text-purple-800", sub: "text-purple-700" },
+          {
+            label: "Scanning Records", value: scanFiltered.length,
+            compare: compareYear !== null ? scanCompare.length : undefined,
+            bg: "bg-green-50 border-green-100", text: "text-green-800", sub: "text-green-700",
+          },
+          {
+            label: "Scanning %", value: scanPct ? `${scanPct}%` : "—",
+            compare: compareYear !== null && compareScanPct ? `${compareScanPct}%` : undefined,
+            bg: "bg-amber-50 border-amber-100", text: "text-amber-800", sub: "text-amber-700",
+          },
+          {
+            label: "Avg DLWG (g/day)", value: avgDlwg ?? "—",
+            bg: "bg-blue-50 border-blue-100", text: "text-blue-800", sub: "text-blue-700",
+          },
+          {
+            label: "Shearing Records", value: shearFiltered.length,
+            compare: compareYear !== null ? shearCompare.length : undefined,
+            bg: "bg-purple-50 border-purple-100", text: "text-purple-800", sub: "text-purple-700",
+          },
         ].map(c => (
           <div key={c.label} className={`${c.bg} rounded-xl border p-4 text-center`}>
             <p className={`text-2xl font-bold ${c.text}`}>{c.value}</p>
+            {c.compare !== undefined && (
+              <p className={`text-xs ${c.sub} opacity-70`}>{compareYear}: {c.compare}</p>
+            )}
             <p className={`text-xs mt-0.5 ${c.sub}`}>{c.label}</p>
           </div>
         ))}
@@ -1466,7 +1571,7 @@ function SheepAnalyticsTab({ farmId }: { farmId: number }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {litterData.length > 0 && (
           <div className="bg-white border border-gray-200 rounded-xl p-5">
-            <h3 className="font-semibold text-sm mb-4">Litter Type Distribution (all scans)</h3>
+            <h3 className="font-semibold text-sm mb-4">Litter Type Distribution ({selectedYear})</h3>
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -1481,7 +1586,7 @@ function SheepAnalyticsTab({ farmId }: { farmId: number }) {
         )}
         {dlwgData.length > 0 && (
           <div className="bg-white border border-gray-200 rounded-xl p-5">
-            <h3 className="font-semibold text-sm mb-4">DLWG by Batch (g/day)</h3>
+            <h3 className="font-semibold text-sm mb-4">DLWG by Batch ({selectedYear}, g/day)</h3>
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={dlwgData} layout="vertical" margin={{ left: 4, right: 24, top: 4, bottom: 4 }}>
@@ -1497,9 +1602,35 @@ function SheepAnalyticsTab({ farmId }: { farmId: number }) {
         )}
       </div>
 
-      {shearData.length > 0 && (
+      {/* Shearing by month — with optional YoY comparison */}
+      {shearByMonth.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <h3 className="font-semibold text-sm mb-4">Wool Yield & Head Sheared by Year</h3>
+          <h3 className="font-semibold text-sm mb-4">
+            Head Sheared by Month
+            {compareYear !== null ? ` — ${selectedYear} vs ${compareYear}` : ` (${selectedYear})`}
+          </h3>
+          <div className="h-52">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={shearByMonth} margin={{ left: 0, right: 24, top: 4, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <Tooltip />
+                {compareYear !== null && <Legend />}
+                <Bar dataKey={String(selectedYear)} name={String(selectedYear)} fill={COMPARE_COLORS[0]} radius={[3, 3, 0, 0]} />
+                {compareYear !== null && (
+                  <Bar dataKey={String(compareYear)} name={String(compareYear)} fill={COMPARE_COLORS[1]} radius={[3, 3, 0, 0]} />
+                )}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* All-years wool yield summary */}
+      {shearData.length > 1 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <h3 className="font-semibold text-sm mb-4">Wool Yield & Head Sheared — All Years</h3>
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={shearData} margin={{ left: 0, right: 24, top: 4, bottom: 4 }}>
@@ -1517,13 +1648,13 @@ function SheepAnalyticsTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      {tupping.length > 0 && (
+      {tuppingFiltered.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <h3 className="font-semibold text-sm mb-3">Tupping Summary</h3>
+          <h3 className="font-semibold text-sm mb-3">Tupping Summary ({selectedYear})</h3>
           <div className="grid grid-cols-3 gap-4 text-center">
-            <div><p className="text-2xl font-bold">{tupping.length}</p><p className="text-xs text-muted-foreground">Tupping Cycles</p></div>
-            <div><p className="text-2xl font-bold">{tupping.reduce((s, r) => s + (Number(r.ewesExposed) || 0), 0)}</p><p className="text-xs text-muted-foreground">Total Ewes Exposed</p></div>
-            <div><p className="text-2xl font-bold">{[...new Set(tupping.map(r => r.ramBreed).filter(Boolean))].length}</p><p className="text-xs text-muted-foreground">Ram Breeds Used</p></div>
+            <div><p className="text-2xl font-bold">{tuppingFiltered.length}</p><p className="text-xs text-muted-foreground">Tupping Cycles</p></div>
+            <div><p className="text-2xl font-bold">{tuppingFiltered.reduce((s, r) => s + (Number(r.ewesExposed) || 0), 0)}</p><p className="text-xs text-muted-foreground">Total Ewes Exposed</p></div>
+            <div><p className="text-2xl font-bold">{[...new Set(tuppingFiltered.map(r => r.ramBreed).filter(Boolean))].length}</p><p className="text-xs text-muted-foreground">Ram Breeds Used</p></div>
           </div>
         </div>
       )}
