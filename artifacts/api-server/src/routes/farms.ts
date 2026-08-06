@@ -480,6 +480,10 @@ import {
   strawHotWorksPermitsTable,
   silageHaylageStockTable,
   silageHaylageUsageTable,
+  fellingLicencesTable,
+  treeFellingRecordsTable,
+  regenPracticeRecordsTable,
+  regenSoilIndicatorsTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { drizzle as drizzleNode } from "drizzle-orm/node-postgres";
@@ -40955,4 +40959,144 @@ router.put("/account/profile", async (req, res) => {
     smsConsentAt: usersTable.smsConsentAt,
   }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   res.json(updated);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Woodland & Tree Felling compliance (Forestry Commission, England)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── Felling Licences ────────────────────────────────────────────────────────
+router.get("/farms/:farmId/felling-licences", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(fellingLicencesTable)
+    .where(eq(fellingLicencesTable.farmId, farmId))
+    .orderBy(desc(fellingLicencesTable.createdAt));
+  res.json({ records: rows });
+});
+
+router.post("/farms/:farmId/felling-licences", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(fellingLicencesTable).values({ ...body, farmId } as any).returning();
+  res.status(201).json(row);
+});
+
+router.put("/farms/:farmId/felling-licences/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.update(fellingLicencesTable).set({ ...body, updatedAt: new Date() } as any)
+    .where(and(eq(fellingLicencesTable.id, id), eq(fellingLicencesTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/felling-licences/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(fellingLicencesTable).where(and(eq(fellingLicencesTable.id, id), eq(fellingLicencesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Tree Felling Records ────────────────────────────────────────────────────
+router.get("/farms/:farmId/felling-records", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(treeFellingRecordsTable)
+    .where(eq(treeFellingRecordsTable.farmId, farmId))
+    .orderBy(desc(treeFellingRecordsTable.fellingDate));
+  res.json({ records: rows });
+});
+
+router.post("/farms/:farmId/felling-records", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(treeFellingRecordsTable).values({ ...body, farmId } as any).returning();
+  res.status(201).json(row);
+});
+
+router.put("/farms/:farmId/felling-records/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.update(treeFellingRecordsTable).set({ ...body, updatedAt: new Date() } as any)
+    .where(and(eq(treeFellingRecordsTable.id, id), eq(treeFellingRecordsTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/felling-records/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(treeFellingRecordsTable).where(and(eq(treeFellingRecordsTable.id, id), eq(treeFellingRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Regenerative Farming evidence
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── Practice Records ────────────────────────────────────────────────────────
+router.get("/farms/:farmId/regen-practices", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(regenPracticeRecordsTable)
+    .where(eq(regenPracticeRecordsTable.farmId, farmId))
+    .orderBy(desc(regenPracticeRecordsTable.recordDate));
+  res.json({ records: rows });
+});
+
+router.post("/farms/:farmId/regen-practices", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(regenPracticeRecordsTable).values({ ...body, farmId } as any).returning();
+  res.status(201).json(row);
+});
+
+router.put("/farms/:farmId/regen-practices/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.update(regenPracticeRecordsTable).set({ ...body, updatedAt: new Date() } as any)
+    .where(and(eq(regenPracticeRecordsTable.id, id), eq(regenPracticeRecordsTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/regen-practices/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(regenPracticeRecordsTable).where(and(eq(regenPracticeRecordsTable.id, id), eq(regenPracticeRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Soil Health Indicators ──────────────────────────────────────────────────
+router.get("/farms/:farmId/regen-soil-indicators", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(regenSoilIndicatorsTable)
+    .where(eq(regenSoilIndicatorsTable.farmId, farmId))
+    .orderBy(desc(regenSoilIndicatorsTable.testDate));
+  res.json({ records: rows });
+});
+
+router.post("/farms/:farmId/regen-soil-indicators", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.insert(regenSoilIndicatorsTable).values({ ...body, farmId } as any).returning();
+  res.status(201).json(row);
+});
+
+router.put("/farms/:farmId/regen-soil-indicators/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  const [row] = await db.update(regenSoilIndicatorsTable).set({ ...body, updatedAt: new Date() } as any)
+    .where(and(eq(regenSoilIndicatorsTable.id, id), eq(regenSoilIndicatorsTable.farmId, farmId))).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/regen-soil-indicators/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(regenSoilIndicatorsTable).where(and(eq(regenSoilIndicatorsTable.id, id), eq(regenSoilIndicatorsTable.farmId, farmId)));
+  res.json({ success: true });
 });

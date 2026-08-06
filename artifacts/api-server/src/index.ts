@@ -18,6 +18,7 @@ import { runAnalyticsMigrations } from "./lib/analyticsMigrations";
 import { runWineryMigrations } from "./lib/wineryMigrations";
 import { runFarmIncidentsMigrations } from "./lib/farmIncidentsMigrations";
 import { runTaskLinkMigrations } from "./lib/taskLinkMigrations";
+import { runWoodlandRegenMigrations } from "./lib/woodlandRegenMigrations";
 
 interface EnvSpec {
   key: string;
@@ -134,5 +135,8 @@ app.listen(port, () => {
   });
   runTaskLinkMigrations().catch((err) => {
     console.error("[TASK-LINK-MIGRATE] Failed:", err);
+  });
+  runWoodlandRegenMigrations().catch((err) => {
+    console.error("[WOODLAND-REGEN-MIGRATE] Failed:", err);
   });
 });

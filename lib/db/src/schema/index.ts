@@ -63,5 +63,6 @@ export * from "./gps-tracking";
 export * from "./sensor-integrations";
 export * from "./straw-management";
 export * from "./silage-forage";
+export * from "./woodland-regen";
 export * from "./data-api";
 export * from "./report-builder";

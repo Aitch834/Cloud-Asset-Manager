@@ -200,6 +200,8 @@ const financeNav: NavItem[] = [
 
 const environmentalNav: NavItem[] = [
   { name: "Environmental", href: "/environmental", icon: Leaf, moduleKeys: ["environmental"] },
+  { name: "Woodland & Felling", href: "/woodland", icon: TreePine, moduleKeys: ["environmental"] },
+  { name: "Regenerative Farming", href: "/regenerative", icon: Sprout, moduleKeys: ["environmental"] },
   { name: "Carbon & Sustainability", href: "/carbon", icon: Recycle, moduleKeys: ["carbon-sustainability"] },
   { name: "Biofuel / RTFO", href: "/biofuel", icon: Fuel, moduleKeys: ["biofuel-rtfo"] },
   { name: "Fuel & Energy", href: "/fuel-energy", icon: Fuel, moduleKeys: ["fuel-energy"] },

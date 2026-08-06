@@ -58,6 +58,8 @@ const WeatherPageFull = React.lazy(() => import("@/pages/WeatherPageFull"));
 const HaulagePageFull = React.lazy(() => import("@/pages/HaulagePageFull"));
 const CropStockPage = React.lazy(() => import("@/pages/CropStockPage"));
 const SeedStorePage = React.lazy(() => import("@/pages/SeedStorePage"));
+const WoodlandPage = React.lazy(() => import("@/pages/woodland/WoodlandPage"));
+const RegenerativePage = React.lazy(() => import("@/pages/regenerative/RegenerativePage"));
 const StrawManagementPage = React.lazy(() => import("@/pages/StrawManagementPage"));
 const EnvironmentalPageFull = React.lazy(() => import("@/pages/EnvironmentalPageFull"));
 const StorageLocationsPage = React.lazy(() => import("@/pages/StorageLocationsPage"));
@@ -291,6 +293,8 @@ function AppRoutes() {
         <Route path="/haulage" component={HaulagePageFull} />
         <Route path="/crop-stock" component={CropStockPage} />
         <Route path="/seed-store" component={SeedStorePage} />
+        <Route path="/woodland" component={WoodlandPage} />
+        <Route path="/regenerative" component={RegenerativePage} />
         <Route path="/documents" component={DocumentsPageCustom} />
         <Route path="/weather" component={WeatherPageFull} />
         <Route path="/help" component={HelpCentre} />
