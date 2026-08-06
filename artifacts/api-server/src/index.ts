@@ -20,6 +20,7 @@ import { runFarmIncidentsMigrations } from "./lib/farmIncidentsMigrations";
 import { runTaskLinkMigrations } from "./lib/taskLinkMigrations";
 import { runWoodlandRegenMigrations } from "./lib/woodlandRegenMigrations";
 import { runPestTrapMigrations } from "./lib/pestTrapMigrations";
+import { runSoilAnalysisMigrations } from "./lib/soilAnalysisMigrations";
 
 interface EnvSpec {
   key: string;
@@ -139,6 +140,9 @@ app.listen(port, () => {
   });
   runWoodlandRegenMigrations().catch((err) => {
     console.error("[WOODLAND-REGEN-MIGRATE] Failed:", err);
+  });
+  runSoilAnalysisMigrations().catch((err) => {
+    console.error("[STARTUP] soilAnalysisMigrations failed:", err);
   });
   runPestTrapMigrations().catch((err) => {
     console.error("[PEST-TRAP-MIGRATE] Failed:", err);

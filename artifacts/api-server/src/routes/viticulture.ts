@@ -841,6 +841,27 @@ router.delete("/farms/:farmId/vineyard-spray-diary/:id", requireAuth, requireTen
 
 // ─── Vineyard Soil & Leaf Analysis ────────────────────────────────────────────
 
+// External advisors (agronomists, consultants) for "Requested By" lookup
+router.get("/farms/:farmId/vineyard-advisors", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const ADVISOR_TYPES = ["agronomist", "vineyard_consultant", "consultant", "advisor", "soil_consultant", "laboratory"];
+  const advisors = await db.select({
+    id: suppliersTable.id,
+    name: suppliersTable.name,
+    supplierType: suppliersTable.supplierType,
+    contactName: suppliersTable.contactName,
+    phone: suppliersTable.phone,
+    email: suppliersTable.email,
+  }).from(suppliersTable)
+    .where(and(
+      eq(suppliersTable.farmId, farmId),
+      eq(suppliersTable.isActive, true),
+      inArray(suppliersTable.supplierType, ADVISOR_TYPES),
+    ))
+    .orderBy(suppliersTable.name);
+  res.json({ advisors });
+});
+
 router.get("/farms/:farmId/vineyard-soil-analysis", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const records = await db.select().from(vineyardSoilAnalysisTable).where(eq(vineyardSoilAnalysisTable.farmId, farmId)).orderBy(desc(vineyardSoilAnalysisTable.createdAt));
@@ -849,7 +870,14 @@ router.get("/farms/:farmId/vineyard-soil-analysis", requireAuth, requireTenant, 
 
 router.post("/farms/:farmId/vineyard-soil-analysis", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const [record] = await (db.insert(vineyardSoilAnalysisTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const [inserted] = await (db.insert(vineyardSoilAnalysisTable) as any).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  // Generate a human-readable request reference from the DB id
+  const year = new Date().getFullYear();
+  const requestReference = `SLA-${year}-${String(inserted.id).padStart(4, "0")}`;
+  const [record] = await db.update(vineyardSoilAnalysisTable)
+    .set({ requestReference })
+    .where(eq(vineyardSoilAnalysisTable.id, inserted.id))
+    .returning();
   res.status(201).json({ record });
 });
 

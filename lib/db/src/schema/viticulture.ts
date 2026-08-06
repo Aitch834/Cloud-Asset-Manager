@@ -281,6 +281,7 @@ export const vineyardSoilAnalysisTable = pgTable("vineyard_soil_analysis", {
   status: text("status").notNull().default("complete"),
 
   // Stage 1 — Sample request
+  requestReference: text("request_reference"),
   requestDate: date("request_date"),
   requestedBy: text("requested_by"),
   analysisType: text("analysis_type"),

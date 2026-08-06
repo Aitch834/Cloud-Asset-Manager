@@ -8,7 +8,7 @@ import {
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
-  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge,
+  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, Users, UserCheck,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -48,6 +48,7 @@ import { VineyardBlockMapTab } from "@/components/viticulture/VineyardBlockMapTa
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { useFarmMembers } from "@/hooks/use-farm-members";
 
 import { apiUrl as api } from "@/lib/api";
 import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
@@ -97,9 +98,25 @@ function SoilStepper({ status }: { status: string }) {
 }
 
 export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
-  const { data: records, isLoading, add, edit, remove } = useCrud(farmId, "vineyard-soil-analysis", "vineyard-soil-analysis");
+  const { data: records, isLoading, edit, remove } = useCrud(farmId, "vineyard-soil-analysis", "vineyard-soil-analysis");
   const analysisTypes = useLookupStrings("vineyard_soil_analysis_types", SOIL_ANALYSIS_TYPES);
   const labOptions = useLookupStrings("vineyard_laboratories", ["NRM Group", "Lancrop Laboratories", "ADAS Analytical Services", "Eurofins Agro UK", "Other"]);
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  // ── Staff names for StaffSelect ────────────────────────────────────────────
+  const membersQ = useFarmMembers(farmId);
+  const staffNames = (membersQ.data?.members ?? [])
+    .filter(m => (m as any).isActive !== false)
+    .map(m => `${m.firstName} ${m.lastName}`.trim());
+
+  // ── External advisors (agronomists / consultants) ──────────────────────────
+  const { data: advisorData } = useQuery<{ advisors: { id: number; name: string; supplierType: string; contactName?: string }[] }>({
+    queryKey: ["vineyard-advisors", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/vineyard-advisors`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const advisors = advisorData?.advisors ?? [];
 
   type DialogMode = "request" | "collect" | "dispatch" | "results" | "view";
   const [mode, setMode] = useState<DialogMode | null>(null);
@@ -110,7 +127,14 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
   const blockName = (id: unknown) => (blocks.find(b => b.id === id) as Record<string, unknown> | undefined)?.blockName ?? id;
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
 
-  const close = () => { setMode(null); setActive(null); setForm({}); };
+  // "Requested By" source toggle
+  const [requestedBySource, setRequestedBySource] = useState<"staff" | "external">("staff");
+
+  // Task dialog state — opened after a request is created
+  const [taskRecord, setTaskRecord] = useState<Record<string, unknown> | null>(null);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+
+  const close = () => { setMode(null); setActive(null); setForm({}); setRequestedBySource("staff"); };
 
   const awaitingCount = (records as Record<string, unknown>[]).filter(r => r.status === "awaiting_results").length;
   const pendingCount = (records as Record<string, unknown>[]).filter(r => r.status === "pending_collection").length;
@@ -151,7 +175,31 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
     return "Edit Results";
   };
 
-  const saveRequest = () => { add.mutate({ ...form, status: "pending_collection" } as any); close(); };
+  // ── Dedicated create mutation so we can capture the new record and open task dialog ──
+  const createRequest = useMutation({
+    mutationFn: async (body: Record<string, unknown>) => {
+      const r = await fetch(api(`farms/${farmId}/vineyard-soil-analysis`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error("Save failed");
+      return r.json() as Promise<{ record: Record<string, unknown> }>;
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["vineyard-soil-analysis", farmId] });
+      const record = data.record;
+      close();
+      setTaskRecord(record);
+      setTaskDialogOpen(true);
+    },
+    onError: () => toast({ title: "Failed to create request", variant: "destructive" }),
+  });
+
+  const saveRequest = () => {
+    createRequest.mutate({ ...form, status: "pending_collection" } as Record<string, unknown>);
+  };
   const saveCollect = () => { edit.mutate({ id: active!.id as number, ...form, status: "collected" } as any); close(); };
   const saveDispatch = () => { edit.mutate({ id: active!.id as number, ...form, status: "awaiting_results" } as any); close(); };
   const saveResults = () => { edit.mutate({ id: active!.id as number, ...form, status: "complete" } as any); close(); };
@@ -166,7 +214,9 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
     return d ? new Date(d as string).getFullYear() === Number(yearFilter) : false;
   });
   const soilCsvCols = [
+    { key: "requestReference", label: "Request Ref" },
     { key: "requestDate", label: "Requested", fmt: (r: Record<string, unknown>) => fmtDate(r.requestDate ?? r.analysisDate) },
+    { key: "requestedBy", label: "Requested By" },
     { key: "blockId", label: "Block", fmt: (r: Record<string, unknown>) => String(blockName(r.blockId)) },
     { key: "analysisType", label: "Analysis Type" },
     { key: "labName", label: "Laboratory" },
@@ -180,6 +230,13 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
     { key: "magnesiumMgL", label: "Magnesium (mg/L)" },
     { key: "recommendations", label: "Recommendations" },
   ];
+
+  // ── "Requested By" helpers ─────────────────────────────────────────────────
+  // When source toggle changes, clear the current requestedBy value
+  const handleSourceChange = (src: "staff" | "external") => {
+    setRequestedBySource(src);
+    sfv("requestedBy", "");
+  };
 
   return (
     <div className="space-y-4">
@@ -228,6 +285,10 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
         <DataTable
           cols={[
+            { key: "requestReference", label: "Ref", render: r => r.requestReference
+              ? <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">{String(r.requestReference)}</span>
+              : <span className="text-muted-foreground text-xs">—</span>
+            },
             { key: "status", label: "Status", render: r => {
               const cfg = SAMPLE_STATUS_CONFIG[(r.status as SoilSampleStatus) ?? "complete"];
               return <span className={`text-xs px-2 py-0.5 rounded-full border font-medium whitespace-nowrap ${cfg?.badge ?? ""}`}>{cfg?.label ?? "—"}</span>;
@@ -235,6 +296,7 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
             { key: "requestDate", label: "Requested", render: r => fmtDate(r.requestDate ?? r.analysisDate) },
             { key: "blockId", label: "Block", render: r => fmt(blockName(r.blockId)) },
             { key: "analysisType", label: "Type" },
+            { key: "requestedBy", label: "Requested By", render: r => fmt(r.requestedBy) },
             { key: "labName", label: "Lab" },
             { key: "analysisDate", label: "Results Date", render: r => r.status === "complete" ? fmtDate(r.analysisDate) : "—" },
             { key: "_action", label: "", render: r => {
@@ -258,11 +320,11 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
       )}
 
       {/* ── Request Dialog ──────────────────────────────────────────── */}
-      <Dialog open={mode === "request"} onOpenChange={o => { if (!o) { close(); add.reset(); } }}>
+      <Dialog open={mode === "request"} onOpenChange={o => { if (!o) { close(); createRequest.reset(); } }}>
         <DialogContent style={{ maxWidth: "32rem" }}>
           <DialogHeader>
             <DialogTitle>Request Soil / Leaf Analysis</DialogTitle>
-            <DialogDescription>Raise a sample request — a field worker will collect the sample and it will be dispatched to the lab.</DialogDescription>
+            <DialogDescription>Raise a sample request — a unique reference will be generated and a task can be assigned to a field worker for collection.</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Request Date</Label><Input type="date" max={today} value={String(form.requestDate ?? today)} onChange={sf("requestDate")} /></div>
@@ -276,38 +338,119 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
                 </SelectContent>
               </Select>
             </div>
-            <div>
+            <div className="col-span-2">
               <Label>Analysis Type *</Label>
               <Select value={String(form.analysisType ?? "")} onValueChange={v => sfv("analysisType", v)}>
                 <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                 <SelectContent>{analysisTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Requested By</Label><Input placeholder="Name of manager / agronomist" value={String(form.requestedBy ?? "")} onChange={sf("requestedBy")} /></div>
+
+            {/* ── Requested By — dual source ─────────────────────────── */}
+            <div className="col-span-2 space-y-2">
+              <Label>Requested By</Label>
+              {/* Source toggle */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSourceChange("staff")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium transition-colors ${
+                    requestedBySource === "staff"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-white text-muted-foreground border-input hover:bg-muted"
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />Staff Member
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSourceChange("external")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium transition-colors ${
+                    requestedBySource === "external"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-white text-muted-foreground border-input hover:bg-muted"
+                  }`}
+                >
+                  <UserCheck className="w-3.5 h-3.5" />External Provider
+                </button>
+              </div>
+
+              {requestedBySource === "staff" ? (
+                <StaffSelect
+                  staffNames={staffNames}
+                  loading={membersQ.isLoading}
+                  value={String(form.requestedBy ?? "")}
+                  onChange={v => sfv("requestedBy", v)}
+                />
+              ) : advisors.length > 0 ? (
+                <Select value={String(form.requestedBy ?? "")} onValueChange={v => sfv("requestedBy", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select agronomist / consultant" /></SelectTrigger>
+                  <SelectContent>
+                    {advisors.map(a => (
+                      <SelectItem key={a.id} value={a.name}>
+                        <span>{a.name}</span>
+                        {a.contactName && <span className="ml-1 text-muted-foreground text-xs">({a.contactName})</span>}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="text-xs text-muted-foreground bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                  No external advisors found. Add agronomists, consultants or other advisors via the Traders section (supplier type: <em>agronomist</em> or <em>consultant</em>).
+                </div>
+              )}
+            </div>
+
             <div className="col-span-2"><Label>Instructions for Collector</Label><Textarea placeholder="Where to sample, depth, method, any special notes…" value={String(form.notes ?? "")} onChange={sf("notes")} rows={2} /></div>
           </div>
-          <DialogMutationError mutation={add} message="Failed to save — your entries are still here." />
+          <DialogMutationError mutation={createRequest} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={close}>Cancel</Button>
-            <Button onClick={saveRequest} disabled={!form.analysisType || add.isPending}>
-              {add.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+            <Button onClick={saveRequest} disabled={!form.analysisType || createRequest.isPending}>
+              {createRequest.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
               Create Request
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* ── Task dialog — auto-opened after request creation ────────── */}
+      {taskRecord && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={taskDialogOpen}
+          onClose={() => { setTaskDialogOpen(false); setTaskRecord(null); }}
+          defaultTitle={`Collect soil sample — ${String(taskRecord.requestReference ?? "")}`}
+          defaultDescription={[
+            taskRecord.analysisType ? `Analysis type: ${taskRecord.analysisType}` : "",
+            taskRecord.blockId ? `Block: ${String(blockName(taskRecord.blockId))}` : "Farm-wide sample",
+            taskRecord.notes ? `Instructions: ${taskRecord.notes}` : "",
+          ].filter(Boolean).join("\n")}
+          taskType="soil_analysis_collection"
+          taskSourceId={String(taskRecord.id ?? "")}
+          module="Viticulture"
+          allowEditTitle={false}
+        />
+      )}
+
       {/* ── Collect Dialog ──────────────────────────────────────────── */}
       <Dialog open={mode === "collect"} onOpenChange={o => { if (!o) { close(); edit.reset(); } }}>
         <DialogContent style={{ maxWidth: "32rem" }}>
           <DialogHeader>
             <DialogTitle>Record Sample Collection</DialogTitle>
-            <DialogDescription>{active && <>{fmt(blockName(active.blockId))} — {fmt(active.analysisType)}</>}</DialogDescription>
+            <DialogDescription>
+              {active && (
+                <>
+                  {active.requestReference && <span className="font-mono text-xs bg-gray-100 px-1 py-0.5 rounded mr-1">{String(active.requestReference)}</span>}
+                  {fmt(blockName(active.blockId))} — {fmt(active.analysisType)}
+                </>
+              )}
+            </DialogDescription>
           </DialogHeader>
           <SoilStepper status="pending_collection" />
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Collection Date *</Label><Input type="date" max={today} value={String(form.collectionDate ?? today)} onChange={sf("collectionDate")} /></div>
-            <div><Label>Collected By *</Label><Input placeholder="Field worker name" value={String(form.collectedBy ?? "")} onChange={sf("collectedBy")} /></div>
+            <div><Label>Collected By *</Label><StaffSelect staffNames={staffNames} loading={membersQ.isLoading} value={String(form.collectedBy ?? "")} onChange={v => sfv("collectedBy", v)} /></div>
             <div><Label>GPS Latitude</Label><Input type="number" step="any" placeholder="51.5074" value={String(form.collectionGpsLat ?? "")} onChange={sf("collectionGpsLat")} /></div>
             <div><Label>GPS Longitude</Label><Input type="number" step="any" placeholder="-1.2278" value={String(form.collectionGpsLng ?? "")} onChange={sf("collectionGpsLng")} /></div>
             <div className="col-span-2"><Label>Collection Notes</Label><Textarea placeholder="Exact location, sample depth, soil conditions…" value={String(form.collectionNotes ?? "")} onChange={sf("collectionNotes")} rows={2} /></div>
@@ -328,7 +471,14 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
         <DialogContent style={{ maxWidth: "32rem" }}>
           <DialogHeader>
             <DialogTitle>Mark Sample as Dispatched to Lab</DialogTitle>
-            <DialogDescription>{active && <>{fmt(blockName(active.blockId))} — collected {fmtDate(active.collectionDate)}</>}</DialogDescription>
+            <DialogDescription>
+              {active && (
+                <>
+                  {active.requestReference && <span className="font-mono text-xs bg-gray-100 px-1 py-0.5 rounded mr-1">{String(active.requestReference)}</span>}
+                  {fmt(blockName(active.blockId))} — collected {fmtDate(active.collectionDate)}
+                </>
+              )}
+            </DialogDescription>
           </DialogHeader>
           <SoilStepper status="collected" />
           <div className="grid grid-cols-2 gap-3">
@@ -359,7 +509,12 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
           <DialogHeader>
             <DialogTitle>{active?.status === "complete" ? "Edit Lab Results" : "Record Lab Results"}</DialogTitle>
             <DialogDescription>
-              {active && <>{fmt(blockName(active.blockId))} — {fmt(active.analysisType)}{active.sampleReference ? ` · Ref: ${active.sampleReference}` : ""}</>}
+              {active && (
+                <>
+                  {active.requestReference && <span className="font-mono text-xs bg-gray-100 px-1 py-0.5 rounded mr-1">{String(active.requestReference)}</span>}
+                  {fmt(blockName(active.blockId))} — {fmt(active.analysisType)}{active.sampleReference ? ` · Lab ref: ${active.sampleReference}` : ""}
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
           {active?.status !== "complete" && <SoilStepper status="awaiting_results" />}
@@ -398,7 +553,14 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
         <Dialog open onOpenChange={close}>
           <DialogContent style={{ maxWidth: "44rem" }} className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{fmt(blockName(active.blockId))} — {fmt(active.analysisType)}</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                {!!active.requestReference && (
+                  <span className="font-mono text-xs bg-gray-100 border border-gray-200 px-2 py-0.5 rounded text-gray-700">
+                    {String(active.requestReference)}
+                  </span>
+                )}
+                {fmt(blockName(active.blockId))} — {fmt(active.analysisType)}
+              </DialogTitle>
             </DialogHeader>
             <SoilStepper status={(active.status as string) ?? "complete"} />
 
@@ -495,4 +657,3 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
 }
 
 // ─── Winery Stock Tab ─────────────────────────────────────────────────────────
-
