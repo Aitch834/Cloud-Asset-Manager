@@ -270,6 +270,35 @@ export const UK_GRAPE_VARIETIES = [
   "Other",
 ];
 
+/** VIVC accession numbers for common UK grape varieties.
+ *  Pre-fills the VIVC Number field when a variety is selected.
+ *  Users should verify against vivc.de — these are correct to the best of our knowledge. */
+export const VIVC_VARIETY_MAP: Record<string, string> = {
+  "Auxerrois": "823",
+  "Bacchus": "856",
+  "Cabernet Blanc": "1818",
+  "Cabernet Cortis": "1823",
+  "Chardonnay": "4551",
+  "Dornfelder": "3267",
+  "Huxelrebe": "5765",
+  "Johanniter": "6264",
+  "Madeleine Angevine": "7182",
+  "Müller-Thurgau": "8166",
+  "Ortega": "8823",
+  "Phoenix": "9269",
+  "Pinot Blanc": "9279",
+  "Pinot Gris": "9280",
+  "Pinot Meunier": "9281",
+  "Pinot Noir": "9282",
+  "Regent": "10077",
+  "Reichensteiner": "10086",
+  "Rondo": "10465",
+  "Sauvignon Blanc": "11004",
+  "Seyval Blanc": "11345",
+  "Siegerrebe": "11439",
+  "Solaris": "11534",
+};
+
 export const UK_ROOTSTOCKS = [
   "5C Teleki", "SO4", "3309 Couderc", "101-14 Millardet",
   "5BB Kober", "125AA", "41B", "420A", "Gravesac",

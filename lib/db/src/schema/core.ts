@@ -68,6 +68,7 @@ export const farmsTable = pgTable("farms", {
   appaRef: text("appa_ref"),
   appaRegistrationDate: text("appa_registration_date"),
   fsaWineProductionRef: text("fsa_wine_production_ref"),
+  fsaVineRegisterRef: text("fsa_vine_register_ref"),
   companyNumber: text("company_number"),
   vatNumber: text("vat_number"),
   bankName: text("bank_name"),

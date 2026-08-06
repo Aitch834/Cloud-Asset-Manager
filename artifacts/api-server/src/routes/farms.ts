@@ -608,7 +608,7 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
     redTractorId, sbiNumber, farmManager, holdingType, assuranceBody,
     isNvzDesignated, country,
     eaml2Email, flockMark, herdMark, pigHerdMark, bcmsHoldingNumber, scotEidNumber, eidCymruNumber,
-    appaRef, appaRegistrationDate, fsaWineProductionRef,
+    appaRef, appaRegistrationDate, fsaWineProductionRef, fsaVineRegisterRef,
     harvestStrictStorage,
   } = req.body;
 
@@ -659,6 +659,7 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
     appaRef: appaRef ?? null,
     appaRegistrationDate: appaRegistrationDate ?? null,
     fsaWineProductionRef: fsaWineProductionRef ?? null,
+    fsaVineRegisterRef: fsaVineRegisterRef ?? null,
     harvestStrictStorage: harvestStrictStorage ?? false,
   })
   .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, req.tenantId!)))

@@ -8,7 +8,7 @@ import {
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
-  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge,
+  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, ExternalLink,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -50,7 +50,7 @@ import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, VIVC_VARIETY_MAP, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 type VineReg = Record<string, unknown>;
 
@@ -64,9 +64,28 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
   const varieties = useLookupStrings("vineyard_grape_varieties", UK_GRAPE_VARIETIES);
   const [varietyOther, setVarietyOther] = useState(false);
 
-  const openAdd = () => { setForm({}); setCurrent(null); setVarietyOther(false); setOpen(true); };
+  // Fetch farm-level FSA Vine Register Ref stored in Farm Settings
+  const { data: farmRecordData } = useQuery<Record<string, unknown> | null>({
+    queryKey: ["farm-meta", farmId],
+    queryFn: async () => {
+      const r = await fetch(api(`farms/${farmId}`), { credentials: "include" });
+      if (!r.ok) return null;
+      const d = await r.json();
+      return (d.record ?? d) as Record<string, unknown>;
+    },
+    enabled: !!farmId,
+    staleTime: 5 * 60 * 1000,
+  });
+  const farmFsaVineRef = String((farmRecordData as any)?.fsaVineRegisterRef ?? "");
+
+  const openAdd = () => {
+    setForm({ fsaVineRegisterRef: farmFsaVineRef });
+    setCurrent(null);
+    setVarietyOther(false);
+    setOpen(true);
+  };
   const openEdit = (r: VineReg) => {
-    setForm({ ...r });
+    setForm({ ...r, fsaVineRegisterRef: r.fsaVineRegisterRef || farmFsaVineRef });
     setCurrent(r);
     setVarietyOther(!!r.registeredVariety && !UK_GRAPE_VARIETIES.includes(String(r.registeredVariety)));
     setOpen(true);
@@ -95,6 +114,9 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
     { key: "removalReason", label: "Removal Reason" },
     { key: "notes", label: "Notes" },
   ];
+
+  // Derive selected block for area prefill — reactive to form.blockId
+  const selectedBlock = form.blockId ? blocks.find(b => b.id === Number(form.blockId)) : undefined;
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin w-6 h-6 text-muted-foreground" /></div>;
 
@@ -201,13 +223,30 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{current ? "Edit" : "Add"} Vine Register Entry</DialogTitle></DialogHeader>
           <div className="space-y-3">
+            {/* FSA ref — pulled from Farm Settings, read-only here */}
+            <div className="rounded-md border bg-muted/40 px-3 py-2.5 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-0.5">FSA Vine Register Reference</p>
+                {farmFsaVineRef
+                  ? <p className="font-mono text-sm font-medium">{farmFsaVineRef}</p>
+                  : <p className="text-xs text-amber-600">Not set — add your reference in Farm Settings → Viticulture Registrations</p>}
+              </div>
+              <Badge variant="outline" className="shrink-0 text-xs">Farm Settings</Badge>
+            </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>FSA Vine Register Ref</Label><Input value={String(form.fsaVineRegisterRef ?? "")} onChange={e => sf("fsaVineRegisterRef", e.target.value)} placeholder="e.g. WPR-12345" /></div>
-              <div>
+              <div className="col-span-2">
                 <Label>Registered Variety *</Label>
                 <Select
                   value={varietyOther ? "Other" : String(form.registeredVariety ?? "")}
-                  onValueChange={v => { if (v === "Other") { setVarietyOther(true); sf("registeredVariety", ""); } else { setVarietyOther(false); sf("registeredVariety", v); } }}
+                  onValueChange={v => {
+                    if (v === "Other") { setVarietyOther(true); sf("registeredVariety", ""); }
+                    else {
+                      setVarietyOther(false);
+                      sf("registeredVariety", v);
+                      // Auto-fill VIVC number from the catalogue map if the field is currently empty
+                      if (VIVC_VARIETY_MAP[v] && !form.vivcNumber) sf("vivcNumber", VIVC_VARIETY_MAP[v]);
+                    }
+                  }}
                 >
                   <SelectTrigger><SelectValue placeholder="Select variety…" /></SelectTrigger>
                   <SelectContent>{varieties.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
@@ -221,16 +260,36 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Mother Variety <span className="text-muted-foreground font-normal">(♀ seed parent)</span></Label>
-                  <Input value={String(form.motherVariety ?? "")} onChange={e => sf("motherVariety", e.target.value)} placeholder="e.g. Sirius" />
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <Input value={String(form.motherVariety ?? "")} onChange={e => sf("motherVariety", e.target.value)} placeholder="e.g. Sirius" className="flex-1" />
+                    <a
+                      href={`https://www.vivc.de/index.php?r=cultivarname%2Findex&ViticultivarnameSearch%5Bcultivarnameall%5D=${encodeURIComponent(String(form.motherVariety || ""))}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-0.5 text-xs text-blue-600 hover:text-blue-800 shrink-0 whitespace-nowrap"
+                      title="Look up on VIVC"
+                    >
+                      <ExternalLink className="w-3 h-3" />VIVC
+                    </a>
+                  </div>
                 </div>
                 <div>
                   <Label>Father Variety <span className="text-muted-foreground font-normal">(♂ pollen parent)</span></Label>
-                  <Input value={String(form.fatherVariety ?? "")} onChange={e => sf("fatherVariety", e.target.value)} placeholder="e.g. Villard Blanc" />
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <Input value={String(form.fatherVariety ?? "")} onChange={e => sf("fatherVariety", e.target.value)} placeholder="e.g. Villard Blanc" className="flex-1" />
+                    <a
+                      href={`https://www.vivc.de/index.php?r=cultivarname%2Findex&ViticultivarnameSearch%5Bcultivarnameall%5D=${encodeURIComponent(String(form.fatherVariety || ""))}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-0.5 text-xs text-blue-600 hover:text-blue-800 shrink-0 whitespace-nowrap"
+                      title="Look up on VIVC"
+                    >
+                      <ExternalLink className="w-3 h-3" />VIVC
+                    </a>
+                  </div>
                 </div>
                 <div>
                   <Label>VIVC Number</Label>
-                  <Input value={String(form.vivcNumber ?? "")} onChange={e => sf("vivcNumber", e.target.value)} placeholder="e.g. 21074" />
-                  <p className="text-xs text-muted-foreground mt-1">Vitis International Variety Catalogue accession. Look up at <span className="font-mono">vivc.de</span></p>
+                  <Input value={String(form.vivcNumber ?? "")} onChange={e => sf("vivcNumber", e.target.value)} placeholder="e.g. 4551" />
+                  <p className="text-xs text-muted-foreground mt-1">Auto-filled for known varieties. Verify or look up any variety at <a href="https://www.vivc.de" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-mono">vivc.de</a></p>
                 </div>
                 <div>
                   <Label>Berry Colour</Label>
@@ -255,7 +314,16 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
               )}
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Registered Area (ha) *</Label><Input type="number" step="0.0001" value={String(form.registeredAreaHa ?? "")} onChange={e => sf("registeredAreaHa", e.target.value)} /></div>
+              <div>
+                <Label>Registered Area (ha) *</Label>
+                <Input type="number" step="0.0001" value={String(form.registeredAreaHa ?? "")} onChange={e => sf("registeredAreaHa", e.target.value)} />
+                {!!selectedBlock?.areaHa && (
+                  <button type="button" className="text-xs text-blue-600 hover:underline mt-0.5"
+                    onClick={() => sf("registeredAreaHa", String(selectedBlock!.areaHa))}>
+                    Prefill from block: {fmtNum(selectedBlock!.areaHa, 4)} ha
+                  </button>
+                )}
+              </div>
               <div>
                 <Label>GI Classification</Label>
                 <Select value={String(form.giClassification ?? "")} onValueChange={v => sf("giClassification", v)}>
@@ -288,7 +356,11 @@ export function VineRegisterTab({ farmId, blocks }: { farmId: number; blocks: Re
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Date Registered</Label><Input type="date" max={today} value={String(form.dateRegistered ?? "")} onChange={e => sf("dateRegistered", e.target.value)} /></div>
-              <div><Label>Date Amended</Label><Input type="date" max={today} value={String(form.dateAmended ?? "")} onChange={e => sf("dateAmended", e.target.value)} /></div>
+              <div>
+                <Label>Date Amended</Label>
+                <Input type="date" max={today} value={String(form.dateAmended ?? "")} onChange={e => sf("dateAmended", e.target.value)} />
+                <p className="text-xs text-muted-foreground mt-1">The date this entry was amended with the RPA — not when a physical change occurred in the vineyard.</p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <Checkbox checked={!!form.isRemovedFromRegister} onCheckedChange={v => sf("isRemovedFromRegister", !!v)} id="rmv" />

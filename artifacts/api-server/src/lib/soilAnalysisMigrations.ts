@@ -4,6 +4,9 @@ export async function runSoilAnalysisMigrations(): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query(`
+      ALTER TABLE farms ADD COLUMN IF NOT EXISTS fsa_vine_register_ref TEXT;
+    `);
+    await client.query(`
       ALTER TABLE vineyard_soil_analysis
         ADD COLUMN IF NOT EXISTS request_reference TEXT;
     `);

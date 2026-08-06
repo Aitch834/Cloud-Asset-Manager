@@ -102,6 +102,7 @@ interface FarmFormData {
   appaRef: string;
   appaRegistrationDate: string;
   fsaWineProductionRef: string;
+  fsaVineRegisterRef: string;
   harvestStrictStorage: boolean;
 }
 
@@ -170,6 +171,7 @@ function farmToFormData(farm: Farm & {
     appaRef: (farm as any).appaRef || "",
     appaRegistrationDate: (farm as any).appaRegistrationDate || "",
     fsaWineProductionRef: (farm as any).fsaWineProductionRef || "",
+    fsaVineRegisterRef: (farm as any).fsaVineRegisterRef || "",
     harvestStrictStorage: !!(farm as any).harvestStrictStorage,
   };
 }
@@ -2311,6 +2313,7 @@ export default function FarmSettings() {
       appaRef: formData.appaRef.trim() || undefined,
       appaRegistrationDate: formData.appaRegistrationDate.trim() || undefined,
       fsaWineProductionRef: formData.fsaWineProductionRef.trim() || undefined,
+      fsaVineRegisterRef: formData.fsaVineRegisterRef.trim() || undefined,
       companyNumber: formData.companyNumber.trim() || undefined,
       vatNumber: formData.vatNumber.trim() || undefined,
       bankName: formData.bankName.trim() || undefined,
@@ -2895,7 +2898,7 @@ export default function FarmSettings() {
                     className="mt-1 font-mono"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Issued by the <strong>Food Standards Agency</strong> (FSA) when you register a vineyard or winery at food.gov.uk. This is your holding-level wine production registration — separate from the per-block FSA Vine Register entries in the Viticulture module.
+                    Issued by the FSA when you register a winery at food.gov.uk. This is your holding-level wine production registration reference.
                   </p>
                 </div>
                 <div>
@@ -2921,6 +2924,19 @@ export default function FarmSettings() {
                     className="mt-1"
                   />
                   <p className="text-xs text-muted-foreground mt-1">Date your APPA was granted by HMRC</p>
+                </div>
+                <div>
+                  <Label htmlFor="settings-fsa-vine-ref">FSA Vine Register Reference</Label>
+                  <Input
+                    id="settings-fsa-vine-ref"
+                    placeholder="e.g. VR-12345"
+                    value={formData.fsaVineRegisterRef}
+                    onChange={e => updateField("fsaVineRegisterRef", e.target.value)}
+                    className="mt-1 font-mono"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Your holding-level <strong>FSA Vine Register</strong> reference, issued when you register your vineyard planting with the RPA. This is pulled through automatically to Vine Register entries — you only need to enter it once here.
+                  </p>
                 </div>
               </div>
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900">
