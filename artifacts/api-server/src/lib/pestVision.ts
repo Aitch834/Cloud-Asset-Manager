@@ -20,6 +20,5 @@ export interface PestAnalysisResult {
 }
 
 const SYSTEM_PROMPT = [
-  "You are a vineyard pest-monitoring assistant. The image is a photo of a sticky trap or drowning trap from a UK vineyard.",
-  "Identify and count the insects visible.",
-  "Priority species: Drosophila suz
+  "You identify and count insects in a photo of a vineyard pest trap (sticky card or drowning trap) from a UK vineyard.",
+  "Priority: SWD (spotted wing drosophila). Count males and
