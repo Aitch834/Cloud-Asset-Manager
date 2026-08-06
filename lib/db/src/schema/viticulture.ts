@@ -344,6 +344,34 @@ export const vineyardScoutingTable = pgTable("vineyard_scouting", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// ─── AI Pest Trap Captures (SWD & flying pest monitoring) ─────────────────────
+// Photo of a trap card captured in the field (mobile), analysed by AI vision to
+// count Spotted Wing Drosophila (male/female) and identify other flying pests.
+export const pestTrapCapturesTable = pgTable("pest_trap_captures", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  blockId: integer("block_id").references(() => vineyardBlocksTable.id),
+  captureDate: date("capture_date").notNull(),
+  trapRef: text("trap_ref"),
+  trapType: text("trap_type"), // red-sticky | yellow-sticky | drowning-cup | delta | mcphail | other
+  recordedBy: text("recorded_by"),
+  latitude: numeric("latitude", { precision: 10, scale: 7 }),
+  longitude: numeric("longitude", { precision: 10, scale: 7 }),
+  photoObjectPath: text("photo_object_path"),
+  photoFileName: text("photo_file_name"),
+  analysisStatus: text("analysis_status").default("pending"), // pending | complete | failed | skipped
+  swdMaleCount: integer("swd_male_count"),
+  swdFemaleCount: integer("swd_female_count"),
+  otherPests: jsonb("other_pests").default([]), // [{ species, commonName, count, confidence, riskToGrapes }]
+  totalInsectCount: integer("total_insect_count"),
+  pestPressure: text("pest_pressure"), // none | low | medium | high
+  aiSummary: text("ai_summary"),
+  aiModel: text("ai_model"),
+  analysisError: text("analysis_error"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // ─── Winery Reception / Grape Intake at Winery Gate ───────────────────────────
 export const wineryReceptionRecordsTable = pgTable("winery_reception_records", {
   id: serial("id").primaryKey(),
