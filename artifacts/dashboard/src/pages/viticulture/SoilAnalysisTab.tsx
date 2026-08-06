@@ -149,7 +149,7 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
   const samplePoints = samplePointsData?.points ?? [];
 
   const deletePoint = useMutation({
-    mutationFn: (pointId: number) => fetch(api(`farms/${farmId}/vineyard-soil-analysis/${activeId}/sample-points/${pointId}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    mutationFn: (pointId: number) => fetch(api(`farms/${farmId}/vineyard-soil-analysis/${activeId}/sample-points/${pointId}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
     onSuccess: () => refetchPoints(),
   });
 
