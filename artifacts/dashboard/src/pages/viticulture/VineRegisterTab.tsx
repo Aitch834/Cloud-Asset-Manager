@@ -77,6 +77,9 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
   const activeHighlight = highlightBlockId && !highlightDismissed;
   const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
 
+  // ── Search & Filter state ─────────────────────────────────────────────────
+  const [searchText, setSearchText] = useState("");
+
   // ── Filter & sort state (persisted per farm) ──────────────────────────────
   const STATUS_VALUES = ["", "active", "removed"] as const;
   const [filterStatusRaw, setFilterStatus] = usePersistedFilter({
@@ -121,6 +124,13 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
     else if (filterStatus === "removed") rows = rows.filter(r => !!r.isRemovedFromRegister);
     if (filterGI) rows = rows.filter(r => String(r.giClassification ?? "") === filterGI);
     if (filterColour) rows = rows.filter(r => String(r.wineColour ?? "") === filterColour);
+    if (searchText.trim()) {
+      const q = searchText.trim().toLowerCase();
+      rows = rows.filter(r =>
+        String(r.registeredVariety ?? "").toLowerCase().includes(q) ||
+        String(r.fsaVineRegisterRef ?? "").toLowerCase().includes(q)
+      );
+    }
     if (sortKey) {
       rows = [...rows].sort((a, b) => {
         if (sortKey === "registeredAreaHa") {
@@ -139,9 +149,9 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
       });
     }
     return rows;
-  }, [data, filterStatus, filterGI, filterColour, sortKey, sortDir]);
+  }, [data, filterStatus, filterGI, filterColour, searchText, sortKey, sortDir]);
 
-  const activeFilterCount = [filterStatus, filterGI, filterColour].filter(Boolean).length;
+  const activeFilterCount = [filterStatus, filterGI, filterColour, searchText.trim()].filter(Boolean).length;
 
   // Fetch farm-level FSA Vine Register Ref stored in Farm Settings
   const { data: farmRecordData } = useQuery<Record<string, unknown> | null>({
@@ -241,6 +251,25 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Input
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            placeholder="Search variety or FSA ref…"
+            className={`h-8 text-xs w-52 pr-6 ${searchText.trim() ? "border-primary text-primary" : ""}`}
+          />
+          {searchText && (
+            <button
+              type="button"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => setSearchText("")}
+              aria-label="Clear search"
+            >
+              <XCircle className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
         <Select value={filterStatus || "__all__"} onValueChange={v => setFilterStatus(v === "__all__" ? "" : v as "active" | "removed")}>
           <SelectTrigger className={`h-8 text-xs w-36 ${filterStatus ? "border-primary text-primary" : ""}`}>
             <SelectValue placeholder="All statuses" />
@@ -274,7 +303,7 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
 
         {activeFilterCount > 0 && (
           <Button size="sm" variant="ghost" className="h-8 px-2 text-xs text-muted-foreground"
-            onClick={() => { setFilterStatus(""); setFilterGI(""); setFilterColour(""); }}>
+            onClick={() => { setFilterStatus(""); setFilterGI(""); setFilterColour(""); setSearchText(""); }}>
             Clear filters ({activeFilterCount})
           </Button>
         )}
