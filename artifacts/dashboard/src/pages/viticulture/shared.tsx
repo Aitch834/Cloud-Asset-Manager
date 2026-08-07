@@ -238,22 +238,162 @@ function escHtml(v: unknown): string {
     .replace(/'/g, "&#x27;");
 }
 
-export function printVineRegister(
+// ─── Block-map SVG builder (for print) ───────────────────────────────────────
+
+type LatLng = { lat: number; lng: number };
+
+function buildBlockMapSvg(
+  boundaries: Array<{ blockId: number; polygonPoints: LatLng[] }>,
+  blocks: Record<string, unknown>[],
+): string {
+  const allPts = boundaries.flatMap(b => b.polygonPoints);
+  if (allPts.length < 3) return "";
+
+  const minLat = Math.min(...allPts.map(p => p.lat));
+  const maxLat = Math.max(...allPts.map(p => p.lat));
+  const minLng = Math.min(...allPts.map(p => p.lng));
+  const maxLng = Math.max(...allPts.map(p => p.lng));
+
+  const W = 320; const H = 190; const PAD = 12;
+  const latSpan = maxLat - minLat || 0.001;
+  const lngSpan = maxLng - minLng || 0.001;
+
+  const project = (p: LatLng): [number, number] => [
+    PAD + ((p.lng - minLng) / lngSpan) * (W - PAD * 2),
+    PAD + ((maxLat - p.lat) / latSpan) * (H - PAD * 2),
+  ];
+
+  const FILL_COLOURS = [
+    "#4ade80", "#60a5fa", "#fb923c", "#f472b6",
+    "#a78bfa", "#34d399", "#facc15", "#38bdf8",
+  ];
+  const blockNameLookup: Record<number, string> = {};
+  blocks.forEach(b => { blockNameLookup[b.id as number] = String(b.blockName ?? ""); });
+
+  const shapes = boundaries.map((boundary, i) => {
+    if (boundary.polygonPoints.length < 3) return "";
+    const colour = FILL_COLOURS[i % FILL_COLOURS.length];
+    const pts = boundary.polygonPoints.map(p => project(p).join(",")).join(" ");
+    const cx = boundary.polygonPoints.reduce((s, p) => s + p.lng, 0) / boundary.polygonPoints.length;
+    const cy = boundary.polygonPoints.reduce((s, p) => s + p.lat, 0) / boundary.polygonPoints.length;
+    const [sx, sy] = project({ lat: cy, lng: cx });
+    const name = escHtml(blockNameLookup[boundary.blockId] ?? "");
+    return `<polygon points="${pts}" fill="${colour}" fill-opacity="0.45" stroke="${colour}" stroke-width="1.5"/>
+      ${name ? `<text x="${sx}" y="${sy}" text-anchor="middle" dominant-baseline="middle" font-size="7" font-family="Arial,sans-serif" fill="#111" font-weight="600">${name}</text>` : ""}`;
+  }).join("\n");
+
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"
+    style="border:1px solid #6ee7b7;border-radius:4px;background:#f0fdf4;display:block">
+    ${shapes}
+  </svg>`;
+}
+
+// ─── Helper: fetch an image URL → base64 data URI ─────────────────────────────
+
+async function fetchImageAsDataUrl(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { credentials: "include" });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function printVineRegister(
   records: Record<string, unknown>[],
   farmName: string,
   fsaVineRef?: string,
+  farmId?: number,
+  blocks?: Record<string, unknown>[],
 ) {
+  // Open the window SYNCHRONOUSLY here, while still inside the click-handler's
+  // user-activation context, so browsers don't block the popup.
+  const win = window.open("", "_blank", "width=1100,height=850");
+  if (!win) return;
+
+  // Show a loading placeholder immediately so the window doesn't look blank.
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>FSA Vine Register — Loading…</title>
+    <style>body{font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#555}p{font-size:14px}</style>
+    </head><body><p>Preparing report…</p></body></html>`);
+
   const d = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
   const n = (v: unknown, dp = 4) =>
     v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp);
 
+  // ── 1. Fetch photo data-URLs for all blocks that appear in these records ──
+  const photoDataUrl: Record<number, string> = {};
+  if (farmId && blocks && blocks.length > 0) {
+    const blockLookup: Record<number, Record<string, unknown>> = {};
+    blocks.forEach(b => { blockLookup[b.id as number] = b; });
+    const neededBlockIds = [...new Set(
+      records.map(r => Number(r.blockId)).filter(id => !isNaN(id) && id > 0)
+    )];
+    await Promise.all(
+      neededBlockIds.map(async blockId => {
+        const block = blockLookup[blockId];
+        if (!block) return;
+        const photos = block.photos as Array<{ id: number }> | undefined;
+        if (!photos || photos.length === 0) return;
+        const photoId = photos[0].id;
+        const url = `/api/farms/${farmId}/vineyard-blocks/${blockId}/photos/${photoId}`;
+        const dataUrl = await fetchImageAsDataUrl(url);
+        if (dataUrl) photoDataUrl[blockId] = dataUrl;
+      })
+    );
+  }
+
+  // ── 2. Fetch block boundaries and build SVG map ───────────────────────────
+  let svgMapHtml = "";
+  if (farmId && blocks && blocks.length > 0) {
+    try {
+      const res = await fetch(`/api/farms/${farmId}/vineyard-blocks/boundaries`, { credentials: "include" });
+      if (res.ok) {
+        const { boundaries } = await res.json() as { boundaries: Array<{ blockId: number; polygonPoints: LatLng[] }> };
+        if (Array.isArray(boundaries) && boundaries.length > 0) {
+          svgMapHtml = buildBlockMapSvg(boundaries, blocks);
+        }
+      }
+    } catch {
+      // Map is optional — silently skip on error
+    }
+  }
+
+  // ── 3. Build table rows ───────────────────────────────────────────────────
+  const hasPhotos = Object.keys(photoDataUrl).length > 0;
+  const blockLookup2: Record<number, Record<string, unknown>> = {};
+  (blocks ?? []).forEach(b => { blockLookup2[b.id as number] = b; });
+  const colSpan = hasPhotos ? 9 : 8;
+
   const rows = records
     .map(r => {
-      // Status uses only fixed markup — no user data interpolated inside it
       const status = r.isRemovedFromRegister
         ? '<span style="color:#991b1b;font-weight:600">Removed</span>'
         : '<span style="color:#065f46;font-weight:600">Active</span>';
+
+      let photoCell = "";
+      if (hasPhotos) {
+        const bid = Number(r.blockId);
+        const block = !isNaN(bid) && bid > 0 ? blockLookup2[bid] : undefined;
+        const blockLabel = block ? escHtml(String(block.blockName ?? "")) : "—";
+        const dataUrl = bid > 0 ? photoDataUrl[bid] : undefined;
+        photoCell = `<td style="padding:4px 6px;vertical-align:middle;text-align:center;width:76px">
+          ${dataUrl
+            ? `<img src="${dataUrl}" alt="Block photo" style="width:60px;height:60px;object-fit:cover;border-radius:4px;border:1px solid #d1d5db;display:block;margin:0 auto 2px" />`
+            : ""}
+          <span style="font-size:9.5px;color:#555;display:block;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${blockLabel}</span>
+        </td>`;
+      }
+
       return `<tr>
+        ${photoCell}
         <td>${escHtml(r.registeredVariety)}</td>
         <td>${escHtml(r.vivcNumber)}</td>
         <td style="text-align:right">${n(r.registeredAreaHa)} ha</td>
@@ -272,10 +412,10 @@ export function printVineRegister(
   );
   const activeCount = records.filter(r => !r.isRemovedFromRegister).length;
 
-  // Header fields — escaped separately so the surrounding fixed markup stays literal
   const safeFarmName = escHtml(farmName);
   const safeFsaRef = fsaVineRef ? escHtml(fsaVineRef) : "";
 
+  // ── 4. Build the full HTML document ──────────────────────────────────────
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
   <title>FSA Vine Register &mdash; ${safeFarmName}</title>
   <style>
@@ -297,6 +437,8 @@ export function printVineRegister(
     tr:nth-child(even) td { background: #f0fdf4; }
     .tfoot td { font-weight: 700; background: #d1fae5; border-color: #6ee7b7; }
     .notice { background: #f0fdf4; border: 1px solid #6ee7b7; padding: 8px 12px; border-radius: 4px; font-size: 11px; margin-bottom: 14px; }
+    .map-section { margin-bottom: 16px; }
+    .map-title { font-size: 11px; font-weight: 700; color: #2d6a4f; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
     .footer { margin-top: 18px; font-size: 10.5px; color: #666; border-top: 1px solid #ccc; padding-top: 7px; display: flex; justify-content: space-between; }
     @media print { body { margin: 0; } button { display: none !important; } }
   </style></head><body>
@@ -313,10 +455,13 @@ export function printVineRegister(
         <span class="badge badge-blue">Total Area: ${totalHa.toFixed(4)} ha</span>
       </div>
     </div>
-    <div style="text-align:right;font-size:11px;color:#555">
-      <div style="font-size:13px;font-weight:700;color:#2d6a4f">Food Standards Agency</div>
-      <div>Vine Register &mdash; UK Viticulture</div>
-      <div style="margin-top:4px">Mandatory for vineyards &gt; 0.01 ha</div>
+    <div style="display:flex;gap:16px;align-items:flex-start">
+      ${svgMapHtml ? `<div class="map-section"><div class="map-title">Block Map Overview</div>${svgMapHtml}</div>` : ""}
+      <div style="text-align:right;font-size:11px;color:#555">
+        <div style="font-size:13px;font-weight:700;color:#2d6a4f">Food Standards Agency</div>
+        <div>Vine Register &mdash; UK Viticulture</div>
+        <div style="margin-top:4px">Mandatory for vineyards &gt; 0.01 ha</div>
+      </div>
     </div>
   </div>
 
@@ -328,6 +473,7 @@ export function printVineRegister(
   <table>
     <thead>
       <tr>
+        ${hasPhotos ? "<th style=\"width:76px\">Block / Photo</th>" : ""}
         <th>Registered Variety</th>
         <th>VIVC No.</th>
         <th style="text-align:right">Area (ha)</th>
@@ -339,14 +485,14 @@ export function printVineRegister(
       </tr>
     </thead>
     <tbody>
-      ${rows || "<tr><td colspan='8' style='text-align:center;color:#888;padding:14px'>No register entries</td></tr>"}
+      ${rows || `<tr><td colspan='${colSpan}' style='text-align:center;color:#888;padding:14px'>No register entries</td></tr>`}
     </tbody>
     ${records.length > 0 ? `
     <tfoot>
       <tr class="tfoot">
-        <td colspan="2"><strong>Totals</strong></td>
+        <td colspan="${hasPhotos ? 3 : 2}"><strong>Totals</strong></td>
         <td style="text-align:right"><strong>${totalHa.toFixed(4)} ha</strong></td>
-        <td colspan="5"></td>
+        <td colspan="${hasPhotos ? 5 : 5}"></td>
       </tr>
     </tfoot>` : ""}
   </table>
@@ -357,8 +503,8 @@ export function printVineRegister(
   </div>
   </body></html>`;
 
-  const win = window.open("", "_blank", "width=1100,height=850");
-  if (!win) return;
+  // Replace the loading placeholder with the final report.
+  win.document.open();
   win.document.write(html);
   win.document.close();
   win.onload = () => { setTimeout(() => win.print(), 200); };
