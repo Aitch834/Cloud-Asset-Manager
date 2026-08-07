@@ -203,5 +203,29 @@ export async function runWineryMigrations(): Promise<void> {
   // Vineyard block photos — nullable object storage path added to vineyard_blocks
   await db.execute(sql.raw(`ALTER TABLE vineyard_blocks ADD COLUMN IF NOT EXISTS photo_object_path text`));
 
+  // ─── Barrel Fill History ────────────────────────────────────────────────────
+  // Each row records one fill cycle for a barrel-type vessel: wine in, wine out,
+  // duration. Tied to winery_vessels via vessel_id (cascade delete). Fill number
+  // is stored explicitly (not derived) so it can be corrected if needed.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS winery_barrel_fills (
+      id             SERIAL PRIMARY KEY,
+      farm_id        INTEGER NOT NULL REFERENCES farms(id),
+      vessel_id      INTEGER NOT NULL REFERENCES winery_vessels(id) ON DELETE CASCADE,
+      fill_number    INTEGER NOT NULL,
+      wine_name      TEXT,
+      vintage_year   INTEGER,
+      variety        TEXT,
+      volume_litres  NUMERIC(10,2),
+      fill_date      DATE,
+      rack_out_date  DATE,
+      batch_ref      TEXT,
+      operator_name  TEXT,
+      notes          TEXT,
+      created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS winery_barrel_fills_vessel_idx ON winery_barrel_fills (vessel_id)`);
+
   console.log("[WINERY-MIGRATE] Done.");
 }

@@ -37603,6 +37603,69 @@ router.delete("/farms/:farmId/winery-vessels/:vesselId/cleans/:cleanId", require
   res.json({ success: true });
 });
 
+// ── Barrel Fill History ────────────────────────────────────────────────────────
+router.get("/farms/:farmId/winery-vessels/:vesselId/fills", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const vesselId = parseInt(req.params.vesselId as string);
+  const rows = await db.execute(sql`SELECT * FROM winery_barrel_fills WHERE farm_id=${farmId} AND vessel_id=${vesselId} ORDER BY fill_number ASC, fill_date ASC`);
+  res.json({ records: rows.rows });
+});
+
+router.post("/farms/:farmId/winery-vessels/:vesselId/fills", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const vesselId = parseInt(req.params.vesselId as string);
+  const b = sanitiseBody(req.body);
+  if (!b.fillNumber) { res.status(400).json({ error: "fill_number required" }); return; }
+  const r = await db.execute(sql`
+    INSERT INTO winery_barrel_fills
+      (farm_id, vessel_id, fill_number, wine_name, vintage_year, variety, volume_litres, fill_date, rack_out_date, batch_ref, operator_name, notes)
+    VALUES
+      (${farmId}, ${vesselId}, ${ni(b.fillNumber)}, ${n(b.wineName)}, ${ni(b.vintageYear)}, ${n(b.variety)}, ${nf(b.volumeLitres)}, ${nd(b.fillDate)}, ${nd(b.rackOutDate)}, ${n(b.batchRef)}, ${n(b.operatorName)}, ${n(b.notes)})
+    RETURNING *`);
+  // Keep the vessel's fill_number counter in sync with the highest fill logged
+  await db.execute(sql`
+    UPDATE winery_vessels
+    SET fill_number = (SELECT MAX(fill_number) FROM winery_barrel_fills WHERE vessel_id = ${vesselId})
+    WHERE id = ${vesselId} AND farm_id = ${farmId}
+  `);
+  res.json({ record: r.rows[0] });
+});
+
+router.put("/farms/:farmId/winery-vessels/:vesselId/fills/:fillId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const vesselId = parseInt(req.params.vesselId as string);
+  const fillId = parseInt(req.params.fillId as string);
+  const b = sanitiseBody(req.body);
+  if (!b.fillNumber) { res.status(400).json({ error: "fill_number required" }); return; }
+  const r = await db.execute(sql`
+    UPDATE winery_barrel_fills SET
+      fill_number=${ni(b.fillNumber)}, wine_name=${n(b.wineName)}, vintage_year=${ni(b.vintageYear)},
+      variety=${n(b.variety)}, volume_litres=${nf(b.volumeLitres)}, fill_date=${nd(b.fillDate)},
+      rack_out_date=${nd(b.rackOutDate)}, batch_ref=${n(b.batchRef)}, operator_name=${n(b.operatorName)}, notes=${n(b.notes)}
+    WHERE id=${fillId} AND vessel_id=${vesselId} AND farm_id=${farmId} RETURNING *`);
+  if (!r.rows.length) { res.status(404).json({ error: "Not found" }); return; }
+  await db.execute(sql`
+    UPDATE winery_vessels
+    SET fill_number = (SELECT MAX(fill_number) FROM winery_barrel_fills WHERE vessel_id = ${vesselId})
+    WHERE id = ${vesselId} AND farm_id = ${farmId}
+  `);
+  res.json({ record: r.rows[0] });
+});
+
+router.delete("/farms/:farmId/winery-vessels/:vesselId/fills/:fillId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const vesselId = parseInt(req.params.vesselId as string);
+  const fillId = parseInt(req.params.fillId as string);
+  await db.execute(sql`DELETE FROM winery_barrel_fills WHERE id=${fillId} AND vessel_id=${vesselId} AND farm_id=${farmId}`);
+  // Re-sync the vessel fill counter after deletion
+  await db.execute(sql`
+    UPDATE winery_vessels
+    SET fill_number = (SELECT MAX(fill_number) FROM winery_barrel_fills WHERE vessel_id = ${vesselId})
+    WHERE id = ${vesselId} AND farm_id = ${farmId}
+  `);
+  res.json({ success: true });
+});
+
 // ── Fermentation Records ───────────────────────────────────────────────────────
 router.get("/farms/:farmId/winery-fermentation", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;

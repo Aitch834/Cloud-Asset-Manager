@@ -508,6 +508,24 @@ export const wineryVesselCleansTable = pgTable("winery_vessel_cleans", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// ─── Winery Barrel Fill History ───────────────────────────────────────────────
+export const wineryBarrelFillsTable = pgTable("winery_barrel_fills", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  vesselId: integer("vessel_id").notNull().references(() => wineryVesselsTable.id, { onDelete: "cascade" }),
+  fillNumber: integer("fill_number").notNull(), // 1 = new oak, 2 = second fill, etc.
+  wineName: text("wine_name"),                  // free-text, e.g. "Bacchus 2024"
+  vintageYear: integer("vintage_year"),
+  variety: text("variety"),
+  volumeLitres: numeric("volume_litres", { precision: 10, scale: 2 }),
+  fillDate: date("fill_date"),                  // when wine went in
+  rackOutDate: date("rack_out_date"),            // null = still maturing
+  batchRef: text("batch_ref"),                   // links to winery batch if known
+  operatorName: text("operator_name"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // ─── Winery Fermentation Records ──────────────────────────────────────────────
 export const wineryFermentationRecordsTable = pgTable("winery_fermentation_records", {
   id: serial("id").primaryKey(),

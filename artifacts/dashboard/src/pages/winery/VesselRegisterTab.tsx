@@ -23,6 +23,163 @@ import SignatureCanvas from "react-signature-canvas";
 
 import { apiUrl as api } from "@/lib/api";
 
+// ─── Barrel Fill History ──────────────────────────────────────────────────────
+function fillOakLabel(fillNumber: number): { label: string; cls: string } {
+  if (fillNumber === 1) return { label: "New oak", cls: "bg-amber-100 text-amber-800" };
+  if (fillNumber === 2) return { label: "2nd fill", cls: "bg-yellow-100 text-yellow-800" };
+  if (fillNumber === 3) return { label: "3rd fill", cls: "bg-lime-100 text-lime-700" };
+  if (fillNumber === 4) return { label: "4th fill", cls: "bg-blue-100 text-blue-700" };
+  return { label: `${fillNumber}th fill – neutral`, cls: "bg-gray-100 text-gray-600" };
+}
+
+function durationLabel(fillDate: unknown, rackOutDate: unknown): string {
+  const start = fillDate ? new Date(String(fillDate)) : null;
+  if (!start || isNaN(start.getTime())) return "—";
+  const end = rackOutDate ? new Date(String(rackOutDate)) : new Date();
+  const days = Math.round((end.getTime() - start.getTime()) / 86400000);
+  if (days < 0) return "—";
+  if (days < 31) return `${days}d`;
+  const months = Math.floor(days / 30.44);
+  return months < 12 ? `${months} mo` : `${Math.floor(months / 12)}y ${months % 12}mo`;
+}
+
+export function BarrelFillHistory({ farmId, vesselId, maxExistingFill }: { farmId: number; vesselId: number; maxExistingFill: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const qKey = ["winery-barrel-fills", farmId, vesselId];
+
+  const { data, isLoading, isError, error } = useQuery<Record<string, unknown>[]>({
+    queryKey: qKey,
+    queryFn: async () => {
+      const res = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/fills`), { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load fill history");
+      return ((await res.json()).records ?? []) as Record<string, unknown>[];
+    },
+    enabled: !!vesselId,
+  });
+
+  const [showAdd, setShowAdd] = useState(false);
+  const [editingFill, setEditingFill] = useState<Record<string, unknown> | null>(null);
+  const nextFill = Math.max(maxExistingFill, (data ?? []).length > 0 ? Math.max(...(data ?? []).map(d => Number(d.fill_number))) : 0) + 1;
+  const blankForm = () => ({ fillNumber: String(nextFill) });
+  const [form, setForm] = useState<Record<string, string>>(blankForm());
+  const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  const openAdd = () => { setEditingFill(null); setForm({ fillNumber: String(nextFill) }); setShowAdd(true); };
+  const openEdit = (r: Record<string, unknown>) => {
+    setEditingFill(r);
+    setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
+    setShowAdd(true);
+  };
+
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      const isEdit = !!editingFill;
+      const url = isEdit
+        ? api(`farms/${farmId}/winery-vessels/${vesselId}/fills/${editingFill!.id}`)
+        : api(`farms/${farmId}/winery-vessels/${vesselId}/fills`);
+      const r = await fetch(url, { method: isEdit ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(form) });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Save failed"); }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qKey });
+      qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] });
+      setShowAdd(false); setEditingFill(null); setForm(blankForm());
+      toast({ title: editingFill ? "Fill record updated" : "Fill record added" });
+    },
+    onError: (err: Error) => toast({ title: "Save failed", description: err.message, variant: "destructive" }),
+  });
+
+  const delMut = useMutation({
+    mutationFn: async (fillId: number) => {
+      const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/fills/${fillId}`), { method: "DELETE", credentials: "include" });
+      if (!r.ok) throw new Error("Delete failed");
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qKey }); qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] }); },
+    onError: (err: Error) => toast({ title: "Delete failed", description: err.message, variant: "destructive" }),
+  });
+
+  const highestFill = (data ?? []).length > 0 ? Math.max(...(data ?? []).map(d => Number(d.fill_number))) : 0;
+
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Fill History</p>
+          {highestFill >= 4 && (
+            <span className="text-xs bg-orange-100 text-orange-700 rounded px-1.5 py-0.5 font-medium">
+              ⚠ Fill {highestFill} — approaching neutral oak
+            </span>
+          )}
+        </div>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={openAdd}>
+          <Plus className="w-3 h-3 mr-1" />Log Fill
+        </Button>
+      </div>
+
+      {showAdd && (
+        <div className="border rounded-lg p-3 mb-3 bg-muted/20 space-y-3">
+          <p className="text-xs font-medium text-muted-foreground">{editingFill ? "Edit fill record" : "New fill record"}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div><Label className="text-xs">Fill Number *</Label><Input type="number" min="1" value={form.fillNumber ?? ""} onChange={e => sf("fillNumber", e.target.value)} className="h-8 text-xs" /></div>
+            <div><Label className="text-xs">Vintage Year</Label><Input type="number" min="1900" max="2100" value={form.vintageYear ?? ""} onChange={e => sf("vintageYear", e.target.value)} className="h-8 text-xs" placeholder="e.g. 2024" /></div>
+            <div><Label className="text-xs">Wine Name</Label><Input value={form.wineName ?? ""} onChange={e => sf("wineName", e.target.value)} className="h-8 text-xs" placeholder="e.g. Bacchus 2024" /></div>
+            <div><Label className="text-xs">Variety</Label><Input value={form.variety ?? ""} onChange={e => sf("variety", e.target.value)} className="h-8 text-xs" placeholder="e.g. Chardonnay" /></div>
+            <div><Label className="text-xs">Volume (L)</Label><Input type="number" step="0.5" value={form.volumeLitres ?? ""} onChange={e => sf("volumeLitres", e.target.value)} className="h-8 text-xs" /></div>
+            <div><Label className="text-xs">Batch Ref</Label><Input value={form.batchRef ?? ""} onChange={e => sf("batchRef", e.target.value)} className="h-8 text-xs" placeholder="e.g. WB-2024-01" /></div>
+            <div><Label className="text-xs">Fill Date (wine in)</Label><Input type="date" value={form.fillDate ?? ""} onChange={e => sf("fillDate", e.target.value)} className="h-8 text-xs" /></div>
+            <div><Label className="text-xs">Rack-out Date (wine out)</Label><Input type="date" value={form.rackOutDate ?? ""} onChange={e => sf("rackOutDate", e.target.value)} className="h-8 text-xs" /></div>
+            <div><Label className="text-xs">Operator</Label><Input value={form.operatorName ?? ""} onChange={e => sf("operatorName", e.target.value)} className="h-8 text-xs" /></div>
+          </div>
+          <div><Label className="text-xs">Notes</Label><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={1} className="text-xs" /></div>
+          <DialogMutationError mutation={saveMut} />
+          <div className="flex gap-2">
+            <Button size="sm" className="h-7 text-xs" onClick={() => saveMut.mutate()} disabled={!form.fillNumber || saveMut.isPending}>
+              {saveMut.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}Save
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowAdd(false); setEditingFill(null); }}>Cancel</Button>
+          </div>
+        </div>
+      )}
+
+      {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> :
+       isError ? <QueryErrorNotice label="fill history" error={error} /> :
+       (data ?? []).length === 0 ? <p className="text-xs text-muted-foreground">No fill records yet. Log the first fill to start the barrel's history.</p> : (
+        <div className="space-y-2">
+          {(data ?? []).map(f => {
+            const oak = fillOakLabel(Number(f.fill_number));
+            const stillIn = !f.rack_out_date;
+            return (
+              <div key={String(f.id)} className="border rounded-lg px-3 py-2 text-xs space-y-1">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={`rounded px-1.5 py-0.5 font-semibold text-xs ${oak.cls}`}>{oak.label}</span>
+                    {!!f.wine_name && <span className="font-medium">{String(f.wine_name)}</span>}
+                    {!!f.vintage_year && <span className="text-muted-foreground">({String(f.vintage_year)})</span>}
+                    {!!f.variety && <span className="text-muted-foreground">— {String(f.variety)}</span>}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => openEdit(f)}><Pencil className="h-3 w-3" /></Button>
+                    <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(f.id))}><Trash2 className="h-3 w-3" /></Button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 text-muted-foreground">
+                  {!!f.fill_date && <span>In: {fmtDate(f.fill_date)}</span>}
+                  {f.rack_out_date ? <span>Out: {fmtDate(f.rack_out_date)}</span> : <span className="text-green-700 font-medium">Still maturing</span>}
+                  <span className="font-medium text-foreground">{durationLabel(f.fill_date, f.rack_out_date)}{stillIn ? " so far" : ""}</span>
+                  {!!f.volume_litres && <span>{fmtNum(f.volume_litres, 0)} L</span>}
+                  {!!f.batch_ref && <span>Batch: {String(f.batch_ref)}</span>}
+                </div>
+                {!!f.notes && <p className="text-muted-foreground italic">{String(f.notes)}</p>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function VesselCleanRow({ farmId, vesselId }: { farmId: number; vesselId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -281,6 +438,9 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               <ViewField label="Current Volume" value={view.current_volume_litres ? `${fmtNum(view.current_volume_litres, 0)} L` : "—"} />
               {!!view.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>}
             </div>
+            {(String(view.vessel_type ?? "").toLowerCase().includes("barrel") || String(view.vessel_type ?? "").toLowerCase().includes("barrique")) && (
+              <BarrelFillHistory farmId={farmId} vesselId={view.id as number} maxExistingFill={Number(view.fill_number ?? 0)} />
+            )}
             <VesselCleanRow farmId={farmId} vesselId={view.id as number} />
             <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
           </DialogContent>
