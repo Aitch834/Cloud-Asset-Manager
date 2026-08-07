@@ -17,21 +17,34 @@
 -->
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
   html, body {
     width: 100vw; height: 100vh; overflow: hidden;
     display: flex; align-items: center; justify-content: center;
     background: #111; font-family: 'Inter', sans-serif;
   }
 
-  /* ── Ad container locked to 190:133 aspect ratio ── */
-  .ad-wrap {
-    width: min(100vw, calc(100vh * 190 / 133));
-    height: min(100vh, calc(100vw * 133 / 190));
+  /*
+   * Fixed-canvas approach: ad is always 1900×1330px (10px per mm at 190×133mm).
+   * .ad-scaler holds the visual (scaled) dimensions so flexbox centres it correctly.
+   * .ad-canvas is the full 1900×1330 canvas, scaled from its top-left corner.
+   * All font sizes and spacing are fixed px — no clamp() shrinkage.
+   */
+  .ad-scaler {
     position: relative;
+    flex-shrink: 0;
     overflow: hidden;
   }
 
-  /* Full-bleed vineyard landscape — rolling vine rows, wide format */
+  .ad-canvas {
+    width: 1900px;
+    height: 1330px;
+    position: absolute;
+    top: 0; left: 0;
+    transform-origin: top left;
+  }
+
+  /* Full-bleed vineyard landscape */
   .bg {
     position: absolute; inset: 0;
     background-image: url('https://images.pexels.com/photos/943700/pexels-photo-943700.jpeg?auto=compress&cs=tinysrgb&w=1920');
@@ -53,7 +66,7 @@
   /* Gold top bar */
   .top-bar {
     position: absolute; top: 0; left: 0; right: 0;
-    height: clamp(2px, 0.55%, 4px);
+    height: 7px;
     background: linear-gradient(90deg, #B8894A 0%, #E8C98A 50%, #B8894A 100%);
     z-index: 4;
   }
@@ -61,7 +74,7 @@
   /* Green left edge rule */
   .left-rule {
     position: absolute; left: 0; top: 0; bottom: 0;
-    width: clamp(3px, 0.9%, 6px);
+    width: 12px;
     background: #2D6A2E;
     z-index: 4;
   }
@@ -71,20 +84,20 @@
     position: relative; z-index: 3;
     width: 100%; height: 100%;
     display: flex;
-    padding: 6.5% 6% 6% 6.5%;
-    gap: 4%;
+    padding: 90px 100px 84px 110px;
+    gap: 60px;
   }
 
-  /* ── LEFT COLUMN: logo + headline + subline ── */
+  /* ── LEFT COLUMN: logo + headline + subline + features ── */
   .left {
-    flex: 0 0 58%;
+    flex: 0 0 1050px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
   }
 
   .logo {
-    height: clamp(18px, 8%, 36px);
+    height: 80px;
     width: auto;
     object-fit: contain;
     object-position: left center;
@@ -92,20 +105,25 @@
     align-self: flex-start;
   }
 
-  .copy { display: flex; flex-direction: column; gap: 2.2%; flex: 1; justify-content: center; }
+  .copy {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    flex: 1;
+    justify-content: center;
+  }
 
   .eyebrow {
-    font-size: clamp(6px, 1.5%, 10px);
+    font-size: 22px;
     font-weight: 600;
     color: #C49A6C;
     letter-spacing: 0.16em;
     text-transform: uppercase;
-    margin-bottom: 1%;
   }
 
   .headline {
     font-family: 'Playfair Display', serif;
-    font-size: clamp(20px, 7.8%, 52px);
+    font-size: 116px;
     font-weight: 700;
     line-height: 1.0;
     color: #ffffff;
@@ -113,25 +131,25 @@
   .headline em { font-style: italic; color: #C49A6C; }
 
   .subline {
-    font-size: clamp(7px, 2.1%, 14px);
+    font-size: 30px;
     color: rgba(255,255,255,0.68);
     line-height: 1.50;
     font-weight: 400;
-    max-width: 95%;
+    max-width: 920px;
   }
 
-  /* Feature bullets — horizontal strip across bottom of left column */
+  /* Feature bullets */
   .features {
     display: flex;
     flex-wrap: wrap;
-    gap: 1.5% 3.5%;
+    gap: 16px 52px;
     margin-top: auto;
   }
   .feat {
     display: flex;
     align-items: center;
-    gap: 1.2%;
-    font-size: clamp(5.5px, 1.65%, 11px);
+    gap: 14px;
+    font-size: 24px;
     font-weight: 500;
     color: rgba(255,255,255,0.78);
     white-space: nowrap;
@@ -139,106 +157,112 @@
   .feat::before {
     content: '';
     display: inline-block;
-    width: clamp(3px, 0.55%, 5px);
-    height: clamp(3px, 0.55%, 5px);
+    width: 8px; height: 8px;
     border-radius: 50%;
     background: #C49A6C;
     flex-shrink: 0;
   }
 
-  /* ── RIGHT COLUMN: stats + CTA + QR ── */
+  /* ── RIGHT COLUMN: glass card + CTA + QR ── */
   .right {
     flex: 1;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    align-items: flex-end;
+    align-items: stretch;
   }
 
-  /* Glassmorphism mini-card top-right */
+  /* Glassmorphism card */
   .glass-card {
-    width: 100%;
-    background: rgba(255,255,255,0.055);
+    background: rgba(255,255,255,0.07);
     backdrop-filter: blur(18px) saturate(1.2);
     -webkit-backdrop-filter: blur(18px) saturate(1.2);
-    border: 1px solid rgba(196,154,108,0.22);
-    border-radius: clamp(4px, 1.2%, 10px);
-    padding: 4.5% 6%;
+    border: 1px solid rgba(196,154,108,0.25);
+    border-radius: 14px;
+    padding: 46px 52px;
     display: flex;
     flex-direction: column;
-    gap: 3%;
+    gap: 0;
   }
 
   .card-title {
     font-family: 'Playfair Display', serif;
     font-style: italic;
-    font-size: clamp(6px, 1.85%, 13px);
+    font-size: 28px;
     color: #C49A6C;
     font-weight: 700;
     line-height: 1.2;
-    margin-bottom: 1%;
+    margin-bottom: 24px;
   }
 
   .card-item {
-    padding: 2.5% 0;
-    border-bottom: 1px solid rgba(255,255,255,0.07);
+    padding: 20px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.09);
   }
   .card-item:last-child { border-bottom: none; padding-bottom: 0; }
 
   .card-item-title {
-    font-size: clamp(5.5px, 1.6%, 11px);
+    font-size: 24px;
     font-weight: 700;
-    color: rgba(255,255,255,0.88);
-    margin-bottom: 0.5%;
+    color: rgba(255,255,255,0.90);
+    margin-bottom: 6px;
   }
   .card-item-desc {
-    font-size: clamp(4.5px, 1.3%, 9px);
-    color: rgba(255,255,255,0.45);
-    line-height: 1.3;
+    font-size: 19px;
+    color: rgba(255,255,255,0.50);
+    line-height: 1.35;
   }
 
   /* CTA + QR bottom row */
   .cta-row {
-    width: 100%;
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
-    gap: 4%;
+    gap: 32px;
   }
 
-  .cta-block { display: flex; flex-direction: column; align-items: flex-start; gap: 2%; flex: 1; }
+  .cta-block {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    flex: 1;
+  }
   .cta {
     display: block;
     background: transparent;
     color: #C49A6C;
     font-weight: 800;
-    font-size: clamp(6px, 1.9%, 13px);
-    padding: 3% 7%;
-    border-radius: clamp(3px, 0.7%, 6px);
-    border: 1.5px solid #C49A6C;
+    font-size: 26px;
+    padding: 22px 0;
+    border-radius: 8px;
+    border: 2px solid #C49A6C;
     text-decoration: none;
     white-space: nowrap;
     letter-spacing: 0.01em;
-    width: 100%;
     text-align: center;
   }
   .url {
-    font-size: clamp(4.5px, 1.3%, 9px);
+    font-size: 18px;
     color: rgba(255,255,255,0.28);
     letter-spacing: 0.05em;
     text-align: center;
-    width: 100%;
   }
 
-  .qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 2%; flex-shrink: 0; }
+  .qr-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
   .qr-wrap img {
-    width: clamp(28px, 11%, 56px);
-    height: clamp(28px, 11%, 56px);
-    border-radius: clamp(2px, 0.5%, 4px);
+    width: 130px; height: 130px;
+    border-radius: 6px;
     display: block;
   }
   .qr-label {
-    font-size: clamp(4px, 1.1%, 8px);
+    font-size: 16px;
     color: rgba(255,255,255,0.30);
     letter-spacing: 0.04em;
     white-space: nowrap;
@@ -246,7 +270,7 @@
 </style>
 </head>
 <body>
-<div class="ad-wrap">
+<div class="ad-scaler" id="scaler"><div class="ad-canvas" id="ad">
   <div class="bg"></div>
   <div class="overlay"></div>
   <div class="top-bar"></div>
@@ -303,6 +327,24 @@
       </div>
     </div>
   </div>
-</div>
+</div></div><!-- end .ad-canvas / .ad-scaler -->
+
+<script>
+  // Scale the fixed 1900×1330 canvas to fit the browser window, letter-boxed.
+  // The scaler wrapper takes the visual (post-scale) dimensions so flexbox
+  // centres it correctly — transform alone doesn't shrink the layout footprint.
+  function scaleAd() {
+    const scaleX = window.innerWidth  / 1900;
+    const scaleY = window.innerHeight / 1330;
+    const scale  = Math.min(scaleX, scaleY);
+    const scaler = document.getElementById('scaler');
+    scaler.style.width  = (1900 * scale) + 'px';
+    scaler.style.height = (1330 * scale) + 'px';
+    const ad = document.getElementById('ad');
+    ad.style.transform = `scale(${scale})`;
+  }
+  scaleAd();
+  window.addEventListener('resize', scaleAd);
+</script>
 </body>
 </html>
