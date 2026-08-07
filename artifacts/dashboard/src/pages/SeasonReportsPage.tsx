@@ -15,6 +15,8 @@ import {
   Bug, Leaf, CheckCircle2,
 } from "lucide-react";
 import { buildProReport, printProReport } from "@/lib/print-report";
+import { useLocation } from "wouter";
+import { useFarmMeta, FarmSettingsWarning } from "@/pages/viticulture/shared";
 
 type Tab = "arable" | "livestock" | "ipm" | "organic" | "forage";
 const SEASON_REPORTS_TAB_IDS: Tab[] = ["arable", "livestock", "ipm", "organic", "forage"];
@@ -426,6 +428,8 @@ ${livestockHerds.map((h: any) => `<tr>
 export default function SeasonReportsPage() {
   const { farmId: currentFarmId } = useAppStore();
   const farmId = currentFarmId;
+  const [, navigateTo] = useLocation();
+  const { farmRecord: srFarmRecord } = useFarmMeta(farmId ?? 0);
   const [tab, setTab] = usePersistedTab<Tab>({ page: "season-reports", farmId, validIds: SEASON_REPORTS_TAB_IDS, defaultTab: "arable" });
   const [year, setYear] = usePersistedNumberFilter({ page: "season-reports", filter: "year", farmId, defaultValue: new Date().getFullYear(), isValid: n => n >= 2000 && n <= 2100 });
 
@@ -688,6 +692,21 @@ export default function SeasonReportsPage() {
 
             {tab === "livestock" && (
               <div style={{ marginTop: "1rem" }}>
+                <FarmSettingsWarning
+                  missingFields={[
+                    ...(!srFarmRecord?.cphNumber || String(srFarmRecord.cphNumber).trim() === "" ? ["CPH Number"] : []),
+                    ...(!srFarmRecord?.sbiNumber || String(srFarmRecord.sbiNumber).trim() === "" ? ["SBI Number"] : []),
+                    ...(
+                      (!srFarmRecord?.herdMark || String(srFarmRecord.herdMark).trim() === "") &&
+                      (!srFarmRecord?.flockMark || String(srFarmRecord.flockMark).trim() === "") &&
+                      (!srFarmRecord?.pigHerdMark || String(srFarmRecord.pigHerdMark).trim() === "")
+                        ? ["Herd / Flock Mark"]
+                        : []
+                    ),
+                  ]}
+                  settingsSection="Livestock"
+                  onNavigate={() => navigateTo("/settings/farm")}
+                />
                 {livestockHerds.length === 0 ? (
                   <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#9ca3af" }}>
                     <Beef className="w-10 h-10 mx-auto mb-3 opacity-30" />

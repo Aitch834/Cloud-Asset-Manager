@@ -7,7 +7,8 @@ import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Redirect } from "wouter";
+import { Redirect, useLocation } from "wouter";
+import { useFarmMeta, FarmSettingsWarning } from "@/pages/viticulture/shared";
 import {
   Plus, Search, RefreshCw, Loader2, Pencil, Eye, Trash2, X, Printer,
   ArrowRight, Paperclip, CheckCircle2, AlertTriangle, Upload, File, Skull, Download, ExternalLink,
@@ -1140,6 +1141,8 @@ function exportMovementsEaml2(records: Movement[], farm: { cphNumber?: string | 
 
 export default function Movements() {
   const { farmId } = useAppStore();
+  const [, navigateTo] = useLocation();
+  const { farmRecord: movFarmRecord } = useFarmMeta(farmId ?? 0);
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
@@ -1840,6 +1843,21 @@ export default function Movements() {
         }
       `}</style>
 
+      <FarmSettingsWarning
+        missingFields={[
+          ...(!movFarmRecord?.cphNumber || String(movFarmRecord.cphNumber).trim() === "" ? ["CPH Number"] : []),
+          ...(!movFarmRecord?.sbiNumber || String(movFarmRecord.sbiNumber).trim() === "" ? ["SBI Number"] : []),
+          ...(
+            (!movFarmRecord?.herdMark || String(movFarmRecord.herdMark).trim() === "") &&
+            (!movFarmRecord?.flockMark || String(movFarmRecord.flockMark).trim() === "") &&
+            (!movFarmRecord?.pigHerdMark || String(movFarmRecord.pigHerdMark).trim() === "")
+              ? ["Herd / Flock Mark"]
+              : []
+          ),
+        ]}
+        settingsSection="Livestock"
+        onNavigate={() => navigateTo("/settings/farm")}
+      />
       <TabBar className="mb-6">
         <TabButton active={activeTab === "movements"} onClick={() => setActiveTab("movements")}>Movements</TabButton>
         <TabButton active={activeTab === "mortality"} onClick={() => setActiveTab("mortality")}>Mortality Log</TabButton>

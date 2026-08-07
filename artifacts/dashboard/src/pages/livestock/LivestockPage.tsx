@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Redirect } from "wouter";
+import { Redirect, useLocation } from "wouter";
 import { Plus, Search, Loader2, Pencil, Trash2, ClipboardList, Stethoscope, CheckCircle2, Printer, AlertTriangle, Package, Droplets, XCircle, FileText, Upload, Paperclip, QrCode, Eye, FlaskConical, ClipboardCheck, Clock, ListChecks, BookOpen, ChevronDown, ChevronUp, RotateCcw, FileDown, Truck, BarChart3, Syringe } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useUpload } from "@workspace/object-storage-web";
@@ -31,6 +31,7 @@ import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 
 import { formatDate, formatDateLong, ConfirmDialog, PRODUCTION_TYPE_OPTIONS, EMPTY_SIRE, EMPTY_STRAW, EMPTY_HERD, EMPTY_PLAN, EMPTY_ANIMAL, PrintHerdRegisterDialog, PrintVetPlanDialog, getHerdNumberConfig, getBreedPlaceholder, getHerdNamePlaceholder, ANIMAL_SPECIES_FALLBACK, ANIMAL_STATUS_LABELS, MOVEMENT_TYPE_LABELS, OUTCOME_COLOURS, DOC_TYPE_LABELS } from "./shared";
+import { useFarmMeta } from "@/pages/viticulture/shared";
 import type { Farm, Herd, VetHealthPlan, VetHealthPlanActionCompletion, VetHealthPlanAction, MortalityRecord, FallenStockContractor, FeedRecord, WaterRecord, Animal, Sire, StrawInventory, AnimalDoc, VaccHistoryRecord, AnimalProfile } from "./shared";
 import { HerdsSection } from "./HerdsSection";
 import { VetHealthPlansSection } from "./VetHealthPlansSection";
@@ -50,6 +51,84 @@ import { BvdTestingSection } from "./BvdTestingSection";
 import { CasualtySlaughterSection } from "./CasualtySlaughterSection";
 import { IsolationRegisterSection } from "./IsolationRegisterSection";
 
+// ─── Livestock Farm Settings completeness checklist ───────────────────────────
+
+function LivestockFarmSettingsChecklist({ farmId }: { farmId: number }) {
+  const { farmRecord, isLoading } = useFarmMeta(farmId);
+  const [, navigate] = useLocation();
+
+  if (isLoading) return null;
+
+  const hasAnyMark =
+    (!!farmRecord?.herdMark && String(farmRecord.herdMark).trim() !== "") ||
+    (!!farmRecord?.flockMark && String(farmRecord.flockMark).trim() !== "") ||
+    (!!farmRecord?.pigHerdMark && String(farmRecord.pigHerdMark).trim() !== "");
+
+  const fields = [
+    { label: "CPH Number", filled: !!farmRecord?.cphNumber && String(farmRecord.cphNumber).trim() !== "" },
+    { label: "SBI Number", filled: !!farmRecord?.sbiNumber && String(farmRecord.sbiNumber).trim() !== "" },
+    { label: "Herd / Flock Mark", filled: hasAnyMark },
+  ];
+
+  const missingCount = fields.filter(f => !f.filled).length;
+  const allComplete = missingCount === 0;
+
+  if (allComplete) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800 mb-6">
+        <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
+        <span className="font-medium">Farm Settings complete</span>
+        <span className="text-green-700">— CPH, SBI and herd/flock marks are all filled in.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 mb-6">
+      <div className="flex items-start gap-2.5 mb-3">
+        <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+        <div>
+          <p className="text-sm font-semibold text-amber-800">Farm Settings incomplete</p>
+          <p className="text-xs text-amber-700 mt-0.5">
+            {missingCount} field{missingCount === 1 ? "" : "s"} below {missingCount === 1 ? "is" : "are"} missing — your printed livestock reports and movement submissions will have blank header fields.
+          </p>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {fields.map(f => (
+          <div key={f.label} className="flex items-center gap-2 text-sm">
+            {f.filled
+              ? <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
+              : <XCircle className="w-4 h-4 shrink-0 text-amber-500" />
+            }
+            <span className={f.filled ? "text-green-800" : "text-amber-800"}>{f.label}</span>
+            {!f.filled && (
+              <button
+                type="button"
+                className="ml-auto text-xs text-amber-700 underline underline-offset-2 hover:text-amber-900 font-medium whitespace-nowrap"
+                onClick={() => navigate("/settings/farm")}
+              >
+                Add →
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 pt-2.5 border-t border-amber-200">
+        <button
+          type="button"
+          className="text-xs text-amber-700 underline underline-offset-2 hover:text-amber-900 font-medium"
+          onClick={() => navigate("/settings/farm")}
+        >
+          Open Farm Settings →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Tab definitions ──────────────────────────────────────────────────────────
+
 type LivestockTab = "herds" | "vet-plans" | "mortality" | "contractors" | "feed" | "water" | "animals" | "ai-repro" | "vet-rx" | "sires" | "straws" | "lambing" | "tb-tests" | "welfare-outcomes" | "sheep-dipping" | "bvd" | "casualty-slaughter" | "isolation" | "analytics";
 const LIVESTOCK_TAB_IDS: LivestockTab[] = ["herds","vet-plans","mortality","contractors","feed","water","animals","ai-repro","vet-rx","sires","straws","lambing","tb-tests","welfare-outcomes","sheep-dipping","bvd","casualty-slaughter","isolation","analytics"];
 
@@ -61,6 +140,7 @@ export default function LivestockPage() {
 
   return (
     <AppLayout title="Herds & Animals">
+      <LivestockFarmSettingsChecklist farmId={farmId} />
       <TabBar className="mb-6">
         <TabButton active={tab === "herds"} onClick={() => setTab("herds")}>Herds & Flocks</TabButton>
         <TabButton active={tab === "animals"} onClick={() => setTab("animals")}>
