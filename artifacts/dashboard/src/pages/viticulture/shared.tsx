@@ -814,6 +814,101 @@ export async function printHarvest(
   const vintages = [...new Set(records.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse().join(", ");
   const colSpan = hasPhotos ? 12 : 13;
 
+  // ── 3b. Build yield summary (grouped by vintage or by block) ─────────────
+  const uniqueVintages = [...new Set(records.map((r: Record<string, unknown>) => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse();
+  const groupByVintage = uniqueVintages.length > 1;
+
+  const groupObj: Record<string, Record<string, unknown>[]> = {};
+  const groupKeys: string[] = [];
+  for (const r of records) {
+    const key = groupByVintage ? String(r.vintageYear ?? "Unknown") : String(r.blockId ?? "0");
+    if (!groupObj[key]) { groupObj[key] = []; groupKeys.push(key); }
+    groupObj[key].push(r);
+  }
+
+  const summaryRows = groupKeys.map((key: string) => {
+    const grpRecords: Record<string, unknown>[] = groupObj[key];
+    const totalYieldKgGrp = grpRecords.reduce((s: number, r: Record<string, unknown>) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+    const brixVals = grpRecords.map((r: Record<string, unknown>) => parseFloat(String(r.brix ?? ""))).filter((v: number) => !isNaN(v));
+    const avgBrix = brixVals.length > 0 ? brixVals.reduce((a: number, b: number) => a + b, 0) / brixVals.length : null;
+    const thaVals = grpRecords.map((r: Record<string, unknown>) => parseFloat(String(r.yieldTonnesPerHa ?? ""))).filter((v: number) => !isNaN(v));
+    const avgTha = thaVals.length > 0 ? thaVals.reduce((a: number, b: number) => a + b, 0) / thaVals.length : null;
+    const sortedDates = [...new Set(
+      grpRecords
+        .map((r: Record<string, unknown>) => r.harvestDate ? new Date(r.harvestDate as string).toLocaleDateString("en-GB") : "")
+        .filter(Boolean)
+    )];
+    const dateStr = sortedDates.length === 0 ? "\u2014"
+      : sortedDates.length === 1 ? sortedDates[0]
+      : `${sortedDates[0]} \u2013 ${sortedDates[sortedDates.length - 1]}`;
+
+    let label: string;
+    let photoCell = "";
+    if (groupByVintage) {
+      label = key;
+    } else {
+      const bid = Number(key);
+      label = !isNaN(bid) && bid > 0 ? String(blockLookup2[bid]?.blockName ?? key) : "\u2014";
+      if (hasPhotos) {
+        const du = !isNaN(bid) && bid > 0 ? photoDataUrl[bid] : undefined;
+        const cap = !isNaN(bid) && bid > 0 ? (photoCaption[bid] ?? "") : "";
+        photoCell = `<td style="padding:4px 6px;vertical-align:middle;text-align:center;width:76px">
+          ${du ? `<img src="${du}" alt="Block photo" style="width:60px;height:60px;object-fit:cover;border-radius:4px;border:1px solid #d1d5db;display:block;margin:0 auto 2px" />` : ""}
+          <span style="font-size:9.5px;color:#555;display:block;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(label)}</span>
+          ${cap ? `<span style="font-size:9px;color:#666;font-style:italic;display:block;max-width:72px;word-wrap:break-word;line-height:1.3;margin-top:2px">${escHtml(cap)}</span>` : ""}
+        </td>`;
+      }
+    }
+
+    return `<tr>
+      ${hasPhotos && !groupByVintage ? photoCell : ""}
+      <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600">${escHtml(label)}</td>
+      <td style="padding:5px 5px;border:1px solid #d1d5db">${escHtml(dateStr)}</td>
+      <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:600">${totalYieldKgGrp > 0 ? totalYieldKgGrp.toFixed(1) + " kg" : "\u2014"}</td>
+      <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right">${avgTha != null ? avgTha.toFixed(2) : "\u2014"}</td>
+      <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right">${avgBrix != null ? avgBrix.toFixed(1) + " \xb0" : "\u2014"}</td>
+    </tr>`;
+  }).join("");
+
+  const summaryPhotoHeader = hasPhotos && !groupByVintage
+    ? `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;width:76px">Photo</th>`
+    : "";
+  const summaryPhotoFooterCell = hasPhotos && !groupByVintage
+    ? `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>`
+    : "";
+
+  const summaryHtml = records.length > 0 ? `
+  <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em">
+    Yield Summary &mdash; ${groupByVintage ? "by Vintage Year" : "by Block"}
+  </h2>
+  <table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:18px">
+    <thead>
+      <tr>
+        ${summaryPhotoHeader}
+        <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">${groupByVintage ? "Vintage Year" : "Block"}</th>
+        <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Harvest Date(s)</th>
+        <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Total Yield (kg)</th>
+        <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg t/ha</th>
+        <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg Brix &deg;</th>
+      </tr>
+    </thead>
+    <tbody>${summaryRows || "<tr><td colspan='5' style='padding:10px;text-align:center;color:#888'>No records</td></tr>"}</tbody>
+    <tfoot>
+      <tr>
+        ${summaryPhotoFooterCell}
+        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;font-weight:700">Total</td>
+        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>
+        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700">${totalKg.toFixed(1)} kg</td>
+        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>
+        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>
+      </tr>
+    </tfoot>
+  </table>
+  <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em">
+    Detailed Records
+  </h2>
+  ` : "";
+
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
   <title>Harvest &amp; Vintage Records &mdash; ${safeFarmName}</title>
   <style>
@@ -845,6 +940,7 @@ export async function printHarvest(
       <div>Harvest Register</div>
     </div>
   </div>
+  ${summaryHtml}
   <table>
     <thead>
       <tr>
