@@ -48,6 +48,7 @@ import { VineyardBlockMapTab } from "@/components/viticulture/VineyardBlockMapTa
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
 import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
@@ -79,7 +80,7 @@ export function AgeVerificationTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<number | null>(null);
   const [providerOther, setProviderOther] = useState(false);
   const [locationOther, setLocationOther] = useState(false);
-  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "viticulture-age-verification", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
 
   const sf = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 

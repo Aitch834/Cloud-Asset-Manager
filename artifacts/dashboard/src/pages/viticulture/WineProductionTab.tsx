@@ -49,6 +49,7 @@ import { VineyardBlockMapTab } from "@/components/viticulture/VineyardBlockMapTa
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
 import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn, useFarmMeta, FarmSettingsWarning } from "./shared";
@@ -103,7 +104,7 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const [vintageFilter, setVintageFilter] = useState(String(new Date().getFullYear()));
+  const [vintageFilter, setVintageFilter] = usePersistedFilter({ page: "viticulture-wine-production", filter: "vintage", farmId, defaultValue: String(new Date().getFullYear()) });
 
   const { data, isLoading } = useQuery<{ records: Record<string, unknown>[] }>({
     queryKey: ["org-vit-wine", farmId],

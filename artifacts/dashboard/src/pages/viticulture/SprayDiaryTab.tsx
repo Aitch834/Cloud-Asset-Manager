@@ -48,6 +48,7 @@ import { VineyardBlockMapTab } from "@/components/viticulture/VineyardBlockMapTa
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
 import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
@@ -130,7 +131,7 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
   const [productLookupId, setProductLookupId] = useState<string>("");
   const [weatherFetching, setWeatherFetching] = useState(false);
   const [weatherMsg, setWeatherMsg] = useState<string | null>(null);
-  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "viticulture-spray-diary", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
   const sfv = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));

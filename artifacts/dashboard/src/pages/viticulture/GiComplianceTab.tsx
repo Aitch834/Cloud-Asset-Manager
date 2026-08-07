@@ -48,6 +48,7 @@ import { VineyardBlockMapTab } from "@/components/viticulture/VineyardBlockMapTa
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
 import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
@@ -492,7 +493,7 @@ function GiCertificationsSection({ farmId: _farmId, certs, designations }: { far
   );
 }
 
-function GiDeclarationsSection({ farmId: _farmId, decls, designations, harvestRows, registerRows }: {
+function GiDeclarationsSection({ farmId, decls, designations, harvestRows, registerRows }: {
   farmId: number;
   decls: ReturnType<typeof useCrud>;
   designations: Record<string, unknown>[];
@@ -504,7 +505,7 @@ function GiDeclarationsSection({ farmId: _farmId, decls, designations, harvestRo
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "viticulture-gi-declarations", filter: "year", farmId, defaultValue: "all" });
   const sf = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
   const desigName = (id: unknown) => { const d = designations.find(d => String(d.id) === String(id)); return d ? String(d.designationName) : `Designation ${id}`; };
   const declYears = Array.from(new Set(decls.data.map((d: Record<string, unknown>) => String(d.vintageYear ?? "")).filter(Boolean))).sort().reverse();

@@ -49,6 +49,7 @@ import { VineyardBlockMapTab } from "@/components/viticulture/VineyardBlockMapTa
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useFarmMembers } from "@/hooks/use-farm-members";
 
 import { apiUrl as api } from "@/lib/api";
@@ -126,7 +127,7 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
   const sfv = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
   const blockName = (id: unknown) => (blocks.find(b => b.id === id) as Record<string, unknown> | undefined)?.blockName ?? id;
-  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "viticulture-soil-analysis", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
 
   // "Requested By" source toggle
   const [requestedBySource, setRequestedBySource] = useState<"staff" | "external">("staff");

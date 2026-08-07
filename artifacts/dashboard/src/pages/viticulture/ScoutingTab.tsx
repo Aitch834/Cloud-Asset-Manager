@@ -48,6 +48,7 @@ import { VineyardBlockMapTab } from "@/components/viticulture/VineyardBlockMapTa
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
 import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
@@ -62,8 +63,8 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId }: { farmId: numb
   const [form, setForm] = useState<Scouting>({});
   const [viewing, setViewing] = useState<Scouting | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Scouting | null>(null);
-  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
-  const [blockFilter, setBlockFilter] = useState<string>(highlightBlockId ? String(highlightBlockId) : "__all__");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "viticulture-scouting", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
+  const [blockFilter, setBlockFilter] = usePersistedFilter({ page: "viticulture-scouting", filter: "block", farmId, defaultValue: highlightBlockId ? String(highlightBlockId) : "__all__" });
 
   // Sync block filter when navigating from a block card
   useEffect(() => {
