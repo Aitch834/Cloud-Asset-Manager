@@ -37565,20 +37565,30 @@ router.put("/farms/:farmId/winery-pressing/:pressingId/additions/batch", require
 // ── Vessel Register ────────────────────────────────────────────────────────────
 router.get("/farms/:farmId/winery-vessels", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const rows = await db.execute(sql`SELECT * FROM winery_vessels WHERE farm_id = ${farmId} ORDER BY vessel_ref ASC`);
+  // Derive is_full from barrel fill history: a vessel is "full" when it has an open fill (no rack_out_date).
+  const rows = await db.execute(sql`
+    SELECT v.*,
+      EXISTS(
+        SELECT 1 FROM winery_barrel_fills f
+        WHERE f.vessel_id = v.id AND f.rack_out_date IS NULL
+      ) AS is_full
+    FROM winery_vessels v
+    WHERE v.farm_id = ${farmId}
+    ORDER BY v.vessel_ref ASC
+  `);
   res.json({ records: rows.rows });
 });
 router.post("/farms/:farmId/winery-vessels", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const b = sanitiseBody(req.body);
   if (!b.vesselRef) { res.status(400).json({ error: "vessel_ref required" }); return; }
-  const r = await db.execute(sql`INSERT INTO winery_vessels (farm_id,vessel_ref,vessel_type,capacity_litres,material,year_purchased,manufacturer,location,current_contents,current_volume_litres,oak_origin,cooperage,fill_number,toasting_level,status,notes) VALUES (${farmId},${n(b.vesselRef)},${n(b.vesselType)},${nf(b.capacityLitres)},${n(b.material)},${ni(b.yearPurchased)},${n(b.manufacturer)},${n(b.location)},${n(b.currentContents)},${nf(b.currentVolumeLitres)},${n(b.oakOrigin)},${n(b.cooperage)},${ni(b.fillNumber)},${n(b.toastingLevel)},${n(b.status) ?? 'active'},${n(b.notes)}) RETURNING *`);
+  const r = await db.execute(sql`INSERT INTO winery_vessels (farm_id,vessel_ref,vessel_type,capacity_litres,material,year_purchased,manufacturer,location,current_contents,current_volume_litres,oak_origin,cooperage,fill_number,toasting_level,cellar_zone,cellar_position,status,notes) VALUES (${farmId},${n(b.vesselRef)},${n(b.vesselType)},${nf(b.capacityLitres)},${n(b.material)},${ni(b.yearPurchased)},${n(b.manufacturer)},${n(b.location)},${n(b.currentContents)},${nf(b.currentVolumeLitres)},${n(b.oakOrigin)},${n(b.cooperage)},${ni(b.fillNumber)},${n(b.toastingLevel)},${n(b.cellarZone)},${n(b.cellarPosition)},${n(b.status) ?? 'active'},${n(b.notes)}) RETURNING *`);
   res.status(201).json({ record: r.rows[0] });
 });
 router.put("/farms/:farmId/winery-vessels/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const b = sanitiseBody(req.body);
-  const r = await db.execute(sql`UPDATE winery_vessels SET vessel_ref=${n(b.vesselRef)},vessel_type=${n(b.vesselType)},capacity_litres=${nf(b.capacityLitres)},material=${n(b.material)},year_purchased=${ni(b.yearPurchased)},manufacturer=${n(b.manufacturer)},location=${n(b.location)},current_contents=${n(b.currentContents)},current_volume_litres=${nf(b.currentVolumeLitres)},oak_origin=${n(b.oakOrigin)},cooperage=${n(b.cooperage)},fill_number=${ni(b.fillNumber)},toasting_level=${n(b.toastingLevel)},status=${n(b.status) ?? 'active'},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
+  const r = await db.execute(sql`UPDATE winery_vessels SET vessel_ref=${n(b.vesselRef)},vessel_type=${n(b.vesselType)},capacity_litres=${nf(b.capacityLitres)},material=${n(b.material)},year_purchased=${ni(b.yearPurchased)},manufacturer=${n(b.manufacturer)},location=${n(b.location)},current_contents=${n(b.currentContents)},current_volume_litres=${nf(b.currentVolumeLitres)},oak_origin=${n(b.oakOrigin)},cooperage=${n(b.cooperage)},fill_number=${ni(b.fillNumber)},toasting_level=${n(b.toastingLevel)},cellar_zone=${n(b.cellarZone)},cellar_position=${n(b.cellarPosition)},status=${n(b.status) ?? 'active'},notes=${n(b.notes)} WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId} RETURNING *`);
   res.json({ record: r.rows[0] });
 });
 router.delete("/farms/:farmId/winery-vessels/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -37662,6 +37672,46 @@ router.delete("/farms/:farmId/winery-vessels/:vesselId/fills/:fillId", requireAu
     UPDATE winery_vessels
     SET fill_number = (SELECT MAX(fill_number) FROM winery_barrel_fills WHERE vessel_id = ${vesselId})
     WHERE id = ${vesselId} AND farm_id = ${farmId}
+  `);
+  res.json({ success: true });
+});
+
+// ── Barrel Movement Log ────────────────────────────────────────────────────────
+router.get("/farms/:farmId/winery-vessels/:vesselId/movements", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const vesselId = parseInt(req.params.vesselId as string);
+  const rows = await db.execute(sql`SELECT * FROM winery_barrel_movements WHERE farm_id=${farmId} AND vessel_id=${vesselId} ORDER BY moved_date DESC, created_at DESC`);
+  res.json({ records: rows.rows });
+});
+
+router.post("/farms/:farmId/winery-vessels/:vesselId/movements", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const vesselId = parseInt(req.params.vesselId as string);
+  const b = sanitiseBody(req.body);
+  if (!b.movedDate || !b.toZone) { res.status(400).json({ error: "moved_date and to_zone are required" }); return; }
+  const r = await db.execute(sql`
+    INSERT INTO winery_barrel_movements (farm_id,vessel_id,moved_date,from_zone,from_position,to_zone,to_position,reason,operator_name,notes)
+    VALUES (${farmId},${vesselId},${nd(b.movedDate)},${n(b.fromZone)},${n(b.fromPosition)},${n(b.toZone)},${n(b.toPosition)},${n(b.reason)},${n(b.operatorName)},${n(b.notes)})
+    RETURNING *`);
+  // Update the vessel's current cellar_zone and cellar_position to the new location
+  await db.execute(sql`
+    UPDATE winery_vessels SET cellar_zone=${n(b.toZone)}, cellar_position=${n(b.toPosition) ?? null}
+    WHERE id=${vesselId} AND farm_id=${farmId}
+  `);
+  res.status(201).json({ record: r.rows[0] });
+});
+
+router.delete("/farms/:farmId/winery-vessels/:vesselId/movements/:movementId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const vesselId = parseInt(req.params.vesselId as string);
+  const movementId = parseInt(req.params.movementId as string);
+  await db.execute(sql`DELETE FROM winery_barrel_movements WHERE id=${movementId} AND vessel_id=${vesselId} AND farm_id=${farmId}`);
+  // After deletion, re-sync cellar_zone/position from the most recent remaining movement
+  await db.execute(sql`
+    UPDATE winery_vessels v SET
+      cellar_zone    = (SELECT to_zone     FROM winery_barrel_movements WHERE vessel_id = ${vesselId} ORDER BY moved_date DESC, created_at DESC LIMIT 1),
+      cellar_position = (SELECT to_position FROM winery_barrel_movements WHERE vessel_id = ${vesselId} ORDER BY moved_date DESC, created_at DESC LIMIT 1)
+    WHERE v.id = ${vesselId} AND v.farm_id = ${farmId}
   `);
   res.json({ success: true });
 });

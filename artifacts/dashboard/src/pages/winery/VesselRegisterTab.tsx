@@ -180,6 +180,125 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill }: { farmI
   );
 }
 
+const MOVEMENT_REASON_OPTIONS = [
+  "Move within cellar",
+  "Move to fermentation area",
+  "Move to maturation cellar",
+  "Transfer to bonded warehouse",
+  "Return from bonded warehouse",
+  "Move to cold store",
+  "Maintenance move",
+  "Other",
+];
+
+export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPosition }: {
+  farmId: number; vesselId: number; currentZone?: string; currentPosition?: string;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const qKey = ["winery-barrel-movements", farmId, vesselId];
+
+  const { data, isLoading, isError, error } = useQuery<Record<string, unknown>[]>({
+    queryKey: qKey,
+    queryFn: async () => {
+      const res = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/movements`), { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load movement log");
+      return ((await res.json()).records ?? []) as Record<string, unknown>[];
+    },
+    enabled: !!vesselId,
+  });
+
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState<Record<string, string>>({ movedDate: today, fromZone: currentZone ?? "", fromPosition: currentPosition ?? "" });
+  const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  const addMut = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/movements`), {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(form),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Save failed"); }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qKey });
+      qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] });
+      setShowAdd(false);
+      setForm({ movedDate: today, fromZone: form.toZone ?? "", fromPosition: form.toPosition ?? "" });
+      toast({ title: "Movement logged" });
+    },
+    onError: (err: Error) => toast({ title: "Save failed", description: err.message, variant: "destructive" }),
+  });
+
+  const delMut = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/movements/${id}`), { method: "DELETE", credentials: "include" });
+      if (!r.ok) throw new Error("Delete failed");
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qKey }); qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] }); },
+    onError: (err: Error) => toast({ title: "Delete failed", description: err.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Location History</p>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(s => !s)}>
+          <Plus className="w-3 h-3 mr-1" />Log Move
+        </Button>
+      </div>
+      {showAdd && (
+        <div className="border rounded-lg p-3 mb-3 bg-muted/20 space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div><Label className="text-xs">Date *</Label><Input type="date" max={today} value={form.movedDate ?? ""} onChange={e => sf("movedDate", e.target.value)} className="h-8 text-xs" /></div>
+            <div><Label className="text-xs">Reason</Label>
+              <Select value={form.reason ?? ""} onValueChange={v => sf("reason", v)}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>{MOVEMENT_REASON_OPTIONS.map(o => <SelectItem key={o} value={o} className="text-xs">{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label className="text-xs">From Zone</Label><Input value={form.fromZone ?? ""} onChange={e => sf("fromZone", e.target.value)} className="h-8 text-xs" placeholder="e.g. Cellar A" /></div>
+            <div><Label className="text-xs">From Position</Label><Input value={form.fromPosition ?? ""} onChange={e => sf("fromPosition", e.target.value)} className="h-8 text-xs" placeholder="e.g. R2-P4" /></div>
+            <div><Label className="text-xs">To Zone *</Label><Input value={form.toZone ?? ""} onChange={e => sf("toZone", e.target.value)} className="h-8 text-xs" placeholder="e.g. Bonded Warehouse" /></div>
+            <div><Label className="text-xs">To Position</Label><Input value={form.toPosition ?? ""} onChange={e => sf("toPosition", e.target.value)} className="h-8 text-xs" placeholder="e.g. Bay 3-Shelf 2" /></div>
+            <div><Label className="text-xs">Operator</Label><Input value={form.operatorName ?? ""} onChange={e => sf("operatorName", e.target.value)} className="h-8 text-xs" /></div>
+          </div>
+          <div><Label className="text-xs">Notes</Label><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={1} className="text-xs" /></div>
+          <DialogMutationError mutation={addMut} />
+          <div className="flex gap-2">
+            <Button size="sm" className="h-7 text-xs" onClick={() => addMut.mutate()} disabled={!form.movedDate || !form.toZone || addMut.isPending}>
+              {addMut.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}Save Move
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(false)}>Cancel</Button>
+          </div>
+        </div>
+      )}
+      {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> :
+       isError ? <QueryErrorNotice label="movement log" error={error} /> :
+       (data ?? []).length === 0 ? <p className="text-xs text-muted-foreground">No movements recorded yet. Log a move to start tracking this barrel's location history.</p> : (
+        <div className="space-y-1">
+          {(data ?? []).map(m => (
+            <div key={String(m.id)} className="flex items-start justify-between text-xs border rounded px-3 py-2 gap-2">
+              <div className="space-y-0.5 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{fmtDate(m.moved_date)}</span>
+                  {!!m.reason && <span className="text-muted-foreground">{String(m.reason)}</span>}
+                </div>
+                <div className="text-muted-foreground">
+                  {!!m.from_zone && <span>From: <span className="text-foreground font-medium">{String(m.from_zone)}{m.from_position ? ` / ${String(m.from_position)}` : ""}</span> → </span>}
+                  To: <span className="text-foreground font-medium">{String(m.to_zone)}{m.to_position ? ` / ${String(m.to_position)}` : ""}</span>
+                </div>
+                {!!m.operator_name && <div className="text-muted-foreground">By: {String(m.operator_name)}</div>}
+                {!!m.notes && <div className="italic text-muted-foreground">{String(m.notes)}</div>}
+              </div>
+              <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500 shrink-0" onClick={() => delMut.mutate(Number(m.id))}><Trash2 className="h-3 w-3" /></Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function VesselCleanRow({ farmId, vesselId }: { farmId: number; vesselId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -299,6 +418,22 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     { key: "notes", label: "Notes" },
   ];
 
+  // Cellar stock summary — barrels only, grouped by cellar_zone
+  const barrels = crud.data.filter(r => {
+    const t = String(r.vessel_type ?? "").toLowerCase();
+    return t.includes("barrel") || t.includes("barrique");
+  });
+  const cellarZones = Array.from(new Set(barrels.map(r => String(r.cellar_zone || "Unassigned")))).sort();
+  const [zoneFilter, setZoneFilter] = useState<string | null>(null);
+
+  const filteredData = zoneFilter
+    ? crud.data.filter(r => {
+        const t = String(r.vessel_type ?? "").toLowerCase();
+        const isBarrelType = t.includes("barrel") || t.includes("barrique");
+        return isBarrelType && String(r.cellar_zone || "Unassigned") === zoneFilter;
+      })
+    : crud.data;
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
@@ -314,6 +449,43 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
           <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Vessel</Button>
         </div>
       </div>
+
+      {/* Cellar Stock Summary — only shown when barrel-type vessels exist */}
+      {barrels.length > 0 && (
+        <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cellar Stock — Barrels</p>
+            {zoneFilter && (
+              <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => setZoneFilter(null)}>
+                Show all
+              </Button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {cellarZones.map(zone => {
+              const zoneBarrels = barrels.filter(r => String(r.cellar_zone || "Unassigned") === zone);
+              const full = zoneBarrels.filter(r => r.is_full).length;
+              const empty = zoneBarrels.length - full;
+              const isSelected = zoneFilter === zone;
+              return (
+                <button
+                  key={zone}
+                  onClick={() => setZoneFilter(isSelected ? null : zone)}
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-colors ${isSelected ? "border-primary bg-primary/5" : "hover:bg-muted/40"}`}
+                >
+                  <span className="font-semibold">{zone}</span>
+                  <span className="text-green-700 font-medium">● {full} full</span>
+                  <span className="text-slate-500">○ {empty} empty</span>
+                  <span className="text-muted-foreground">({zoneBarrels.length} total)</span>
+                </button>
+              );
+            })}
+          </div>
+          {zoneFilter && (
+            <p className="text-xs text-muted-foreground">Showing barrels in <span className="font-medium">{zoneFilter}</span> only — click "Show all" to clear filter.</p>
+          )}
+        </div>
+      )}
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         : crud.isError ? <QueryErrorNotice label="vessels" error={crud.error} />
         : crud.data.length === 0 ? <EmptyState icon={Package} title="No vessels registered yet" sub="Add your tanks, barrels, and other winery vessels to the register." />
@@ -332,23 +504,36 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               <th className="p-3"></th>
             </tr></thead>
             <tbody className="divide-y">
-              {crud.data.map(r => (
-                <tr key={String(r.id)} className="hover:bg-muted/20">
-                  <td className="p-3 font-mono font-semibold">{fmt(r.vessel_ref)}</td>
-                  <td className="p-3 text-muted-foreground">{fmt(r.vessel_type)}</td>
-                  <td className="p-3 text-right">{fmtNum(r.capacity_litres, 0)}</td>
-                  <td className="p-3 text-muted-foreground text-xs">{fmt(r.location)}</td>
-                  <td className="p-3">{fmt(r.current_contents)}</td>
-                  <td className="p-3 text-right">{r.current_volume_litres ? fmtNum(r.current_volume_litres, 0) : "—"}</td>
-                  <td className="p-3">{statusBadge(r.status)}</td>
-                  <NotesCell notes={r.notes} />
-                  <td className="p-3 text-right whitespace-nowrap">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
-                  </td>
-                </tr>
-              ))}
+              {filteredData.map(r => {
+                const isBarrelRow = String(r.vessel_type ?? "").toLowerCase().includes("barrel") || String(r.vessel_type ?? "").toLowerCase().includes("barrique");
+                const locationDisplay = r.cellar_zone
+                  ? `${String(r.cellar_zone)}${r.cellar_position ? ` / ${String(r.cellar_position)}` : ""}`
+                  : fmt(r.location);
+                return (
+                  <tr key={String(r.id)} className="hover:bg-muted/20">
+                    <td className="p-3 font-mono font-semibold">{fmt(r.vessel_ref)}</td>
+                    <td className="p-3 text-muted-foreground">
+                      <div>{fmt(r.vessel_type)}</div>
+                      {isBarrelRow && (
+                        r.is_full
+                          ? <span className="text-xs text-green-700 font-medium">● Full</span>
+                          : <span className="text-xs text-slate-400">○ Empty</span>
+                      )}
+                    </td>
+                    <td className="p-3 text-right">{fmtNum(r.capacity_litres, 0)}</td>
+                    <td className="p-3 text-muted-foreground text-xs">{locationDisplay}</td>
+                    <td className="p-3">{fmt(r.current_contents)}</td>
+                    <td className="p-3 text-right">{r.current_volume_litres ? fmtNum(r.current_volume_litres, 0) : "—"}</td>
+                    <td className="p-3">{statusBadge(r.status)}</td>
+                    <NotesCell notes={r.notes} />
+                    <td className="p-3 text-right whitespace-nowrap">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -395,6 +580,12 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                     </Select>
                   </div>
                 </div>
+                <SectionLabel>Cellar location</SectionLabel>
+                <p className="text-xs text-muted-foreground -mt-2">Set the initial location here. Use the Location History log to track moves — each logged move updates the location automatically.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Cellar Zone</Label><Input value={form.cellarZone ?? ""} onChange={e => sf("cellarZone", e.target.value)} placeholder="e.g. Cellar A, Bonded Store" /></div>
+                  <div><Label>Position within Zone</Label><Input value={form.cellarPosition ?? ""} onChange={e => sf("cellarPosition", e.target.value)} placeholder="e.g. R4-P3, Bay 2" /></div>
+                </div>
               </>
             )}
             <SectionLabel>Current state</SectionLabel>
@@ -432,6 +623,13 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   <ViewField label="Cooperage" value={fmt(view.cooperage)} />
                   <ViewField label="Fill Number" value={fmt(view.fill_number)} />
                   <ViewField label="Toasting" value={fmt(view.toasting_level)} />
+                  {!!view.cellar_zone && <ViewField label="Cellar Zone" value={fmt(view.cellar_zone)} />}
+                  {!!view.cellar_position && <ViewField label="Position" value={fmt(view.cellar_position)} />}
+                  <ViewField label="Barrel Status" value={
+                    view.is_full
+                      ? <span className="text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5 font-medium">● Full</span>
+                      : <span className="text-xs bg-slate-100 text-slate-600 rounded px-1.5 py-0.5 font-medium">○ Empty</span>
+                  } />
                 </>
               )}
               <ViewField label="Current Contents" value={fmt(view.current_contents)} />
@@ -439,7 +637,10 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               {!!view.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>}
             </div>
             {(String(view.vessel_type ?? "").toLowerCase().includes("barrel") || String(view.vessel_type ?? "").toLowerCase().includes("barrique")) && (
-              <BarrelFillHistory farmId={farmId} vesselId={view.id as number} maxExistingFill={Number(view.fill_number ?? 0)} />
+              <>
+                <BarrelMovementLog farmId={farmId} vesselId={view.id as number} currentZone={String(view.cellar_zone ?? "")} currentPosition={String(view.cellar_position ?? "")} />
+                <BarrelFillHistory farmId={farmId} vesselId={view.id as number} maxExistingFill={Number(view.fill_number ?? 0)} />
+              </>
             )}
             <VesselCleanRow farmId={farmId} vesselId={view.id as number} />
             <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>

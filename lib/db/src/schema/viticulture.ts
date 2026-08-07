@@ -487,6 +487,8 @@ export const wineryVesselsTable = pgTable("winery_vessels", {
   cooperage: text("cooperage"),
   fillNumber: integer("fill_number"),
   toastingLevel: text("toasting_level"),
+  cellarZone: text("cellar_zone"),     // named storage area e.g. "Cellar A", "Bonded Store"
+  cellarPosition: text("cellar_position"), // rack/row/position within zone e.g. "R4-P3"
   status: text("status").notNull().default("active"), // active | retired | sold
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -504,6 +506,22 @@ export const wineryVesselCleansTable = pgTable("winery_vessel_cleans", {
   waterTempC: numeric("water_temp_c", { precision: 4, scale: 1 }),
   contactTimeMin: integer("contact_time_min"),
   rinseCompleted: boolean("rinse_completed").default(true),
+  operatorName: text("operator_name"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Winery Barrel Movement Log ───────────────────────────────────────────────
+export const wineryBarrelMovementsTable = pgTable("winery_barrel_movements", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  vesselId: integer("vessel_id").notNull().references(() => wineryVesselsTable.id, { onDelete: "cascade" }),
+  movedDate: date("moved_date").notNull(),
+  fromZone: text("from_zone"),
+  fromPosition: text("from_position"),
+  toZone: text("to_zone").notNull(),
+  toPosition: text("to_position"),
+  reason: text("reason"),  // transfer-to-bond | return-from-bond | move-within-cellar | move-to-fermentation | move-to-maturation | maintenance-move | other
   operatorName: text("operator_name"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

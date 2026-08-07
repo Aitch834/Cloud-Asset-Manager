@@ -203,6 +203,35 @@ export async function runWineryMigrations(): Promise<void> {
   // Vineyard block photos — nullable object storage path added to vineyard_blocks
   await db.execute(sql.raw(`ALTER TABLE vineyard_blocks ADD COLUMN IF NOT EXISTS photo_object_path text`));
 
+  // ─── Barrel cellar location fields ─────────────────────────────────────────
+  // Two structured fields replace (but keep) the existing free-text location field:
+  // cellar_zone = named storage area (e.g. "Cellar A", "Bonded Warehouse")
+  // cellar_position = rack/row/position within that zone (e.g. "R4-P3", "Bay 2")
+  await db.execute(sql`ALTER TABLE winery_vessels ADD COLUMN IF NOT EXISTS cellar_zone text`);
+  await db.execute(sql`ALTER TABLE winery_vessels ADD COLUMN IF NOT EXISTS cellar_position text`);
+
+  // ─── Barrel Movement Log ────────────────────────────────────────────────────
+  // Records every time a barrel moves from one location to another. Separate
+  // from fill history — a barrel can be moved without changing what's in it
+  // (e.g. reorganising a cellar, moving to bond, moving for maintenance).
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS winery_barrel_movements (
+      id               SERIAL PRIMARY KEY,
+      farm_id          INTEGER NOT NULL REFERENCES farms(id),
+      vessel_id        INTEGER NOT NULL REFERENCES winery_vessels(id) ON DELETE CASCADE,
+      moved_date       DATE NOT NULL,
+      from_zone        TEXT,
+      from_position    TEXT,
+      to_zone          TEXT NOT NULL,
+      to_position      TEXT,
+      reason           TEXT,
+      operator_name    TEXT,
+      notes            TEXT,
+      created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS winery_barrel_movements_vessel_idx ON winery_barrel_movements (vessel_id)`);
+
   // ─── Barrel Fill History ────────────────────────────────────────────────────
   // Each row records one fill cycle for a barrel-type vessel: wine in, wine out,
   // duration. Tied to winery_vessels via vessel_id (cascade delete). Fill number
