@@ -9,7 +9,7 @@ import {
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
   Award, Globe, BadgeAlert, Beaker, Wrench, Gauge,
-  Camera, Trash, Upload, ImageOff, ClipboardCheck,
+  Camera, Trash, Upload, ImageOff, ClipboardCheck, Star,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -57,13 +57,95 @@ type Block = Record<string, unknown>;
 
 // ─── Block Photo Gallery ──────────────────────────────────────────────────────
 
-type BlockPhoto = { id: number; objectPath: string; fileName: string | null; caption: string | null; uploadedAt: string };
+type BlockPhoto = { id: number; objectPath: string; fileName: string | null; caption: string | null; isCover: boolean; uploadedAt: string };
+
+function PhotoThumbnail({
+  photo, photoSrc, onDelete, onSetCover, onCaptionSave, onExpand, saving,
+}: {
+  photo: BlockPhoto;
+  photoSrc: string;
+  onDelete: () => void;
+  onSetCover: () => void;
+  onCaptionSave: (caption: string) => void;
+  onExpand: () => void;
+  saving: boolean;
+}) {
+  const [captionDraft, setCaptionDraft] = useState(photo.caption ?? "");
+  const [captionFocused, setCaptionFocused] = useState(false);
+
+  const commitCaption = () => {
+    const trimmed = captionDraft.trim();
+    if (trimmed !== (photo.caption ?? "")) onCaptionSave(trimmed);
+    setCaptionFocused(false);
+  };
+
+  return (
+    <div className="relative group rounded-lg overflow-hidden border bg-gray-50 flex flex-col">
+      {/* Image — click opens lightbox */}
+      <div className="relative aspect-square">
+        <img
+          src={photoSrc}
+          alt={photo.fileName ?? "Block photo"}
+          className="w-full h-full object-cover cursor-pointer"
+          onClick={onExpand}
+          onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+        />
+
+        {/* Cover badge */}
+        {photo.isCover && (
+          <span className="absolute top-1 left-1 bg-yellow-400 text-yellow-900 rounded-full px-1.5 py-0.5 text-[10px] font-bold flex items-center gap-0.5 shadow pointer-events-none">
+            <Star className="w-2.5 h-2.5 fill-yellow-900" />Cover
+          </span>
+        )}
+
+        {/* Hover action bar */}
+        <div className="absolute inset-x-0 top-0 flex items-center justify-between p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* Star / set-cover button */}
+          <button
+            className={`rounded-full p-0.5 shadow transition-colors ${photo.isCover ? "bg-yellow-400 text-yellow-900" : "bg-black/60 hover:bg-yellow-400 hover:text-yellow-900 text-white"}`}
+            onClick={e => { e.stopPropagation(); onSetCover(); }}
+            title={photo.isCover ? "Cover photo" : "Set as cover photo"}
+            disabled={saving || photo.isCover}
+          >
+            <Star className={`w-3 h-3 ${photo.isCover ? "fill-yellow-900" : ""}`} />
+          </button>
+          {/* Delete button */}
+          <button
+            className="bg-black/60 hover:bg-red-700 text-white rounded-full p-0.5 transition-colors"
+            onClick={e => { e.stopPropagation(); onDelete(); }}
+            title="Remove photo"
+            disabled={saving}
+          >
+            <Trash className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+
+      {/* Caption row — always visible, edit on focus */}
+      <div className="px-1.5 py-1 bg-white border-t">
+        <input
+          className="w-full text-[11px] text-gray-700 placeholder-gray-400 bg-transparent outline-none focus:ring-0 border-0 truncate"
+          placeholder="Add caption…"
+          value={captionDraft}
+          onChange={e => setCaptionDraft(e.target.value)}
+          onFocus={() => setCaptionFocused(true)}
+          onBlur={commitCaption}
+          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); commitCaption(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") { setCaptionDraft(photo.caption ?? ""); setCaptionFocused(false); (e.target as HTMLInputElement).blur(); } }}
+        />
+        {captionFocused && (
+          <p className="text-[10px] text-muted-foreground mt-0.5">Enter to save · Esc to cancel</p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; block: Block; onPhotoChanged: () => void }) {
   const blockId = block.id as number;
   const queryClient = useQueryClient();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<number | null>(null);
   const [lightbox, setLightbox] = useState<BlockPhoto | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -76,7 +158,6 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
       return r.json();
     },
     initialData: () => {
-      // Seed from already-loaded block data if available
       const photos = block.photos as BlockPhoto[] | undefined;
       return photos ? { photos } : undefined;
     },
@@ -88,6 +169,23 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
     refetch();
     queryClient.invalidateQueries({ queryKey: ["vineyard-blocks", farmId] });
     onPhotoChanged();
+  };
+
+  const patchPhoto = async (photoId: number, body: Record<string, unknown>) => {
+    setSavingId(photoId);
+    try {
+      const r = await fetch(api(`farms/${farmId}/vineyard-blocks/${blockId}/photos/${photoId}`), {
+        method: "PATCH", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error("Save failed");
+      invalidate();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSavingId(null);
+    }
   };
 
   const handleFile = async (file: File) => {
@@ -149,22 +247,16 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
       {photos.length > 0 ? (
         <div className="grid grid-cols-3 gap-2">
           {photos.map((photo) => (
-            <div key={photo.id} className="relative group rounded-lg overflow-hidden border bg-gray-50 aspect-square">
-              <img
-                src={photoSrc(photo)}
-                alt={photo.fileName ?? "Block photo"}
-                className="w-full h-full object-cover cursor-pointer"
-                onClick={() => setLightbox(photo)}
-                onError={e => { (e.target as HTMLImageElement).src = ""; (e.target as HTMLImageElement).style.display = "none"; }}
-              />
-              <button
-                className="absolute top-1 right-1 bg-black/60 hover:bg-red-700 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={() => handleDelete(photo)}
-                title="Remove photo"
-              >
-                <Trash className="w-3 h-3" />
-              </button>
-            </div>
+            <PhotoThumbnail
+              key={photo.id}
+              photo={photo}
+              photoSrc={photoSrc(photo)}
+              saving={savingId === photo.id}
+              onDelete={() => handleDelete(photo)}
+              onSetCover={() => patchPhoto(photo.id, { isCover: true })}
+              onCaptionSave={(caption) => patchPhoto(photo.id, { caption: caption || null })}
+              onExpand={() => setLightbox(photo)}
+            />
           ))}
         </div>
       ) : (
@@ -194,11 +286,16 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
       <Dialog open={!!lightbox} onOpenChange={o => { if (!o) setLightbox(null); }}>
         <DialogContent className="max-w-3xl p-2">
           {lightbox && (
-            <img
-              src={photoSrc(lightbox)}
-              alt={lightbox.fileName ?? "Block photo"}
-              className="w-full max-h-[80vh] object-contain rounded-lg"
-            />
+            <>
+              <img
+                src={photoSrc(lightbox)}
+                alt={lightbox.fileName ?? "Block photo"}
+                className="w-full max-h-[75vh] object-contain rounded-lg"
+              />
+              {lightbox.caption && (
+                <p className="text-xs text-center text-muted-foreground mt-2 italic">{lightbox.caption}</p>
+              )}
+            </>
           )}
         </DialogContent>
       </Dialog>

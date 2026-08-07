@@ -46,7 +46,7 @@ async function enrichBlocks(farmId: number) {
   const [blocks, plantings, photos] = await Promise.all([
     db.select().from(vineyardBlocksTable).where(eq(vineyardBlocksTable.farmId, farmId)).orderBy(vineyardBlocksTable.blockName),
     db.select().from(vineyardBlockPlantingsTable).where(eq(vineyardBlockPlantingsTable.farmId, farmId)).orderBy(vineyardBlockPlantingsTable.id),
-    db.select().from(vineyardBlockPhotosTable).where(eq(vineyardBlockPhotosTable.farmId, farmId)).orderBy(vineyardBlockPhotosTable.uploadedAt),
+    db.select().from(vineyardBlockPhotosTable).where(eq(vineyardBlockPhotosTable.farmId, farmId)).orderBy(desc(vineyardBlockPhotosTable.isCover), vineyardBlockPhotosTable.uploadedAt),
   ]);
 
   return blocks.map(block => {
@@ -1130,7 +1130,7 @@ router.get("/farms/:farmId/vineyard-blocks/:blockId/photos", requireAuth, requir
     .select()
     .from(vineyardBlockPhotosTable)
     .where(and(eq(vineyardBlockPhotosTable.blockId, blockId), eq(vineyardBlockPhotosTable.farmId, farmId)))
-    .orderBy(vineyardBlockPhotosTable.uploadedAt);
+    .orderBy(desc(vineyardBlockPhotosTable.isCover), vineyardBlockPhotosTable.uploadedAt);
   res.json({ photos });
 });
 
@@ -1188,6 +1188,39 @@ router.get("/farms/:farmId/vineyard-blocks/:blockId/photos/:photoId", requireAut
       nodeStream.pipe(res);
     } else { res.end(); }
   } catch { res.status(404).json({ error: "Photo not found in storage" }); }
+});
+
+// ── Update caption / cover status for a gallery photo ────────────────────────
+router.patch("/farms/:farmId/vineyard-blocks/:blockId/photos/:photoId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const blockId = Number(req.params.blockId);
+  const photoId = Number(req.params.photoId);
+  const { caption, isCover } = req.body as { caption?: string | null; isCover?: boolean };
+
+  // Verify ownership
+  const [existing] = await db.select({ id: vineyardBlockPhotosTable.id })
+    .from(vineyardBlockPhotosTable)
+    .where(and(eq(vineyardBlockPhotosTable.id, photoId), eq(vineyardBlockPhotosTable.blockId, blockId), eq(vineyardBlockPhotosTable.farmId, farmId)))
+    .limit(1);
+  if (!existing) { res.status(404).json({ error: "Photo not found" }); return; }
+
+  // If setting as cover, unset all other covers for this block first
+  if (isCover === true) {
+    await (db.update(vineyardBlockPhotosTable) as any)
+      .set({ isCover: false })
+      .where(and(eq(vineyardBlockPhotosTable.blockId, blockId), eq(vineyardBlockPhotosTable.farmId, farmId)));
+  }
+
+  const updateFields: Record<string, unknown> = {};
+  if (caption !== undefined) updateFields.caption = caption ?? null;
+  if (isCover !== undefined) updateFields.isCover = isCover;
+
+  const [photo] = await (db.update(vineyardBlockPhotosTable) as any)
+    .set(updateFields)
+    .where(and(eq(vineyardBlockPhotosTable.id, photoId), eq(vineyardBlockPhotosTable.farmId, farmId)))
+    .returning();
+
+  res.json({ photo });
 });
 
 // ── Delete a gallery photo ────────────────────────────────────────────────────

@@ -370,6 +370,7 @@ export const vineyardBlockPhotosTable = pgTable("vineyard_block_photos", {
   objectPath: text("object_path").notNull(),
   fileName: text("file_name"),
   caption: text("caption"),
+  isCover: boolean("is_cover").notNull().default(false),
   uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
