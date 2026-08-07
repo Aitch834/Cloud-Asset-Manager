@@ -55,8 +55,14 @@ interface BlockPhoto {
 
 const SCREEN = Dimensions.get("window");
 const SWIPE_DOWN_THRESHOLD = 120;
+const SWIPE_HORIZ_THRESHOLD = 60;
 const MIN_SCALE = 1;
 const MAX_SCALE = 5;
+
+// Gesture direction lock — 0 = undecided, 1 = horizontal, 2 = vertical
+const DIR_NONE = 0;
+const DIR_HORIZ = 1;
+const DIR_VERT = 2;
 
 function clamp(value: number, min: number, max: number) {
   "worklet";
@@ -64,14 +70,20 @@ function clamp(value: number, min: number, max: number) {
 }
 
 interface LightboxProps {
-  uri: string | null;
-  caption: string | null;
+  photos: BlockPhoto[];
+  initialIndex: number;
   visible: boolean;
   onClose: () => void;
 }
 
-function PhotoLightbox({ uri, caption, visible, onClose }: LightboxProps) {
+function PhotoLightbox({ photos, initialIndex, visible, onClose }: LightboxProps) {
   const insets = useSafeAreaInsets();
+
+  // JS-side index (drives image source + caption render)
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  // UI-thread copy for use inside worklets
+  const indexSv = useSharedValue(initialIndex);
+  const totalSv = useSharedValue(photos.length);
 
   // Zoom / pan state
   const scale = useSharedValue(1);
@@ -81,23 +93,51 @@ function PhotoLightbox({ uri, caption, visible, onClose }: LightboxProps) {
   const savedTranslateX = useSharedValue(0);
   const savedTranslateY = useSharedValue(0);
 
+  // Horizontal slide for swipe-navigation
+  const slideX = useSharedValue(0);
+
+  // Gesture direction lock (reset each gesture)
+  const gestureDir = useSharedValue(DIR_NONE);
+
   // Background fade
   const bgOpacity = useSharedValue(0);
 
-  // Reset transforms when the lightbox opens/closes
+  // Keep totalSv in sync when photos change
+  useEffect(() => {
+    totalSv.value = photos.length;
+  }, [photos.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset everything when the lightbox opens/closes
   useEffect(() => {
     if (visible) {
+      const idx = Math.min(initialIndex, photos.length - 1);
+      setCurrentIndex(idx);
+      indexSv.value = idx;
       scale.value = 1;
       savedScale.value = 1;
       translateX.value = 0;
       translateY.value = 0;
       savedTranslateX.value = 0;
       savedTranslateY.value = 0;
+      slideX.value = 0;
       bgOpacity.value = withTiming(1, { duration: 200 });
     } else {
       bgOpacity.value = withTiming(0, { duration: 150 });
     }
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Navigate to a specific index (called from worklet via runOnJS)
+  const goToIndex = useCallback((idx: number) => {
+    setCurrentIndex(idx);
+    // Reset zoom for the new photo
+    scale.value = 1;
+    savedScale.value = 1;
+    translateX.value = 0;
+    translateY.value = 0;
+    savedTranslateX.value = 0;
+    savedTranslateY.value = 0;
+    slideX.value = 0;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pinch-to-zoom gesture
   const pinchGesture = Gesture.Pinch()
@@ -106,7 +146,6 @@ function PhotoLightbox({ uri, caption, visible, onClose }: LightboxProps) {
     })
     .onEnd(() => {
       savedScale.value = scale.value;
-      // Snap back to 1 if under-zoomed
       if (scale.value < MIN_SCALE) {
         scale.value = withSpring(MIN_SCALE);
         savedScale.value = MIN_SCALE;
@@ -117,34 +156,76 @@ function PhotoLightbox({ uri, caption, visible, onClose }: LightboxProps) {
       }
     });
 
-  // Pan gesture — drag when zoomed in, swipe-down to close when at 1×
+  // Pan gesture — zoom pan · swipe-down dismiss · horizontal navigation
   const panGesture = Gesture.Pan()
+    .onBegin(() => {
+      gestureDir.value = DIR_NONE;
+    })
     .onUpdate((e) => {
       if (scale.value > 1) {
-        // Allow free panning when zoomed
+        // Free pan when zoomed in
         translateX.value = savedTranslateX.value + e.translationX;
         translateY.value = savedTranslateY.value + e.translationY;
+        return;
+      }
+
+      // Lock gesture direction on first significant movement
+      if (gestureDir.value === DIR_NONE) {
+        if (Math.abs(e.translationX) > 8 || Math.abs(e.translationY) > 8) {
+          gestureDir.value =
+            Math.abs(e.translationX) >= Math.abs(e.translationY)
+              ? DIR_HORIZ
+              : DIR_VERT;
+        }
+        return;
+      }
+
+      if (gestureDir.value === DIR_HORIZ) {
+        slideX.value = e.translationX;
       } else {
-        // Only vertical drag when at base scale (swipe-to-dismiss)
+        // Vertical — swipe-to-dismiss (only downward)
         translateY.value = Math.max(0, e.translationY);
       }
     })
     .onEnd((e) => {
-      if (scale.value <= 1 && e.translationY > SWIPE_DOWN_THRESHOLD) {
-        // Dismiss: slide out then close
-        translateY.value = withTiming(SCREEN.height, { duration: 220 }, () => {
-          runOnJS(onClose)();
-        });
-      } else if (scale.value > 1) {
+      if (scale.value > 1) {
         savedTranslateX.value = translateX.value;
         savedTranslateY.value = translateY.value;
-      } else {
-        // Snap back to centre
-        translateY.value = withSpring(0);
+        return;
+      }
+
+      if (gestureDir.value === DIR_HORIZ) {
+        const dx = e.translationX;
+        if (dx < -SWIPE_HORIZ_THRESHOLD && indexSv.value < totalSv.value - 1) {
+          // Swipe left → next photo
+          const next = indexSv.value + 1;
+          indexSv.value = next;
+          slideX.value = withTiming(-SCREEN.width, { duration: 220 }, () => {
+            runOnJS(goToIndex)(next);
+          });
+        } else if (dx > SWIPE_HORIZ_THRESHOLD && indexSv.value > 0) {
+          // Swipe right → previous photo
+          const prev = indexSv.value - 1;
+          indexSv.value = prev;
+          slideX.value = withTiming(SCREEN.width, { duration: 220 }, () => {
+            runOnJS(goToIndex)(prev);
+          });
+        } else {
+          // Not far enough — snap back
+          slideX.value = withSpring(0);
+        }
+      } else if (gestureDir.value === DIR_VERT) {
+        if (e.translationY > SWIPE_DOWN_THRESHOLD) {
+          translateY.value = withTiming(SCREEN.height, { duration: 220 }, () => {
+            runOnJS(onClose)();
+          });
+        } else {
+          translateY.value = withSpring(0);
+        }
       }
     });
 
-  // Double-tap resets zoom
+  // Double-tap resets / zooms in
   const doubleTapGesture = Gesture.Tap()
     .numberOfTaps(2)
     .onEnd(() => {
@@ -168,7 +249,7 @@ function PhotoLightbox({ uri, caption, visible, onClose }: LightboxProps) {
 
   const imageStyle = useAnimatedStyle(() => ({
     transform: [
-      { translateX: translateX.value },
+      { translateX: translateX.value + slideX.value },
       { translateY: translateY.value },
       { scale: scale.value },
     ],
@@ -177,6 +258,11 @@ function PhotoLightbox({ uri, caption, visible, onClose }: LightboxProps) {
   const bgStyle = useAnimatedStyle(() => ({
     opacity: bgOpacity.value,
   }));
+
+  const photo = photos[currentIndex];
+  const uri = photo?.downloadUrl ?? null;
+  const caption = photo?.caption ?? null;
+  const hasMultiple = photos.length > 1;
 
   return (
     <Modal
@@ -198,6 +284,15 @@ function PhotoLightbox({ uri, caption, visible, onClose }: LightboxProps) {
           <Feather name="x" size={24} color="#fff" />
         </Pressable>
 
+        {/* Page counter */}
+        {hasMultiple ? (
+          <View style={[styles.lbCounter, { top: insets.top + 20 }]}>
+            <Text style={styles.lbCounterText}>
+              {currentIndex + 1} / {photos.length}
+            </Text>
+          </View>
+        ) : null}
+
         {/* Zoomable image */}
         <GestureDetector gesture={composed}>
           <Animated.View style={[styles.lbImageContainer, imageStyle]}>
@@ -213,6 +308,18 @@ function PhotoLightbox({ uri, caption, visible, onClose }: LightboxProps) {
           </Animated.View>
         </GestureDetector>
 
+        {/* Dot indicator */}
+        {hasMultiple ? (
+          <View style={[styles.lbDots, { bottom: caption ? 76 + insets.bottom : insets.bottom + 44 }]}>
+            {photos.map((_, i) => (
+              <View
+                key={i}
+                style={[styles.lbDot, i === currentIndex && styles.lbDotActive]}
+              />
+            ))}
+          </View>
+        ) : null}
+
         {/* Caption */}
         {caption ? (
           <View style={[styles.lbCaption, { paddingBottom: insets.bottom + 16 }]}>
@@ -222,7 +329,11 @@ function PhotoLightbox({ uri, caption, visible, onClose }: LightboxProps) {
 
         {/* Hint */}
         <View style={[styles.lbHint, { bottom: caption ? 60 + insets.bottom : insets.bottom + 16 }]}>
-          <Text style={styles.lbHintText}>Pinch to zoom · Double-tap · Swipe down to close</Text>
+          <Text style={styles.lbHintText}>
+            {hasMultiple
+              ? "Swipe left/right to browse · Pinch to zoom · Swipe down to close"
+              : "Pinch to zoom · Double-tap · Swipe down to close"}
+          </Text>
         </View>
       </Animated.View>
       </GestureHandlerRootView>
@@ -290,13 +401,15 @@ export default function VineBlockPhotosScreen() {
   const [uploading, setUploading] = useState(false);
 
   // Lightbox state
-  const [lightboxUri, setLightboxUri] = useState<string | null>(null);
-  const [lightboxCaption, setLightboxCaption] = useState<string | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const [lightboxVisible, setLightboxVisible] = useState(false);
 
-  const openLightbox = useCallback((uri: string | null, photo: BlockPhoto) => {
-    setLightboxUri(uri);
-    setLightboxCaption(photo.caption);
+  const openLightbox = useCallback((_uri: string | null, photo: BlockPhoto) => {
+    setPhotos((prev) => {
+      const idx = prev.findIndex((p) => p.id === photo.id);
+      setLightboxIndex(idx >= 0 ? idx : 0);
+      return prev;
+    });
     setLightboxVisible(true);
   }, []);
 
@@ -510,8 +623,8 @@ export default function VineBlockPhotosScreen() {
 
       {/* Full-screen lightbox */}
       <PhotoLightbox
-        uri={lightboxUri}
-        caption={lightboxCaption}
+        photos={photos}
+        initialIndex={lightboxIndex}
         visible={lightboxVisible}
         onClose={closeLightbox}
       />
@@ -633,6 +746,39 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  lbCounter: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    zIndex: 10,
+  },
+  lbCounterText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: "rgba(255,255,255,0.85)",
+    letterSpacing: 0.5,
+  },
+  lbDots: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+  },
+  lbDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.35)",
+  },
+  lbDotActive: {
+    backgroundColor: "#fff",
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   lbImageContainer: {
     width: SCREEN.width,
