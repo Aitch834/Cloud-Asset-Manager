@@ -582,6 +582,296 @@ export async function printVineRegister(
   win.onload = () => { setTimeout(() => win.print(), 200); };
 }
 
+export async function printOperations(
+  records: Record<string, unknown>[],
+  farmName: string,
+  farmId?: number,
+  blocks?: Record<string, unknown>[],
+) {
+  const win = window.open("", "_blank", "width=1100,height=850");
+  if (!win) return;
+
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Vineyard Operations — Loading…</title>
+    <style>body{font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#555}p{font-size:14px}</style>
+    </head><body><p>Preparing report…</p></body></html>`);
+
+  const d = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
+  const n = (v: unknown, dp = 1) => (v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp));
+
+  // ── 1. Fetch photo data-URLs for blocks that appear in these records ──────
+  const photoDataUrl: Record<number, string> = {};
+  if (farmId && blocks && blocks.length > 0) {
+    const blockLookup: Record<number, Record<string, unknown>> = {};
+    blocks.forEach(b => { blockLookup[b.id as number] = b; });
+    const neededBlockIds = [...new Set(
+      records.map(r => Number(r.blockId)).filter(id => !isNaN(id) && id > 0)
+    )];
+    await Promise.all(
+      neededBlockIds.map(async blockId => {
+        const block = blockLookup[blockId];
+        if (!block) return;
+        const photos = block.photos as Array<{ id: number }> | undefined;
+        if (!photos || photos.length === 0) return;
+        const photoId = photos[0].id;
+        const url = `/api/farms/${farmId}/vineyard-blocks/${blockId}/photos/${photoId}`;
+        const dataUrl = await fetchImageAsDataUrl(url);
+        if (dataUrl) photoDataUrl[blockId] = dataUrl;
+      })
+    );
+  }
+
+  // ── 2. Build block name lookup ────────────────────────────────────────────
+  const blockLookup2: Record<number, Record<string, unknown>> = {};
+  (blocks ?? []).forEach(b => { blockLookup2[b.id as number] = b; });
+  const blockName = (id: unknown) => {
+    const bid = Number(id);
+    return !isNaN(bid) && bid > 0 ? String(blockLookup2[bid]?.blockName ?? id) : "—";
+  };
+  const hasPhotos = Object.keys(photoDataUrl).length > 0;
+
+  // ── 3. Build table rows ───────────────────────────────────────────────────
+  const rows = records.map(r => {
+    const bid = Number(r.blockId);
+    const dataUrl = !isNaN(bid) && bid > 0 ? photoDataUrl[bid] : undefined;
+    const bName = blockName(r.blockId);
+    let photoCell = "";
+    if (hasPhotos) {
+      photoCell = `<td style="padding:4px 6px;vertical-align:middle;text-align:center;width:76px">
+        ${dataUrl ? `<img src="${dataUrl}" alt="Block photo" style="width:60px;height:60px;object-fit:cover;border-radius:4px;border:1px solid #d1d5db;display:block;margin:0 auto 2px" />` : ""}
+        <span style="font-size:9.5px;color:#555;display:block;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(bName)}</span>
+      </td>`;
+    }
+    return `<tr>
+      ${photoCell}
+      <td>${d(r.operationDate)}</td>
+      <td>${hasPhotos ? "" : escHtml(bName)}</td>
+      <td>${escHtml(r.operationType)}</td>
+      <td>${escHtml(r.pruningSystem)}</td>
+      <td style="text-align:right">${r.budsPerVineActual ?? "—"}</td>
+      <td style="text-align:right">${n(r.pruningWeightKgPerVine, 3)}</td>
+      <td>${escHtml(r.operatorName)}</td>
+      <td style="text-align:right">${n(r.hoursWorked, 1)}</td>
+      <td>${escHtml(r.notes)}</td>
+    </tr>`;
+  }).join("");
+
+  const safeFarmName = escHtml(farmName);
+  const colSpan = hasPhotos ? 9 : 10;
+
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+  <title>Vineyard Operations &mdash; ${safeFarmName}</title>
+  <style>
+    @page { size: A4 landscape; margin: 18mm 14mm; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #111; margin: 0; }
+    h1 { font-size: 17px; margin: 0 0 2px; color: #4b3a8a; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #4b3a8a; padding-bottom: 10px; margin-bottom: 14px; }
+    .meta { font-size: 11px; color: #555; margin-top: 3px; line-height: 1.5; }
+    table { width: 100%; border-collapse: collapse; font-size: 10.5px; page-break-inside: auto; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    th { background: #4b3a8a; color: white; padding: 6px 5px; text-align: left; white-space: nowrap; }
+    td { padding: 5px 5px; border: 1px solid #d1d5db; vertical-align: top; }
+    tr:nth-child(even) td { background: #f5f3ff; }
+    .footer { margin-top: 16px; font-size: 10px; color: #666; border-top: 1px solid #ccc; padding-top: 7px; }
+    @media print { body { margin: 0; } button { display: none !important; } }
+  </style></head><body>
+  <div class="header">
+    <div>
+      <h1>Pruning &amp; Canopy Operations</h1>
+      <div class="meta">
+        <strong>${safeFarmName}</strong><br>
+        Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record${records.length === 1 ? "" : "s"}
+      </div>
+    </div>
+    <div style="text-align:right;font-size:11px;color:#555">
+      <div style="font-size:13px;font-weight:700;color:#4b3a8a">Viticulture</div>
+      <div>Operations Register</div>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        ${hasPhotos ? "<th style=\"width:76px\">Block / Photo</th>" : ""}
+        <th>Date</th>
+        ${hasPhotos ? "" : "<th>Block</th>"}
+        <th>Operation Type</th>
+        <th>Pruning System</th>
+        <th style="text-align:right">Buds/Vine</th>
+        <th style="text-align:right">Wt (kg/vine)</th>
+        <th>Operator</th>
+        <th style="text-align:right">Hours</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows || `<tr><td colspan='${colSpan}' style='text-align:center;color:#888;padding:14px'>No records</td></tr>`}
+    </tbody>
+  </table>
+  <div class="footer">Prepared by BDE Farm Trac &nbsp;&middot;&nbsp; Pruning &amp; Canopy Operations Register &nbsp;&middot;&nbsp; Retain for GI / PDO compliance</div>
+  </body></html>`;
+
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => { setTimeout(() => win.print(), 200); };
+}
+
+export async function printHarvest(
+  records: Record<string, unknown>[],
+  farmName: string,
+  farmId?: number,
+  blocks?: Record<string, unknown>[],
+) {
+  const win = window.open("", "_blank", "width=1100,height=850");
+  if (!win) return;
+
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Harvest Records — Loading…</title>
+    <style>body{font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#555}p{font-size:14px}</style>
+    </head><body><p>Preparing report…</p></body></html>`);
+
+  const d = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
+  const n = (v: unknown, dp = 1) => (v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp));
+
+  // ── 1. Fetch photo data-URLs for blocks that appear in these records ──────
+  const photoDataUrl: Record<number, string> = {};
+  if (farmId && blocks && blocks.length > 0) {
+    const blockLookup: Record<number, Record<string, unknown>> = {};
+    blocks.forEach(b => { blockLookup[b.id as number] = b; });
+    const neededBlockIds = [...new Set(
+      records.map(r => Number(r.blockId)).filter(id => !isNaN(id) && id > 0)
+    )];
+    await Promise.all(
+      neededBlockIds.map(async blockId => {
+        const block = blockLookup[blockId];
+        if (!block) return;
+        const photos = block.photos as Array<{ id: number }> | undefined;
+        if (!photos || photos.length === 0) return;
+        const photoId = photos[0].id;
+        const url = `/api/farms/${farmId}/vineyard-blocks/${blockId}/photos/${photoId}`;
+        const dataUrl = await fetchImageAsDataUrl(url);
+        if (dataUrl) photoDataUrl[blockId] = dataUrl;
+      })
+    );
+  }
+
+  // ── 2. Build block name lookup ────────────────────────────────────────────
+  const blockLookup2: Record<number, Record<string, unknown>> = {};
+  (blocks ?? []).forEach(b => { blockLookup2[b.id as number] = b; });
+  const blockName = (id: unknown) => {
+    const bid = Number(id);
+    return !isNaN(bid) && bid > 0 ? String(blockLookup2[bid]?.blockName ?? id) : "—";
+  };
+  const hasPhotos = Object.keys(photoDataUrl).length > 0;
+
+  // ── 3. Build table rows ───────────────────────────────────────────────────
+  const rows = records.map(r => {
+    const bid = Number(r.blockId);
+    const dataUrl = !isNaN(bid) && bid > 0 ? photoDataUrl[bid] : undefined;
+    const bName = blockName(r.blockId);
+    let photoCell = "";
+    if (hasPhotos) {
+      photoCell = `<td style="padding:4px 6px;vertical-align:middle;text-align:center;width:76px">
+        ${dataUrl ? `<img src="${dataUrl}" alt="Block photo" style="width:60px;height:60px;object-fit:cover;border-radius:4px;border:1px solid #d1d5db;display:block;margin:0 auto 2px" />` : ""}
+        <span style="font-size:9.5px;color:#555;display:block;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(bName)}</span>
+      </td>`;
+    }
+    const botrytisCell = r.botrytisPresent
+      ? `<span style="color:#991b1b;font-weight:600">Yes${r.botrytisPercentage ? ` (${r.botrytisPercentage}%)` : ""}</span>`
+      : `<span style="color:#555">No</span>`;
+    return `<tr>
+      ${photoCell}
+      <td>${d(r.harvestDate)}</td>
+      <td>${escHtml(r.vintageYear)}</td>
+      <td>${hasPhotos ? "" : escHtml(bName)}</td>
+      <td>${escHtml(r.harvestMethod)}</td>
+      <td style="text-align:right">${n(r.yieldKg, 1)}</td>
+      <td style="text-align:right">${n(r.yieldTonnesPerHa, 2)}</td>
+      <td style="text-align:right">${n(r.brix, 1)}</td>
+      <td style="text-align:right">${n(r.ph, 2)}</td>
+      <td>${escHtml(r.grapeCondition)}</td>
+      <td>${botrytisCell}</td>
+      <td>${escHtml(r.operatorName)}</td>
+      <td>${escHtml(r.notes)}</td>
+    </tr>`;
+  }).join("");
+
+  const totalKg = records.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+  const safeFarmName = escHtml(farmName);
+  const vintages = [...new Set(records.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse().join(", ");
+  const colSpan = hasPhotos ? 12 : 13;
+
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+  <title>Harvest &amp; Vintage Records &mdash; ${safeFarmName}</title>
+  <style>
+    @page { size: A4 landscape; margin: 18mm 14mm; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #111; margin: 0; }
+    h1 { font-size: 17px; margin: 0 0 2px; color: #7c3d12; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #7c3d12; padding-bottom: 10px; margin-bottom: 14px; }
+    .meta { font-size: 11px; color: #555; margin-top: 3px; line-height: 1.5; }
+    table { width: 100%; border-collapse: collapse; font-size: 10.5px; page-break-inside: auto; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    th { background: #7c3d12; color: white; padding: 6px 5px; text-align: left; white-space: nowrap; }
+    td { padding: 5px 5px; border: 1px solid #d1d5db; vertical-align: top; }
+    tr:nth-child(even) td { background: #fff7ed; }
+    .tfoot td { font-weight: 700; background: #ffedd5; border-color: #fdba74; }
+    .footer { margin-top: 16px; font-size: 10px; color: #666; border-top: 1px solid #ccc; padding-top: 7px; }
+    @media print { body { margin: 0; } button { display: none !important; } }
+  </style></head><body>
+  <div class="header">
+    <div>
+      <h1>Harvest &amp; Vintage Records</h1>
+      <div class="meta">
+        <strong>${safeFarmName}</strong>${vintages ? ` &nbsp;&middot;&nbsp; Vintages: ${vintages}` : ""}<br>
+        Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record${records.length === 1 ? "" : "s"}
+      </div>
+    </div>
+    <div style="text-align:right;font-size:11px;color:#555">
+      <div style="font-size:13px;font-weight:700;color:#7c3d12">Viticulture</div>
+      <div>Harvest Register</div>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        ${hasPhotos ? "<th style=\"width:76px\">Block / Photo</th>" : ""}
+        <th>Harvest Date</th>
+        <th>Vintage</th>
+        ${hasPhotos ? "" : "<th>Block</th>"}
+        <th>Method</th>
+        <th style="text-align:right">Yield (kg)</th>
+        <th style="text-align:right">t/ha</th>
+        <th style="text-align:right">Brix °</th>
+        <th style="text-align:right">pH</th>
+        <th>Condition</th>
+        <th>Botrytis</th>
+        <th>Operator</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows || `<tr><td colspan='${colSpan}' style='text-align:center;color:#888;padding:14px'>No records</td></tr>`}
+    </tbody>
+    ${records.length > 0 ? `
+    <tfoot>
+      <tr class="tfoot">
+        <td colspan="${hasPhotos ? 4 : 4}"><strong>Total Yield</strong></td>
+        <td style="text-align:right"><strong>${totalKg.toFixed(1)} kg</strong></td>
+        <td colspan="${hasPhotos ? 7 : 8}"></td>
+      </tr>
+    </tfoot>` : ""}
+  </table>
+  <div class="footer">Prepared by BDE Farm Trac &nbsp;&middot;&nbsp; Harvest &amp; Vintage Register &nbsp;&middot;&nbsp; Required for GI / PDO vintage declarations</div>
+  </body></html>`;
+
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => { setTimeout(() => win.print(), 200); };
+}
+
 export const PRESSURE_LABELS: Record<number, { label: string; color: string }> = {
   0: { label: "None", color: "text-gray-400" },
   1: { label: "Low", color: "text-green-600" },
