@@ -54,7 +54,7 @@ import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganic
 
 type Harvest = Record<string, unknown>;
 
-export function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
+export function HarvestTab({ farmId, blocks, highlightBlockId }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number }) {
   const { data, isLoading, add, edit, remove } = useCrud<Harvest>(farmId, "vineyard-harvest", "vineyard-harvest");
   const { displayName } = useUserRole();
   const [open, setOpen] = useState(false);
@@ -63,6 +63,12 @@ export function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<
   const [viewing, setViewing] = useState<Harvest | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Harvest | null>(null);
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [blockFilter, setBlockFilter] = useState<string>(highlightBlockId ? String(highlightBlockId) : "__all__");
+
+  // Sync block filter when navigating from a block card
+  useEffect(() => {
+    if (highlightBlockId) setBlockFilter(String(highlightBlockId));
+  }, [highlightBlockId]);
 
   const { data: wineryContactsData } = useQuery<{ records: Record<string, unknown>[] }>({
     queryKey: ["vineyard-winery-contacts", farmId],
@@ -90,7 +96,9 @@ export function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<
 
   const harvestYears = Array.from(new Set(data.map(r => Number(r.vintageYear)))).filter(Boolean).sort((a, b) => b - a);
   if (!harvestYears.includes(new Date().getFullYear())) harvestYears.unshift(new Date().getFullYear());
-  const filteredHarvest = yearFilter === "all" ? data : data.filter(r => String(r.vintageYear) === yearFilter);
+  const yearFiltered = yearFilter === "all" ? data : data.filter(r => String(r.vintageYear) === yearFilter);
+  const filteredHarvest = blockFilter === "__all__" ? yearFiltered : yearFiltered.filter(r => String(r.blockId) === blockFilter);
+  const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
 
   const csvCols = [
     { key: "harvestDate", label: "Harvest Date", fmt: (r: Record<string, unknown>) => fmtDate(r.harvestDate) },
@@ -116,12 +124,27 @@ export function HarvestTab({ farmId, blocks }: { farmId: number; blocks: Record<
 
   return (
     <div className="space-y-4">
+      {/* Block highlight banner */}
+      {highlightBlockId && blockFilter === String(highlightBlockId) && highlightedBlockName && (
+        <div className="flex items-center gap-2.5 rounded-md border border-purple-200 bg-purple-50 px-3 py-2 text-sm text-purple-800">
+          <Grape className="w-4 h-4 shrink-0 text-purple-600" />
+          <span>Showing harvest records for <span className="font-semibold">{highlightedBlockName}</span></span>
+          <button type="button" className="ml-auto text-xs underline underline-offset-2 hover:text-purple-900" onClick={() => setBlockFilter("__all__")}>Show all blocks</button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <p className="font-semibold">Harvest & Vintage Records</p>
           <p className="text-xs text-muted-foreground">Per-block vintage records including yield, must chemistry, and grape condition. Required for GI / PDO vintage declarations.</p>
         </div>
         <div className="flex gap-2 items-center">
+          <Select value={blockFilter} onValueChange={setBlockFilter}>
+            <SelectTrigger className={`w-36 h-8 text-xs ${blockFilter !== "__all__" ? "border-purple-400 text-purple-700" : ""}`}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All blocks</SelectItem>
+              {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>{String(b.blockName)}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Select value={yearFilter} onValueChange={setYearFilter}>
             <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>

@@ -54,7 +54,7 @@ import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganic
 
 type Operation = Record<string, unknown>;
 
-export function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
+export function OperationsTab({ farmId, blocks, highlightBlockId }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number }) {
   const { data, isLoading, add, edit, remove } = useCrud<Operation>(farmId, "vineyard-operations", "vineyard-operations");
   const { displayName } = useUserRole();
   const [open, setOpen] = useState(false);
@@ -63,6 +63,12 @@ export function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Reco
   const [viewing, setViewing] = useState<Operation | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Operation | null>(null);
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [blockFilter, setBlockFilter] = useState<string>(highlightBlockId ? String(highlightBlockId) : "__all__");
+
+  // Sync block filter when navigating from a block card
+  useEffect(() => {
+    if (highlightBlockId) setBlockFilter(String(highlightBlockId));
+  }, [highlightBlockId]);
   const operationTypes = useLookupStrings("vineyard_operation_types", OPERATION_TYPES);
   const [pruningOther, setPruningOther] = useState(false);
   const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
@@ -92,7 +98,9 @@ export function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Reco
 
   const operationYears = Array.from(new Set(data.map(r => new Date(r.operationDate as string).getFullYear()))).sort((a, b) => b - a);
   if (!operationYears.includes(new Date().getFullYear())) operationYears.unshift(new Date().getFullYear());
-  const filteredOperations = yearFilter === "all" ? data : data.filter(r => new Date(r.operationDate as string).getFullYear() === Number(yearFilter));
+  const yearFiltered = yearFilter === "all" ? data : data.filter(r => new Date(r.operationDate as string).getFullYear() === Number(yearFilter));
+  const filteredOperations = blockFilter === "__all__" ? yearFiltered : yearFiltered.filter(r => String(r.blockId) === blockFilter);
+  const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
 
   const csvCols = [
     { key: "operationDate", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.operationDate) },
@@ -115,12 +123,27 @@ export function OperationsTab({ farmId, blocks }: { farmId: number; blocks: Reco
 
   return (
     <div className="space-y-4">
+      {/* Block highlight banner */}
+      {highlightBlockId && blockFilter === String(highlightBlockId) && highlightedBlockName && (
+        <div className="flex items-center gap-2.5 rounded-md border border-purple-200 bg-purple-50 px-3 py-2 text-sm text-purple-800">
+          <Scissors className="w-4 h-4 shrink-0 text-purple-600" />
+          <span>Showing operations for <span className="font-semibold">{highlightedBlockName}</span></span>
+          <button type="button" className="ml-auto text-xs underline underline-offset-2 hover:text-purple-900" onClick={() => setBlockFilter("__all__")}>Show all blocks</button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <p className="font-semibold">Pruning & Canopy Operations</p>
           <p className="text-xs text-muted-foreground">Record all canopy management activities. Pruning records including bud counts are required for GI / PDO compliance and assurance schemes.</p>
         </div>
         <div className="flex gap-2 items-center">
+          <Select value={blockFilter} onValueChange={setBlockFilter}>
+            <SelectTrigger className={`w-36 h-8 text-xs ${blockFilter !== "__all__" ? "border-purple-400 text-purple-700" : ""}`}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All blocks</SelectItem>
+              {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>{String(b.blockName)}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Select value={yearFilter} onValueChange={setYearFilter}>
             <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
