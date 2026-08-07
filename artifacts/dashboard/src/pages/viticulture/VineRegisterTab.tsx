@@ -65,6 +65,48 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
   const varieties = useLookupStrings("vineyard_grape_varieties", UK_GRAPE_VARIETIES);
   const [varietyOther, setVarietyOther] = useState(false);
 
+  // ── Filter & sort state ────────────────────────────────────────────────────
+  const [filterStatus, setFilterStatus] = useState<"" | "active" | "removed">("");
+  const [filterGI, setFilterGI] = useState("");
+  const [filterColour, setFilterColour] = useState("");
+  const [sortKey, setSortKey] = useState("");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir("asc"); }
+  };
+
+  const displayRows = useMemo(() => {
+    let rows = data;
+    if (filterStatus === "active") rows = rows.filter(r => !r.isRemovedFromRegister);
+    else if (filterStatus === "removed") rows = rows.filter(r => !!r.isRemovedFromRegister);
+    if (filterGI) rows = rows.filter(r => String(r.giClassification ?? "") === filterGI);
+    if (filterColour) rows = rows.filter(r => String(r.wineColour ?? "") === filterColour);
+    if (sortKey) {
+      rows = [...rows].sort((a, b) => {
+        if (sortKey === "registeredAreaHa") {
+          const na = parseFloat(String(a[sortKey] ?? 0)) || 0;
+          const nb = parseFloat(String(b[sortKey] ?? 0)) || 0;
+          return sortDir === "asc" ? na - nb : nb - na;
+        }
+        if (sortKey === "dateRegistered") {
+          const da = a[sortKey] ? new Date(a[sortKey] as string).getTime() : 0;
+          const db = b[sortKey] ? new Date(b[sortKey] as string).getTime() : 0;
+          return sortDir === "asc" ? da - db : db - da;
+        }
+        const sa = String(a[sortKey] ?? "").toLowerCase();
+        const sb = String(b[sortKey] ?? "").toLowerCase();
+        return sortDir === "asc" ? sa.localeCompare(sb) : sb.localeCompare(sa);
+      });
+    }
+    return rows;
+  }, [data, filterStatus, filterGI, filterColour, sortKey, sortDir]);
+
+  const GI_OPTIONS = ["English Wine PDO", "English Wine PGI", "Welsh Wine PDO", "Welsh Wine PGI", "UK Table Wine", "No GI"];
+  const COLOUR_OPTIONS = ["White", "Red", "Rosé", "Sparkling White", "Sparkling Rosé", "Sparkling Red"];
+  const activeFilterCount = [filterStatus, filterGI, filterColour].filter(Boolean).length;
+
   // Fetch farm-level FSA Vine Register Ref stored in Farm Settings
   const { data: farmRecordData } = useQuery<Record<string, unknown> | null>({
     queryKey: ["farm-meta", farmId],
@@ -129,25 +171,72 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
           <p className="text-xs text-muted-foreground">Mandatory for all UK vineyards over 0.01 ha. Keep this up to date and report any changes to the Food Standards Agency.</p>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => exportCSV(data, "vine-register.csv", csvCols)} disabled={!data.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
-          <Button size="sm" variant="outline" onClick={() => printVineRegister(data, farmName, farmFsaVineRef || undefined)} disabled={!data.length}><Printer className="w-4 h-4 mr-1" />Print Register</Button>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(displayRows, "vine-register.csv", csvCols)} disabled={!displayRows.length}><FileDown className="w-4 h-4 mr-1" />Export CSV{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
+          <Button size="sm" variant="outline" onClick={() => printVineRegister(displayRows, farmName, farmFsaVineRef || undefined)} disabled={!displayRows.length}><Printer className="w-4 h-4 mr-1" />Print Register{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Entry</Button>
         </div>
       </div>
+
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={filterStatus || "__all__"} onValueChange={v => setFilterStatus(v === "__all__" ? "" : v as "active" | "removed")}>
+          <SelectTrigger className={`h-8 text-xs w-36 ${filterStatus ? "border-primary text-primary" : ""}`}>
+            <SelectValue placeholder="All statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All statuses</SelectItem>
+            <SelectItem value="active">Active only</SelectItem>
+            <SelectItem value="removed">Removed only</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={filterGI || "__all__"} onValueChange={v => setFilterGI(v === "__all__" ? "" : v)}>
+          <SelectTrigger className={`h-8 text-xs w-44 ${filterGI ? "border-primary text-primary" : ""}`}>
+            <SelectValue placeholder="All GI classes" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All GI classes</SelectItem>
+            {GI_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+          </SelectContent>
+        </Select>
+
+        <Select value={filterColour || "__all__"} onValueChange={v => setFilterColour(v === "__all__" ? "" : v)}>
+          <SelectTrigger className={`h-8 text-xs w-40 ${filterColour ? "border-primary text-primary" : ""}`}>
+            <SelectValue placeholder="All wine colours" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All wine colours</SelectItem>
+            {COLOUR_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+          </SelectContent>
+        </Select>
+
+        {activeFilterCount > 0 && (
+          <Button size="sm" variant="ghost" className="h-8 px-2 text-xs text-muted-foreground"
+            onClick={() => { setFilterStatus(""); setFilterGI(""); setFilterColour(""); }}>
+            Clear filters ({activeFilterCount})
+          </Button>
+        )}
+
+        {data.length > 0 && displayRows.length !== data.length && (
+          <span className="text-xs text-muted-foreground ml-auto">Showing {displayRows.length} of {data.length}</span>
+        )}
+      </div>
+
       <DataTable
         cols={[
           { key: "fsaVineRegisterRef", label: "FSA Ref" },
-          { key: "registeredVariety", label: "Variety" },
-          { key: "registeredAreaHa", label: "Area (ha)", render: r => fmtNum(r.registeredAreaHa, 4) },
+          { key: "registeredVariety", label: "Variety", sortable: true },
+          { key: "registeredAreaHa", label: "Area (ha)", sortable: true, render: r => fmtNum(r.registeredAreaHa, 4) },
           { key: "giClassification", label: "GI / PDO" },
           { key: "wineColour", label: "Colour" },
-          { key: "dateRegistered", label: "Date Registered", render: r => fmtDate(r.dateRegistered) },
+          { key: "dateRegistered", label: "Date Registered", sortable: true, render: r => fmtDate(r.dateRegistered) },
           { key: "isRemovedFromRegister", label: "Status", render: r => <Badge variant={r.isRemovedFromRegister ? "destructive" : "default"}>{r.isRemovedFromRegister ? "Removed" : "Active"}</Badge> },
         ]}
-        rows={data}
+        rows={displayRows}
         onView={setViewing}
         onEdit={openEdit}
         onDelete={r => remove.mutateAsync(r.id as number)} deleteMutation={remove}
+        sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
       />
 
       {/* View Dialog */}

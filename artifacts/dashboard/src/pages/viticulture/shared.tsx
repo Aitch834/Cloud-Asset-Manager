@@ -8,7 +8,7 @@ import {
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
-  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge,
+  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, ChevronUp, ChevronDown, ChevronsUpDown,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -467,13 +467,16 @@ export function Empty({ msg }: { msg: string }) {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 export { ConfirmDialog };
 
-export function DataTable({ cols, rows, onEdit, onDelete, onView, deleteMutation }: {
-  cols: { key: string; label: string; render?: (r: Record<string, unknown>) => ReactNode }[];
+export function DataTable({ cols, rows, onEdit, onDelete, onView, deleteMutation, sortKey, sortDir, onSort }: {
+  cols: { key: string; label: string; sortable?: boolean; render?: (r: Record<string, unknown>) => ReactNode }[];
   rows: Record<string, unknown>[];
   onEdit?: (r: Record<string, unknown>) => void;
   onDelete?: (r: Record<string, unknown>) => void;
   onView?: (r: Record<string, unknown>) => void;
   deleteMutation?: { isError: boolean; isPending: boolean; isSuccess: boolean; error: unknown; reset: () => void };
+  sortKey?: string;
+  sortDir?: "asc" | "desc";
+  onSort?: (key: string) => void;
 }) {
   const [pending, setPending] = useState<Record<string, unknown> | null>(null);
   useEffect(() => { if (deleteMutation?.isSuccess) setPending(null); }, [deleteMutation?.isSuccess]);
@@ -482,7 +485,29 @@ export function DataTable({ cols, rows, onEdit, onDelete, onView, deleteMutation
     <>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead><tr className="border-b">{cols.map(c => <th key={c.key} className="text-left py-2 pr-4 font-medium text-muted-foreground">{c.label}</th>)}{(onEdit || onDelete || onView) && <th />}</tr></thead>
+          <thead>
+            <tr className="border-b">
+              {cols.map(c => (
+                <th key={c.key} className="text-left py-2 pr-4 font-medium text-muted-foreground">
+                  {c.sortable && onSort ? (
+                    <button
+                      type="button"
+                      className="flex items-center gap-1 hover:text-foreground transition-colors"
+                      onClick={() => onSort(c.key)}
+                    >
+                      {c.label}
+                      {sortKey === c.key
+                        ? sortDir === "asc"
+                          ? <ChevronUp className="w-3.5 h-3.5" />
+                          : <ChevronDown className="w-3.5 h-3.5" />
+                        : <ChevronsUpDown className="w-3.5 h-3.5 opacity-40" />}
+                    </button>
+                  ) : c.label}
+                </th>
+              ))}
+              {(onEdit || onDelete || onView) && <th />}
+            </tr>
+          </thead>
           <tbody>{rows.map((row, i) => (
             <tr key={i} className="border-b last:border-0">
               {cols.map(c => <td key={c.key} className="py-2 pr-4">{c.render ? c.render(row) : fmt(row[c.key])}</td>)}
