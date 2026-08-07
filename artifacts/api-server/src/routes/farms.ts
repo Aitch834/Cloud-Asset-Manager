@@ -37146,10 +37146,10 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
 
   const scope: "batchRef" | "vintageYear" = batchRef ? "batchRef" : "vintageYear";
 
-  let fermentation, cellarOps, so2Tests, bottling, pressAdditions, pressings;
+  let fermentation, cellarOps, so2Tests, bottling, pressAdditions, pressings, barrelFills;
 
   if (scope === "batchRef") {
-    [fermentation, cellarOps, so2Tests, bottling, pressAdditions] = await Promise.all([
+    [fermentation, cellarOps, so2Tests, bottling, pressAdditions, barrelFills] = await Promise.all([
       db.execute(sql`
         SELECT f.id, f.start_date, f.end_date, f.batch_ref, f.vintage_year, f.wine_colour,
                f.fermentation_type, f.yeast_strain, f.inoculation_date, f.volume_litres,
@@ -37208,10 +37208,29 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
         WHERE p.farm_id = ${farmId} AND p.batch_ref = ${batchRef}
         ORDER BY p.press_date ASC NULLS LAST, a.pressing_record_id ASC, a.id ASC
       `),
+      db.execute(sql`
+        SELECT bf.id, bf.vessel_id, bf.fill_number, bf.wine_name,
+               bf.vintage_year AS fill_vintage_year, bf.variety,
+               bf.volume_litres, bf.fill_date, bf.rack_out_date,
+               bf.batch_ref AS fill_batch_ref, bf.operator_name, bf.notes,
+               v.vessel_ref, v.cooperage, v.oak_origin, v.toasting_level,
+               v.capacity_litres, v.vessel_type
+        FROM winery_barrel_fills bf
+        JOIN winery_vessels v ON v.id = bf.vessel_id
+        WHERE bf.vessel_id IN (
+          SELECT DISTINCT b.source_vessel_id
+          FROM winery_bottling_records b
+          WHERE b.farm_id = ${farmId} AND b.batch_ref = ${batchRef}
+            AND b.source_vessel_id IS NOT NULL
+        )
+        AND bf.farm_id = ${farmId}
+        AND (LOWER(v.vessel_type) LIKE '%barrel%' OR LOWER(v.vessel_type) LIKE '%barrique%')
+        ORDER BY v.vessel_ref ASC, bf.fill_number ASC
+      `),
     ]);
   } else {
     // Vintage-year fallback: fetch all records for this vintage regardless of batch_ref
-    [fermentation, cellarOps, so2Tests, bottling, pressAdditions, pressings] = await Promise.all([
+    [fermentation, cellarOps, so2Tests, bottling, pressAdditions, pressings, barrelFills] = await Promise.all([
       db.execute(sql`
         SELECT f.id, f.start_date, f.end_date, f.batch_ref, f.vintage_year, f.wine_colour,
                f.fermentation_type, f.yeast_strain, f.inoculation_date, f.volume_litres,
@@ -37278,6 +37297,25 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
         WHERE p.farm_id = ${farmId} AND p.vintage_year = ${vintageYear}
         ORDER BY p.press_date ASC NULLS LAST, p.id ASC
       `),
+      db.execute(sql`
+        SELECT bf.id, bf.vessel_id, bf.fill_number, bf.wine_name,
+               bf.vintage_year AS fill_vintage_year, bf.variety,
+               bf.volume_litres, bf.fill_date, bf.rack_out_date,
+               bf.batch_ref AS fill_batch_ref, bf.operator_name, bf.notes,
+               v.vessel_ref, v.cooperage, v.oak_origin, v.toasting_level,
+               v.capacity_litres, v.vessel_type
+        FROM winery_barrel_fills bf
+        JOIN winery_vessels v ON v.id = bf.vessel_id
+        WHERE bf.vessel_id IN (
+          SELECT DISTINCT b.source_vessel_id
+          FROM winery_bottling_records b
+          WHERE b.farm_id = ${farmId} AND b.vintage_year = ${vintageYear}
+            AND b.source_vessel_id IS NOT NULL
+        )
+        AND bf.farm_id = ${farmId}
+        AND (LOWER(v.vessel_type) LIKE '%barrel%' OR LOWER(v.vessel_type) LIKE '%barrique%')
+        ORDER BY v.vessel_ref ASC, bf.fill_number ASC
+      `),
     ]);
   }
 
@@ -37291,6 +37329,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
     bottling: bottling.rows,
     pressAdditions: pressAdditions.rows,
     pressings: pressings ? pressings.rows : [],
+    barrelFills: barrelFills ? barrelFills.rows : [],
   });
 });
 

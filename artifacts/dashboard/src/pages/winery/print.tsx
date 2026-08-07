@@ -612,6 +612,107 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
 
   const bottlingHeader = `<tr class="header-row"><th>Date</th><th>Lot Code</th><th>Colour</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">Bottles</th><th style="text-align:right">Free SO₂ (mg/L)</th><th style="text-align:right">Total SO₂ (mg/L)</th><th style="text-align:right">SO₂ ceiling</th><th>Compliance</th><th style="text-align:right">pH</th><th style="text-align:right">TA (g/L)</th><th style="text-align:right">ABV</th><th>Closure</th><th>Organic limits</th><th>Batch Ref</th></tr>`;
 
+  // ── Barrel Provenance Section ─────────────────────────────────────────────
+  // Shown only when the batch used an oak barrel as a source vessel for bottling.
+  // Fills are grouped per vessel so a report with multiple barrels renders each
+  // barrel's complete fill history in its own card.
+  const barrelFills = Array.isArray(data.barrelFills) ? data.barrelFills : [];
+
+  const fillOakLabelPdf = (fillNumber: number): { label: string; bg: string; color: string } => {
+    if (fillNumber === 1) return { label: "New oak (1st fill)", bg: "#fef3c7", color: "#92400e" };
+    if (fillNumber === 2) return { label: "2nd fill", bg: "#fefce8", color: "#713f12" };
+    if (fillNumber === 3) return { label: "3rd fill", bg: "#f0fdf4", color: "#166534" };
+    if (fillNumber === 4) return { label: "4th fill", bg: "#eff6ff", color: "#1e40af" };
+    return { label: `${fillNumber}th fill – neutral oak`, bg: "#f9fafb", color: "#6b7280" };
+  };
+
+  const barrelDurationLabel = (fillDate: unknown, rackOutDate: unknown): string => {
+    const start = fillDate ? new Date(String(fillDate)) : null;
+    if (!start || isNaN(start.getTime())) return "—";
+    const end = rackOutDate ? new Date(String(rackOutDate)) : null;
+    const days = end ? Math.round((end.getTime() - start.getTime()) / 86400000) : null;
+    if (days == null) return "Still maturing";
+    if (days < 0) return "—";
+    if (days < 31) return `${days}d`;
+    const months = Math.floor(days / 30.44);
+    return months < 12 ? `${months} mo` : `${Math.floor(months / 12)}y ${months % 12}mo`;
+  };
+
+  let barrelProvenanceHtml = "";
+  if (barrelFills.length > 0) {
+    // Group fills by vessel_id
+    const vesselMap = new Map<number, Record<string, unknown>[]>();
+    const vesselMeta = new Map<number, Record<string, unknown>>();
+    for (const f of barrelFills) {
+      const vid = Number(f.vessel_id);
+      if (!vesselMap.has(vid)) {
+        vesselMap.set(vid, []);
+        vesselMeta.set(vid, f);
+      }
+      vesselMap.get(vid)!.push(f);
+    }
+    const vesselBlocks = Array.from(vesselMap.entries()).map(([vid, fills]) => {
+      const meta = vesselMeta.get(vid)!;
+      const cooperage = meta.cooperage ? String(meta.cooperage) : null;
+      const oakOrigin = meta.oak_origin ? String(meta.oak_origin) : null;
+      const toasting = meta.toasting_level ? String(meta.toasting_level) : null;
+      const capacityL = meta.capacity_litres != null ? parseFloat(String(meta.capacity_litres)) : null;
+
+      const metaItems = [
+        cooperage ? `Cooperage: <strong>${escHtml(cooperage)}</strong>` : null,
+        oakOrigin ? `Oak origin: <strong>${escHtml(oakOrigin)}</strong>` : null,
+        toasting ? `Toasting: <strong>${escHtml(toasting)}</strong>` : null,
+        capacityL != null ? `Capacity: <strong>${capacityL.toFixed(0)} L</strong>` : null,
+      ].filter(Boolean).join(" &nbsp;·&nbsp; ");
+
+      const fillRows = fills.map(f => {
+        const fn = Number(f.fill_number);
+        const oak = fillOakLabelPdf(fn);
+        const inDate = f.fill_date ? fmtDate(f.fill_date) : "—";
+        const outDate = f.rack_out_date ? fmtDate(f.rack_out_date) : "—";
+        const duration = barrelDurationLabel(f.fill_date, f.rack_out_date);
+        const stillIn = !f.rack_out_date;
+        const volL = f.volume_litres != null ? parseFloat(String(f.volume_litres)) : null;
+        return `<tr>
+          <td><span style="display:inline-block;background:${oak.bg};color:${oak.color};font-weight:600;font-size:10px;padding:1px 6px;border-radius:3px">${escHtml(oak.label)}</span></td>
+          <td>${f.wine_name ? escHtml(String(f.wine_name)) : "—"}${f.fill_vintage_year ? ` <span style="color:#6b7280">(${escHtml(String(f.fill_vintage_year))})</span>` : ""}</td>
+          <td>${f.variety ? escHtml(String(f.variety)) : "—"}</td>
+          <td>${inDate}</td>
+          <td>${outDate}</td>
+          <td style="font-family:monospace;font-weight:600${stillIn ? ";color:#166534" : ""}">${escHtml(duration)}</td>
+          <td style="text-align:right">${volL != null ? volL.toFixed(0) + " L" : "—"}</td>
+          <td>${f.fill_batch_ref ? `<span style="font-family:monospace;font-size:10px;background:#dbeafe;color:#1e40af;padding:1px 5px;border-radius:3px">${escHtml(String(f.fill_batch_ref))}</span>` : "—"}</td>
+        </tr>`;
+      }).join("");
+
+      return `<div style="background:#fff8ed;border:1px solid #fed7aa;border-radius:6px;padding:10px 12px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <span style="font-size:12px;font-weight:700;color:#374151">🪵 ${escHtml(String(meta.vessel_ref ?? ""))}</span>
+          ${metaItems ? `<span style="font-size:10px;color:#6b7280">${metaItems}</span>` : ""}
+        </div>
+        <table style="width:100%;border-collapse:collapse">
+          <tr style="background:rgba(0,0,0,0.04)">
+            <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #fed7aa;text-align:left">Fill</th>
+            <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #fed7aa;text-align:left">Wine</th>
+            <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #fed7aa;text-align:left">Variety</th>
+            <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #fed7aa;text-align:left">In</th>
+            <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #fed7aa;text-align:left">Out</th>
+            <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #fed7aa;text-align:left">Duration</th>
+            <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #fed7aa;text-align:right">Volume</th>
+            <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #fed7aa;text-align:left">Batch Ref</th>
+          </tr>
+          ${fillRows}
+        </table>
+      </div>`;
+    }).join("");
+
+    barrelProvenanceHtml = `<div class="section">
+  <h2>6. Barrel Provenance</h2>
+  <p style="font-size:10px;color:#6b7280;margin-bottom:8px">Fill history for each oak barrel used as a source vessel for a bottling run in this batch trail. Fill numbers reflect how many times the barrel has been used — influencing oak extraction and wine character.</p>
+  ${vesselBlocks}
+</div>`;
+  }
+
   const docTitle = isVintageScoped && vintage
     ? `Full Vintage Trail — Vintage ${escHtml(vintage)} — ${escHtml(farmName)}`
     : `Batch Trail — ${escHtml(batchRef)} — ${escHtml(farmName)}`;
@@ -681,6 +782,7 @@ ${so2Rows && so2HasUnverifiedLimit ? `<p style="font-size:9px;color:#b45309;marg
 ${so2AttachmentsHtml}
 ${bottlingRows ? sectionHtml("5. Bottling runs", bottlingHeader + bottlingRows) : ""}
 ${bottlingAttachmentsHtml}
+${barrelProvenanceHtml}
 
 <div class="signoff">
   <div style="margin-top:28px;border-top:2px solid #374151;padding-top:16px">
