@@ -52,7 +52,7 @@ import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printVineRegister, useFarmMeta, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, VIVC_VARIETY_MAP, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printVineRegister, useFarmMeta, FarmSettingsWarning, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, VIVC_VARIETY_MAP, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 type VineReg = Record<string, unknown>;
 
@@ -332,6 +332,13 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
           </span>
         </div>
       )}
+
+      {/* Farm address missing warning */}
+      <FarmSettingsWarning
+        missingFields={farmRecord && !farmRecord.address ? ["Farm address"] : []}
+        settingsSection="Contact & Address"
+        onNavigate={() => setLocation("/settings/farm")}
+      />
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2">
