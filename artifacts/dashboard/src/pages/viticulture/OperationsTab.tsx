@@ -109,9 +109,10 @@ export function OperationsTab({ farmId, blocks, highlightBlockId }: { farmId: nu
       const q = searchText.trim().toLowerCase();
       rows = rows.filter(r => {
         const block = blocks.find(b => b.id === r.blockId);
+        const blockNameStr = String(block?.blockName ?? "").toLowerCase();
         const variety = String(block?.variety ?? "").toLowerCase();
         const operator = String(r.operatorName ?? "").toLowerCase();
-        return variety.includes(q) || operator.includes(q);
+        return blockNameStr.includes(q) || variety.includes(q) || operator.includes(q);
       });
     }
     return rows;
@@ -181,7 +182,7 @@ export function OperationsTab({ farmId, blocks, highlightBlockId }: { farmId: nu
           <Input
             value={searchText}
             onChange={e => setSearchText(e.target.value)}
-            placeholder="Search variety or operator…"
+            placeholder="Search block, variety or operator…"
             className={`h-8 text-xs w-52 pr-6 ${searchText.trim() ? "border-primary text-primary" : ""}`}
           />
           {searchText && (
