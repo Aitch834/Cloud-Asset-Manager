@@ -1126,11 +1126,20 @@ const _blockPhotoStorage = new ObjectStorageService();
 router.get("/farms/:farmId/vineyard-blocks/:blockId/photos", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const blockId = Number(req.params.blockId);
-  const photos = await db
+  const rows = await db
     .select()
     .from(vineyardBlockPhotosTable)
     .where(and(eq(vineyardBlockPhotosTable.blockId, blockId), eq(vineyardBlockPhotosTable.farmId, farmId)))
     .orderBy(desc(vineyardBlockPhotosTable.isCover), vineyardBlockPhotosTable.uploadedAt);
+
+  // Generate presigned download URLs concurrently (5-minute TTL)
+  const photos = await Promise.all(
+    rows.map(async (photo) => ({
+      ...photo,
+      downloadUrl: await _blockPhotoStorage.getPresignedDownloadUrl(photo.objectPath, 300),
+    }))
+  );
+
   res.json({ photos });
 });
 

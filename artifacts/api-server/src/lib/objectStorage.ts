@@ -204,6 +204,27 @@ export class ObjectStorageService {
       requestedPermission: requestedPermission ?? ObjectPermission.READ,
     });
   }
+
+  /**
+   * Generate a short-lived presigned GET URL for a private object entity path
+   * (e.g. "/objects/uploads/<uuid>"). Returns null if the path is not a valid
+   * object entity path or the object does not exist.
+   */
+  async getPresignedDownloadUrl(objectPath: string, ttlSec: number = 300): Promise<string | null> {
+    try {
+      const objectFile = await this.getObjectEntityFile(objectPath);
+      let entityDir = this.getPrivateObjectDir();
+      if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
+      const entityId = objectPath.startsWith("/objects/") ? objectPath.slice("/objects/".length) : null;
+      if (!entityId) return null;
+      const fullPath = `${entityDir}${entityId}`;
+      const { bucketName, objectName } = parseObjectPath(fullPath);
+      void objectFile; // existence already confirmed above
+      return signObjectURL({ bucketName, objectName, method: "GET", ttlSec });
+    } catch {
+      return null;
+    }
+  }
 }
 
 function parseObjectPath(path: string): {

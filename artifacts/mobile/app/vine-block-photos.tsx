@@ -45,23 +45,8 @@ interface BlockPhoto {
   fileName: string | null;
   caption: string | null;
   uploadedAt: string;
-}
-
-/** Fetch a gallery photo from the API and return a base64 data-URI for display. */
-async function fetchPhotoDataUri(farmId: number, blockId: number, photoId: number): Promise<string | null> {
-  try {
-    const res = await apiFetch(`/api/farms/${farmId}/vineyard-blocks/${blockId}/photos/${photoId}`);
-    if (!res.ok) return null;
-    const buffer = await res.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
-    let binary = "";
-    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-    const base64 = btoa(binary);
-    const contentType = res.headers.get("content-type") || "image/jpeg";
-    return `data:${contentType};base64,${base64}`;
-  } catch {
-    return null;
-  }
+  /** Short-lived presigned GET URL returned by the API — use directly in <Image>. */
+  downloadUrl: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -251,27 +236,14 @@ function PhotoLightbox({ uri, caption, visible, onClose }: LightboxProps) {
 
 function PhotoThumbnail({
   photo,
-  farmId,
-  blockId,
   onDelete,
   onPress,
 }: {
   photo: BlockPhoto;
-  farmId: number;
-  blockId: number;
   onDelete: (id: number) => void;
   onPress: (uri: string | null, photo: BlockPhoto) => void;
 }) {
-  const [uri, setUri] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchPhotoDataUri(farmId, blockId, photo.id).then((u) => {
-      if (!cancelled) { setUri(u); setLoading(false); }
-    });
-    return () => { cancelled = true; };
-  }, [photo.id, farmId, blockId]);
+  const uri = photo.downloadUrl ?? null;
 
   const handleLongPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -285,13 +257,9 @@ function PhotoThumbnail({
     <Pressable
       style={styles.thumbnail}
       onLongPress={handleLongPress}
-      onPress={loading ? undefined : () => onPress(uri, photo)}
+      onPress={() => onPress(uri, photo)}
     >
-      {loading ? (
-        <View style={styles.thumbPlaceholder}>
-          <ActivityIndicator size="small" color={colors.primary} />
-        </View>
-      ) : uri ? (
+      {uri ? (
         <Image source={{ uri }} style={styles.thumbImage} resizeMode="cover" />
       ) : (
         <View style={styles.thumbPlaceholder}>
@@ -520,8 +488,6 @@ export default function VineBlockPhotosScreen() {
           renderItem={({ item }) => (
             <PhotoThumbnail
               photo={item}
-              farmId={Number(currentFarm?.id)}
-              blockId={selectedBlock.id}
               onDelete={handleDelete}
               onPress={openLightbox}
             />
