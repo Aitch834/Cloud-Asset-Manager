@@ -180,6 +180,119 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill }: { farmI
   );
 }
 
+const MAINTENANCE_WORK_TYPE_OPTIONS = [
+  "Inspection",
+  "Stave repair",
+  "Head replacement",
+  "Re-toast",
+  "Re-char",
+  "Re-cooper",
+  "Condemned",
+];
+
+export function BarrelMaintenanceLog({ farmId, vesselId }: { farmId: number; vesselId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const qKey = ["winery-barrel-maintenance", farmId, vesselId];
+
+  const { data, isLoading, isError, error } = useQuery<Record<string, unknown>[]>({
+    queryKey: qKey,
+    queryFn: async () => {
+      const res = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/maintenance`), { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load maintenance log");
+      return ((await res.json()).records ?? []) as Record<string, unknown>[];
+    },
+    enabled: !!vesselId,
+  });
+
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState<Record<string, string>>({ maintenanceDate: today });
+  const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  const addMut = useMutation({
+    mutationFn: async () => {
+      const payload: Record<string, unknown> = { ...form };
+      if (form.costGbp) payload.costPence = String(Math.round(parseFloat(form.costGbp) * 100));
+      delete payload.costGbp;
+      const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/maintenance`), {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(payload),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error((e as Record<string,string>).error || "Save failed"); }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qKey });
+      setShowAdd(false);
+      setForm({ maintenanceDate: today });
+      toast({ title: "Maintenance record added" });
+    },
+    onError: (err: Error) => toast({ title: "Save failed", description: err.message, variant: "destructive" }),
+  });
+
+  const delMut = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/maintenance/${id}`), { method: "DELETE", credentials: "include" });
+      if (!r.ok) throw new Error("Delete failed");
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qKey }); },
+    onError: (err: Error) => toast({ title: "Delete failed", description: err.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cooperage / Maintenance</p>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(s => !s)}>
+          <Plus className="w-3 h-3 mr-1" />Log Work
+        </Button>
+      </div>
+      {showAdd && (
+        <div className="border rounded-lg p-3 mb-3 bg-muted/20 space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div><Label className="text-xs">Date *</Label><Input type="date" max={today} value={form.maintenanceDate ?? ""} onChange={e => sf("maintenanceDate", e.target.value)} className="h-8 text-xs" /></div>
+            <div>
+              <Label className="text-xs">Work Type *</Label>
+              <Select value={form.workType ?? ""} onValueChange={v => sf("workType", v)}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>{MAINTENANCE_WORK_TYPE_OPTIONS.map(o => <SelectItem key={o} value={o} className="text-xs">{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label className="text-xs">Cooperage Name</Label><Input value={form.cooperageName ?? ""} onChange={e => sf("cooperageName", e.target.value)} className="h-8 text-xs" placeholder="e.g. Demptos, local cooper" /></div>
+            <div><Label className="text-xs">Cost (£)</Label><Input type="number" step="0.01" min="0" value={form.costGbp ?? ""} onChange={e => sf("costGbp", e.target.value)} className="h-8 text-xs" placeholder="e.g. 45.00" /></div>
+          </div>
+          <div><Label className="text-xs">Notes</Label><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={1} className="text-xs" /></div>
+          <DialogMutationError mutation={addMut} />
+          <div className="flex gap-2">
+            <Button size="sm" className="h-7 text-xs" onClick={() => addMut.mutate()} disabled={!form.maintenanceDate || !form.workType || addMut.isPending}>
+              {addMut.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}Save
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(false)}>Cancel</Button>
+          </div>
+        </div>
+      )}
+      {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> :
+       isError ? <QueryErrorNotice label="maintenance records" error={error} /> :
+       (data ?? []).length === 0 ? <p className="text-xs text-muted-foreground">No cooperage or maintenance records yet.</p> : (
+        <div className="space-y-1">
+          {(data ?? []).map(m => (
+            <div key={String(m.id)} className="flex items-start justify-between text-xs border rounded px-3 py-2 gap-2">
+              <div className="space-y-0.5 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{fmtDate(m.maintenance_date)}</span>
+                  <span className="text-foreground font-semibold">{String(m.work_type)}</span>
+                  {!!m.cooperage_name && <span className="text-muted-foreground">— {String(m.cooperage_name)}</span>}
+                </div>
+                {m.cost_pence != null && <div className="text-muted-foreground">Cost: £{(Number(m.cost_pence) / 100).toFixed(2)}</div>}
+                {!!m.notes && <div className="italic text-muted-foreground">{String(m.notes)}</div>}
+              </div>
+              <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500 shrink-0" onClick={() => delMut.mutate(Number(m.id))}><Trash2 className="h-3 w-3" /></Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const MOVEMENT_REASON_OPTIONS = [
   "Move within cellar",
   "Move to fermentation area",
@@ -640,6 +753,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               <>
                 <BarrelMovementLog farmId={farmId} vesselId={view.id as number} currentZone={String(view.cellar_zone ?? "")} currentPosition={String(view.cellar_position ?? "")} />
                 <BarrelFillHistory farmId={farmId} vesselId={view.id as number} maxExistingFill={Number(view.fill_number ?? 0)} />
+                <BarrelMaintenanceLog farmId={farmId} vesselId={view.id as number} />
               </>
             )}
             <VesselCleanRow farmId={farmId} vesselId={view.id as number} />

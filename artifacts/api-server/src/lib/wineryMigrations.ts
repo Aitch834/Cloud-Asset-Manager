@@ -256,5 +256,25 @@ export async function runWineryMigrations(): Promise<void> {
   `);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS winery_barrel_fills_vessel_idx ON winery_barrel_fills (vessel_id)`);
 
+  // ─── Barrel Cooperage / Maintenance Log ────────────────────────────────────
+  // Records cooperage work: inspections, stave repairs, head replacements,
+  // re-toasting, re-charring, re-coopering, and condemnations.
+  // Separate from fill history and cleaning — a barrel can be re-toasted
+  // between fills without the event appearing in either of those logs.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS winery_barrel_maintenance (
+      id               SERIAL PRIMARY KEY,
+      farm_id          INTEGER NOT NULL REFERENCES farms(id),
+      vessel_id        INTEGER NOT NULL REFERENCES winery_vessels(id) ON DELETE CASCADE,
+      maintenance_date DATE NOT NULL,
+      work_type        TEXT NOT NULL,
+      cooperage_name   TEXT,
+      cost_pence       INTEGER,
+      notes            TEXT,
+      created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS winery_barrel_maintenance_vessel_idx ON winery_barrel_maintenance (vessel_id)`);
+
   console.log("[WINERY-MIGRATE] Done.");
 }

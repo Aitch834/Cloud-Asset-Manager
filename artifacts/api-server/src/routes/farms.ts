@@ -37715,6 +37715,41 @@ router.delete("/farms/:farmId/winery-vessels/:vesselId/fills/:fillId", requireAu
   res.json({ success: true });
 });
 
+// ── Barrel Cooperage / Maintenance Log ────────────────────────────────────────
+router.get("/farms/:farmId/winery-vessels/:vesselId/maintenance", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const vesselId = parseInt(req.params.vesselId as string);
+  const rows = await db.execute(sql`SELECT * FROM winery_barrel_maintenance WHERE farm_id=${farmId} AND vessel_id=${vesselId} ORDER BY maintenance_date DESC, created_at DESC`);
+  res.json({ records: rows.rows });
+});
+
+router.post("/farms/:farmId/winery-vessels/:vesselId/maintenance", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const vesselId = parseInt(req.params.vesselId as string);
+  const b = sanitiseBody(req.body);
+  if (!b.maintenanceDate || !b.workType) { res.status(400).json({ error: "maintenance_date and work_type are required" }); return; }
+  // INSERT…SELECT ensures the vessel actually belongs to this farm — if the vessel
+  // does not exist under farm_id the SELECT returns 0 rows and nothing is inserted.
+  const r = await db.execute(sql`
+    INSERT INTO winery_barrel_maintenance (farm_id,vessel_id,maintenance_date,work_type,cooperage_name,cost_pence,notes)
+    SELECT ${farmId},${vesselId},${nd(b.maintenanceDate)},${n(b.workType)},${n(b.cooperageName)},${ni(b.costPence)},${n(b.notes)}
+    FROM winery_vessels
+    WHERE id=${vesselId} AND farm_id=${farmId}
+    RETURNING *`);
+  if (!r.rows.length) { res.status(404).json({ error: "Vessel not found" }); return; }
+  res.status(201).json({ record: r.rows[0] });
+});
+
+router.delete("/farms/:farmId/winery-vessels/:vesselId/maintenance/:maintenanceId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const vesselId = parseInt(req.params.vesselId as string);
+  const result = await db.execute(sql`
+    DELETE FROM winery_barrel_maintenance
+    WHERE id=${parseInt(req.params.maintenanceId as string)} AND farm_id=${farmId} AND vessel_id=${vesselId}`);
+  if (!(result as unknown as { rowCount?: number }).rowCount) { res.status(404).json({ error: "Record not found" }); return; }
+  res.json({ success: true });
+});
+
 // ── Barrel Movement Log ────────────────────────────────────────────────────────
 router.get("/farms/:farmId/winery-vessels/:vesselId/movements", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
