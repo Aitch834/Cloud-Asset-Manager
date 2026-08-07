@@ -2,17 +2,28 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   FlatList,
   Image,
+  Modal,
   Pressable,
+  StatusBar,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { VineBlockPicker } from "@/components/VineBlockPicker";
@@ -53,16 +64,203 @@ async function fetchPhotoDataUri(farmId: number, blockId: number, photoId: numbe
   }
 }
 
+// ---------------------------------------------------------------------------
+// Lightbox
+// ---------------------------------------------------------------------------
+
+const SCREEN = Dimensions.get("window");
+const SWIPE_DOWN_THRESHOLD = 120;
+const MIN_SCALE = 1;
+const MAX_SCALE = 5;
+
+function clamp(value: number, min: number, max: number) {
+  "worklet";
+  return Math.min(Math.max(value, min), max);
+}
+
+interface LightboxProps {
+  uri: string | null;
+  caption: string | null;
+  visible: boolean;
+  onClose: () => void;
+}
+
+function PhotoLightbox({ uri, caption, visible, onClose }: LightboxProps) {
+  const insets = useSafeAreaInsets();
+
+  // Zoom / pan state
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
+
+  // Background fade
+  const bgOpacity = useSharedValue(0);
+
+  // Reset transforms when the lightbox opens/closes
+  useEffect(() => {
+    if (visible) {
+      scale.value = 1;
+      savedScale.value = 1;
+      translateX.value = 0;
+      translateY.value = 0;
+      savedTranslateX.value = 0;
+      savedTranslateY.value = 0;
+      bgOpacity.value = withTiming(1, { duration: 200 });
+    } else {
+      bgOpacity.value = withTiming(0, { duration: 150 });
+    }
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pinch-to-zoom gesture
+  const pinchGesture = Gesture.Pinch()
+    .onUpdate((e) => {
+      scale.value = clamp(savedScale.value * e.scale, MIN_SCALE, MAX_SCALE);
+    })
+    .onEnd(() => {
+      savedScale.value = scale.value;
+      // Snap back to 1 if under-zoomed
+      if (scale.value < MIN_SCALE) {
+        scale.value = withSpring(MIN_SCALE);
+        savedScale.value = MIN_SCALE;
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+        savedTranslateX.value = 0;
+        savedTranslateY.value = 0;
+      }
+    });
+
+  // Pan gesture — drag when zoomed in, swipe-down to close when at 1×
+  const panGesture = Gesture.Pan()
+    .onUpdate((e) => {
+      if (scale.value > 1) {
+        // Allow free panning when zoomed
+        translateX.value = savedTranslateX.value + e.translationX;
+        translateY.value = savedTranslateY.value + e.translationY;
+      } else {
+        // Only vertical drag when at base scale (swipe-to-dismiss)
+        translateY.value = Math.max(0, e.translationY);
+      }
+    })
+    .onEnd((e) => {
+      if (scale.value <= 1 && e.translationY > SWIPE_DOWN_THRESHOLD) {
+        // Dismiss: slide out then close
+        translateY.value = withTiming(SCREEN.height, { duration: 220 }, () => {
+          runOnJS(onClose)();
+        });
+      } else if (scale.value > 1) {
+        savedTranslateX.value = translateX.value;
+        savedTranslateY.value = translateY.value;
+      } else {
+        // Snap back to centre
+        translateY.value = withSpring(0);
+      }
+    });
+
+  // Double-tap resets zoom
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      if (scale.value > 1) {
+        scale.value = withSpring(1);
+        savedScale.value = 1;
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+        savedTranslateX.value = 0;
+        savedTranslateY.value = 0;
+      } else {
+        scale.value = withSpring(2.5);
+        savedScale.value = 2.5;
+      }
+    });
+
+  const composed = Gesture.Simultaneous(
+    Gesture.Race(doubleTapGesture, panGesture),
+    pinchGesture,
+  );
+
+  const imageStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+  }));
+
+  const bgStyle = useAnimatedStyle(() => ({
+    opacity: bgOpacity.value,
+  }));
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <GestureHandlerRootView style={{ flex: 1 }}>
+      <StatusBar hidden />
+      <Animated.View style={[styles.lbOverlay, bgStyle]}>
+        {/* Close button */}
+        <Pressable
+          style={[styles.lbCloseBtn, { top: insets.top + 12 }]}
+          onPress={onClose}
+          hitSlop={16}
+        >
+          <Feather name="x" size={24} color="#fff" />
+        </Pressable>
+
+        {/* Zoomable image */}
+        <GestureDetector gesture={composed}>
+          <Animated.View style={[styles.lbImageContainer, imageStyle]}>
+            {uri ? (
+              <Image
+                source={{ uri }}
+                style={styles.lbImage}
+                resizeMode="contain"
+              />
+            ) : (
+              <ActivityIndicator size="large" color="#fff" />
+            )}
+          </Animated.View>
+        </GestureDetector>
+
+        {/* Caption */}
+        {caption ? (
+          <View style={[styles.lbCaption, { paddingBottom: insets.bottom + 16 }]}>
+            <Text style={styles.lbCaptionText}>{caption}</Text>
+          </View>
+        ) : null}
+
+        {/* Hint */}
+        <View style={[styles.lbHint, { bottom: caption ? 60 + insets.bottom : insets.bottom + 16 }]}>
+          <Text style={styles.lbHintText}>Pinch to zoom · Double-tap · Swipe down to close</Text>
+        </View>
+      </Animated.View>
+      </GestureHandlerRootView>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Thumbnail
+// ---------------------------------------------------------------------------
+
 function PhotoThumbnail({
   photo,
   farmId,
   blockId,
   onDelete,
+  onPress,
 }: {
   photo: BlockPhoto;
   farmId: number;
   blockId: number;
   onDelete: (id: number) => void;
+  onPress: (uri: string | null, photo: BlockPhoto) => void;
 }) {
   const [uri, setUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -84,7 +282,11 @@ function PhotoThumbnail({
   };
 
   return (
-    <Pressable style={styles.thumbnail} onLongPress={handleLongPress}>
+    <Pressable
+      style={styles.thumbnail}
+      onLongPress={handleLongPress}
+      onPress={loading ? undefined : () => onPress(uri, photo)}
+    >
       {loading ? (
         <View style={styles.thumbPlaceholder}>
           <ActivityIndicator size="small" color={colors.primary} />
@@ -105,6 +307,10 @@ function PhotoThumbnail({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Main screen
+// ---------------------------------------------------------------------------
+
 export default function VineBlockPhotosScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
@@ -114,6 +320,21 @@ export default function VineBlockPhotosScreen() {
   const [photos, setPhotos] = useState<BlockPhoto[]>([]);
   const [photosLoading, setPhotosLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  // Lightbox state
+  const [lightboxUri, setLightboxUri] = useState<string | null>(null);
+  const [lightboxCaption, setLightboxCaption] = useState<string | null>(null);
+  const [lightboxVisible, setLightboxVisible] = useState(false);
+
+  const openLightbox = useCallback((uri: string | null, photo: BlockPhoto) => {
+    setLightboxUri(uri);
+    setLightboxCaption(photo.caption);
+    setLightboxVisible(true);
+  }, []);
+
+  const closeLightbox = useCallback(() => {
+    setLightboxVisible(false);
+  }, []);
 
   const loadPhotos = useCallback(async () => {
     if (!currentFarm?.id || !selectedBlock) return;
@@ -302,6 +523,7 @@ export default function VineBlockPhotosScreen() {
               farmId={Number(currentFarm?.id)}
               blockId={selectedBlock.id}
               onDelete={handleDelete}
+              onPress={openLightbox}
             />
           )}
           ListFooterComponent={
@@ -314,11 +536,19 @@ export default function VineBlockPhotosScreen() {
                 loading={uploading}
                 fullWidth
               />
-              <Text style={styles.hint}>Hold any photo to delete it.</Text>
+              <Text style={styles.hint}>Tap to view · Hold to delete.</Text>
             </View>
           }
         />
       )}
+
+      {/* Full-screen lightbox */}
+      <PhotoLightbox
+        uri={lightboxUri}
+        caption={lightboxCaption}
+        visible={lightboxVisible}
+        onClose={closeLightbox}
+      />
     </View>
   );
 }
@@ -419,5 +649,59 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.textSecondary,
     textAlign: "center",
+  },
+  // Lightbox styles
+  lbOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lbCloseBtn: {
+    position: "absolute",
+    right: 16,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lbImageContainer: {
+    width: SCREEN.width,
+    height: SCREEN.height,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lbImage: {
+    width: SCREEN.width,
+    height: SCREEN.height,
+  },
+  lbCaption: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  lbCaptionText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: "#fff",
+    textAlign: "center",
+  },
+  lbHint: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  lbHintText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: "rgba(255,255,255,0.4)",
   },
 });
