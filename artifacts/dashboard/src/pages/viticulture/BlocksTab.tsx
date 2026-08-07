@@ -666,6 +666,12 @@ export function BlocksTab({ farmId, onNavigate }: { farmId: number; onNavigate?:
                     <Button size="sm" variant="outline" className="h-7 text-xs text-rose-700 border-rose-200 hover:bg-rose-50" onClick={() => { onNavigate("scouting", viewing.id as number); setViewing(null); }}>
                       <Bug className="w-3.5 h-3.5 mr-1" />Disease Scouting
                     </Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs text-amber-700 border-amber-200 hover:bg-amber-50" onClick={() => { onNavigate("operations", viewing.id as number); setViewing(null); }}>
+                      <Scissors className="w-3.5 h-3.5 mr-1" />Operations
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs text-purple-700 border-purple-200 hover:bg-purple-50" onClick={() => { onNavigate("harvest", viewing.id as number); setViewing(null); }}>
+                      <Grape className="w-3.5 h-3.5 mr-1" />Harvest
+                    </Button>
                   </div>
                 </div>
               )}
