@@ -48,6 +48,7 @@ export interface ColumnMeta {
   key: string;
   label: string;
   type: "text" | "number" | "date" | "boolean";
+  format?: "pence";
 }
 
 export interface DatasourceMeta {
@@ -226,8 +227,8 @@ export const DATASOURCE_REGISTRY: Record<string, DatasourceMeta> = {
       { key: "serialNumber",         label: "Serial Number",         type: "text" },
       { key: "registrationNumber",   label: "Registration",          type: "text" },
       { key: "yearOfManufacture",    label: "Year of Manufacture",   type: "number" },
-      { key: "purchasePricePence",   label: "Purchase Price (p)",    type: "number" },
-      { key: "currentValuePence",    label: "Current Value (p)",     type: "number" },
+      { key: "purchasePricePence",   label: "Purchase Price",        type: "number", format: "pence" },
+      { key: "currentValuePence",    label: "Current Value",         type: "number", format: "pence" },
       { key: "currentHours",         label: "Current Hours",         type: "number" },
       { key: "odometerKm",           label: "Odometer (km)",         type: "number" },
       { key: "status",               label: "Status",                type: "text" },
@@ -246,8 +247,8 @@ export const DATASOURCE_REGISTRY: Record<string, DatasourceMeta> = {
       { key: "transactionType", label: "Type",             type: "text" },
       { key: "category",        label: "Category",         type: "text" },
       { key: "description",     label: "Description",      type: "text" },
-      { key: "amountPence",     label: "Amount (p)",       type: "number" },
-      { key: "vatAmountPence",  label: "VAT Amount (p)",   type: "number" },
+      { key: "amountPence",     label: "Amount",           type: "number", format: "pence" },
+      { key: "vatAmountPence",  label: "VAT Amount",       type: "number", format: "pence" },
       { key: "vatRate",         label: "VAT Rate",         type: "number" },
       { key: "currency",        label: "Currency",         type: "text" },
       { key: "vendorCustomer",  label: "Vendor / Customer",type: "text" },
@@ -272,7 +273,7 @@ export const DATASOURCE_REGISTRY: Record<string, DatasourceMeta> = {
       { key: "assessedBy",       label: "Assessed By",      type: "text" },
       { key: "assessmentDate",   label: "Assessment Date",  type: "date" },
       { key: "reviewDate",       label: "Review Date",      type: "date" },
-      { key: "status",           label: "status",           type: "text" },
+      { key: "status",           label: "Status",           type: "text" },
       { key: "notes",            label: "Notes",            type: "text" },
     ],
     defaultColumns: ["assessmentDate", "title", "area", "riskLevel", "status", "assessedBy"],
