@@ -479,6 +479,7 @@ export async function runLisMigrations(): Promise<void> {
   await db.execute(sql`CREATE INDEX IF NOT EXISTS vineyard_block_photos_block_id_idx ON vineyard_block_photos(block_id)`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS vineyard_block_photos_farm_id_idx  ON vineyard_block_photos(farm_id)`);
   await db.execute(sql`ALTER TABLE vineyard_block_photos ADD COLUMN IF NOT EXISTS is_cover boolean NOT NULL DEFAULT false`);
+  await db.execute(sql`ALTER TABLE vineyard_block_photos ADD COLUMN IF NOT EXISTS sort_order integer`);
 
   // SCC Test Equipment register — per-farm, per-species device + calibration log
   await db.execute(sql`

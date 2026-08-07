@@ -1,6 +1,21 @@
 import { useFarmName } from "@/hooks/use-farm-name";
 import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  rectSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import {
@@ -9,7 +24,7 @@ import {
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
   Award, Globe, BadgeAlert, Beaker, Wrench, Gauge,
-  Camera, Trash, Upload, ImageOff, ClipboardCheck, Star,
+  Camera, Trash, Upload, ImageOff, ClipboardCheck, Star, GripVertical,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -57,9 +72,9 @@ type Block = Record<string, unknown>;
 
 // ─── Block Photo Gallery ──────────────────────────────────────────────────────
 
-type BlockPhoto = { id: number; objectPath: string; fileName: string | null; caption: string | null; isCover: boolean; uploadedAt: string };
+type BlockPhoto = { id: number; objectPath: string; fileName: string | null; caption: string | null; isCover: boolean; sortOrder: number | null; uploadedAt: string };
 
-function PhotoThumbnail({
+function SortablePhotoThumbnail({
   photo, photoSrc, onDelete, onSetCover, onCaptionSave, onExpand, saving,
 }: {
   photo: BlockPhoto;
@@ -70,6 +85,22 @@ function PhotoThumbnail({
   onExpand: () => void;
   saving: boolean;
 }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: photo.id, disabled: photo.isCover });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
   const [captionDraft, setCaptionDraft] = useState(photo.caption ?? "");
   const [captionFocused, setCaptionFocused] = useState(false);
 
@@ -80,7 +111,7 @@ function PhotoThumbnail({
   };
 
   return (
-    <div className="relative group rounded-lg overflow-hidden border bg-gray-50 flex flex-col">
+    <div ref={setNodeRef} style={style} className="relative group rounded-lg overflow-hidden border bg-gray-50 flex flex-col">
       {/* Image — click opens lightbox */}
       <div className="relative aspect-square">
         <img
@@ -98,17 +129,40 @@ function PhotoThumbnail({
           </span>
         )}
 
+        {/* Drag handle — only for non-cover photos */}
+        {!photo.isCover && (
+          <button
+            className="absolute top-1 left-1 bg-black/50 hover:bg-black/70 text-white rounded p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing touch-none"
+            title="Drag to reorder"
+            {...attributes}
+            {...listeners}
+            onClick={e => e.stopPropagation()}
+          >
+            <GripVertical className="w-3 h-3" />
+          </button>
+        )}
+
         {/* Hover action bar */}
         <div className="absolute inset-x-0 top-0 flex items-center justify-between p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {/* Star / set-cover button */}
-          <button
-            className={`rounded-full p-0.5 shadow transition-colors ${photo.isCover ? "bg-yellow-400 text-yellow-900" : "bg-black/60 hover:bg-yellow-400 hover:text-yellow-900 text-white"}`}
-            onClick={e => { e.stopPropagation(); onSetCover(); }}
-            title={photo.isCover ? "Cover photo" : "Set as cover photo"}
-            disabled={saving || photo.isCover}
-          >
-            <Star className={`w-3 h-3 ${photo.isCover ? "fill-yellow-900" : ""}`} />
-          </button>
+          {/* Star / set-cover button — left side; drag handle occupies this space for non-cover */}
+          {photo.isCover ? (
+            <button
+              className="bg-yellow-400 text-yellow-900 rounded-full p-0.5 shadow"
+              title="Cover photo"
+              disabled
+            >
+              <Star className="w-3 h-3 fill-yellow-900" />
+            </button>
+          ) : (
+            <button
+              className="ml-6 rounded-full p-0.5 shadow transition-colors bg-black/60 hover:bg-yellow-400 hover:text-yellow-900 text-white"
+              onClick={e => { e.stopPropagation(); onSetCover(); }}
+              title="Set as cover photo"
+              disabled={saving}
+            >
+              <Star className="w-3 h-3" />
+            </button>
+          )}
           {/* Delete button */}
           <button
             className="bg-black/60 hover:bg-red-700 text-white rounded-full p-0.5 transition-colors"
@@ -147,7 +201,10 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [lightbox, setLightbox] = useState<BlockPhoto | null>(null);
+  const [orderedPhotos, setOrderedPhotos] = useState<BlockPhoto[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   // Load gallery photos
   const { data: photosData, refetch } = useQuery<{ photos: BlockPhoto[] }>({
@@ -163,7 +220,10 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
     },
   });
 
-  const photos = photosData?.photos ?? [];
+  // Sync server-ordered photos into local state whenever the query updates
+  useEffect(() => {
+    setOrderedPhotos(photosData?.photos ?? []);
+  }, [photosData]);
 
   const invalidate = () => {
     refetch();
@@ -186,6 +246,40 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
     } finally {
       setSavingId(null);
     }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    // Separate cover from sortable photos; cover is always first and not draggable
+    const cover = orderedPhotos.find(p => p.isCover) ?? null;
+    const sortable = orderedPhotos.filter(p => !p.isCover);
+
+    const oldIndex = sortable.findIndex(p => p.id === active.id);
+    const newIndex = sortable.findIndex(p => p.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(sortable, oldIndex, newIndex);
+
+    // Optimistic update
+    setOrderedPhotos(cover ? [cover, ...reordered] : reordered);
+
+    // Persist new sortOrder for each photo that changed position
+    await Promise.all(
+      reordered.map((photo, idx) =>
+        fetch(api(`farms/${farmId}/vineyard-blocks/${blockId}/photos/${photo.id}`), {
+          method: "PATCH", credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sortOrder: idx }),
+        })
+      )
+    );
+
+    // Sync server state (don't block UI on this)
+    refetch();
+    queryClient.invalidateQueries({ queryKey: ["vineyard-blocks", farmId] });
+    onPhotoChanged();
   };
 
   const handleFile = async (file: File) => {
@@ -232,11 +326,13 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
   const photoSrc = (p: BlockPhoto) =>
     `${api(`farms/${farmId}/vineyard-blocks/${blockId}/photos/${p.id}`)}?t=${String(p.id)}`;
 
+  const sortableIds = orderedPhotos.filter(p => !p.isCover).map(p => p.id);
+
   return (
     <div className="border-t pt-3">
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-          <Camera className="w-3.5 h-3.5" />Photos {photos.length > 0 && <span className="font-normal">({photos.length})</span>}
+          <Camera className="w-3.5 h-3.5" />Photos {orderedPhotos.length > 0 && <span className="font-normal">({orderedPhotos.length})</span>}
         </p>
         <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => inputRef.current?.click()} disabled={uploading}>
           {uploading ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Upload className="w-3 h-3 mr-1" />}
@@ -244,21 +340,25 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
         </Button>
       </div>
 
-      {photos.length > 0 ? (
-        <div className="grid grid-cols-3 gap-2">
-          {photos.map((photo) => (
-            <PhotoThumbnail
-              key={photo.id}
-              photo={photo}
-              photoSrc={photoSrc(photo)}
-              saving={savingId === photo.id}
-              onDelete={() => handleDelete(photo)}
-              onSetCover={() => patchPhoto(photo.id, { isCover: true })}
-              onCaptionSave={(caption) => patchPhoto(photo.id, { caption: caption || null })}
-              onExpand={() => setLightbox(photo)}
-            />
-          ))}
-        </div>
+      {orderedPhotos.length > 0 ? (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
+            <div className="grid grid-cols-3 gap-2">
+              {orderedPhotos.map((photo) => (
+                <SortablePhotoThumbnail
+                  key={photo.id}
+                  photo={photo}
+                  photoSrc={photoSrc(photo)}
+                  saving={savingId === photo.id}
+                  onDelete={() => handleDelete(photo)}
+                  onSetCover={() => patchPhoto(photo.id, { isCover: true })}
+                  onCaptionSave={(caption) => patchPhoto(photo.id, { caption: caption || null })}
+                  onExpand={() => setLightbox(photo)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       ) : (
         <div
           className="border-2 border-dashed border-border rounded-lg p-5 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/30 transition-colors"
@@ -277,6 +377,10 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
             </div>
           )}
         </div>
+      )}
+
+      {orderedPhotos.length > 1 && (
+        <p className="text-[10px] text-muted-foreground/60 mt-1">Drag photos to reorder · cover photo is always shown first</p>
       )}
 
       {error && <p className="text-xs text-red-600 mt-1.5">{error}</p>}

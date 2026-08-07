@@ -33,7 +33,7 @@ import {
   wineGiCertificationsTable,
   wineGiHarvestDeclarationsTable,
 } from "@workspace/db";
-import { eq, and, desc, isNull, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, isNull, inArray, sql } from "drizzle-orm";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 import { createScoutingAlerts } from "../lib/alertingJob";
 import { sanitiseBody } from "../lib/sanitise";
@@ -46,7 +46,7 @@ async function enrichBlocks(farmId: number) {
   const [blocks, plantings, photos] = await Promise.all([
     db.select().from(vineyardBlocksTable).where(eq(vineyardBlocksTable.farmId, farmId)).orderBy(vineyardBlocksTable.blockName),
     db.select().from(vineyardBlockPlantingsTable).where(eq(vineyardBlockPlantingsTable.farmId, farmId)).orderBy(vineyardBlockPlantingsTable.id),
-    db.select().from(vineyardBlockPhotosTable).where(eq(vineyardBlockPhotosTable.farmId, farmId)).orderBy(desc(vineyardBlockPhotosTable.isCover), vineyardBlockPhotosTable.uploadedAt),
+    db.select().from(vineyardBlockPhotosTable).where(eq(vineyardBlockPhotosTable.farmId, farmId)).orderBy(desc(vineyardBlockPhotosTable.isCover), sql`${vineyardBlockPhotosTable.sortOrder} ASC NULLS LAST`, asc(vineyardBlockPhotosTable.uploadedAt)),
   ]);
 
   return blocks.map(block => {
@@ -1130,7 +1130,7 @@ router.get("/farms/:farmId/vineyard-blocks/:blockId/photos", requireAuth, requir
     .select()
     .from(vineyardBlockPhotosTable)
     .where(and(eq(vineyardBlockPhotosTable.blockId, blockId), eq(vineyardBlockPhotosTable.farmId, farmId)))
-    .orderBy(desc(vineyardBlockPhotosTable.isCover), vineyardBlockPhotosTable.uploadedAt);
+    .orderBy(desc(vineyardBlockPhotosTable.isCover), sql`${vineyardBlockPhotosTable.sortOrder} ASC NULLS LAST`, asc(vineyardBlockPhotosTable.uploadedAt));
 
   // Generate presigned download URLs concurrently (5-minute TTL)
   const photos = await Promise.all(
@@ -1204,7 +1204,7 @@ router.patch("/farms/:farmId/vineyard-blocks/:blockId/photos/:photoId", requireA
   const farmId = Number(req.params.farmId);
   const blockId = Number(req.params.blockId);
   const photoId = Number(req.params.photoId);
-  const { caption, isCover } = req.body as { caption?: string | null; isCover?: boolean };
+  const { caption, isCover, sortOrder } = req.body as { caption?: string | null; isCover?: boolean; sortOrder?: number | null };
 
   // Verify ownership
   const [existing] = await db.select({ id: vineyardBlockPhotosTable.id })
@@ -1223,6 +1223,7 @@ router.patch("/farms/:farmId/vineyard-blocks/:blockId/photos/:photoId", requireA
   const updateFields: Record<string, unknown> = {};
   if (caption !== undefined) updateFields.caption = caption ?? null;
   if (isCover !== undefined) updateFields.isCover = isCover;
+  if (sortOrder !== undefined) updateFields.sortOrder = sortOrder ?? null;
 
   const [photo] = await (db.update(vineyardBlockPhotosTable) as any)
     .set(updateFields)
