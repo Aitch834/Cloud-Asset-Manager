@@ -310,7 +310,12 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
 
         {activeFilterCount > 0 && (
           <Button size="sm" variant="ghost" className="h-8 px-2 text-xs text-muted-foreground"
-            onClick={() => { setFilterStatus(""); setFilterGI(""); setFilterColour(""); setSearchText(""); }}>
+            onClick={() => {
+              // Use the hook setters (not raw state setters) so that the cleared
+              // values are written back to localStorage. This ensures the filter
+              // state is also reset on the next visit to the page.
+              setFilterStatus(""); setFilterGI(""); setFilterColour(""); setSearchText("");
+            }}>
             Clear filters ({activeFilterCount})
           </Button>
         )}

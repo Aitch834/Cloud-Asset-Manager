@@ -11,6 +11,17 @@ import { useEffect, useRef, useState } from "react";
  * - Stale stored values that fail `isValid` (or aren't in `validValues`)
  *   fall back to `defaultValue`.
  * - Switching farms re-reads that farm's stored value.
+ *
+ * ── Convention for "Clear filters" buttons ───────────────────────────────────
+ * Always call the setter returned by this hook (not a raw useState setter) when
+ * clearing a filter — including in "Clear filters" click handlers.  The setter
+ * writes the empty string to localStorage so the cleared state is remembered on
+ * the next visit.  If you reset state with a local useState dispatch instead,
+ * the stored value is NOT cleared and the user will see stale filters next time
+ * they open the page.
+ *
+ * ✅  onClick={() => { setFilterStatus(""); setFilterGI(""); }}  // persisted
+ * ❌  onClick={() => { setLocalStatus(""); setLocalGI(""); }}    // not persisted
  */
 export function usePersistedFilter(opts: {
   page: string;
