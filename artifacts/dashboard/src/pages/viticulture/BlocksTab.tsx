@@ -55,24 +55,46 @@ import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganic
 
 type Block = Record<string, unknown>;
 
-// ─── Block Photo Section ──────────────────────────────────────────────────────
+// ─── Block Photo Gallery ──────────────────────────────────────────────────────
 
-function BlockPhotoSection({ farmId, block, onPhotoChanged }: { farmId: number; block: Block; onPhotoChanged: () => void }) {
+type BlockPhoto = { id: number; objectPath: string; fileName: string | null; caption: string | null; uploadedAt: string };
+
+function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; block: Block; onPhotoChanged: () => void }) {
   const blockId = block.id as number;
-  const hasPhoto = !!block.photoObjectPath;
-  const photoSrc = `${api(`farms/${farmId}/vineyard-blocks/${blockId}/photo`)}?t=${Date.now()}`;
+  const queryClient = useQueryClient();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<BlockPhoto | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Load gallery photos
+  const { data: photosData, refetch } = useQuery<{ photos: BlockPhoto[] }>({
+    queryKey: ["vineyard-block-photos", farmId, blockId],
+    queryFn: async () => {
+      const r = await fetch(api(`farms/${farmId}/vineyard-blocks/${blockId}/photos`), { credentials: "include" });
+      if (!r.ok) throw new Error("Failed to load photos");
+      return r.json();
+    },
+    initialData: () => {
+      // Seed from already-loaded block data if available
+      const photos = block.photos as BlockPhoto[] | undefined;
+      return photos ? { photos } : undefined;
+    },
+  });
+
+  const photos = photosData?.photos ?? [];
+
+  const invalidate = () => {
+    refetch();
+    queryClient.invalidateQueries({ queryKey: ["vineyard-blocks", farmId] });
+    onPhotoChanged();
+  };
 
   const handleFile = async (file: File) => {
     if (!file.type.startsWith("image/")) { setError("Please select an image file."); return; }
     if (file.size > 10 * 1024 * 1024) { setError("Image must be under 10 MB."); return; }
     setError(null);
     setUploading(true);
-    setPreview(URL.createObjectURL(file));
     try {
       const urlRes = await fetch(api("storage/uploads/request-url"), {
         method: "POST", credentials: "include",
@@ -83,81 +105,103 @@ function BlockPhotoSection({ farmId, block, onPhotoChanged }: { farmId: number; 
       const { uploadURL, objectPath } = await urlRes.json();
       const putRes = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
       if (!putRes.ok) throw new Error("Upload to storage failed");
-      const saveRes = await fetch(api(`farms/${farmId}/vineyard-blocks/${blockId}/photo`), {
-        method: "PATCH", credentials: "include",
+      const saveRes = await fetch(api(`farms/${farmId}/vineyard-blocks/${blockId}/photos`), {
+        method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ objectPath }),
+        body: JSON.stringify({ objectPath, fileName: file.name }),
       });
-      if (!saveRes.ok) throw new Error("Failed to save photo reference");
-      onPhotoChanged();
+      if (!saveRes.ok) throw new Error("Failed to save photo");
+      invalidate();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
-      setPreview(null);
     } finally {
       setUploading(false);
     }
   };
 
-  const handleDelete = async () => {
-    setDeleting(true);
-    setError(null);
-    setPreview(null);
+  const handleDelete = async (photo: BlockPhoto) => {
     try {
-      const r = await fetch(api(`farms/${farmId}/vineyard-blocks/${blockId}/photo`), {
+      const r = await fetch(api(`farms/${farmId}/vineyard-blocks/${blockId}/photos/${photo.id}`), {
         method: "DELETE", credentials: "include",
       });
       if (!r.ok) throw new Error("Failed to remove photo");
-      onPhotoChanged();
+      invalidate();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Remove failed");
-    } finally {
-      setDeleting(false);
     }
   };
 
+  const photoSrc = (p: BlockPhoto) =>
+    `${api(`farms/${farmId}/vineyard-blocks/${blockId}/photos/${p.id}`)}?t=${String(p.id)}`;
+
   return (
     <div className="border-t pt-3">
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
-        <Camera className="w-3.5 h-3.5" />Block Photo
-      </p>
-      {(hasPhoto || preview) ? (
-        <div className="relative">
-          <img
-            src={preview ?? photoSrc}
-            alt={`${String(block.blockName ?? "")} photo`}
-            className="w-full max-h-56 object-cover rounded-lg border"
-            onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
-          />
-          <div className="flex gap-2 mt-2">
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => inputRef.current?.click()} disabled={uploading}>
-              {uploading ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1" />}Replace
-            </Button>
-            <Button size="sm" variant="outline" className="h-7 text-xs text-red-700 border-red-200 hover:bg-red-50" onClick={handleDelete} disabled={deleting || uploading}>
-              {deleting ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Trash className="w-3.5 h-3.5 mr-1" />}Remove
-            </Button>
-          </div>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+          <Camera className="w-3.5 h-3.5" />Photos {photos.length > 0 && <span className="font-normal">({photos.length})</span>}
+        </p>
+        <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => inputRef.current?.click()} disabled={uploading}>
+          {uploading ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Upload className="w-3 h-3 mr-1" />}
+          Add Photo
+        </Button>
+      </div>
+
+      {photos.length > 0 ? (
+        <div className="grid grid-cols-3 gap-2">
+          {photos.map((photo) => (
+            <div key={photo.id} className="relative group rounded-lg overflow-hidden border bg-gray-50 aspect-square">
+              <img
+                src={photoSrc(photo)}
+                alt={photo.fileName ?? "Block photo"}
+                className="w-full h-full object-cover cursor-pointer"
+                onClick={() => setLightbox(photo)}
+                onError={e => { (e.target as HTMLImageElement).src = ""; (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+              <button
+                className="absolute top-1 right-1 bg-black/60 hover:bg-red-700 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={() => handleDelete(photo)}
+                title="Remove photo"
+              >
+                <Trash className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
         </div>
       ) : (
         <div
-          className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/30 transition-colors"
+          className="border-2 border-dashed border-border rounded-lg p-5 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/30 transition-colors"
           onClick={() => inputRef.current?.click()}
         >
           {uploading ? (
             <div className="flex flex-col items-center gap-2">
-              <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
-              <p className="text-sm text-muted-foreground">Uploading…</p>
+              <Loader2 className="w-7 h-7 text-purple-400 animate-spin" />
+              <p className="text-xs text-muted-foreground">Uploading…</p>
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-2">
-              <Camera className="w-8 h-8 text-muted-foreground/40" />
-              <p className="text-sm font-medium text-muted-foreground">Add block photo</p>
-              <p className="text-xs text-muted-foreground/70">Click to upload · JPEG, PNG, WebP · max 10 MB</p>
+            <div className="flex flex-col items-center gap-1.5">
+              <Camera className="w-7 h-7 text-muted-foreground/40" />
+              <p className="text-sm font-medium text-muted-foreground">Add block photos</p>
+              <p className="text-xs text-muted-foreground/70">JPEG, PNG, WebP · max 10 MB each</p>
             </div>
           )}
         </div>
       )}
+
       {error && <p className="text-xs text-red-600 mt-1.5">{error}</p>}
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
+
+      {/* Lightbox */}
+      <Dialog open={!!lightbox} onOpenChange={o => { if (!o) setLightbox(null); }}>
+        <DialogContent className="max-w-3xl p-2">
+          {lightbox && (
+            <img
+              src={photoSrc(lightbox)}
+              alt={lightbox.fileName ?? "Block photo"}
+              className="w-full max-h-[80vh] object-contain rounded-lg"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -502,8 +546,8 @@ export function BlocksTab({ farmId, onNavigate }: { farmId: number; onNavigate?:
                 );
               })()}
 
-              {/* Block photo */}
-              <BlockPhotoSection
+              {/* Block photo gallery */}
+              <BlockPhotoGallery
                 farmId={farmId}
                 block={viewing}
                 onPhotoChanged={() => {

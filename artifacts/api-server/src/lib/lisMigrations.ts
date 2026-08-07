@@ -463,6 +463,22 @@ export async function runLisMigrations(): Promise<void> {
 
   await db.execute(sql`ALTER TABLE livestock_movements ADD COLUMN IF NOT EXISTS scoteid_submission_ref text`);
 
+  // Vineyard block photo gallery — multiple photos per block (replaces single photoObjectPath)
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS vineyard_block_photos (
+      id           serial primary key,
+      block_id     integer not null references vineyard_blocks(id) on delete cascade,
+      farm_id      integer not null references farms(id),
+      object_path  text not null,
+      file_name    text,
+      caption      text,
+      uploaded_at  timestamptz not null default now(),
+      created_at   timestamptz not null default now()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS vineyard_block_photos_block_id_idx ON vineyard_block_photos(block_id)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS vineyard_block_photos_farm_id_idx  ON vineyard_block_photos(farm_id)`);
+
   // SCC Test Equipment register — per-farm, per-species device + calibration log
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS scc_test_equipment (

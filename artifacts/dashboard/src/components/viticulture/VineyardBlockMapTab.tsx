@@ -213,9 +213,14 @@ export function VineyardBlockMapTab({
               {blocksWithBoundary.map((b) => {
                 const status = String(b.plantingStatus ?? "no_planting");
                 const style = STATUS_STYLES[status] ?? STATUS_STYLES.no_planting;
-                const photoSrc = b.photoObjectPath
-                  ? `${api(`farms/${farmId}/vineyard-blocks/${b.id as number}/photo`)}?t=${String(b.id)}`
-                  : null;
+                // Use first gallery photo if available, fall back to legacy single photo
+                const blockPhotos = b.photos as Array<{ id: number; objectPath: string }> | undefined;
+                const firstGalleryPhoto = blockPhotos?.[0];
+                const photoSrc = firstGalleryPhoto
+                  ? `${api(`farms/${farmId}/vineyard-blocks/${b.id as number}/photos/${firstGalleryPhoto.id}`)}?t=${String(firstGalleryPhoto.id)}`
+                  : b.photoObjectPath
+                    ? `${api(`farms/${farmId}/vineyard-blocks/${b.id as number}/photo`)}?t=${String(b.id)}`
+                    : null;
                 return (
                   <div
                     key={String(b.id)}
