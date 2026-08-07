@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Map as MapIcon, AlertCircle, Camera, ClipboardList, Leaf, Bug } from "lucide-react";
+import { Map as MapIcon, AlertCircle, Camera, ClipboardList, Leaf, Bug, Wrench, Grape } from "lucide-react";
 import { VineyardBlockBoundaryMapDialog } from "./VineyardBlockBoundaryMapDialog";
 
 import { apiUrl as api } from "@/lib/api";
@@ -273,6 +273,12 @@ export function VineyardBlockMapTab({
                             </Button>
                             <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-sky-700 hover:bg-sky-50" onClick={() => onNavigate("phenology", b.id as number)}>
                               <Leaf className="w-3 h-3 mr-0.5" />Phenology
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-orange-700 hover:bg-orange-50" onClick={() => onNavigate("operations", b.id as number)}>
+                              <Wrench className="w-3 h-3 mr-0.5" />Operations
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-purple-700 hover:bg-purple-50" onClick={() => onNavigate("harvest", b.id as number)}>
+                              <Grape className="w-3 h-3 mr-0.5" />Harvest
                             </Button>
                           </>
                         )}
