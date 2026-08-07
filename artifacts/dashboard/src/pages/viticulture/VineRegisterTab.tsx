@@ -207,6 +207,13 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
   // Derive selected block for area prefill — reactive to form.blockId
   const selectedBlock = form.blockId ? blocks.find(b => b.id === Number(form.blockId)) : undefined;
 
+  // Auto-suggest a block when variety is chosen and no block is linked yet
+  const suggestedBlock = useMemo(() => {
+    if (form.blockId || !form.registeredVariety) return undefined;
+    const variety = String(form.registeredVariety).toLowerCase().trim();
+    return blocks.find(b => b.variety && String(b.variety).toLowerCase().trim() === variety);
+  }, [form.registeredVariety, form.blockId, blocks]);
+
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin w-6 h-6 text-muted-foreground" /></div>;
 
   return (
@@ -322,6 +329,20 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
           { key: "wineColour", label: "Colour" },
           { key: "dateRegistered", label: "Date Registered", sortable: true, render: r => fmtDate(r.dateRegistered) },
           { key: "isRemovedFromRegister", label: "Status", render: r => <Badge variant={r.isRemovedFromRegister ? "destructive" : "default"}>{r.isRemovedFromRegister ? "Removed" : "Active"}</Badge> },
+          {
+            key: "blockId",
+            label: "Block",
+            render: r => {
+              const linked = blocks.find(b => b.id === r.blockId);
+              if (linked) return <span className="text-sm">{String(linked.blockName)}</span>;
+              return (
+                <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+                  <AlertTriangle className="w-3 h-3 shrink-0" />
+                  Link to show photo
+                </span>
+              );
+            },
+          },
         ]}
         rows={displayRows}
         onView={setViewing}
@@ -527,14 +548,29 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
                   </SelectContent>
                 </Select>
               </div>
-              <div><Label>Link to Block</Label>
+              <div>
+                <Label>Link to Block</Label>
                 <Select value={String(form.blockId ?? "__none__")} onValueChange={v => sf("blockId", v === "__none__" ? null : Number(v))}>
                   <SelectTrigger><SelectValue placeholder="Select block…" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">— None —</SelectItem>
-                    {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>{String(b.blockName)} ({String(b.variety)})</SelectItem>)}
+                    {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>{String(b.blockName)} ({String(b.variety ?? "no variety")})</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {suggestedBlock && (
+                  <div className="mt-1.5 flex items-center gap-2 rounded border border-purple-200 bg-purple-50 px-2.5 py-1.5 text-xs text-purple-800">
+                    <Grape className="w-3.5 h-3.5 shrink-0 text-purple-500" />
+                    <span>Matches block <span className="font-semibold">{String(suggestedBlock.blockName)}</span></span>
+                    <button
+                      type="button"
+                      className="ml-auto shrink-0 font-medium underline underline-offset-2 hover:text-purple-900"
+                      onClick={() => sf("blockId", Number(suggestedBlock.id))}
+                    >
+                      Link it
+                    </button>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">Linking to a block shows its photo on the printed Vine Register.</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
