@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
+<title>BDE Farm Trac — Viticulture — Full Page Portrait</title>
+<!--
+  PRINT SPEC:  Trim: 205mm × 290mm  |  Bleed: 211mm × 296mm (3mm each side)
+               Type safe area: 185mm × 270mm (10mm in from trim, all sides)
+  COLOUR MODE: CMYK for final press-ready PDF — convert from RGB at output
+  RESOLUTION:  300dpi minimum — replace background src with licensed hi-res file
+               At trim size: approx 2,421 × 3,425px needed at 300dpi
+  FONTS:       Inter + Playfair Display — embed / outline before PDF export
+  CONTACT:     Jamie McGrorty · jamie.mcgrorty@kelsey.co.uk · 01303 233883
+-->
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100vw; height: 100vh; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    background: #0a0806; font-family: 'Inter', sans-serif;
+  }
+
+  /* ── Ad container locked to 205:290 portrait aspect ratio ── */
+  .ad-wrap {
+    width: min(100vw, calc(100vh * 205 / 290));
+    height: min(100vh, calc(100vw * 290 / 205));
+    position: relative;
+    overflow: hidden;
+  }
+
+  /*
+    BACKGROUND IMAGE — deliberately different from the half-page horizontal.
+    The half-page uses the wide rolling vine-row landscape (943700).
+    This portrait uses a close-up late-season grape harvest scene — warm amber
+    afternoon light on heavy clusters — a human, tactile image that reads
+    completely differently to a reader who saw the landscape in a previous issue.
+  */
+  .bg {
+    position: absolute; inset: 0;
+    background-image: url('https://images.pexels.com/photos/442116/pexels-photo-442116.jpeg?auto=compress&cs=tinysrgb&w=1200');
+    background-size: cover;
+    background-position: center 40%;
+    z-index: 0;
+  }
+
+  /* Soft radial vignette — edges darken, the grape cluster glows through centre */
+  .vignette {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 80% 65% at 55% 35%, transparent 0%, rgba(6,4,3,0.50) 100%);
+    z-index: 1;
+  }
+
+  /* Graduated overlay: heavy top (logo legibility) + heavy bottom (CTA legibility),
+     deliberately light in the middle so the image breathes through the headline zone */
+  .overlay {
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(to bottom,
+        rgba(6,4,3,0.88) 0%,
+        rgba(6,4,3,0.55) 18%,
+        rgba(6,4,3,0.35) 32%,
+        rgba(6,4,3,0.50) 52%,
+        rgba(6,4,3,0.80) 72%,
+        rgba(6,4,3,0.97) 100%);
+    z-index: 2;
+  }
+
+  /* Gold top bar */
+  .top-bar {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: clamp(2px, 0.4%, 5px);
+    background: linear-gradient(90deg, #B8894A 0%, #E8C98A 40%, #D4AF72 60%, #B8894A 100%);
+    z-index: 5;
+  }
+
+  /* Thin gold bottom bar — mirrors top, anchors the ad visually */
+  .bottom-bar {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: clamp(1px, 0.2%, 3px);
+    background: linear-gradient(90deg, #B8894A 0%, #C49A6C 50%, #B8894A 100%);
+    z-index: 5;
+    opacity: 0.6;
+  }
+
+  /* Green left rule */
+  .left-rule {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: clamp(3px, 0.6%, 6px);
+    background: linear-gradient(to bottom, #2D6A2E 0%, #1d4a1e 100%);
+    z-index: 5;
+  }
+
+  /* ── Main inner layout — full height, vertical flex ── */
+  .inner {
+    position: relative; z-index: 4;
+    width: 100%; height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 5.5% 8% 5% 8.5%;
+  }
+
+  /* ── TOP SECTION: logo + eyebrow ── */
+  .top-section {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .logo {
+    height: clamp(16px, 5.5%, 32px);
+    width: auto;
+    object-fit: contain;
+    object-position: left center;
+    filter: drop-shadow(0 1px 10px rgba(0,0,0,0.8));
+  }
+
+  .issue-tag {
+    font-size: clamp(5px, 1.4%, 9px);
+    font-weight: 600;
+    color: rgba(196,154,108,0.65);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-align: right;
+    line-height: 1.4;
+    padding-top: 0.5%;
+  }
+
+  /* ── HERO HEADLINE — occupies centre of the ad ── */
+  .hero { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 3% 0; }
+
+  .eyebrow {
+    font-size: clamp(6.5px, 1.55%, 10.5px);
+    font-weight: 600;
+    color: #C49A6C;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 3.5%;
+  }
+
+  .headline {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(28px, 10.5%, 72px);
+    font-weight: 700;
+    line-height: 1.03;
+    color: #ffffff;
+    margin-bottom: 4%;
+  }
+  .headline em { font-style: italic; color: #C49A6C; }
+
+  .subline {
+    font-size: clamp(8px, 2.1%, 14px);
+    font-weight: 400;
+    color: rgba(255,255,255,0.65);
+    line-height: 1.60;
+    max-width: 88%;
+    margin-bottom: 5%;
+  }
+
+  /* Feature 2-column grid */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2% 6%;
+    margin-bottom: 5%;
+  }
+  .feat {
+    display: flex;
+    align-items: center;
+    gap: 2.5%;
+    font-size: clamp(6px, 1.65%, 11px);
+    font-weight: 500;
+    color: rgba(255,255,255,0.80);
+  }
+  .feat::before {
+    content: '';
+    display: inline-block;
+    width: clamp(3.5px, 0.55%, 5.5px);
+    height: clamp(3.5px, 0.55%, 5.5px);
+    border-radius: 50%;
+    background: #C49A6C;
+    flex-shrink: 0;
+  }
+
+  /* Divider rule */
+  .divider {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(196,154,108,0.35) 0%, rgba(196,154,108,0.05) 100%);
+    margin: 3% 0;
+    flex-shrink: 0;
+  }
+
+  /* ── BOTTOM SECTION: platform callout + CTA ── */
+  .bottom-section { flex-shrink: 0; display: flex; flex-direction: column; gap: 3%; }
+
+  /* Horizontal glass strip — platform included note */
+  .platform-strip {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    background: rgba(255,255,255,0.045);
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    border: 1px solid rgba(196,154,108,0.18);
+    border-radius: clamp(4px, 1%, 8px);
+    overflow: hidden;
+  }
+
+  .platform-label {
+    display: flex;
+    align-items: center;
+    padding: 3.5% 4%;
+    background: rgba(196,154,108,0.10);
+    border-right: 1px solid rgba(196,154,108,0.15);
+    flex-shrink: 0;
+  }
+  .platform-label span {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: clamp(6px, 1.65%, 11px);
+    font-weight: 700;
+    color: #C49A6C;
+    writing-mode: horizontal-tb;
+    white-space: nowrap;
+  }
+
+  .platform-items {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 0;
+  }
+  .platform-item {
+    flex: 1;
+    padding: 2.8% 3%;
+    border-right: 1px solid rgba(255,255,255,0.06);
+  }
+  .platform-item:last-child { border-right: none; }
+  .platform-item-title {
+    font-size: clamp(5.5px, 1.5%, 10px);
+    font-weight: 700;
+    color: rgba(255,255,255,0.88);
+    margin-bottom: 1%;
+  }
+  .platform-item-desc {
+    font-size: clamp(4.5px, 1.2%, 8.5px);
+    color: rgba(255,255,255,0.42);
+    line-height: 1.35;
+  }
+
+  /* CTA row */
+  .cta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4%;
+  }
+
+  .trust-lines { display: flex; flex-direction: column; gap: 1.5%; flex: 1; }
+  .trust-item {
+    font-size: clamp(5px, 1.3%, 9px);
+    color: rgba(255,255,255,0.42);
+    display: flex;
+    align-items: center;
+    gap: 1.5%;
+    line-height: 1.35;
+  }
+  .trust-item::before {
+    content: '';
+    display: inline-block;
+    width: clamp(2.5px, 0.45%, 4px);
+    height: clamp(2.5px, 0.45%, 4px);
+    border-radius: 50%;
+    background: rgba(196,154,108,0.55);
+    flex-shrink: 0;
+  }
+
+  .cta-group {
+    display: flex;
+    align-items: flex-end;
+    gap: 4%;
+    flex-shrink: 0;
+  }
+
+  .cta-block { display: flex; flex-direction: column; align-items: center; gap: 2%; }
+  .cta {
+    display: block;
+    background: transparent;
+    color: #C49A6C;
+    font-weight: 800;
+    font-size: clamp(7px, 1.8%, 13px);
+    padding: 4% 8%;
+    border-radius: clamp(3px, 0.7%, 6px);
+    border: 1.5px solid #C49A6C;
+    text-decoration: none;
+    white-space: nowrap;
+    letter-spacing: 0.01em;
+    text-align: center;
+  }
+  .url {
+    font-size: clamp(4.5px, 1.2%, 9px);
+    color: rgba(255,255,255,0.25);
+    letter-spacing: 0.06em;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 2%; }
+  .qr-wrap img {
+    width: clamp(32px, 9.5%, 60px);
+    height: clamp(32px, 9.5%, 60px);
+    border-radius: clamp(2px, 0.5%, 5px);
+    display: block;
+  }
+  .qr-label {
+    font-size: clamp(4px, 1.05%, 7.5px);
+    color: rgba(255,255,255,0.28);
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+<div class="ad-wrap">
+  <div class="bg"></div>
+  <div class="vignette"></div>
+  <div class="overlay"></div>
+  <div class="top-bar"></div>
+  <div class="bottom-bar"></div>
+  <div class="left-rule"></div>
+
+  <div class="inner">
+
+    <!-- TOP: logo + subtle issue marker -->
+    <div class="top-section">
+      <img class="logo" src="/__mockup/bde-farm-trac-logo.png" alt="BDE Farm Trac"/>
+      <div class="issue-tag">Viticulture &amp; Winery<br>Management Platform</div>
+    </div>
+
+    <!-- HERO: eyebrow + headline + subline + features -->
+    <div class="hero">
+      <div class="eyebrow">Compliance · Records · Cloud-based · UK vineyards</div>
+      <div class="headline">
+        Every vintage.<br>
+        Every record.<br>
+        <em>Audit-ready.</em>
+      </div>
+      <div class="subline">The complete compliance and records platform for UK vineyards and wineries — from planting right through to the bottle. Built for Red Tractor, organic certification, PDO&nbsp;/&nbsp;PGI, and excise duty from day one.</div>
+
+      <div class="feature-grid">
+        <span class="feat">Vine register &amp; phenology log</span>
+        <span class="feat">PDO &amp; PGI designation records</span>
+        <span class="feat">Spray &amp; disease scouting logs</span>
+        <span class="feat">Harvest &amp; must chemistry records</span>
+        <span class="feat">Winery &amp; cellar operations</span>
+        <span class="feat">Excise &amp; duty records</span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- BOTTOM: platform callout + trust + CTA -->
+    <div class="bottom-section">
+
+      <!-- Horizontal platform strip -->
+      <div class="platform-strip">
+        <div class="platform-label"><span>Full farm platform included</span></div>
+        <div class="platform-items">
+          <div class="platform-item">
+            <div class="platform-item-title">Red Tractor</div>
+            <div class="platform-item-desc">Spray logs, staff certs &amp; evidence</div>
+          </div>
+          <div class="platform-item">
+            <div class="platform-item-title">Organic</div>
+            <div class="platform-item-desc">Input register &amp; derogation records</div>
+          </div>
+          <div class="platform-item">
+            <div class="platform-item-title">Stewardship</div>
+            <div class="platform-item-desc">Scheme records &amp; payment tracking</div>
+          </div>
+          <div class="platform-item">
+            <div class="platform-item-title">Cloud Security</div>
+            <div class="platform-item-desc">Encrypted &amp; auto-backed-up</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trust lines + CTA + QR -->
+      <div class="cta-row">
+        <div class="trust-lines">
+          <span class="trust-item">Cloud-hosted — no software to install, access anywhere</span>
+          <span class="trust-item">Simple monthly subscription · 30-day free trial, no card required</span>
+          <span class="trust-item">UK-based support team · onboarding included</span>
+        </div>
+        <div class="cta-group">
+          <div class="cta-block">
+            <a class="cta" href="https://bdefarmtrac.co.uk" target="_blank" rel="noopener">Register your interest</a>
+            <span class="url">bdefarmtrac.co.uk</span>
+          </div>
+          <div class="qr-wrap">
+            <img src="/__mockup/qr-bdefarmtrac.png" alt="QR — bdefarmtrac.co.uk"/>
+            <span class="qr-label">Scan to visit</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</body>
+</html>
