@@ -384,6 +384,7 @@ export async function printVineRegister(
   fsaVineRef?: string,
   farmId?: number,
   blocks?: Record<string, unknown>[],
+  farmMeta?: Record<string, unknown> | null,
 ) {
   // Open the window SYNCHRONOUSLY here, while still inside the click-handler's
   // user-activation context, so browsers don't block the popup.
@@ -486,6 +487,7 @@ export async function printVineRegister(
 
   const safeFarmName = escHtml(farmName);
   const safeFsaRef = fsaVineRef ? escHtml(fsaVineRef) : "";
+  const safeAddress = farmMeta?.address ? escHtml(farmMeta.address) : "";
 
   // ── 4. Build the full HTML document ──────────────────────────────────────
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
@@ -519,7 +521,7 @@ export async function printVineRegister(
       <h1>FSA Vine Register</h1>
       <div class="meta">
         <strong>${safeFarmName}</strong>${safeFsaRef ? ` &nbsp;&middot;&nbsp; FSA Ref: <strong>${safeFsaRef}</strong>` : ""}<br>
-        Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} entr${records.length === 1 ? "y" : "ies"}
+        ${safeAddress ? `${safeAddress}<br>` : ""}Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} entr${records.length === 1 ? "y" : "ies"}
       </div>
       <div class="badges">
         <span class="badge badge-green">Active: ${activeCount}</span>
