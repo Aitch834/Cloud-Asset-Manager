@@ -30,3 +30,10 @@ id = "Qu4pWeTuGm3G9-Y_r5svh"
 uri = "file://artifacts/mockup-sandbox/public/bde-farm-trac-logo.svg"
 type = "image"
 title = "BDE Farm Trac Logo (SVG — for embroidery & print)"
+
+[[outputs]]
+id = "6VjalNHg9ucnfs6Oje7J4"
+uri = "file://BDE-FarmTrac-VineyardMag-Ads.zip"
+type = "unspecified"
+title = "BDE Farm Trac — Vineyard Magazine Ads"
+description = "Half-page horizontal + full-page portrait ad layouts, plus a full publisher/printer briefing document. Open the HTML files in any browser to preview; hand the briefing to your designer for the InDesign rebuild."
