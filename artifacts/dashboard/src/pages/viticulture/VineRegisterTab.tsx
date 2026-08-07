@@ -9,7 +9,7 @@ import {
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
-  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, ExternalLink,
+  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, ExternalLink, Link,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -68,6 +68,10 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
   const varieties = useLookupStrings("vineyard_grape_varieties", UK_GRAPE_VARIETIES);
   const [varietyOther, setVarietyOther] = useState(false);
   const [highlightDismissed, setHighlightDismissed] = useState(false);
+  const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
+  const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   // Reset dismiss state whenever a new block is highlighted
   useEffect(() => {
@@ -186,6 +190,50 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
     setOpen(false);
   };
 
+  // ── Bulk-link ─────────────────────────────────────────────────────────────
+  const unlinkedEntries = useMemo(() => data.filter(r => !r.blockId), [data]);
+
+  const suggestBlockForEntry = (entry: VineReg): number | null => {
+    if (!entry.registeredVariety) return null;
+    const variety = String(entry.registeredVariety).toLowerCase().trim();
+    const match = blocks.find(b => b.variety && String(b.variety).toLowerCase().trim() === variety);
+    return match ? Number(match.id) : null;
+  };
+
+  const openBulkLink = () => {
+    const initial: Record<number, number | null> = {};
+    for (const entry of unlinkedEntries) {
+      initial[entry.id as number] = suggestBlockForEntry(entry);
+    }
+    setBulkLinks(initial);
+    setBulkLinkOpen(true);
+  };
+
+  const bulkLinkMutation = useMutation({
+    mutationFn: async (links: Record<number, number | null>) => {
+      const toSave = Object.entries(links).filter(([, blockId]) => blockId !== null);
+      if (!toSave.length) return 0;
+      await Promise.all(
+        toSave.map(([id, blockId]) =>
+          fetch(api(`farms/${farmId}/vine-register/${id}`), {
+            method: "PUT",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ blockId }),
+          }).then(r => { if (!r.ok) throw new Error("Failed to link entry"); return r.json(); })
+        )
+      );
+      return toSave.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ["vine-register", farmId] });
+      setBulkLinkOpen(false);
+      toast({ title: `${count} ${count === 1 ? "entry" : "entries"} linked`, description: "Block links saved successfully." });
+    },
+  });
+
+  const bulkLinkCount = Object.values(bulkLinks).filter(v => v !== null).length;
+
   const csvCols = [
     { key: "fsaVineRegisterRef", label: "FSA Ref" },
     { key: "registeredVariety", label: "Variety" },
@@ -231,7 +279,12 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
           <p className="font-semibold">FSA Vine Register</p>
           <p className="text-xs text-muted-foreground">Mandatory for all UK vineyards over 0.01 ha. Keep this up to date and report any changes to the Food Standards Agency.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
+          {unlinkedEntries.length > 0 && (
+            <Button size="sm" variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-50" onClick={openBulkLink}>
+              <Link className="w-4 h-4 mr-1" />Link unlinked entries ({unlinkedEntries.length})
+            </Button>
+          )}
           <Button size="sm" variant="outline" onClick={() => exportCSV(displayRows, "vine-register.csv", csvCols)} disabled={!displayRows.length}><FileDown className="w-4 h-4 mr-1" />Export CSV{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
           <Button size="sm" variant="outline" onClick={() => void printVineRegister(displayRows, farmName, farmFsaVineRef || undefined, farmId, blocks)} disabled={!displayRows.length}><Printer className="w-4 h-4 mr-1" />Print Register{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Entry</Button>
@@ -426,6 +479,78 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
           module="Viticulture"
         />
       )}
+
+      {/* Bulk-link Dialog */}
+      <Dialog open={bulkLinkOpen} onOpenChange={o => { if (!o) { setBulkLinkOpen(false); bulkLinkMutation.reset(); } }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Link unlinked entries to blocks</DialogTitle>
+            <DialogDescription>
+              Assign each unlinked Vine Register entry to a vineyard block. Entries already linked to a block are not shown. Where a variety matches a block, it has been pre-selected.
+            </DialogDescription>
+          </DialogHeader>
+          {unlinkedEntries.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">All entries are already linked to blocks.</p>
+          ) : (
+            <div className="space-y-1 mt-1">
+              <div className="grid grid-cols-[1fr_1fr_1.5fr] gap-x-3 px-1 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b">
+                <span>Variety</span>
+                <span>FSA Ref</span>
+                <span>Link to block</span>
+              </div>
+              {unlinkedEntries.map(entry => {
+                const entryId = entry.id as number;
+                const selectedBlockId = bulkLinks[entryId] ?? null;
+                const isAutoSuggested = suggestBlockForEntry(entry) !== null && selectedBlockId === suggestBlockForEntry(entry);
+                return (
+                  <div key={entryId} className="grid grid-cols-[1fr_1fr_1.5fr] gap-x-3 items-center px-1 py-1.5 rounded hover:bg-muted/30">
+                    <span className="text-sm truncate" title={String(entry.registeredVariety ?? "")}>
+                      {String(entry.registeredVariety ?? <span className="text-muted-foreground italic">Unknown</span>)}
+                    </span>
+                    <span className="text-sm text-muted-foreground truncate font-mono" title={String(entry.fsaVineRegisterRef ?? "")}>
+                      {String(entry.fsaVineRegisterRef ?? "—")}
+                    </span>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Select
+                        value={selectedBlockId !== null ? String(selectedBlockId) : "__none__"}
+                        onValueChange={v => setBulkLinks(prev => ({ ...prev, [entryId]: v === "__none__" ? null : Number(v) }))}
+                      >
+                        <SelectTrigger className={`h-8 text-xs flex-1 min-w-0 ${selectedBlockId !== null ? "border-green-400 text-green-800 bg-green-50" : ""}`}>
+                          <SelectValue placeholder="— No link —" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— No link —</SelectItem>
+                          {blocks.map(b => (
+                            <SelectItem key={String(b.id)} value={String(b.id)}>
+                              {String(b.blockName)}{b.variety ? ` (${String(b.variety)})` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {isAutoSuggested && (
+                        <span title="Auto-matched by variety">
+                          <Grape className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <DialogMutationError mutation={bulkLinkMutation} message="Some links could not be saved. Please try again." />
+          <DialogFooter className="mt-2">
+            <Button variant="outline" onClick={() => setBulkLinkOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => bulkLinkMutation.mutate(bulkLinks)}
+              disabled={bulkLinkCount === 0 || bulkLinkMutation.isPending}
+            >
+              {bulkLinkMutation.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+              Save {bulkLinkCount > 0 ? `${bulkLinkCount} link${bulkLinkCount === 1 ? "" : "s"}` : "links"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); add.reset(); edit.reset(); } }}>
