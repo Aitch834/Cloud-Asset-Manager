@@ -63,6 +63,12 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId }: { farmId: numb
   const [viewing, setViewing] = useState<Scouting | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Scouting | null>(null);
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [blockFilter, setBlockFilter] = useState<string>(highlightBlockId ? String(highlightBlockId) : "__all__");
+
+  // Sync block filter when navigating from a block card
+  useEffect(() => {
+    if (highlightBlockId) setBlockFilter(String(highlightBlockId));
+  }, [highlightBlockId]);
   const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
     queryKey: ["farm-staff", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/staff`), { credentials: "include" }).then(r => r.json()),
@@ -123,7 +129,9 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId }: { farmId: numb
 
   const scoutingYears = Array.from(new Set(data.map(r => new Date(r.scoutDate as string).getFullYear()))).sort((a, b) => b - a);
   if (!scoutingYears.includes(new Date().getFullYear())) scoutingYears.unshift(new Date().getFullYear());
-  const filteredScouting = yearFilter === "all" ? data : data.filter(r => new Date(r.scoutDate as string).getFullYear() === Number(yearFilter));
+  const yearFiltered = yearFilter === "all" ? data : data.filter(r => new Date(r.scoutDate as string).getFullYear() === Number(yearFilter));
+  const filteredScouting = blockFilter === "__all__" ? yearFiltered : yearFiltered.filter(r => String(r.blockId) === blockFilter);
+  const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin w-6 h-6 text-muted-foreground" /></div>;
 
@@ -140,12 +148,27 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId }: { farmId: numb
           </div>
         </div>
       )}
+      {/* Block highlight banner */}
+      {highlightBlockId && blockFilter === String(highlightBlockId) && highlightedBlockName && (
+        <div className="flex items-center gap-2.5 rounded-md border border-purple-200 bg-purple-50 px-3 py-2 text-sm text-purple-800">
+          <Bug className="w-4 h-4 shrink-0 text-purple-600" />
+          <span>Showing scouting records for <span className="font-semibold">{highlightedBlockName}</span></span>
+          <button type="button" className="ml-auto text-xs underline underline-offset-2 hover:text-purple-900" onClick={() => setBlockFilter("__all__")}>Show all blocks</button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <p className="font-semibold">Disease & Pest Scouting</p>
           <p className="text-xs text-muted-foreground">Regular scouting records demonstrate due diligence for plant health and inform spray timing decisions.</p>
         </div>
         <div className="flex gap-2 items-center">
+          <Select value={blockFilter} onValueChange={setBlockFilter}>
+            <SelectTrigger className={`w-36 h-8 text-xs ${blockFilter !== "__all__" ? "border-purple-400 text-purple-700" : ""}`}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All blocks</SelectItem>
+              {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>{String(b.blockName)}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Select value={yearFilter} onValueChange={setYearFilter}>
             <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>

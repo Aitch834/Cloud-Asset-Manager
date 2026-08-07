@@ -66,6 +66,15 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
   const [raiseTaskFor, setRaiseTaskFor] = useState<VineReg | null>(null);
   const varieties = useLookupStrings("vineyard_grape_varieties", UK_GRAPE_VARIETIES);
   const [varietyOther, setVarietyOther] = useState(false);
+  const [highlightDismissed, setHighlightDismissed] = useState(false);
+
+  // Reset dismiss state whenever a new block is highlighted
+  useEffect(() => {
+    if (highlightBlockId) setHighlightDismissed(false);
+  }, [highlightBlockId]);
+
+  const activeHighlight = highlightBlockId && !highlightDismissed;
+  const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
 
   // ── Filter & sort state ────────────────────────────────────────────────────
   const [filterStatus, setFilterStatus] = useState<"" | "active" | "removed">("");
@@ -167,6 +176,14 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
 
   return (
     <div className="space-y-4">
+      {/* Block highlight banner */}
+      {activeHighlight && highlightedBlockName && (
+        <div className="flex items-center gap-2.5 rounded-md border border-purple-200 bg-purple-50 px-3 py-2 text-sm text-purple-800">
+          <ClipboardList className="w-4 h-4 shrink-0 text-purple-600" />
+          <span>Entries linked to <span className="font-semibold">{highlightedBlockName}</span> are highlighted below</span>
+          <button type="button" className="ml-auto text-xs underline underline-offset-2 hover:text-purple-900" onClick={() => setHighlightDismissed(true)}>Dismiss</button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <p className="font-semibold">FSA Vine Register</p>
@@ -257,6 +274,7 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
         onEdit={openEdit}
         onDelete={r => remove.mutateAsync(r.id as number)} deleteMutation={remove}
         sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
+        rowClassName={activeHighlight ? r => r.blockId === highlightBlockId ? "bg-purple-50 border-l-2 border-l-purple-400" : "" : undefined}
       />
 
       {/* View Dialog */}

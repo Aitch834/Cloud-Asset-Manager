@@ -467,7 +467,7 @@ export function Empty({ msg }: { msg: string }) {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 export { ConfirmDialog };
 
-export function DataTable({ cols, rows, onEdit, onDelete, onView, deleteMutation, sortKey, sortDir, onSort }: {
+export function DataTable({ cols, rows, onEdit, onDelete, onView, deleteMutation, sortKey, sortDir, onSort, rowClassName }: {
   cols: { key: string; label: string; sortable?: boolean; render?: (r: Record<string, unknown>) => ReactNode }[];
   rows: Record<string, unknown>[];
   onEdit?: (r: Record<string, unknown>) => void;
@@ -477,6 +477,7 @@ export function DataTable({ cols, rows, onEdit, onDelete, onView, deleteMutation
   sortKey?: string;
   sortDir?: "asc" | "desc";
   onSort?: (key: string) => void;
+  rowClassName?: (r: Record<string, unknown>) => string;
 }) {
   const [pending, setPending] = useState<Record<string, unknown> | null>(null);
   useEffect(() => { if (deleteMutation?.isSuccess) setPending(null); }, [deleteMutation?.isSuccess]);
@@ -509,7 +510,7 @@ export function DataTable({ cols, rows, onEdit, onDelete, onView, deleteMutation
             </tr>
           </thead>
           <tbody>{rows.map((row, i) => (
-            <tr key={i} className="border-b last:border-0">
+            <tr key={i} className={`border-b last:border-0 ${rowClassName ? rowClassName(row) : ""}`}>
               {cols.map(c => <td key={c.key} className="py-2 pr-4">{c.render ? c.render(row) : fmt(row[c.key])}</td>)}
               {(onEdit || onDelete || onView) && (
                 <td className="py-2 text-right space-x-1 whitespace-nowrap">
