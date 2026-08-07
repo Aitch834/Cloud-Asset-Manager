@@ -1,5 +1,6 @@
 import { useFarmName } from "@/hooks/use-farm-name";
 import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
@@ -57,6 +58,7 @@ type VineReg = Record<string, unknown>;
 export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number }) {
   const { data, isLoading, add, edit, remove } = useCrud<VineReg>(farmId, "vine-register", "vine-register");
   const farmName = useFarmName(farmId);
+  const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState<VineReg | null>(null);
   const [form, setForm] = useState<VineReg>({});
@@ -176,6 +178,24 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Entry</Button>
         </div>
       </div>
+
+      {/* FSA ref missing warning */}
+      {!farmFsaVineRef && (
+        <div className="flex items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+          <span>
+            <span className="font-medium">FSA Vine Register Reference not set.</span>{" "}
+            Your printed register will be missing this reference.{" "}
+            <button
+              type="button"
+              className="underline underline-offset-2 hover:text-amber-900 font-medium"
+              onClick={() => setLocation("/settings/farm")}
+            >
+              Add it in Farm Settings → Viticulture Registrations
+            </button>
+          </span>
+        </div>
+      )}
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2">
