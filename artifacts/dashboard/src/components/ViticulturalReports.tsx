@@ -733,6 +733,104 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
         )}
       </div>
 
+      {/* Per-block yield summary */}
+      {vintageHarvest.length > 0 && (() => {
+        // Aggregate harvest records per block
+        const blockSummaryMap: Record<number | string, {
+          blockId: number | null; blockName: string; variety: string; areaHa: number;
+          totalKg: number; brixSum: number; brixCount: number;
+          phSum: number; phCount: number; taSum: number; taCount: number;
+          potAlcSum: number; potAlcCount: number;
+        }> = {};
+        vintageHarvest.forEach(h => {
+          const key = h.blockId ?? "unknown";
+          if (!blockSummaryMap[key]) {
+            const bl = h.blockId != null ? blockMap[h.blockId] : undefined;
+            blockSummaryMap[key] = {
+              blockId: h.blockId,
+              blockName: bl?.blockName ?? fmt(h.blockId),
+              variety: bl?.variety ?? "—",
+              areaHa: bl != null ? n(bl.areaHa) : 0,
+              totalKg: 0, brixSum: 0, brixCount: 0,
+              phSum: 0, phCount: 0, taSum: 0, taCount: 0,
+              potAlcSum: 0, potAlcCount: 0,
+            };
+          }
+          const row = blockSummaryMap[key];
+          row.totalKg += n(h.yieldKg);
+          if (h.brix != null && h.brix !== "") { row.brixSum += n(h.brix); row.brixCount++; }
+          if (h.ph != null && h.ph !== "") { row.phSum += n(h.ph); row.phCount++; }
+          if (h.titratableAcidityGl != null && h.titratableAcidityGl !== "") { row.taSum += n(h.titratableAcidityGl); row.taCount++; }
+          if (h.potentialAlcohol != null && h.potentialAlcohol !== "") { row.potAlcSum += n(h.potentialAlcohol); row.potAlcCount++; }
+        });
+        const summaryRows = Object.values(blockSummaryMap).sort((a, b) => a.blockName.localeCompare(b.blockName));
+        const summTotalKg = summaryRows.reduce((s, r) => s + r.totalKg, 0);
+        const summTotalArea = summaryRows.reduce((s, r) => s + r.areaHa, 0);
+        const summAvgTha = summTotalArea > 0 ? summTotalKg / 1000 / summTotalArea : 0;
+        const summBrixAll = summaryRows.flatMap(r => r.brixCount > 0 ? [r.brixSum / r.brixCount] : []);
+        const summPhAll = summaryRows.flatMap(r => r.phCount > 0 ? [r.phSum / r.phCount] : []);
+        const summPotAlcAll = summaryRows.flatMap(r => r.potAlcCount > 0 ? [r.potAlcSum / r.potAlcCount] : []);
+        const summAvgBrix = summBrixAll.length > 0 ? summBrixAll.reduce((a, b) => a + b, 0) / summBrixAll.length : null;
+        const summAvgPh = summPhAll.length > 0 ? summPhAll.reduce((a, b) => a + b, 0) / summPhAll.length : null;
+        const summAvgPotAlc = summPotAlcAll.length > 0 ? summPotAlcAll.reduce((a, b) => a + b, 0) / summPotAlcAll.length : null;
+
+        return (
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-border bg-muted/30">
+              <h3 className="text-sm font-semibold">Yield Summary by Block — {year} Vintage</h3>
+              <p className="text-xs text-foreground/40">Aggregated totals and averages per block</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/20 text-foreground/60 text-xs">
+                    <th className="px-4 py-2 text-left">Block</th>
+                    <th className="px-4 py-2 text-left">Variety</th>
+                    <th className="px-4 py-2 text-right">Area (ha)</th>
+                    <th className="px-4 py-2 text-right">Total Yield (kg)</th>
+                    <th className="px-4 py-2 text-right">Yield (t/ha)</th>
+                    <th className="px-4 py-2 text-right">Avg Brix °</th>
+                    <th className="px-4 py-2 text-right">Avg pH</th>
+                    <th className="px-4 py-2 text-right">Avg TA (g/L)</th>
+                    <th className="px-4 py-2 text-right">Avg Pot. Alc %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summaryRows.map((row, i) => {
+                    const tha = row.areaHa > 0 ? row.totalKg / 1000 / row.areaHa : null;
+                    return (
+                      <tr key={i} className="border-t border-border/40 hover:bg-muted/20">
+                        <td className="px-4 py-2 font-medium">{row.blockName}</td>
+                        <td className="px-4 py-2 text-foreground/60 text-xs">{row.variety}</td>
+                        <td className="px-4 py-2 text-right font-mono">{row.areaHa > 0 ? row.areaHa.toFixed(2) : "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono">{row.totalKg > 0 ? row.totalKg.toFixed(0) : "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono">{tha != null ? tha.toFixed(2) : "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono">{row.brixCount > 0 ? (row.brixSum / row.brixCount).toFixed(1) : "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono">{row.phCount > 0 ? (row.phSum / row.phCount).toFixed(2) : "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono">{row.taCount > 0 ? (row.taSum / row.taCount).toFixed(1) : "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono">{row.potAlcCount > 0 ? (row.potAlcSum / row.potAlcCount).toFixed(1) : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-border bg-muted/20 font-semibold text-xs">
+                    <td className="px-4 py-2" colSpan={2}>Season Totals / Averages</td>
+                    <td className="px-4 py-2 text-right font-mono font-bold">{summTotalArea > 0 ? summTotalArea.toFixed(2) : "—"}</td>
+                    <td className="px-4 py-2 text-right font-mono font-bold">{summTotalKg > 0 ? summTotalKg.toFixed(0) : "—"}</td>
+                    <td className="px-4 py-2 text-right font-mono font-bold">{summAvgTha > 0 ? summAvgTha.toFixed(2) : "—"}</td>
+                    <td className="px-4 py-2 text-right font-mono font-bold">{summAvgBrix != null ? summAvgBrix.toFixed(1) : "—"}</td>
+                    <td className="px-4 py-2 text-right font-mono font-bold">{summAvgPh != null ? summAvgPh.toFixed(2) : "—"}</td>
+                    <td className="px-4 py-2" />
+                    <td className="px-4 py-2 text-right font-mono font-bold">{summAvgPotAlc != null ? summAvgPotAlc.toFixed(1) : "—"}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Disease pressure season peak summary */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="px-4 py-3 border-b border-border bg-muted/30">
