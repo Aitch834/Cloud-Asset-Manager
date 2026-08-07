@@ -53,84 +53,73 @@ import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { apiUrl as api } from "@/lib/api";
 import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn, useFarmMeta } from "./shared";
 
-// ─── Farm Settings completeness checklist ─────────────────────────────────────
+// ─── FSA / APPA registration completeness bar ─────────────────────────────────
 
-type ChecklistField = {
+type FsaField = {
   label: string;
   value: unknown;
-  hint: string;
 };
 
-function FarmSettingsChecklist({ farmId }: { farmId: number }) {
+function FsaCompletenessBar({ farmId }: { farmId: number }) {
   const { farmRecord, isLoading } = useFarmMeta(farmId);
   const [, navigate] = useLocation();
 
   if (isLoading) return null;
 
-  const fields: ChecklistField[] = [
-    { label: "Farm name", value: farmRecord?.name, hint: "General Information" },
-    { label: "Farm address", value: farmRecord?.address, hint: "General Information" },
-    { label: "FSA Vine Register Ref", value: farmRecord?.fsaVineRegisterRef, hint: "Viticulture & Wine" },
-    { label: "FSA Wine Production Ref", value: farmRecord?.fsaWineProductionRef, hint: "Viticulture & Wine" },
+  const fields: FsaField[] = [
+    { label: "FSA Vine Register Ref", value: farmRecord?.fsaVineRegisterRef },
+    { label: "FSA Wine Production Ref", value: farmRecord?.fsaWineProductionRef },
+    { label: "APPA Ref", value: farmRecord?.appaRef },
   ];
 
-  const missing = fields.filter(f => !f.value || String(f.value).trim() === "");
-  const allComplete = missing.length === 0;
+  const allComplete = fields.every(f => !!f.value && String(f.value).trim() !== "");
 
-  if (allComplete) {
-    return (
-      <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
-        <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
-        <span className="font-medium">Farm Settings complete</span>
-        <span className="text-green-700">— all required viticulture fields are filled in.</span>
-      </div>
-    );
-  }
+  // Hide the bar once everything is filled in
+  if (allComplete) return null;
 
   return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-      <div className="flex items-start gap-2.5 mb-3">
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5">
+      <div className="flex items-start gap-2.5 mb-2.5">
         <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
         <div>
-          <p className="text-sm font-semibold text-amber-800">Farm Settings incomplete</p>
+          <p className="text-sm font-semibold text-amber-800">FSA / APPA registration incomplete</p>
           <p className="text-xs text-amber-700 mt-0.5">
-            {missing.length} field{missing.length === 1 ? "" : "s"} below {missing.length === 1 ? "is" : "are"} missing — your printed reports will have blank header fields.
+            Missing references will appear blank in printed reports. Add them in{" "}
+            <button
+              type="button"
+              className="underline underline-offset-2 hover:text-amber-900 font-medium"
+              onClick={() => navigate("/settings/farm")}
+            >
+              Farm Settings → Viticulture &amp; Wine
+            </button>
+            .
           </p>
         </div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div className="flex flex-wrap gap-2">
         {fields.map(f => {
           const filled = !!f.value && String(f.value).trim() !== "";
           return (
-            <div key={f.label} className="flex items-center gap-2 text-sm">
-              {filled
-                ? <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
-                : <XCircle className="w-4 h-4 shrink-0 text-amber-500" />
+            <button
+              key={f.label}
+              type="button"
+              className={
+                filled
+                  ? "inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-800 cursor-default"
+                  : "inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-white px-3 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 transition-colors"
               }
-              <span className={filled ? "text-green-800" : "text-amber-800"}>
-                {f.label}
-              </span>
-              {!filled && (
-                <button
-                  type="button"
-                  className="ml-auto text-xs text-amber-700 underline underline-offset-2 hover:text-amber-900 font-medium whitespace-nowrap"
-                  onClick={() => navigate("/settings/farm")}
-                >
-                  Add →
-                </button>
-              )}
-            </div>
+              onClick={() => { if (!filled) navigate("/settings/farm"); }}
+              disabled={filled}
+            >
+              {filled
+                ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-green-600" />
+                : <XCircle className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+              }
+              {f.label}
+              {!filled && <span className="text-amber-500 ml-0.5">→</span>}
+            </button>
           );
         })}
-      </div>
-      <div className="mt-3 pt-2.5 border-t border-amber-200">
-        <button
-          type="button"
-          className="text-xs text-amber-700 underline underline-offset-2 hover:text-amber-900 font-medium"
-          onClick={() => navigate("/settings/farm")}
-        >
-          Open Farm Settings →
-        </button>
       </div>
     </div>
   );
@@ -155,7 +144,7 @@ export function OverviewTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-6">
-      <FarmSettingsChecklist farmId={farmId} />
+      <FsaCompletenessBar farmId={farmId} />
       {xylellaAlert && (
         <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-lg p-4">
           <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
