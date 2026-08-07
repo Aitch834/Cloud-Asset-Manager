@@ -49,6 +49,7 @@ import { VineyardBlockMapTab } from "@/components/viticulture/VineyardBlockMapTa
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
 import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printVineRegister, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, VIVC_VARIETY_MAP, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
@@ -76,15 +77,41 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
   const activeHighlight = highlightBlockId && !highlightDismissed;
   const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
 
-  // ── Filter & sort state ────────────────────────────────────────────────────
-  const [filterStatus, setFilterStatus] = useState<"" | "active" | "removed">("");
-  const [filterGI, setFilterGI] = useState("");
-  const [filterColour, setFilterColour] = useState("");
-  const [sortKey, setSortKey] = useState("");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  // ── Filter & sort state (persisted per farm) ──────────────────────────────
+  const STATUS_VALUES = ["", "active", "removed"] as const;
+  const [filterStatusRaw, setFilterStatus] = usePersistedFilter({
+    page: "vine-register", filter: "status", farmId,
+    defaultValue: "", validValues: STATUS_VALUES,
+  });
+  const filterStatus = filterStatusRaw as "" | "active" | "removed";
+
+  const GI_OPTIONS = ["English Wine PDO", "English Wine PGI", "Welsh Wine PDO", "Welsh Wine PGI", "UK Table Wine", "No GI"];
+  const [filterGI, setFilterGI] = usePersistedFilter({
+    page: "vine-register", filter: "gi", farmId,
+    defaultValue: "", validValues: ["", ...GI_OPTIONS],
+  });
+
+  const COLOUR_OPTIONS = ["White", "Red", "Rosé", "Sparkling White", "Sparkling Rosé", "Sparkling Red"];
+  const [filterColour, setFilterColour] = usePersistedFilter({
+    page: "vine-register", filter: "colour", farmId,
+    defaultValue: "", validValues: ["", ...COLOUR_OPTIONS],
+  });
+
+  const SORT_KEYS = ["", "registeredVariety", "registeredAreaHa", "dateRegistered"];
+  const [sortKey, setSortKey] = usePersistedFilter({
+    page: "vine-register", filter: "sort-key", farmId,
+    defaultValue: "", validValues: SORT_KEYS,
+  });
+
+  const [sortDirRaw, setSortDirRaw] = usePersistedFilter({
+    page: "vine-register", filter: "sort-dir", farmId,
+    defaultValue: "asc", validValues: ["asc", "desc"],
+  });
+  const sortDir = sortDirRaw as "asc" | "desc";
+  const setSortDir = (d: "asc" | "desc") => setSortDirRaw(d);
 
   const handleSort = (key: string) => {
-    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
+    if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
     else { setSortKey(key); setSortDir("asc"); }
   };
 
@@ -114,8 +141,6 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
     return rows;
   }, [data, filterStatus, filterGI, filterColour, sortKey, sortDir]);
 
-  const GI_OPTIONS = ["English Wine PDO", "English Wine PGI", "Welsh Wine PDO", "Welsh Wine PGI", "UK Table Wine", "No GI"];
-  const COLOUR_OPTIONS = ["White", "Red", "Rosé", "Sparkling White", "Sparkling Rosé", "Sparkling Red"];
   const activeFilterCount = [filterStatus, filterGI, filterColour].filter(Boolean).length;
 
   // Fetch farm-level FSA Vine Register Ref stored in Farm Settings
