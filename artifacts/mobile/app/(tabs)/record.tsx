@@ -1128,6 +1128,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["viticulture"],
   },
   {
+    id: "vine-block-photos",
+    title: "Block Photo Gallery",
+    description: "View and add photos for a vineyard block — take a new shot in the field or pick from your camera roll to build a visual record of each block",
+    icon: "image",
+    color: "#7c3aed",
+    bgColor: "#ede9fe",
+    route: "/vine-block-photos",
+    moduleKeys: ["viticulture"],
+  },
+  {
     id: "vine-age-refusal",
     title: "Age Verification Refusal",
     description: "Log a Challenge 25 refusal — staff member, location, customer's estimated age, ID outcome and supervisor notification. Required by premises licence conditions.",

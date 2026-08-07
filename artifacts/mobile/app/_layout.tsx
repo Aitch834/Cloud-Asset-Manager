@@ -114,6 +114,7 @@ function RootLayoutNav() {
         <Stack.Screen name="hive-inspection" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="organic-poultry-feed" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="organic-poultry-access" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="vine-block-photos" options={{ headerShown: false }} />
       </Stack>
       <SyncStatusBar />
     </View>
