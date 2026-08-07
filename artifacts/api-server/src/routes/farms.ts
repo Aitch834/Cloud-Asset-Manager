@@ -37605,12 +37605,20 @@ router.put("/farms/:farmId/winery-pressing/:pressingId/additions/batch", require
 router.get("/farms/:farmId/winery-vessels", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   // Derive is_full from barrel fill history: a vessel is "full" when it has an open fill (no rack_out_date).
+  // empty_since = MAX(rack_out_date) across all fills when no open fill exists (for idle >90 days detection).
   const rows = await db.execute(sql`
     SELECT v.*,
       EXISTS(
         SELECT 1 FROM winery_barrel_fills f
         WHERE f.vessel_id = v.id AND f.rack_out_date IS NULL
-      ) AS is_full
+      ) AS is_full,
+      CASE WHEN NOT EXISTS(
+        SELECT 1 FROM winery_barrel_fills f
+        WHERE f.vessel_id = v.id AND f.rack_out_date IS NULL
+      ) THEN (
+        SELECT MAX(f.rack_out_date) FROM winery_barrel_fills f
+        WHERE f.vessel_id = v.id
+      ) ELSE NULL END AS empty_since
     FROM winery_vessels v
     WHERE v.farm_id = ${farmId}
     ORDER BY v.vessel_ref ASC
