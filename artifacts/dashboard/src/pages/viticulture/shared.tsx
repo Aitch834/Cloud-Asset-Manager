@@ -403,6 +403,7 @@ export async function printVineRegister(
 
   // ── 1. Fetch photo data-URLs for all blocks that appear in these records ──
   const photoDataUrl: Record<number, string> = {};
+  const photoCaption: Record<number, string> = {};
   if (farmId && blocks && blocks.length > 0) {
     const blockLookup: Record<number, Record<string, unknown>> = {};
     blocks.forEach(b => { blockLookup[b.id as number] = b; });
@@ -413,12 +414,14 @@ export async function printVineRegister(
       neededBlockIds.map(async blockId => {
         const block = blockLookup[blockId];
         if (!block) return;
-        const photos = block.photos as Array<{ id: number }> | undefined;
+        const photos = block.photos as Array<{ id: number; caption: string | null }> | undefined;
         if (!photos || photos.length === 0) return;
-        const photoId = photos[0].id;
+        const coverPhoto = photos[0];
+        const photoId = coverPhoto.id;
         const url = `/api/farms/${farmId}/vineyard-blocks/${blockId}/photos/${photoId}`;
         const dataUrl = await fetchImageAsDataUrl(url);
         if (dataUrl) photoDataUrl[blockId] = dataUrl;
+        if (coverPhoto.caption) photoCaption[blockId] = coverPhoto.caption;
       })
     );
   }
@@ -457,11 +460,13 @@ export async function printVineRegister(
         const block = !isNaN(bid) && bid > 0 ? blockLookup2[bid] : undefined;
         const blockLabel = block ? escHtml(String(block.blockName ?? "")) : "—";
         const dataUrl = bid > 0 ? photoDataUrl[bid] : undefined;
+        const caption = !isNaN(bid) && bid > 0 ? (photoCaption[bid] ?? "") : "";
         photoCell = `<td style="padding:4px 6px;vertical-align:middle;text-align:center;width:76px">
           ${dataUrl
             ? `<img src="${dataUrl}" alt="Block photo" style="width:60px;height:60px;object-fit:cover;border-radius:4px;border:1px solid #d1d5db;display:block;margin:0 auto 2px" />`
             : ""}
           <span style="font-size:9.5px;color:#555;display:block;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${blockLabel}</span>
+          ${caption ? `<span style="font-size:9px;color:#666;font-style:italic;display:block;max-width:72px;word-wrap:break-word;line-height:1.3;margin-top:2px">${escHtml(caption)}</span>` : ""}
         </td>`;
       }
 
