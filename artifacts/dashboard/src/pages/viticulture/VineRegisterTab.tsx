@@ -56,7 +56,7 @@ import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganic
 
 type VineReg = Record<string, unknown>;
 
-export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number }) {
+export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number; onNavigate?: (tab: string, blockId?: number) => void }) {
   const { data, isLoading, add, edit, remove } = useCrud<VineReg>(farmId, "vine-register", "vine-register");
   const farmName = useFarmName(farmId);
   const { farmRecord } = useFarmMeta(farmId);
@@ -524,7 +524,7 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
               <RecordAttachments farmId={farmId} recordType="vine-register" recordId={viewing.id} />
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="flex-wrap gap-y-2">
             <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
             <RaiseTaskBtn onClick={() => { setRaiseTaskFor(viewing); setViewing(null); }} />
             {!!viewing?.blockId && (
@@ -535,6 +535,24 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
               >
                 <Unlink className="w-4 h-4 mr-1" />Unlink Block
               </Button>
+            )}
+            {onNavigate && (
+              <>
+                <Button
+                  variant="outline"
+                  className="text-orange-700 border-orange-200 hover:bg-orange-50"
+                  onClick={() => { onNavigate("operations", viewing?.blockId as number | undefined); setViewing(null); }}
+                >
+                  <Wrench className="w-4 h-4 mr-1" />Operations
+                </Button>
+                <Button
+                  variant="outline"
+                  className="text-purple-700 border-purple-200 hover:bg-purple-50"
+                  onClick={() => { onNavigate("harvest", viewing?.blockId as number | undefined); setViewing(null); }}
+                >
+                  <Grape className="w-4 h-4 mr-1" />Harvest
+                </Button>
+              </>
             )}
             <Button onClick={() => { openEdit(viewing!); setViewing(null); }}>Edit</Button>
           </DialogFooter>

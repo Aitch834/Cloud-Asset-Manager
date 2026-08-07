@@ -168,7 +168,7 @@ export default function ViticulturePage() {
         )}
         <div className="bg-muted/30 rounded-xl p-4">
           {tab === "overview" && <OverviewTab farmId={selectedFarmId} />}
-          {tab === "vine-register" && <VineRegisterTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} />}
+          {tab === "vine-register" && <VineRegisterTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} onNavigate={handleNavigate} />}
           {tab === "blocks" && <BlocksTab farmId={selectedFarmId} onNavigate={handleNavigate} />}
           {tab === "block-map" && <VineyardBlockMapTab farmId={selectedFarmId} blocks={blocks.data} onNavigate={handleNavigate} />}
           {tab === "phenology" && <PhenologyTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} />}
