@@ -392,6 +392,26 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
           { key: "dateRegistered", label: "Date Registered", sortable: true, render: r => fmtDate(r.dateRegistered) },
           { key: "isRemovedFromRegister", label: "Status", render: r => <Badge variant={r.isRemovedFromRegister ? "destructive" : "default"}>{r.isRemovedFromRegister ? "Removed" : "Active"}</Badge> },
           {
+            key: "photo",
+            label: "Photo",
+            render: r => {
+              if (!r.blockId) return null;
+              const linked = blocks.find(b => b.id === r.blockId);
+              if (!linked) return null;
+              const photos = linked.photos as Array<{ id: number; caption: string | null }> | undefined;
+              if (!photos || photos.length === 0) return null;
+              const coverPhoto = photos[0];
+              return (
+                <img
+                  src={api(`farms/${farmId}/vineyard-blocks/${Number(r.blockId)}/photos/${coverPhoto.id}`)}
+                  alt={String(linked.blockName ?? "Block photo")}
+                  loading="lazy"
+                  className="w-12 h-12 object-cover rounded border border-border"
+                />
+              );
+            },
+          },
+          {
             key: "blockId",
             label: "Block",
             render: r => {
@@ -400,7 +420,7 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
               return (
                 <span className="inline-flex items-center gap-1 text-xs text-amber-600">
                   <AlertTriangle className="w-3 h-3 shrink-0" />
-                  Link to show photo
+                  Not linked
                 </span>
               );
             },
